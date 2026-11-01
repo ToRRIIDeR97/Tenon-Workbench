@@ -1,6 +1,6 @@
 # Architecture views (UML)
 
-This is the master graph document for the active Electron/OpenCode app. The
+This is the master graph document for the active Tenon Workbench Electron app. The
 [architecture overview](README.md) explains component boundaries in prose,
 and the [threat model](../security/threat-model.md) owns trust boundaries.
 This document holds the detailed views.
@@ -10,7 +10,7 @@ Conventions:
 - Notation follows [UML 2.5.1](https://www.omg.org/spec/UML/2.5.1). Each family
   appears in a fixed order: structural (component, deployment, class), then
   behavioral (activity, state machine), then interaction (sequence).
-- Source paths are relative to `opencode/packages/` unless a diagram says
+- Source paths are relative to `tenon/packages/` unless a diagram says
   otherwise.
 - Solid arrows are calls or data flow, and dashed arrows are replies or
   optional paths. Red boxes mark known gaps or relationships that haven't been
@@ -26,15 +26,15 @@ reading of the code, not a runtime trace, except where a step says it was run.
 
 ### Component
 
-![Component view: renderer, preload, Electron main, the bundled OpenCode server (HTTP API, Second Brain domains, location services, agent runtime), stores and external services](../diagrams/component-overview.svg)
+![Component view: renderer, preload, Electron main, the bundled Tenon server (HTTP API, Second Brain domains, location services, agent runtime), stores and external services](../diagrams/component-overview.svg)
 
 | Component | Responsibility | Source |
 | --- | --- | --- |
 | Solid renderer | Routes, server connection and capability detection, compat API, Second Brain pages | `app/src/app.tsx`, `app/src/context/server-sdk.tsx`, `app/src/utils/server-compat.ts`, `app/src/features/second-brain/client.ts` |
 | Preload bridge | Exposes `window.api` through an allowlist of IPC wrappers | `desktop/src/preload/index.ts` |
 | Electron main | App lifecycle, windows and URL policy, IPC handlers, server launch, Google service, drafts | `desktop/src/main/index.ts`, `ipc.ts`, `windows.ts`, `server.ts`, `google-calendar.ts`, `draft-store.ts` |
-| HTTP API | Native `/api` routes plus legacy instance routes, with Basic auth and workspace routing | `server/src/handlers/`, `protocol/src/groups/`, `opencode/src/server/routes/instance/httpapi/` |
-| Second Brain domains | Notes, project cards and timelines, local calendar | `opencode/src/knowledge/note.ts`, `opencode/src/project/brain.ts`, `opencode/src/planner/calendar.ts` |
+| HTTP API | Native `/api` routes plus legacy instance routes, with Basic auth and workspace routing | `server/src/handlers/`, `protocol/src/groups/`, `tenon/src/server/routes/instance/httpapi/` |
+| Second Brain domains | Notes, project cards and timelines, local calendar | `tenon/src/knowledge/note.ts`, `tenon/src/project/brain.ts`, `tenon/src/planner/calendar.ts` |
 | Location services | Path containment and compare-and-swap file writes | `core/src/location-mutation.ts`, `core/src/file-mutation.ts`, `core/src/location-services.ts` |
 | Agent runtime | Prompt admission, run draining, harness dispatch, permissions, durable events, snapshots | `core/src/session.ts`, `core/src/session/`, `core/src/harness.ts`, `core/src/harness/`, `core/src/permission.ts`, `core/src/event.ts`, `core/src/snapshot.ts` |
 
@@ -46,9 +46,9 @@ reading of the code, not a runtime trace, except where a step says it was run.
   ephemeral port. Its password is a UUID generated at each launch
   (`desktop/src/main/index.ts`, `server.ts`).
 - `userData` is `appData/<appId>`. The server sets `XDG_STATE_HOME` to
-  `userData` by default, but `auth.json` and `opencode.db` live in the XDG
+  `userData` by default, but `auth.json` and `tenon.db` live in the XDG
   data directory (`core/src/global.ts`, `core/src/database/database.ts`,
-  `opencode/src/auth/index.ts`).
+  `tenon/src/auth/index.ts`).
 - Those XDG directories are named `tenon-workbench`, separate from upstream
   OpenCode's `opencode` folders. `core/src/legacy-storage.ts` copies the
   legacy `opencode` data, config and state folders once on first start; see
@@ -57,7 +57,7 @@ reading of the code, not a runtime trace, except where a step says it was run.
   `userData` no longer collides with upstream OpenCode Desktop. On the dev
   channel, `desktop/src/main/user-data-migration.ts` copies the old
   `ai.opencode.desktop.dev` `userData` once before startup sets the path.
-- The `opencode-cli` daemon (`OPENCODE_SIDECAR_V2=1`) ships only in the
+- The `opencode-cli` daemon (`TENON_SIDECAR_V2=1`) ships only in the
   development channel. Packaging and update limits are covered in
   [release operations](../release-operations.md).
 
@@ -84,7 +84,7 @@ Notes on the class view:
   would exceed the read limit.
 - `BrainProject.location.path` names the Project's folder (inside the
   workspace's `projects` folder, or an absolute linked folder). A legacy
-  `location.workspaceId` is an OpenCode `Project.id`. A BrainProject's thread
+  `location.workspaceId` is a Tenon `Project.id`. A BrainProject's thread
   directory is its folder, else that Project's worktree, else its card folder
   `.tenon/projects/<id>/`. Sessions belong to it by the folder holding their
   `directory`, not by a stored foreign key.
@@ -128,7 +128,7 @@ Some details of the write path:
   failures are a logged 500. Logs carry the error tag, reason and relative
   path, never content.
 - When a request's workspace folder (`directory`, `location[directory]` or
-  `x-opencode-directory`) no longer exists, the server-wide error middleware
+  `x-tenon-directory`/`x-opencode-directory`) no longer exists, the server-wide error middleware
   turns the resulting defect into a 404 `WorkspaceFolderNotFoundError` instead
   of a 500. Other unexpected defects stay a logged 500 with an `err_` ref.
 - `FileMutation` replaces a file through a synced sibling temp file and a
@@ -218,20 +218,20 @@ question dock; see [Questions from harnesses](README.md#questions-from-harnesses
 | Page frame and visual system (Material 3 shape and motion tokens, motion helpers) | Subsystem | Text in [README](README.md#product-entry-points-and-persistence) | `app/src/components/page.tsx`, `ui/src/v2/styles/theme.css`, `ui/src/theme/v2/mapping.ts`, `ui/src/v2/components/*-v2.css`, `ui/src/styles/tailwind/` (motion utilities), `ui/src/v2/components/{reveal,presence,view-switch,motion}` (motion helpers), `ui/src/context/dialog.tsx` (dialog exit), `app/src/pages/page-motion.ts` (page fade-through key), `app/src/features/second-brain/side-panel.tsx`, `app/src/utils/{focus-when-connected,fresh-items,replay-animation}.ts` (shell motion) |
 | Preload and IPC | Subsystem | Component, Sequence: startup | `desktop/src/preload/index.ts`, `desktop/src/main/ipc.ts` |
 | Server launch and lifecycle | Subsystem | Deployment, State: sidecar, Sequence: startup | `desktop/src/main/server.ts`, `desktop/src/main/sidecar.ts`, `desktop/src/main/sidecar-supervisor.ts` |
-| Second Brain notes, projects, calendar | Subsystem | Component, Class, Activity: write, State: project status | `opencode/src/knowledge/`, `opencode/src/project/brain.ts`, `opencode/src/planner/calendar.ts` |
-| Workspace project scan and AGENTS.md defaults | Critical workflow | Class; text in [README](README.md#projects-and-thread-directories) | `opencode/src/project/brain.ts` (`scan`, `link`, `unlink`, instructions), `core/src/workspace-instructions.ts`, `core/src/instruction-context.ts`, `opencode/src/session/instruction.ts` |
+| Second Brain notes, projects, calendar | Subsystem | Component, Class, Activity: write, State: project status | `tenon/src/knowledge/`, `tenon/src/project/brain.ts`, `tenon/src/planner/calendar.ts` |
+| Workspace project scan and AGENTS.md defaults | Critical workflow | Class; text in [README](README.md#projects-and-thread-directories) | `tenon/src/project/brain.ts` (`scan`, `link`, `unlink`, instructions), `core/src/workspace-instructions.ts`, `core/src/instruction-context.ts`, `tenon/src/session/instruction.ts` |
 | Location services | Subsystem | Component, Activity: write | `core/src/location-mutation.ts`, `core/src/file-mutation.ts` |
 | Session runtime | Subsystem | Component, Class, Activity: prompt run, State: run, Sequence: ACP turn | `core/src/session.ts`, `core/src/session/` |
 | Harness drivers and registry (built-ins `opencode`, `codex`, `opencode-acp`, `claude-code`) | Subsystem | Component, Deployment, Class, Sequence: ACP turn | `core/src/harness.ts` (`configuredInstances`), `core/src/harness/acp.ts`, `core/src/harness/registry.ts`, `core/src/harness/env.ts`, `schema/src/harness.ts`, `server/src/handlers/harness.ts` |
 | Harness handoff (bounded history, per-instance continuations, delta on return, `<tenon-context>` block) | Critical workflow | Class, Sequence: ACP turn (handoff notes) | `core/src/harness.ts` (`renderCodexPrompt`, `renderHarnessPrompt`, `continuationFor`), `core/src/tenon-context.ts`, `core/src/session/projector.ts` |
-| Chat diagram windows (agent ```svg blocks in a sandboxed iframe, agent guidance) | Subsystem | Trust boundaries; text in [README](README.md#chat-diagram-windows) | `session-ui/src/components/svg-window.ts`, `session-ui/src/components/markdown.tsx`, `session-ui/src/components/markdown.worker.ts`, `core/src/chat-display.ts`, `core/src/system-context/builtins.ts`, `opencode/src/session/system.ts` |
+| Chat diagram windows (agent ```svg blocks in a sandboxed iframe, agent guidance) | Subsystem | Trust boundaries; text in [README](README.md#chat-diagram-windows) | `session-ui/src/components/svg-window.ts`, `session-ui/src/components/markdown.tsx`, `session-ui/src/components/markdown.worker.ts`, `core/src/chat-display.ts`, `core/src/system-context/builtins.ts`, `tenon/src/session/system.ts` |
 | Design windows and Canvas tab (agent ```html and ```html canvas blocks in `allow-scripts` frames) | Subsystem | Trust boundaries; text in [README](README.md#design-windows-and-the-canvas-tab) | `session-ui/src/components/design-fence.ts`, `session-ui/src/components/html-window.ts`, `session-ui/src/context/design.tsx`, `app/src/pages/session/design-canvas.tsx`, `app/src/pages/session/canvas-tab.tsx`, `app/src/pages/session/session-side-panel.tsx`, `desktop/src/main/windows.ts` (`will-frame-navigate`), `desktop/src/main/external-url.ts` |
 | File references in chat (peek, reveal in Files, range highlight, folder reveal in the tree) | Critical workflow | Text in [README](README.md#file-references-in-chat) | `session-ui/src/components/markdown-file-reference.ts`, `session-ui/src/components/markdown-file-reference-peek.tsx`, `session-ui/src/context/file-reference.tsx`, `app/src/pages/session/file-reference.tsx`, `app/src/pages/session/file-tabs.tsx`, `app/src/pages/session/v2/session-file-browser-tab.tsx`, `app/src/components/file-tree-v2.tsx` |
 | Composer context strip and ring (worktree, branch; ring unfolds the context sheet) | Subsystem | Text in [README](README.md#composer-context-strip) | `app/src/components/prompt-input/context-strip.tsx`, `app/src/components/prompt-input/context-strip.css`, `app/src/components/prompt-input/context-strip-model.ts`, `app/src/components/prompt-input-v2.tsx` (`header`, `trailing`), `app/src/pages/session.tsx` |
 | Rollback ("Edit from here", Restore, commit on the next prompt) | Critical workflow | Text in [README](README.md#session-compatibility-and-review) | `core/src/session.ts` (`prompt`, `revert`), `core/src/session/revert.ts`, `core/src/session/projector.ts` (`RevertEvent.Committed`), `core/src/harness.ts` (runtimes closed on commit), `app/src/pages/session.tsx` (`revertMutation`, `restoreMutation`), `app/src/context/server-session.ts`, `app/src/pages/session/composer/session-revert-dock.tsx` |
 | Permissions | Subsystem | Activity: prompt run, State: permission, Sequence: ACP turn | `core/src/permission.ts`, `core/src/plugin/agent.ts` |
 | Workspace files | Shared store | Component, Deployment, Activity: write | `notes/`, `projects/`, `.tenon/` (cards, `calendar-v1.json`) |
-| Profile SQLite (`opencode.db`) | Shared store | Component, Deployment, Class | `core/src/database/`, `core/src/event.ts` |
+| Profile SQLite (`tenon.db`) | Shared store | Component, Deployment, Class | `core/src/database/`, `core/src/event.ts` |
 | Snapshot repository | Shared store | Component, Class, Activity: prompt run | `core/src/snapshot.ts` |
 | Global XDG paths and legacy-folder migration (`opencode` → `tenon-workbench`) | Critical workflow | Deployment; text in [README](README.md#harness-drivers-and-registration) | `core/src/global.ts`, `core/src/legacy-storage.ts` |
 | `harnesses.json` | Shared store | Component, Deployment | `core/src/harness/registry.ts` (written only from Settings → Harnesses through `/api/harness/registry`) |
@@ -244,21 +244,21 @@ question dock; see [Questions from harnesses](README.md#questions-from-harnesses
 | Built-in harness setup (install, sign-in, API keys, first-run dialog) | Critical workflow | Trust boundaries; text in [README](README.md#built-in-harness-setup) | `core/src/harness/setup.ts`, `core/src/harness.ts` (`setup`, `install`, `signIn`, `setApiKey`, `withSetupKeys`), `server/src/handlers/harness.ts`, `app/src/components/settings-v2/harness-setup.tsx`, `app/src/pages/brain-home.tsx` |
 | Harness usage limits (Codex `account/rateLimits/read`, Claude Code OAuth usage with `.claude.json` fallback, Command Code `/alpha` usage, OpenCode Go `/zen/go/v1/usage` for the OpenCode harness and built-in agent, context sheet section, Settings → Harnesses) | External integration | Trust boundaries; text in [README](README.md#composer-context-strip) | `core/src/harness/usage.ts`, `core/src/harness.ts` (`usage`), `server/src/handlers/harness.ts` (`harness.usage`), `app/src/utils/server.ts` (`listHarnessUsage`), `app/src/components/prompt-input/context-strip.tsx` (`UsageLimits`), `app/src/components/harness-usage.tsx`, `app/src/components/settings-v2/harnesses.tsx` |
 | Prompt run | Critical workflow | Activity: prompt run, Sequence: ACP turn | `core/src/session/runner/llm.ts` |
-| Note or calendar write | Critical workflow | Activity: write | `opencode/src/server/routes/instance/httpapi/handlers/second-brain.ts` |
-| Project thread directories, folder scan and link index | Critical workflow | Class | `opencode/src/project/brain.ts` (`ensureForWorkspace`, `threadDirectory`, `scan`, `link`, `linkedFolders`), `core/src/workspace-instructions.ts`, `opencode/src/server/routes/instance/httpapi/handlers/second-brain.ts` |
-| Session archive, unarchive, pin, sidebar undo | Critical workflow | Text only ([README](README.md#session-compatibility-and-review), [navigation map](../product/NAVIGATION-MAP-V1.md#undo)): `time_archived` set or NULL, `metadata.pinned`; 5-second in-memory undo, deferred delete | `opencode/src/server/routes/instance/httpapi/handlers/session.ts`, `opencode/src/session/session.ts`, `core/src/session/projector.ts`, `app/src/context/global-sync/event-reducer.ts`, `app/src/utils/undo-action.ts` |
+| Note or calendar write | Critical workflow | Activity: write | `tenon/src/server/routes/instance/httpapi/handlers/second-brain.ts` |
+| Project thread directories, folder scan and link index | Critical workflow | Class | `tenon/src/project/brain.ts` (`ensureForWorkspace`, `threadDirectory`, `scan`, `link`, `linkedFolders`), `core/src/workspace-instructions.ts`, `tenon/src/server/routes/instance/httpapi/handlers/second-brain.ts` |
+| Session archive, unarchive, pin, sidebar undo | Critical workflow | Text only ([README](README.md#session-compatibility-and-review), [navigation map](../product/NAVIGATION-MAP-V1.md#undo)): `time_archived` set or NULL, `metadata.pinned`; 5-second in-memory undo, deferred delete | `tenon/src/server/routes/instance/httpapi/handlers/session.ts`, `tenon/src/session/session.ts`, `core/src/session/projector.ts`, `app/src/context/global-sync/event-reducer.ts`, `app/src/utils/undo-action.ts` |
 | Composer delivery (steer or queue), queued list with remove and send now, background send, prompt stash | Critical workflow | Activity: prompt run (server side); client text only ([README](README.md#composer-delivery-background-send-and-stash)) | `app/src/components/prompt-input/submit.ts`, `app/src/components/prompt-input/stash-store.ts`, `app/src/context/server-session.ts`, `app/src/pages/session/composer/queued-actions.ts`, `app/src/utils/server-compat.ts`, `session-ui/src/v2/components/prompt-input/machine.ts`, `core/src/session/input.ts` (`listQueued`, `withdraw`, `steer`), `core/src/session/projector.ts`, `server/src/handlers/session.ts` |
 | Desktop startup and dev-channel `userData` migration | Critical workflow | Sequence: startup; Deployment | `desktop/src/main/index.ts`, `desktop/src/main/user-data-migration.ts` |
 | Deep links (`tenon://open-project`, `tenon://new-session`) | Critical workflow | Text in [threat model](../security/threat-model.md#assets-and-boundaries): main-process validation and native confirmation before the renderer | `desktop/src/main/deep-links.ts`, `desktop/src/main/index.ts` (`receiveDeepLinks`), `app/src/pages/layout/deep-links.ts` |
 | Renderer content policy, local file links, Electron fuses | Subsystem | Text in [threat model](../security/threat-model.md#renderer-content-policy) | `desktop/src/main/windows.ts`, `desktop/src/main/local-file-policy.ts`, `desktop/electron-builder.config.ts`, `session-ui/src/components/markdown-media.ts` |
-| Markdown front matter parsing | Subsystem | Text in [threat model](../security/threat-model.md#assets-and-boundaries) | `core/src/frontmatter.ts`, `core/src/config/markdown.ts`, `opencode/src/knowledge/note.ts`, `opencode/src/project/brain.ts` |
+| Markdown front matter parsing | Subsystem | Text in [threat model](../security/threat-model.md#assets-and-boundaries) | `core/src/frontmatter.ts`, `core/src/config/markdown.ts`, `tenon/src/knowledge/note.ts`, `tenon/src/project/brain.ts` |
 | Session timeline (folded turn steps) and side-panel Session tab (session usage) | Subsystem | Text only ([README](README.md#session-compatibility-and-review)) | `app/src/pages/session/timeline/rows.ts`, `timeline/row-reconciliation.ts` (`foldTimelineRows`), `timeline/message-timeline.tsx`, `app/src/components/session/turn-steps-summary.tsx`, `app/src/components/session/session-usage.ts`, `app/src/components/session/session-context-metrics.ts` (`getSessionContext`, harness-reported `contextWindow` first), `app/src/components/session/session-context-tab.tsx`, `core/src/session/runner/publish-llm-event.ts` (`harnessContextWindow`), `session-ui/src/components/step-kind.ts` |
 | Harness settings (add, assistant, verify, toggle, remove) | Critical workflow | Component | `app/src/components/settings-v2/harnesses.tsx`, `app/src/components/settings-v2/harness-assistant.tsx`, `server/src/handlers/harness.ts`, `core/src/harness/registry.ts` |
 | Harness model lists (live discovery, background revalidation, persisted server and renderer lists, refresh, hidden models) | Critical workflow | Text in [README](README.md#harness-model-lists) | `core/src/harness.ts` (`cachedProbe`, `discoverAcpModels`, `refresh`), `core/src/harness/catalog-cache.ts` (`harness-models.json`, `harness-probes.json`), `makeCachedProbe`, `core/src/harness/acp.ts` (`probe`, `discover`), `app/src/components/prompt-input/harness-controller.ts` (`revalidate`, model retry, `harness.instances.v1`), `app/src/utils/server.ts` (`listHarnessesRemembered`), `app/src/pages/brain-home.tsx` (`harnessQuery`), `app/src/context/settings.tsx` (`harnesses.hiddenModels`, `harnesses.hiddenProviders`), `app/src/components/settings-v2/harnesses.tsx` |
 | Harness CLI updates (check, notify, update) | Critical workflow | Deployment, trust boundaries; text in [README](README.md#harness-cli-updates) | `core/src/harness/update.ts`, `core/src/harness.ts` (`updates`, `upgrade`), `server/src/handlers/harness.ts`, `app/src/components/harness-update-notifier.tsx`, `app/src/components/settings-v2/harnesses.tsx` |
 | Package registries for harness updates (npm, Bun, pnpm, Homebrew, WinGet, Scoop, Chocolatey, PyPI) and CLI self-updaters | External integration | Deployment, trust boundaries | `core/src/harness/update.ts` (`sourceFromPath`, `shimTarget`, `updateCommand`), `desktop/src/main/shell-env.ts` (`windowsPath`) |
 | Default harness for new threads | Critical workflow | Text in [README](README.md#default-harness-for-new-threads) | `app/src/context/settings.tsx` (`harnesses.defaults`, `lastUsed`), `app/src/context/drafts.tsx`, `app/src/pages/brain-home.tsx`, `app/src/components/settings-v2/harnesses.tsx` (`HarnessDefaults`) |
-| Thread references (@ mention, sidebar drag, server-side expansion) | Critical workflow | Trust boundaries (untrusted block); text in [README](README.md#thread-references) | `core/src/session/thread-reference.ts`, `core/src/session.ts` (`expandThreads`, `legacyThreadItems`), `opencode/src/session/prompt.ts`, `core/src/session/runner/to-llm-message.ts`, `app/src/components/prompt-input-v2.tsx`, `session-ui/src/v2/components/prompt-input/{index.tsx,attachments.ts}` |
+| Thread references (@ mention, sidebar drag, server-side expansion) | Critical workflow | Trust boundaries (untrusted block); text in [README](README.md#thread-references) | `core/src/session/thread-reference.ts`, `core/src/session.ts` (`expandThreads`, `legacyThreadItems`), `tenon/src/session/prompt.ts`, `core/src/session/runner/to-llm-message.ts`, `app/src/components/prompt-input-v2.tsx`, `session-ui/src/v2/components/prompt-input/{index.tsx,attachments.ts}` |
 | Calendar auto-sync | Critical workflow | Text in [README](README.md#google-accounts) | `app/src/features/second-brain/calendar-sync.ts`, `app/src/features/second-brain/calendar-auto-sync.tsx`, `app/src/components/settings-v2/calendar.tsx` |
 | Folder service keys and shared harness cache | Subsystem | Text in [README](README.md#folder-services-and-startup) | `core/src/util/directory.ts`, `core/src/location-services.ts` (`canonicalKeys`, `buildLocationServiceMap`), `core/src/harness.ts` (`shared`), `desktop/src/main/server.ts` (sidecar cwd) |
 | Workbench panel file viewers and `tenon-file://` | Subsystem | Trust boundaries; text in [README](README.md#workbench-panel) | `app/src/pages/session/file-viewer.tsx`, `app/src/pages/session/file-tabs.tsx`, `desktop/src/main/file-viewer.ts`, `desktop/src/main/windows.ts` (scheme, `plugins`, frame policy) |
@@ -302,7 +302,7 @@ The following were inferred from source and haven't been confirmed at runtime.
 - Renderer internals (providers, query caches, stores) are summarized in the
   component table instead of drawn. They change often and have no trust
   boundary.
-- The legacy V1 session runtime in `opencode/src/session/` is still mounted
+- The legacy V1 session runtime in `tenon/src/session/` is still mounted
   for legacy routes but isn't used by Harness runs. It's left out to keep the
   views readable.
 - WSL sidecars appear only in the deployment view. Their internals weren't

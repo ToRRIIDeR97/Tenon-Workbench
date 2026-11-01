@@ -1,13 +1,13 @@
 // Worker-visible acceptance tests for the harness settings HTTP routes.
-// Run from opencode/packages/opencode (its preload isolates XDG_CONFIG_HOME):
+// Run from tenon/packages/tenon (its preload isolates XDG_CONFIG_HOME):
 //   bun test --timeout 30000 ../../../Implementations/harness-settings-page/acceptance/routes.test.ts
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import fs from "node:fs/promises"
 import path from "node:path"
 import { Context } from "effect"
-import { HttpApiApp } from "../../../opencode/packages/opencode/src/server/routes/instance/httpapi/server"
-import { resetDatabase } from "../../../opencode/packages/opencode/test/fixture/db"
-import { disposeAllInstances, tmpdir } from "../../../opencode/packages/opencode/test/fixture/fixture"
+import { HttpApiApp } from "../../../tenon/packages/tenon/src/server/routes/instance/httpapi/server"
+import { resetDatabase } from "../../../tenon/packages/tenon/test/fixture/db"
+import { disposeAllInstances, tmpdir } from "../../../tenon/packages/tenon/test/fixture/fixture"
 
 const fixture = path.resolve(import.meta.dir, "../fixtures/fake-acp-agent.ts")
 const context = Context.empty() as Context.Context<unknown>

@@ -42,7 +42,7 @@ def classes():
     s = SVG(1080, 870, "Class view of core domain types",
             "UML class view: agent-runtime types (Project, Session, SessionMessage, SessionInput, durable Event, "
             "permission types, HarnessInstance) and Second Brain types (Location, BrainProject, KnowledgeNote, calendar).")
-    s.heading("Class view", "UML 2.5.1 class diagram · filled diamond = composition · schema/src, core/src, opencode/src · fields abridged")
+    s.heading("Class view", "UML 2.5.1 class diagram · filled diamond = composition · schema/src, core/src, tenon/src · fields abridged")
     klass(s, 20, 84, 230, "Project", ["id", "worktree", "directories[]"], "core table")
     klass(s, 280, 84, 230, "Event", ["aggregate_id = sessionID", "seq (unique per aggregate)", "type (versioned)"], "durable")
     klass(s, 540, 84, 230, "PermissionRule", ["action, resource (wildcards)", "effect: allow | ask | deny", "saved rows: allow only"])
@@ -152,7 +152,7 @@ def activity_write():
             "UML activity for PUT /second-brain/note and PUT /second-brain/calendar: authorization, workspace routing, "
             "decode, path containment, compare-and-swap write and best-effort timeline sync, with HTTP error exits.")
     s.heading("Activity: Second Brain write (note or calendar)",
-              "opencode/src/server/routes/instance/httpapi/handlers/second-brain.ts · core/src/file-mutation.ts")
+              "tenon/src/server/routes/instance/httpapi/handlers/second-brain.ts · core/src/file-mutation.ts")
     cx, E = 440, s.edge
 
     def err(y, text):

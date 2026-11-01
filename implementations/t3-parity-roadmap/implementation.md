@@ -4,7 +4,7 @@ Status: implemented on branch `feat/t3-parity` (all eight phases plus queued-mes
 
 Sources: read-only research of T3 Code (`~/Downloads/t3code`, commit
 `11fd54fc`) and four audits of this repo. Paths below are relative to
-`opencode/packages/` unless they start with `docs/`, `Implementations/`, or a
+`tenon/packages/` unless they start with `docs/`, `Implementations/`, or a
 repo-root file.
 
 ## Decisions already made
@@ -20,7 +20,7 @@ repo-root file.
   `newLayoutDesigns` switch, and the `/:dir/...` route group), after its
   useful sidebar pieces are ported.
 - **Remove upstream OpenCode leftovers** that the product does not use. The
-  `@opencode-ai/*` package names, the managed server, the session runtime, and
+  `@tenon/*` package names, the managed server, the session runtime, and
   the `opencode` harness stay.
 
 ## Delivery order
@@ -66,14 +66,14 @@ Network calls and branding:
 
 | Item | Location | Change |
 |---|---|---|
-| Hosted web UI proxy | `opencode/src/server/shared/ui.ts:9` (`app.opencode.ai`) | Remove; return a local error |
+| Hosted web UI proxy | `tenon/src/server/shared/ui.ts:9` (`app.opencode.ai`) | Remove; return a local error |
 | Release notes feed | `app/src/context/highlights.tsx:10`, `dialog-release-notes.tsx`, provider at `app.tsx:47,325` | Remove |
 | Notification icon from opencode.ai | `app/src/entry.tsx:73`, `desktop/src/renderer/index.tsx:260` | Use a bundled icon |
 | Project avatar from opencode.ai | `app/src/pages/layout/helpers.ts:90` | Bundled asset |
 | WSL install of upstream | `desktop/src/main/wsl/runtime.ts:271` | Remove the install path |
-| Upgrade fetch | `opencode/src/installation/index.ts:147` | Make inert |
-| Upsell URLs | `opencode/src/session/retry.ts` (`GO_UPSELL_URL`) | Remove |
-| `HTTP-Referer: opencode.ai` | `opencode/src/provider/provider.ts` (6 places) | Remove the header or use a product value |
+| Upgrade fetch | `tenon/src/installation/index.ts:147` | Make inert |
+| Upsell URLs | `tenon/src/session/retry.ts` (`GO_UPSELL_URL`) | Remove |
+| `HTTP-Referer: opencode.ai` | `tenon/src/provider/provider.ts` (6 places) | Remove the header or use a product value |
 | Zen/Go upsells | `dialog-connect-provider.tsx`, `settings-providers.tsx`, `dialog-select-model*.tsx`, `dialog-usage-exceeded.tsx`, i18n keys | Remove the `provider.id === "opencode"` special cases; keep the generic provider flow |
 | Session share | `use-session-commands.tsx` share commands, `session-header.tsx:277`, `open-in-app.tsx:211` | Remove the UI; leave the server API for Phase 8 |
 | Help menu and feedback links | `app/src/desktop-menu.ts:282-296`, `layout.tsx:2241`, `home-projects-controller.tsx:123`, `pages/error.tsx:357` | Point at the project repo, or remove |
@@ -85,7 +85,7 @@ Out of scope here: the app ID `ai.opencode.desktop`, the `opencode://` link
 scheme, and the data/log directory names. Changing them moves user data and
 needs a migration. Track as a follow-up.
 
-Acceptance: a grep of the shipped `app`, `desktop` and `opencode/src` code
+Acceptance: a grep of the shipped `app`, `desktop` and `tenon/src` code
 for `opencode.ai` finds only items listed as kept (`$schema` URLs for config
 files, `models.dev` catalog). All four required checks pass.
 
@@ -127,7 +127,7 @@ Changes:
 Change points: `core/src/harness.ts` (`renderCodexPrompt`, `makeRuntime`
 at 193-259 and 290-319, `codexStream` at 761, ACP at 351),
 `core/src/session/projector.ts`, the `HarnessContinuationSet` event schema,
-`opencode/test/event-manifest.test.ts`.
+`tenon/test/event-manifest.test.ts`.
 
 Tests: extend `core/test/harness.test.ts` (cap, retention, wrapper text,
 no tool JSON), `harness-acp.test.ts` (delta after return), and a projector
@@ -154,7 +154,7 @@ Model:
   (folders that already have sessions) that no Project links to. It is
   idempotent and only creates Markdown cards; it never moves files.
 
-Change points: `opencode/src/project/brain.ts` (an `ensureForWorkspace`
+Change points: `tenon/src/project/brain.ts` (an `ensureForWorkspace`
 operation and a `threadDirectory` resolver), the Second Brain HTTP handler and
 protocol for a `GET /api/brain/projects` list that includes the thread
 directory and session counts, and the project-open flow in the renderer.
@@ -165,7 +165,7 @@ Check before building: sessions created in a subfolder of the Brain repo
 the subfolder, so Projects without a linked Workspace don't show each other's
 threads.
 
-Tests: `opencode/test/project/brain.test.ts` (ensure is idempotent,
+Tests: `tenon/test/project/brain.test.ts` (ensure is idempotent,
 thread directory resolution), a server test for the list endpoint.
 
 Docs: `CONTEXT.md` (Project now always owns a thread directory; Workspace stays
@@ -336,7 +336,7 @@ for `files: false`.
 ## Phase 7: Undo, unarchive, pin
 
 1. **Unarchive API.** `ArchivedTimestamp` is non-nullable
-   (`opencode/src/session/session.ts:200,206`) and the handler ignores a
+   (`tenon/src/session/session.ts:200,206`) and the handler ignores a
    cleared value. Make it nullable, handle `archived: null`, regenerate the
    SDK.
 2. **Undo toast.** Archive, rename and Project archive show a 5-second toast
@@ -346,7 +346,7 @@ for `files: false`.
 3. **Pin threads.** Store pinned thread IDs in session metadata so it survives
    restarts and shows at the top of the Project's thread list.
 
-Tests: `opencode/test/server/httpapi-session.test.ts` (unarchive), sidebar
+Tests: `tenon/test/server/httpapi-session.test.ts` (unarchive), sidebar
 unit tests for undo and pin ordering.
 
 ---
@@ -354,8 +354,8 @@ unit tests for undo and pin ordering.
 ## Phase 8: CLI and TUI removal
 
 Move the three shared util modules `tui/util/{record,locale,error}` into
-`opencode/src/util` and rewrite about 21 imports. Then delete the `tui` and
-`cli` packages, `opencode/src/cli/tui`, and the upstream commands (`github`,
+`tenon/src/util` and rewrite about 21 imports. Then delete the `tui` and
+`cli` packages, `tenon/src/cli/tui`, and the upstream commands (`github`,
 `pr`, `account`, `upgrade`, `uninstall`, `web`, `acp`, `attach`, `stats`,
 `plug`), keeping what `serve` and bootstrap use. Decide separately whether the
 desktop should keep installing an `opencode` CLI on the PATH

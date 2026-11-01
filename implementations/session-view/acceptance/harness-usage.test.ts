@@ -1,12 +1,12 @@
 // Acceptance tests for harness-reported usage (AC-7).
-// Setup once: the task folder needs a node_modules junction to opencode/packages/core/node_modules (see implementation.md).
-// Run from opencode/packages/core:
+// Setup once: the task folder needs a node_modules junction to tenon/packages/core/node_modules (see implementation.md).
+// Run from tenon/packages/core:
 //   bun test ../../../implementations/session-view/acceptance/harness-usage.test.ts
 import { describe, expect, test } from "bun:test"
 import { Effect, Exit } from "effect"
-import { LLMEvent } from "@opencode-ai/llm"
-import { AcpHarness } from "../../../opencode/packages/core/src/harness/acp"
-import { createLLMEventPublisher } from "../../../opencode/packages/core/src/session/runner/publish-llm-event"
+import { LLMEvent } from "@tenon/llm"
+import { AcpHarness } from "../../../tenon/packages/core/src/harness/acp"
+import { createLLMEventPublisher } from "../../../tenon/packages/core/src/session/runner/publish-llm-event"
 
 const update = (value: Record<string, unknown>) => ({
   method: "session/update",

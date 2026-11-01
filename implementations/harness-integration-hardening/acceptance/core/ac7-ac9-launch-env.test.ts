@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test"
-import { HarnessSetup } from "../../../../opencode/packages/core/src/harness/setup"
-import { AcpHarness } from "../../../../opencode/packages/core/src/harness/acp"
-import { Harness } from "../../../../opencode/packages/schema/src/harness"
+import { HarnessSetup } from "../../../../tenon/packages/core/src/harness/setup"
+import { AcpHarness } from "../../../../tenon/packages/core/src/harness/acp"
+import { Harness } from "../../../../tenon/packages/schema/src/harness"
 
 describe("AC-7 OpenCode asks before edits and commands", () => {
   test("no user permission config: edit and bash ask", () => {
     const env = HarnessSetup.openCodeLaunchEnv(undefined)
-    const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT!)
+    const config = JSON.parse(env.TENON_CONFIG_CONTENT!)
     expect(config.permission.edit).toBe("ask")
     expect(config.permission.bash).toBe("ask")
   })

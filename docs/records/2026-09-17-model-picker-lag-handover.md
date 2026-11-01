@@ -22,9 +22,9 @@
 
 Changed files, relative to the repository root:
 
-- `opencode/packages/app/src/pages/session/composer/prompt-model-selection.ts`
-- `opencode/packages/app/src/components/dialog-select-model.tsx`
-- `opencode/packages/app/e2e/performance/timeline/model-picker-benchmark.spec.ts`
+- `tenon/packages/app/src/pages/session/composer/prompt-model-selection.ts`
+- `tenon/packages/app/src/components/dialog-select-model.tsx`
+- `tenon/packages/app/e2e/performance/timeline/model-picker-benchmark.spec.ts`
 
 ## Verification
 
@@ -38,7 +38,7 @@ On the isolated PR branch based on `main`:
 
 Local logs: `/tmp/sbo-pr-build.log`, `/tmp/sbo-pr-typecheck.log`, `/tmp/sbo-pr-tests.log`, `/tmp/sbo-pr-lint.log`, and `/tmp/sbo-pr-benchmark.log`. The isolated worktree is `/tmp/sbo-model-picker-pr`; it reuses installed dependencies from the original checkout. The browser run used installed Chrome and `/tmp/sbo-pr-performance.config.ts` on port 3017.
 
-The standard benchmark can be run from `opencode/packages/app` with `OPENCODE_PERFORMANCE=1 bunx playwright test --config e2e/performance/playwright.config.ts timeline/model-picker-benchmark.spec.ts` when the configured browser is installed. Do not restart the user's app or server for testing.
+The standard benchmark can be run from `tenon/packages/app` with `TENON_PERFORMANCE=1 bunx playwright test --config e2e/performance/playwright.config.ts timeline/model-picker-benchmark.spec.ts` when the configured browser is installed. Do not restart the user's app or server for testing.
 
 ## CI and limitations
 

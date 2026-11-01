@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { fallbackPath } from "../../../../opencode/packages/desktop/src/main/shell-env"
+import { fallbackPath } from "../../../../tenon/packages/desktop/src/main/shell-env"
 
 describe("verify AC-18", () => {
   test("folders already on PATH are not repeated and keep their position", () => {

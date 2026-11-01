@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { SessionTitle } from "../../../../opencode/packages/core/src/session/title"
+import { SessionTitle } from "../../../../tenon/packages/core/src/session/title"
 
 const fresh = `New session - ${new Date(1_700_000_000_000).toISOString()}`
 

@@ -25,7 +25,7 @@ phase section.
 
 ## Scope
 
-All paths are under `opencode/packages/` unless noted.
+All paths are under `tenon/packages/` unless noted.
 
 Phase 1 (thread breakers):
 
@@ -121,11 +121,11 @@ Phase 2 (safety):
   harness defined in a project document is absent from both. Built-in IDs stay
   protected as before.
 - **AC-7** `openCodeLaunchEnv(userConfig)` returns
-  `OPENCODE_CONFIG_CONTENT` with `permission.edit` and `permission.bash` set to
+  `TENON_CONFIG_CONTENT` with `permission.edit` and `permission.bash` set to
   `ask` when the user's global OpenCode config text has no `permission` key
   (or there is no such file); it returns nothing when the user set
   `permission`. The OpenCode harness's launch environment includes it unless
-  its configured `env` already sets `OPENCODE_CONFIG_CONTENT`.
+  its configured `env` already sets `TENON_CONFIG_CONTENT`.
 - **AC-8** `safeAcpMode(modes)` returns `"default"` when the agent reports
   current mode `bypassPermissions` and lists a `default` mode; otherwise it
   returns nothing. After opening a session the app requests
@@ -294,15 +294,15 @@ Run from the repository root.
 Core sets:
 
 ```sh
-cd opencode/packages/core && bun test ../../../Implementations/harness-integration-hardening/acceptance/core
-cd opencode/packages/core && bun test ../../../Implementations/harness-integration-hardening/verification/core
+cd tenon/packages/core && bun test ../../../Implementations/harness-integration-hardening/acceptance/core
+cd tenon/packages/core && bun test ../../../Implementations/harness-integration-hardening/verification/core
 ```
 
 App sets:
 
 ```sh
-cd opencode/packages/app && bun test --conditions=solid --preload ./happydom.ts ../../../Implementations/harness-integration-hardening/acceptance/app
-cd opencode/packages/app && bun test --conditions=solid --preload ./happydom.ts ../../../Implementations/harness-integration-hardening/verification/app
+cd tenon/packages/app && bun test --conditions=solid --preload ./happydom.ts ../../../Implementations/harness-integration-hardening/acceptance/app
+cd tenon/packages/app && bun test --conditions=solid --preload ./happydom.ts ../../../Implementations/harness-integration-hardening/verification/app
 ```
 
 The `node_modules` links in each set folder point at the package's own
@@ -379,9 +379,9 @@ passes the global config folder to `configuredInstances` and gives its
 config document a path inside it; its assertions are unchanged. Plan test
 files match their recorded checksums.
 
-Path-less config documents (inline `OPENCODE_CONFIG_CONTENT` the user set)
+Path-less config documents (inline `TENON_CONFIG_CONTENT` the user set)
 still count as global. The installed `opencode` v2.2.0 binary reads
-`OPENCODE_CONFIG_CONTENT` but not `OPENCODE_PERMISSION`, so the former is
+`TENON_CONFIG_CONTENT` but not `TENON_PERMISSION`, so the former is
 used.
 
 Repository checks: typecheck, lint, check:generated, build pass; `test`,
@@ -428,7 +428,7 @@ ACP edit diff rendered in the running app.
 | AC-17 | `-32000` → sign-in message naming Settings; verification: "Not logged in · Please run /login" without a code, other errors unchanged; existing ACP tests | pass |
 | AC-18 | `acceptance/desktop/ac18-path.test.ts`, `verification/desktop/path.verify.test.ts`; existing `src/main/shell-env.test.ts` | pass |
 
-Desktop set command: `cd opencode/packages/desktop && bun test ../../../Implementations/harness-integration-hardening/<set>/desktop`.
+Desktop set command: `cd tenon/packages/desktop && bun test ../../../Implementations/harness-integration-hardening/<set>/desktop`.
 
 Baseline: core tests failed on their assertions; desktop tests on the missing
 `fallbackPath`; the per-harness override check passed (existing behavior).

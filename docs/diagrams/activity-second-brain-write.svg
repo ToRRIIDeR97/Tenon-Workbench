@@ -59,7 +59,7 @@
 
 <rect class="bg" x="0" y="0" width="960" height="930"/>
 <text x="20" y="28" text-anchor="start" class="h">Activity: Second Brain write (note or calendar)</text>
-<text x="20" y="46" text-anchor="start" class="s">opencode/src/server/routes/instance/httpapi/handlers/second-brain.ts · core/src/file-mutation.ts</text>
+<text x="20" y="46" text-anchor="start" class="s">tenon/src/server/routes/instance/httpapi/handlers/second-brain.ts · core/src/file-mutation.ts</text>
 <circle class="dot" cx="440" cy="70" r="8"/>
 <path class="e " d="M440,78 L440,92" marker-end="url(#a)"/>
 <rect class="act" x="290" y="92" width="300" height="44" rx="14"/>

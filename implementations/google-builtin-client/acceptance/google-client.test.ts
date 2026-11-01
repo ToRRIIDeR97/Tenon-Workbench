@@ -1,10 +1,10 @@
 // Worker-visible acceptance tests for the built-in Google OAuth client.
-// Run from opencode/packages/desktop: bun test ../../../implementations/google-builtin-client/acceptance
+// Run from tenon/packages/desktop: bun test ../../../implementations/google-builtin-client/acceptance
 import { describe, expect, test } from "bun:test"
 import {
   builtInGoogleClient,
   resolveGoogleClient,
-} from "../../../opencode/packages/desktop/src/main/google-calendar-domain"
+} from "../../../tenon/packages/desktop/src/main/google-calendar-domain"
 
 const id = "123-abc.apps.googleusercontent.com"
 const secret = "GOCSPX-secret"

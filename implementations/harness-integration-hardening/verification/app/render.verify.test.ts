@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import type { SessionMessageInfo } from "@opencode-ai/client/promise"
-import { normalizeSessionMessages } from "../../../../opencode/packages/app/src/utils/session-message"
+import type { SessionMessageInfo } from "@tenon/client/promise"
+import { normalizeSessionMessages } from "../../../../tenon/packages/app/src/utils/session-message"
 
 describe("verify AC-11 app side", () => {
   test("an acp_edit with two diffs keeps its own input, and a running edit has no diff yet", () => {

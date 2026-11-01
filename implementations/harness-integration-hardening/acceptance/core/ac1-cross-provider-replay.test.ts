@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test"
-import { Model } from "@opencode-ai/llm"
-import * as AnthropicMessages from "@opencode-ai/llm/protocols/anthropic-messages"
+import { Model } from "@tenon/llm"
+import * as AnthropicMessages from "@tenon/llm/protocols/anthropic-messages"
 import { DateTime } from "effect"
-import { ModelV2 } from "../../../../opencode/packages/core/src/model"
-import { ProviderV2 } from "../../../../opencode/packages/core/src/provider"
-import { SessionMessage } from "../../../../opencode/packages/core/src/session/message"
-import { toLLMMessages } from "../../../../opencode/packages/core/src/session/runner/to-llm-message"
+import { ModelV2 } from "../../../../tenon/packages/core/src/model"
+import { ProviderV2 } from "../../../../tenon/packages/core/src/provider"
+import { SessionMessage } from "../../../../tenon/packages/core/src/session/message"
+import { toLLMMessages } from "../../../../tenon/packages/core/src/session/runner/to-llm-message"
 
 const created = DateTime.makeUnsafe(0)
 const anthropic = Model.make({ id: "claude", provider: "anthropic", route: AnthropicMessages.route })

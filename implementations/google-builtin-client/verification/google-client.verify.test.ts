@@ -1,13 +1,13 @@
 // Independent verification tests for the built-in Google OAuth client.
 // Written by the plan author from the same criteria, with different boundary cases.
-// Run from opencode/packages/desktop: bun test ../../../implementations/google-builtin-client/verification
+// Run from tenon/packages/desktop: bun test ../../../implementations/google-builtin-client/verification
 import { describe, expect, test } from "bun:test"
 import { spawnSync } from "node:child_process"
 import path from "node:path"
 import {
   builtInGoogleClient,
   resolveGoogleClient,
-} from "../../../opencode/packages/desktop/src/main/google-calendar-domain"
+} from "../../../tenon/packages/desktop/src/main/google-calendar-domain"
 
 const id = "42-zz.apps.googleusercontent.com"
 const secret = "GOCSPX-built-in"
@@ -47,7 +47,7 @@ describe("built-in Google client (verification)", () => {
 
   test("AC-7 the local env file holding the client is ignored by git", () => {
     const root = path.resolve(import.meta.dir, "../../..")
-    const result = spawnSync("git", ["check-ignore", "-q", "opencode/packages/desktop/.env.local"], { cwd: root })
+    const result = spawnSync("git", ["check-ignore", "-q", "tenon/packages/desktop/.env.local"], { cwd: root })
     expect(result.status).toBe(0)
   })
 })

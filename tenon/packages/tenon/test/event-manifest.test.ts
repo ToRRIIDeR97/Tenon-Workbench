@@ -1,0 +1,31 @@
+import { describe, expect, test } from "bun:test"
+import { SessionEvent } from "@tenon/core/session/event"
+import { EventManifest as SchemaEventManifest } from "@tenon/schema/event-manifest"
+import { Todo } from "@/session/todo"
+import { EventManifest } from "@/event-manifest"
+
+describe("public event manifest", () => {
+  test("contains every latest public wire type once", () => {
+    expect(EventManifest.Definitions).toBe(SchemaEventManifest.Definitions)
+    expect(EventManifest.Latest).toBe(SchemaEventManifest.Latest)
+    expect(EventManifest.Durable).toBe(SchemaEventManifest.Durable)
+    expect(EventManifest.Latest.size).toBe(93)
+    expect(EventManifest.Latest.get("session.next.harness.continuation.set")).toBe(SessionEvent.HarnessContinuationSet)
+    expect(EventManifest.Latest.get("session.next.harness.switched")).toBe(SessionEvent.HarnessSwitched)
+    expect(EventManifest.Latest.get("session.next.message.imported")).toBe(SessionEvent.MessageImported)
+    expect(EventManifest.Latest.get("session.next.step.ended")).toBe(SessionEvent.Step.Ended)
+    expect(EventManifest.Latest.get("session.next.prompt.withdrawn")).toBe(SessionEvent.PromptWithdrawn)
+    expect(EventManifest.Latest.get("session.next.prompt.steered")).toBe(SessionEvent.PromptSteered)
+    expect(EventManifest.Durable.get("session.next.prompt.withdrawn.1")).toBe(SessionEvent.PromptWithdrawn)
+    expect(EventManifest.Durable.get("session.next.prompt.steered.1")).toBe(SessionEvent.PromptSteered)
+    expect(EventManifest.Latest.get("todo.updated")).toBe(Todo.Event.Updated)
+    expect(EventManifest.Latest.has("ide.installed")).toBe(false)
+    expect(EventManifest.Latest.has("server.connected")).toBe(true)
+    expect(EventManifest.Latest.has("global.disposed")).toBe(true)
+  })
+
+  test("contains only the current step settlement versions", () => {
+    expect(EventManifest.Durable.has("session.next.step.ended.1")).toBe(false)
+    expect(EventManifest.Durable.get("session.next.step.ended.2")).toBe(SessionEvent.Step.Ended)
+  })
+})

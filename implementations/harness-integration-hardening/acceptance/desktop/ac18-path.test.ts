@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { fallbackPath } from "../../../../opencode/packages/desktop/src/main/shell-env"
+import { fallbackPath } from "../../../../tenon/packages/desktop/src/main/shell-env"
 
 describe("AC-18 harness CLIs stay findable when the shell probe fails", () => {
   test("common install folders are appended to the bare GUI PATH", () => {

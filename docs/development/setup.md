@@ -12,8 +12,8 @@ candidate packaging and verification limits.
 
 ## Dependency updates
 
-Toolchain versions live in `.node-version` and the root and `opencode/`
+Toolchain versions live in `.node-version` and the root and `tenon/`
 package manifests. Workspace dependencies and patches live in
-`opencode/package.json`, `opencode/bun.lock`, and `opencode/patches/`.
+`tenon/package.json`, `tenon/bun.lock`, and `tenon/patches/`.
 Update these together and run the relevant checks from the root command table.
 The archive's SQL files are reference material, not active migrations.

@@ -1,16 +1,16 @@
 // Independent verification tests for the harness settings page (core level).
 // Same contract as implementation.md, different boundary cases from acceptance/.
-// Run from opencode/packages/core: bun test ../../../Implementations/harness-settings-page/verification/registry-settings.verify.test.ts
+// Run from tenon/packages/core: bun test ../../../Implementations/harness-settings-page/verification/registry-settings.verify.test.ts
 import { describe, expect, test } from "bun:test"
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { Effect, Exit, Scope, Stream } from "effect"
-import { LayerNode } from "../../../opencode/packages/core/src/effect/layer-node"
-import { AppProcess } from "../../../opencode/packages/core/src/process"
-import { HarnessRegistry } from "../../../opencode/packages/core/src/harness/registry"
-import { AcpHarness } from "../../../opencode/packages/core/src/harness/acp"
-import { HarnessRuntime } from "../../../opencode/packages/core/src/harness"
+import { LayerNode } from "../../../tenon/packages/core/src/effect/layer-node"
+import { AppProcess } from "../../../tenon/packages/core/src/process"
+import { HarnessRegistry } from "../../../tenon/packages/core/src/harness/registry"
+import { AcpHarness } from "../../../tenon/packages/core/src/harness/acp"
+import { HarnessRuntime } from "../../../tenon/packages/core/src/harness"
 
 const fixture = path.resolve(import.meta.dir, "../fixtures/fake-acp-agent.ts")
 const layer = LayerNode.compile(AppProcess.node)

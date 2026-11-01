@@ -1,9 +1,9 @@
 // Independent verification for AC-1, AC-2, AC-4. Same contract as acceptance/, different cases.
-// Run from opencode/packages/session-ui:
+// Run from tenon/packages/session-ui:
 //   bun test ../../../implementations/session-view/verification/step-kind.verify.test.ts
 import { describe, expect, test } from "bun:test"
 import type { Part, ToolPart } from "@opencode-ai/sdk/v2"
-import { stepOf, summarizeTurn } from "../../../opencode/packages/session-ui/src/components/step-kind"
+import { stepOf, summarizeTurn } from "../../../tenon/packages/session-ui/src/components/step-kind"
 
 let seq = 0
 function tool(name: string, input: Record<string, unknown>, status: "completed" | "error" | "running" | "pending" = "completed") {

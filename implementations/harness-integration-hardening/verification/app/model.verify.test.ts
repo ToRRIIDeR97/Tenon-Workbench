@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { reconcileHarnessModel } from "../../../../opencode/packages/app/src/components/prompt-input/harness-controller"
+import { reconcileHarnessModel } from "../../../../tenon/packages/app/src/components/prompt-input/harness-controller"
 
 const harness = (driver: string, models: string[]) =>
   ({

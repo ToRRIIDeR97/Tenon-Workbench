@@ -33,7 +33,7 @@ Expected behavior:
 
 ## Scope
 
-In scope, all paths under `opencode/packages/`:
+In scope, all paths under `tenon/packages/`:
 
 - Remove the chat tool:
   - Delete `core/src/tool/harness-register.ts` and its entry in
@@ -317,17 +317,17 @@ Setup, once per checkout. The `node_modules` link is gitignored by
 `implementations/*/node_modules`:
 
 ```sh
-cd "Implementations/harness-settings-page" && ln -s ../../opencode/packages/opencode/node_modules node_modules
+cd "Implementations/harness-settings-page" && ln -s ../../tenon/packages/tenon/node_modules node_modules
 ```
 
-Core tests run from `opencode/packages/core`:
+Core tests run from `tenon/packages/core`:
 
 ```sh
 bun test ../../../Implementations/harness-settings-page/acceptance/registry-settings.test.ts
 bun test ../../../Implementations/harness-settings-page/verification/registry-settings.verify.test.ts
 ```
 
-Route tests run from `opencode/packages/opencode`. Its `test/preload.ts`
+Route tests run from `tenon/packages/tenon`. Its `test/preload.ts`
 isolates `XDG_CONFIG_HOME`, so `harnesses.json` is a temp file:
 
 ```sh
@@ -399,7 +399,7 @@ separately designed check of the contract, not an independently authored one.
 | `bun run test:engine` | core 1115 pass, 0 fail. Server 3328 pass, 1 fail: `httpapi-v2-pty.test.ts` timed out in the full run, as it also did on 2026-10-06. Run on its own, all 4 tests in that file pass. The change doesn't touch PTY code. |
 | `bun run test:httpapi` (not a required check) | fails on `main` already with 13 routes missing scenarios; this change adds 5 more (the new harness routes) |
 | AC-10 manual check | driven through the running dev app over its DevTools port. Steps: open Settings → Harnesses, Test `opencode acp` (OpenCode 1.17.13, 429 models), Save (toast, returns to the tab), disable, remove. The user's `harnesses.json` was restored afterwards. |
-| AC-11 | `harness_register` no longer appears in `docs/` or `opencode/packages/*/src` |
+| AC-11 | `harness_register` no longer appears in `docs/` or `tenon/packages/*/src` |
 
 Deviations from the proposal:
 

@@ -1,9 +1,9 @@
 // Independent verification for AC-5, AC-6.
-// Run from opencode/packages/app:
+// Run from tenon/packages/app:
 //   bun test ../../../implementations/session-view/verification/session-usage.verify.test.ts
 import { describe, expect, test } from "bun:test"
 import type { Message } from "@opencode-ai/sdk/v2/client"
-import { getSessionUsage } from "../../../opencode/packages/app/src/components/session/session-usage"
+import { getSessionUsage } from "../../../tenon/packages/app/src/components/session/session-usage"
 
 let seq = 0
 function assistant(fields: { input?: number; output?: number; read?: number; write?: number; cost?: number; harness?: string }) {

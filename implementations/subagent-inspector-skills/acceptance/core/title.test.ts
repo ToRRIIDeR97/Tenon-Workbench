@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { SessionTitle } from "../../../../opencode/packages/core/src/session/title"
+import { SessionTitle } from "../../../../tenon/packages/core/src/session/title"
 
 describe("AC-2 / AC-3 session title rules", () => {
   test("AC-3 recognizes the default title the store creates", () => {

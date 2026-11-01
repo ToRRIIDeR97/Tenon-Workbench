@@ -3,11 +3,11 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { Effect, Exit, Schema, Scope } from "effect"
-import { LayerNode } from "../../../opencode/packages/core/src/effect/layer-node"
-import { AppProcess } from "../../../opencode/packages/core/src/process"
-import { Config } from "../../../opencode/packages/core/src/config"
-import { HarnessRuntime } from "../../../opencode/packages/core/src/harness"
-import { HarnessRegistry } from "../../../opencode/packages/core/src/harness/registry"
+import { LayerNode } from "../../../tenon/packages/core/src/effect/layer-node"
+import { AppProcess } from "../../../tenon/packages/core/src/process"
+import { Config } from "../../../tenon/packages/core/src/config"
+import { HarnessRuntime } from "../../../tenon/packages/core/src/harness"
+import { HarnessRegistry } from "../../../tenon/packages/core/src/harness/registry"
 
 const fixture = path.resolve(import.meta.dir, "../fixtures/fake-acp-agent.ts")
 const layer = LayerNode.compile(AppProcess.node)

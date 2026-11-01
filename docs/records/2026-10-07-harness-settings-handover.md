@@ -26,7 +26,7 @@
   - The cause was the shape of the error. The promise client throws raw
     error bodies, and Solid wraps them as `Error("Unknown error", { cause })`.
     `isSessionNotFoundError` only checked `cause.body`.
-  - Fixed in `opencode/packages/app/src/utils/server-errors.ts`.
+  - Fixed in `tenon/packages/app/src/utils/server-errors.ts`.
 - **#58.** Harnesses are managed in Settings → Harnesses, and the
   `harness_register` chat tool is removed.
   - New routes: `GET /api/harness/settings`, `POST /api/harness/discover`,

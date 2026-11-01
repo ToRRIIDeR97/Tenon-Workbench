@@ -1,0 +1,20 @@
+{
+  "$schema": "https://v2-8-13.turborepo.dev/schema.json",
+  "globalEnv": ["CI", "TENON_DISABLE_SHARE"],
+  "globalPassThroughEnv": ["CI", "TENON_DISABLE_SHARE"],
+  "tasks": {
+    "transit": {
+      "dependsOn": ["^transit"]
+    },
+    "typecheck": {
+      "dependsOn": ["transit"]
+    },
+    "build": {
+      "dependsOn": [],
+      "outputs": ["dist/**"]
+    },
+    "test": {
+      "cache": false
+    }
+  }
+}

@@ -16,7 +16,7 @@ On macOS, install Xcode Command Line Tools with `xcode-select --install`.
 ## Setup
 
 ```sh
-cd opencode
+cd tenon
 bun install --frozen-lockfile
 cd ..
 bun run dev
@@ -27,7 +27,7 @@ limit when this repository lives under a long OneDrive path. Prefer a shorter
 checkout path. For this checkout, the verified fallback is:
 
 ```powershell
-cd opencode
+cd tenon
 bun install --ignore-scripts
 node packages/desktop/node_modules/electron/install.js
 cd ..
@@ -44,8 +44,8 @@ revision, and migration gaps are recorded in [the archive](docs/archive/tauri/RE
 | `bun run dev`               | Start the Tenon Workbench Electron app                     |
 | `bun run build`             | Build the Electron renderer and main process               |
 | `bun run desktop:build`     | Build and package an unsigned Windows candidate            |
-| `bun run typecheck`         | Typecheck every `opencode/` package through turbo          |
-| `bun run lint`              | Run OpenCode's linter                                      |
+| `bun run typecheck`         | Typecheck every `tenon/` package through turbo          |
+| `bun run lint`              | Run the linter (oxlint)                                    |
 | `bun run test`              | Run package tests (engine suites excluded) via turbo       |
 | `bun run check:generated`   | Fail if the generated client in `packages/client` is stale |
 | `bun run check`             | Run typecheck, lint, check:generated, test, and build      |

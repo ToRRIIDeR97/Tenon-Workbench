@@ -1,6 +1,6 @@
 # Threat model for the active desktop app
 
-This document covers the OpenCode Electron fork in `opencode/`. The former
+This document covers the Tenon Workbench Electron app in `tenon/` (a fork of OpenCode). The former
 React/Tauri application is retired, so its Rust policy and MCP
 sidecar design are not current desktop controls.
 
@@ -13,12 +13,12 @@ Detailed permission and request flows are in
 
 | Boundary                   | Current control and location                                                                                                                                                                                                                                                                                                                                           |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Renderer to native process | The main window uses `contextIsolation`, `sandbox`, and disabled `nodeIntegration`. `opencode/packages/desktop/src/preload/index.ts` exposes specific IPC methods implemented in `opencode/packages/desktop/src/main/ipc.ts`. Packaged builds ignore `ELECTRON_RENDERER_URL`; see Renderer content policy for remote media.                                     |
-| Renderer to managed server | Electron starts the OpenCode server on `127.0.0.1` with a generated password. Server authorization checks credentials for protected routes. See `opencode/packages/desktop/src/main/index.ts` and `opencode/packages/opencode/src/server/routes/instance/httpapi/middleware/authorization.ts`.                                                                         |
-| Server to workspace files  | Second Brain handlers run in an instance location context. Note and project code resolves targets through `LocationMutation` before reading or writing files. See `opencode/packages/opencode/src/server/routes/instance/httpapi/handlers/second-brain.ts`, `opencode/packages/opencode/src/knowledge/note.ts`, and `opencode/packages/opencode/src/project/brain.ts`. |
-| Desktop to Google          | Calendar and Tasks integration uses OAuth in the Electron main process. The service keeps any number of accounts, encrypts each account's client secret and refresh token with Electron `safeStorage`, and disables connection when secure storage is unavailable. Access tokens are cached per account, writes are routed to the account named by the item, and the loopback callback ignores requests without the expected state. See `opencode/packages/desktop/src/main/google-calendar.ts`. |
+| Renderer to native process | The main window uses `contextIsolation`, `sandbox`, and disabled `nodeIntegration`. `tenon/packages/desktop/src/preload/index.ts` exposes specific IPC methods implemented in `tenon/packages/desktop/src/main/ipc.ts`. Packaged builds ignore `ELECTRON_RENDERER_URL`; see Renderer content policy for remote media.                                     |
+| Renderer to managed server | Electron starts the Tenon server on `127.0.0.1` with a generated password. Server authorization checks credentials for protected routes. See `tenon/packages/desktop/src/main/index.ts` and `tenon/packages/tenon/src/server/routes/instance/httpapi/middleware/authorization.ts`.                                                                         |
+| Server to workspace files  | Second Brain handlers run in an instance location context. Note and project code resolves targets through `LocationMutation` before reading or writing files. See `tenon/packages/tenon/src/server/routes/instance/httpapi/handlers/second-brain.ts`, `tenon/packages/tenon/src/knowledge/note.ts`, and `tenon/packages/tenon/src/project/brain.ts`. |
+| Desktop to Google          | Calendar and Tasks integration uses OAuth in the Electron main process. The service keeps any number of accounts, encrypts each account's client secret and refresh token with Electron `safeStorage`, and disables connection when secure storage is unavailable. Access tokens are cached per account, writes are routed to the account named by the item, and the loopback callback ignores requests without the expected state. See `tenon/packages/desktop/src/main/google-calendar.ts`. |
 
-`POST /second-brain/projects/workspace` takes only an OpenCode project id. The
+`POST /second-brain/projects/workspace` takes only a Tenon project id. The
 server looks the id up in its own project table and rejects `global` and the
 Brain directory itself; it never accepts a renderer path. The renderer no longer
 calls it.
@@ -60,21 +60,21 @@ stores that Workspace's worktree as `location.displayPath`, and
 same way session responses already return `directory`.
 
 `tenon://open-project` and `tenon://new-session` deep links are validated
-first in the Electron main process (`opencode/packages/desktop/src/main/deep-links.ts`):
+first in the Electron main process (`tenon/packages/desktop/src/main/deep-links.ts`):
 only those two hosts are accepted, the `directory` must be an existing local
 absolute folder (UNC `\\host\share`, protocol-relative `//host`, `file:`,
 relative and `..` paths are refused before any filesystem call), and the user
 confirms a native dialog that shows the folder. The renderer receives a link
 rebuilt from the checked values, and the log records only `tenon://<host>`,
 never the query string with its prompt. The app shell's sidebar controller
-(`opencode/packages/app/src/components/sidebar/sidebar-controller.ts`) then
+(`tenon/packages/app/src/components/sidebar/sidebar-controller.ts`) then
 handles it, only on a local server. A deep link can open a folder as a workspace (and
 select it) and start an unsent draft (a `new-session` prompt is placed in the composer,
 never sent). It never runs `git init`; only a folder the user picks in the
 folder dialog is initialized when empty.
 
 Markdown front matter in notes, Project cards, skills and agent configs is
-parsed through `Frontmatter.parse` (`opencode/packages/core/src/frontmatter.ts`),
+parsed through `Frontmatter.parse` (`tenon/packages/core/src/frontmatter.ts`),
 which refuses gray-matter's `---js` engine (it would `eval` the block) and any
 front matter over 64 KiB. Cards and the manifest over 1 MiB, notes over 5 MiB
 and the calendar over 16 MiB are refused after a `stat`, before they are read.
@@ -98,18 +98,18 @@ tokens. Disconnecting an account revokes its refresh token and deletes its entry
 and queued writes. An account ID from the renderer selects an existing account
 only; an unknown ID is rejected (`google_account_not_found`). A build may compile
 a Google "Desktop app" OAuth client ID and secret into the main process from
-the git-ignored `opencode/packages/desktop/.env.local`
+the git-ignored `tenon/packages/desktop/.env.local`
 (`MAIN_VITE_GOOGLE_CLIENT_ID`, `MAIN_VITE_GOOGLE_CLIENT_SECRET`). Google treats
 an installed app's client secret as non-confidential: anyone with the build can
 read it, and it grants nothing without the user's consent in the browser. The
 renderer only learns whether such a client exists. Keep the values out of git
 and logs. Provider
 credentials (`auth.json`, `mcp-auth.json`) and the session database
-(`opencode.db`) live in the XDG data directory (by default
+(`tenon.db`) live in the XDG data directory (by default
 `~/.local/share/tenon-workbench/`), outside Electron `userData`. `userData` holds
 drafts, electron-store files, logs, and server state. Treat both locations as
 sensitive and exclude them from source control and release artifacts. Outside
-Windows, the server sets the data directory to `0700` and `opencode.db`, its
+Windows, the server sets the data directory to `0700` and `tenon.db`, its
 `-wal`/`-shm` files and its pre-migration backups to `0600`. Failed-query errors
 keep the SQL text but replace bound values with `[redacted]`, so logged defects
 do not carry credentials or note text.
@@ -161,12 +161,12 @@ RunAsNode.
 ## Managed server controls
 
 - **Bind guard.** `Server.listen` refuses a non-loopback hostname unless
-  `OPENCODE_SERVER_PASSWORD` is set (`server/network-guard.ts`). The WSL
+  `TENON_SERVER_PASSWORD` is set (`server/network-guard.ts`). The WSL
   sidecar listens on `127.0.0.1` inside the distro.
 
 - **Child processes.** Terminals, agent shell commands, MCP stdio servers and
-  LSP servers don't inherit `OPENCODE_SERVER_PASSWORD` or
-  `OPENCODE_SERVER_USERNAME`. `ChildEnv.from` (`core/src/child-env.ts`) strips
+  LSP servers don't inherit `TENON_SERVER_PASSWORD` or
+  `TENON_SERVER_USERNAME`. `ChildEnv.from` (`core/src/child-env.ts`) strips
   them in the cross-spawn spawner and `Process.spawn`, which apply it to every
   child environment. All other variables are still inherited.
 - **Credential checks.** `ServerAuth.authorized` compares the username and
@@ -216,7 +216,7 @@ two help-text links printed by the developer-only `providers login` command.
 Phase 8 removed the TUI and the upstream CLI commands that reached GitHub,
 the OpenCode console, and share or install endpoints (`github`, `pr`,
 `account`, `upgrade`, `uninstall`, `web`, `acp`, `attach`, `stats`, `plug`,
-`export`, `import`). The remaining CLI in `packages/opencode/src/index.ts`
+`export`, `import`). The remaining CLI in `packages/tenon/src/index.ts`
 runs only from source for development (`serve`, `generate`, `mcp`, `debug`,
 `providers`, `agent`, `models`, `session`, `db`) and isn't shipped.
 
@@ -252,7 +252,7 @@ be updated from that package's registry entry.
 ## Built-in harness setup
 
 The setup dialog ([ADR-013](../adr/ADR-013-built-in-harness-setup.md),
-`opencode/packages/core/src/harness/setup.ts`) adds these surfaces:
+`tenon/packages/core/src/harness/setup.ts`) adds these surfaces:
 
 - **Install.** `POST /api/harness/setup/:id/install` takes only a harness ID.
   - The npm package comes from a fixed recipe for the three built-ins, so no
@@ -288,7 +288,7 @@ the desktop main process.
 
 ## Harness usage limits
 
-`GET /api/harness/usage` (`opencode/packages/core/src/harness/usage.ts`,
+`GET /api/harness/usage` (`tenon/packages/core/src/harness/usage.ts`,
 `HarnessRuntime.usage`) reports plan usage windows. It takes no input beyond
 the location query and has the same auth as the other harness routes.
 
@@ -383,7 +383,7 @@ only files in the global config folder count (`harnessDocuments` in
 folder (`opencode.json`, `.opencode/`) are ignored for harnesses, because
 listing harnesses runs each one's availability check, so a cloned repo could
 otherwise run its own command just by being opened. Inline config without a
-file (`OPENCODE_CONFIG_CONTENT` set by the user) still counts.
+file (`TENON_CONFIG_CONTENT` set by the user) still counts.
 
 Attachments on a harness turn now leave the app: Codex and ACP agents get
 pasted images as image data, which their provider receives, and local files
@@ -395,7 +395,7 @@ CLI allows:
 
 - Codex runs with `workspace-write` and `on-request` approvals.
 - OpenCode's own default lets edits and shell commands run without asking.
-  The app launches it with `OPENCODE_CONFIG_CONTENT` setting `edit` and
+  The app launches it with `TENON_CONFIG_CONTENT` setting `edit` and
   `bash` to `ask` (requests reach Tenon's approvals over ACP), unless the
   user's global OpenCode config sets `permission` or the harness's configured
   `env` sets that variable.
@@ -475,7 +475,7 @@ you'd trust with the credentials you configure for them.
 
 Agents can start work in another harness through the delegation endpoint
 ([ADR-011](../adr/ADR-011-cross-harness-delegation.md),
-`opencode/packages/core/src/harness/delegation.ts`). Controls:
+`tenon/packages/core/src/harness/delegation.ts`). Controls:
 
 - The endpoint listens on `127.0.0.1` only, on its own port. Every request
   needs a bearer token (32 random bytes, compared in constant time). Each
@@ -573,7 +573,7 @@ The built-in `opencode-acp` instance starts upstream OpenCode from `PATH` as
 separate child process running as the user, and it gets the same treatment:
 
 - It receives only the launch allowlist from `core/src/harness/env.ts`. No
-  `OPENCODE_*` variables and no provider keys from the app reach it.
+  `TENON_*` variables and no provider keys from the app reach it.
 - It uses its own credentials, set up with `opencode auth login`.
 - The client advertises no file-system or terminal capability. Its tool
   approvals arrive as `session/request_permission` and go through
@@ -597,8 +597,11 @@ duplicates the credentials into the `tenon-workbench` folder; after it, each app
 reads and writes only its own copy. The legacy folders are left unchanged and
 still hold the original credentials. If the shared `opencode.db` contained
 upstream OpenCode sessions, Tenon Workbench's copy contains them too.
-Per-project `.opencode/` folders and `.git/opencode` are still shared by
-design.
+Per-project config now lives in `.tenon/` and `tenon.json`, and the project ID
+in `.git/tenon`. `.opencode/`, `opencode.json` and `.git/opencode` are still
+read (with lower priority than the Tenon names), so a repository configured for
+upstream OpenCode still configures Tenon Workbench: the same project-config
+trust limits below apply to both names.
 
 Resolved: the Electron app IDs are `io.github.torriider97.tenonworkbench[.dev|.beta]`
 (`APP_IDS` in `desktop/src/main/index.ts`), separate from upstream OpenCode
@@ -619,7 +622,7 @@ changes:
   `ai.opencode.desktop` and `ai.opencode.desktop.beta` folders, which belong to
   upstream OpenCode Desktop. The copy leaves the old folder unchanged.
 
-The in-window DOM event name `opencode:deep-link` is internal and unchanged.
+The in-window DOM event name is `tenon:deep-link` (internal).
 
 ### Harness handoff text
 
@@ -828,25 +831,25 @@ From the repository root, `bun run typecheck` checks every workspace package
 through turbo. `bun run test` runs every package suite except the engine
 (core, server) and the client and schema suites, then the Second Brain
 domains; `bun run test:engine` runs core and server suites. `bun run lint`
-checks `opencode/`, and `bun run check:generated` fails when the generated
+checks `tenon/`, and `bun run check:generated` fails when the generated
 client is stale. These commands are defined in the root `package.json`.
 Relevant focused tests include
-`opencode/packages/desktop/src/main/google-calendar-domain.test.ts`,
-`opencode/packages/opencode/test/project/brain.test.ts`,
-`opencode/packages/session-ui/src/components/svg-window.test.ts`, and the note tests
-under `opencode/packages/opencode/test/knowledge/`. Run server tests from
-`opencode/packages/opencode` with Bun when changing those paths. These checks
+`tenon/packages/desktop/src/main/google-calendar-domain.test.ts`,
+`tenon/packages/tenon/test/project/brain.test.ts`,
+`tenon/packages/session-ui/src/components/svg-window.test.ts`, and the note tests
+under `tenon/packages/tenon/test/knowledge/`. Run server tests from
+`tenon/packages/tenon` with Bun when changing those paths. These checks
 run locally; GitHub Actions workflows are disabled. Local test results do not
 establish cross-platform installer or signed-update safety.
 
-Focused commands from `opencode/packages/opencode`:
+Focused commands from `tenon/packages/tenon`:
 
 ```sh
 bun run test ./test/knowledge ./test/planner ./test/project/brain.test.ts
 bun run test ./test/server/httpapi-instance-route-auth.test.ts ./test/server/httpapi-ui.test.ts
 ```
 
-From `opencode/packages/desktop`:
+From `tenon/packages/desktop`:
 
 ```sh
 bun test src/main/google-calendar-domain.test.ts src/main/attachment-picker.test.ts src/main/external-url.test.ts
@@ -886,7 +889,7 @@ location and canonical Git worktree.
   patterns (`Wildcard.literal`; `[*]` and `[?]` match a literal `*` and `?`), so
   approving `rm *` once doesn't allow every `rm`. Rules saved before this change
   keep their old meaning.
-- A folder's own config (project files and project `.opencode` folders) can't
+- A folder's own config (project files and project `.tenon` or `.opencode` folders) can't
   set `share` or `enterprise`; only user and admin config can turn on sharing.
   Project config can still load plugins and MCP commands: there is no
   workspace trust prompt yet.
@@ -894,7 +897,7 @@ location and canonical Git worktree.
 ## Known gaps
 
 Found during the 2026-10-02 scope audit. Paths are relative to
-`opencode/packages/desktop/src/main/`. Entries move back into the model once a
+`tenon/packages/desktop/src/main/`. Entries move back into the model once a
 fix lands.
 
 - `open-path` (`ipc.ts`) opens any renderer-supplied absolute path.
@@ -908,9 +911,9 @@ fix lands.
   compromised main-frame renderer remains possible until the workspace-ID
   contract lands.
 - `store-*` handlers accept only the renderer's own store files, `default.dat`
-  and `opencode.<scope>.dat` (`store-name.ts`). Renderer input can't create or
+  and `tenon.<scope>.dat` (`store-name.ts`). Renderer input can't create or
   escape files under `userData`, and can't read or write main-owned stores
-  such as `opencode.settings`, `opencode.updater`, `second-brain.google` or
+  such as `tenon.settings`, `tenon.updater`, `second-brain.google` or
   Chromium `Preferences`.
 - Every IPC handler, including the WSL handlers in `wsl/ipc.ts`, checks
   `event.senderFrame` against the trusted main frame through the shared

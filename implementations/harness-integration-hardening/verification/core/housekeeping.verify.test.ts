@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test"
-import { LLM, Model } from "@opencode-ai/llm"
-import { route } from "@opencode-ai/llm/protocols/openai-chat"
-import { idleRuntimeKeys, renderCodexInstructions } from "../../../../opencode/packages/core/src/harness"
-import { AcpHarness } from "../../../../opencode/packages/core/src/harness/acp"
+import { LLM, Model } from "@tenon/llm"
+import { route } from "@tenon/llm/protocols/openai-chat"
+import { idleRuntimeKeys, renderCodexInstructions } from "../../../../tenon/packages/core/src/harness"
+import { AcpHarness } from "../../../../tenon/packages/core/src/harness/acp"
 
 describe("verify AC-19", () => {
   test("exactly at the limit is not idle; an empty map gives nothing", () => {

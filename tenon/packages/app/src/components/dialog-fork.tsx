@@ -1,0 +1,110 @@
+import { Component, createMemo } from "solid-js"
+import { useNavigate, useParams } from "@solidjs/router"
+import { useSync } from "@/context/sync"
+import { useSDK } from "@/context/sdk"
+import { usePrompt } from "@/context/prompt"
+import { useDialog } from "@tenon/ui/context/dialog"
+import { List } from "@tenon/ui/list"
+import { Dialog, DialogBody, DialogHeader, DialogTitle } from "@tenon/ui/v2/dialog-v2"
+import { showToast } from "@/utils/toast"
+import { extractPromptFromParts } from "@/utils/prompt"
+import type { TextPart as SDKTextPart } from "@opencode-ai/sdk/v2/client"
+import { base64Encode } from "@tenon/core/util/encode"
+import { useLanguage } from "@/context/language"
+import { listV2Class } from "./surface-classes"
+
+interface ForkableMessage {
+  id: string
+  text: string
+  time: string
+}
+
+function formatTime(date: Date): string {
+  return date.toLocaleTimeString(undefined, { timeStyle: "short" })
+}
+
+export const DialogFork: Component = () => {
+  const params = useParams()
+  const navigate = useNavigate()
+  const sync = useSync()
+  const sdk = useSDK()
+  const prompt = usePrompt()
+  const dialog = useDialog()
+  const language = useLanguage()
+
+  const messages = createMemo((): ForkableMessage[] => {
+    const sessionID = params.id
+    if (!sessionID) return []
+
+    const msgs = sync().data.message[sessionID] ?? []
+    const result: ForkableMessage[] = []
+
+    for (const message of msgs) {
+      if (message.role !== "user") continue
+
+      const parts = sync().data.part[message.id] ?? []
+      const textPart = parts.find((x): x is SDKTextPart => x.type === "text" && !x.synthetic && !x.ignored)
+      if (!textPart) continue
+
+      result.push({
+        id: message.id,
+        text: textPart.text.replace(/\n/g, " ").slice(0, 200),
+        time: formatTime(new Date(message.time.created)),
+      })
+    }
+
+    return result.reverse()
+  })
+
+  const handleSelect = (item: ForkableMessage | undefined) => {
+    if (!item) return
+
+    const sessionID = params.id
+    if (!sessionID) return
+
+    const parts = sync().data.part[item.id] ?? []
+    const restored = extractPromptFromParts(parts, {
+      directory: sdk().directory,
+      attachmentName: language.t("common.attachment"),
+    })
+    const dir = base64Encode(sdk().directory)
+
+    sdk()
+      .api.session.fork({ sessionID, messageID: item.id })
+      .then((forked) => {
+        dialog.close()
+        prompt.set(restored, undefined, { dir, id: forked.id })
+        navigate(`/${dir}/session/${forked.id}`)
+      })
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err)
+        showToast({ title: language.t("common.requestFailed"), description: message })
+      })
+  }
+
+  return (
+    <Dialog size="large">
+      <DialogHeader>
+        <DialogTitle>{language.t("command.session.fork")}</DialogTitle>
+      </DialogHeader>
+      <DialogBody class="min-h-0">
+        <List
+          class={`flex-1 px-3 min-h-0 [&_[data-slot=list-scroll]]:flex-1 [&_[data-slot=list-scroll]]:min-h-0 ${listV2Class}`}
+          search={{ placeholder: language.t("common.search.placeholder"), autofocus: true }}
+          emptyMessage={language.t("dialog.fork.empty")}
+          key={(x) => x.id}
+          items={messages}
+          filterKeys={["text"]}
+          onSelect={handleSelect}
+        >
+          {(item) => (
+            <div class="flex w-full items-center gap-2">
+              <span class="min-w-0 flex-1 truncate text-left">{item.text}</span>
+              <span class="shrink-0 text-[12px] opacity-70">{item.time}</span>
+            </div>
+          )}
+        </List>
+      </DialogBody>
+    </Dialog>
+  )
+}

@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import { Exit } from "effect"
-import { harnessEnvironment } from "../../../../opencode/packages/core/src/harness/env"
-import { AcpHarness } from "../../../../opencode/packages/core/src/harness/acp"
-import { ProtocolError } from "../../../../opencode/packages/core/src/harness/codex-app-server"
+import { harnessEnvironment } from "../../../../tenon/packages/core/src/harness/env"
+import { AcpHarness } from "../../../../tenon/packages/core/src/harness/acp"
+import { ProtocolError } from "../../../../tenon/packages/core/src/harness/codex-app-server"
 
 describe("verify AC-16", () => {
   test("lowercase proxy variables pass, and no proxy means NO_PROXY is not invented", () => {

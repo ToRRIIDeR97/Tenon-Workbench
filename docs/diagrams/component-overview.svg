@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 790" width="980" height="790" role="img" aria-labelledby="title desc">
 <title id="title">Component view of Tenon Workbench</title>
-<desc id="desc">UML component view: Solid renderer, preload bridge, Electron main, the bundled OpenCode server with HTTP API, Second Brain domains, location services and agent runtime, plus stores and external services.</desc>
+<desc id="desc">UML component view: Solid renderer, preload bridge, Electron main, the bundled Tenon server with HTTP API, Second Brain domains, location services and agent runtime, plus stores and external services.</desc>
 
 <style>
   .bg{fill:#ffffff}
@@ -59,7 +59,7 @@
 
 <rect class="bg" x="0" y="0" width="980" height="790"/>
 <text x="20" y="28" text-anchor="start" class="h">Component view</text>
-<text x="20" y="46" text-anchor="start" class="s">UML 2.5.1 component diagram · paths relative to opencode/packages/</text>
+<text x="20" y="46" text-anchor="start" class="s">UML 2.5.1 component diagram · paths relative to tenon/packages/</text>
 <rect class="box" x="20" y="70" width="250" height="160" rx="6"/>
 <text x="30" y="88" text-anchor="start" class="s">«component»</text>
 <text x="30" y="104" text-anchor="start" class="t">Solid renderer</text>
@@ -86,18 +86,18 @@
 <text x="30" y="624" text-anchor="start" class="s">drafts.sqlite, electron-store</text>
 <text x="30" y="640" text-anchor="start" class="s">(second-brain.google)</text>
 <rect class="zone" x="340" y="60" width="360" height="570" rx="10"/>
-<text x="350" y="76" text-anchor="start" class="zonet">OpenCode server «subsystem» · 127.0.0.1</text>
+<text x="350" y="76" text-anchor="start" class="zonet">Tenon server «subsystem» · 127.0.0.1</text>
 <rect class="sub" x="360" y="90" width="290" height="104" rx="6"/>
 <text x="370" y="108" text-anchor="start" class="t">HTTP API</text>
 <text x="370" y="124" text-anchor="start" class="s">native /api: server + protocol pkgs</text>
-<text x="370" y="140" text-anchor="start" class="s">legacy: opencode/src/server</text>
+<text x="370" y="140" text-anchor="start" class="s">legacy: tenon/src/server</text>
 <text x="370" y="156" text-anchor="start" class="s">Basic auth, workspace routing</text>
 <text x="370" y="172" text-anchor="start" class="s">→ domains and SessionV2</text>
 <rect class="sub" x="360" y="215" width="290" height="104" rx="6"/>
 <text x="370" y="233" text-anchor="start" class="t">Second Brain domains</text>
-<text x="370" y="249" text-anchor="start" class="s">opencode/src/knowledge/note.ts</text>
-<text x="370" y="265" text-anchor="start" class="s">opencode/src/project/brain.ts</text>
-<text x="370" y="281" text-anchor="start" class="s">opencode/src/planner/calendar.ts</text>
+<text x="370" y="249" text-anchor="start" class="s">tenon/src/knowledge/note.ts</text>
+<text x="370" y="265" text-anchor="start" class="s">tenon/src/project/brain.ts</text>
+<text x="370" y="281" text-anchor="start" class="s">tenon/src/planner/calendar.ts</text>
 <text x="370" y="297" text-anchor="start" class="s">SecondBrainApi handlers</text>
 <rect class="sub" x="360" y="340" width="290" height="80" rx="6"/>
 <text x="370" y="358" text-anchor="start" class="t">Location services</text>

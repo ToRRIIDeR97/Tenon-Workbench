@@ -132,7 +132,7 @@ def states_platform():
     E([(360, 564), (360, 585), (120, 585), (120, 474)], "sync() retries pending | offline", at=(240, 580))
     s.text(40, 610, "5th transient failure → failed · pruning keeps pending | offline", "s")
     # D project status
-    s.zone(540, 360, 500, 260, "Project status · opencode/src/project/brain.ts")
+    s.zone(540, 360, 500, 260, "Project status · tenon/src/project/brain.ts")
     s.start(565, 437)
     st(s, 590, 420, 110, "active")
     st(s, 750, 420, 110, "paused")
@@ -156,7 +156,7 @@ def seq_startup():
     s.heading("Sequence: desktop startup and shutdown", "desktop/src/main/index.ts · server.ts · sidecar.ts · renderer/index.tsx")
     M, L, S, R = 110, 320, 530, 760
     s.lifelines([("Electron main", M, "index.ts"), ("Server launcher", L, "server.ts"),
-                 ("OpenCode server", S, "utility process"), ("Renderer", R, "preload + app")], 64, 780, w=170)
+                 ("Tenon server", S, "utility process"), ("Renderer", R, "preload + app")], 64, 780, w=170)
     s.msg(M, M, 124, "single-instance lock · migrate · shell env probe (async)")
     s.msg(M, M, 156, "whenReady: IPC, Google service")
     s.msg(M, R, 200, "restoreMainWindows → oc://renderer (splash)")

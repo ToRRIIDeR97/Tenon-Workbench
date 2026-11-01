@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { AcpHarness } from "../../../../opencode/packages/core/src/harness/acp"
+import { AcpHarness } from "../../../../tenon/packages/core/src/harness/acp"
 
 const update = (value: Record<string, unknown>) => ({ method: "session/update", params: { sessionId: "s1", update: value } })
 const meta = (id: string, title: string) => ({ "opencode/child-session": { id, parentID: "s1", depth: 1, title } })

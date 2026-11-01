@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { skillSections } from "../../../../opencode/packages/app/src/components/settings-v2/skills-sections"
+import { skillSections } from "../../../../tenon/packages/app/src/components/settings-v2/skills-sections"
 
 const catalog = {
   tenon: [

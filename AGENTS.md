@@ -2,12 +2,21 @@
 
 ## Architecture
 
-- Treat `opencode/` as the runtime base: OpenCode's Electron host, managed
-  local server, and session runtime. The app shell and navigation (the
+- Treat `tenon/` as the runtime base: the Electron host, managed local
+  server, and session runtime imported from upstream OpenCode
+  ([upstream notes](docs/opencode-upstream.md)). The app shell and navigation (the
   sidebar, Projects and threads) are Second Brain's own.
 - The former Tauri application is retired. Keep its schema references and
   migration gaps documented in `docs/archive/tauri/README.md`.
-- Add Second Brain features inside OpenCode instead of recreating its shell.
+- Add Second Brain features inside `tenon/` instead of recreating its shell.
+- Name owned code, packages (`@tenon/*`), files, env vars (`TENON_*`), headers
+  (`x-tenon-*`) and UI text "Tenon". Keep `opencode` only where it names the
+  upstream product or a format shared with it: the OpenCode harness and CLI
+  (`opencode acp`, the WSL server, `@opencode-ai/cli-*`), the OpenCode Zen
+  provider (`opencode` ID, `OPENCODE_API_KEY`), `opencode.ai` URLs, the
+  published `@opencode-ai/sdk` and `@opencode-ai/plugin` packages, the vendored
+  `@opencode-ai/client`, `x-opencode-*` protocol headers, provider attribution
+  headers, and the pre-rename names still read for compatibility.
 - Keep product code in the broad `workspace`, `knowledge`, `agents`, `planner`,
   `terminal`, and `platform` domains.
 - Do not extract packages or services without demonstrated reuse or isolation need.
@@ -43,9 +52,9 @@
 
 ## Project map
 
-- `opencode/` is the active product; root Tauri/Cargo/pnpm tooling is retired.
-  `opencode/AGENTS.md` holds the inherited code style and package rules.
-- Install with `bun install --frozen-lockfile` inside `opencode/` (Bun 1.3.14,
+- `tenon/` is the active product; root Tauri/Cargo/pnpm tooling is retired.
+  `tenon/AGENTS.md` holds the inherited code style and package rules.
+- Install with `bun install --frozen-lockfile` inside `tenon/` (Bun 1.3.14,
   Node.js 24). Start the desktop app with `bun run dev` from the repository root.
 - Product scope: [product brief](docs/product/PRODUCT-BRIEF-V1.md),
   [navigation map](docs/product/NAVIGATION-MAP-V1.md), glossary in `CONTEXT.md`.
@@ -61,19 +70,19 @@ Run from the repository root, locally, before requesting a merge. `bun run check
 runs these in order and stops at the first failure:
 
 ```sh
-bun run typecheck        # turbo typecheck of every opencode/ package
+bun run typecheck        # turbo typecheck of every tenon/ package
 bun run lint
 bun run check:generated  # generated client in packages/client is current
 bun run test             # turbo test of packages + Second Brain server tests
 bun run build
 ```
 
-`bun run test` skips the engine packages (`core`, `opencode`) and, until their
+`bun run test` skips the engine packages (`core`, `tenon`) and, until their
 contract fixtures are updated, `client` and `schema`. Also run
-`bun run test:engine` when changing `opencode/packages/core` or
-`opencode/packages/opencode`, and `bun run test:routes` when changing
-navigation or routing. `bun install` inside `opencode/` also installs a git
-pre-push hook (`opencode/.husky/pre-push`) that runs typecheck and lint.
+`bun run test:engine` when changing `tenon/packages/core` or
+`tenon/packages/tenon`, and `bun run test:routes` when changing
+navigation or routing. `bun install` inside `tenon/` also installs a git
+pre-push hook (`tenon/.husky/pre-push`) that runs typecheck and lint.
 The CI workflow runs only on manual dispatch.
 
 ## Merging
