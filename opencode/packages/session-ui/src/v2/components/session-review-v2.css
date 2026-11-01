@@ -215,6 +215,7 @@
 
 [data-component="session-review-v2"] [data-slot="session-review-v2-toolbar"] {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -230,8 +231,12 @@
   gap: 0px;
 }
 
+/* A zero basis lets a long title truncate instead of wrapping the toolbar; the floor keeps the
+   previous/next buttons visible. When both groups cannot fit, the segments move to a second line
+   instead of covering the buttons. */
 [data-component="session-review-v2"] .session-review-v2-toolbar-group--start {
-  min-width: 0;
+  flex: 1 1 0;
+  min-width: 80px;
 }
 
 [data-component="session-review-v2"] [data-slot="session-review-v2-toolbar-collapsed-meta"] {
@@ -433,6 +438,7 @@
 }
 
 [data-component="session-review-v2"] .session-review-v2-toolbar-group--segments {
+  flex-shrink: 0;
   gap: 12px;
 }
 

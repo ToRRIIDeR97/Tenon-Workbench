@@ -218,7 +218,7 @@ export function SessionReviewV2(props: SessionReviewV2Props) {
           </Show>
         </div>
       </Show>
-      <div class="flex items-center">
+      <div class="flex shrink-0 items-center">
         <TooltipV2
           openDelay={2000}
           inactive={!prev()}
