@@ -44,15 +44,17 @@
   }
 }
 
-/* Open card: the body grows from zero height (a 0fr to 1fr grid row animates to the content's height) while its
-   rows fade up, and shrinks back on close. Rendering open from the start doesn't animate. */
+/* Open card: the body grows from zero height (a 0fr to 1fr grid row animates to the content's height) on the long
+   emphasized curve, and its steps follow one after another. Closing is quicker and folds everything at once.
+   Rendering open from the start doesn't animate. */
 [data-slot="turn-steps-body"] {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate);
+  transition: grid-template-rows var(--v2-duration-medium) var(--v2-ease-emphasized-accelerate);
 
   &[data-open] {
     grid-template-rows: 1fr;
+    transition: grid-template-rows var(--v2-duration-long) var(--v2-ease-emphasized-decelerate);
   }
 
   > div {
@@ -62,15 +64,28 @@
 
   [data-slot="turn-steps-rows"] {
     opacity: 0;
-    transform: translateY(-4px);
-    transition:
-      opacity var(--v2-duration-short) var(--v2-ease-standard),
-      transform var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate);
+    transition: opacity var(--v2-duration-short) var(--v2-ease-standard);
   }
 
   &[data-open] [data-slot="turn-steps-rows"] {
     opacity: 1;
-    transform: none;
+  }
+
+  /* Each step slides in a beat after the one above it; past the eighth they arrive together. */
+  &[data-open][data-animate] :is([data-slot="turn-steps-item"], [data-slot="turn-steps-note"]) {
+    animation: turn-steps-item-in var(--v2-duration-long) var(--v2-ease-emphasized-decelerate) both;
+    animation-delay: calc(min(var(--i, 0), 8) * 30ms);
+  }
+}
+
+[data-slot="turn-steps-body"][data-animate] [data-slot="turn-steps-detail"] {
+  animation: turn-steps-item-in var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate) both;
+}
+
+@keyframes turn-steps-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
   }
 }
 
@@ -81,8 +96,15 @@
   }
 
   [data-slot="turn-steps-body"],
+  [data-slot="turn-steps-body"][data-open],
   [data-slot="turn-steps-body"] [data-slot="turn-steps-rows"] {
     transition: none;
+  }
+
+  [data-slot="turn-steps-body"][data-open][data-animate]
+    :is([data-slot="turn-steps-item"], [data-slot="turn-steps-note"]),
+  [data-slot="turn-steps-body"][data-animate] [data-slot="turn-steps-detail"] {
+    animation: none;
   }
 
   [data-slot="turn-steps-lane"][data-running] [data-slot="turn-steps-lane-fill"] {

@@ -465,9 +465,16 @@ export function MessageTimeline(props: {
     },
   })
   const resizeItem = virtualizer.resizeItem
+  // While a card the user opened or closed animates, keep its header where it was clicked: pinning the bottom
+  // would grow the card upward and shove the thread above it out from under the cursor.
+  let holdBottomUntil = 0
+  const holdBottom = () => {
+    holdBottomUntil = performance.now() + 700
+  }
+  const bottomHeld = () => performance.now() < holdBottomUntil
   let resizeAnchorScheduled = false
   const anchorResizedBottom = () => {
-    if (resizeAnchorScheduled || props.hasScrollGesture()) return
+    if (resizeAnchorScheduled || props.hasScrollGesture() || bottomHeld()) return
     resizeAnchorScheduled = true
     queueMicrotask(() => {
       resizeAnchorScheduled = false
@@ -499,7 +506,7 @@ export function MessageTimeline(props: {
     if (root && props.shouldAnchorBottom()) anchorResizedBottom()
   }
   virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item) => {
-    if (props.shouldAnchorBottom()) return false
+    if (props.shouldAnchorBottom() && !bottomHeld()) return false
     const first = virtualizer.range?.startIndex
     return first !== undefined && item.index < first
   }
@@ -1122,9 +1129,11 @@ export function MessageTimeline(props: {
                     : undefined
                 }
                 onToggle={(open) => {
+                  holdBottom()
                   setToolOpen(`turn:${turnStepsRow().userMessageID}:${turnStepsRow().segment}`, open)
                   onSizeChange?.()
                 }}
+                onResize={holdBottom}
               />
             </div>
           </TimelineRowFrame>

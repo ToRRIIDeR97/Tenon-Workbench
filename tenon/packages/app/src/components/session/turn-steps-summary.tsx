@@ -1,4 +1,4 @@
-import { For, Index, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js"
+import { For, Index, Show, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
 import type { Part, ReasoningPart, ToolPart } from "@opencode-ai/sdk/v2"
 import { Icon } from "@tenon/ui/v2/icon"
@@ -163,6 +163,8 @@ export function TurnStepsSummary(props: {
   durationMs?: number
   open: boolean
   onToggle: (open: boolean) => void
+  /** Called before a row inside the open card opens or closes, which changes the card's height. */
+  onResize?: () => void
   /** Opens a harness subagent's tab; its lanes become buttons when this is set. */
   onOpenSubagent?: (part: ToolPart) => void
 }) {
@@ -185,11 +187,26 @@ export function TurnStepsSummary(props: {
   // Finished lanes stay, with a full bar, until the turn ends so parallel subagents don't jump around.
   const lanes = createMemo(() => (live() ? subagentLanes(props.parts) : []))
   // The body's rows mount on first open and stay, so closing animates instead of emptying at once.
-  const [body, setBody] = createStore({ mounted: props.open, expanded: {} as Record<string, boolean> })
-  createEffect(() => {
-    if (props.open) setBody("mounted", true)
+  const [body, setBody] = createStore({
+    mounted: props.open,
+    // Set once the card opens while on screen: the timeline remounts rows on scroll, and an open card coming back
+    // into view shouldn't replay its entrance.
+    animate: false,
+    expanded: {} as Record<string, boolean>,
   })
-  const toggle = (id: string) => setBody("expanded", id, (value) => !value)
+  createEffect(
+    on(
+      () => props.open,
+      (open, previous) => {
+        if (open) setBody("mounted", true)
+        if (open && previous === false) setBody("animate", true)
+      },
+    ),
+  )
+  const toggle = (id: string) => {
+    props.onResize?.()
+    setBody("expanded", id, (value) => !value)
+  }
   // One clock drives the turn and step timers; it only ticks while the turn works.
   const [now, setNow] = createSignal(Date.now())
   createEffect(() => {
@@ -422,12 +439,17 @@ export function TurnStepsSummary(props: {
       </Show>
       {/* Open: every step on the card's own surface. Tools are filled rows that open to their output; reasoning is a
           one-line note that opens to its full text. */}
-      <div data-slot="turn-steps-body" data-open={props.open ? "" : undefined} aria-hidden={!props.open}>
+      <div
+        data-slot="turn-steps-body"
+        data-open={props.open ? "" : undefined}
+        data-animate={body.animate ? "" : undefined}
+        aria-hidden={!props.open}
+      >
         <div>
           <Show when={body.mounted}>
             <div data-slot="turn-steps-rows" class="flex flex-col gap-1 px-2 pb-2">
               <For each={props.parts}>
-                {(part) => (
+                {(part, index) => (
                   <>
                     <Show when={part.type === "tool" ? part : undefined}>
                       {(tool) => {
@@ -435,7 +457,7 @@ export function TurnStepsSummary(props: {
                         const open = () => !!body.expanded[tool().id]
                         const step = () => stepOf(tool())
                         return (
-                          <div class="flex min-w-0 flex-col">
+                          <div data-slot="turn-steps-item" style={{ "--i": index() }} class="flex min-w-0 flex-col">
                             <button
                               type="button"
                               data-slot="turn-steps-row"
@@ -491,7 +513,10 @@ export function TurnStepsSummary(props: {
                             </button>
                             <Show when={open() ? detail() : undefined}>
                               {(text) => (
-                                <pre class="mt-1 max-h-60 overflow-auto whitespace-pre-wrap break-words rounded-[10px] bg-v2-background-bg-base px-3 py-2 font-mono text-[12px] leading-[18px] text-v2-text-text-muted">
+                                <pre
+                                  data-slot="turn-steps-detail"
+                                  class="mt-1 max-h-60 overflow-auto whitespace-pre-wrap break-words rounded-[10px] bg-v2-background-bg-base px-3 py-2 font-mono text-[12px] leading-[18px] text-v2-text-text-muted"
+                                >
                                   {text()}
                                 </pre>
                               )}
@@ -508,6 +533,7 @@ export function TurnStepsSummary(props: {
                           <Show when={text()}>
                             <div
                               data-slot="turn-steps-note"
+                              style={{ "--i": index() }}
                               role="button"
                               tabIndex={props.open ? 0 : -1}
                               aria-expanded={open()}
