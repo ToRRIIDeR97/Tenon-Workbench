@@ -463,13 +463,19 @@ const layer = Layer.effect(
       const close = Scope.close(runtimeScope, Exit.void).pipe(Effect.ignore)
       const gate = turnGate()
       const runtime = yield* Effect.gen(function* () {
-        const asker = yield* HarnessAskUser.make(questions, input.sessionID)
+        // Questions and approvals publish with the Location, which the turn's fiber doesn't carry; see HarnessAskUser.
+        const asker = yield* HarnessAskUser.make(questions, input.sessionID).pipe(
+          Effect.provideService(Location.Service, location),
+        )
         const delegation = yield* HarnessDelegation.endpoint(input.sessionID, asker.ask)
         const opened = yield* openCodex(
           process,
           settings,
           input.directory,
-          (request) => handleCodexRequest(request, input, permissions, questions, gate.guard),
+          (request) =>
+            handleCodexRequest(request, input, permissions, questions, gate.guard).pipe(
+              Effect.provideService(Location.Service, location),
+            ),
           delegation,
         )
         const revision = input.revision ?? 0
@@ -548,41 +554,52 @@ const layer = Layer.effect(
       const gate = turnGate()
       const revision = input.revision ?? 0
       const continuation = yield* readContinuation(database.db, input.sessionID, instance.id, revision)
+      // Questions and approvals publish with the Location, which the turn's fiber doesn't carry; see HarnessAskUser.
       const asker = yield* HarnessAskUser.make(questions, input.sessionID).pipe(
         Effect.provideService(Scope.Scope, runtimeScope),
+        Effect.provideService(Location.Service, location),
       )
-      const delegation = yield* HarnessDelegation.endpoint(input.sessionID, asker.ask).pipe(
-        Effect.provideService(Scope.Scope, runtimeScope),
-      )
+      // Tenon sets the MCP call timeout of the built-in agents (OpenCode's launch config; Claude Code's default is
+      // hours). Another agent's client may give up after 60 s, so its `ask_user` returns "still open" sooner.
+      const longWait = instance.id === Harness.OpenCodeAcp || instance.id === Harness.ClaudeCode
+      const delegation = yield* HarnessDelegation.endpoint(input.sessionID, (prompts, waitSeconds) =>
+        asker.ask(prompts, longWait ? waitSeconds : Math.min(waitSeconds, HarnessAskUser.SHORT_WAIT_SECONDS)),
+      ).pipe(Effect.provideService(Scope.Scope, runtimeScope))
       const session = yield* AcpHarness.open(process, {
         settings,
         directory: input.directory,
         continuation: continuation?.nativeID,
         mcpServers: delegation ? [HarnessDelegation.acpServer(delegation)] : [],
+        ask: (prompts) =>
+          Effect.promise(() => asker.ask(prompts, HarnessAskUser.ELICITATION_WAIT_SECONDS)).pipe(
+            Effect.map((outcome) => (outcome.type === "answered" ? outcome.answers : undefined)),
+          ),
         onCommands: (reported) =>
           Effect.sync(() => {
             commands.set(instance.id, reported)
           }),
         approve: (request) =>
-          gate.guard(
-            permissionSource(input, request.callID).pipe(
-              Effect.flatMap((source) =>
-                approve(permissions, {
-                  sessionID: input.sessionID,
-                  action: request.action,
-                  resources: [...request.resources],
-                  save: request.resources.map(Wildcard.literal),
-                  metadata: {
-                    harness: instance.id,
-                    title: request.title,
-                    ...(request.kind ? { kind: request.kind } : {}),
-                  },
-                  ...(source ? { source } : {}),
-                }),
+          gate
+            .guard(
+              permissionSource(input, request.callID).pipe(
+                Effect.flatMap((source) =>
+                  approve(permissions, {
+                    sessionID: input.sessionID,
+                    action: request.action,
+                    resources: [...request.resources],
+                    save: request.resources.map(Wildcard.literal),
+                    metadata: {
+                      harness: instance.id,
+                      title: request.title,
+                      ...(request.kind ? { kind: request.kind } : {}),
+                    },
+                    ...(source ? { source } : {}),
+                  }),
+                ),
               ),
-            ),
-            false,
-          ),
+              false,
+            )
+            .pipe(Effect.provideService(Location.Service, location)),
       }).pipe(
         Effect.provideService(Scope.Scope, runtimeScope),
         Effect.onError(() => Scope.close(runtimeScope, Exit.void).pipe(Effect.ignore)),
@@ -1733,7 +1750,7 @@ export function handleCodexRequest(
   permissions: PermissionV2.Interface,
   questions: QuestionV2.Interface,
   guard: TurnGate["guard"],
-) {
+): Effect.Effect<unknown, ProtocolError> {
   const { sessionID, directory } = input
   const params = isRecord(request.params) ? request.params : {}
   // Codex approvals name the item whose tool events carry the same ID.

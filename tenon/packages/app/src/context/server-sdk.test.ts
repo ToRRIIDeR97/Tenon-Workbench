@@ -80,6 +80,29 @@ describe("adaptLegacyServerEvent", () => {
       location: { directory: "/repo" },
     })
   })
+
+  test("renames V2 question and permission requests so the docks see them live", () => {
+    const asked = { id: "que_1", sessionID: "ses_1", questions: [] }
+    expect(
+      adaptLegacyServerEvent({ id: "evt_2", type: "question.v2.asked", properties: asked }, "/repo"),
+    ).toMatchObject({ type: "question.asked", properties: asked })
+    expect(
+      adaptLegacyServerEvent(
+        { id: "evt_3", type: "question.v2.rejected", properties: { sessionID: "ses_1", requestID: "que_1" } },
+        "/repo",
+      ),
+    ).toMatchObject({ type: "question.rejected" })
+    expect(
+      adaptLegacyServerEvent(
+        {
+          id: "evt_4",
+          type: "permission.v2.asked",
+          properties: { id: "per_1", sessionID: "ses_1", action: "bash", resources: ["ls"] },
+        },
+        "/repo",
+      ),
+    ).toMatchObject({ type: "permission.asked", properties: { permission: "bash", patterns: ["ls"] } })
+  })
 })
 
 describe("coalesceServerEvents", () => {

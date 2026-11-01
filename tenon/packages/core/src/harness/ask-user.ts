@@ -18,6 +18,15 @@ import { QuestionTool } from "../tool/question"
 /** Below Node fetch's default 300 s wait for response headers, which Node-based MCP clients such as Gemini CLI inherit. */
 export const WAIT_SECONDS = 240
 
+/**
+ * For an agent whose MCP client timeout Tenon doesn't set (an ACP agent the user added): below the MCP SDK's
+ * default 60 s request timeout, so the agent reads "still open" and asks again instead of getting a timeout error.
+ */
+export const SHORT_WAIT_SECONDS = 50
+
+/** An elicitation the agent sends over ACP has no client timeout; the end of the turn withdraws it. */
+export const ELICITATION_WAIT_SECONDS = 24 * 60 * 60
+
 export const Input = Schema.Struct({ questions: Schema.Array(QuestionV2.Prompt) })
 
 export type Outcome =
@@ -55,8 +64,14 @@ export const make = Effect.fn("HarnessAskUser.make")(function* (
   sessionID: SessionSchema.ID,
 ) {
   const state: { open?: Open } = {}
+  // Question events carry the Location in the calling fiber's context, and the app's per-directory event stream
+  // drops events without one. `ask` runs from the MCP endpoint's HTTP handler and withdrawal from the turn's stream
+  // finalizer, neither of which has it, so both run with the context `make` was called in. Callers provide the
+  // Location there.
+  const context = yield* Effect.context()
+  const run = Effect.runPromiseWith(context)
   const withdraw = (open: Open | undefined) =>
-    open && !open.settled ? questions.reject(open.id).pipe(Effect.ignore) : Effect.void
+    open && !open.settled ? questions.reject(open.id).pipe(Effect.ignore, Effect.provideContext(context)) : Effect.void
   yield* Effect.addFinalizer(() => withdraw(state.open))
 
   const start = (key: string, prompts: ReadonlyArray<QuestionV2.Prompt>) => {
@@ -65,7 +80,7 @@ export const make = Effect.fn("HarnessAskUser.make")(function* (
       key,
       id,
       settled: false,
-      outcome: Effect.runPromise(
+      outcome: run(
         questions.ask({ id, sessionID, questions: prompts }).pipe(
           Effect.map((answers) => ({ type: "answered" as const, answers })),
           Effect.catchTag("QuestionV2.RejectedError", () => Effect.succeed({ type: "declined" as const })),
@@ -85,7 +100,7 @@ export const make = Effect.fn("HarnessAskUser.make")(function* (
     const open = current?.key === key ? current : start(key, prompts)
     if (open !== current) {
       state.open = open
-      await Effect.runPromise(withdraw(current))
+      await run(withdraw(current))
     }
     const outcome = await settleWithin(open.outcome, waitSeconds)
     // Once the agent has the answer, the same questions may be asked afresh.

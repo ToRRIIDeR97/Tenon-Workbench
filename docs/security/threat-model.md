@@ -511,6 +511,11 @@ dock. Each runtime has at most one open question; a new question withdraws the
 old one, and the end of the harness turn (finished, failed or stopped) or
 closing the runtime withdraws what is still open. An answer the agent didn't
 collect in that turn is dropped, so it can't answer a later turn's question.
+ACP form elicitations (`elicitation/create`, used by Claude Code's
+AskUserQuestion) take the same path: their field titles, descriptions and
+choices are agent output shown as text, the answers go back only to the agent
+that asked, and url-mode elicitations are declined, so an agent can't open a
+link through Tenon.
 
 A harness approval carries the tool call it gates as its `source` (the ACP
 `toolCallId` or Codex `itemId`), so the dock can link the request to the call.

@@ -8,6 +8,7 @@ import os from "os"
 import path from "path"
 import { ConfigHarness } from "../config/harness"
 import type { AppProcess } from "../process"
+import type { QuestionV2 } from "../question"
 import { harnessEnvironment } from "./env"
 import { HarnessPids } from "./pids"
 import {
@@ -43,6 +44,14 @@ export interface OpenInput {
   /** HTTP MCP servers offered to the agent; dropped when it does not advertise `mcpCapabilities.http`. */
   readonly mcpServers?: ReadonlyArray<McpServer>
   readonly approve: (request: PermissionRequest) => Effect.Effect<boolean>
+  /**
+   * Asks an agent's form elicitation (`elicitation/create`) as questions in the Run's dock: one answer per
+   * question, or undefined when the user declined. Without it the client doesn't advertise forms. Claude Code
+   * sends its own AskUserQuestion tool this way.
+   */
+  readonly ask?: (
+    questions: ReadonlyArray<QuestionV2.Prompt>,
+  ) => Effect.Effect<ReadonlyArray<QuestionV2.Answer> | undefined>
   /** Called with the slash commands the agent reports, whenever it reports them. */
   readonly onCommands?: (commands: ReadonlyArray<AcpCommand>) => Effect.Effect<void>
 }
@@ -138,6 +147,7 @@ function connect(
   options: {
     readonly handleRequest?: (request: ServerRequest) => Effect.Effect<unknown, ProtocolError>
     readonly onNotification?: (notification: Notification) => Effect.Effect<void>
+    readonly elicitation?: boolean
   } = {},
 ) {
   return Effect.gen(function* () {
@@ -163,7 +173,11 @@ function connect(
     })
     const initialize = yield* client.request("initialize", {
       protocolVersion,
-      clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
+      clientCapabilities: {
+        fs: { readTextFile: false, writeTextFile: false },
+        terminal: false,
+        ...(options.elicitation ? { elicitation: { form: {} } } : {}),
+      },
       clientInfo: { name: "second_brain_os", title: "Tenon Workbench", version: "0.1.0" },
     })
     const info = isRecord(initialize) ? initialize : {}
@@ -295,7 +309,8 @@ export function withConfigured(models: ReadonlyArray<Harness.Model>, configured:
 export const open = Effect.fn("AcpHarness.open")(function* (process: Process, input: OpenInput) {
   const items = yield* Queue.unbounded<Item>()
   const { client, initialize } = yield* connect(process, input.settings, input.directory, {
-    handleRequest: (request) => handleRequest(request, input.approve),
+    handleRequest: (request) => handleRequest(request, input.approve, input.ask),
+    elicitation: input.ask !== undefined,
     onNotification: (notification) => {
       // Agents often report commands right after session/new, before any turn reads the queue.
       const commands = input.onCommands ? reportedCommands(notification) : undefined
@@ -755,7 +770,12 @@ function closeBlocks(state: AcpState): ReadonlyArray<LLMEvent> {
   return events
 }
 
-export function handleRequest(request: ServerRequest, approve: OpenInput["approve"]) {
+export function handleRequest(
+  request: ServerRequest,
+  approve: OpenInput["approve"],
+  ask?: OpenInput["ask"],
+): Effect.Effect<unknown, ProtocolError> {
+  if (request.method === "elicitation/create" && ask) return elicit(request.params, ask)
   if (request.method !== "session/request_permission") return Effect.fail(unsupported(request.method))
   const params = isRecord(request.params) ? request.params : {}
   const tool = isRecord(params.toolCall) ? params.toolCall : {}
@@ -777,6 +797,124 @@ export function handleRequest(request: ServerRequest, approve: OpenInput["approv
       return { outcome: option ? { outcome: "selected", optionId: option } : { outcome: "cancelled" } }
     }),
   )
+}
+
+/**
+ * A form elicitation asked as dock questions, one per field of `requestedSchema`, with its `oneOf`/`enum` choices
+ * as options (`anyOf` items for a multi-select). A string field named `<field>_custom` holds that field's typed
+ * answer, which the dock already offers, so it isn't asked separately. A url-mode request is declined.
+ */
+export function elicit(params: unknown, ask: NonNullable<OpenInput["ask"]>) {
+  const fields = elicitationFields(params)
+  if (fields.length === 0) return Effect.succeed({ action: "decline" })
+  return ask(fields.map((field) => field.prompt)).pipe(
+    Effect.map((answers) =>
+      answers === undefined
+        ? { action: "decline" }
+        : { action: "accept", content: elicitationContent(fields, answers) },
+    ),
+  )
+}
+
+type FieldKind = "string" | "array" | "boolean" | "number" | "integer"
+
+interface ElicitationField {
+  readonly key: string
+  readonly kind: FieldKind
+  /** Option label to the value sent back. */
+  readonly values: ReadonlyMap<string, string>
+  /** The `<key>_custom` field that takes typed text, when the form has one. */
+  readonly custom?: string
+  readonly prompt: QuestionV2.Prompt
+}
+
+export function elicitationFields(params: unknown): ReadonlyArray<ElicitationField> {
+  const request = isRecord(params) ? params : {}
+  const schema = isRecord(request.requestedSchema) ? request.requestedSchema : undefined
+  if ((request.mode !== undefined && request.mode !== "form") || !isRecord(schema?.properties)) return []
+  const properties = Object.entries(schema.properties).filter((entry): entry is [string, Record<string, unknown>] =>
+    isRecord(entry[1]),
+  )
+  const keys = new Set(properties.map(([key]) => key))
+  const isCustom = (key: string, field: Record<string, unknown>) =>
+    key.endsWith("_custom") && keys.has(key.slice(0, -"_custom".length)) && field.type === "string"
+  const asked = properties.filter(([key, field]) => !isCustom(key, field))
+  const message = string(request.message) ?? "The agent has a question."
+  return asked.flatMap(([key, field]) => {
+    if (!isFieldKind(field.type)) return []
+    const kind = field.type
+    const choices = elicitationChoices(kind === "array" && isRecord(field.items) ? field.items : field, kind)
+    const title = string(field.title)
+    const custom = properties.find(([other, value]) => other === `${key}_custom` && isCustom(other, value))?.[0]
+    return [
+      {
+        key,
+        kind,
+        values: new Map(choices.map((choice) => [choice.label, choice.value])),
+        ...(custom ? { custom } : {}),
+        prompt: {
+          question: string(field.description) ?? (asked.length === 1 ? message : (title ?? key)),
+          header: (title ?? key).slice(0, 30),
+          options: choices.map((choice) => ({ label: choice.label, description: choice.description })),
+          ...(kind === "array" ? { multiple: true } : {}),
+        },
+      },
+    ]
+  })
+}
+
+function isFieldKind(value: unknown): value is FieldKind {
+  return value === "string" || value === "array" || value === "boolean" || value === "number" || value === "integer"
+}
+
+function elicitationChoices(field: Record<string, unknown>, kind: FieldKind) {
+  if (kind === "boolean")
+    return [
+      { label: "Yes", value: "true", description: "" },
+      { label: "No", value: "false", description: "" },
+    ]
+  const titled = [field.oneOf, field.anyOf].find(Array.isArray)
+  if (titled)
+    return titled.flatMap((option) => {
+      if (!isRecord(option) || typeof option.const !== "string") return []
+      return [
+        {
+          label: string(option.title) ?? option.const,
+          value: option.const,
+          description: string(option.description) ?? "",
+        },
+      ]
+    })
+  if (Array.isArray(field.enum))
+    return field.enum.flatMap((value) => (typeof value === "string" ? [{ label: value, value, description: "" }] : []))
+  return []
+}
+
+/** The form content for the dock's answers: picked labels become their values, typed text goes to `<key>_custom`. */
+export function elicitationContent(fields: ReadonlyArray<ElicitationField>, answers: ReadonlyArray<QuestionV2.Answer>) {
+  return Object.fromEntries(
+    fields.flatMap((field, index) => {
+      const answer = answers[index] ?? []
+      const picked = answer.flatMap((item) => field.values.get(item) ?? [])
+      const typed = answer.filter((item) => !field.values.has(item))
+      const custom: Array<[string, unknown]> =
+        field.custom && typed.length > 0 ? [[field.custom, typed.join(", ")]] : []
+      const free = field.custom ? [] : typed
+      const value = fieldValue(field.kind, picked, free)
+      return value === undefined ? custom : [[field.key, value] as [string, unknown], ...custom]
+    }),
+  )
+}
+
+function fieldValue(kind: FieldKind, picked: ReadonlyArray<string>, typed: ReadonlyArray<string>) {
+  if (kind === "array") return picked.length + typed.length > 0 ? [...picked, ...typed] : undefined
+  const first = picked[0] ?? typed[0]
+  if (first === undefined) return undefined
+  if (kind === "boolean") return first === "true" || /^(y|yes|true)$/i.test(first.trim())
+  if (kind === "string") return first
+  const parsed = Number(first.trim())
+  if (first.trim() === "" || !Number.isFinite(parsed)) return undefined
+  return kind === "integer" ? Math.trunc(parsed) : parsed
 }
 
 function pickOption(options: ReadonlyArray<Record<string, unknown>>, preferred: string, fallback: string) {

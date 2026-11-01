@@ -89,7 +89,7 @@ export function adaptLegacyServerEvent(
   event: { readonly id?: string; readonly type: string; readonly properties?: unknown },
   directory: string,
 ): ServerEvent {
-  if (!event.type.startsWith("session.") || !event.id) return event as ServerEvent
+  if (!event.id) return event as ServerEvent
   const current = {
     id: event.id,
     created: Date.now(),
@@ -97,6 +97,10 @@ export function adaptLegacyServerEvent(
     data: event.properties,
     location: { directory },
   } as OpenCodeEvent
+  // Question and permission requests from the V2 services (harness `ask_user` and approvals among them) keep their
+  // V2 names on this stream; the docks and stores read the V1 names, so without this they only show after a reload.
+  if (event.type.startsWith("question.v2.") || event.type.startsWith("permission.v2.")) return adaptServerEvent(current)
+  if (!event.type.startsWith("session.")) return event as ServerEvent
   return { ...event, current } as ServerEvent
 }
 

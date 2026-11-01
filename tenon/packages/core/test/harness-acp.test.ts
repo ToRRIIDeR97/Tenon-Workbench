@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { Exit, Schema } from "effect"
+import { Effect, Exit, Schema } from "effect"
 import { LLM, Model } from "@tenon/llm"
 import { route } from "@tenon/llm/protocols/openai-chat"
 import { Harness } from "@tenon/schema/harness"
@@ -590,5 +590,81 @@ describe("ACP harness", () => {
       files.map(async (file) => ((await Bun.file(path.join(dir, file)).text()).match(/\bBun\./) ? file : undefined)),
     )
     expect(offenders.filter(Boolean)).toEqual([])
+  })
+
+  test("asks a form elicitation in the dock and maps the answers back", async () => {
+    // The shape Claude Code's ACP adapter sends for AskUserQuestion: one select plus its typed-answer companion each.
+    const params = {
+      mode: "form",
+      sessionId: "s1",
+      message: "Please answer the following questions.",
+      requestedSchema: {
+        type: "object",
+        properties: {
+          question_0: {
+            type: "string",
+            title: "Language",
+            description: "Which language?",
+            oneOf: [
+              { const: "Go", title: "Go", description: "Backend" },
+              { const: "Rust", title: "Rust" },
+            ],
+          },
+          question_0_custom: { type: "string", title: "Other" },
+          question_1: { type: "array", title: "Editors", items: { anyOf: [{ const: "vim", title: "Vim" }] } },
+          question_1_custom: { type: "string", title: "Other" },
+          confirm: { type: "boolean", title: "Confirm" },
+        },
+      },
+    }
+    const asked: unknown[] = []
+    const result = await Effect.runPromise(
+      AcpHarness.handleRequest(
+        { id: 1, method: "elicitation/create", params },
+        () => Effect.succeed(false),
+        (questions) =>
+          Effect.sync(() => {
+            asked.push(...questions)
+            return [["Go"], ["Vim", "Helix"], ["Yes"]]
+          }),
+      ),
+    )
+    expect(asked).toEqual([
+      {
+        question: "Which language?",
+        header: "Language",
+        options: [
+          { label: "Go", description: "Backend" },
+          { label: "Rust", description: "" },
+        ],
+      },
+      { question: "Editors", header: "Editors", options: [{ label: "Vim", description: "" }], multiple: true },
+      {
+        question: "Confirm",
+        header: "Confirm",
+        options: [
+          { label: "Yes", description: "" },
+          { label: "No", description: "" },
+        ],
+      },
+    ])
+    expect(result).toEqual({
+      action: "accept",
+      content: { question_0: "Go", question_1: ["vim"], question_1_custom: "Helix", confirm: true },
+    })
+  })
+
+  test("declines a dismissed or url-mode elicitation", async () => {
+    const form = { requestedSchema: { type: "object", properties: { name: { type: "string" } } } }
+    const run = (params: unknown) =>
+      Effect.runPromise(
+        AcpHarness.handleRequest(
+          { id: 1, method: "elicitation/create", params },
+          () => Effect.succeed(false),
+          () => Effect.succeed(undefined),
+        ),
+      )
+    expect(await run(form)).toEqual({ action: "decline" })
+    expect(await run({ mode: "url", url: "https://example.test" })).toEqual({ action: "decline" })
   })
 })
