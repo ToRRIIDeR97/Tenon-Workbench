@@ -31,13 +31,12 @@ for (const deviceScaleFactor of [1.25, 1.5]) {
       // Match a rounded-down measurement at a fractional device-pixel phase.
       element.style.height = `${outputRect.bottom - rowRect.top - 0.49}px`
       element.style.transform = "translateY(0.25px)"
-      output.style.setProperty("--v2-border-border-base", "rgb(255, 0, 255)")
-      output.style.setProperty("background", "rgb(0, 0, 0)", "important")
+      // The output card is a filled surface (no border); paint its fill magenta to find its edges.
+      output.style.setProperty("background", "rgb(255, 0, 255)", "important")
       const style = getComputedStyle(output)
       return {
         outputWidth: outputRect.width,
         outputHeight: outputRect.height,
-        borderColor: style.borderTopColor,
         boxShadow: style.boxShadow,
         clipMargin: getComputedStyle(element).overflowClipMargin,
       }
@@ -55,7 +54,6 @@ for (const deviceScaleFactor of [1.25, 1.5]) {
 
     expect(edges.box.width).toBeCloseTo(geometry.outputWidth, 2)
     expect(edges.box.height).toBeCloseTo(geometry.outputHeight, 2)
-    expect(geometry.borderColor).toBe("rgb(255, 0, 255)")
     expect(geometry.boxShadow).toBe("none")
     expect(geometry.clipMargin).toBe("0.5px")
     expect(edges.magenta.top).toBeGreaterThan(0.75)
@@ -94,6 +92,11 @@ test("keeps the patch card inside a fractionally short virtual row", async ({ pa
   const geometry = await row.evaluate((element) => {
     const card = element.querySelector<HTMLElement>('[data-component="accordion"][data-scope="apply-patch"]')
     if (!card) throw new Error("Patch card is unavailable")
+    // The card is a filled surface without a border. Paint it magenta and clear its children's own
+    // backgrounds so the screenshot shows exactly the card's painted box.
+    card.style.setProperty("background", "rgb(255, 0, 255)", "important")
+    for (const child of card.querySelectorAll<HTMLElement>("*"))
+      child.style.setProperty("background", "transparent", "important")
     const rowRect = element.getBoundingClientRect()
     const cardRect = card.getBoundingClientRect()
     element.style.height = `${cardRect.bottom - rowRect.top - 0.49}px`
@@ -114,9 +117,9 @@ test("keeps the patch card inside a fractionally short virtual row", async ({ pa
   const edges = await captureCardEdges(page, card)
   expect(edges.box.width).toBeCloseTo(geometry.cardWidth, 2)
   expect(edges.box.height).toBeCloseTo(geometry.cardHeight, 2)
-  expect(edges.luminance.top).toBeLessThan(245)
-  expect(edges.luminance.bottom).toBeLessThan(245)
-  expect(Math.abs(edges.luminance.bottom - edges.luminance.top)).toBeLessThan(10)
+  // Both edges are painted despite the shorter row.
+  expect(edges.magenta.top).toBeGreaterThan(0.75)
+  expect(edges.magenta.bottom).toBeGreaterThan(0.75)
   expect(geometry.clipMargin).toBe("0.5px")
 })
 

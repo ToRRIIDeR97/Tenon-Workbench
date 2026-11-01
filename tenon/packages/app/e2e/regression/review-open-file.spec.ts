@@ -89,13 +89,16 @@ test("opens and searches project files inline", async ({ page }) => {
   const sidebar = panel.locator('[data-slot="session-review-v2-sidebar"]')
   const sidebarToggle = panel.getByRole("button", { name: "Toggle file tree" })
   const contextButton = page.getByRole("button", { name: "View context usage" })
+  // The context usage button sits in the side rail, which shows while the panel is hidden; opening the
+  // context reopens the panel on its Session tab.
+  await panel.getByRole("button", { name: "Hide panel" }).click()
   await contextButton.click()
   await expect(panel.getByRole("tab", { name: "Session" })).toHaveAttribute("data-selected", "")
   await panel.getByRole("button", { name: "Open file" }).click()
   await expect(panel.getByRole("tab", { name: "Open file" })).toHaveAttribute("data-selected", "")
   await expect(sidebarToggle).toBeDisabled()
   await expect(sidebar).toBeVisible()
-  await contextButton.click()
+  await panel.getByRole("tab", { name: "Session" }).click()
   await expect(panel.getByRole("tab", { name: "Session" })).toHaveAttribute("data-selected", "")
   await expect(sidebar).toBeHidden()
   await panel.getByRole("button", { name: "Open file" }).click()

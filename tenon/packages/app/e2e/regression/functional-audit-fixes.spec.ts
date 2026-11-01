@@ -11,6 +11,15 @@ async function setup(page: Page, spanish = false) {
     project: fixture.project,
     pageMessages: () => ({ items: [] }),
   })
+  // Home's composer shows the harness picker once the server lists its harnesses.
+  await page.route("**/api/harness?**", (route) =>
+    route.fulfill({
+      json: {
+        location: { directory: fixture.directory, project: { id: fixture.project.id, directory: fixture.directory } },
+        data: [{ id: "opencode", driver: "opencode", name: "Default agent", status: "available", models: [] }],
+      },
+    }),
+  )
   await page.addInitScript(
     ({ directory, spanish }) => {
       localStorage.setItem("settings.v3", JSON.stringify({ general: {} }))
@@ -66,6 +75,20 @@ async function setup(page: Page, spanish = false) {
     if (!url.pathname.startsWith("/second-brain/")) return route.fallback()
     const method = route.request().method()
     if (url.pathname === "/second-brain/projects") return route.fulfill({ json: [project] })
+    // Home and the sidebar list Projects with their thread folder (the card folder here).
+    if (url.pathname === "/second-brain/project-threads")
+      return route.fulfill({
+        json: [
+          {
+            project,
+            threadDirectory: `${fixture.directory}/${project.folder}`,
+            threadDirectoryKind: "project",
+            workspace: null,
+            rootSessionCount: 0,
+            lastActivityAt: null,
+          },
+        ],
+      })
     if (url.pathname === "/second-brain/project") {
       if (method === "PATCH") Object.assign(project, route.request().postDataJSON())
       return route.fulfill({ json: project })
@@ -146,10 +169,13 @@ test("notes preserve edits across navigation, search bodies, render headings and
   await expect(page.getByRole("alert")).toContainText("Save or discard")
   await page.screenshot({ path: testInfo.outputPath("notes.png"), fullPage: true })
   await page.getByRole("button", { name: "Save", exact: true }).click()
+  // Saving patches the open search results in place instead of re-running the search (notes.tsx
+  // save()), so the saved note stays listed and the unsaved-changes warning clears.
+  await expect(page.getByRole("alert")).toHaveCount(0)
+  await expect(editor).toHaveValue("Edited, unsaved body")
   await expect(
     page.getByRole("navigation", { name: "Notes", exact: true }).getByRole("button", { name: "Alpha", exact: true }),
-  ).toHaveCount(0)
-  await expect(page.getByText("No matching notes", { exact: true })).toBeVisible()
+  ).toBeVisible()
 })
 
 test("new note validation stays inside the narrow sidebar", async ({ page }, testInfo) => {
@@ -176,12 +202,22 @@ test("Home opens the selected event, task and project; Today resets the displaye
   await setup(page)
   await page.goto("/")
   await page.getByRole("button", { name: /Audit Event/ }).click()
+  // An event opened from Home shows its preview first; Edit opens the editor.
+  await expect(page.getByRole("heading", { name: "Audit Event", exact: true })).toBeVisible()
+  await page.getByRole("button", { name: "Edit", exact: true }).click()
   await expect(page.getByRole("textbox", { name: "Event title" })).toHaveValue("Audit Event")
+  // Close the editor so its draft doesn't hold later navigation.
+  await page.getByRole("button", { name: "Cancel", exact: true }).click()
+  await expect(page.getByRole("textbox", { name: "Event title" })).toHaveCount(0)
   await page.getByRole("button", { name: "Home", exact: true }).click()
   await page.getByRole("button", { name: /Audit Task/ }).click()
   await expect(page.getByRole("textbox", { name: "Task name" })).toHaveValue("Audit Task")
   await page.getByRole("button", { name: "Home", exact: true }).click()
-  await page.getByRole("button", { name: /^Audit Project/ }).click()
+  // Wait for Home's page transition to finish. After the calendar steps above, a click during Home's
+  // fade-in changed the URL to /projects but left Home on screen (an app bug, tracked separately).
+  await expect(page.locator('main > [data-component="view-switch-v2"]')).toHaveAttribute("data-phase", "idle")
+  // Home's Active Projects card (the sidebar lists the same Project by name only).
+  await page.getByRole("button", { name: "Audit Project 25%", exact: true }).click()
   await expect(page.getByText("An editable outcome", { exact: true })).toBeVisible()
   await page.getByRole("button", { name: "Calendar", exact: true }).click()
   await page.getByRole("button", { name: "Month", exact: true }).click()

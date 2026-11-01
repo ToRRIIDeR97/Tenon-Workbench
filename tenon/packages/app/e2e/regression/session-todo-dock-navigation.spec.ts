@@ -77,7 +77,9 @@ test("animates todo lifecycle without replaying it across session tabs", async (
   await expect(page.getByRole("button", { name: "Stop" })).toBeVisible()
 
   await page.waitForTimeout(700)
-  const opening = sampleDock(page, 1_000)
+  // Event delivery time varies with the mock stream's reconnect backoff, so sample until the dock is
+  // fully shown rather than for a fixed time.
+  const opening = sampleDock(page, 10_000, "shown")
   todos[sourceID] = activeTodos
   events.push(todoEvent(sourceID, activeTodos))
   await expect(dock).toBeVisible()
@@ -96,7 +98,8 @@ test("animates todo lifecycle without replaying it across session tabs", async (
   await expect(dock.locator('[data-state="in_progress"]')).toHaveCount(1)
 
   const completedTodos = activeTodos.map((todo) => ({ ...todo, status: "completed" }))
-  const closing = sampleDock(page, 1_000)
+  // Sample until the dock is gone: it holds the completed list briefly, then fades.
+  const closing = sampleDock(page, 10_000, "gone")
   todos[sourceID] = completedTodos
   events.push(todoEvent(sourceID, completedTodos))
   await expect(dock).toHaveCount(0)
@@ -164,21 +167,30 @@ async function switchSession(page: Page, sessionID: string, title: string) {
   await expectSessionTitle(page, title)
 }
 
-function sampleDock(page: Page, duration: number) {
-  return page.evaluate(async (duration) => {
-    const samples: { present: boolean; height: number; opacity: number }[] = []
-    const start = performance.now()
-    while (performance.now() - start < duration) {
-      const dock = document.querySelector<HTMLElement>('[data-component="session-todo-dock"]')
-      const clip = dock?.parentElement?.parentElement
-      const label = dock?.querySelector<HTMLElement>('[data-action="session-todo-toggle"] span[aria-label]')
-      samples.push({
-        present: !!dock,
-        height: clip?.getBoundingClientRect().height ?? 0,
-        opacity: label ? Number.parseFloat(getComputedStyle(label).opacity) : 0,
-      })
-      await new Promise(requestAnimationFrame)
-    }
-    return samples
-  }, duration)
+// Samples the dock every frame for `duration` ms, or until it is fully shown or gone when `until` is set.
+function sampleDock(page: Page, duration: number, until?: "shown" | "gone") {
+  return page.evaluate(
+    async ({ duration, until }) => {
+      const samples: { present: boolean; height: number; opacity: number }[] = []
+      const start = performance.now()
+      let seen = false
+      while (performance.now() - start < duration) {
+        const dock = document.querySelector<HTMLElement>('[data-component="session-todo-dock"]')
+        const clip = dock?.parentElement?.parentElement
+        const label = dock?.querySelector<HTMLElement>('[data-action="session-todo-toggle"] span[aria-label]')
+        const sample = {
+          present: !!dock,
+          height: clip?.getBoundingClientRect().height ?? 0,
+          opacity: label ? Number.parseFloat(getComputedStyle(label).opacity) : 0,
+        }
+        samples.push(sample)
+        if (until === "shown" && sample.present && sample.opacity >= 0.99 && seen) break
+        if (until === "gone" && !sample.present && seen) break
+        if (until === "shown" ? sample.present && sample.opacity < 0.99 : sample.present) seen = true
+        await new Promise(requestAnimationFrame)
+      }
+      return samples
+    },
+    { duration, until },
+  )
 }
