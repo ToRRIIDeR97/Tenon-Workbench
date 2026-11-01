@@ -10,7 +10,7 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import type { TitlebarTheme } from "../preload/types"
 import { exportDebugLogs, write as writeLog } from "./logging"
-import { getStore, removeStoreFile } from "./store"
+import { getStore, removeStoreFile, rendererStore } from "./store"
 import { PINCH_ZOOM_ENABLED_KEY, WINDOW_IDS_KEY } from "./store-keys"
 import { createUnresponsiveSampler } from "./unresponsive"
 import { nativeT } from "./native-translations"
@@ -43,6 +43,8 @@ protocol.registerSchemesAsPrivileged([
       standard: true,
       supportFetchAPI: true,
       stream: true,
+      // V8 code cache for the bundled renderer JS; requires `standard`.
+      codeCache: true,
     },
   },
   fileViewerScheme,
@@ -51,6 +53,8 @@ protocol.registerSchemesAsPrivileged([
 let backgroundColor: string | undefined
 let relaunchHandler = () => {
   setAppQuitting()
+  // app.exit skips before-quit, which normally flushes pending store writes.
+  rendererStore.flush()
   app.relaunch()
   app.exit(0)
 }

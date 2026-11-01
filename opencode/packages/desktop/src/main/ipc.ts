@@ -22,7 +22,7 @@ import { resolveAppPath } from "./apps"
 import { runDesktopMenuAction } from "./desktop-menu-actions"
 import { setForceFocus } from "./debug"
 import { assertAttachmentBudget, createPickedFileAuthorizations } from "./attachment-picker"
-import { getStore, removeStoreFileIfEmpty } from "./store"
+import { rendererStore, removeStoreFileIfEmpty } from "./store"
 import { assertStoreName } from "./store-name"
 import {
   getPinchZoomEnabled,
@@ -121,7 +121,10 @@ export function registerIpcHandlers(deps: Deps) {
   const updaterSubscriptions = createUpdaterSubscriptions()
   const updaterSenders = new WeakSet<Electron.WebContents>()
   app.once("will-quit", updaterSubscriptions.clear)
-  app.on("before-quit", () => drafts.flush())
+  app.on("before-quit", () => {
+    drafts.flush()
+    rendererStore.flush()
+  })
   app.once("will-quit", () => drafts.close())
   app.on("browser-window-created", (_event, win) => win.on("session-end", () => drafts.flush()))
 
@@ -190,8 +193,7 @@ export function registerIpcHandlers(deps: Deps) {
   trustedHandle("store-get", (_event: IpcMainInvokeEvent, name: string, key: string) => {
     assertStoreName(name)
     try {
-      const store = getStore(name)
-      const value = store.get(key)
+      const value = rendererStore.get(name, key)
       if (value === undefined || value === null) return null
       return typeof value === "string" ? value : JSON.stringify(value)
     } catch {
@@ -200,27 +202,25 @@ export function registerIpcHandlers(deps: Deps) {
   })
   trustedHandle("store-set", (_event: IpcMainInvokeEvent, name: string, key: string, value: string) => {
     assertStoreName(name)
-    getStore(name).set(key, value)
+    rendererStore.set(name, key, value)
   })
   trustedHandle("store-delete", (_event: IpcMainInvokeEvent, name: string, key: string) => {
     assertStoreName(name)
-    getStore(name).delete(key)
+    rendererStore.delete(name, key)
     void removeStoreFileIfEmpty(name)
   })
   trustedHandle("store-clear", (_event: IpcMainInvokeEvent, name: string) => {
     assertStoreName(name)
-    getStore(name).clear()
+    rendererStore.clear(name)
     void removeStoreFileIfEmpty(name)
   })
   trustedHandle("store-keys", (_event: IpcMainInvokeEvent, name: string) => {
     assertStoreName(name)
-    const store = getStore(name)
-    return Object.keys(store.store)
+    return rendererStore.keys(name)
   })
   trustedHandle("store-length", (_event: IpcMainInvokeEvent, name: string) => {
     assertStoreName(name)
-    const store = getStore(name)
-    return Object.keys(store.store).length
+    return rendererStore.keys(name).length
   })
   trustedHandle("draft-get", (_event, key: unknown) => drafts.get(requireDraftKey(key)))
   trustedHandle("draft-set", (_event, key: unknown, value: unknown) =>

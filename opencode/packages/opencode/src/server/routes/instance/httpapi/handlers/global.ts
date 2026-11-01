@@ -16,6 +16,12 @@ import { GlobalUpgradeInput } from "../groups/global"
 
 const subscriberCapacity = 4096
 
+// Durable events are emitted twice on the bus: as the event itself and as a
+// `sync` copy that remote control planes replay. Local clients that do not
+// replay can send this header to skip the copies (half the bytes and stringify
+// work while a session streams). Without it the stream is unchanged.
+export const SKIP_SYNC_EVENTS_HEADER = "x-opencode-skip-sync-events"
+
 function eventData(data: unknown): Sse.Event {
   return {
     _tag: "Event",
@@ -33,7 +39,7 @@ function parseBody(body: string) {
   }
 }
 
-function eventResponse() {
+function eventResponse(options: { skipSync: boolean }) {
   return Effect.gen(function* () {
     yield* Effect.logInfo("global event connected")
     // A subscriber that falls `subscriberCapacity` events behind is disconnected;
@@ -41,6 +47,7 @@ function eventResponse() {
     const events = Stream.callback<GlobalBusEvent, EventV2.SubscriberOverflowError>(
       (queue) => {
         const handler = (event: GlobalBusEvent) => {
+          if (options.skipSync && event.payload?.type === "sync") return
           if (Queue.offerUnsafe(queue, event)) return
           Queue.failCauseUnsafe(
             queue,
@@ -89,8 +96,8 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
       return { healthy: true as const, version: InstallationVersion }
     })
 
-    const event = Effect.fn("GlobalHttpApi.event")(function* () {
-      return yield* eventResponse()
+    const event = Effect.fn("GlobalHttpApi.event")(function* (ctx: { request: HttpServerRequest.HttpServerRequest }) {
+      return yield* eventResponse({ skipSync: ctx.request.headers[SKIP_SYNC_EVENTS_HEADER] === "1" })
     })
 
     const configGet = Effect.fn("GlobalHttpApi.configGet")(function* () {

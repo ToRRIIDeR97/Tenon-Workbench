@@ -146,7 +146,21 @@ export default function NotesPage() {
     ),
   )
   const linkLookup = createMemo(() => noteLinkLookup(noteList()))
-  const previewText = createMemo(() => previewNoteLinks(state.body, linkLookup()))
+  // The preview re-parses and re-renders the whole note, so it trails typing by a short delay.
+  // Opening or reloading a note (body equals the saved body) updates it immediately.
+  const [previewBody, setPreviewBody] = createSignal(state.body)
+  const schedulePreview = debounce((body: string) => setPreviewBody(body), 150)
+  createEffect(
+    on(
+      () => [state.path, state.body, state.baseBody] as const,
+      ([path, body, baseBody], previous) => {
+        if (previous && previous[0] === path && body !== baseBody) return schedulePreview(body)
+        schedulePreview.clear()
+        setPreviewBody(body)
+      },
+    ),
+  )
+  const previewText = createMemo(() => previewNoteLinks(previewBody(), linkLookup()))
   const currentKeys = createMemo(() => noteKeys({ path: state.path, title: state.title }))
   const backlinks = createMemo(() =>
     noteList().filter(
@@ -673,7 +687,12 @@ export default function NotesPage() {
                       {language.t("secondBrain.notes.discard")}
                     </ButtonV2>
                   </Show>
-                  <ButtonV2 size="small" variant="ghost" disabled={state.saving || !state.revision} onClick={confirmDelete}>
+                  <ButtonV2
+                    size="small"
+                    variant="ghost"
+                    disabled={state.saving || !state.revision}
+                    onClick={confirmDelete}
+                  >
                     {language.t("common.delete")}
                   </ButtonV2>
                   {saveButton()}

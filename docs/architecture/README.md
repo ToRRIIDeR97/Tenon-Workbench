@@ -1132,7 +1132,10 @@ and the native `/api/pty` endpoints on servers using only the current API.
 The event streams (`/global/event`, legacy `/event`, and native `/api/event`)
 buffer a bounded number of events per subscriber (4096 for the first two, 256
 for `/api/event`) and disconnect a subscriber that falls further behind. The
-renderer reconnects and resyncs on the `server.connected` event. `/api/event`
+renderer reconnects and resyncs on the `server.connected` event. `/global/event`
+also carries a `sync` copy of each durable event for remote control planes;
+the renderer sends `x-opencode-skip-sync-events: 1` and the server leaves
+those copies out of its stream. `/api/event`
 skips bus events outside its served schema, such as TUI events. `GET /provider`
 caches its projection until models.dev data, config, provider state, or stored
 credentials change, and answers a matching `If-None-Match` with 304.
