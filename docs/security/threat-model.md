@@ -818,8 +818,16 @@ folder.
   browser and device tool calls. It requires a 256-bit bearer token passed only
   in the server process's environment (harness processes get an allow-listed
   environment without it) and refuses any request with an `Origin` header.
-  Bodies are capped at 64 KB. Agents always have these tools; navigating to a
-  site other than localhost needs the user's yes in a native dialog.
+  Bodies are capped at 400,000 characters, to fit a whole diagram for
+  `render_svg`. Agents always have these tools; navigating to a site other
+  than localhost needs the user's yes in a native dialog.
+- **Diagram rendering.** `render_svg` puts agent-written SVG in a hidden
+  offscreen `BrowserWindow` (sandboxed, context-isolated, no Node). Its page
+  has the chat's CSP (`default-src 'none'`, inline styles and `data:` images
+  and fonts only), so scripts in the markup don't run and nothing loads from the
+  network. New windows are denied and navigation away is blocked. Only main
+  runs the measuring script; the result is a PNG and text that go back to the
+  agent that asked.
 - **Device tools.** `adb`, `emulator`, `xcrun simctl` and `idb` run with fixed
   argument lists and no shell. Text for `adb shell input text` is escaped;
   AVD names and app IDs are checked against simple patterns. `device_install`

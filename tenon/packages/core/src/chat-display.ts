@@ -7,6 +7,8 @@ export const svgGuidance = [
   "The window is sandboxed: scripts, event handlers, links and external resources (images, fonts, stylesheets) are removed or blocked, so keep the SVG self-contained.",
   "For colors that read in light and dark themes, use currentColor or the CSS variables --tenon-fg, --tenon-muted, --tenon-accent, --tenon-surface and --tenon-border.",
   "Keep text at 12px or larger and the viewBox width near 680.",
+  "Give every label room: size each box to its text (about 0.6 × font size per character), and keep labels from sharing space with each other or with arrows.",
+  "When the `render_svg` tool is available (on the `tenon` MCP server), check every diagram with it before sending: look at the picture, fix each problem it lists, and render again until it reports none.",
 ].join("\n")
 
 /**
