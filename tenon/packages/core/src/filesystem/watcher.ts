@@ -54,7 +54,7 @@ export const hasNativeBinding = () => !!watcher()
 
 export interface Interface {}
 
-export class Service extends Context.Service<Service, Interface>()("@opencode/v2/FileWatcher") {}
+export class Service extends Context.Service<Service, Interface>()("@tenon/v2/FileWatcher") {}
 
 const layer = Layer.effect(
   Service,

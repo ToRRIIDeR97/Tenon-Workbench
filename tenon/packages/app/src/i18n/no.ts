@@ -383,7 +383,7 @@ export const dict = {
   "dialog.mcp.empty": "Ingen MCP-er konfigurert",
 
   "dialog.lsp.empty": "LSP-er automatisk oppdaget fra filtyper",
-  "dialog.plugins.empty": "Programtillegg konfigurert i opencode.json",
+  "dialog.plugins.empty": "Programtillegg konfigurert i tenon.json",
 
   "mcp.status.connected": "tilkoblet",
   "mcp.status.failed": "mislyktes",
@@ -442,7 +442,6 @@ export const dict = {
   "dialog.project.edit.worktree.startup": "Oppstartsskript for arbeidsområde",
   "dialog.project.edit.worktree.startup.description": "Kjører etter at et nytt arbeidsområde (worktree) er opprettet.",
   "dialog.project.edit.worktree.startup.placeholder": "f.eks. bun install",
-
 
   "context.breakdown.title": "Kontekstfordeling",
   "context.breakdown.note":
@@ -521,8 +520,6 @@ export const dict = {
   "toast.context.noLineSelection.title": "Ingen linjevalg",
   "toast.context.noLineSelection.description": "Velg først et linjeområde i en filfane.",
 
-
-
   "toast.session.export.success.title": "Sesjon eksportert",
   "toast.session.export.success.description": "Sesjonen ble lagret i {{filename}}",
   "toast.session.export.failed.title": "Kunne ikke eksportere sesjon",
@@ -560,8 +557,9 @@ export const dict = {
   "error.chain.responseBody": "Responsinnhold:\n{{body}}",
   "error.chain.didYouMean": "Mente du: {{suggestions}}",
   "error.chain.modelNotFound": "Modell ikke funnet: {{provider}}/{{model}}",
-  "error.chain.checkConfig": "Sjekk leverandør-/modellnavnene i konfigurasjonen din (opencode.json)",
-  "error.chain.mcpFailed": 'MCP-server "{{name}}" mislyktes. Merk at Tenon Workbench ikke støtter MCP-autentisering ennå.',
+  "error.chain.checkConfig": "Sjekk leverandør-/modellnavnene i konfigurasjonen din (tenon.json)",
+  "error.chain.mcpFailed":
+    'MCP-server "{{name}}" mislyktes. Merk at Tenon Workbench ikke støtter MCP-autentisering ennå.',
   "error.chain.providerAuthFailed": "Leverandørautentisering mislyktes ({{provider}}): {{message}}",
   "error.chain.providerInitFailed":
     'Kunne ikke initialisere leverandør "{{provider}}". Sjekk legitimasjon og konfigurasjon.',
@@ -731,13 +729,12 @@ export const dict = {
   "settings.general.row.wayland.tooltip":
     "På Linux med skjermer med blandet oppdateringsfrekvens kan direkte Wayland-støtte være mer stabilt.",
 
-
   "settings.updates.row.startup.title": "Se etter oppdateringer ved oppstart",
   "settings.updates.row.startup.description": "Se automatisk etter oppdateringer når Tenon Workbench starter",
   "settings.updates.row.check.title": "Se etter oppdateringer",
   "settings.updates.action.checkNow": "Sjekk nå",
   "settings.updates.action.checking": "Sjekker...",
-  "settings.updates.toast.latest.title": "OpenCode er oppdatert",
+  "settings.updates.toast.latest.title": "Tenon Workbench er oppdatert",
   "settings.updates.toast.latest.description": "Du bruker den nyeste versjonen av Tenon Workbench.",
   "sound.option.none": "Ingen",
   "sound.option.alert01": "Varsel 01",

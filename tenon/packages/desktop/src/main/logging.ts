@@ -48,7 +48,7 @@ export function initCrashReporter() {
 // `auth_token` query parameter. Developers can still launch with Electron's
 // `--log-net-log=<path>` switch. Leftover .netlog files are never exported.
 export async function exportDebugLogs() {
-  const output = join(app.getPath("downloads"), `opencode-debug-${stamp()}.zip`)
+  const output = join(app.getPath("downloads"), `tenon-debug-${stamp()}.zip`)
   write("main", "exporting debug logs", { output })
   await writeZip(output, [
     { name: "manifest.json", data: Buffer.from(JSON.stringify(manifest(), null, 2)) },
@@ -139,7 +139,9 @@ function manifest() {
 
 function serverLogRoots() {
   const xdgData = process.env.XDG_DATA_HOME || join(homedir(), ".local", "share")
-  return [...new Set([join(xdgData, "tenon-workbench", "log"), join(app.getPath("userData"), "tenon-workbench", "log")])]
+  return [
+    ...new Set([join(xdgData, "tenon-workbench", "log"), join(app.getPath("userData"), "tenon-workbench", "log")]),
+  ]
 }
 
 type Entry = { name: string; path?: string; data?: Buffer }

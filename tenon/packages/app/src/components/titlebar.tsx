@@ -30,7 +30,7 @@ export type TitlebarUpdate = {
 export function useTitlebarRightMount() {
   const language = useLanguage()
   const [mount, setMount] = createSignal<HTMLElement | null>(null)
-  const sync = () => setMount(document.getElementById("opencode-titlebar-right"))
+  const sync = () => setMount(document.getElementById("tenon-titlebar-right"))
   onMount(sync)
   createEffect(on(language.direction, sync, { defer: true }))
   return mount
@@ -221,7 +221,7 @@ function TitlebarV2Right(props: { update: TitlebarUpdatePillState }) {
       <Show when={props.update.visible}>
         <TitlebarUpdateIconButton state={props.update} />
       </Show>
-      <div id="opencode-titlebar-right" class="flex shrink-0 items-center justify-end gap-0" />
+      <div id="tenon-titlebar-right" class="flex shrink-0 items-center justify-end gap-0" />
     </div>
   )
 }

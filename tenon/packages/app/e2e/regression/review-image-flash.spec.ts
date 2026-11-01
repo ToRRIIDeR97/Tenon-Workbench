@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test"
 import { base64Encode } from "@tenon/core/util/encode"
-import { mockOpenCodeServer } from "../utils/mock-server"
+import { mockTenonServer } from "../utils/mock-server"
 import { expectAppVisible, expectSessionTitle } from "../utils/waits"
 
 const directory = "C:/OpenCode/ReviewImageFlashRegression"
@@ -29,7 +29,7 @@ async function openReview(page: Page) {
   await page.addInitScript(() => {
     localStorage.setItem("settings.v3", JSON.stringify({ general: {} }))
   })
-  await mockOpenCodeServer(page, {
+  await mockTenonServer(page, {
     directory,
     project: {
       id: "proj_review_image_flash_regression",

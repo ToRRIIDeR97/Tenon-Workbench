@@ -25,9 +25,10 @@ type PersistTarget = {
 }
 
 const LEGACY_STORAGE = "default.dat"
-const GLOBAL_STORAGE = "opencode.global.dat"
-const WINDOW_STORAGE = "opencode.window"
-const LOCAL_PREFIX = "opencode."
+const GLOBAL_STORAGE = "tenon.global.dat"
+const WINDOW_STORAGE = "tenon.window"
+const LOCAL_PREFIX = "tenon."
+const LEGACY_LOCAL_PREFIX = "opencode."
 const fallback = new Map<string, boolean>()
 
 const CACHE_MAX_ENTRIES = 500
@@ -105,6 +106,30 @@ function quota(error: unknown) {
   if (typeof message !== "string") return false
   if (/quota/i.test(message)) return true
   return false
+}
+
+/**
+ * Browser builds keep persisted state in localStorage under `<store>:<key>`. Keys written before the
+ * rename start with `opencode.`; move each to its `tenon.` name once (desktop store files are renamed
+ * by the main process). Returns how many keys moved.
+ */
+export function migrateLegacyLocalStorage(storage: Storage | undefined = globalThis.localStorage) {
+  if (!storage) return 0
+  const names = Array.from({ length: storage.length }, (_, index) => storage.key(index)).filter(
+    (name): name is string => !!name?.startsWith(LEGACY_LOCAL_PREFIX),
+  )
+  let moved = 0
+  for (const name of names) {
+    const target = LOCAL_PREFIX + name.slice(LEGACY_LOCAL_PREFIX.length)
+    const value = storage.getItem(name)
+    if (value === null) continue
+    if (storage.getItem(target) === null) {
+      storage.setItem(target, value)
+      moved++
+    }
+    storage.removeItem(name)
+  }
+  return moved
 }
 
 type Evict = { key: string; size: number }
@@ -349,13 +374,13 @@ async function migrateLegacyAsync(input: {
 function workspaceStorage(dir: string) {
   const head = (dir.slice(0, 12) || "workspace").replace(/[^a-zA-Z0-9._-]/g, "-")
   const sum = checksum(dir) ?? "0"
-  return `opencode.workspace.${head}.${sum}.dat`
+  return `tenon.workspace.${head}.${sum}.dat`
 }
 
 function draftStorage(draftID: string) {
   const head = (draftID.slice(0, 12) || "draft").replace(/[^a-zA-Z0-9._-]/g, "-")
   const sum = checksum(draftID) ?? "0"
-  return `opencode.draft.${head}.${sum}.dat`
+  return `tenon.draft.${head}.${sum}.dat`
 }
 
 function windowStorage(windowID: string) {

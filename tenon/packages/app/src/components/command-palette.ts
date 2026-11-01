@@ -1,6 +1,6 @@
 import { getFilename } from "@tenon/core/util/path"
 import type { Project } from "@opencode-ai/sdk/v2/client"
-import type { SessionInfo } from "@tenon/client/promise"
+import type { SessionInfo } from "@opencode-ai/client/promise"
 import { useDialog } from "@tenon/ui/context/dialog"
 import { createMemo, onCleanup } from "solid-js"
 import { commandPaletteOptions, useCommand, type CommandOption } from "@/context/command"

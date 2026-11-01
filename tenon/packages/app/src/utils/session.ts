@@ -1,4 +1,4 @@
-import type { SessionApi, SessionInfo, SessionListInput } from "@tenon/client/promise"
+import type { SessionApi, SessionInfo, SessionListInput } from "@opencode-ai/client/promise"
 import type { Session } from "@opencode-ai/sdk/v2/client"
 import { Harness } from "@tenon/schema/harness"
 import { withTimestampedFallback } from "./session-title"

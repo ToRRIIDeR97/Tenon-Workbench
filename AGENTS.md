@@ -2,12 +2,21 @@
 
 ## Architecture
 
-- Treat `tenon/` as the runtime base: OpenCode's Electron host, managed
-  local server, and session runtime. The app shell and navigation (the
+- Treat `tenon/` as the runtime base: the Electron host, managed local
+  server, and session runtime imported from upstream OpenCode
+  ([upstream notes](docs/opencode-upstream.md)). The app shell and navigation (the
   sidebar, Projects and threads) are Second Brain's own.
 - The former Tauri application is retired. Keep its schema references and
   migration gaps documented in `docs/archive/tauri/README.md`.
-- Add Second Brain features inside OpenCode instead of recreating its shell.
+- Add Second Brain features inside `tenon/` instead of recreating its shell.
+- Name owned code, packages (`@tenon/*`), files, env vars (`TENON_*`), headers
+  (`x-tenon-*`) and UI text "Tenon". Keep `opencode` only where it names the
+  upstream product or a format shared with it: the OpenCode harness and CLI
+  (`opencode acp`, the WSL server, `@opencode-ai/cli-*`), the OpenCode Zen
+  provider (`opencode` ID, `OPENCODE_API_KEY`), `opencode.ai` URLs, the
+  published `@opencode-ai/sdk` and `@opencode-ai/plugin` packages, the vendored
+  `@opencode-ai/client`, `x-opencode-*` protocol headers, provider attribution
+  headers, and the pre-rename names still read for compatibility.
 - Keep product code in the broad `workspace`, `knowledge`, `agents`, `planner`,
   `terminal`, and `platform` domains.
 - Do not extract packages or services without demonstrated reuse or isolation need.
@@ -68,7 +77,7 @@ bun run test             # turbo test of packages + Second Brain server tests
 bun run build
 ```
 
-`bun run test` skips the engine packages (`core`, `opencode`) and, until their
+`bun run test` skips the engine packages (`core`, `tenon`) and, until their
 contract fixtures are updated, `client` and `schema`. Also run
 `bun run test:engine` when changing `tenon/packages/core` or
 `tenon/packages/tenon`, and `bun run test:routes` when changing

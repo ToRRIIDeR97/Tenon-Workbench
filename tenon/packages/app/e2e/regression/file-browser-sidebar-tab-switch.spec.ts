@@ -1,6 +1,6 @@
 import { base64Encode } from "@tenon/core/util/encode"
 import { expect, test, type Page } from "@playwright/test"
-import { mockOpenCodeServer } from "../utils/mock-server"
+import { mockTenonServer } from "../utils/mock-server"
 import { expectSessionTitle } from "../utils/waits"
 
 const directory = "C:/OpenCode/FileBrowserSidebar"
@@ -111,7 +111,7 @@ async function setup(
   page: Page,
   findFiles?: (input: { query: string; dirs?: string; limit?: number }) => unknown | Promise<unknown>,
 ) {
-  await mockOpenCodeServer(page, {
+  await mockTenonServer(page, {
     directory,
     project: {
       id: projectID,
@@ -163,18 +163,18 @@ async function setup(
     ({ directory }) => {
       localStorage.setItem("settings.v3", JSON.stringify({ general: {} }))
       localStorage.setItem(
-        "opencode.global.dat:server",
+        "tenon.global.dat:server",
         JSON.stringify({
           projects: { local: [{ worktree: directory, expanded: true }] },
           lastProject: { local: directory },
         }),
       )
       localStorage.setItem(
-        "opencode.global.dat:layout",
+        "tenon.global.dat:layout",
         JSON.stringify({ review: { diffStyle: "split", panelOpened: true } }),
       )
       localStorage.setItem(
-        "opencode.global.dat:review-panel-v2",
+        "tenon.global.dat:review-panel-v2",
         JSON.stringify({ sidebarOpened: true, sidebarWidth: 240, expandMode: "collapse" }),
       )
     },

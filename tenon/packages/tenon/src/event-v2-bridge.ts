@@ -1,4 +1,4 @@
-// Opencode publish boundary for core events. Attach routed instance location
+// Tenon publish boundary for core events. Attach routed instance location
 // so direct EventV2 consumers can isolate directory/workspace streams.
 import { LayerNode } from "@tenon/core/effect/layer-node"
 import { InstanceRef, WorkspaceRef } from "@/effect/instance-ref"
@@ -9,7 +9,7 @@ import { Project } from "@tenon/core/project"
 import { AbsolutePath } from "@tenon/core/schema"
 import { Context, Effect, Layer } from "effect"
 
-export class Service extends Context.Service<Service, EventV2.Interface>()("@opencode/EventV2Bridge") {}
+export class Service extends Context.Service<Service, EventV2.Interface>()("@tenon/EventV2Bridge") {}
 
 const layer = Layer.effect(
   Service,

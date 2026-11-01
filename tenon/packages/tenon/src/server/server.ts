@@ -51,9 +51,7 @@ interface ListenerServer {
   readonly closeAll: Effect.Effect<void>
 }
 
-class ListenerServerService extends Context.Service<ListenerServerService, ListenerServer>()(
-  "@opencode/ListenerServer",
-) {}
+class ListenerServerService extends Context.Service<ListenerServerService, ListenerServer>()("@tenon/ListenerServer") {}
 
 export const Default = lazy(() => {
   const handler = HttpApiApp.webHandler().handler

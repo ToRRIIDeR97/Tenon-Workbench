@@ -13,7 +13,7 @@ const enabledByExperimental = (name: string) =>
     Config.map((flags) => Option.getOrElse(flags.enabled, () => flags.experimental)),
   )
 
-export class Service extends ConfigService.Service<Service>()("@opencode/RuntimeFlags", {
+export class Service extends ConfigService.Service<Service>()("@tenon/RuntimeFlags", {
   autoShare: bool("TENON_AUTO_SHARE"),
   pure: bool("TENON_PURE"),
   disableDefaultPlugins: bool("TENON_DISABLE_DEFAULT_PLUGINS"),

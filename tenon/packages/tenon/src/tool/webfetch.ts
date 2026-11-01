@@ -89,7 +89,7 @@ export const WebFetchTool = Tool.define(
                 () =>
                   httpOk.execute(
                     HttpClientRequest.get(params.url).pipe(
-                      HttpClientRequest.setHeaders({ ...headers, "User-Agent": "opencode" }),
+                      HttpClientRequest.setHeaders({ ...headers, "User-Agent": "tenon" }),
                     ),
                   ),
               ),
@@ -100,9 +100,7 @@ export const WebFetchTool = Tool.define(
               () => new Error("Response too large (exceeds 5MB limit)"),
             ).pipe(Effect.orDie)
             return { response, arrayBuffer }
-          }).pipe(
-            Effect.timeoutOrElse({ duration: timeout, orElse: () => Effect.die(new Error("Request timed out")) }),
-          )
+          }).pipe(Effect.timeoutOrElse({ duration: timeout, orElse: () => Effect.die(new Error("Request timed out")) }))
 
           const contentType = response.headers["content-type"] || ""
           const mime = contentType.split(";")[0]?.trim().toLowerCase() || ""

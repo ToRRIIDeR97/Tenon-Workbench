@@ -367,7 +367,7 @@ export const dict = {
   "dialog.mcp.description": "{{enabled}} ގެ {{total}} އެނެބަލްކޮށްފައިވެއެވެ",
   "dialog.mcp.empty": "އެއްވެސް MCPs ކޮންފިގްރޭޓް ކުރެވިފައެއް ނުވެއެވެ",
   "dialog.lsp.empty": "LSPs ފައިލް ވައްތަރުތަކުން އޮޓޯ ޑިޓެކްޓް ކުރެވިފައިވެއެވެ",
-  "dialog.plugins.empty": "opencode.json ގައި ކޮންފިގްރޭޓް ކުރެވިފައިވާ ޕްލަގިންސް",
+  "dialog.plugins.empty": "tenon.json ގައި ކޮންފިގްރޭޓް ކުރެވިފައިވާ ޕްލަގިންސް",
   "mcp.status.connected": "ގުޅިއްޖެއެވެ",
   "mcp.status.failed": "ފެއިލްވުން",
   "mcp.status.needs_auth": "ބޭނުންވަނީ އޮތޯއެވެ",
@@ -599,7 +599,7 @@ export const dict = {
   "error.chain.responseBody": "ޖަވާބުދާރީވާ ހަށިގަނޑު:\n{{body}} އެވެ",
   "error.chain.didYouMean": "ތިޔަ މާނަކުރީ: {{suggestions}} ހެއްޔެވެ",
   "error.chain.modelNotFound": "މޮޑެލް ނުފެނޭ: {{provider}}/{{model}}",
-  "error.chain.checkConfig": "ތިބާގެ ކޮންފިގް (opencode.json) ޕްރޮވައިޑަރ/މޮޑެލް ނަންތައް ޗެކްކުރުން",
+  "error.chain.checkConfig": "ތިބާގެ ކޮންފިގް (tenon.json) ޕްރޮވައިޑަރ/މޮޑެލް ނަންތައް ޗެކްކުރުން",
   "error.chain.mcpFailed":
     'MCP ސަރވަރ "{{name}}" ފޭލްވެއްޖެއެވެ. ނޯޓް، Tenon Workbench އިން އަދި MCP އޮތެންޓިކޭޝަން އަށް ސަޕޯޓް ނުކުރެއެވެ.',
   "error.chain.providerAuthFailed": "ޕްރޮވައިޑަރ އޮތެންޓިކޭޝަން ފެއިލްވެއްޖެ ({{provider}}): {{message}}",
@@ -884,7 +884,8 @@ export const dict = {
   "settings.general.row.wayland.tooltip":
     "މިކްސްޑް ރިފްރެޝް-ރޭޓް މޮނިޓަރުތަކާއެކު Linux ގައި ނެޓިވް Wayland އަށް ވުރެ ސްޓޭބަލް ވެދާނެއެވެ.",
   "settings.updates.row.startup.title": "ސްޓާޓްއަޕް ކުރުމުގައި އަޕްޑޭޓްތައް ހުރިތޯ ބަލާށެވެ",
-  "settings.updates.row.startup.description": "Tenon Workbench ލޯންޗް ކުރާއިރު އޮޓޮމެޓިކުން އަޕްޑޭޓްތައް ހުރިތޯ ބަލާށެވެ",
+  "settings.updates.row.startup.description":
+    "Tenon Workbench ލޯންޗް ކުރާއިރު އޮޓޮމެޓިކުން އަޕްޑޭޓްތައް ހުރިތޯ ބަލާށެވެ",
   "settings.updates.row.check.title": "އަޕްޑޭޓްތައް ހުރިތޯ ބަލާށެވެ",
   "settings.updates.action.checkNow": "މިހާރު ޗެކް ކޮށްލައްވާ",
   "settings.updates.action.checking": "ޗެކް ކުރަމުން...",

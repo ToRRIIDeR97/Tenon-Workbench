@@ -8,7 +8,7 @@ import { Process } from "@/util/process"
 // Tenon's domain first; the pre-rename OpenCode domain is still read.
 const MANAGED_PLIST_DOMAINS = ["ai.tenon.managed", "ai.opencode.managed"]
 
-// Keys injected by macOS/MDM into the managed plist that are not OpenCode config
+// Keys injected by macOS/MDM into the managed plist that are not Tenon config
 const PLIST_META = new Set([
   "PayloadDisplayName",
   "PayloadIdentifier",

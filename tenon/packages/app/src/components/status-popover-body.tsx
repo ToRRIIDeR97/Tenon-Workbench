@@ -257,7 +257,7 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
     (sync().data.config.plugin ?? []).map((item) => (typeof item === "string" ? item : item[0])),
   )
   const pluginCount = createMemo(() => plugins().length)
-  const pluginEmpty = createMemo(() => pluginEmptyMessage(language.t("dialog.plugins.empty"), "opencode.json"))
+  const pluginEmpty = createMemo(() => pluginEmptyMessage(language.t("dialog.plugins.empty"), "tenon.json"))
   const [view, setView] = createStore({ tab: "mcp" })
   const empty = "my-auto px-3 py-4 text-center text-[13px] text-v2-text-text-muted"
   const row = "flex min-h-11 w-full items-center gap-2.5 rounded-[16px] py-1.5 pr-2.5 pl-3 text-[13px]"

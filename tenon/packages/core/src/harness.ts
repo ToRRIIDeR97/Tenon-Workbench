@@ -131,7 +131,7 @@ export interface Interface {
   ) => Effect.Effect<Harness.SetupStatus, HarnessSetup.SetupError>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@opencode/HarnessRuntime") {}
+export class Service extends Context.Service<Service, Interface>()("@tenon/HarnessRuntime") {}
 
 export interface InstanceConfig {
   readonly id: Harness.InstanceID

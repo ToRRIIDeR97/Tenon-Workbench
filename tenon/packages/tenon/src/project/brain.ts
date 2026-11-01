@@ -30,7 +30,7 @@ export const Status = Schema.Literals(["active", "paused", "archived"])
 export type Status = typeof Status.Type
 
 export const ProjectLocation = Schema.Struct({
-  /** Legacy link to an OpenCode project (Workspace) by id. */
+  /** Legacy link to a Tenon project (Workspace) by id. */
   workspaceId: Schema.optional(Schema.String),
   displayPath: Schema.String,
   /** The Project's folder: relative to the workspace root for `projects/*`, absolute for a linked folder. */
@@ -81,7 +81,7 @@ export const UpdateInput = Schema.Struct({
 })
 export type UpdateInput = typeof UpdateInput.Type
 
-/** An OpenCode project (folder or repository), shown as a Workspace in the UI. */
+/** A Tenon project (folder or repository), shown as a Workspace in the UI. */
 export const Workspace = Schema.Struct({
   id: Schema.String,
   worktree: Schema.String,

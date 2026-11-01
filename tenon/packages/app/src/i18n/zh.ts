@@ -255,14 +255,16 @@ export const dict = {
   "provider.connect.apiKey.required": "API 密钥为必填项",
   "provider.connect.oauth.code.visit.prefix": "访问 ",
   "provider.connect.oauth.code.visit.link": "此链接",
-  "provider.connect.oauth.code.visit.suffix": " 获取授权码，以连接你的账户并在 Tenon Workbench 中使用 {{provider}} 模型。",
+  "provider.connect.oauth.code.visit.suffix":
+    " 获取授权码，以连接你的账户并在 Tenon Workbench 中使用 {{provider}} 模型。",
   "provider.connect.oauth.code.label": "{{method}} 授权码",
   "provider.connect.oauth.code.placeholder": "授权码",
   "provider.connect.oauth.code.required": "授权码为必填项",
   "provider.connect.oauth.code.invalid": "授权码无效",
   "provider.connect.oauth.auto.visit.prefix": "访问 ",
   "provider.connect.oauth.auto.visit.link": "此链接",
-  "provider.connect.oauth.auto.visit.suffix": " 并输入以下代码，以连接你的账户并在 Tenon Workbench 中使用 {{provider}} 模型。",
+  "provider.connect.oauth.auto.visit.suffix":
+    " 并输入以下代码，以连接你的账户并在 Tenon Workbench 中使用 {{provider}} 模型。",
   "provider.connect.oauth.auto.confirmationCode": "确认码",
   "provider.connect.toast.connected.title": "{{provider}} 已连接",
   "provider.connect.toast.connected.description": "现在可以使用 {{provider}} 模型了。",
@@ -410,7 +412,7 @@ export const dict = {
 
   "dialog.lsp.empty": "已根据文件类型自动检测 LSP",
 
-  "dialog.plugins.empty": "在 opencode.json 中配置的插件",
+  "dialog.plugins.empty": "在 tenon.json 中配置的插件",
 
   "mcp.status.connected": "已连接",
   "mcp.status.failed": "失败",
@@ -494,7 +496,8 @@ export const dict = {
   "wsl.onboarding.needAnotherDistro": "需要其他发行版？",
   "wsl.onboarding.needAnotherDistroHint": "从 WSL 目录安装 Linux 发行版",
   "wsl.onboarding.wslNotInstalled.title": "未安装 WSL",
-  "wsl.onboarding.wslNotInstalled.description": "Tenon Workbench 需要 WSL（Windows Subsystem for Linux）才能添加 WSL 服务器",
+  "wsl.onboarding.wslNotInstalled.description":
+    "Tenon Workbench 需要 WSL（Windows Subsystem for Linux）才能添加 WSL 服务器",
   "wsl.onboarding.wslUnavailable.title": "WSL 不可用",
   "wsl.onboarding.wslUnavailable.description": "Tenon Workbench 无法验证此设备上的 WSL。",
   "wsl.onboarding.installWsl": "安装 WSL",
@@ -529,7 +532,6 @@ export const dict = {
   "dialog.project.edit.worktree.startup": "工作区启动脚本",
   "dialog.project.edit.worktree.startup.description": "创建新工作区 (worktree) 后运行。",
   "dialog.project.edit.worktree.startup.placeholder": "例如 bun install",
-
 
   "context.breakdown.title": "上下文细分",
   "context.breakdown.note": "输入 token 的大致细分。“其他”包含工具定义和开销。",
@@ -634,7 +636,7 @@ export const dict = {
   "error.chain.responseBody": "响应内容：\n{{body}}",
   "error.chain.didYouMean": "你是不是想输入：{{suggestions}}",
   "error.chain.modelNotFound": "未找到模型：{{provider}}/{{model}}",
-  "error.chain.checkConfig": "请检查你的配置 (opencode.json) 中的 provider/model 名称",
+  "error.chain.checkConfig": "请检查你的配置 (tenon.json) 中的 provider/model 名称",
   "error.chain.mcpFailed": 'MCP 服务器 "{{name}}" 启动失败。注意：Tenon Workbench 暂不支持 MCP 认证。',
   "error.chain.providerAuthFailed": "提供商认证失败（{{provider}}）：{{message}}",
   "error.chain.providerInitFailed": '无法初始化提供商 "{{provider}}"。请检查凭据和配置。',

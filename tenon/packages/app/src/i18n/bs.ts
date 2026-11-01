@@ -392,7 +392,7 @@ export const dict = {
   "dialog.mcp.empty": "Nema konfigurisanih MCP-ova",
 
   "dialog.lsp.empty": "LSP-ovi se automatski otkrivaju prema tipu datoteke",
-  "dialog.plugins.empty": "Plugini su konfigurisani u opencode.json",
+  "dialog.plugins.empty": "Plugini su konfigurisani u tenon.json",
 
   "mcp.status.connected": "povezano",
   "mcp.status.failed": "neuspjelo",
@@ -516,7 +516,6 @@ export const dict = {
   "dialog.project.edit.worktree.startup.description": "Pokreće se nakon kreiranja novog radnog prostora (worktree).",
   "dialog.project.edit.worktree.startup.placeholder": "npr. bun install",
 
-
   "context.breakdown.title": "Razlaganje konteksta",
   "context.breakdown.note":
     'Približna raspodjela ulaznih tokena. "Ostalo" uključuje definicije alata i dodatno opterećenje.',
@@ -595,8 +594,6 @@ export const dict = {
   "toast.context.noLineSelection.title": "Nema odabranih linija",
   "toast.context.noLineSelection.description": "Prvo odaberi raspon linija u kartici datoteke.",
 
-
-
   "toast.session.export.success.title": "Sesija izvezena",
   "toast.session.export.success.description": "Sesija je sačuvana kao {{filename}}",
   "toast.session.export.failed.title": "Izvoz sesije nije uspio",
@@ -636,8 +633,9 @@ export const dict = {
   "error.chain.responseBody": "Tijelo odgovora:\n{{body}}",
   "error.chain.didYouMean": "Da li si mislio: {{suggestions}}",
   "error.chain.modelNotFound": "Model nije pronađen: {{provider}}/{{model}}",
-  "error.chain.checkConfig": "Provjeri nazive provajdera/modela u konfiguraciji (opencode.json)",
-  "error.chain.mcpFailed": 'MCP server "{{name}}" nije uspio. Napomena: Tenon Workbench još ne podržava MCP autentifikaciju.',
+  "error.chain.checkConfig": "Provjeri nazive provajdera/modela u konfiguraciji (tenon.json)",
+  "error.chain.mcpFailed":
+    'MCP server "{{name}}" nije uspio. Napomena: Tenon Workbench još ne podržava MCP autentifikaciju.',
   "error.chain.providerAuthFailed": "Autentifikacija provajdera nije uspjela ({{provider}}): {{message}}",
   "error.chain.providerInitFailed":
     'Neuspjelo inicijalizovanje provajdera "{{provider}}". Provjeri kredencijale i konfiguraciju.',
@@ -865,7 +863,6 @@ export const dict = {
     "Onemogući rezervni X11 način rada na Waylandu. Zahtijeva ponovno pokretanje.",
   "settings.general.row.wayland.tooltip":
     "Na Linuxu sa monitorima miješanih stopa osvježavanja, nativni Wayland može biti stabilniji.",
-
 
   "settings.updates.row.startup.title": "Provjeri ažuriranja pri pokretanju",
   "settings.updates.row.startup.description": "Automatski provjerava ažuriranja kada se Tenon Workbench pokrene",

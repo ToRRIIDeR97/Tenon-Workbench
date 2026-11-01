@@ -59,7 +59,7 @@ type PageState = {
   errorField: "" | "name" | "outcome"
 }
 type ProjectView = "overview" | "plan" | "work" | "files" | "activity" | "map"
-type OpenCodeLocation = { id: string; worktree: string; name?: string }
+type TenonLocation = { id: string; worktree: string; name?: string }
 const statusKey = {
   active: "secondBrain.projects.filter.active",
   paused: "secondBrain.projects.filter.paused",
@@ -217,7 +217,9 @@ export default function ProjectsPage() {
     const current = formState()
     setState(
       Object.fromEntries(
-        (Object.keys(to) as (keyof FormFields)[]).filter((key) => current[key] === from[key]).map((key) => [key, to[key]]),
+        (Object.keys(to) as (keyof FormFields)[])
+          .filter((key) => current[key] === from[key])
+          .map((key) => [key, to[key]]),
       ) as Partial<FormFields>,
     )
   }
@@ -290,17 +292,17 @@ export default function ProjectsPage() {
     setState({ saving: true, error: "" })
     try {
       const updated = await updateProject(client(brainDirectory()), project.id, {
-          expectedUpdatedAt: project.updatedAt,
-          outcome: state.outcome.trim(),
-          instructions: state.instructions.trim(),
-          tags: state.tags
-            .split(",")
-            .map((tag) => tag.trim())
-            .filter(Boolean),
-          progressPercent: state.progress,
-          nextMilestone: state.nextMilestone.trim() || null,
-          blocker: state.blocker.trim() || null,
-        })
+        expectedUpdatedAt: project.updatedAt,
+        outcome: state.outcome.trim(),
+        instructions: state.instructions.trim(),
+        tags: state.tags
+          .split(",")
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+        progressPercent: state.progress,
+        nextMilestone: state.nextMilestone.trim() || null,
+        blocker: state.blocker.trim() || null,
+      })
       replace(updated)
       // Fields saved as typed take the server's normalized copy; ones edited during the save stay unsaved.
       if (selected()?.id === updated.id) followUnedited(sent, formFields(updated))
@@ -713,7 +715,7 @@ function ProjectList(props: {
 function CreateProjectForm(props: {
   state: PageState
   setState: SetStoreFunction<PageState>
-  locations: ReadonlyArray<OpenCodeLocation>
+  locations: ReadonlyArray<TenonLocation>
   submit: () => Promise<void>
   language: ReturnType<typeof useLanguage>
 }) {

@@ -392,7 +392,7 @@ export const dict = {
   "dialog.mcp.empty": "Tidak ada MCP yang dikonfigurasi",
 
   "dialog.lsp.empty": "LSP terdeteksi otomatis dari jenis berkas",
-  "dialog.plugins.empty": "Plugin dikonfigurasi di opencode.json",
+  "dialog.plugins.empty": "Plugin dikonfigurasi di tenon.json",
 
   "mcp.status.connected": "terhubung",
   "mcp.status.failed": "gagal",
@@ -524,8 +524,6 @@ export const dict = {
   "dialog.project.edit.worktree.startup.description": "Berjalan setelah membuat ruang kerja (worktree) baru.",
   "dialog.project.edit.worktree.startup.placeholder": "mis. bun install",
 
-
-
   "context.breakdown.title": "Rincian Konteks",
   "context.breakdown.note": 'Perkiraan rincian token masukan. "Lainnya" mencakup definisi alat dan beban tambahan.',
   "context.breakdown.system": "Sistem",
@@ -602,8 +600,6 @@ export const dict = {
   "toast.context.noLineSelection.title": "Tidak ada pilihan baris",
   "toast.context.noLineSelection.description": "Pilih rentang baris di tab berkas terlebih dahulu.",
 
-
-
   "toast.session.export.success.title": "Sesi diekspor",
   "toast.session.export.success.description": "Sesi disimpan ke {{filename}}",
   "toast.session.export.failed.title": "Gagal mengekspor sesi",
@@ -652,7 +648,7 @@ export const dict = {
   "error.chain.responseBody": "Isi respons:\n{{body}}",
   "error.chain.didYouMean": "Maksud Anda: {{suggestions}}",
   "error.chain.modelNotFound": "Model tidak ditemukan: {{provider}}/{{model}}",
-  "error.chain.checkConfig": "Periksa nama penyedia/model di konfigurasi Anda (opencode.json)",
+  "error.chain.checkConfig": "Periksa nama penyedia/model di konfigurasi Anda (tenon.json)",
   "error.chain.mcpFailed": 'Server MCP "{{name}}" gagal. Catatan: Tenon Workbench belum mendukung autentikasi MCP.',
   "error.chain.providerAuthFailed": "Autentikasi penyedia gagal ({{provider}}): {{message}}",
   "error.chain.providerInitFailed":
@@ -953,7 +949,6 @@ export const dict = {
   "settings.general.row.wayland.description": "Nonaktifkan sistem cadangan X11 di Wayland. Memerlukan mulai ulang.",
   "settings.general.row.wayland.tooltip":
     "Di Linux dengan monitor berlaju penyegaran berbeda, Wayland asli bisa lebih stabil.",
-
 
   "settings.updates.row.startup.title": "Periksa pembaruan saat dimulai",
   "settings.updates.row.startup.description": "Secara otomatis memeriksa pembaruan saat Tenon Workbench diluncurkan",

@@ -363,7 +363,7 @@ export const dict: Record<string, string> = {
   "dialog.mcp.description": "{{enabled}} को {{total}} सक्षम गरियो",
   "dialog.mcp.empty": "कुनै पनि MCPs कन्फिगर गरिएको छैन",
   "dialog.lsp.empty": "LSPs फाइल प्रकारहरूबाट स्वतः पत्ता लगाइयो",
-  "dialog.plugins.empty": "opencode.json मा कन्फिगर गरिएका प्लगइनहरू",
+  "dialog.plugins.empty": "tenon.json मा कन्फिगर गरिएका प्लगइनहरू",
   "mcp.status.connected": "जोडिएको",
   "mcp.status.failed": "असफल",
   "mcp.status.needs_auth": "प्रमाणीकरण चाहिन्छ",
@@ -592,7 +592,7 @@ export const dict: Record<string, string> = {
   "error.chain.responseBody": "प्रतिक्रिया मुख्य भाग:\n{{body}}",
   "error.chain.didYouMean": "के तपाईको मतलब: {{suggestions}}",
   "error.chain.modelNotFound": "मोडेल फेला परेन: {{provider}}/{{model}}",
-  "error.chain.checkConfig": "आफ्नो कन्फिगरेसन (opencode.json) प्रदायक/मोडेल नामहरू जाँच गर्नुहोस्",
+  "error.chain.checkConfig": "आफ्नो कन्फिगरेसन (tenon.json) प्रदायक/मोडेल नामहरू जाँच गर्नुहोस्",
   "error.chain.mcpFailed":
     'MCP सर्भर "{{name}}" असफल भयो। नोट गर्नुहोस्, Tenon Workbench ले अझै पनि MCP प्रमाणीकरणलाई समर्थन गर्दैन।',
   "error.chain.providerAuthFailed": "प्रदायक प्रमाणीकरण असफल भयो ({{provider}}): {{message}}",
@@ -869,7 +869,8 @@ export const dict: Record<string, string> = {
   "settings.general.row.wayland.description": "Wayland मा X11 फलब्याक असक्षम गर्नुहोस्। पुन: सुरु गर्न आवश्यक छ।",
   "settings.general.row.wayland.tooltip": "Linux मा मिश्रित रिफ्रेस-रेट मनिटरहरूसँग, नेटिभ Wayland थप स्थिर हुन सक्छ।",
   "settings.updates.row.startup.title": "स्टार्टअपमा अद्यावधिकहरूको लागि जाँच गर्नुहोस्",
-  "settings.updates.row.startup.description": "Tenon Workbench सुरु हुँदा अद्यावधिकहरूको लागि स्वचालित रूपमा जाँच गर्नुहोस्",
+  "settings.updates.row.startup.description":
+    "Tenon Workbench सुरु हुँदा अद्यावधिकहरूको लागि स्वचालित रूपमा जाँच गर्नुहोस्",
   "settings.updates.row.check.title": "अपडेटहरूको लागि जाँच गर्नुहोस्",
   "settings.updates.action.checkNow": "अहिले जाँच गर्नुहोस्",
   "settings.updates.action.checking": "जाँच गर्दै...",

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { SessionApi, SessionInfo, SessionListInput } from "@tenon/client/promise"
+import type { SessionApi, SessionInfo, SessionListInput } from "@opencode-ai/client/promise"
 import { Harness } from "@tenon/schema/harness"
 import { listAllSessions, normalizeSessionInfo, revertRestoresFiles, sessionPinnedAt } from "./session"
 

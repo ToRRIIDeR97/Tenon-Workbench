@@ -50,8 +50,8 @@ export default function BrainHomePage() {
   const serverSDK = useServerSDK()
   const drafts = useDrafts()
   const command = useCommand()
-  const openCodeHome = createHomeController()
-  const openCodeSessions = createHomeSessionsController(openCodeHome)
+  const tenonHome = createHomeController()
+  const tenonSessions = createHomeSessionsController(tenonHome)
   const [state, setState] = createStore({
     prompt: "",
     harnessInstanceID: Harness.OpenCode as Harness.InstanceID,
@@ -188,8 +188,8 @@ export default function BrainHomePage() {
   })
   const freshRun = createFreshItems()
   const runningSessions = createMemo(() => {
-    const data = openCodeHome.server.focusedSync().session.data
-    return openCodeSessions.data.records().filter((record) => {
+    const data = tenonHome.server.focusedSync().session.data
+    return tenonSessions.data.records().filter((record) => {
       const status = data.session_status[record.session.id]
       return (status?.type ?? "idle") !== "idle" || (data.permission[record.session.id]?.length ?? 0) > 0
     })
@@ -354,14 +354,14 @@ export default function BrainHomePage() {
                 <For each={runningSessions()}>
                   {(record) => {
                     const approvals = () =>
-                      openCodeHome.server.focusedSync().session.data.permission[record.session.id]?.length ?? 0
+                      tenonHome.server.focusedSync().session.data.permission[record.session.id]?.length ?? 0
                     const enter = freshRun(record.session.id)
                     return (
                       <li class={enter ? "animate-enter" : undefined}>
                         <button
                           type="button"
                           class={pageRowClass}
-                          onClick={() => openCodeSessions.session.open(record.session)}
+                          onClick={() => tenonSessions.session.open(record.session)}
                         >
                           <span class="size-2 shrink-0 rounded-full bg-v2-icon-icon-accent running-pulse" />
                           <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base [font-weight:470]">

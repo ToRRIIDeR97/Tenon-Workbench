@@ -373,7 +373,7 @@ export const dict = {
   "dialog.mcp.description": "MCP actifs : {{enabled}} sur {{total}}",
   "dialog.mcp.empty": "Aucun MCP configuré",
   "dialog.lsp.empty": "Serveurs LSP détectés automatiquement selon le type de fichier",
-  "dialog.plugins.empty": "Extensions configurées dans opencode.json",
+  "dialog.plugins.empty": "Extensions configurées dans tenon.json",
   "mcp.status.connected": "connecté",
   "mcp.status.failed": "en échec",
   "mcp.status.needs_auth": "authentification requise",
@@ -594,7 +594,7 @@ export const dict = {
   "error.chain.responseBody": "Corps de la réponse :\n{{body}}",
   "error.chain.didYouMean": "Vouliez-vous dire : {{suggestions}}",
   "error.chain.modelNotFound": "Modèle introuvable : {{provider}}/{{model}}",
-  "error.chain.checkConfig": "Vérifiez les noms de fournisseur et de modèle dans votre configuration (opencode.json)",
+  "error.chain.checkConfig": "Vérifiez les noms de fournisseur et de modèle dans votre configuration (tenon.json)",
   "error.chain.mcpFailed":
     "Le serveur MCP \"{{name}}\" a échoué. Notez qu'Tenon Workbench ne prend pas encore en charge l'authentification MCP.",
   "error.chain.providerAuthFailed": "Échec de l'authentification du fournisseur ({{provider}}) : {{message}}",
@@ -803,7 +803,8 @@ export const dict = {
   "settings.general.row.wayland.tooltip":
     "Sur Linux avec des moniteurs à taux de rafraîchissement mixte, Wayland natif peut être plus stable.",
   "settings.updates.row.startup.title": "Vérifier les mises à jour au démarrage",
-  "settings.updates.row.startup.description": "Vérifier automatiquement les mises à jour au lancement d'Tenon Workbench",
+  "settings.updates.row.startup.description":
+    "Vérifier automatiquement les mises à jour au lancement d'Tenon Workbench",
   "settings.updates.row.check.title": "Vérifier les mises à jour",
   "settings.updates.action.checkNow": "Vérifier maintenant",
   "settings.updates.action.checking": "Vérification...",

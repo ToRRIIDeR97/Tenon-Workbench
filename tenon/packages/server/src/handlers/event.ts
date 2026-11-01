@@ -1,5 +1,5 @@
 import { EventV2 } from "@tenon/core/event"
-import { OpenCodeEvent } from "@tenon/protocol/groups/event"
+import { TenonEvent } from "@tenon/protocol/groups/event"
 import { Effect, Option, Result, Schema, Stream } from "effect"
 import { HttpServerResponse } from "effect/unstable/http"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
@@ -7,7 +7,7 @@ import * as Sse from "effect/unstable/encoding/Sse"
 import { Api } from "../api"
 
 const subscriberCapacity = 256
-const encodeEvent = Schema.encodeUnknownOption(OpenCodeEvent)
+const encodeEvent = Schema.encodeUnknownOption(TenonEvent)
 // The bus hands every subscriber the same event object, so encode it once and share the string.
 const encoded = new WeakMap<object, Option.Option<string>>()
 

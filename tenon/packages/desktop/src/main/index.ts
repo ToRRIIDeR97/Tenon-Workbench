@@ -55,6 +55,7 @@ import { registerWslIpcHandlers } from "./wsl/ipc"
 import { spawnWslSidecar } from "./wsl/sidecar"
 import { migrateUserData } from "./user-data-migration"
 import { cleanupStoreFiles } from "./store-cleanup"
+import { renameLegacyStoreFiles } from "./store-rename"
 import { startBackgroundCli } from "./background-cli"
 import { nativeT, setNativeTranslations } from "./native-translations"
 
@@ -231,7 +232,7 @@ const main = Effect.gen(function* () {
   const onboardingTestRoot = ((): string | undefined => {
     if (!TEST_ONBOARDING) return
 
-    const root = join(tmpdir(), `opencode-onboarding-${randomUUID()}`)
+    const root = join(tmpdir(), `tenon-onboarding-${randomUUID()}`)
     rmSync(root, { recursive: true, force: true })
     ;["data", "config", "cache", "state", "desktop", "session"].forEach((dir) =>
       mkdirSync(join(root, dir), { recursive: true }),
@@ -267,8 +268,18 @@ const main = Effect.gen(function* () {
       return error instanceof Error ? error : new Error(String(error))
     }
   })()
+  // After the dev-channel copy above and before anything opens a store.
+  const storeRename = (() => {
+    try {
+      return renameLegacyStoreFiles(app.getPath("userData"))
+    } catch (error) {
+      return error instanceof Error ? error : new Error(String(error))
+    }
+  })()
   initializeOldLayoutEligibility(app.getPath("userData"))
   logger = initLogging()
+  if (storeRename instanceof Error) logger.error("store file rename failed", { error: storeRename.message })
+  else if (storeRename.length) logger.log("renamed pre-rename store files", { count: storeRename.length })
   if (userDataMigration instanceof Error)
     logger.error("user data migration failed; retrying on next start", { error: userDataMigration.message })
   else if (userDataMigration) logger.log("user data migration", { result: userDataMigration })

@@ -56,7 +56,7 @@ export interface Interface {
   readonly grep: (input: GrepInput) => Effect.Effect<readonly Match[]>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@opencode/v2/FileSystem") {}
+export class Service extends Context.Service<Service, Interface>()("@tenon/v2/FileSystem") {}
 
 const baseLayer = Layer.effect(
   Service,
@@ -83,7 +83,9 @@ const baseLayer = Layer.effect(
         if (info.type !== "File") return yield* Effect.die(new Error("Path is not a file"))
         // The whole file is returned in one response; refuse a huge one before reading it into memory.
         if (Number(info.size) > MAX_READ_FILE_BYTES)
-          return yield* Effect.die(new Error(`File is too large to open (limit ${MAX_READ_FILE_BYTES / 1024 / 1024} MB)`))
+          return yield* Effect.die(
+            new Error(`File is too large to open (limit ${MAX_READ_FILE_BYTES / 1024 / 1024} MB)`),
+          )
         return {
           content: yield* fs.readFile(target.real).pipe(Effect.orDie),
           mime: FSUtil.mimeType(target.real),

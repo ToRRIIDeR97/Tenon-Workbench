@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test"
-import { mockOpenCodeServer } from "../utils/mock-server"
+import { mockTenonServer } from "../utils/mock-server"
 import { expectSessionTitle } from "../utils/waits"
 
 const directory = "C:/OpenCode/ReviewTerminalStacked"
@@ -24,7 +24,7 @@ test("keeps the review tree and terminal sized when both panels are open", async
   let detailVersion = 1
   let detailFailures = 1
   await page.setViewportSize({ width: 1400, height: 900 })
-  await mockOpenCodeServer(page, {
+  await mockTenonServer(page, {
     protocol: "v1",
     directory,
     project: {
@@ -141,7 +141,7 @@ test("keeps the review tree and terminal sized when both panels are open", async
   await page.addInitScript(() => {
     localStorage.setItem("settings.v3", JSON.stringify({ general: {} }))
     localStorage.setItem(
-      "opencode.global.dat:layout",
+      "tenon.global.dat:layout",
       JSON.stringify({ review: { diffStyle: "split", panelOpened: true } }),
     )
   })

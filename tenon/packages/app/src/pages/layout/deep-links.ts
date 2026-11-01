@@ -1,4 +1,4 @@
-export const deepLinkEvent = "opencode:deep-link"
+export const deepLinkEvent = "tenon:deep-link"
 
 // Must match DEEP_LINK_SCHEME in packages/desktop/src/main/constants.ts.
 const scheme = "tenon://"
@@ -39,13 +39,13 @@ export const collectOpenProjectDeepLinks = (urls: string[]) =>
 export const collectNewSessionDeepLinks = (urls: string[]) =>
   urls.map(parseNewSessionDeepLink).filter((link): link is { directory: string; prompt?: string } => !!link)
 
-type OpenCodeWindow = Window & {
+type TenonWindow = Window & {
   __TENON__?: {
     deepLinks?: string[]
   }
 }
 
-export const drainPendingDeepLinks = (target: OpenCodeWindow) => {
+export const drainPendingDeepLinks = (target: TenonWindow) => {
   const pending = target.__TENON__?.deepLinks ?? []
   if (pending.length === 0) return []
   if (target.__TENON__) target.__TENON__.deepLinks = []

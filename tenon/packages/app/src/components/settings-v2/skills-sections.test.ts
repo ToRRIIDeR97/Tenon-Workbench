@@ -3,7 +3,7 @@ import { isBuiltInSkill, skillSections } from "./skills-sections"
 
 describe("isBuiltInSkill", () => {
   const sections = skillSections({
-    tenon: [{ name: "customize-opencode", scope: "global" }],
+    tenon: [{ name: "customize-tenon", scope: "global" }],
     harnesses: [{ id: "gem", name: "Custom Agent", source: "reported", skills: [{ name: "review", scope: "global" }] }],
   })
 

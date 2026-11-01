@@ -361,7 +361,7 @@ export const dict = {
   "dialog.mcp.description": "{{enabled}} ຂອງ {{total}} ຖືກເປີດໃຊ້",
   "dialog.mcp.empty": "ບໍ່ມີ MCPs ທີ່ຖືກຕັ້ງຄ່າ",
   "dialog.lsp.empty": "LSPs ກວດພົບອັດຕະໂນມັດຈາກປະເພດໄຟລ໌",
-  "dialog.plugins.empty": "ປລັກອິນຖືກຕັ້ງຄ່າໃນ opencode.json",
+  "dialog.plugins.empty": "ປລັກອິນຖືກຕັ້ງຄ່າໃນ tenon.json",
   "mcp.status.connected": "ເຊື່ອມຕໍ່",
   "mcp.status.failed": "ລົ້ມເຫລວ",
   "mcp.status.needs_auth": "ຕ້ອງການການຮັບຮອງ",
@@ -452,7 +452,8 @@ export const dict = {
   "wsl.onboarding.wslUnavailable.title": "WSL ບໍ່ສາມາດໃຊ້ໄດ້",
   "wsl.onboarding.wslUnavailable.description": "Tenon Workbench ບໍ່ສາມາດກວດສອບ WSL ໃນເຄື່ອງນີ້ໄດ້.",
   "wsl.onboarding.installWsl": "ຕິດຕັ້ງ WSL",
-  "wsl.onboarding.windowsRestartRequired": "ຣີສະຕາດ Windows ເພື່ອສຳເລັດການຕິດຕັ້ງ WSL, ຈາກນັ້ນເປີດ Tenon Workbench ຄືນໃໝ່.",
+  "wsl.onboarding.windowsRestartRequired":
+    "ຣີສະຕາດ Windows ເພື່ອສຳເລັດການຕິດຕັ້ງ WSL, ຈາກນັ້ນເປີດ Tenon Workbench ຄືນໃໝ່.",
   "wsl.onboarding.next": "ຕໍ່ໄປ",
   "wsl.onboarding.refresh": "ໂຫຼດຂໍ້ມູນຄືນໃໝ່",
   "wsl.onboarding.allDistrosAdded": "ການຕິດຕັ້ງທັງໝົດຖືກເພີ່ມແລ້ວ.",
@@ -589,8 +590,9 @@ export const dict = {
   "error.chain.responseBody": "ເນື້ອໃນການຕອບສະໜອງ:\n{{body}}",
   "error.chain.didYouMean": "ເຈົ້າຫມາຍຄວາມວ່າ: {{suggestions}}",
   "error.chain.modelNotFound": "ບໍ່ພົບໂມເດວ: {{provider}}/{{model}}",
-  "error.chain.checkConfig": "ກວດເບິ່ງການຕັ້ງຄ່າ (opencode.json) ຜູ້ໃຫ້ບໍລິການ/ຊື່ແບບຈໍາລອງຂອງທ່ານ",
-  "error.chain.mcpFailed": 'ເຊີບເວີ MCP "{{name}}" ລົ້ມເຫລວ. ໝາຍເຫດ, Tenon Workbench ບໍ່ຮອງຮັບການພິສູດຢືນຢັນ MCP ເທື່ອ.',
+  "error.chain.checkConfig": "ກວດເບິ່ງການຕັ້ງຄ່າ (tenon.json) ຜູ້ໃຫ້ບໍລິການ/ຊື່ແບບຈໍາລອງຂອງທ່ານ",
+  "error.chain.mcpFailed":
+    'ເຊີບເວີ MCP "{{name}}" ລົ້ມເຫລວ. ໝາຍເຫດ, Tenon Workbench ບໍ່ຮອງຮັບການພິສູດຢືນຢັນ MCP ເທື່ອ.',
   "error.chain.providerAuthFailed": "ການພິສູດຢືນຢັນຜູ້ໃຫ້ບໍລິການລົ້ມເຫລວ ({{provider}}): {{message}}",
   "error.chain.providerInitFailed":
     'ລົ້ມເຫລວໃນການເລີ່ມຕົ້ນຜູ້ໃຫ້ບໍລິການ "{{provider}}". ກວດເບິ່ງຂໍ້ມູນປະຈໍາຕົວແລະການຕັ້ງຄ່າ.',

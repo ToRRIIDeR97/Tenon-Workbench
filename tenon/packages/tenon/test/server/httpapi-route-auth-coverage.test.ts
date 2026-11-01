@@ -2,7 +2,7 @@ import { afterAll, describe, expect, test } from "bun:test"
 import { ConfigProvider, Layer } from "effect"
 import { HttpRouter } from "effect/unstable/http"
 import { HttpApi } from "effect/unstable/httpapi"
-import { OpenCodeHttpApi } from "../../src/server/routes/instance/httpapi/api"
+import { TenonHttpApi } from "../../src/server/routes/instance/httpapi/api"
 import { HttpApiApp } from "../../src/server/routes/instance/httpapi/server"
 import { resetDatabase } from "../fixture/db"
 import { disposeAllInstances, tmpdir } from "../fixture/fixture"
@@ -13,7 +13,7 @@ const PUBLIC = new Set<string>([])
 
 function operations() {
   const result: Array<{ method: string; path: string }> = []
-  HttpApi.reflect(OpenCodeHttpApi, {
+  HttpApi.reflect(TenonHttpApi, {
     onGroup: () => {},
     onEndpoint: (input) => result.push({ method: input.endpoint.method, path: input.endpoint.path }),
   })

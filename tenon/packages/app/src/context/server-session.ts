@@ -1,6 +1,6 @@
 import { Binary } from "@tenon/core/util/binary"
 import { retry } from "@tenon/core/util/retry"
-import type { OpenCodeEvent, SessionApi, SessionMessageInfo } from "@tenon/client/promise"
+import type { OpenCodeEvent, SessionApi, SessionMessageInfo } from "@opencode-ai/client/promise"
 import type {
   Message,
   OpencodeClient,
@@ -11,7 +11,7 @@ import type {
   SessionStatus,
   Todo,
 } from "@opencode-ai/sdk/v2/client"
-import type { FileDiffInfo } from "@tenon/client/promise"
+import type { FileDiffInfo } from "@opencode-ai/client/promise"
 import { batch } from "solid-js"
 import { createStore, produce, reconcile } from "solid-js/store"
 import { message as cleanMessage } from "@/utils/diffs"

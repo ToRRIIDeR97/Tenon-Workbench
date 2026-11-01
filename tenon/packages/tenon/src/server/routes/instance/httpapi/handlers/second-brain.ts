@@ -35,7 +35,7 @@ type ApiFailure =
 export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "secondBrain", (handlers) =>
   Effect.gen(function* () {
     const locations = yield* LocationServiceMap.Service
-    const opencodeProjects = yield* Project.Service
+    const projectService = yield* Project.Service
     const database = yield* Database.Service
     // One lock per Brain directory serializes calendar saves (with their timeline sync),
     // Project mutations and project folder scans, so none of them interleave.
@@ -100,7 +100,7 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
     })
 
     const workspaces = Effect.fn("SecondBrain.workspaces")(function* () {
-      return (yield* opencodeProjects.list()).map(
+      return (yield* projectService.list()).map(
         (project): BrainProject.Workspace => ({
           id: project.id,
           worktree: project.worktree,
@@ -144,7 +144,7 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
     }) {
       const id = ctx.payload.workspaceId.trim()
       if (!id || id === "global") return yield* invalid("invalid_workspace")
-      const workspace = yield* opencodeProjects.get(ProjectV2.ID.make(id))
+      const workspace = yield* projectService.get(ProjectV2.ID.make(id))
       if (!workspace) return yield* new HttpApiError.NotFound({})
       const brainDirectory = (yield* InstanceState.context).directory
       if (path.resolve(workspace.worktree) === path.resolve(brainDirectory)) return yield* invalid("invalid_workspace")

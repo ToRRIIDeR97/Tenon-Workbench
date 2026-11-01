@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test"
 import type { Page } from "@playwright/test"
 import { fixture, pageMessages } from "../smoke/session-timeline.fixture"
-import { mockOpenCodeServer } from "../utils/mock-server"
+import { mockTenonServer } from "../utils/mock-server"
 import { expectAppVisible } from "../utils/waits"
 import { openFolderFromWorkspaceMenu } from "../utils/sidebar"
 
@@ -18,7 +18,7 @@ const rows = (page: Page) => page.locator("[data-directory-path]")
 const row = (page: Page, name: string) => page.locator(`[data-directory-path*="${name}"]`)
 
 async function openProjectDialog(page: Page) {
-  await mockOpenCodeServer(page, {
+  await mockTenonServer(page, {
     sessions: fixture.sessions,
     provider: fixture.provider,
     directory: fixture.directory,
@@ -29,7 +29,7 @@ async function openProjectDialog(page: Page) {
   })
   await page.addInitScript((dirs) => {
     localStorage.setItem(
-      "opencode.global.dat:server",
+      "tenon.global.dat:server",
       JSON.stringify({
         projects: { local: dirs.map((worktree: string) => ({ worktree, expanded: false })) },
         lastProject: {},

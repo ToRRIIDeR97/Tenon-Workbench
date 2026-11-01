@@ -1,6 +1,6 @@
 # Architecture views (UML)
 
-This is the master graph document for the active Electron/OpenCode app. The
+This is the master graph document for the active Tenon Workbench Electron app. The
 [architecture overview](README.md) explains component boundaries in prose,
 and the [threat model](../security/threat-model.md) owns trust boundaries.
 This document holds the detailed views.
@@ -26,7 +26,7 @@ reading of the code, not a runtime trace, except where a step says it was run.
 
 ### Component
 
-![Component view: renderer, preload, Electron main, the bundled OpenCode server (HTTP API, Second Brain domains, location services, agent runtime), stores and external services](../diagrams/component-overview.svg)
+![Component view: renderer, preload, Electron main, the bundled Tenon server (HTTP API, Second Brain domains, location services, agent runtime), stores and external services](../diagrams/component-overview.svg)
 
 | Component | Responsibility | Source |
 | --- | --- | --- |
@@ -46,7 +46,7 @@ reading of the code, not a runtime trace, except where a step says it was run.
   ephemeral port. Its password is a UUID generated at each launch
   (`desktop/src/main/index.ts`, `server.ts`).
 - `userData` is `appData/<appId>`. The server sets `XDG_STATE_HOME` to
-  `userData` by default, but `auth.json` and `opencode.db` live in the XDG
+  `userData` by default, but `auth.json` and `tenon.db` live in the XDG
   data directory (`core/src/global.ts`, `core/src/database/database.ts`,
   `tenon/src/auth/index.ts`).
 - Those XDG directories are named `tenon-workbench`, separate from upstream
@@ -84,7 +84,7 @@ Notes on the class view:
   would exceed the read limit.
 - `BrainProject.location.path` names the Project's folder (inside the
   workspace's `projects` folder, or an absolute linked folder). A legacy
-  `location.workspaceId` is an OpenCode `Project.id`. A BrainProject's thread
+  `location.workspaceId` is a Tenon `Project.id`. A BrainProject's thread
   directory is its folder, else that Project's worktree, else its card folder
   `.tenon/projects/<id>/`. Sessions belong to it by the folder holding their
   `directory`, not by a stored foreign key.
@@ -128,7 +128,7 @@ Some details of the write path:
   failures are a logged 500. Logs carry the error tag, reason and relative
   path, never content.
 - When a request's workspace folder (`directory`, `location[directory]` or
-  `x-opencode-directory`) no longer exists, the server-wide error middleware
+  `x-tenon-directory`/`x-opencode-directory`) no longer exists, the server-wide error middleware
   turns the resulting defect into a 404 `WorkspaceFolderNotFoundError` instead
   of a 500. Other unexpected defects stay a logged 500 with an `err_` ref.
 - `FileMutation` replaces a file through a synced sibling temp file and a
@@ -231,7 +231,7 @@ question dock; see [Questions from harnesses](README.md#questions-from-harnesses
 | Rollback ("Edit from here", Restore, commit on the next prompt) | Critical workflow | Text in [README](README.md#session-compatibility-and-review) | `core/src/session.ts` (`prompt`, `revert`), `core/src/session/revert.ts`, `core/src/session/projector.ts` (`RevertEvent.Committed`), `core/src/harness.ts` (runtimes closed on commit), `app/src/pages/session.tsx` (`revertMutation`, `restoreMutation`), `app/src/context/server-session.ts`, `app/src/pages/session/composer/session-revert-dock.tsx` |
 | Permissions | Subsystem | Activity: prompt run, State: permission, Sequence: ACP turn | `core/src/permission.ts`, `core/src/plugin/agent.ts` |
 | Workspace files | Shared store | Component, Deployment, Activity: write | `notes/`, `projects/`, `.tenon/` (cards, `calendar-v1.json`) |
-| Profile SQLite (`opencode.db`) | Shared store | Component, Deployment, Class | `core/src/database/`, `core/src/event.ts` |
+| Profile SQLite (`tenon.db`) | Shared store | Component, Deployment, Class | `core/src/database/`, `core/src/event.ts` |
 | Snapshot repository | Shared store | Component, Class, Activity: prompt run | `core/src/snapshot.ts` |
 | Global XDG paths and legacy-folder migration (`opencode` → `tenon-workbench`) | Critical workflow | Deployment; text in [README](README.md#harness-drivers-and-registration) | `core/src/global.ts`, `core/src/legacy-storage.ts` |
 | `harnesses.json` | Shared store | Component, Deployment | `core/src/harness/registry.ts` (written only from Settings → Harnesses through `/api/harness/registry`) |

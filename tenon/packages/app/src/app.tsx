@@ -164,7 +164,7 @@ function UiI18nBridge(props: ParentProps) {
 }
 
 declare global {
-  interface OpenCodeDesktopAPI {
+  interface TenonDesktopAPI {
     setTitlebar: (theme: { mode: "light" | "dark"; scheme?: "system" | "light" | "dark" }) => Promise<void>
     exportDebugLogs: () => Promise<string>
   }
@@ -172,7 +172,7 @@ declare global {
     __TENON__?: {
       deepLinks?: string[]
     }
-    api: OpenCodeDesktopAPI
+    api: TenonDesktopAPI
   }
 }
 

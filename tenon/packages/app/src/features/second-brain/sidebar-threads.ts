@@ -127,7 +127,7 @@ const sameItems = <T>(a: readonly T[], b: readonly T[]) =>
  * Combine the loaded directory lists with the recent-session index. A directory list
  * contributes only threads that run in that directory: server events for a thread
  * reach only its own directory's list, so a copy held by another list (e.g. the Brain
- * folder's list of its whole OpenCode project) can be stale and must not win.
+ * folder's list of its whole Tenon project) can be stale and must not win.
  */
 export function mergeSidebarSessions<S extends SidebarSession>(
   lists: ReadonlyArray<{ directory: string; sessions: readonly S[] }>,

@@ -363,7 +363,7 @@ export const dict = {
   "dialog.mcp.description": "{{enabled}} nga {{total}} është aktivizuar",
   "dialog.mcp.empty": "Asnjë MCP nuk është konfiguruar",
   "dialog.lsp.empty": "LSP-të zbulohen automatikisht nga llojet e skedarëve",
-  "dialog.plugins.empty": "Shtojcat e konfiguruara në opencode.json",
+  "dialog.plugins.empty": "Shtojcat e konfiguruara në tenon.json",
   "mcp.status.connected": "lidhur",
   "mcp.status.failed": "dështoi",
   "mcp.status.needs_auth": "nevojiten auth",
@@ -454,7 +454,8 @@ export const dict = {
   "wsl.onboarding.wslUnavailable.title": "WSL i padisponueshëm",
   "wsl.onboarding.wslUnavailable.description": "Tenon Workbench nuk mund ta verifikonte WSL në këtë makinë.",
   "wsl.onboarding.installWsl": "Instaloni WSL",
-  "wsl.onboarding.windowsRestartRequired": "Rinis Windows për të përfunduar instalimin e WSL, më pas rihap Tenon Workbench.",
+  "wsl.onboarding.windowsRestartRequired":
+    "Rinis Windows për të përfunduar instalimin e WSL, më pas rihap Tenon Workbench.",
   "wsl.onboarding.next": "Tjetra",
   "wsl.onboarding.refresh": "Rifresko",
   "wsl.onboarding.allDistrosAdded": "Të gjitha shpërndarjet e instaluara janë shtuar tashmë.",
@@ -558,7 +559,8 @@ export const dict = {
   "toast.session.listFailed.title": "Ngarkimi i seancave për {{project}} dështoi",
   "toast.project.reloadFailed.title": "Ringarkimi i {{project}} dështoi",
   "toast.update.title": "Ofrohet përditësim",
-  "toast.update.description": "Një version i ri i Tenon Workbench ({{version}}) është tani i disponueshëm për t'u instaluar.",
+  "toast.update.description":
+    "Një version i ri i Tenon Workbench ({{version}}) është tani i disponueshëm për t'u instaluar.",
   "toast.update.action.installRestart": "Instaloni dhe rinisni",
   "toast.update.action.notYet": "Ende jo",
   "error.page.title": "Diçka shkoi keq",
@@ -594,8 +596,9 @@ export const dict = {
   "error.chain.responseBody": "Trupi i përgjigjes:\n{{body}}",
   "error.chain.didYouMean": "A do të thuash: {{suggestions}}",
   "error.chain.modelNotFound": "Modeli nuk u gjet: {{provider}}/{{model}}",
-  "error.chain.checkConfig": "Kontrolloni emrat e ofruesit/modelit tuaj të konfigurimit (opencode.json).",
-  "error.chain.mcpFailed": 'Serveri MCP "{{name}}" dështoi. Shënim, Tenon Workbench nuk e mbështet ende vërtetimin MCP.',
+  "error.chain.checkConfig": "Kontrolloni emrat e ofruesit/modelit tuaj të konfigurimit (tenon.json).",
+  "error.chain.mcpFailed":
+    'Serveri MCP "{{name}}" dështoi. Shënim, Tenon Workbench nuk e mbështet ende vërtetimin MCP.',
   "error.chain.providerAuthFailed": "Autentifikimi i ofruesit dështoi ({{provider}}): {{message}}",
   "error.chain.providerInitFailed":
     'Inicializimi i ofruesit "{{provider}}" dështoi. Kontrolloni kredencialet dhe konfigurimin.',

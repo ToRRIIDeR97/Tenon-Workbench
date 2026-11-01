@@ -22,7 +22,7 @@ import type {
   ReferenceListInput,
   ReferenceListOutput,
   SessionApi,
-} from "@tenon/client/promise"
+} from "@opencode-ai/client/promise"
 import { showToast } from "@/utils/toast"
 import { getFilename } from "@tenon/core/util/path"
 import { retry } from "@tenon/core/util/retry"

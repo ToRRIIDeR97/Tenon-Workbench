@@ -1,6 +1,6 @@
 import { base64Encode } from "@tenon/core/util/encode"
 import { expect, test, type Page } from "@playwright/test"
-import { mockOpenCodeServer } from "../utils/mock-server"
+import { mockTenonServer } from "../utils/mock-server"
 import { expectSessionTitle } from "../utils/waits"
 import { openSidebarThread } from "../utils/sidebar"
 
@@ -30,7 +30,7 @@ test("animates todo lifecycle without replaying it across session tabs", async (
   const todos: Record<string, typeof activeTodos> = { [sourceID]: [], [otherID]: [] }
   const sessionStatus: Record<string, { type: "busy" | "idle" }> = {}
 
-  await mockOpenCodeServer(page, {
+  await mockTenonServer(page, {
     directory,
     project: {
       id: projectID,
@@ -142,13 +142,13 @@ async function configurePage(page: Page) {
     ({ directory }) => {
       localStorage.setItem("settings.v3", JSON.stringify({ general: {} }))
       localStorage.setItem(
-        "opencode.global.dat:server",
+        "tenon.global.dat:server",
         JSON.stringify({
           projects: { local: [{ worktree: directory, expanded: true }] },
           lastProject: { local: directory },
         }),
       )
-      localStorage.setItem("opencode.window.browser.dat:sidebar", JSON.stringify({ expanded: { __brain__: true } }))
+      localStorage.setItem("tenon.window.browser.dat:sidebar", JSON.stringify({ expanded: { __brain__: true } }))
     },
     { directory },
   )

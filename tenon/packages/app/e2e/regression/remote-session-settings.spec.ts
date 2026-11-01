@@ -159,7 +159,7 @@ async function configureServers(page: Page) {
   await page.addInitScript(
     ({ serverB }) => {
       localStorage.setItem("settings.v3", JSON.stringify({ general: {} }))
-      localStorage.setItem("opencode.global.dat:server", JSON.stringify({ list: [serverB] }))
+      localStorage.setItem("tenon.global.dat:server", JSON.stringify({ list: [serverB] }))
     },
     { serverB },
   )

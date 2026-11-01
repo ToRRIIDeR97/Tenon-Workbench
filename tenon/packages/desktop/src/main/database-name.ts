@@ -8,5 +8,6 @@ import type { Channel } from "./constants"
  */
 export function stableDatabaseName(channel: Channel, packaged: boolean) {
   if (!packaged) return undefined
-  return channel === "prod" ? "opencode.db" : `opencode-${channel}.db`
+  // The server moves a pre-rename opencode*.db to this name the first time it opens it.
+  return channel === "prod" ? "tenon.db" : `tenon-${channel}.db`
 }

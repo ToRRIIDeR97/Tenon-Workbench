@@ -24,7 +24,7 @@ await Bun.build({
     TENON_CHANNEL: `'${Script.channel}'`,
   },
   files: {
-    "opencode-web-ui.gen.ts": "",
+    "tenon-web-ui.gen.ts": "",
   },
 })
 

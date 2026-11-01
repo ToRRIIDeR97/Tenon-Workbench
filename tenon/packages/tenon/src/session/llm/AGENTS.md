@@ -1,12 +1,12 @@
 # Session LLM Runtime Boundaries
 
-`../llm.ts` is the opencode session LLM service. It owns opencode concerns: auth, config, model/provider resolution, plugins, permissions, telemetry headers, and runtime selection. It is the only file in this area that should know about the full session request shape.
+`../llm.ts` is the Tenon session LLM service. It owns Tenon concerns: auth, config, model/provider resolution, plugins, permissions, telemetry headers, and runtime selection. It is the only file in this area that should know about the full session request shape.
 
 This folder contains adapters behind that service boundary:
 
 - `ai-sdk.ts` converts AI SDK `fullStream` parts into `@tenon/llm` `LLMEvent`s. This is the default runtime path.
-- `native-request.ts` converts opencode's normalized session input into a native `@tenon/llm` `LLMRequest`. It does not execute requests.
-- `native-runtime.ts` is the opt-in native runtime adapter. It decides whether a selected model is supported, builds the native request, bridges opencode tools into native executable tools, and delegates transport to `LLMClient` / `RequestExecutor`.
+- `native-request.ts` converts Tenon's normalized session input into a native `@tenon/llm` `LLMRequest`. It does not execute requests.
+- `native-runtime.ts` is the opt-in native runtime adapter. It decides whether a selected model is supported, builds the native request, bridges Tenon tools into native executable tools, and delegates transport to `LLMClient` / `RequestExecutor`.
 
 ## File Structure
 
@@ -16,7 +16,7 @@ src/session/
   llm/
     AGENTS.md               boundary notes for the adapter layer
     ai-sdk.ts               AI SDK fullStream -> @tenon/llm LLMEvent adapter
-    native-request.ts       opencode/AI SDK-shaped input -> @tenon/llm LLMRequest
+    native-request.ts       Tenon/AI SDK-shaped input -> @tenon/llm LLMRequest
     native-runtime.ts       native runtime gate, tool bridge, and LLMClient handoff
 ```
 
@@ -80,7 +80,7 @@ Both runtimes converge on the same `LLMEvent` stream consumed by the session pro
         ╰─────────────────╯             ╰─────────────────────────────╯
 ```
 
-`native-runtime.ts` evaluates the gate and either bridges into `@tenon/llm` or returns control so `llm.ts` can take the AI SDK path. Tool execution stays opencode-owned in both branches; only request lowering and transport differ.
+`native-runtime.ts` evaluates the gate and either bridges into `@tenon/llm` or returns control so `llm.ts` can take the AI SDK path. Tool execution stays Tenon-owned in both branches; only request lowering and transport differ.
 
 Safety boundary:
 

@@ -115,7 +115,7 @@ describe("persist localStorage resilience", () => {
   test("workspace storage sanitizes Windows filename characters", () => {
     const result = persistTesting.workspaceStorage("C:\\Users\\foo")
 
-    expect(result).toStartWith("opencode.workspace.")
+    expect(result).toStartWith("tenon.workspace.")
     expect(result.endsWith(".dat")).toBeTrue()
     expect(/[:\\/]/.test(result)).toBeFalse()
   })
@@ -200,12 +200,31 @@ describe("persist localStorage resilience", () => {
   test("server global target preserves local key and isolates remote keys", () => {
     expect(Persist.serverGlobal(ServerScope.local, "notification")).toEqual(Persist.global("notification"))
     expect(Persist.serverGlobal("https://debian.example" as ServerScope, "notification")).toEqual({
-      storage: "opencode.global.dat",
+      storage: "tenon.global.dat",
       key: "https://debian.example\0notification",
     })
   })
 
   test("server global target cannot collide when scope and key contain colons", () => {
     expect(Persist.serverGlobal("a:b" as ServerScope, "c")).not.toEqual(Persist.serverGlobal("a" as ServerScope, "b:c"))
+  })
+})
+
+describe("migrateLegacyLocalStorage", () => {
+  test("moves opencode.* keys to tenon.* without overwriting newer values", async () => {
+    const { migrateLegacyLocalStorage } = await import("./persist")
+    const storage = new MemoryStorage()
+    storage.setItem("opencode.global.dat:language", '{"locale":"de"}')
+    storage.setItem("opencode.global.dat:server", '{"list":[]}')
+    storage.setItem("tenon.global.dat:server", '{"list":["kept"]}')
+    storage.setItem("unrelated", "x")
+
+    expect(migrateLegacyLocalStorage(storage)).toBe(1)
+
+    expect(storage.getItem("tenon.global.dat:language")).toBe('{"locale":"de"}')
+    expect(storage.getItem("tenon.global.dat:server")).toBe('{"list":["kept"]}')
+    expect(storage.getItem("opencode.global.dat:language")).toBeNull()
+    expect(storage.getItem("opencode.global.dat:server")).toBeNull()
+    expect(storage.getItem("unrelated")).toBe("x")
   })
 })

@@ -98,7 +98,7 @@ export function stepOf(part: ToolPart, options?: Options): Step {
 export function toolStep(tool: string, input: Record<string, unknown> | undefined, options?: Options): Step {
   const kind = KINDS[tool]
   if (kind) return withTarget(kind, targetOf(kind, input ?? {}))
-  // MCP tools are named `sanitize(server) + "_" + tool` (opencode/src/mcp/catalog.ts), so match on the sanitized name.
+  // MCP tools are named `sanitize(server) + "_" + tool` (tenon/src/mcp/catalog.ts), so match on the sanitized name.
   const server = options?.mcpServers?.find((name) => tool.startsWith(`${sanitize(name)}_`))
   if (server) return { kind: "mcp", target: `${server} · ${tool.slice(sanitize(server).length + 1)}` }
   return { kind: "other", target: tool }

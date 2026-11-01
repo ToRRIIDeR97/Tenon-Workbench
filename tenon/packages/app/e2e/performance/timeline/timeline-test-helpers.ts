@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test"
 import { base64Encode } from "@tenon/core/util/encode"
-import { mockOpenCodeServer } from "../../utils/mock-server"
+import { mockTenonServer } from "../../utils/mock-server"
 import { fixture, pageMessages } from "./session-timeline-stress.fixture"
 
 export async function installTimelineSettings(page: Page) {
@@ -25,7 +25,7 @@ export function mockStressTimeline(
     vcsDiff?: unknown[]
   },
 ) {
-  return mockOpenCodeServer(page, {
+  return mockTenonServer(page, {
     sessions: fixture.sessions,
     provider: fixture.provider,
     directory: fixture.directory,
@@ -41,17 +41,17 @@ export async function installStressSessionTabs(page: Page, input?: { draftID?: s
   await page.addInitScript(
     ({ directory, sessionIDs, dirBase64, server, draftID }) => {
       localStorage.setItem(
-        "opencode.global.dat:server",
+        "tenon.global.dat:server",
         JSON.stringify({
           projects: { local: [{ worktree: directory, expanded: true }] },
           lastProject: { local: directory },
         }),
       )
       // Sidebar thread groups start expanded so benchmarks can click thread rows.
-      localStorage.setItem("opencode.window.browser.dat:sidebar", JSON.stringify({ expanded: { __brain__: true } }))
+      localStorage.setItem("tenon.window.browser.dat:sidebar", JSON.stringify({ expanded: { __brain__: true } }))
       // Legacy tab keys: unsent drafts are imported into the drafts store on startup.
       localStorage.setItem(
-        "opencode.window.browser.dat:tabs",
+        "tenon.window.browser.dat:tabs",
         JSON.stringify([
           ...sessionIDs.map((sessionId) => ({
             type: "session",

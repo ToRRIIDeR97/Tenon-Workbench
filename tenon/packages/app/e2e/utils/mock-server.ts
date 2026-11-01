@@ -33,7 +33,7 @@ export interface MockServerConfig {
   projectThreads?: unknown[] | (() => unknown[])
 }
 
-export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
+export async function mockTenonServer(page: Page, config: MockServerConfig) {
   const cursors = new Map<string, string>()
   let nextCursor = 0
   const staticRoutes: Record<string, unknown> = {

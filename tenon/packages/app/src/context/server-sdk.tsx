@@ -1,4 +1,4 @@
-import type { OpenCodeEvent } from "@tenon/client/promise"
+import type { OpenCodeEvent } from "@opencode-ai/client/promise"
 import type {
   Event,
   SessionNextCompactionDelta,

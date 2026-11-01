@@ -7,7 +7,7 @@ OUT = sys.argv[1]
 
 def component():
     s = SVG(980, 790, "Component view of Tenon Workbench",
-            "UML component view: Solid renderer, preload bridge, Electron main, the bundled OpenCode server "
+            "UML component view: Solid renderer, preload bridge, Electron main, the bundled Tenon server "
             "with HTTP API, Second Brain domains, location services and agent runtime, plus stores and external services.")
     s.heading("Component view", "UML 2.5.1 component diagram · paths relative to tenon/packages/")
     # left column
@@ -18,7 +18,7 @@ def component():
           "server launcher (server.ts)", "Google Calendar/Tasks service", "drafts, session export"], stereo="component")
     s.box(20, 590, 200, 60, "userData stores", ["drafts.sqlite, electron-store", "(second-brain.google)"], cls="store")
     # server container
-    s.zone(340, 60, 360, 570, "OpenCode server «subsystem» · 127.0.0.1")
+    s.zone(340, 60, 360, 570, "Tenon server «subsystem» · 127.0.0.1")
     s.box(360, 90, 290, 104, "HTTP API", ["native /api: server + protocol pkgs", "legacy: tenon/src/server",
           "Basic auth, workspace routing", "→ domains and SessionV2"], cls="sub")
     s.box(360, 215, 290, 104, "Second Brain domains", ["tenon/src/knowledge/note.ts", "tenon/src/project/brain.ts",
@@ -114,13 +114,13 @@ def deployment():
     s.zone(40, 100, 450, 300, "«executionEnvironment» Electron app")
     s.box(60, 130, 200, 86, "Main process", ["out/main/index.js", "io.github.torriider97.tenonworkbench"], stereo="process")
     s.box(270, 130, 200, 86, "Renderer process", ["oc://renderer/index.html", "out/preload/index.js"], stereo="process")
-    s.box(60, 240, 410, 70, "Utility process “opencode server”", ["virtual:opencode-server = tenon/dist/node/node.js",
+    s.box(60, 240, 410, 70, "Utility process “tenon server”", ["virtual:tenon-server = tenon/dist/node/node.js",
           "listens on 127.0.0.1:<ephemeral>"])
     s.box(60, 322, 200, 64, "Loopback listeners", ["OAuth 127.0.0.1:0, ≤5 min", "browser bridge 127.0.0.1:0"], cls="sub")
     s.box(270, 322, 200, 64, "opencode-cli daemon", ["opt-in v2, dev channel only"], cls="sub")
     s.box(510, 100, 230, 76, "Harness and device processes", ["codex app-server, ACP agents (stdio,", "cwd = workspace); adb, emulator,", "simctl (macOS) for the Device tab"], cls="proc")
     s.box(510, 190, 230, 50, "WSL sidecars", ["Windows only, optional"], cls="proc")
-    s.box(40, 430, 230, 182, "userData = appData/<appId>", ["opencode.settings, opencode.updater", "second-brain.google",
+    s.box(40, 430, 230, 182, "userData = appData/<appId>", ["tenon.settings, tenon.updater", "second-brain.google",
           "drafts.sqlite (+wal/shm)", "window-state-<id>.json", "logs/<stamp>/, Crashpad/", "tenon-workbench/ server state",
           "(XDG_STATE_HOME default)", "cli/<ver>/opencode-cli (v2)",
           ".user-data-migrated (dev copy)"], cls="store")
@@ -160,7 +160,7 @@ def workflow():
         if i < len(steps) - 1:
             s.edge([(x + 160, 92), (x + 176, 92)])
         x += 176
-    s.text(352, 140, "+ test:engine for core/opencode, test:routes for navigation · no GitHub Actions", "s")
+    s.text(352, 140, "+ test:engine for core/tenon, test:routes for navigation · no GitHub Actions", "s")
     s.save(f"{OUT}/dev-workflow.svg")
 
 

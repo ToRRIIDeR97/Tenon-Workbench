@@ -362,7 +362,7 @@ export const dict = {
   "dialog.mcp.description": "{{enabled}} z {{total}} povoleno",
   "dialog.mcp.empty": "Nejsou nakonfigurovány žádné MCP",
   "dialog.lsp.empty": "LSP automaticky detekovány z typů souborů",
-  "dialog.plugins.empty": "Pluginy nakonfigurované v opencode.json",
+  "dialog.plugins.empty": "Pluginy nakonfigurované v tenon.json",
   "mcp.status.connected": "připojeno",
   "mcp.status.failed": "nepodařilo",
   "mcp.status.needs_auth": "potřebuje autentizaci",
@@ -592,7 +592,7 @@ export const dict = {
   "error.chain.responseBody": "Tělo odpovědi:\n{{body}}",
   "error.chain.didYouMean": "Měli jste na mysli: {{suggestions}}",
   "error.chain.modelNotFound": "Model nenalezen: {{provider}}/{{model}}",
-  "error.chain.checkConfig": "Zkontrolujte název poskytovatele/modelu konfigurace (opencode.json).",
+  "error.chain.checkConfig": "Zkontrolujte název poskytovatele/modelu konfigurace (tenon.json).",
   "error.chain.mcpFailed": 'MCP server "{{name}}" selhal. Poznámka: Tenon Workbench zatím nepodporuje ověřování MCP.',
   "error.chain.providerAuthFailed": "Ověření poskytovatele se nezdařilo ({{provider}}): {{message}}",
   "error.chain.providerInitFailed":

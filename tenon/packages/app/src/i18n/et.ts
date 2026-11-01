@@ -361,7 +361,7 @@ export const dict = {
   "dialog.mcp.description": "{{enabled}} / {{total}} on lubatud",
   "dialog.mcp.empty": "MCP-sid pole konfigureeritud",
   "dialog.lsp.empty": "LSP-d tuvastatakse failitüüpide järgi automaatselt",
-  "dialog.plugins.empty": "Pluginad on konfigureeritud failis opencode.json",
+  "dialog.plugins.empty": "Pluginad on konfigureeritud failis tenon.json",
   "mcp.status.connected": "ühendatud",
   "mcp.status.failed": "ebaõnnestunud",
   "mcp.status.needs_auth": "vajab autentimist",
@@ -452,7 +452,8 @@ export const dict = {
   "wsl.onboarding.wslUnavailable.title": "WSL pole saadaval",
   "wsl.onboarding.wslUnavailable.description": "Tenon Workbench ei saanud selles masinas kontrollida WSL.",
   "wsl.onboarding.installWsl": "Installige WSL",
-  "wsl.onboarding.windowsRestartRequired": "Taaskäivitage Windows, et installida WSL, seejärel avage uuesti Tenon Workbench.",
+  "wsl.onboarding.windowsRestartRequired":
+    "Taaskäivitage Windows, et installida WSL, seejärel avage uuesti Tenon Workbench.",
   "wsl.onboarding.next": "Edasi",
   "wsl.onboarding.refresh": "Värskenda",
   "wsl.onboarding.allDistrosAdded": "Kõik installitud distrood on juba lisatud.",
@@ -589,8 +590,9 @@ export const dict = {
   "error.chain.responseBody": "Vastuse keha:\n{{body}}",
   "error.chain.didYouMean": "Kas mõtlesite: {{suggestions}}",
   "error.chain.modelNotFound": "Mudelit ei leitud: {{provider}}/{{model}}",
-  "error.chain.checkConfig": "Kontrollige oma konfiguratsiooni (opencode.json) pakkuja/mudeli nimesid",
-  "error.chain.mcpFailed": 'MCP server "{{name}}" ebaõnnestus. Pange tähele, Tenon Workbench ei toeta veel MCP autentimist.',
+  "error.chain.checkConfig": "Kontrollige oma konfiguratsiooni (tenon.json) pakkuja/mudeli nimesid",
+  "error.chain.mcpFailed":
+    'MCP server "{{name}}" ebaõnnestus. Pange tähele, Tenon Workbench ei toeta veel MCP autentimist.',
   "error.chain.providerAuthFailed": "Pakkuja autentimine ebaõnnestus ({{provider}}): {{message}}",
   "error.chain.providerInitFailed":
     'Teenusepakkuja "{{provider}}" lähtestamine ebaõnnestus. Kontrollige mandaate ja konfiguratsiooni.',

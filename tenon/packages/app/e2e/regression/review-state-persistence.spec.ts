@@ -1,6 +1,6 @@
 import { base64Encode } from "@tenon/core/util/encode"
 import { expect, test, type Page } from "@playwright/test"
-import { mockOpenCodeServer } from "../utils/mock-server"
+import { mockTenonServer } from "../utils/mock-server"
 import { expectSessionTitle } from "../utils/waits"
 import { openSidebarThreadByTitle } from "../utils/sidebar"
 
@@ -65,7 +65,7 @@ async function switchSession(page: Page, title: string) {
 }
 
 async function setup(page: Page) {
-  await mockOpenCodeServer(page, {
+  await mockTenonServer(page, {
     protocol: "v1",
     directory,
     project: {
@@ -112,13 +112,13 @@ async function setup(page: Page) {
     ({ directory }) => {
       localStorage.setItem("settings.v3", JSON.stringify({ general: {} }))
       localStorage.setItem(
-        "opencode.global.dat:server",
+        "tenon.global.dat:server",
         JSON.stringify({
           projects: { local: [{ worktree: directory, expanded: true }] },
           lastProject: { local: directory },
         }),
       )
-      localStorage.setItem("opencode.window.browser.dat:sidebar", JSON.stringify({ expanded: { __brain__: true } }))
+      localStorage.setItem("tenon.window.browser.dat:sidebar", JSON.stringify({ expanded: { __brain__: true } }))
     },
     { directory },
   )

@@ -364,7 +364,7 @@ export const dict = {
   "dialog.mcp.description": "{{enabled}}, {{total}} yoqilgan",
   "dialog.mcp.empty": "Hech qanday MCP sozlanmagan",
   "dialog.lsp.empty": "LSP'lar fayl turlaridan avtomatik ravishda aniqlanadi",
-  "dialog.plugins.empty": "opencode.json da sozlangan plaginlar",
+  "dialog.plugins.empty": "tenon.json da sozlangan plaginlar",
   "mcp.status.connected": "ulangan",
   "mcp.status.failed": "muvaffaqiyatsiz",
   "mcp.status.needs_auth": "avtorizatsiya kerak",
@@ -594,7 +594,7 @@ export const dict = {
   "error.chain.responseBody": "Javob organi:\n{{body}}",
   "error.chain.didYouMean": "Buni nazarda tutdingizmi: {{suggestions}}",
   "error.chain.modelNotFound": "Model topilmadi: {{provider}}/{{model}}",
-  "error.chain.checkConfig": "Konfiguratsiya (opencode.json) provayder/model nomlarini tekshiring",
+  "error.chain.checkConfig": "Konfiguratsiya (tenon.json) provayder/model nomlarini tekshiring",
   "error.chain.mcpFailed":
     "MCP \"{{name}}\" serveri muvaffaqiyatsiz tugadi. E'tibor bering, Tenon Workbench hali MCP autentifikatsiyasini qo'llab-quvvatlamaydi.",
   "error.chain.providerAuthFailed": "Provayder autentifikatsiyasi amalga oshmadi ({{provider}}): {{message}}",
@@ -880,7 +880,8 @@ export const dict = {
   "settings.general.row.wayland.tooltip":
     "Aralashtirilgan yangilanish tezligi monitorlari bilan Linux da mahalliy Wayland barqarorroq bo'lishi mumkin.",
   "settings.updates.row.startup.title": "Ishga tushganda yangilanishlarni tekshiring",
-  "settings.updates.row.startup.description": "Tenon Workbench ishga tushganda avtomatik ravishda yangilanishlarni tekshiring",
+  "settings.updates.row.startup.description":
+    "Tenon Workbench ishga tushganda avtomatik ravishda yangilanishlarni tekshiring",
   "settings.updates.row.check.title": "Yangilanishlarni tekshiring",
   "settings.updates.action.checkNow": "Hozir tekshiring",
   "settings.updates.action.checking": "Tekshirilmoqda...",

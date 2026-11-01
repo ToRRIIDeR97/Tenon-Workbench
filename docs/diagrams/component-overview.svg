@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 790" width="980" height="790" role="img" aria-labelledby="title desc">
 <title id="title">Component view of Tenon Workbench</title>
-<desc id="desc">UML component view: Solid renderer, preload bridge, Electron main, the bundled OpenCode server with HTTP API, Second Brain domains, location services and agent runtime, plus stores and external services.</desc>
+<desc id="desc">UML component view: Solid renderer, preload bridge, Electron main, the bundled Tenon server with HTTP API, Second Brain domains, location services and agent runtime, plus stores and external services.</desc>
 
 <style>
   .bg{fill:#ffffff}
@@ -86,7 +86,7 @@
 <text x="30" y="624" text-anchor="start" class="s">drafts.sqlite, electron-store</text>
 <text x="30" y="640" text-anchor="start" class="s">(second-brain.google)</text>
 <rect class="zone" x="340" y="60" width="360" height="570" rx="10"/>
-<text x="350" y="76" text-anchor="start" class="zonet">OpenCode server «subsystem» · 127.0.0.1</text>
+<text x="350" y="76" text-anchor="start" class="zonet">Tenon server «subsystem» · 127.0.0.1</text>
 <rect class="sub" x="360" y="90" width="290" height="104" rx="6"/>
 <text x="370" y="108" text-anchor="start" class="t">HTTP API</text>
 <text x="370" y="124" text-anchor="start" class="s">native /api: server + protocol pkgs</text>

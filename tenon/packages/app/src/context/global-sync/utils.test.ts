@@ -4,7 +4,7 @@ import type {
   ModelDefaultOutput,
   ModelListOutput,
   ProviderListOutput,
-} from "@tenon/client/promise"
+} from "@opencode-ai/client/promise"
 import type { NormalizedProviderListResponse } from "@tenon/session-ui/context"
 import {
   directoryKey,

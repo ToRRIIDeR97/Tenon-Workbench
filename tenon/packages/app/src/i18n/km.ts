@@ -361,7 +361,7 @@ export const dict = {
   "dialog.mcp.description": "{{enabled}} នៃ {{total}} ត្រូវបានបើក",
   "dialog.mcp.empty": "មិនបានកំណត់រចនាសម្ព័ន្ធ MCPs ទេ។",
   "dialog.lsp.empty": "LSPs រកឃើញដោយស្វ័យប្រវត្តិពីប្រភេទឯកសារ",
-  "dialog.plugins.empty": "កម្មវិធីជំនួយដែលបានកំណត់រចនាសម្ព័ន្ធនៅក្នុង opencode.json",
+  "dialog.plugins.empty": "កម្មវិធីជំនួយដែលបានកំណត់រចនាសម្ព័ន្ធនៅក្នុង tenon.json",
   "mcp.status.connected": "បានភ្ជាប់",
   "mcp.status.failed": "បរាជ័យ",
   "mcp.status.needs_auth": "ត្រូវការសិទ្ធិ",
@@ -590,8 +590,9 @@ export const dict = {
   "error.chain.responseBody": "តួការឆ្លើយតប៖\n{{body}}",
   "error.chain.didYouMean": "តើអ្នកមានន័យថា៖ {{suggestions}}",
   "error.chain.modelNotFound": "រកមិនឃើញម៉ូដែល៖ {{provider}}/{{model}}",
-  "error.chain.checkConfig": "ពិនិត្យការកំណត់រចនាសម្ព័ន្ធរបស់អ្នក (opencode.json) អ្នកផ្តល់សេវា/ឈ្មោះម៉ូដែល",
-  "error.chain.mcpFailed": 'ម៉ាស៊ីនមេ MCP "{{name}}" បានបរាជ័យ។ ចំណាំ Tenon Workbench មិនគាំទ្រការផ្ទៀងផ្ទាត់ MCP នៅឡើយទេ។',
+  "error.chain.checkConfig": "ពិនិត្យការកំណត់រចនាសម្ព័ន្ធរបស់អ្នក (tenon.json) អ្នកផ្តល់សេវា/ឈ្មោះម៉ូដែល",
+  "error.chain.mcpFailed":
+    'ម៉ាស៊ីនមេ MCP "{{name}}" បានបរាជ័យ។ ចំណាំ Tenon Workbench មិនគាំទ្រការផ្ទៀងផ្ទាត់ MCP នៅឡើយទេ។',
   "error.chain.providerAuthFailed": "ការផ្ទៀងផ្ទាត់អ្នកផ្តល់សេវាបានបរាជ័យ ({{provider}}): {{message}}",
   "error.chain.providerInitFailed":
     'បានបរាជ័យក្នុងការចាប់ផ្តើមអ្នកផ្តល់សេវា "{{provider}}" ។ ពិនិត្យអត្តសញ្ញាណ និងការកំណត់រចនាសម្ព័ន្ធ។',

@@ -149,10 +149,11 @@ Builds that include `core/src/legacy-storage.ts` store core data under
 Upstream OpenCode keeps using its `opencode` folders.
 
 The thread database lives in the data folder. Installed builds pin its name
-by desktop channel (`desktop/src/main/database-name.ts`): `opencode-dev.db`
-for dev, `opencode-beta.db` for beta and `opencode.db` for prod. Without the
+by desktop channel (`desktop/src/main/database-name.ts`): `tenon-dev.db`
+for dev, `tenon-beta.db` for beta and `tenon.db` for prod (builds before the
+Tenon rename used `opencode-*.db`; see below). Without the
 pin, the server names it after the channel it was built with, which falls back
-to the git branch (`opencode-<branch>.db`), so each build from another branch
+to the git branch (`tenon-<branch>.db`), so each build from another branch
 showed an empty thread list. Builds before this change left their threads in
 those branch-named files; they stay on disk and are not merged. Unpackaged
 `bun run dev` runs keep the per-branch name, so they never write to an
@@ -208,6 +209,33 @@ Re-run the migration: quit the app, then delete `.legacy-storage-migrated` in a
 files are kept), or rename the whole `tenon-workbench` folder for a clean copy.
 Start the app.
 
+## Tenon rename (opencode → tenon file names)
+
+Builds from the Tenon rename on use Tenon names for files they own and move
+the old ones once, keeping any file that already has the new name:
+
+- The desktop main process renames `opencode.settings`, `opencode.updater` and
+  `opencode.<scope>.dat` in `userData` to `tenon.*` before any store opens
+  (`desktop/src/main/store-rename.ts`).
+- The server renames `opencode*.db` (with `-wal` and `-shm`) to the matching
+  `tenon*.db` before opening it (`Database.adoptLegacyFile`). Pre-migration
+  backups keep their `opencode.db.pre-*.bak` names.
+- The renderer moves `opencode.*` and `opencode-theme-*`/`opencode-color-scheme`
+  browser storage keys to `tenon.*`/`tenon-*` (`migrateLegacyLocalStorage`,
+  `app/public/oc-theme-preload.js`). The browser build's IndexedDB drafts
+  database keeps its `opencode-drafts` name.
+- The repository's project ID is written to `.git/tenon`; `.git/opencode` is
+  still read.
+- `OPENCODE_*` variables, `opencode.json`, `.opencode/` and `x-opencode-*`
+  headers keep working ([upstream notes](opencode-upstream.md)).
+
+Rollback to a build from before the rename: that build looks for the old
+names, so quit the app and rename the files back (`tenon.settings` →
+`opencode.settings`, `tenon.*.dat` → `opencode.*.dat`, `tenon*.db` and its
+`-wal`/`-shm` → `opencode*.db`) before starting it, or it opens with empty
+settings and no threads. Nothing is deleted, so a later upgrade picks the files
+up again.
+
 ## Desktop startup and quit
 
 `desktop/src/main/index.ts`, `server.ts` and `sidecar-supervisor.ts`:
@@ -237,10 +265,10 @@ Start the app.
 
 ## Database migrations and backups
 
-`opencode.db` cannot be rebuilt. When a build has schema migrations that an
+The database (`tenon.db`) cannot be rebuilt. When a build has schema migrations that an
 existing database has not applied yet, the server first writes a consistent
 snapshot (`VACUUM INTO`) next to it, named
-`opencode.db.pre-<first pending migration id>.bak` (mode `0600`). It keeps the
+`tenon.db.pre-<first pending migration id>.bak` (mode `0600`). It keeps the
 newest three backups and deletes older ones. In-memory and new databases are
 not backed up.
 
@@ -252,12 +280,12 @@ downgrade), the server logs "database was migrated by a newer build" and
 continues.
 
 If the backup cannot be written (for example, the disk is full), no migration
-runs and startup stops. Free space next to `opencode.db` (old `*.bak` files
+runs and startup stops. Free space next to `tenon.db` (old `*.bak` files
 can go) and start again. Leftover `*.tmp` files from an interrupted backup are
 removed on a later backup once they are an hour old.
 
-Restore a backup: quit the app, move `opencode.db`, `opencode.db-wal` and
-`opencode.db-shm` aside, copy the backup to `opencode.db`, and start the build
+Restore a backup: quit the app, move `tenon.db`, `tenon.db-wal` and
+`tenon.db-shm` aside, copy the backup to `tenon.db`, and start the build
 that matches it. Data written after the backup is lost.
 
 Migration authors: foreign keys are off while migrations run, so

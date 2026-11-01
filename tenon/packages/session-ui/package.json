@@ -41,7 +41,7 @@
   },
   "dependencies": {
     "@kobalte/core": "catalog:",
-    "@tenon/client": "file:../app/vendor/opencode-ai-client-1.17.13-v2.tgz",
+    "@opencode-ai/client": "file:../app/vendor/opencode-ai-client-1.17.13-v2.tgz",
     "@tenon/core": "workspace:*",
     "@opencode-ai/sdk": "workspace:*",
     "@tenon/ui": "workspace:*",

@@ -1,5 +1,5 @@
 import type { Message, Session, Part, SnapshotFileDiff, SessionStatus, Provider } from "@opencode-ai/sdk/v2"
-import type { FileDiffInfo } from "@tenon/client/promise"
+import type { FileDiffInfo } from "@opencode-ai/client/promise"
 import { createSimpleContext } from "@tenon/ui/context"
 import { PreloadMultiFileDiffResult } from "@pierre/diffs/ssr"
 

@@ -6,7 +6,7 @@ import type {
   SessionApi,
   SessionInfo,
   SessionListInput,
-} from "@tenon/client/promise"
+} from "@opencode-ai/client/promise"
 import { QueryClient } from "@tanstack/solid-query"
 import { reconcile } from "solid-js/store"
 import { canDisposeDirectory, pickDirectoriesToEvict } from "./global-sync/eviction"

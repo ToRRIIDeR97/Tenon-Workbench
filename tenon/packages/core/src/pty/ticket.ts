@@ -24,7 +24,7 @@ export interface Interface {
   check(input: { readonly ticket: string; readonly ptyID: string }): Effect.Effect<boolean>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@opencode/PtyTicket") {}
+export class Service extends Context.Service<Service, Interface>()("@tenon/PtyTicket") {}
 
 function matches(record: Scope, input: Scope) {
   return (

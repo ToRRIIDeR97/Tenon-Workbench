@@ -1,9 +1,9 @@
 // @ts-nocheck
 
-import { OpenCode } from "@tenon/core"
+import { Tenon } from "@tenon/core"
 import { ReadTool } from "@tenon/core/tools"
 
-const opencode = OpenCode.make({})
+const opencode = Tenon.make({})
 
 opencode.tool.add(ReadTool)
 

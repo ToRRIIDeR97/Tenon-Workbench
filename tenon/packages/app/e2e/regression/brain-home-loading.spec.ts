@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test"
 import { fixture } from "../smoke/session-timeline.fixture"
-import { mockOpenCodeServer } from "../utils/mock-server"
+import { mockTenonServer } from "../utils/mock-server"
 
 test("Home remains usable during loading and reuses fresh harness availability", async ({ page }, testInfo) => {
-  await mockOpenCodeServer(page, {
+  await mockTenonServer(page, {
     sessions: [],
     provider: fixture.provider,
     directory: fixture.directory,
@@ -13,7 +13,7 @@ test("Home remains usable during loading and reuses fresh harness availability",
   await page.addInitScript(
     ({ directory }) => {
       localStorage.setItem(
-        "opencode.global.dat:server",
+        "tenon.global.dat:server",
         JSON.stringify({ projects: { local: [{ worktree: directory, expanded: true }] } }),
       )
     },

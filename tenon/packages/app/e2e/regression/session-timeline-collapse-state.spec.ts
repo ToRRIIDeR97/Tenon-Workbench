@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
-import { mockOpenCodeServer } from "../utils/mock-server"
+import { mockTenonServer } from "../utils/mock-server"
 import { expectAppVisible, expectSessionTitle } from "../utils/waits"
 import { expandTurnSteps } from "../performance/timeline-stability/fixture"
 
@@ -390,7 +390,7 @@ function readExpanded(element: Element) {
 }
 
 async function mockServer(page: Page, events: EventPayload[], messages = [userMessage, assistantMessage]) {
-  await mockOpenCodeServer(page, {
+  await mockTenonServer(page, {
     directory,
     project: project(),
     provider: provider(),

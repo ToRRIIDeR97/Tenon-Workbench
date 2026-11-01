@@ -9,10 +9,18 @@ import { createBrowserDraftStore } from "@/utils/draft-store"
 import { dict as en } from "@/i18n/en"
 import { dict as zh } from "@/i18n/zh"
 import { authFromToken } from "@/utils/server"
+import { migrateLegacyLocalStorage } from "@/utils/persist"
 import pkg from "../package.json"
 import { ServerConnection } from "./context/server"
 
-const DEFAULT_SERVER_URL_KEY = "opencode.settings.dat:defaultServerUrl"
+// Before anything reads localStorage: move keys written under the pre-rename `opencode.` prefix.
+try {
+  migrateLegacyLocalStorage()
+} catch {
+  // Storage can be unavailable (privacy modes); persisted state then starts empty, as before.
+}
+
+const DEFAULT_SERVER_URL_KEY = "tenon.settings.dat:defaultServerUrl"
 
 const getLocale = () => {
   if (typeof navigator !== "object") return "en" as const

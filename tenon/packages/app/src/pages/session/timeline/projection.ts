@@ -1,4 +1,4 @@
-import type { SessionMessageInfo } from "@tenon/client/promise"
+import type { SessionMessageInfo } from "@opencode-ai/client/promise"
 import type { AssistantMessage, Message, Part, SessionStatus, UserMessage } from "@opencode-ai/sdk/v2"
 import { createMemo, createSelector, mapArray, type Accessor } from "solid-js"
 import { foldTimelineRows, reuseTimelineRows } from "./row-reconciliation"

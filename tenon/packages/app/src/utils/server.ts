@@ -5,7 +5,7 @@ import {
   type SessionCreateInput,
   type SessionInfo,
   type SessionPromptInput,
-} from "@tenon/client/promise"
+} from "@opencode-ai/client/promise"
 import type { VcsFileDiff } from "@opencode-ai/sdk/v2"
 import type { Harness } from "@tenon/schema/harness"
 import { Harness as HarnessSchema } from "@tenon/schema/harness"

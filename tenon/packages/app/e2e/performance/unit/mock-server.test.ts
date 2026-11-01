@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import type { Page, Route } from "@playwright/test"
-import { mockOpenCodeServer } from "../../utils/mock-server"
+import { mockTenonServer } from "../../utils/mock-server"
 
 test("applies message latency after a list response gate is released", async () => {
   const events: string[] = []
@@ -12,7 +12,7 @@ test("applies message latency after a list response gate is released", async () 
       return Promise.resolve()
     },
   } as unknown as Page
-  await mockOpenCodeServer(page, {
+  await mockTenonServer(page, {
     provider: {},
     directory: "C:/OpenCode",
     project: {},

@@ -61,4 +61,4 @@ export const Script = {
     return !!env.TENON_RELEASE
   },
 }
-console.log(`opencode script`, JSON.stringify(Script, null, 2))
+console.log(`tenon script`, JSON.stringify(Script, null, 2))

@@ -14,7 +14,7 @@ import type {
   SessionPromptOutput,
   SessionShellInput,
   SessionShellOutput,
-} from "@tenon/client/promise"
+} from "@opencode-ai/client/promise"
 import { Harness } from "@tenon/schema/harness"
 
 type LegacyClient = OpencodeClient

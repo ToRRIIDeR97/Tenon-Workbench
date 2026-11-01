@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test"
 import type { Page } from "@playwright/test"
 import { fixture } from "../smoke/session-timeline.fixture"
-import { mockOpenCodeServer } from "../utils/mock-server"
+import { mockTenonServer } from "../utils/mock-server"
 
 const brain = fixture.directory
 const repo = "C:/OpenCode/Repo"
@@ -37,7 +37,7 @@ async function openThreadMenu(page: Page) {
     version: "dev",
     time: { created: 1_700_000_000_000, updated: 1_700_000_000_000 },
   }
-  await mockOpenCodeServer(page, {
+  await mockTenonServer(page, {
     sessions: [repoThread],
     provider: fixture.provider,
     directory: fixture.directory,
@@ -47,7 +47,7 @@ async function openThreadMenu(page: Page) {
   })
   await page.addInitScript((directory) => {
     localStorage.setItem(
-      "opencode.global.dat:server",
+      "tenon.global.dat:server",
       JSON.stringify({ projects: { local: [{ worktree: directory, expanded: true }] }, lastProject: {} }),
     )
   }, brain)

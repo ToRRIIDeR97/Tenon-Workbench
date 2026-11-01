@@ -1,4 +1,4 @@
-import type { OpenCodeEvent, SessionMessageInfo, SessionPendingMessage } from "@tenon/client/promise"
+import type { OpenCodeEvent, SessionMessageInfo, SessionPendingMessage } from "@opencode-ai/client/promise"
 
 type Assistant = Extract<SessionMessageInfo, { type: "assistant" }>
 type Compaction = Extract<SessionMessageInfo, { type: "compaction" }>
@@ -618,7 +618,11 @@ function reduceNext(
         item.state.status === "running"
           ? {
               ...item,
-              provider: { ...item.provider, executed: item.provider?.executed === true, resultMetadata: data.provider.metadata },
+              provider: {
+                ...item.provider,
+                executed: item.provider?.executed === true,
+                resultMetadata: data.provider.metadata,
+              },
               state: {
                 status: "completed",
                 input: item.state.input,

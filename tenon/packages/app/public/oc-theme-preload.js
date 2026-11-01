@@ -1,15 +1,23 @@
 ;(function () {
-  var key = "opencode-theme-id"
+  // Theme keys were named opencode-* before the rename; move them once, before anything reads them.
+  ;["theme-id", "color-scheme", "theme-css-light", "theme-css-dark"].forEach(function (name) {
+    var old = localStorage.getItem("opencode-" + name)
+    if (old === null) return
+    if (localStorage.getItem("tenon-" + name) === null) localStorage.setItem("tenon-" + name, old)
+    localStorage.removeItem("opencode-" + name)
+  })
+
+  var key = "tenon-theme-id"
   var themeId = localStorage.getItem(key) || "oc-2"
 
   if (themeId === "oc-1") {
     themeId = "oc-2"
     localStorage.setItem(key, themeId)
-    localStorage.removeItem("opencode-theme-css-light")
-    localStorage.removeItem("opencode-theme-css-dark")
+    localStorage.removeItem("tenon-theme-css-light")
+    localStorage.removeItem("tenon-theme-css-dark")
   }
 
-  var scheme = localStorage.getItem("opencode-color-scheme") || "system"
+  var scheme = localStorage.getItem("tenon-color-scheme") || "system"
   var isDark = scheme === "dark" || (scheme === "system" && matchMedia("(prefers-color-scheme: dark)").matches)
   var mode = isDark ? "dark" : "light"
 
@@ -23,7 +31,7 @@
 
   if (themeId === "oc-2") return
 
-  var css = localStorage.getItem("opencode-theme-css-" + mode)
+  var css = localStorage.getItem("tenon-theme-css-" + mode)
   if (css) {
     var style = document.createElement("style")
     style.id = "oc-theme-preload"

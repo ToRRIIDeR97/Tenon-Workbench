@@ -13,7 +13,7 @@ import {
   userID,
   userMessage,
 } from "../performance/timeline-stability/fixture"
-import { mockOpenCodeServer } from "../utils/mock-server"
+import { mockTenonServer } from "../utils/mock-server"
 import { installSseTransport } from "../utils/sse-transport"
 import { expectSessionTitle } from "../utils/waits"
 
@@ -58,7 +58,7 @@ for (const scenario of scenarios) {
       server: `http://${process.env.PLAYWRIGHT_SERVER_HOST ?? "127.0.0.1"}:${process.env.PLAYWRIGHT_SERVER_PORT ?? "4096"}`,
       retry: 20,
     })
-    await mockOpenCodeServer(page, {
+    await mockTenonServer(page, {
       directory,
       project: project(),
       provider: {

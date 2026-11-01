@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test"
 import { fixture } from "../smoke/session-timeline.fixture"
-import { mockOpenCodeServer } from "../utils/mock-server"
+import { mockTenonServer } from "../utils/mock-server"
 
 const model = (id: string, name: string, isDefault: boolean) => ({
   id,
@@ -12,7 +12,7 @@ const model = (id: string, name: string, isDefault: boolean) => ({
 })
 
 test("Home starts a thread with the model and reasoning picked for its harness", async ({ page }) => {
-  await mockOpenCodeServer(page, {
+  await mockTenonServer(page, {
     sessions: [],
     provider: fixture.provider,
     directory: fixture.directory,
@@ -22,7 +22,7 @@ test("Home starts a thread with the model and reasoning picked for its harness",
   await page.addInitScript(
     ({ directory }) => {
       localStorage.setItem(
-        "opencode.global.dat:server",
+        "tenon.global.dat:server",
         JSON.stringify({ projects: { local: [{ worktree: directory, expanded: true }] } }),
       )
     },

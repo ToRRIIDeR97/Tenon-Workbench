@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test"
-import { mockOpenCodeServer } from "../utils/mock-server"
+import { mockTenonServer } from "../utils/mock-server"
 import { expectAppVisible, expectSessionTitle } from "../utils/waits"
 import { expandTurnSteps } from "../performance/timeline-stability/fixture"
 import {
@@ -52,10 +52,7 @@ test.describe("regression: session timeline context group resize", () => {
     await mockServer(
       page,
       events,
-      [
-        ...Array.from({ length: 8 }, (_, index) => turn(index, false)).flat(),
-        ...turn(10, true, "running"),
-      ],
+      [...Array.from({ length: 8 }, (_, index) => turn(index, false)).flat(), ...turn(10, true, "running")],
       "busy",
     )
     await configurePage(page)
@@ -323,7 +320,7 @@ async function mockServer(
   fixtureMessages = messages,
   status?: "busy",
 ) {
-  await mockOpenCodeServer(page, {
+  await mockTenonServer(page, {
     ...(status ? { sessionStatus: { [sessionID]: { type: status } } } : {}),
     directory,
     project: project(),

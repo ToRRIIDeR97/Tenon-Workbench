@@ -124,7 +124,7 @@ describe("buildRequestParts", () => {
         {
           type: "image",
           id: "img_external",
-          filename: "opencode.global.dat",
+          filename: "tenon.global.dat",
           sourcePath: "C:\\Users\\Luke\\AppData\\Roaming\\ai.opencode.desktop.beta\\opencode.global.dat",
           mime: "text/plain",
           dataUrl: "data:text/plain;base64,AAA",

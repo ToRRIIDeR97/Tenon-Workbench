@@ -76,7 +76,7 @@ interface ProcessorContext extends Input {
 
 type StreamEvent = LLMEvent
 
-export class Service extends Context.Service<Service, Interface>()("@opencode/SessionProcessor") {}
+export class Service extends Context.Service<Service, Interface>()("@tenon/SessionProcessor") {}
 
 const layer = Layer.effect(
   Service,

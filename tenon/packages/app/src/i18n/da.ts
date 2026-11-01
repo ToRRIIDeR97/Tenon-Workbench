@@ -293,7 +293,7 @@ export const dict = {
   "dialog.mcp.empty": "Ingen MCP'er konfigureret",
 
   "dialog.lsp.empty": "LSP'er registreret automatisk fra filtyper",
-  "dialog.plugins.empty": "Plugins konfigureret i opencode.json",
+  "dialog.plugins.empty": "Plugins konfigureret i tenon.json",
 
   "mcp.status.connected": "forbundet",
   "mcp.status.failed": "mislykkedes",
@@ -496,7 +496,6 @@ export const dict = {
   "toast.context.noLineSelection.title": "Ingen linjevalg",
   "toast.context.noLineSelection.description": "Vælg først et linjeinterval i en filfane.",
 
-
   "toast.session.export.success.title": "Session eksporteret",
   "toast.session.export.success.description": "Sessionen blev gemt i {{filename}}",
   "toast.session.export.failed.title": "Kunne ikke eksportere session",
@@ -536,8 +535,9 @@ export const dict = {
   "error.chain.responseBody": "Svarindhold:\n{{body}}",
   "error.chain.didYouMean": "Mente du: {{suggestions}}",
   "error.chain.modelNotFound": "Model ikke fundet: {{provider}}/{{model}}",
-  "error.chain.checkConfig": "Kontrollér udbyder- og modelnavnene i din konfiguration (opencode.json)",
-  "error.chain.mcpFailed": 'MCP-server "{{name}}" fejlede. Bemærk, Tenon Workbench understøtter ikke MCP-godkendelse endnu.',
+  "error.chain.checkConfig": "Kontrollér udbyder- og modelnavnene i din konfiguration (tenon.json)",
+  "error.chain.mcpFailed":
+    'MCP-server "{{name}}" fejlede. Bemærk, Tenon Workbench understøtter ikke MCP-godkendelse endnu.',
   "error.chain.providerAuthFailed": "Udbydergodkendelse mislykkedes ({{provider}}): {{message}}",
   "error.chain.providerInitFailed":
     'Kunne ikke initialisere udbyder "{{provider}}". Tjek legitimationsoplysninger og konfiguration.',
@@ -758,7 +758,6 @@ export const dict = {
   "settings.general.row.wayland.description": "Deaktiver X11-fallback på Wayland. Kræver genstart.",
   "settings.general.row.wayland.tooltip":
     "På Linux med skærme med forskellige opdateringshastigheder kan indbygget Wayland være mere stabilt.",
-
 
   "settings.updates.row.startup.title": "Tjek for opdateringer ved opstart",
   "settings.updates.row.startup.description": "Tjek automatisk for opdateringer, når Tenon Workbench starter",
@@ -1119,5 +1118,4 @@ export const dict = {
   "desktop.picker.error.sizeLimit": "De valgte vedhæftede filer overskrider grænsen på {{limit}} MB",
 
   "command.logs.export": "Eksportér logfiler",
-
 }

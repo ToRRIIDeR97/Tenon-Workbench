@@ -66,11 +66,11 @@ export interface Interface {
   readonly remove: (input: RemoveInput) => Effect.Effect<RemoveResult, FSUtil.Error>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@opencode/v2/FileMutation") {}
+export class Service extends Context.Service<Service, Interface>()("@tenon/v2/FileMutation") {}
 
 /**
  * Serialize file changes by canonical target. Conditional writes compare and
- * write under the same process-local lock so cooperating OpenCode mutations do
+ * write under the same process-local lock so cooperating Tenon mutations do
  * not overwrite changes made from the same stale content. Replacing writes go
  * through a synced sibling temp file and a rename, so a crash leaves either the
  * old or the new content, never a truncated file.

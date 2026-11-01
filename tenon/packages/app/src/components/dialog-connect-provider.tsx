@@ -1,4 +1,4 @@
-import type { IntegrationMethod, IntegrationOauthConnectOutput } from "@tenon/client/promise"
+import type { IntegrationMethod, IntegrationOauthConnectOutput } from "@opencode-ai/client/promise"
 import { useDialog } from "@tenon/ui/context/dialog"
 import { List } from "@tenon/ui/list"
 import { ProviderIcon } from "@tenon/ui/provider-icon"

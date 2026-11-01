@@ -369,7 +369,7 @@ export const dict = {
   "dialog.mcp.description": "{{enabled}} trong số {{total}} đã bật",
   "dialog.mcp.empty": "Không có MCP nào được định cấu hình",
   "dialog.lsp.empty": "LSP được tự động phát hiện từ các loại tệp",
-  "dialog.plugins.empty": "Các plugin được định cấu hình trong opencode.json",
+  "dialog.plugins.empty": "Các plugin được định cấu hình trong tenon.json",
   "mcp.status.connected": "đã kết nối",
   "mcp.status.failed": "thất bại",
   "mcp.status.needs_auth": "cần xác thực",
@@ -460,7 +460,8 @@ export const dict = {
   "wsl.onboarding.wslUnavailable.title": "WSL không có sẵn",
   "wsl.onboarding.wslUnavailable.description": "Tenon Workbench không thể xác minh WSL trên máy này.",
   "wsl.onboarding.installWsl": "Cài đặt WSL",
-  "wsl.onboarding.windowsRestartRequired": "Khởi động lại Windows để hoàn tất cài đặt WSL, sau đó mở lại Tenon Workbench.",
+  "wsl.onboarding.windowsRestartRequired":
+    "Khởi động lại Windows để hoàn tất cài đặt WSL, sau đó mở lại Tenon Workbench.",
   "wsl.onboarding.next": "Tiếp theo",
   "wsl.onboarding.refresh": "Làm mới",
   "wsl.onboarding.allDistrosAdded": "Tất cả các bản phân phối đã cài đặt đều đã được thêm vào.",
@@ -601,7 +602,7 @@ export const dict = {
   "error.chain.responseBody": "Nội dung phản hồi:\n{{body}}",
   "error.chain.didYouMean": "Có phải ý bạn là: {{suggestions}}",
   "error.chain.modelNotFound": "Không tìm thấy mô hình: {{provider}}/{{model}}",
-  "error.chain.checkConfig": "Kiểm tra tên nhà cung cấp/mô hình cấu hình (opencode.json) của bạn",
+  "error.chain.checkConfig": "Kiểm tra tên nhà cung cấp/mô hình cấu hình (tenon.json) của bạn",
   "error.chain.mcpFailed": 'Máy chủ MCP "{{name}}" gặp lỗi. Lưu ý: Tenon Workbench chưa hỗ trợ xác thực MCP.',
   "error.chain.providerAuthFailed": "Không xác thực được nhà cung cấp ({{provider}}): {{message}}",
   "error.chain.providerInitFailed":

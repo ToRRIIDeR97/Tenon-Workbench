@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test"
 import { fixture } from "../smoke/session-timeline.fixture"
-import { mockOpenCodeServer } from "../utils/mock-server"
+import { mockTenonServer } from "../utils/mock-server"
 
 test("opens Home with the managed sidecar's mixed API", async ({ page }, testInfo) => {
   const unsupported: string[] = []
@@ -8,7 +8,7 @@ test("opens Home with the managed sidecar's mixed API", async ({ page }, testInf
   page.on("console", (message) => {
     if (message.text().includes("Failed to finish bootstrap")) bootstrapErrors.push(message.text())
   })
-  await mockOpenCodeServer(page, {
+  await mockTenonServer(page, {
     protocol: "v2",
     sessions: [],
     provider: fixture.provider,
@@ -27,7 +27,7 @@ test("opens Home with the managed sidecar's mixed API", async ({ page }, testInf
     return route.fallback()
   })
   await page.addInitScript(() => {
-    localStorage.setItem("opencode.global.dat:server", JSON.stringify({ projects: { local: [] } }))
+    localStorage.setItem("tenon.global.dat:server", JSON.stringify({ projects: { local: [] } }))
   })
   const projects = page.waitForResponse((response) => new URL(response.url()).pathname === "/project")
   await page.goto("/")

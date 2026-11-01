@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { SessionMessageInfo } from "@tenon/client/promise"
+import type { SessionMessageInfo } from "@opencode-ai/client/promise"
 import { isTurnStart, normalizeSessionMessages } from "./session-message"
 
 describe("normalizeSessionMessages", () => {

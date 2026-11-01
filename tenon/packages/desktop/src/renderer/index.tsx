@@ -60,7 +60,7 @@ if (import.meta.env.VITE_SENTRY_DSN) {
 const [updaterState, setUpdaterState] = createSignal<UpdaterState>({ status: "disabled" })
 void window.api.updater.subscribe(setUpdaterState)
 
-const deepLinkEvent = "opencode:deep-link"
+const deepLinkEvent = "tenon:deep-link"
 
 type DesktopWindowState = {
   id?: string
@@ -79,14 +79,17 @@ const listenForDeepLinks = () => {
   return window.api.onDeepLink((urls) => emitDeepLinks(urls))
 }
 
-function windowLastActiveUrlKey(windowID: string) {
-  return `opencode.desktop.window.${windowID}.last-active-url`
+function windowLastActiveUrlKey(windowID: string, prefix = "tenon") {
+  return `${prefix}.desktop.window.${windowID}.last-active-url`
 }
 
 function getLastActiveUrl(windowID: string) {
   if (typeof localStorage !== "object") return "/"
   try {
-    const value = localStorage.getItem(windowLastActiveUrlKey(windowID))
+    // Falls back to the key written before the rename.
+    const value =
+      localStorage.getItem(windowLastActiveUrlKey(windowID)) ??
+      localStorage.getItem(windowLastActiveUrlKey(windowID, "opencode"))
     if (value?.startsWith("/") && !value.startsWith("//")) return value
   } catch {}
   return "/"
@@ -336,7 +339,7 @@ function LoadingSplash() {
 function DesktopRoot(props: { windowState: DesktopWindowState }) {
   const platform = createPlatform(props.windowState)
   const loadLocale = async () => {
-    const current = await platform.storage?.("opencode.global.dat").getItem("language")
+    const current = await platform.storage?.("tenon.global.dat").getItem("language")
     const legacy = current ? undefined : await platform.storage?.().getItem("language.v1")
     const raw = current ?? legacy
     if (!raw) return

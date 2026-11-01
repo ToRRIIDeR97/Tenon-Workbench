@@ -1,10 +1,12 @@
 # Architecture
 
-Tenon Workbench (formerly Second Brain OS) is an OpenCode fork. OpenCode is the runtime base: the
-Electron host, the managed local OpenCode server and the session runtime. The
+Tenon Workbench (formerly Second Brain OS) is a fork of OpenCode, which supplied the runtime base: the
+Electron host, the managed local Tenon server and the session runtime. The
 app shell and navigation are Tenon Workbench's own: a navigation rail of Home,
 Notes, Calendar and Activity beside a Projects panel with their threads. New product domains are
-added inside the existing OpenCode application rather than beside it.
+added inside that application (`tenon/`) rather than beside it. Owned names use
+"Tenon"; the [upstream notes](../opencode-upstream.md) list the `opencode` names
+that remain and the pre-rename names that are still read.
 
 The previous React/Tauri and Rust implementation is retired. Its database
 schemas and remaining migration gaps are recorded in
@@ -12,7 +14,7 @@ schemas and remaining migration gaps are recorded in
 
 ## Active components
 
-![Component view: renderer, preload, Electron main, the bundled OpenCode server (HTTP API, Second Brain domains, location services, agent runtime), stores and external services](../diagrams/component-overview.svg)
+![Component view: renderer, preload, Electron main, the bundled Tenon server (HTTP API, Second Brain domains, location services, agent runtime), stores and external services](../diagrams/component-overview.svg)
 
 Detailed UML views (deployment, class, activity, state machine and sequence)
 and a coverage index are in [the UML architecture views](uml.md).
@@ -22,7 +24,7 @@ and a coverage index are in [the UML architecture views](uml.md).
   generated password.
 - The Solid renderer owns the desktop UI, including Brain, notes, projects,
   and calendar pages in `tenon/packages/app/src/pages/`.
-- The OpenCode server owns sessions, workspace routing, and Second Brain HTTP
+- The Tenon server owns sessions, workspace routing, and Second Brain HTTP
   handlers. `packages/tenon` mounts the native `/api` routes from
   `packages/server` (contracts in `packages/protocol`) next to its legacy
   instance routes; the session and harness runtime lives in `packages/core`. Notes and project records use workspace files through the location
@@ -186,7 +188,7 @@ state alive across route changes; it replaced the tab store.
 | Linked-folder index        | `brain.ts` writes, `core/src/workspace-instructions.ts` reads; `workspace-links.json` in the data folder; rebuilt by a scan; the first workspace to link a folder keeps it |
 | Project thread directories | Derived, not stored: the card's `location.path` folder (inside the workspace, or a checked linked folder), else a linked Workspace worktree, else the card folder; thread counts read from `opencode.db` |
 | Local events and tasks     | Second Brain HTTP handler and `packages/tenon/src/planner/calendar.ts`; workspace `.tenon/calendar-v1.json` |
-| Sessions and runtime state | `packages/core/src/database/` and runtime session services; `opencode.db` in `$XDG_DATA_HOME/tenon-workbench`            |
+| Sessions and runtime state | `packages/core/src/database/` and runtime session services; `tenon.db` in `$XDG_DATA_HOME/tenon-workbench`            |
 | Unsent desktop drafts      | `packages/desktop/src/main/draft-store.ts`; profile `drafts.sqlite`                                                   |
 | Draft list, sidebar state  | `packages/app/src/context/drafts.tsx`, `components/sidebar/sidebar-controller.ts`; per-window `drafts` and `sidebar` keys |
 | Google connections         | `packages/desktop/src/main/google-calendar.ts`; an account list with encrypted credentials in the desktop profile; see [Google accounts](#google-accounts) |
@@ -202,7 +204,7 @@ any letter case, skipping hidden folders and legacy `project_<id>` card
 folders) and the absolute folders listed in `.tenon/workspace.json`. Each has a
 Project card whose `location.path` names the folder (workspace-relative, or
 absolute for a linked folder). `BrainProject.threadDirectory` resolves a
-Project's directory: that folder; otherwise the worktree of the OpenCode project
+Project's directory: that folder; otherwise the worktree of the Tenon project
 named by a legacy `location.workspaceId`; otherwise the card folder. Sessions
 keep their exact `directory`, so `GET /api/session?directory=<threadDirectory>`
 returns only that Project's threads.
@@ -234,7 +236,7 @@ workspace routing):
   and remove the `AGENTS.md` of the request's folder: the workspace root for the
   workspace default, a Project folder for that Project's own file.
 - `POST /second-brain/projects/workspace` with `{ workspaceId }` still returns
-  or creates the Project linked to that OpenCode project id. The renderer no
+  or creates the Project linked to that Tenon project id. The renderer no
   longer calls it.
 
 ### Workspace instructions
@@ -398,15 +400,18 @@ Tenon Workbench's core `Global` paths use the app name `tenon-workbench`
 (`core/src/global.ts`), so they no longer overlap with upstream OpenCode's
 `opencode` folders. Data is in `$XDG_DATA_HOME/tenon-workbench` (default
 `~/.local/share/tenon-workbench`), config in `$XDG_CONFIG_HOME/tenon-workbench`
-(`opencode.json`, `harnesses.json`, skills, `AGENTS.md`), state in
+(`tenon.json`, or the older `opencode.json`; `harnesses.json`, skills,
+`AGENTS.md`), state in
 `$XDG_STATE_HOME/tenon-workbench` (the desktop app sets `XDG_STATE_HOME` to
 Electron `userData`), cache in `$XDG_CACHE_HOME/tenon-workbench`, and temp files
-in `os.tmpdir()/tenon-workbench`. Database filenames are unchanged (`opencode.db`
-on latest, beta and prod, `opencode-<channel>.db` otherwise; `path()` in
+in `os.tmpdir()/tenon-workbench`. The database is `tenon.db` on latest, beta
+and prod and `tenon-<channel>.db` otherwise (`path()` in
 `core/src/database/database.ts`). An unset build channel falls back to the git
 branch, so the installed desktop app sets `TENON_DB` by its own channel
-instead (`opencode-dev.db`, `opencode-beta.db`, `opencode.db`;
-`desktop/src/main/database-name.ts`). See
+instead (`tenon-dev.db`, `tenon-beta.db`, `tenon.db`;
+`desktop/src/main/database-name.ts`). Before opening a `tenon*.db` that does not
+exist, `Database.adoptLegacyFile` renames the matching pre-rename `opencode*.db`
+(its `-wal` and `-shm` first); pre-migration backups keep their old names. See
 [release operations](../release-operations.md).
 
 On first start, `LegacyStorage.migrate` (`core/src/legacy-storage.ts`, called
@@ -426,8 +431,10 @@ copied with them. Snapshot history for past turns is not copied, existing
 worktrees stay at their legacy paths, and new ones go under
 `tenon-workbench/worktree`. Upgrade and rollback steps are in
 [release operations](../release-operations.md#storage-migration-opencode--tenon-workbench).
-Per-project `.opencode/` folders and the `.git/opencode` project ID file are
-still shared with upstream OpenCode by design.
+Per-project config lives in `.tenon/` and `tenon.json`; `.opencode/` and
+`opencode.json` still load with lower priority (`core/src/config/names.ts`). The
+project ID is written to `.git/tenon`, and an existing `.git/opencode` file is
+still read, so a repository keeps its ID.
 
 The Electron app IDs are `io.github.torriider97.tenonworkbench[.dev|.beta]`
 (`APP_IDS` in `desktop/src/main/index.ts` and `electron-builder.config.ts`),

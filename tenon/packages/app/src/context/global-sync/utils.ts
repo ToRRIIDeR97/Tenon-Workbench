@@ -4,9 +4,9 @@ import type {
   ModelListOutput,
   PermissionV2Request,
   ProviderListOutput,
-} from "@tenon/client/promise"
+} from "@opencode-ai/client/promise"
 import type { Agent, PermissionRequest, Project, Provider, ProviderListResponse } from "@opencode-ai/sdk/v2/client"
-import type { Project as CurrentProject } from "@tenon/client/promise"
+import type { Project as CurrentProject } from "@opencode-ai/client/promise"
 import { NormalizedProviderListResponse } from "@tenon/session-ui/context"
 export { pathKey as directoryKey, type PathKey as DirectoryKey } from "@/utils/path-key"
 

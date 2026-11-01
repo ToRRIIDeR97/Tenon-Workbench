@@ -8,7 +8,7 @@ interface ImportMeta {
   readonly env: ImportMetaEnv
 }
 
-declare module "virtual:opencode-server" {
+declare module "virtual:tenon-server" {
   export namespace Server {
     export const listen: typeof import("../../../tenon/dist/types/src/node").Server.listen
     export type Listener = import("../../../tenon/dist/types/src/node").Server.Listener

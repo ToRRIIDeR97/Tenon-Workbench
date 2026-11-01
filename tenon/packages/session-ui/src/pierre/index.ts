@@ -16,7 +16,7 @@ export type DiffProps<T = {}> = FileDiffOptions<T> & {
 
 const unsafeCSS = `
 :host {
-  --diffs-bg: var(--opencode-diffs-bg, var(--v2-background-bg-base));
+  --diffs-bg: var(--tenon-diffs-bg, var(--v2-background-bg-base));
 }
 
 [data-diff],
@@ -74,11 +74,11 @@ const unsafeCSS = `
   background-color: var(--diffs-bg-context-gutter);
 }
 
-::highlight(opencode-find) {
+::highlight(tenon-find) {
   background-color: rgb(from var(--v2-state-border-warning) r g b / 0.35);
 }
 
-::highlight(opencode-find-current) {
+::highlight(tenon-find-current) {
   background-color: rgb(from var(--v2-state-fg-warning) r g b / 0.55);
 }
 
@@ -243,7 +243,7 @@ ${lineCommentStyles}
 
 export function createDefaultOptions<T>(style: FileDiffOptions<T>["diffStyle"]) {
   return {
-    theme: "OpenCode",
+    theme: "Tenon",
     themeType: "system",
     disableLineNumbers: false,
     overflow: "wrap",

@@ -1,6 +1,6 @@
 import { base64Encode } from "@tenon/core/util/encode"
 import { expect, test, type Page } from "@playwright/test"
-import { currentSession, mockOpenCodeServer } from "../utils/mock-server"
+import { currentSession, mockTenonServer } from "../utils/mock-server"
 import { expectSessionTitle } from "../utils/waits"
 import { expandTurnSteps } from "../performance/timeline-stability/fixture"
 
@@ -24,7 +24,7 @@ test("navigates to a subagent child session missing from the session list", asyn
   await expectSessionTitle(page, taskDescription)
   await expect(page.getByRole("heading", { name: parentTitle })).toHaveCount(0)
 
-  const titlebarRight = page.locator("#opencode-titlebar-right")
+  const titlebarRight = page.locator("#tenon-titlebar-right")
   await expect(titlebarRight.getByRole("button", { name: "Toggle review" })).toHaveCount(1)
 })
 
@@ -45,7 +45,7 @@ test("shows the not found fallback when the viewed session is deleted", async ({
 })
 
 async function setup(page: Page, events?: () => EventPayload[]) {
-  await mockOpenCodeServer(page, {
+  await mockTenonServer(page, {
     directory,
     project: {
       id: projectID,
@@ -186,7 +186,7 @@ async function configurePage(page: Page) {
     ({ directory }) => {
       localStorage.setItem("settings.v3", JSON.stringify({ general: {} }))
       localStorage.setItem(
-        "opencode.global.dat:server",
+        "tenon.global.dat:server",
         JSON.stringify({
           projects: { local: [{ worktree: directory, expanded: true }] },
           lastProject: { local: directory },

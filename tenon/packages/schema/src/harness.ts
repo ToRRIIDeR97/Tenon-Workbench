@@ -13,11 +13,11 @@ const slug = Schema.String.check(
 // harness instance before this build knows how to execute it. Availability is
 // decided by the runtime registry, not by schema decoding.
 export const InstanceID = slug
-  .pipe(Schema.brand("@opencode/Harness.InstanceID"))
+  .pipe(Schema.brand("@tenon/Harness.InstanceID"))
   .annotate({ identifier: "Harness.InstanceID" })
 export type InstanceID = typeof InstanceID.Type
 
-export const DriverKind = slug.pipe(Schema.brand("@opencode/Harness.DriverKind")).annotate({
+export const DriverKind = slug.pipe(Schema.brand("@tenon/Harness.DriverKind")).annotate({
   identifier: "Harness.DriverKind",
 })
 export type DriverKind = typeof DriverKind.Type

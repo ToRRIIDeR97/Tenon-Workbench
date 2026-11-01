@@ -1,10 +1,10 @@
 import { expect, test, type Page } from "@playwright/test"
 import { fixture } from "../smoke/session-timeline.fixture"
-import { mockOpenCodeServer } from "../utils/mock-server"
+import { mockTenonServer } from "../utils/mock-server"
 import type { NoteDocument, ProjectRecord } from "../../src/features/second-brain/client"
 
 async function setup(page: Page, spanish = false) {
-  await mockOpenCodeServer(page, {
+  await mockTenonServer(page, {
     sessions: [],
     provider: fixture.provider,
     directory: fixture.directory,
@@ -15,10 +15,10 @@ async function setup(page: Page, spanish = false) {
     ({ directory, spanish }) => {
       localStorage.setItem("settings.v3", JSON.stringify({ general: {} }))
       localStorage.setItem(
-        "opencode.global.dat:server",
+        "tenon.global.dat:server",
         JSON.stringify({ projects: { local: [{ worktree: directory, expanded: true }] } }),
       )
-      if (spanish) localStorage.setItem("opencode.global.dat:language", JSON.stringify({ locale: "es" }))
+      if (spanish) localStorage.setItem("tenon.global.dat:language", JSON.stringify({ locale: "es" }))
     },
     { directory: fixture.directory, spanish },
   )

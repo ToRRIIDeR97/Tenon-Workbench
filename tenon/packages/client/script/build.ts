@@ -13,8 +13,8 @@ await Effect.runPromise(
         emitPromise(contract, {
           outputTypes: {
             "events.subscribe": {
-              name: "OpenCodeEventEncoded",
-              import: 'import type { OpenCodeEventEncoded } from "@tenon/protocol/groups/event"',
+              name: "TenonEventEncoded",
+              import: 'import type { TenonEventEncoded } from "@tenon/protocol/groups/event"',
             },
           },
         }),

@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from "bun:test"
-import type { SessionMessageInfo } from "@tenon/client/promise"
+import type { SessionMessageInfo } from "@opencode-ai/client/promise"
 import type { Part } from "@opencode-ai/sdk/v2"
 import { createRoot } from "solid-js"
 import { createStore } from "solid-js/store"

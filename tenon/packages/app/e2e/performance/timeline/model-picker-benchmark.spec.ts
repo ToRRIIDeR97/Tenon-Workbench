@@ -1,5 +1,5 @@
 import { benchmark, expect } from "../benchmark"
-import { mockOpenCodeServer } from "../../utils/mock-server"
+import { mockTenonServer } from "../../utils/mock-server"
 import { fixture } from "./session-timeline-stress.fixture"
 import { installStressSessionTabs, installTimelineSettings, stressDraftHref } from "./timeline-test-helpers"
 
@@ -20,7 +20,7 @@ benchmark("opens, searches, and selects from a large model catalog", async ({ pa
       ),
     }
   })
-  await mockOpenCodeServer(page, {
+  await mockTenonServer(page, {
     directory: fixture.directory,
     project: fixture.project,
     sessions: [],

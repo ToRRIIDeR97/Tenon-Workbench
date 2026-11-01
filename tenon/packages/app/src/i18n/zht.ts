@@ -234,7 +234,8 @@ export const dict = {
   "provider.connect.apiKey.required": "API 金鑰為必填",
   "provider.connect.oauth.code.visit.prefix": "造訪 ",
   "provider.connect.oauth.code.visit.link": "此連結",
-  "provider.connect.oauth.code.visit.suffix": " 取得授權碼，以連線你的帳戶並在 Tenon Workbench 中使用 {{provider}} 模型。",
+  "provider.connect.oauth.code.visit.suffix":
+    " 取得授權碼，以連線你的帳戶並在 Tenon Workbench 中使用 {{provider}} 模型。",
   "provider.connect.oauth.code.label": "{{method}} 授權碼",
   "provider.connect.oauth.code.placeholder": "授權碼",
   "provider.connect.oauth.code.required": "授權碼為必填",
@@ -390,7 +391,7 @@ export const dict = {
   "dialog.mcp.empty": "未設定 MCP",
 
   "dialog.lsp.empty": "會根據檔案類型自動偵測 LSP",
-  "dialog.plugins.empty": "在 opencode.json 中設定的外掛程式",
+  "dialog.plugins.empty": "在 tenon.json 中設定的外掛程式",
 
   "mcp.status.connected": "已連線",
   "mcp.status.failed": "失敗",
@@ -589,7 +590,6 @@ export const dict = {
   "toast.context.noLineSelection.title": "未選取行",
   "toast.context.noLineSelection.description": "請先在檔案分頁中選取行範圍。",
 
-
   "toast.session.export.success.title": "工作階段已匯出",
   "toast.session.export.success.description": "已將工作階段儲存至 {{filename}}",
   "toast.session.export.failed.title": "匯出工作階段失敗",
@@ -628,7 +628,7 @@ export const dict = {
   "error.chain.responseBody": "回應內容:\n{{body}}",
   "error.chain.didYouMean": "你是不是想輸入: {{suggestions}}",
   "error.chain.modelNotFound": "找不到模型: {{provider}}/{{model}}",
-  "error.chain.checkConfig": "請檢查你的設定 (opencode.json) 中的 provider/model 名稱",
+  "error.chain.checkConfig": "請檢查你的設定 (tenon.json) 中的 provider/model 名稱",
   "error.chain.mcpFailed": "MCP 伺服器「{{name}}」啟動失敗。注意：Tenon Workbench 尚不支援 MCP 驗證。",
   "error.chain.providerAuthFailed": "提供者驗證失敗（{{provider}}）：{{message}}",
   "error.chain.providerInitFailed": '無法初始化提供者 "{{provider}}"。請檢查憑證和設定。',
@@ -842,7 +842,6 @@ export const dict = {
   "settings.general.row.wayland.title": "使用原生 Wayland",
   "settings.general.row.wayland.description": "在 Wayland 上停用 X11 後備模式。需要重新啟動。",
   "settings.general.row.wayland.tooltip": "在混合更新率螢幕的 Linux 系統上，原生 Wayland 可能更穩定。",
-
 
   "settings.updates.row.startup.title": "啟動時檢查更新",
   "settings.updates.row.startup.description": "在 Tenon Workbench 啟動時自動檢查更新",

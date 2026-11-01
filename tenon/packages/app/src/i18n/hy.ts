@@ -364,7 +364,7 @@ export const dict = {
   "dialog.mcp.description": "{{enabled}}-ը {{total}}-ից միացված է",
   "dialog.mcp.empty": "Կազմաձևված չէ MCPs",
   "dialog.lsp.empty": "LSPs ավտոմատ հայտնաբերվում է ֆայլերի տեսակներից",
-  "dialog.plugins.empty": "Ընդլայնումները կազմաձևված են opencode.json-ում",
+  "dialog.plugins.empty": "Ընդլայնումները կազմաձևված են tenon.json-ում",
   "mcp.status.connected": "միացված",
   "mcp.status.failed": "ձախողվեց",
   "mcp.status.needs_auth": "անհրաժեշտ է վավերացում",
@@ -595,7 +595,7 @@ export const dict = {
   "error.chain.responseBody": "Պատասխանող մարմին՝\n{{body}}",
   "error.chain.didYouMean": "Դուք նկատի ունեք՝ {{suggestions}}",
   "error.chain.modelNotFound": "Մոդելը չի ​​գտնվել՝ {{provider}}/{{model}}",
-  "error.chain.checkConfig": "Ստուգեք ձեր կազմաձևը (opencode.json) մատակարարի/մոդելի անունները",
+  "error.chain.checkConfig": "Ստուգեք ձեր կազմաձևը (tenon.json) մատակարարի/մոդելի անունները",
   "error.chain.mcpFailed":
     "MCP «{{name}}» սերվերը ձախողվեց: Նկատի ունեցեք, որ Tenon Workbench-ը դեռ չի աջակցում MCP նույնականացումը:",
   "error.chain.providerAuthFailed": "Մատակարարի նույնականացումը ձախողվեց ({{provider}}): {{message}}",
@@ -878,7 +878,8 @@ export const dict = {
   "settings.general.row.wayland.tooltip":
     "Linux-ի վրա՝ թարմացման արագության խառը մոնիտորներով, բնիկ Wayland-ը կարող է ավելի կայուն լինել:",
   "settings.updates.row.startup.title": "Ստուգեք գործարկման ժամանակ թարմացումների համար",
-  "settings.updates.row.startup.description": "Ավտոմատ կերպով ստուգեք թարմացումների համար, երբ Tenon Workbench-ը գործարկվի",
+  "settings.updates.row.startup.description":
+    "Ավտոմատ կերպով ստուգեք թարմացումների համար, երբ Tenon Workbench-ը գործարկվի",
   "settings.updates.row.check.title": "Ստուգեք թարմացումների համար",
   "settings.updates.action.checkNow": "Ստուգեք հիմա",
   "settings.updates.action.checking": "Ստուգում...",

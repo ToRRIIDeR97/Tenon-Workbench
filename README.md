@@ -45,7 +45,7 @@ revision, and migration gaps are recorded in [the archive](docs/archive/tauri/RE
 | `bun run build`             | Build the Electron renderer and main process               |
 | `bun run desktop:build`     | Build and package an unsigned Windows candidate            |
 | `bun run typecheck`         | Typecheck every `tenon/` package through turbo          |
-| `bun run lint`              | Run OpenCode's linter                                      |
+| `bun run lint`              | Run the linter (oxlint)                                    |
 | `bun run test`              | Run package tests (engine suites excluded) via turbo       |
 | `bun run check:generated`   | Fail if the generated client in `packages/client` is stale |
 | `bun run check`             | Run typecheck, lint, check:generated, test, and build      |

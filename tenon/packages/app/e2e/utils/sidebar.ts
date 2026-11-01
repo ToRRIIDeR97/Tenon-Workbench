@@ -12,7 +12,7 @@ export async function openFolderFromWorkspaceMenu(page: Page) {
 
 export async function expandSidebarThreadGroups(page: Page) {
   await page.addInitScript(() => {
-    localStorage.setItem("opencode.window.browser.dat:sidebar", JSON.stringify({ expanded: { __brain__: true } }))
+    localStorage.setItem("tenon.window.browser.dat:sidebar", JSON.stringify({ expanded: { __brain__: true } }))
   })
 }
 

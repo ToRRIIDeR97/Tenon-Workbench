@@ -26,10 +26,10 @@ export const useComposerCommands = (
   const model = input.model ?? local.model
   const modelCommand = withCategory(language.t("command.category.model"))
   const agentCommand = withCategory(language.t("command.category.agent"))
-  const openCode = () => !input.harness || input.harness.driver() === Harness.OpenCodeDriver
+  const builtInLoop = () => !input.harness || input.harness.driver() === Harness.OpenCodeDriver
 
   const chooseModel = async () => {
-    if (!openCode()) {
+    if (!builtInLoop()) {
       const control =
         document.querySelector<HTMLButtonElement>('[data-control="harness-model"]') ??
         document.querySelector<HTMLButtonElement>('[data-control="harness"]')
@@ -72,7 +72,7 @@ export const useComposerCommands = (
       title: language.t("command.model.variant.cycle"),
       description: language.t("command.model.variant.cycle.description"),
       keybind: "shift+mod+d",
-      disabled: !openCode(),
+      disabled: !builtInLoop(),
       onSelect: () => model.variant.cycle(),
     }),
     agentCommand({
@@ -81,7 +81,7 @@ export const useComposerCommands = (
       description: language.t("command.agent.cycle.description"),
       keybind: "mod+.",
       slash: "agent",
-      disabled: !openCode() || !local.agent.visible(),
+      disabled: !builtInLoop() || !local.agent.visible(),
       onSelect: () => local.agent.move(1),
     }),
     agentCommand({
@@ -89,7 +89,7 @@ export const useComposerCommands = (
       title: language.t("command.agent.cycle.reverse"),
       description: language.t("command.agent.cycle.reverse.description"),
       keybind: "shift+mod+.",
-      disabled: !openCode() || !local.agent.visible(),
+      disabled: !builtInLoop() || !local.agent.visible(),
       onSelect: () => local.agent.move(-1),
     }),
   ])

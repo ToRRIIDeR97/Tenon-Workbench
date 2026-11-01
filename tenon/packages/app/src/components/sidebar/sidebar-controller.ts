@@ -443,7 +443,7 @@ export function createSidebarController() {
 
   const threadLabel = (session: Session) => sessionTitle(session.title) || session.id
 
-  // A directory's list holds every thread of its OpenCode project, so a thread can sit in
+  // A directory's list holds every thread of its Tenon project, so a thread can sit in
   // several loaded lists (e.g. the Brain folder and a `projects/<id>/` folder). Update them all.
   const loadedStores = () => directories().map((directory) => serverSync().child(directory, { bootstrap: false }))
   const dropSession = (sessionID: string) => {

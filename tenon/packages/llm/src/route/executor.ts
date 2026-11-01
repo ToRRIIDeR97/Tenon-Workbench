@@ -30,7 +30,7 @@ export interface Interface {
   ) => Effect.Effect<HttpClientResponse.HttpClientResponse, LLMError>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@opencode/LLM/RequestExecutor") {}
+export class Service extends Context.Service<Service, Interface>()("@tenon/LLM/RequestExecutor") {}
 
 const BODY_LIMIT = 16_384
 const MAX_RETRIES = 2
@@ -42,7 +42,7 @@ const REDACTED = "<redacted>"
  * Inner retries for retryable status responses. A caller that owns its own retry policy (the session
  * runners) sets this to 0 so the two layers do not multiply attempts.
  */
-export const MaxRetries = Context.Reference<number>("@opencode/LLM/RequestExecutor/MaxRetries", {
+export const MaxRetries = Context.Reference<number>("@tenon/LLM/RequestExecutor/MaxRetries", {
   defaultValue: () => MAX_RETRIES,
 })
 

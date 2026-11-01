@@ -362,7 +362,7 @@ export const dict = {
   "dialog.mcp.description": "{{enabled}} од {{total}} омогућено",
   "dialog.mcp.empty": "Нема конфигурисаних MCP",
   "dialog.lsp.empty": "LSPс аутоматски детектован из типова датотека",
-  "dialog.plugins.empty": "Додаци конфигурисани у opencode.json",
+  "dialog.plugins.empty": "Додаци конфигурисани у tenon.json",
   "mcp.status.connected": "повезан",
   "mcp.status.failed": "није успело",
   "mcp.status.needs_auth": "потребан је аутх",
@@ -592,7 +592,7 @@ export const dict = {
   "error.chain.responseBody": "Тело одговора:\n{{body}}",
   "error.chain.didYouMean": "Да ли сте мислили: {{suggestions}}",
   "error.chain.modelNotFound": "Модел није пронађен: {{provider}}/{{model}}",
-  "error.chain.checkConfig": "Проверите имена добављача/модела конфигурације (opencode.json).",
+  "error.chain.checkConfig": "Проверите имена добављача/модела конфигурације (tenon.json).",
   "error.chain.mcpFailed":
     "MCP сервер „{{name}}“ није успео. Напомена, Tenon Workbench још увек не подржава MCP аутентификацију.",
   "error.chain.providerAuthFailed": "аутентификација добављача није успела ({{provider}}): {{message}}",
@@ -877,7 +877,8 @@ export const dict = {
   "settings.general.row.wayland.tooltip":
     "На Linux са мешовитим мониторима брзине освежавања, изворни Wayland може бити стабилнији.",
   "settings.updates.row.startup.title": "Проверите да ли има ажурирања при покретању",
-  "settings.updates.row.startup.description": "Аутоматски провери да ли постоје ажурирања када се Tenon Workbench покрене",
+  "settings.updates.row.startup.description":
+    "Аутоматски провери да ли постоје ажурирања када се Tenon Workbench покрене",
   "settings.updates.row.check.title": "Проверите да ли постоје ажурирања",
   "settings.updates.action.checkNow": "Проверите сада",
   "settings.updates.action.checking": "Проверавам...",

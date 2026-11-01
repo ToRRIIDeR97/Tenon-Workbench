@@ -70,7 +70,7 @@ export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
   const command = useCommand()
   const language = useLanguage()
   // The built-in loop is known by id, so its model and variant controls don't wait on the harness list.
-  const openCode = () => {
+  const builtInLoop = () => {
     if (!props.harness) return true
     const id = props.harness.current()
     const instance = props.harness.instances()?.find((item) => item.id === id)
@@ -83,11 +83,11 @@ export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
       <PromptInputV2
         controller={props.controller}
         runtimeControl={props.harness ? <PromptInputHarnessControls controller={props.harness} /> : undefined}
-        agentControlVisible={openCode()}
-        modelControlVisible={openCode()}
+        agentControlVisible={builtInLoop()}
+        modelControlVisible={builtInLoop()}
         borderUnderlay={props.borderUnderlay}
         class={props.class}
-        variantControlVisible={openCode()}
+        variantControlVisible={builtInLoop()}
         trailingControl={
           <>
             {props.trailing}
@@ -97,7 +97,7 @@ export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
         attachKeybind={command.keybindParts("file.attach")}
         attachShortcut={command.keybind("file.attach")}
         modelControl={
-          openCode() ? (
+          builtInLoop() ? (
             <PromptInputV2ModelControl
               loading={props.controller.model.loading}
               paid={props.controller.model.paid}

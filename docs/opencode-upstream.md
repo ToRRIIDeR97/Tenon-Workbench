@@ -22,8 +22,19 @@ The terminal UI is gone too: the `tui` and `cli` packages,
 remains for development only; the SDK build runs its `generate` command. The
 fork no longer builds or ships an `opencode` binary.
 
-Internal package names, data-directory identifiers, and protocol names retain
-OpenCode compatibility. Display names use Tenon Workbench. Automatic updates
+Owned code uses Tenon names: the `tenon/` folder and `packages/tenon`, the
+`@tenon/*` workspace packages, `TENON_*` environment variables, `tenon.json`
+and `.tenon/` config, `x-tenon-*` headers, and `tenon.*` store and database
+files. The pre-rename names still work: `OPENCODE_*` variables are copied to
+their `TENON_*` names at startup (`core/src/legacy-env.ts`), `opencode.json`
+and `.opencode/` still load with lower priority than the Tenon names
+(`core/src/config/names.ts`), the server accepts the `x-opencode-*` headers the
+app and SDK still send to upstream servers, and `opencode.*` store files,
+`opencode*.db` and `opencode.`/`opencode-theme-*` browser storage keys move to
+their Tenon names once. Names that refer to upstream OpenCode itself (the ACP
+harness and WSL CLI, the OpenCode Zen provider, `opencode.ai`, the published
+`@opencode-ai/sdk` and `@opencode-ai/plugin` packages) are unchanged. Display
+names use Tenon Workbench. Automatic updates
 are disabled until the fork has its own verified signed release feed.
 
 The import contains ordinary files instead of 60 upstream symbolic links so it

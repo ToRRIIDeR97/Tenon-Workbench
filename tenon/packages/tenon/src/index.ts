@@ -22,7 +22,7 @@ const args = hideBin(process.argv)
 
 function show(out: string) {
   const text = out.trimStart()
-  if (!text.startsWith("opencode ")) {
+  if (!text.startsWith("tenon ")) {
     process.stderr.write(UI.logo() + EOL + EOL)
     process.stderr.write(text + EOL)
     return
@@ -32,7 +32,7 @@ function show(out: string) {
 
 const cli = yargs(args)
   .parserConfiguration({ "populate--": true })
-  .scriptName("opencode")
+  .scriptName("tenon")
   .wrap(100)
   .help("help", "show help")
   .alias("help", "h")
@@ -61,6 +61,8 @@ const cli = yargs(args)
     Heap.start()
 
     process.env.AGENT = "1"
+    process.env.TENON = "1"
+    // Tools and git hooks that detect an agent environment check the upstream name.
     process.env.OPENCODE = "1"
     process.env.TENON_PID = String(process.pid)
   })

@@ -8,7 +8,7 @@ import {
   reconnectDelay,
   resumeStreamAfterPageShow,
 } from "./server-sdk"
-import type { OpenCodeEvent } from "@tenon/client/promise"
+import type { OpenCodeEvent } from "@opencode-ai/client/promise"
 import type { Event } from "@opencode-ai/sdk/v2/client"
 
 describe("resumeStreamAfterPageShow", () => {

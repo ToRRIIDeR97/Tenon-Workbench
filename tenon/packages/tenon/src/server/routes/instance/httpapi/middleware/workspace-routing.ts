@@ -49,14 +49,14 @@ export class WorkspaceRouteContext extends Context.Service<
     readonly directory: string
     readonly workspaceID?: WorkspaceV2.ID
   }
->()("@opencode/ExperimentalHttpApiWorkspaceRouteContext") {}
+>()("@tenon/ExperimentalHttpApiWorkspaceRouteContext") {}
 
 export class WorkspaceRoutingMiddleware extends HttpApiMiddleware.Service<
   WorkspaceRoutingMiddleware,
   {
     provides: WorkspaceRouteContext
   }
->()("@opencode/ExperimentalHttpApiWorkspaceRouting") {}
+>()("@tenon/ExperimentalHttpApiWorkspaceRouting") {}
 
 function requestURL(request: HttpServerRequest.HttpServerRequest): URL {
   return new URL(request.url, "http://localhost")

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test"
-import { mockOpenCodeServer } from "../utils/mock-server"
+import { mockTenonServer } from "../utils/mock-server"
 import { expectAppVisible } from "../utils/waits"
 import { openFolderFromWorkspaceMenu } from "../utils/sidebar"
 
@@ -12,7 +12,7 @@ test("opens a project from the sidebar, connects OpenCode Go, and selects its mo
   let pendingGo = false
   const connections: Array<{ integrationID: string; body: unknown }> = []
 
-  await mockOpenCodeServer(page, {
+  await mockTenonServer(page, {
     directory,
     project: {
       id: "proj_model_selection_flow",
@@ -68,7 +68,7 @@ test("opens a project from the sidebar, connects OpenCode Go, and selects its mo
   })
   await page.addInitScript(() => {
     localStorage.setItem("settings.v3", JSON.stringify({ general: {} }))
-    localStorage.setItem("opencode.global.dat:server", JSON.stringify({ projects: { local: [] } }))
+    localStorage.setItem("tenon.global.dat:server", JSON.stringify({ projects: { local: [] } }))
   })
 
   // Navigation is sidebar-only: open the folder from the workspace menu, then start a new-thread draft.

@@ -361,7 +361,7 @@ export const dict: Record<string, string> = {
   "dialog.mcp.description": "{{total}} න් {{enabled}} සබලයි",
   "dialog.mcp.empty": "MCPs වින්‍යාස කර නැත",
   "dialog.lsp.empty": "LSPs ගොනු වර්ග වලින් ස්වයංක්‍රීයව අනාවරණය කර ඇත",
-  "dialog.plugins.empty": "ප්ලගීන opencode.json හි වින්‍යාස කර ඇත",
+  "dialog.plugins.empty": "ප්ලගීන tenon.json හි වින්‍යාස කර ඇත",
   "mcp.status.connected": "සම්බන්ධයි",
   "mcp.status.failed": "අසාර්ථක විය",
   "mcp.status.needs_auth": "auth අවශ්‍යයි",
@@ -590,8 +590,9 @@ export const dict: Record<string, string> = {
   "error.chain.responseBody": "ප්‍රතිචාර අන්තර්ගතය:\n{{body}}",
   "error.chain.didYouMean": "ඔබ අදහස් කළේ: {{suggestions}}",
   "error.chain.modelNotFound": "ආකෘතිය හමු නොවීය: {{provider}}/{{model}}",
-  "error.chain.checkConfig": "ඔබගේ වින්‍යාසය (opencode.json) සපයන්නා/ආදර්ශ නම් පරීක්ෂා කරන්න",
-  "error.chain.mcpFailed": 'MCP සේවාදායකය "{{name}}" අසාර්ථක විය. සටහන, Tenon Workbench තවමත් MCP සත්‍යාපනයට සහය නොදක්වයි.',
+  "error.chain.checkConfig": "ඔබගේ වින්‍යාසය (tenon.json) සපයන්නා/ආදර්ශ නම් පරීක්ෂා කරන්න",
+  "error.chain.mcpFailed":
+    'MCP සේවාදායකය "{{name}}" අසාර්ථක විය. සටහන, Tenon Workbench තවමත් MCP සත්‍යාපනයට සහය නොදක්වයි.',
   "error.chain.providerAuthFailed": "සැපයුම්කරු සත්‍යාපනය අසාර්ථක විය ({{provider}}): {{message}}",
   "error.chain.providerInitFailed":
     '"{{provider}}" සපයන්නා ආරම්භ කිරීමට අසමත් විය. අක්තපත්ර සහ වින්යාසය පරීක්ෂා කරන්න.',
@@ -869,7 +870,8 @@ export const dict: Record<string, string> = {
   "settings.general.row.wayland.tooltip":
     "මිශ්‍ර නැවුම් අනුපාත මොනිටර සහිත Linux මත, ස්වදේශික Wayland වඩා ස්ථායී විය හැක.",
   "settings.updates.row.startup.title": "ආරම්භය පිළිබඳ යාවත්කාලීන සඳහා පරීක්ෂා කරන්න",
-  "settings.updates.row.startup.description": "Tenon Workbench දියත් කරන විට යාවත්කාලීන සඳහා ස්වයංක්‍රීයව පරීක්ෂා කරන්න",
+  "settings.updates.row.startup.description":
+    "Tenon Workbench දියත් කරන විට යාවත්කාලීන සඳහා ස්වයංක්‍රීයව පරීක්ෂා කරන්න",
   "settings.updates.row.check.title": "යාවත්කාලීන සඳහා පරීක්ෂා කරන්න",
   "settings.updates.action.checkNow": "දැන් පරීක්ෂා කරන්න",
   "settings.updates.action.checking": "පරීක්ෂා කරමින්...",

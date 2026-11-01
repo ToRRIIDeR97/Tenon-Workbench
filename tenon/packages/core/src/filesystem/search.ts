@@ -18,7 +18,7 @@ export interface Interface {
   readonly grep: (input: FileSystem.GrepInput) => Effect.Effect<readonly FileSystem.Match[]>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@opencode/v2/FileSystem/Search") {}
+export class Service extends Context.Service<Service, Interface>()("@tenon/v2/FileSystem/Search") {}
 
 /** How long `find` reuses one `rg --files` listing; short enough that new and removed files show up quickly. */
 export const LISTING_TTL = Duration.seconds(3)

@@ -1230,7 +1230,7 @@
   gap: 4px;
 
   [data-slot="accordion-item"] {
-    --opencode-diffs-bg: var(--v2-background-bg-layer-01);
+    --tenon-diffs-bg: var(--v2-background-bg-layer-01);
     border-radius: var(--v2-radius-lg);
     background-color: var(--v2-background-bg-layer-01);
   }

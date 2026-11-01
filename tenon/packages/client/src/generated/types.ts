@@ -1,4 +1,4 @@
-import type { OpenCodeEventEncoded } from "@tenon/protocol/groups/event"
+import type { TenonEventEncoded } from "@tenon/protocol/groups/event"
 
 export type JsonValue =
   | null
@@ -3870,7 +3870,7 @@ export type SkillsSetEnabledOutput = {
   readonly data: { readonly name: string; readonly enabled: boolean }
 }
 
-export type EventsSubscribeOutput = OpenCodeEventEncoded
+export type EventsSubscribeOutput = TenonEventEncoded
 
 export type PtysListInput = {
   readonly location?: {

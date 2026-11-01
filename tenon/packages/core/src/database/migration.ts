@@ -145,7 +145,7 @@ function violations(db: Database | Transaction) {
     .pipe(Effect.map((row) => row?.count ?? 0))
 }
 
-// opencode.db cannot be rebuilt, so snapshot it before changing its schema.
+// The database (tenon.db) cannot be rebuilt, so snapshot it before changing its schema.
 function backup(db: Database, id: string) {
   return Effect.gen(function* () {
     const file = (yield* db.all<{ name: string; file: string }>(sql`PRAGMA database_list`)).find(

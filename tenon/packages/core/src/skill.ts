@@ -56,7 +56,7 @@ export interface Interface extends State.Transformable<Draft> {
   readonly all: () => Effect.Effect<Info[]>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@opencode/v2/Skill") {}
+export class Service extends Context.Service<Service, Interface>()("@tenon/v2/Skill") {}
 
 const layer = Layer.effect(
   Service,

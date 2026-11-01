@@ -1,5 +1,5 @@
 import { parseCommentNote, readCommentMetadata } from "@/utils/comment-note"
-import type { SessionMessageInfo } from "@tenon/client/promise"
+import type { SessionMessageInfo } from "@opencode-ai/client/promise"
 import { AssistantMessage, Part, SessionStatus, UserMessage } from "@opencode-ai/sdk/v2"
 import { renderable } from "@tenon/session-ui/message-part"
 import { groupParts, type PartGroup, type PartRef } from "@tenon/session-ui/part-group"

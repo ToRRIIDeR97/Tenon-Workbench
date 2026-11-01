@@ -4,7 +4,7 @@ import {
   Message as MessageType,
   Part as PartType,
 } from "@opencode-ai/sdk/v2/client"
-import type { FileDiffInfo } from "@tenon/client/promise"
+import type { FileDiffInfo } from "@opencode-ai/client/promise"
 import type { SessionStatus } from "@opencode-ai/sdk/v2"
 import { useData } from "../context"
 import { useFileComponent } from "@tenon/ui/context/file"

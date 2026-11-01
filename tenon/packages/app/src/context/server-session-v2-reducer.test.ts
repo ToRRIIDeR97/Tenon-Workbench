@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { OpenCodeEvent, SessionMessageInfo } from "@tenon/client/promise"
+import type { OpenCodeEvent, SessionMessageInfo } from "@opencode-ai/client/promise"
 import { createV2SessionReducer } from "./server-session-v2-reducer"
 import { normalizeSessionMessages } from "@/utils/session-message"
 
