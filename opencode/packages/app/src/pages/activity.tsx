@@ -102,7 +102,7 @@ export default function ActivityPage() {
                           class={pageRowClass}
                           onClick={() => sessions.session.open(record.session)}
                         >
-                          <span class="size-2 shrink-0 rounded-full bg-v2-icon-icon-accent animate-[running-pulse_1.6s_var(--v2-ease-standard)_infinite] motion-reduce:animate-none" />
+                          <span class="size-2 shrink-0 rounded-full bg-v2-icon-icon-accent running-pulse" />
                           <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base [font-weight:470]">
                             {record.session.title}
                           </span>
@@ -201,8 +201,7 @@ export default function ActivityPage() {
                           <span
                             classList={{
                               "size-2 shrink-0 rounded-full": true,
-                              "bg-v2-icon-icon-accent animate-[running-pulse_1.6s_var(--v2-ease-standard)_infinite] motion-reduce:animate-none":
-                                run.status === "running",
+                              "bg-v2-icon-icon-accent running-pulse": run.status === "running",
                               "bg-v2-state-fg-warning": run.status === "approval" || run.status === "retrying",
                             }}
                           />

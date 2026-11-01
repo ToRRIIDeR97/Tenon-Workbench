@@ -1,4 +1,4 @@
-import { DateTime } from "luxon"
+import { formatDateTimeMedium } from "@/utils/date"
 
 export function createSessionContextFormatter(locale: string) {
   return {
@@ -14,8 +14,7 @@ export function createSessionContextFormatter(locale: string) {
     },
     time(value: number | string | undefined) {
       if (!value) return "—"
-      const time = typeof value === "number" ? DateTime.fromMillis(value) : DateTime.fromISO(value)
-      return time.setLocale(locale).toLocaleString(DateTime.DATETIME_MED)
+      return formatDateTimeMedium(value, locale) ?? "—"
     },
   }
 }

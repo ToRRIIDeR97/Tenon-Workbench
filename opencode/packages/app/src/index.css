@@ -8,13 +8,15 @@
   src: url("/assets/JetBrainsMonoNerdFontMono-Regular.woff2") format("woff2");
   font-weight: normal;
   font-style: normal;
+  font-display: swap;
 }
 
 @font-face {
   font-family: "Inter";
-  src: url("/assets/Inter.ttf") format("truetype");
+  src: url("/assets/Inter.woff2") format("woff2");
   font-weight: 100 900;
   font-style: normal;
+  font-display: swap;
 }
 
 @media (display-mode: standalone) {
@@ -272,12 +274,38 @@
   }
 }
 
-/* Running-thread indicator: a soft ring that expands and fades (Material 3 standard easing). */
+/* Running-thread indicator: a soft ring that expands and fades (Material 3 standard easing).
+   The ring is a pseudo-element animated with transform and opacity so it runs on the compositor
+   instead of repainting a box-shadow every frame. */
+.running-pulse {
+  position: relative;
+}
+
+.running-pulse::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--v2-icon-icon-accent);
+  opacity: 0;
+  pointer-events: none;
+  animation: running-pulse 1.6s var(--v2-ease-standard) infinite;
+}
+
 @keyframes running-pulse {
   0% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--v2-icon-icon-accent) 45%, transparent);
+    transform: scale(1);
+    opacity: 0.45;
   }
   100% {
-    box-shadow: 0 0 0 6px color-mix(in srgb, var(--v2-icon-icon-accent) 0%, transparent);
+    /* An 8px dot plus a 6px ring on each side. */
+    transform: scale(2.5);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .running-pulse::after {
+    animation: none;
   }
 }

@@ -364,7 +364,14 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
         }
         abort.signal.addEventListener("abort", onAbort)
         try {
-          const events = (await eventSdk.global.event({ signal: attempt.signal })).stream
+          // The app never replays `sync` copies of durable events, so ask the server not to send them.
+          // Older servers ignore the header and the loop below still skips them.
+          const events = (
+            await eventSdk.global.event({
+              signal: attempt.signal,
+              headers: { "x-opencode-skip-sync-events": "1" },
+            })
+          ).stream
           let yielded = Date.now()
           for await (const event of events) {
             streamErrorLogged = false

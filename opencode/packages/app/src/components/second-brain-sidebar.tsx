@@ -619,7 +619,7 @@ function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; 
               <Show when={props.ctrl.working(session().id)}>
                 <span
                   data-sidebar-running
-                  class="size-2 shrink-0 animate-[running-pulse_1.6s_var(--v2-ease-standard)_infinite] rounded-full bg-v2-icon-icon-accent motion-reduce:animate-none"
+                  class="size-2 shrink-0 rounded-full bg-v2-icon-icon-accent running-pulse"
                   role="status"
                   aria-label={language.t("secondBrain.sidebar.running")}
                 />

@@ -363,7 +363,7 @@ export default function BrainHomePage() {
                           class={pageRowClass}
                           onClick={() => openCodeSessions.session.open(record.session)}
                         >
-                          <span class="size-2 shrink-0 rounded-full bg-v2-icon-icon-accent animate-[running-pulse_1.6s_var(--v2-ease-standard)_infinite] motion-reduce:animate-none" />
+                          <span class="size-2 shrink-0 rounded-full bg-v2-icon-icon-accent running-pulse" />
                           <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base [font-weight:470]">
                             {record.session.title}
                           </span>
