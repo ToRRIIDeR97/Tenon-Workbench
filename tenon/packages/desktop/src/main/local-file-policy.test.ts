@@ -13,8 +13,9 @@ test("reveals Windows executables and shell launchers instead of opening them", 
     "C:\\x\\a.scr",
   ])
     expect(localFileAction(name, file, "win32", ".COM;.EXE;.BAT;.CMD")).toBe("reveal")
-  // Without PATHEXT the Windows defaults apply.
-  expect(localFileAction("C:\\x\\script.ps1", file, "win32", undefined)).toBe("reveal")
+  // Without PATHEXT the Windows defaults apply. An empty value stands for "unset": `undefined` would take the
+  // parameter's default, this machine's own PATHEXT.
+  expect(localFileAction("C:\\x\\script.ps1", file, "win32", "")).toBe("reveal")
   expect(localFileAction("C:\\x\\notes.md", file, "win32", ".EXE")).toBe("open")
 })
 
