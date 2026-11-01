@@ -44,10 +44,45 @@
   }
 }
 
+/* Open card: the body grows from zero height (a 0fr to 1fr grid row animates to the content's height) while its
+   rows fade up, and shrinks back on close. Rendering open from the start doesn't animate. */
+[data-slot="turn-steps-body"] {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate);
+
+  &[data-open] {
+    grid-template-rows: 1fr;
+  }
+
+  > div {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  [data-slot="turn-steps-rows"] {
+    opacity: 0;
+    transform: translateY(-4px);
+    transition:
+      opacity var(--v2-duration-short) var(--v2-ease-standard),
+      transform var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate);
+  }
+
+  &[data-open] [data-slot="turn-steps-rows"] {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   [data-slot="turn-steps-ticker-step"],
   [data-slot="turn-steps-lane"][data-running] [data-slot="turn-steps-lane-fill"] {
     animation: none;
+  }
+
+  [data-slot="turn-steps-body"],
+  [data-slot="turn-steps-body"] [data-slot="turn-steps-rows"] {
+    transition: none;
   }
 
   [data-slot="turn-steps-lane"][data-running] [data-slot="turn-steps-lane-fill"] {

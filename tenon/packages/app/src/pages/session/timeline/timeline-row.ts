@@ -30,7 +30,8 @@ export namespace TimelineRow {
   export class TurnSteps extends Data.TaggedClass("TurnSteps")<{
     userMessageID: string
     segment: number
-    tools: PartRef[]
+    /** Tool and reasoning parts, in order; the summary counts the tools and its ticker shows the latest step. */
+    steps: PartRef[]
     failed: boolean
   }> {}
   export class Thinking extends Data.TaggedClass("Thinking")<{

@@ -60,4 +60,13 @@ describe("harness setup", () => {
     expect(await Effect.runPromise(HarnessSetup.signedIn(claude, env))).toBe("signed-in")
     expect(await Effect.runPromise(HarnessSetup.signedIn(opencode, env))).toBe("signed-in")
   })
+
+  test("OpenCode launch config asks before edits and waits out Tenon's MCP calls", () => {
+    const content = (userConfig?: string) =>
+      JSON.parse(HarnessSetup.openCodeLaunchEnv(userConfig).OPENCODE_CONFIG_CONTENT ?? "null")
+    expect(content()).toEqual({ permission: { edit: "ask", bash: "ask" }, experimental: { mcp_timeout: 660_000 } })
+    expect(content('{ "permission": "allow", // mine\n }')).toEqual({ experimental: { mcp_timeout: 660_000 } })
+    expect(content('{ "experimental": { "mcp_timeout": 5000 } }')).toEqual({ permission: { edit: "ask", bash: "ask" } })
+    expect(HarnessSetup.openCodeLaunchEnv('{ "permission": {}, "experimental": { "mcp_timeout": 1 } }')).toEqual({})
+  })
 })

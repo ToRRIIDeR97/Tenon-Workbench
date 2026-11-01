@@ -4,6 +4,9 @@ import { LayerNode } from "@tenon/core/effect/layer-node"
 import { AppNodeBuilder } from "@tenon/core/effect/app-node-builder"
 import { EventV2 } from "@tenon/core/event"
 import { HarnessAskUser } from "@tenon/core/harness/ask-user"
+import { Location } from "@tenon/core/location"
+import { AbsolutePath } from "@tenon/core/schema"
+import { location } from "./fixture/location"
 import { QuestionV2 } from "@tenon/core/question"
 import { SessionV2 } from "@tenon/core/session"
 import { testEffect } from "./lib/effect"
@@ -34,6 +37,29 @@ const rejected = Effect.fn("HarnessAskUserTest.rejected")(function* () {
 })
 
 describe("HarnessAskUser", () => {
+  it.live("publishes the question with the runtime's location, though asked from outside a fiber", () =>
+    Effect.gen(function* () {
+      const events = yield* EventV2.Service
+      const questions = yield* QuestionV2.Service
+      const asked: unknown[] = []
+      const unsubscribe = yield* events.listen((event) =>
+        Effect.sync(() => {
+          if (event.type === QuestionV2.Event.Asked.type) asked.push(event.location)
+        }),
+      )
+      yield* Effect.addFinalizer(() => unsubscribe)
+      // The MCP endpoint calls `ask` from a plain HTTP handler, so only the context captured in `make` carries it.
+      const asker = yield* HarnessAskUser.make(questions, sessionID).pipe(
+        Effect.provideService(
+          Location.Service,
+          Location.Service.of(location({ directory: AbsolutePath.make("brain") })),
+        ),
+      )
+      expect(yield* Effect.promise(() => asker.ask([pick], 0))).toEqual({ type: "open" })
+      expect(asked).toEqual([{ directory: "brain" }])
+    }),
+  )
+
   it.live("returns the answer in the native question tool's wording", () =>
     Effect.gen(function* () {
       const questions = yield* QuestionV2.Service
