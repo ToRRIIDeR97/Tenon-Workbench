@@ -3,7 +3,6 @@ import * as Sentry from "@sentry/solid"
 import { I18nProvider } from "@opencode-ai/ui/context"
 import { DialogProvider } from "@opencode-ai/ui/context/dialog"
 import { FileComponentProvider } from "@opencode-ai/ui/context/file"
-import { File } from "@opencode-ai/session-ui/file"
 import { Font } from "@opencode-ai/ui/font"
 import { Splash } from "@opencode-ai/ui/logo"
 import { ThemeProvider } from "@opencode-ai/ui/theme/context"
@@ -24,6 +23,7 @@ import {
   type JSX,
   lazy,
   onCleanup,
+  onMount,
   type ParentProps,
   Show,
 } from "solid-js"
@@ -55,7 +55,19 @@ import { useCheckServerHealth } from "./utils/server-health"
 import { requireServerKey, sessionHref } from "./utils/session-route"
 import { decode64 } from "./utils/base64"
 
-import { TargetSessionRouteContent } from "@/pages/session"
+// File viewers pull in the diff renderer and shiki; only session views render them.
+const File = lazy(() => import("@opencode-ai/session-ui/file").then((module) => ({ default: module.File })))
+// The session page (timeline, review, terminal, composer) is the largest route. It loads on
+// demand and is prefetched once the app is idle, so the shell paints without it.
+const loadSessionPage = () => import("@/pages/session")
+const TargetSessionRouteContent = lazy(() =>
+  loadSessionPage().then((module) => ({ default: module.TargetSessionRouteContent })),
+)
+function prefetchSessionPage() {
+  const run = () => void loadSessionPage().catch(() => {})
+  if (typeof requestIdleCallback === "function") requestIdleCallback(run, { timeout: 3000 })
+  else setTimeout(run, 1500)
+}
 
 const NewSession = lazy(() => import("@/pages/new-session"))
 const NotesPage = lazy(() => import("@/pages/notes"))
@@ -484,6 +496,7 @@ export function AppInterface(props: {
   // providers beneath it.
   // The shell reuses AppBaseProviders' QueryClient, the one GlobalProvider's server sync
   // writes to, so live session events reach the sidebar and Home queries.
+  onMount(prefetchSessionPage)
   const ServerShell = (shellProps: ParentProps) => (
     <SharedProviders>
       {props.children}

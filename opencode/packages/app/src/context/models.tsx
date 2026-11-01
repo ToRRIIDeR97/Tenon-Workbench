@@ -1,6 +1,6 @@
 import { type Accessor, createMemo, createResource } from "solid-js"
 import { createStore } from "solid-js/store"
-import { DateTime } from "luxon"
+import { parseISODate, withinMonths } from "@/utils/date"
 import { filter, firstBy, flat, groupBy, mapValues, pipe, uniqueBy, values } from "remeda"
 import { createSimpleContext } from "@opencode-ai/ui/context"
 import { useProviders } from "@/hooks/use-providers"
@@ -48,27 +48,20 @@ export const { use: useModels, provider: ModelsProvider } = createSimpleContext(
       ),
     )
 
-    const release = createMemo(
+    // Models whose release date parses; the rest stay visible by default.
+    const dated = createMemo(
       () =>
-        new Map(
-          available().map((model) => {
-            const parsed = DateTime.fromISO(model.release_date)
-            return [modelKey({ providerID: model.provider.id, modelID: model.id }), parsed] as const
-          }),
+        new Set(
+          available()
+            .filter((model) => !Number.isNaN(parseISODate(model.release_date)))
+            .map((model) => modelKey({ providerID: model.provider.id, modelID: model.id })),
         ),
     )
 
     const latest = createMemo(() =>
       pipe(
         available(),
-        filter(
-          (x) =>
-            Math.abs(
-              (release().get(modelKey({ providerID: x.provider.id, modelID: x.id })) ?? DateTime.invalid("invalid"))
-                .diffNow()
-                .as("months"),
-            ) < 6,
-        ),
+        filter((x) => withinMonths(x.release_date, 6, Date.now())),
         groupBy((x) => x.provider.id),
         mapValues((models) =>
           pipe(
@@ -131,9 +124,7 @@ export const { use: useModels, provider: ModelsProvider } = createSimpleContext(
       if (state === "hide") return false
       if (state === "show") return true
       if (latestSet().has(key)) return true
-      const date = release().get(key)
-      if (!date?.isValid) return true
-      return false
+      return !dated().has(key)
     }
 
     const setVisibility = (model: ModelKey, state: boolean) => {
