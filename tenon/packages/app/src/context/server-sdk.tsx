@@ -22,6 +22,7 @@ import { useLanguage } from "./language"
 import { usePlatform } from "./platform"
 import { ServerConnection, useServer } from "./server"
 import { createRefCountMap } from "@/utils/refcount"
+import { pathKey } from "@/utils/path-key"
 import { useGlobal } from "./global"
 import { ServerScope } from "@/utils/server-scope"
 import { detectServerCapabilities, type ServerProtocol } from "@/utils/server-protocol"
@@ -537,8 +538,13 @@ function createDirSdkContext(directory: string, serverSDK: ServerSDKBase) {
 
   const emitter = createGlobalEmitter<SDKEventMap>()
 
-  const unsub = serverSDK.event.on(directory, (event) => {
-    emitter.emit(event.type, event)
+  // Events carry the folder as the server spells it (a Location's canonical `C:\…`), which can differ from how the
+  // app opened it (`C:/…`); compare normalized keys, as the stores do, or file-watcher and other folder events
+  // never reach this folder's listeners.
+  const key = pathKey(directory)
+  const unsub = serverSDK.event.listen((event) => {
+    if (event.name === "global" || pathKey(event.name) !== key) return
+    emitter.emit(event.details.type, event.details)
   })
   onCleanup(unsub)
 

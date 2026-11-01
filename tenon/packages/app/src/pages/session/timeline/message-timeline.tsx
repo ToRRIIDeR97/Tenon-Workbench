@@ -449,7 +449,11 @@ export function MessageTimeline(props: {
       }
     },
     anchorTo: "end",
-    followOnAppend: true,
+    // New rows pull the view to the end only while the timeline follows the bottom; virtual-core alone would follow
+    // anyone within `scrollEndThreshold` of it, including someone who scrolled up to read.
+    get followOnAppend() {
+      return props.shouldAnchorBottom()
+    },
     scrollEndThreshold: 80,
     get scrollMargin() {
       return showHeader() ? 64 : 0
@@ -506,13 +510,15 @@ export function MessageTimeline(props: {
         })
       })
     }
-    // Near the end, an end-anchored list scrolls by whatever a row grew (virtual-core's `wasAtEnd`), whatever
-    // `shouldAdjustScrollPositionOnItemSizeChange` says. A card the user toggled grows in place instead.
-    const toggling = performance.now() - toggledAt < 800
+    // Within 80px of the end, an end-anchored list scrolls by whatever a row grew (virtual-core's `wasAtEnd`),
+    // whatever `shouldAdjustScrollPositionOnItemSizeChange` says. It only keeps the end while the timeline follows
+    // the bottom: someone reading just above it shouldn't be dragged down by each new step, and a card the user
+    // toggled grows in place.
+    const holdEnd = props.shouldAnchorBottom() && performance.now() - toggledAt >= 800
     const anchorTo = virtualizer.options.anchorTo
-    if (toggling) virtualizer.options.anchorTo = "start"
+    if (!holdEnd) virtualizer.options.anchorTo = "start"
     resizeItem(index, size)
-    if (toggling) virtualizer.options.anchorTo = anchorTo
+    if (!holdEnd) virtualizer.options.anchorTo = anchorTo
     if (root && props.shouldAnchorBottom()) anchorResizedBottom()
   }
   virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item) => {
