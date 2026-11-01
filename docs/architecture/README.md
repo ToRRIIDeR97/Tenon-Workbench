@@ -1441,10 +1441,15 @@ command with its output); a subagent row opens its tab. A reasoning part is a
 one-line note that opens to its full text. The body grows with a `0fr` to
 `1fr` grid-row transition (`turn-steps-summary.css`, 450 ms open and 300 ms
 close) and its rows mount on first open; on an open while the card is on
-screen the steps slide in one after another. While a card or one of its rows
-toggles, `message-timeline.tsx` holds the bottom anchor for 700 ms
-(`holdBottom`), so the card grows below its header instead of pushing the
-thread up. Steps keep the order they happened in because
+screen the steps slide in one after another. A row's output (in the app's
+`ScrollView`, a pill thumb on hover) and a reasoning note open the same way.
+A toggle keeps the clicked row in place: it pauses auto-scroll's bottom follow
+(`onPauseFollow`, as a scroll up does), `message-timeline.tsx` treats the list
+as start-anchored for row resizes during the next 800 ms (virtual-core
+otherwise scrolls by the growth near the end), and the card turns off the
+scroller's `overflow-anchor` and corrects any drift for 700 ms
+(`keepInPlace`). While a turn works, the header title and the running step's
+verb shimmer. Steps keep the order they happened in because
 `normalizeSessionMessages` gives each assistant part an ID that leads with
 its position in the message content (`assistantPartID`); the stores sort a
 message's parts by ID, and harness IDs (`acp-reasoning-1`, tool-call UUIDs)

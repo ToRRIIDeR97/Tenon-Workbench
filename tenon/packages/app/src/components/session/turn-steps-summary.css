@@ -78,8 +78,47 @@
   }
 }
 
-[data-slot="turn-steps-body"][data-animate] [data-slot="turn-steps-detail"] {
-  animation: turn-steps-item-in var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate) both;
+/* A row's output and a reasoning note open the same way as the card: the height follows a grid row, long and
+   decelerating to open, shorter and accelerating to close. A folded note keeps its first line (20px) showing. */
+[data-slot="turn-steps-reveal"],
+[data-slot="turn-steps-note-text"] {
+  display: grid;
+  transition: grid-template-rows var(--v2-duration-medium) var(--v2-ease-emphasized-accelerate);
+
+  &[data-open] {
+    transition: grid-template-rows var(--v2-duration-long) var(--v2-ease-emphasized-decelerate);
+  }
+
+  > * {
+    min-height: 0;
+    overflow: hidden;
+  }
+}
+
+[data-slot="turn-steps-reveal"] {
+  grid-template-rows: 0fr;
+
+  &[data-open] {
+    grid-template-rows: 1fr;
+  }
+
+  [data-slot="turn-steps-detail"] {
+    opacity: 0;
+    transition: opacity var(--v2-duration-short) var(--v2-ease-standard);
+  }
+
+  &[data-open] [data-slot="turn-steps-detail"] {
+    opacity: 1;
+    transition: opacity var(--v2-duration-medium) var(--v2-ease-standard) 60ms;
+  }
+}
+
+[data-slot="turn-steps-note-text"] {
+  grid-template-rows: minmax(20px, 0fr);
+
+  &[data-open] {
+    grid-template-rows: minmax(20px, 1fr);
+  }
 }
 
 @keyframes turn-steps-item-in {
@@ -97,13 +136,15 @@
 
   [data-slot="turn-steps-body"],
   [data-slot="turn-steps-body"][data-open],
-  [data-slot="turn-steps-body"] [data-slot="turn-steps-rows"] {
+  [data-slot="turn-steps-body"] [data-slot="turn-steps-rows"],
+  :is([data-slot="turn-steps-reveal"], [data-slot="turn-steps-note-text"]),
+  :is([data-slot="turn-steps-reveal"], [data-slot="turn-steps-note-text"])[data-open],
+  [data-slot="turn-steps-reveal"] [data-slot="turn-steps-detail"] {
     transition: none;
   }
 
   [data-slot="turn-steps-body"][data-open][data-animate]
-    :is([data-slot="turn-steps-item"], [data-slot="turn-steps-note"]),
-  [data-slot="turn-steps-body"][data-animate] [data-slot="turn-steps-detail"] {
+    :is([data-slot="turn-steps-item"], [data-slot="turn-steps-note"]) {
     animation: none;
   }
 
