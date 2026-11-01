@@ -29,6 +29,21 @@ describe("stepOf", () => {
   })
 })
 
+describe("stepOf for ACP tools without a kind", () => {
+  test("a call with questions is a question, targeted at the first one", () => {
+    const input = { title: "tenon_ask_user", questions: [{ question: "Which database?", header: "DB", options: [] }] }
+    expect(stepOf(tool("acp_other", input))).toEqual({ kind: "question", target: "Which database?" })
+  })
+
+  test("other calls are named by the agent's title", () => {
+    expect(stepOf(tool("acp_other", { title: "tenon_list_agents" }))).toEqual({
+      kind: "other",
+      target: "tenon_list_agents",
+    })
+    expect(stepOf(tool("unknown_tool", {}))).toEqual({ kind: "other", target: "unknown_tool" })
+  })
+})
+
 describe("summarizeTurn", () => {
   test("counts tool parts only", () => {
     const text = { id: "t", type: "text", text: "hi" } as unknown as Part

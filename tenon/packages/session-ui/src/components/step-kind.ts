@@ -86,7 +86,7 @@ const VERBS: Record<StepKind, string> = {
   skill: "secondBrain.step.loadedSkill",
   subagent: "ui.tool.agent.default",
   todo: "ui.tool.todos",
-  question: "ui.tool.questions",
+  question: "secondBrain.step.asked",
   other: "secondBrain.step.called",
 }
 
@@ -96,12 +96,14 @@ export function stepOf(part: ToolPart, options?: Options): Step {
 
 /** `stepOf` for callers that hold a tool name and input rather than a part. */
 export function toolStep(tool: string, input: Record<string, unknown> | undefined, options?: Options): Step {
-  const kind = KINDS[tool]
+  // An ACP agent reports Tenon's `ask_user` (and its own question tools) under a generic kind; the questions mark it.
+  const kind = KINDS[tool] ?? (Array.isArray(input?.questions) ? "question" : undefined)
   if (kind) return withTarget(kind, targetOf(kind, input ?? {}))
   // MCP tools are named `sanitize(server) + "_" + tool` (tenon/src/mcp/catalog.ts), so match on the sanitized name.
   const server = options?.mcpServers?.find((name) => tool.startsWith(`${sanitize(name)}_`))
   if (server) return { kind: "mcp", target: `${server} · ${tool.slice(sanitize(server).length + 1)}` }
-  return { kind: "other", target: tool }
+  // Other ACP tools arrive as `acp_<kind>`; the agent's title names the actual tool.
+  return { kind: "other", target: (tool.startsWith("acp_") ? text(input?.title) : undefined) ?? tool }
 }
 
 /** i18n key for a step's verb, e.g. "Read", "Ran" or "Running". */
@@ -114,6 +116,7 @@ const RUNNING_VERBS: Partial<Record<StepKind, string>> = {
   fetch: "secondBrain.step.fetching",
   mcp: "secondBrain.step.calling",
   skill: "secondBrain.step.loadingSkill",
+  question: "secondBrain.step.asking",
   other: "secondBrain.step.calling",
 }
 
@@ -163,6 +166,10 @@ function targetOf(kind: StepKind, input: Record<string, unknown>) {
   }
   if (kind === "skill") return text(input.name)
   if (kind === "subagent") return text(input.description)
+  if (kind === "question" && Array.isArray(input.questions)) {
+    const first: unknown = input.questions[0]
+    return typeof first === "object" && first !== null && "question" in first ? text(first.question) : undefined
+  }
   return undefined
 }
 

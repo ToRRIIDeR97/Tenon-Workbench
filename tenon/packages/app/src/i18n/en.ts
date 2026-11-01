@@ -654,6 +654,8 @@ export const dict = {
   "secondBrain.turnSteps.worked": "Worked {{duration}}",
   "secondBrain.turnSteps.workedNoDuration": "Worked",
   "secondBrain.turnSteps.workingFor": "Working {{duration}}",
+  "secondBrain.turnSteps.thinking": "Thinking",
+  "secondBrain.turnSteps.thought": "Thought",
   "secondBrain.turnSteps.laneSteps.one": "{{count}} step",
   "secondBrain.turnSteps.laneSteps.other": "{{count}} steps",
   "secondBrain.turnSteps.failed.one": "{{count}} step failed",

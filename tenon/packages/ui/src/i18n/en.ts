@@ -171,6 +171,8 @@ export const dict: Record<string, string> = {
   "secondBrain.step.running": "Running",
   "secondBrain.step.fetched": "Fetched",
   "secondBrain.step.called": "Called",
+  "secondBrain.step.asked": "Asked",
+  "secondBrain.step.asking": "Asking",
   "secondBrain.step.loadedSkill": "Loaded skill",
   "secondBrain.step.thought": "Thought",
   "secondBrain.step.reading": "Reading",

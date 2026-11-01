@@ -345,7 +345,8 @@ export function MessageTimeline(props: {
     status: sessionStatus,
     showReasoningSummaries: settings.general.showReasoningSummaries,
     inlineComments: () => true,
-    folded: (row) => !turnStepsOpen(row),
+    // The TurnSteps card draws its own steps when open, so the step rows never show in the list.
+    folded: () => true,
   })
   const activeMessageID = projection.activeMessageID
   const assistantMessagesByParent = projection.assistantMessagesByParent
@@ -1101,7 +1102,7 @@ export function MessageTimeline(props: {
       case "TurnSteps": {
         const turnStepsRow = row as Accessor<TimelineRowByTag<"TurnSteps">>
         const parts = createMemo(() =>
-          turnStepsRow().tools.flatMap((ref) => {
+          turnStepsRow().steps.flatMap((ref) => {
             const part = getMsgPart(ref.messageID, ref.partID)
             return part ? [part] : []
           }),

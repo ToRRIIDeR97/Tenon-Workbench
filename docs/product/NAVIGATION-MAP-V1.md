@@ -240,7 +240,9 @@ folder as a workspace and selects it) and `tenon://new-session?directory=<path>&
   its tool and reasoning steps into one "Worked {duration}" row. The row stays
   open when a step failed. While the turn runs, the row shows a live ticker:
   the current step with a spinner and timer, the two steps before it, and
-  "Show all" to open the full list. The
+  "Show all" to open the full list. While the agent reasons, the current step
+  reads "Thinking" with the topic it's on, which slides in as the topic
+  changes. The
   side panel has **Review** and **Session** tabs, plus open files. Session
   replaced the Context tab and follows the Thread board's design: four tiles
   (tokens, context used, messages, harness), a context breakdown bar (system,

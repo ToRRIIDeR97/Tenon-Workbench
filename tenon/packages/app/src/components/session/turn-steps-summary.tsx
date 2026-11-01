@@ -1,5 +1,6 @@
 import { For, Index, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js"
-import type { Part, ToolPart } from "@opencode-ai/sdk/v2"
+import { createStore } from "solid-js/store"
+import type { Part, ReasoningPart, ToolPart } from "@opencode-ai/sdk/v2"
 import { Icon } from "@tenon/ui/v2/icon"
 import { LoaderV2 } from "@tenon/ui/v2/loader-v2"
 import { Icon as StepIcon } from "@tenon/ui/icon"
@@ -12,6 +13,8 @@ import {
   type StepKind,
   type TurnSteps,
 } from "@tenon/session-ui/step-kind"
+import { readPartText } from "@tenon/session-ui/message-part-text"
+import { useData } from "@tenon/session-ui/context"
 import { useLanguage } from "@/context/language"
 import "./turn-steps-summary.css"
 
@@ -48,11 +51,67 @@ function stepCountPhrase(language: ReturnType<typeof useLanguage>, kind: StepKin
 
 const isRunning = (part: ToolPart) => part.state.status === "pending" || part.state.status === "running"
 const isSubagent = (part: ToolPart) => stepOf(part).kind === "subagent"
+// Paths, patterns, commands and URLs read as code; a question or an agent's task reads as prose.
+const codeTarget = (kind: StepKind) =>
+  kind === "read" || kind === "search" || kind === "edit" || kind === "run" || kind === "fetch"
+const isThinking = (part: ReasoningPart) => part.time?.end === undefined
+const stepRunning = (part: ToolPart | ReasoningPart) => (part.type === "tool" ? isRunning(part) : isThinking(part))
 
-/** The step the ticker shows: the latest one still in progress, else the latest one. Subagents have lanes instead. */
+/**
+ * The step the ticker shows: the latest one still in progress, else the latest one. A reasoning part counts as a
+ * step, so the agent's thinking reads as a line in the card. Subagents have lanes instead.
+ */
 export function tickerStep(parts: readonly Part[]) {
-  const tools = parts.filter((part): part is ToolPart => part.type === "tool" && !isSubagent(part))
-  return tools.findLast(isRunning) ?? tools.at(-1)
+  const steps = parts.filter(
+    (part): part is ToolPart | ReasoningPart =>
+      (part.type === "tool" && !isSubagent(part)) || part.type === "reasoning",
+  )
+  return steps.findLast(stepRunning) ?? steps.at(-1)
+}
+
+/**
+ * What a reasoning summary is on now, for the ticker: its latest heading or bold title line, else the first
+ * sentence of its latest paragraph. Harnesses that send plain prose change topic paragraph by paragraph.
+ */
+export function reasoningTopic(text: string) {
+  const markdown = text.replace(/\r\n?/g, "\n")
+  const title = markdown
+    .split("\n")
+    .map((line) => line.trim())
+    .findLast((line) => /^#{1,6}\s+\S/.test(line) || /^\*\*[^*]+\*\*:?$/.test(line))
+  if (title) return plain(title)
+  const paragraph = markdown
+    .split(/\n\s*\n/)
+    .map((item) => item.trim())
+    .findLast(Boolean)
+  return paragraph ? plain(paragraph.split(/(?<=[.!?])\s+/)[0] ?? paragraph) : undefined
+}
+
+function plain(value: string) {
+  return (
+    value
+      .replace(/^#{1,6}\s+/, "")
+      .replace(/[*_`]/g, "")
+      .replace(/\s+/g, " ")
+      .replace(/:$/, "")
+      .trim() || undefined
+  )
+}
+
+/** What an open step row shows: the error, or a command with its output, or the tool's output. */
+export function toolDetail(part: ToolPart) {
+  const state = part.state
+  if (state.status === "error") return state.error
+  if (state.status !== "completed") return undefined
+  // Escape sequences from terminals; the row is plain text.
+  // oxlint-disable-next-line no-control-regex
+  const output = (state.output ?? "")
+    .replace(/\u001b\[[0-9;]*[A-Za-z]/g, "")
+    .trim()
+    .slice(0, 20_000)
+  const step = stepOf(part)
+  if (step.kind === "run" && step.target) return output ? `$ ${step.target}\n\n${output}` : `$ ${step.target}`
+  return output || undefined
 }
 
 export interface LaneStep {
@@ -111,9 +170,26 @@ export function TurnStepsSummary(props: {
   const summary = createMemo(() => summarizeTurn(props.parts))
   const counts = createMemo(() => stepCounts(summary().counts))
   const live = () => props.working && !props.open
-  const ticker = createMemo(() => (live() ? tickerStep(props.parts) : undefined))
+  const data = useData()
+  // A new value whenever the step or the reasoning topic changes, so the keyed ticker slides the new line in.
+  const ticker = createMemo(
+    () => {
+      const part = live() ? tickerStep(props.parts) : undefined
+      if (!part) return undefined
+      if (part.type === "tool") return { part }
+      return { part, topic: reasoningTopic(readPartText(data.store.part_text_accum_delta, part)) }
+    },
+    undefined,
+    { equals: (a, b) => a?.part === b?.part && a?.topic === b?.topic },
+  )
   // Finished lanes stay, with a full bar, until the turn ends so parallel subagents don't jump around.
   const lanes = createMemo(() => (live() ? subagentLanes(props.parts) : []))
+  // The body's rows mount on first open and stay, so closing animates instead of emptying at once.
+  const [body, setBody] = createStore({ mounted: props.open, expanded: {} as Record<string, boolean> })
+  createEffect(() => {
+    if (props.open) setBody("mounted", true)
+  })
+  const toggle = (id: string) => setBody("expanded", id, (value) => !value)
   // One clock drives the turn and step timers; it only ticks while the turn works.
   const [now, setNow] = createSignal(Date.now())
   createEffect(() => {
@@ -145,6 +221,13 @@ export function TurnStepsSummary(props: {
   }
   const openable = (part: ToolPart) => (part.tool === "acp_subagent" ? props.onOpenSubagent : undefined)
   const startOf = (part: ToolPart) => (part.state.status === "running" ? part.state.time.start : undefined)
+  // Finished steps show how long they took, from a second up.
+  const tookOf = (part: ToolPart) => {
+    const state = part.state
+    if (state.status !== "completed" && state.status !== "error") return undefined
+    const ms = state.time.end - state.time.start
+    return ms >= 1000 ? formatTurnDuration(language, ms) : undefined
+  }
 
   return (
     <div data-slot="turn-steps" class="flex w-full min-w-0 flex-col rounded-[16px] bg-v2-background-bg-layer-01">
@@ -200,25 +283,65 @@ export function TurnStepsSummary(props: {
         <div class="flex flex-col gap-2 px-3 pb-2.5 text-[13px] leading-5">
           {/* One line, fixed height: a new step replaces the old one instead of pushing rows below it. */}
           <Show when={ticker()} keyed>
-            {(part) => (
+            {(item) => (
               <div data-slot="turn-steps-ticker" aria-live="polite" class="h-5 overflow-hidden">
-                <div
-                  data-slot="turn-steps-ticker-step"
-                  data-running={isRunning(part) ? "" : undefined}
-                  class="flex min-w-0 items-center gap-2 text-v2-text-text-base"
+                <Show
+                  when={item.part.type === "tool" ? item.part : undefined}
+                  fallback={
+                    <Show when={item.part.type === "reasoning" ? item.part : undefined}>
+                      {(part) => (
+                        <div
+                          data-slot="turn-steps-ticker-step"
+                          data-running={isThinking(part()) ? "" : undefined}
+                          class="flex min-w-0 items-center gap-2 text-v2-text-text-base"
+                        >
+                          <StepIcon name="brain" size="small" class="shrink-0 text-v2-text-text-muted" />
+                          <span class="shrink-0 [font-weight:500]">
+                            {language.t(
+                              isThinking(part()) ? "secondBrain.turnSteps.thinking" : "secondBrain.turnSteps.thought",
+                            )}
+                          </span>
+                          <Show when={item.topic}>
+                            {(topic) => <span class="min-w-0 truncate text-v2-text-text-muted">{topic()}</span>}
+                          </Show>
+                          <span class="flex-1" />
+                          <Show when={isThinking(part()) && elapsed(part().time?.start)}>
+                            {(time) => <span class="shrink-0 tabular-nums text-v2-text-text-muted">{time()}</span>}
+                          </Show>
+                        </div>
+                      )}
+                    </Show>
+                  }
                 >
-                  <StepIcon name={stepIcon(stepOf(part).kind)} size="small" class="shrink-0 text-v2-text-text-muted" />
-                  <span class="shrink-0 [font-weight:500]">{label(part)}</span>
-                  <Show when={stepOf(part).target}>
-                    {(target) => (
-                      <span class="min-w-0 truncate font-mono text-[12px] text-v2-text-text-muted">{target()}</span>
-                    )}
-                  </Show>
-                  <span class="flex-1" />
-                  <Show when={isRunning(part) && elapsed(startOf(part))}>
-                    {(time) => <span class="shrink-0 tabular-nums text-v2-text-text-muted">{time()}</span>}
-                  </Show>
-                </div>
+                  {(part) => (
+                    <div
+                      data-slot="turn-steps-ticker-step"
+                      data-running={isRunning(part()) ? "" : undefined}
+                      class="flex min-w-0 items-center gap-2 text-v2-text-text-base"
+                    >
+                      <StepIcon
+                        name={stepIcon(stepOf(part()).kind)}
+                        size="small"
+                        class="shrink-0 text-v2-text-text-muted"
+                      />
+                      <span class="shrink-0 [font-weight:500]">{label(part())}</span>
+                      <Show when={stepOf(part()).target}>
+                        {(target) => (
+                          <span
+                            class="min-w-0 truncate text-v2-text-text-muted"
+                            classList={{ "font-mono text-[12px]": codeTarget(stepOf(part()).kind) }}
+                          >
+                            {target()}
+                          </span>
+                        )}
+                      </Show>
+                      <span class="flex-1" />
+                      <Show when={isRunning(part()) && elapsed(startOf(part()))}>
+                        {(time) => <span class="shrink-0 tabular-nums text-v2-text-text-muted">{time()}</span>}
+                      </Show>
+                    </div>
+                  )}
+                </Show>
               </div>
             )}
           </Show>
@@ -297,6 +420,128 @@ export function TurnStepsSummary(props: {
           </Index>
         </div>
       </Show>
+      {/* Open: every step on the card's own surface. Tools are filled rows that open to their output; reasoning is a
+          one-line note that opens to its full text. */}
+      <div data-slot="turn-steps-body" data-open={props.open ? "" : undefined} aria-hidden={!props.open}>
+        <div>
+          <Show when={body.mounted}>
+            <div data-slot="turn-steps-rows" class="flex flex-col gap-1 px-2 pb-2">
+              <For each={props.parts}>
+                {(part) => (
+                  <>
+                    <Show when={part.type === "tool" ? part : undefined}>
+                      {(tool) => {
+                        const detail = createMemo(() => toolDetail(tool()))
+                        const open = () => !!body.expanded[tool().id]
+                        const step = () => stepOf(tool())
+                        return (
+                          <div class="flex min-w-0 flex-col">
+                            <button
+                              type="button"
+                              data-slot="turn-steps-row"
+                              tabIndex={props.open ? 0 : -1}
+                              aria-expanded={detail() ? open() : undefined}
+                              class="flex min-h-8 w-full min-w-0 items-center gap-2 rounded-[12px] bg-v2-background-bg-layer-02 px-2.5 py-1.5 text-left text-[13px] leading-5 text-v2-text-text-base transition-colors hover:bg-v2-background-bg-layer-03 focus-visible:outline focus-visible:outline-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
+                              onClick={() => {
+                                const opener = openable(tool())
+                                if (opener) return opener(tool())
+                                if (detail()) toggle(tool().id)
+                              }}
+                            >
+                              <StepIcon
+                                name={stepIcon(step().kind)}
+                                size="small"
+                                class="shrink-0 text-v2-text-text-muted"
+                              />
+                              <span
+                                class="shrink-0 [font-weight:500]"
+                                classList={{ "text-v2-text-text-critical": tool().state.status === "error" }}
+                              >
+                                {label(tool())}
+                              </span>
+                              <Show when={step().target}>
+                                {(target) => (
+                                  <span
+                                    class="min-w-0 truncate text-v2-text-text-muted"
+                                    classList={{ "font-mono text-[12px]": codeTarget(step().kind) }}
+                                  >
+                                    {target()}
+                                  </span>
+                                )}
+                              </Show>
+                              <span class="flex-1" />
+                              <Show when={isRunning(tool())}>
+                                <LoaderV2 width={12} height={12} class="shrink-0 text-v2-icon-icon-accent" />
+                              </Show>
+                              <Show when={tookOf(tool())}>
+                                {(took) => (
+                                  <span class="shrink-0 tabular-nums text-[12px] text-v2-text-text-muted">
+                                    {took()}
+                                  </span>
+                                )}
+                              </Show>
+                              <Show when={detail() || openable(tool())}>
+                                <Icon
+                                  name="chevron-right"
+                                  size="small"
+                                  class="shrink-0 text-v2-text-text-muted transition-transform motion-reduce:transition-none"
+                                  classList={{ "rotate-90 rtl:-rotate-90": open() }}
+                                />
+                              </Show>
+                            </button>
+                            <Show when={open() ? detail() : undefined}>
+                              {(text) => (
+                                <pre class="mt-1 max-h-60 overflow-auto whitespace-pre-wrap break-words rounded-[10px] bg-v2-background-bg-base px-3 py-2 font-mono text-[12px] leading-[18px] text-v2-text-text-muted">
+                                  {text()}
+                                </pre>
+                              )}
+                            </Show>
+                          </div>
+                        )
+                      }}
+                    </Show>
+                    <Show when={part.type === "reasoning" ? part : undefined}>
+                      {(note) => {
+                        const text = () => readPartText(data.store.part_text_accum_delta, note())
+                        const open = () => !!body.expanded[note().id]
+                        return (
+                          <Show when={text()}>
+                            <div
+                              data-slot="turn-steps-note"
+                              role="button"
+                              tabIndex={props.open ? 0 : -1}
+                              aria-expanded={open()}
+                              class="flex w-full min-w-0 cursor-pointer items-start gap-2 rounded-[12px] px-2.5 py-1 text-[13px] leading-5 text-v2-text-text-muted transition-colors select-text hover:bg-v2-background-bg-layer-02 focus-visible:outline focus-visible:outline-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
+                              onClick={() => {
+                                // Selecting text to copy it shouldn't fold the note.
+                                if (window.getSelection()?.toString()) return
+                                toggle(note().id)
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key !== "Enter" && event.key !== " ") return
+                                event.preventDefault()
+                                toggle(note().id)
+                              }}
+                            >
+                              <StepIcon name="brain" size="small" class="mt-0.5 shrink-0" />
+                              <span
+                                class="min-w-0 flex-1"
+                                classList={{ truncate: !open(), "whitespace-pre-wrap break-words": open() }}
+                              >
+                                {open() ? text() : text().replace(/\s+/g, " ")}
+                              </span>
+                            </div>
+                          </Show>
+                        )
+                      }}
+                    </Show>
+                  </>
+                )}
+              </For>
+            </div>
+          </Show>
+        </div>
+      </div>
     </div>
   )
 }

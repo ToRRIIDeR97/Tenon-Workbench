@@ -692,11 +692,25 @@ answer that delegation is turned off.
 - `core/src/harness/ask-user.ts` keeps one open question per runtime. Each
   Codex and ACP runtime in `core/src/harness.ts` makes its own asker and hands
   its `ask` to `HarnessDelegation.endpoint`. The asker calls `QuestionV2.ask`
-  with its own ID, which publishes `question.v2.asked`; the dock
+  with its own ID, which publishes `question.v2.asked`. `EventV2.publish`
+  takes the event's location from the calling fiber, and the MCP handler and
+  the turn's stream finalizer have none, so the runtime builds the asker with
+  the harness layer's `Location` provided and the asker runs `ask` and its
+  withdrawals in that captured context. The approval callbacks get the same
+  `Location`. The app's global event stream (`adaptLegacyServerEvent` in
+  `app/src/context/server-sdk.tsx`) renames `question.v2.*` and
+  `permission.v2.*` to the V1 names the stores read; before that, these
+  requests only appeared after a reload. The dock
   (`app/src/pages/session/composer/session-question-dock.tsx`) replaces the
   composer until the user answers or dismisses it, or the question is withdrawn.
-- A call waits up to 240 s (below Node fetch's 300 s header timeout). If the
-  user hasn't answered, it returns a "still open" text; calling again with the
+- A call waits up to 240 s (below Node fetch's 300 s header timeout) for Codex,
+  OpenCode and Claude Code, whose MCP call timeout is long enough: Codex gets
+  `tool_timeout_sec=660`, and the OpenCode harness gets
+  `experimental.mcp_timeout: 660000` in its `OPENCODE_CONFIG_CONTENT` launch
+  config (`HarnessSetup.openCodeLaunchEnv`) unless the user's global OpenCode
+  config sets one; its default is 60 s. An ACP agent the user added waits at
+  most 50 s, below the MCP SDK's 60 s default. If the user hasn't answered, it
+  returns a "still open" text; calling again with the
   same questions in the same turn keeps waiting without asking twice, and an
   answer given in between is returned at once. A call with different questions
   withdraws the old one (`QuestionV2.reject(id)`), and so does closing the
@@ -713,6 +727,16 @@ answer that delegation is turned off.
 - The result text matches the native tool's (`QuestionTool.toModelOutput`).
   A dismissal tells the agent to continue with its best judgement or ask in
   chat.
+- ACP agents can also ask with their own tool. Tenon's ACP client advertises
+  `elicitation.form` and answers `elicitation/create` (`AcpHarness.elicit`):
+  each field of the form's `requestedSchema` becomes one dock question
+  (`oneOf`/`enum` choices as options, `anyOf` items as a multi-select, booleans
+  as Yes/No), and a `<field>_custom` string companion takes typed answers.
+  Claude Code's adapter sends its built-in AskUserQuestion this way. The
+  question goes through the same asker, so the turn end withdraws it; a
+  dismissal answers `decline`, and url-mode requests are declined. Codex's
+  `item/tool/requestUserInput` reaches the dock the same way through
+  `handleCodexRequest`.
 - The dock shows "<harness> is asking" for the built-in harnesses, picks an
   option with 1–9 and dismisses with Esc. In a single-choice question Enter
   takes the focused option and moves on or submits. In a multi-select question
@@ -1403,6 +1427,21 @@ in-progress step (spinner, present-tense verb from `stepVerbKey`, target and
 its own timer) and the two steps before it (`tickerSteps`), plus "Show all N",
 which opens the turn. The ticker has a fixed height, so steps starting and
 finishing don't move the rows below; one 1-second clock drives both timers.
+The header row's `steps` carries the turn's reasoning parts as well as its
+tools, so reasoning is a ticker step too: "Thinking" with a timer while the
+part has no `time.end`, then "Thought", followed by `reasoningTopic` (the
+latest markdown heading or bold title line, else the first sentence of the
+latest paragraph, read from the streaming text). A new topic slides in like a
+new step. `summarizeTurn` still counts tools only.
+Opened, the card draws the steps itself: the projection's `folded` always
+hides the step rows, and `TurnStepsSummary` renders the header row's `steps`
+in its own body. Each tool is a full-width tonal row (icon, verb from
+`stepVerbKey`, target, duration) that opens to `toolDetail` (the error, or a
+command with its output); a subagent row opens its tab. A reasoning part is a
+one-line note that opens to its full text. The body grows with a `0fr` to
+`1fr` grid-row transition (`turn-steps-summary.css`) and its rows mount on
+first open. `stepOf` names an ACP tool without a kind by its `questions`
+input ("Asked" and the first question) or else by the agent's title.
 
 The side panel's Session tab (`components/session/session-context-tab.tsx`,
 which replaced the Context tab) sums usage over every assistant message of the
