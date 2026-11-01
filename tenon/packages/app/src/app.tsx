@@ -20,12 +20,14 @@ import {
   createSignal,
   ErrorBoundary,
   For,
+  type ComponentProps,
   type JSX,
   lazy,
   onCleanup,
   onMount,
   type ParentProps,
   Show,
+  Suspense,
 } from "solid-js"
 import { Dynamic } from "solid-js/web"
 import { CommandProvider, useCommand, type CommandOption } from "@/context/command"
@@ -56,7 +58,15 @@ import { requireServerKey, sessionHref } from "./utils/session-route"
 import { decode64 } from "./utils/base64"
 
 // File viewers pull in the diff renderer and shiki; only session views render them.
-const File = lazy(() => import("@tenon/session-ui/file").then((module) => ({ default: module.File })))
+const loadFile = () => import("@tenon/session-ui/file")
+const LazyFile = lazy(() => loadFile().then((module) => ({ default: module.File })))
+// Its own boundary: the first file view to load must not suspend the page around it, which
+// detaches the session timeline for a frame and resets its scroll position.
+const File = (props: ComponentProps<typeof LazyFile>) => (
+  <Suspense>
+    <LazyFile {...props} />
+  </Suspense>
+)
 // The session page (timeline, review, terminal, composer) is the largest route. It loads on
 // demand and is prefetched once the app is idle, so the shell paints without it.
 const loadSessionPage = () => import("@/pages/session")
@@ -64,7 +74,7 @@ const TargetSessionRouteContent = lazy(() =>
   loadSessionPage().then((module) => ({ default: module.TargetSessionRouteContent })),
 )
 function prefetchSessionPage() {
-  const run = () => void loadSessionPage().catch(() => {})
+  const run = () => void Promise.all([loadSessionPage(), loadFile()]).catch(() => {})
   if (typeof requestIdleCallback === "function") requestIdleCallback(run, { timeout: 3000 })
   else setTimeout(run, 1500)
 }

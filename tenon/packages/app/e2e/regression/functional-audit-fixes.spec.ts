@@ -213,9 +213,7 @@ test("Home opens the selected event, task and project; Today resets the displaye
   await page.getByRole("button", { name: /Audit Task/ }).click()
   await expect(page.getByRole("textbox", { name: "Task name" })).toHaveValue("Audit Task")
   await page.getByRole("button", { name: "Home", exact: true }).click()
-  // Wait for Home's page transition to finish. After the calendar steps above, a click during Home's
-  // fade-in changed the URL to /projects but left Home on screen (an app bug, tracked separately).
-  await expect(page.locator('main > [data-component="view-switch-v2"]')).toHaveAttribute("data-phase", "idle")
+  // Regression: clicking during Home's fade-in once changed the URL to /projects but left Home on screen.
   // Home's Active Projects card (the sidebar lists the same Project by name only).
   await page.getByRole("button", { name: "Audit Project 25%", exact: true }).click()
   await expect(page.getByText("An editable outcome", { exact: true })).toBeVisible()

@@ -315,10 +315,9 @@ test.describe("smoke: session timeline", () => {
     await openTargetAtHistoryStart(page)
   })
 
-  // Known bug: toggling an older turn's steps after scrolling to the start of history snaps the
-  // timeline back to the bottom, unmounting that turn (scrollTop 0 -> end after the click). It happens
-  // with real wheel input too. Remove fixme once the jump is fixed.
-  test.fixme("expands an older turn's steps without jumping to the bottom", async ({ page }) => {
+  // Regression: the first expanded step to render a file view used to load the lazy viewer under the
+  // page-level Suspense, which detached the timeline for a frame and snapped it back to the bottom.
+  test("expands an older turn's steps without jumping to the bottom", async ({ page }) => {
     await openTargetAtHistoryStart(page)
     await page
       .locator(`[data-timeline-row="TurnSteps"][data-message-id="${fixture.expected.expandedShellTurnID}"] button`)
