@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import fs from "node:fs"
 import path from "node:path"
 
-const packages = path.resolve(import.meta.dir, "../../../../opencode/packages")
+const packages = path.resolve(import.meta.dir, "../../../../tenon/packages")
 const theme = fs.readFileSync(path.join(packages, "ui/src/styles/tailwind/index.css"), "utf8")
 
 // Tailwind's built-in animation utilities. The theme resets `--*`, so each one needs its token back.

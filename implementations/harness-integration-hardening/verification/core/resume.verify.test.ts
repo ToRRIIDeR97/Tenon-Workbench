@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { Effect } from "effect"
-import { openCodexThread } from "../../../../opencode/packages/core/src/harness"
-import { ProtocolError } from "../../../../opencode/packages/core/src/harness/codex-app-server"
+import { openCodexThread } from "../../../../tenon/packages/core/src/harness"
+import { ProtocolError } from "../../../../tenon/packages/core/src/harness/codex-app-server"
 
 describe("verify AC-4 Codex thread setup", () => {
   test("without a continuation only thread/start is requested", async () => {

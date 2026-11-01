@@ -59,7 +59,7 @@
 
 <rect class="bg" x="0" y="0" width="1080" height="870"/>
 <text x="20" y="28" text-anchor="start" class="h">Class view</text>
-<text x="20" y="46" text-anchor="start" class="s">UML 2.5.1 class diagram · filled diamond = composition · schema/src, core/src, opencode/src · fields abridged</text>
+<text x="20" y="46" text-anchor="start" class="s">UML 2.5.1 class diagram · filled diamond = composition · schema/src, core/src, tenon/src · fields abridged</text>
 <rect class="box" x="20" y="84" width="230" height="95" rx="3"/>
 <text x="135.0" y="102" text-anchor="middle" class="s">«core table»</text>
 <text x="135.0" y="116" text-anchor="middle" class="t">Project</text>

@@ -2,7 +2,7 @@
 
 - Status: accepted, partially superseded by ADR-010
 - Status note: Managed Codex sessions still run through Codex App Server
-  (`opencode/packages/core/src/harness.ts`). Session history now lives in
+  (`tenon/packages/core/src/harness.ts`). Session history now lives in
   OpenCode's own session store (`opencode.db`) rather than a local mirror, and
   there is no separate visible Codex terminal mode.
 - Date: 2026-07-27

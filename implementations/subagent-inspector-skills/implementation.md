@@ -32,13 +32,13 @@ harness · 14 hits", then "Found 3 call sites"; Context 41k / 200k (21%); Usage
 
 ![Implementation detail: data path from ACP notification to agent tab, and skills catalog assembly](diagrams/detail.svg)
 
-Paths below are under `opencode/packages/`.
+Paths below are under `tenon/packages/`.
 
 - Spinner: `app/src/components/session/turn-steps-summary.tsx:263-270` uses
   `animate-spin`; `ui/src/styles/tailwind/index.css` resets the theme with
   `--*: initial` and restores only `--animate-pulse`. `ui/src/v2/components/loader-v2.tsx`
   has its own keyframes and reduced-motion rule.
-- Titles: only the legacy loop titles sessions (`opencode/src/session/prompt.ts:193-253`).
+- Titles: only the legacy loop titles sessions (`tenon/src/session/prompt.ts:193-253`).
   Harness prompts and all V2 prompts run in `core/src/session/runner/llm.ts`
   (unticked title item at `:97`). The `title` agent exists in
   `core/src/plugin/agent.ts:39,188`. Renames are stored by publishing
@@ -195,11 +195,11 @@ All commands run from the repository root unless noted. Test sets need
 
 ```sh
 P=Implementations/subagent-inspector-skills
-for s in acceptance verification; do for k in core app; do [ -d $P/$s/$k ] && ln -sfn ../../../../opencode/packages/$k/node_modules $P/$s/$k/node_modules; done; done
+for s in acceptance verification; do for k in core app; do [ -d $P/$s/$k ] && ln -sfn ../../../../tenon/packages/$k/node_modules $P/$s/$k/node_modules; done; done
 ```
 
-Core set: `cd opencode/packages/core && bun test ../../../Implementations/subagent-inspector-skills/<set>/core/<file>`
-App set: `cd opencode/packages/app && bun test --conditions=solid --preload ./happydom.ts ../../../Implementations/subagent-inspector-skills/<set>/app/<file>`
+Core set: `cd tenon/packages/core && bun test ../../../Implementations/subagent-inspector-skills/<set>/core/<file>`
+App set: `cd tenon/packages/app && bun test --conditions=solid --preload ./happydom.ts ../../../Implementations/subagent-inspector-skills/<set>/app/<file>`
 
 | ID | Outcome | Criteria | Edit scope | Depends on | Acceptance | Verification |
 |---|---|---|---|---|---|---|
@@ -288,7 +288,7 @@ intermittent Bun SIGTRAP crash that didn't recur. `test:second-brain` 34 pass.
   `available_commands_update`.
 - ~~The Codex and OpenCode skill folder lists against those tools' docs.~~
   Checked in the follow-up; see the revised AC-10.
-- ~~The timeline benchmark baseline asked for in `opencode/packages/app/AGENTS.md`.~~
+- ~~The timeline benchmark baseline asked for in `tenon/packages/app/AGENTS.md`.~~
   Recorded in the follow-up; see "Timeline benchmark" below.
 
 ### Timeline benchmark (follow-up, 2026-10-22)

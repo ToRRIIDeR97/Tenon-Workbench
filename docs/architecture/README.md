@@ -21,9 +21,9 @@ and a coverage index are in [the UML architecture views](uml.md).
   and starts the managed server in a utility process on loopback with a
   generated password.
 - The Solid renderer owns the desktop UI, including Brain, notes, projects,
-  and calendar pages in `opencode/packages/app/src/pages/`.
+  and calendar pages in `tenon/packages/app/src/pages/`.
 - The OpenCode server owns sessions, workspace routing, and Second Brain HTTP
-  handlers. `packages/opencode` mounts the native `/api` routes from
+  handlers. `packages/tenon` mounts the native `/api` routes from
   `packages/server` (contracts in `packages/protocol`) next to its legacy
   instance routes; the session and harness runtime lives in `packages/core`. Notes and project records use workspace files through the location
   and file mutation services; calendar data is stored in `.tenon/calendar-v1.json`. The first calendar
@@ -40,7 +40,7 @@ Brain files through the server's location services. See
 
 ## Product entry points and persistence
 
-`opencode/packages/app/src/app.tsx` owns routing: `/`, `/notes`,
+`tenon/packages/app/src/app.tsx` owns routing: `/`, `/notes`,
 `/calendar`, `/activity`, `/projects`, `/projects/overview` (every Project's
 notes and milestones, grouped by `features/second-brain/project-overview.ts`), the draft route
 `/new-thread?project=<id>&draftId=<id>` and server-scoped threads at
@@ -77,20 +77,20 @@ rule sets a different `animation-name`, so each has its own exit keyframes;
 SelectV2 menus enter with short + emphasized-decelerate and close at once: an
 exit would keep the menu mounted, so a selection or dismissal would wait on it.
 Three helpers in `packages/ui/src/v2/components/` cover in-page motion:
-`Reveal` (`@opencode-ai/ui/v2/reveal`; `open`, `class`, `onTransitionEnd`)
+`Reveal` (`@tenon/ui/v2/reveal`; `open`, `class`, `onTransitionEnd`)
 expands and collapses through grid rows and opacity, keeps its children while
 closing and unmounts them once closed (`inert` and `aria-hidden` meanwhile).
 Its grid and clip apply only while it moves (`data-phase` `opening` or
 `closing`); settled open it is a plain `flow-root` block and closed it is
 `display: none`, so a settled `Reveal` adds no layout work to each reflow;
-`Presence` (`@opencode-ai/ui/v2/presence`; `when`, `enterClass`, `exitClass`,
+`Presence` (`@tenon/ui/v2/presence`; `when`, `enterClass`, `exitClass`,
 `class`) keeps a wrapper `div` mounted through its exit animation with
 `solid-presence`, defaulting to `animate-enter` / `animate-exit`; `ViewSwitch`
-(`@opencode-ai/ui/v2/view-switch`; `key`, `class`) fades the outgoing view out
+(`@tenon/ui/v2/view-switch`; `key`, `class`) fades the outgoing view out
 and the incoming one in when `key` changes, rendering one view at a time.
-`@opencode-ai/ui/v2/motion` exposes `prefersReducedMotion()` and
+`@tenon/ui/v2/motion` exposes `prefersReducedMotion()` and
 `motionDuration()` for JS that times work against these animations, and
-`useSpring` (`@opencode-ai/ui/motion-spring`) jumps to its target under reduced
+`useSpring` (`@tenon/ui/motion-spring`) jumps to its target under reduced
 motion. Hand-rolled popups (not Kobalte) use `animate-menu-enter` /
 `animate-menu-exit` (the MenuV2 scale and fade) inside a `Presence`. The pill and
 settings `TabsV2` variants slide one selection indicator between tabs; the
@@ -180,18 +180,18 @@ state alive across route changes; it replaced the tab store.
 
 | Data                       | Owner and persistence                                                                                                 |
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Notes                      | `packages/opencode/src/knowledge/note.ts`; workspace Markdown files                                                   |
-| Project records            | `packages/opencode/src/project/brain.ts`; workspace `.tenon/projects/<id>/` Markdown cards (legacy `projects/<id>/`)   |
+| Notes                      | `packages/tenon/src/knowledge/note.ts`; workspace Markdown files                                                   |
+| Project records            | `packages/tenon/src/project/brain.ts`; workspace `.tenon/projects/<id>/` Markdown cards (legacy `projects/<id>/`)   |
 | Workspace manifest         | `brain.ts`; workspace `.tenon/workspace.json` (linked project folders)                                                |
 | Linked-folder index        | `brain.ts` writes, `core/src/workspace-instructions.ts` reads; `workspace-links.json` in the data folder; rebuilt by a scan; the first workspace to link a folder keeps it |
 | Project thread directories | Derived, not stored: the card's `location.path` folder (inside the workspace, or a checked linked folder), else a linked Workspace worktree, else the card folder; thread counts read from `opencode.db` |
-| Local events and tasks     | Second Brain HTTP handler and `packages/opencode/src/planner/calendar.ts`; workspace `.tenon/calendar-v1.json` |
+| Local events and tasks     | Second Brain HTTP handler and `packages/tenon/src/planner/calendar.ts`; workspace `.tenon/calendar-v1.json` |
 | Sessions and runtime state | `packages/core/src/database/` and runtime session services; `opencode.db` in `$XDG_DATA_HOME/tenon-workbench`            |
 | Unsent desktop drafts      | `packages/desktop/src/main/draft-store.ts`; profile `drafts.sqlite`                                                   |
 | Draft list, sidebar state  | `packages/app/src/context/drafts.tsx`, `components/sidebar/sidebar-controller.ts`; per-window `drafts` and `sidebar` keys |
 | Google connections         | `packages/desktop/src/main/google-calendar.ts`; an account list with encrypted credentials in the desktop profile; see [Google accounts](#google-accounts) |
 
-Package paths in this table are relative to `opencode/`. Workspace files are
+Package paths in this table are relative to `tenon/`. Workspace files are
 the source of truth for notes, project records, and local planning. Do not
 assume the session or draft databases can be reconstructed from those files.
 
@@ -278,7 +278,7 @@ The Calendar page builds local IDs as
 `google:<accountId>:<calendarId>:<providerId>` and
 `google-task:<accountId>:<taskListId>:<providerId>`, and the workspace
 calendar file stores `accountId` on Google items
-(`packages/opencode/src/planner/calendar.ts`). Items saved before this change
+(`packages/tenon/src/planner/calendar.ts`). Items saved before this change
 carry no account; the page treats them as the first account's (the migrated
 one) until the next sync replaces them. The design options are recorded in
 [ADR-012](../adr/ADR-012-google-multi-account.md).
@@ -332,7 +332,7 @@ in the composer instead (`canSendOnOpen`).
    lives in `packages/app/src/utils/server-protocol.ts` and `server-compat.ts`.
 3. Workspace bootstrap loads configuration, initializes plugins, and then
    starts workspace services. Server readiness precedes this work. Startup
-   phase logs in `packages/opencode/src/project/bootstrap.ts` distinguish it
+   phase logs in `packages/tenon/src/project/bootstrap.ts` distinguish it
    from initial server launch.
 4. Notes, projects, and local calendar requests resolve the selected location
    before reading or mutating files. Google operations use the desktop bridge.
@@ -342,7 +342,7 @@ a UI bundled into its binary; without one, and for missing `/api` routes, it
 returns a local 404. There is no hosted UI proxy. The
 optional upstream CLI is a separate runtime from the fork's bundled server;
 see [release operations](../release-operations.md). The fork has no terminal
-UI. `packages/opencode/src/index.ts` is a headless developer CLI (`serve`,
+UI. `packages/tenon/src/index.ts` is a headless developer CLI (`serve`,
 `generate`, and inspection commands) that runs from source and isn't
 shipped.
 
@@ -655,7 +655,7 @@ options considered are in [ADR-011](../adr/ADR-011-cross-harness-delegation.md).
 - The built-in loop gets the same four tools natively (`core/src/tool/delegate.ts`).
   Starting or stopping a task there asks permission `delegate`.
 - `core/src/harness/delegation-tasks.ts` is mounted by the server next to its
-  routes (`opencode/src/server/routes/instance/httpapi/server.ts`). It runs
+  routes (`tenon/src/server/routes/instance/httpapi/server.ts`). It runs
   each task as a child Run: `SessionV2.create({ parentID, harnessInstanceID,
   harnessModel, location })` in the caller's location, then `prompt` with the
   task text and `resume`. The task ID is the child's session ID, and the

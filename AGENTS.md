@@ -2,7 +2,7 @@
 
 ## Architecture
 
-- Treat `opencode/` as the runtime base: OpenCode's Electron host, managed
+- Treat `tenon/` as the runtime base: OpenCode's Electron host, managed
   local server, and session runtime. The app shell and navigation (the
   sidebar, Projects and threads) are Second Brain's own.
 - The former Tauri application is retired. Keep its schema references and
@@ -43,9 +43,9 @@
 
 ## Project map
 
-- `opencode/` is the active product; root Tauri/Cargo/pnpm tooling is retired.
-  `opencode/AGENTS.md` holds the inherited code style and package rules.
-- Install with `bun install --frozen-lockfile` inside `opencode/` (Bun 1.3.14,
+- `tenon/` is the active product; root Tauri/Cargo/pnpm tooling is retired.
+  `tenon/AGENTS.md` holds the inherited code style and package rules.
+- Install with `bun install --frozen-lockfile` inside `tenon/` (Bun 1.3.14,
   Node.js 24). Start the desktop app with `bun run dev` from the repository root.
 - Product scope: [product brief](docs/product/PRODUCT-BRIEF-V1.md),
   [navigation map](docs/product/NAVIGATION-MAP-V1.md), glossary in `CONTEXT.md`.
@@ -61,7 +61,7 @@ Run from the repository root, locally, before requesting a merge. `bun run check
 runs these in order and stops at the first failure:
 
 ```sh
-bun run typecheck        # turbo typecheck of every opencode/ package
+bun run typecheck        # turbo typecheck of every tenon/ package
 bun run lint
 bun run check:generated  # generated client in packages/client is current
 bun run test             # turbo test of packages + Second Brain server tests
@@ -70,10 +70,10 @@ bun run build
 
 `bun run test` skips the engine packages (`core`, `opencode`) and, until their
 contract fixtures are updated, `client` and `schema`. Also run
-`bun run test:engine` when changing `opencode/packages/core` or
-`opencode/packages/opencode`, and `bun run test:routes` when changing
-navigation or routing. `bun install` inside `opencode/` also installs a git
-pre-push hook (`opencode/.husky/pre-push`) that runs typecheck and lint.
+`bun run test:engine` when changing `tenon/packages/core` or
+`tenon/packages/tenon`, and `bun run test:routes` when changing
+navigation or routing. `bun install` inside `tenon/` also installs a git
+pre-push hook (`tenon/.husky/pre-push`) that runs typecheck and lint.
 The CI workflow runs only on manual dispatch.
 
 ## Merging

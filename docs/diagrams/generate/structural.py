@@ -9,7 +9,7 @@ def component():
     s = SVG(980, 790, "Component view of Tenon Workbench",
             "UML component view: Solid renderer, preload bridge, Electron main, the bundled OpenCode server "
             "with HTTP API, Second Brain domains, location services and agent runtime, plus stores and external services.")
-    s.heading("Component view", "UML 2.5.1 component diagram · paths relative to opencode/packages/")
+    s.heading("Component view", "UML 2.5.1 component diagram · paths relative to tenon/packages/")
     # left column
     s.box(20, 70, 250, 160, "Solid renderer", ["app/src", "sidebar: Home, Notes, Calendar,", "Activity, Projects + threads",
           "ServerSDK + compat API (v1/v2)", "Second Brain client, drafts"], stereo="component")
@@ -19,10 +19,10 @@ def component():
     s.box(20, 590, 200, 60, "userData stores", ["drafts.sqlite, electron-store", "(second-brain.google)"], cls="store")
     # server container
     s.zone(340, 60, 360, 570, "OpenCode server «subsystem» · 127.0.0.1")
-    s.box(360, 90, 290, 104, "HTTP API", ["native /api: server + protocol pkgs", "legacy: opencode/src/server",
+    s.box(360, 90, 290, 104, "HTTP API", ["native /api: server + protocol pkgs", "legacy: tenon/src/server",
           "Basic auth, workspace routing", "→ domains and SessionV2"], cls="sub")
-    s.box(360, 215, 290, 104, "Second Brain domains", ["opencode/src/knowledge/note.ts", "opencode/src/project/brain.ts",
-          "opencode/src/planner/calendar.ts", "SecondBrainApi handlers"], cls="sub")
+    s.box(360, 215, 290, 104, "Second Brain domains", ["tenon/src/knowledge/note.ts", "tenon/src/project/brain.ts",
+          "tenon/src/planner/calendar.ts", "SecondBrainApi handlers"], cls="sub")
     s.box(360, 340, 290, 80, "Location services", ["core: LocationMutation, FileMutation", "path containment, CAS writes"], cls="sub")
     s.box(360, 440, 290, 170, "Agent runtime", ["core/src/session: SessionV2,", "SessionInput, SessionRunner",
           "core/src/harness.ts: HarnessRuntime", "drivers: opencode, codex, acp", "core/src/permission.ts: PermissionV2",
@@ -114,7 +114,7 @@ def deployment():
     s.zone(40, 100, 450, 300, "«executionEnvironment» Electron app")
     s.box(60, 130, 200, 86, "Main process", ["out/main/index.js", "io.github.torriider97.tenonworkbench"], stereo="process")
     s.box(270, 130, 200, 86, "Renderer process", ["oc://renderer/index.html", "out/preload/index.js"], stereo="process")
-    s.box(60, 240, 410, 70, "Utility process “opencode server”", ["virtual:opencode-server = opencode/dist/node/node.js",
+    s.box(60, 240, 410, 70, "Utility process “opencode server”", ["virtual:opencode-server = tenon/dist/node/node.js",
           "listens on 127.0.0.1:<ephemeral>"])
     s.box(60, 322, 200, 64, "Loopback listeners", ["OAuth 127.0.0.1:0, ≤5 min", "browser bridge 127.0.0.1:0"], cls="sub")
     s.box(270, 322, 200, 64, "opencode-cli daemon", ["opt-in v2, dev channel only"], cls="sub")

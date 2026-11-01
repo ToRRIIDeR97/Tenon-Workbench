@@ -76,7 +76,7 @@
 <text x="280" y="196" text-anchor="start" class="s">out/preload/index.js</text>
 <rect class="box" x="60" y="240" width="410" height="70" rx="6"/>
 <text x="70" y="258" text-anchor="start" class="t">Utility process “opencode server”</text>
-<text x="70" y="274" text-anchor="start" class="s">virtual:opencode-server = opencode/dist/node/node.js</text>
+<text x="70" y="274" text-anchor="start" class="s">virtual:opencode-server = tenon/dist/node/node.js</text>
 <text x="70" y="290" text-anchor="start" class="s">listens on 127.0.0.1:&lt;ephemeral&gt;</text>
 <rect class="sub" x="60" y="322" width="200" height="64" rx="6"/>
 <text x="70" y="340" text-anchor="start" class="t">Loopback listeners</text>

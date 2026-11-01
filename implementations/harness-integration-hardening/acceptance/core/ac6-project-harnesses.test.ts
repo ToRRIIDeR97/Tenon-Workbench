@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import { Schema } from "effect"
-import { configuredInstances, settingsEntries } from "../../../../opencode/packages/core/src/harness"
-import { ConfigHarness } from "../../../../opencode/packages/core/src/config/harness"
-import type { Config } from "../../../../opencode/packages/core/src/config"
+import { configuredInstances, settingsEntries } from "../../../../tenon/packages/core/src/harness"
+import { ConfigHarness } from "../../../../tenon/packages/core/src/config/harness"
+import type { Config } from "../../../../tenon/packages/core/src/config"
 
 const entry = Schema.decodeUnknownSync(ConfigHarness.Instance)
 const doc = (path: string, id: string) =>

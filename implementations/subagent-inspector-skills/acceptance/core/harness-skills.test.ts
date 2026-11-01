@@ -3,7 +3,7 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { Effect } from "effect"
-import { HarnessSkills } from "../../../../opencode/packages/core/src/harness/skills"
+import { HarnessSkills } from "../../../../tenon/packages/core/src/harness/skills"
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), "harness-skills-"))
 const home = path.join(root, "home")

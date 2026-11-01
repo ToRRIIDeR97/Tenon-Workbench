@@ -25,7 +25,7 @@ phase section.
 
 ## Scope
 
-All paths are under `opencode/packages/` unless noted.
+All paths are under `tenon/packages/` unless noted.
 
 Phase 1 (thread breakers):
 
@@ -294,15 +294,15 @@ Run from the repository root.
 Core sets:
 
 ```sh
-cd opencode/packages/core && bun test ../../../Implementations/harness-integration-hardening/acceptance/core
-cd opencode/packages/core && bun test ../../../Implementations/harness-integration-hardening/verification/core
+cd tenon/packages/core && bun test ../../../Implementations/harness-integration-hardening/acceptance/core
+cd tenon/packages/core && bun test ../../../Implementations/harness-integration-hardening/verification/core
 ```
 
 App sets:
 
 ```sh
-cd opencode/packages/app && bun test --conditions=solid --preload ./happydom.ts ../../../Implementations/harness-integration-hardening/acceptance/app
-cd opencode/packages/app && bun test --conditions=solid --preload ./happydom.ts ../../../Implementations/harness-integration-hardening/verification/app
+cd tenon/packages/app && bun test --conditions=solid --preload ./happydom.ts ../../../Implementations/harness-integration-hardening/acceptance/app
+cd tenon/packages/app && bun test --conditions=solid --preload ./happydom.ts ../../../Implementations/harness-integration-hardening/verification/app
 ```
 
 The `node_modules` links in each set folder point at the package's own
@@ -428,7 +428,7 @@ ACP edit diff rendered in the running app.
 | AC-17 | `-32000` → sign-in message naming Settings; verification: "Not logged in · Please run /login" without a code, other errors unchanged; existing ACP tests | pass |
 | AC-18 | `acceptance/desktop/ac18-path.test.ts`, `verification/desktop/path.verify.test.ts`; existing `src/main/shell-env.test.ts` | pass |
 
-Desktop set command: `cd opencode/packages/desktop && bun test ../../../Implementations/harness-integration-hardening/<set>/desktop`.
+Desktop set command: `cd tenon/packages/desktop && bun test ../../../Implementations/harness-integration-hardening/<set>/desktop`.
 
 Baseline: core tests failed on their assertions; desktop tests on the missing
 `fallbackPath`; the per-harness override check passed (existing behavior).

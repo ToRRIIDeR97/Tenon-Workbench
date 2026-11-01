@@ -1,0 +1,146 @@
+import { NodeHttpServer, NodeServices } from "@effect/platform-node"
+import { NamedError } from "@tenon/core/util/error"
+import { describe, expect } from "bun:test"
+import { ConfigErrorV1 } from "@tenon/core/v1/config/error"
+import { Effect, Layer } from "effect"
+import os from "node:os"
+import path from "node:path"
+import { HttpClient, HttpClientRequest, HttpRouter } from "effect/unstable/http"
+import { errorLayer } from "../../src/server/routes/instance/httpapi/middleware/error"
+import { NotFoundError } from "../../src/storage/storage"
+import { testEffect } from "../lib/effect"
+
+const it = testEffect(Layer.mergeAll(NodeHttpServer.layerTest, NodeServices.layer))
+
+function expectUnknownErrorBody(body: unknown) {
+  expect(body).toMatchObject({
+    name: "UnknownError",
+    data: { message: "Unexpected server error. Check server logs for details." },
+  })
+  expect((body as { data?: { ref?: unknown } }).data?.ref).toMatch(/^err_[0-9a-f-]{8}$/)
+}
+
+describe("HttpApi error middleware", () => {
+  it.live("returns a safe body for unknown 500 defects", () =>
+    Effect.gen(function* () {
+      yield* HttpRouter.add("GET", "/boom", Effect.die(new Error("secret stack marker"))).pipe(
+        Layer.provide(errorLayer),
+        HttpRouter.serve,
+        Layer.build,
+      )
+
+      const response = yield* HttpClientRequest.get("/boom").pipe(HttpClient.execute)
+      const body = yield* response.json
+
+      expect(response.status).toBe(500)
+      expectUnknownErrorBody(body)
+      expect(JSON.stringify(body)).not.toContain("secret stack marker")
+    }),
+  )
+
+  it.live("returns a safe body for named defects", () =>
+    Effect.gen(function* () {
+      yield* HttpRouter.add(
+        "GET",
+        "/named",
+        Effect.die(new NamedError.Unknown({ message: "secret named marker" })),
+      ).pipe(Layer.provide(errorLayer), HttpRouter.serve, Layer.build)
+
+      const response = yield* HttpClientRequest.get("/named").pipe(HttpClient.execute)
+      const body = yield* response.json
+
+      expect(response.status).toBe(500)
+      expectUnknownErrorBody(body)
+      expect(JSON.stringify(body)).not.toContain("secret named marker")
+    }),
+  )
+
+  it.live("returns invalid config defects as structured client errors", () =>
+    Effect.gen(function* () {
+      const configError = new ConfigErrorV1.InvalidError({
+        path: "/tmp/opencode.json",
+        issues: [{ message: "Expected object", path: ["provider", "anthropic", "options"] }],
+      })
+
+      yield* HttpRouter.add("GET", "/config-error", Effect.die(configError)).pipe(
+        Layer.provide(errorLayer),
+        HttpRouter.serve,
+        Layer.build,
+      )
+
+      const response = yield* HttpClientRequest.get("/config-error").pipe(HttpClient.execute)
+      const body = yield* response.json
+      const serialized = JSON.stringify(body)
+
+      expect(response.status).toBe(400)
+      expect(body).toMatchObject({
+        name: "ConfigInvalidError",
+        data: {
+          path: "/tmp/opencode.json",
+          issues: [{ message: "Expected object", path: ["provider", "anthropic", "options"] }],
+        },
+      })
+      expect(serialized).toContain("/tmp/opencode.json")
+      expect(serialized).toContain("anthropic")
+    }),
+  )
+
+  it.live("does not map storage not-found defects to 404", () =>
+    Effect.gen(function* () {
+      yield* HttpRouter.add(
+        "GET",
+        "/missing",
+        Effect.die(new NotFoundError({ message: "Resource not found: secret" })),
+      ).pipe(Layer.provide(errorLayer), HttpRouter.serve, Layer.build)
+
+      const response = yield* HttpClientRequest.get("/missing").pipe(HttpClient.execute)
+      const body = yield* response.json
+
+      expect(response.status).toBe(500)
+      expectUnknownErrorBody(body)
+    }),
+  )
+
+  it.live("returns a typed 404 when the request's workspace folder is missing", () =>
+    Effect.gen(function* () {
+      yield* HttpRouter.add("GET", "/folder", Effect.die(new Error("ENOENT realPath"))).pipe(
+        Layer.provide(errorLayer),
+        HttpRouter.serve,
+        Layer.build,
+      )
+      const missing = path.join(os.tmpdir(), `tenon-missing-${crypto.randomUUID()}`)
+
+      const query = yield* HttpClientRequest.get(`/folder?directory=${encodeURIComponent(missing)}`).pipe(
+        HttpClient.execute,
+      )
+      expect(query.status).toBe(404)
+      expect(yield* query.json).toEqual({
+        name: "WorkspaceFolderNotFoundError",
+        data: { message: "The workspace folder was not found." },
+      })
+
+      const header = yield* HttpClientRequest.get("/folder").pipe(
+        HttpClientRequest.setHeader("x-opencode-directory", encodeURIComponent(missing)),
+        HttpClient.execute,
+      )
+      expect(header.status).toBe(404)
+    }),
+  )
+
+  it.live("keeps the 500 when the request's workspace folder exists", () =>
+    Effect.gen(function* () {
+      yield* HttpRouter.add("GET", "/present", Effect.die(new Error("secret stack marker"))).pipe(
+        Layer.provide(errorLayer),
+        HttpRouter.serve,
+        Layer.build,
+      )
+
+      const response = yield* HttpClientRequest.get(`/present?directory=${encodeURIComponent(os.tmpdir())}`).pipe(
+        HttpClient.execute,
+      )
+
+      expect(response.status).toBe(500)
+      expectUnknownErrorBody(yield* response.json)
+    }),
+  )
+})

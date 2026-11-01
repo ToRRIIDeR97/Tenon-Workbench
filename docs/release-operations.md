@@ -1,6 +1,6 @@
 # Electron release operations
 
-The active application lives in `opencode/`. Required checks run locally (see
+The active application lives in `tenon/`. Required checks run locally (see
 `AGENTS.md`); the GitHub Actions workflows in `.github/workflows/` are disabled
 in the repository settings to avoid Actions charges, and `ci.yml` runs only on
 manual dispatch. Root Tauri/Cargo/pnpm commands are retired; the former
@@ -11,7 +11,7 @@ procedure is kept in [the archive](archive/tauri/release-operations.md).
 ## Local checks
 
 Use Bun 1.3.14 and Node.js 24. Install with `bun install --frozen-lockfile`
-inside `opencode/`, then run these commands from the repository root:
+inside `tenon/`, then run these commands from the repository root:
 
 ```sh
 bun run typecheck
@@ -35,18 +35,18 @@ and retains the installer and checksum file as workflow artifacts for 14 days.
 It does not publish a GitHub release or configure an update feed.
 
 Locally on Windows, `bun run desktop:build` builds and packages the app with
-publishing disabled. Output is under `opencode/packages/desktop/dist/`.
+publishing disabled. Output is under `tenon/packages/desktop/dist/`.
 The packaged app starts its local server in the user's home folder and, on
 Windows, reads the current PATH from the registry at launch, so harness CLIs
 installed since sign-in are found without signing out.
 The build downloads the pinned upstream CLI for the optional development
 sidecar and bundles the fork's local server. These are separate runtimes.
-The local server comes from `opencode/packages/opencode/script/build-node.ts`
+The local server comes from `tenon/packages/tenon/script/build-node.ts`
 (entry `src/node.ts`). The fork doesn't build or ship its own `opencode` CLI
 binary, and the desktop app has no "Install CLI" action.
 
 Locally on macOS, run `bun run build` and then
-`bun run --cwd opencode/packages/desktop package:mac --publish never`
+`bun run --cwd tenon/packages/desktop package:mac --publish never`
 (add `--dir` for just the `.app`). Local macOS output goes to
 `~/Library/Caches/tenon-workbench/dist/`, not `dist/`: iCloud and other File
 Provider syncs keep adding Finder metadata to bundle folders under
@@ -73,7 +73,7 @@ their own:
 | Item | Before | Now |
 | --- | --- | --- |
 | App ID (prod, beta, dev) | `ai.opencode.desktop`, `.beta`, `.dev` | `io.github.torriider97.tenonworkbench`, `.beta`, `.dev` |
-| Package name (deb, rpm, `extraMetadata.name`) | `opencode*` (rpm), `@opencode-ai/desktop` | `tenon-workbench`, `tenon-workbench-beta`, `tenon-workbench-dev` |
+| Package name (deb, rpm, `extraMetadata.name`) | `opencode*` (rpm), `@tenon/desktop` | `tenon-workbench`, `tenon-workbench-beta`, `tenon-workbench-dev` |
 | Windows install folder | `%LOCALAPPDATA%/Programs/@opencode-aidesktop` | derived from `tenon-workbench*` |
 | Deep-link scheme | `opencode://` | `tenon://` (same `open-project` and `new-session` hosts) |
 
@@ -277,11 +277,11 @@ clean-machine installation, platform signing, or Google OAuth readiness.
 
 Never bundle workspace data, local databases, credentials, `.env` files, logs,
 or recovery archives. The one exception is the Google Desktop OAuth client: when
-`opencode/packages/desktop/.env.local` sets `MAIN_VITE_GOOGLE_CLIENT_ID` and
+`tenon/packages/desktop/.env.local` sets `MAIN_VITE_GOOGLE_CLIENT_ID` and
 `MAIN_VITE_GOOGLE_CLIENT_SECRET` (see `.env.example`), the build compiles both
 values into the main process so the Calendar page offers one-click Google
 sign-in. Without them the page asks for the user's own client. Build from
-`opencode/packages/desktop` (as the scripts do): electron-vite reads the env
+`tenon/packages/desktop` (as the scripts do): electron-vite reads the env
 file from the working directory.
 
 Preserve canonical files and existing application data when upgrading. Donor Tauri databases have no automatic import path; see

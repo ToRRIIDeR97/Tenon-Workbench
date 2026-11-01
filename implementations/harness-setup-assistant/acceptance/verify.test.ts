@@ -1,15 +1,15 @@
 // Functional-test (verify) checks for the harness setup assistant.
-// Core: from opencode/packages/core
+// Core: from tenon/packages/core
 //   bun test ../../../Implementations/harness-setup-assistant/acceptance/verify.test.ts -t core
-// Route: from opencode/packages/opencode
+// Route: from tenon/packages/tenon
 //   bun test --timeout 30000 ../../../Implementations/harness-setup-assistant/acceptance/verify.test.ts -t route
 import { afterEach, describe, expect, test } from "bun:test";
 import os from "node:os";
 import path from "node:path";
 import { Effect, Exit, Scope } from "effect";
-import { LayerNode } from "../../../opencode/packages/core/src/effect/layer-node";
-import { AppProcess } from "../../../opencode/packages/core/src/process";
-import { HarnessRegistry } from "../../../opencode/packages/core/src/harness/registry";
+import { LayerNode } from "../../../tenon/packages/core/src/effect/layer-node";
+import { AppProcess } from "../../../tenon/packages/core/src/process";
+import { HarnessRegistry } from "../../../tenon/packages/core/src/harness/registry";
 
 // Reuses the deterministic agent from the settings-page package: every prompt replies `model:<current>`.
 const fixture = path.resolve(
@@ -98,10 +98,10 @@ describe("harness verify core", () => {
 describe("harness verify route", () => {
   afterEach(async () => {
     const { disposeAllInstances } = await import(
-      "../../../opencode/packages/opencode/test/fixture/fixture"
+      "../../../tenon/packages/tenon/test/fixture/fixture"
     );
     const { resetDatabase } = await import(
-      "../../../opencode/packages/opencode/test/fixture/db"
+      "../../../tenon/packages/tenon/test/fixture/db"
     );
     await disposeAllInstances();
     await resetDatabase();
@@ -110,10 +110,10 @@ describe("harness verify route", () => {
   test("POST /api/harness/verify returns the reply and models", async () => {
     const { Context } = await import("effect");
     const { HttpApiApp } = await import(
-      "../../../opencode/packages/opencode/src/server/routes/instance/httpapi/server"
+      "../../../tenon/packages/tenon/src/server/routes/instance/httpapi/server"
     );
     const { tmpdir } = await import(
-      "../../../opencode/packages/opencode/test/fixture/fixture"
+      "../../../tenon/packages/tenon/test/fixture/fixture"
     );
     await using dir = await tmpdir({ git: true });
     const url = new URL("http://localhost/api/harness/verify");

@@ -1,7 +1,7 @@
 # Google planner security boundary
 
 > Status: Tauri-era requirements. The active integration in
-> `opencode/packages/desktop/src/main/google-calendar.ts` encrypts its client
+> `tenon/packages/desktop/src/main/google-calendar.ts` encrypts its client
 > secret and refresh token with Electron `safeStorage` in the profile, not the
 > OS credential store, and keeps sync state in JSON/Electron stores rather than
 > SQLite. The [threat model](threat-model.md) describes the current control.
@@ -25,7 +25,7 @@ actual effect. Every write is persisted to the outbox before a provider call,
 uses an idempotency key and base ETag, and preserves local enrichment outside
 provider-owned fields.
 
-The Electron adapter in `opencode/packages/desktop/src/main/google-calendar.ts`
+The Electron adapter in `tenon/packages/desktop/src/main/google-calendar.ts`
 is live: it uses the system browser, PKCE and a loopback redirect whose state
 check ignores (400) any request without the expected state instead of ending
 the sign-in. It keeps any number of accounts. Writes go through an outbox;
@@ -40,7 +40,7 @@ covered by `google-calendar-domain.test.ts`.
 ## Sync state lifecycle
 
 Events and tasks carry a `syncState`. The server stores the calendar document
-and checks only invariants (`opencode/packages/opencode/src/planner/calendar.ts`):
+and checks only invariants (`tenon/packages/tenon/src/planner/calendar.ts`):
 local items stay `local`, Google items are never `local`, and a `synced` item
 has no outbox reference. It does not enforce transitions, because it does not
 own sync. The renderer and the desktop outbox do:

@@ -1,6 +1,6 @@
 # Threat model for the active desktop app
 
-This document covers the OpenCode Electron fork in `opencode/`. The former
+This document covers the OpenCode Electron fork in `tenon/`. The former
 React/Tauri application is retired, so its Rust policy and MCP
 sidecar design are not current desktop controls.
 
@@ -13,10 +13,10 @@ Detailed permission and request flows are in
 
 | Boundary                   | Current control and location                                                                                                                                                                                                                                                                                                                                           |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Renderer to native process | The main window uses `contextIsolation`, `sandbox`, and disabled `nodeIntegration`. `opencode/packages/desktop/src/preload/index.ts` exposes specific IPC methods implemented in `opencode/packages/desktop/src/main/ipc.ts`. Packaged builds ignore `ELECTRON_RENDERER_URL`; see Renderer content policy for remote media.                                     |
-| Renderer to managed server | Electron starts the OpenCode server on `127.0.0.1` with a generated password. Server authorization checks credentials for protected routes. See `opencode/packages/desktop/src/main/index.ts` and `opencode/packages/opencode/src/server/routes/instance/httpapi/middleware/authorization.ts`.                                                                         |
-| Server to workspace files  | Second Brain handlers run in an instance location context. Note and project code resolves targets through `LocationMutation` before reading or writing files. See `opencode/packages/opencode/src/server/routes/instance/httpapi/handlers/second-brain.ts`, `opencode/packages/opencode/src/knowledge/note.ts`, and `opencode/packages/opencode/src/project/brain.ts`. |
-| Desktop to Google          | Calendar and Tasks integration uses OAuth in the Electron main process. The service keeps any number of accounts, encrypts each account's client secret and refresh token with Electron `safeStorage`, and disables connection when secure storage is unavailable. Access tokens are cached per account, writes are routed to the account named by the item, and the loopback callback ignores requests without the expected state. See `opencode/packages/desktop/src/main/google-calendar.ts`. |
+| Renderer to native process | The main window uses `contextIsolation`, `sandbox`, and disabled `nodeIntegration`. `tenon/packages/desktop/src/preload/index.ts` exposes specific IPC methods implemented in `tenon/packages/desktop/src/main/ipc.ts`. Packaged builds ignore `ELECTRON_RENDERER_URL`; see Renderer content policy for remote media.                                     |
+| Renderer to managed server | Electron starts the OpenCode server on `127.0.0.1` with a generated password. Server authorization checks credentials for protected routes. See `tenon/packages/desktop/src/main/index.ts` and `tenon/packages/tenon/src/server/routes/instance/httpapi/middleware/authorization.ts`.                                                                         |
+| Server to workspace files  | Second Brain handlers run in an instance location context. Note and project code resolves targets through `LocationMutation` before reading or writing files. See `tenon/packages/tenon/src/server/routes/instance/httpapi/handlers/second-brain.ts`, `tenon/packages/tenon/src/knowledge/note.ts`, and `tenon/packages/tenon/src/project/brain.ts`. |
+| Desktop to Google          | Calendar and Tasks integration uses OAuth in the Electron main process. The service keeps any number of accounts, encrypts each account's client secret and refresh token with Electron `safeStorage`, and disables connection when secure storage is unavailable. Access tokens are cached per account, writes are routed to the account named by the item, and the loopback callback ignores requests without the expected state. See `tenon/packages/desktop/src/main/google-calendar.ts`. |
 
 `POST /second-brain/projects/workspace` takes only an OpenCode project id. The
 server looks the id up in its own project table and rejects `global` and the
@@ -60,21 +60,21 @@ stores that Workspace's worktree as `location.displayPath`, and
 same way session responses already return `directory`.
 
 `tenon://open-project` and `tenon://new-session` deep links are validated
-first in the Electron main process (`opencode/packages/desktop/src/main/deep-links.ts`):
+first in the Electron main process (`tenon/packages/desktop/src/main/deep-links.ts`):
 only those two hosts are accepted, the `directory` must be an existing local
 absolute folder (UNC `\\host\share`, protocol-relative `//host`, `file:`,
 relative and `..` paths are refused before any filesystem call), and the user
 confirms a native dialog that shows the folder. The renderer receives a link
 rebuilt from the checked values, and the log records only `tenon://<host>`,
 never the query string with its prompt. The app shell's sidebar controller
-(`opencode/packages/app/src/components/sidebar/sidebar-controller.ts`) then
+(`tenon/packages/app/src/components/sidebar/sidebar-controller.ts`) then
 handles it, only on a local server. A deep link can open a folder as a workspace (and
 select it) and start an unsent draft (a `new-session` prompt is placed in the composer,
 never sent). It never runs `git init`; only a folder the user picks in the
 folder dialog is initialized when empty.
 
 Markdown front matter in notes, Project cards, skills and agent configs is
-parsed through `Frontmatter.parse` (`opencode/packages/core/src/frontmatter.ts`),
+parsed through `Frontmatter.parse` (`tenon/packages/core/src/frontmatter.ts`),
 which refuses gray-matter's `---js` engine (it would `eval` the block) and any
 front matter over 64 KiB. Cards and the manifest over 1 MiB, notes over 5 MiB
 and the calendar over 16 MiB are refused after a `stat`, before they are read.
@@ -98,7 +98,7 @@ tokens. Disconnecting an account revokes its refresh token and deletes its entry
 and queued writes. An account ID from the renderer selects an existing account
 only; an unknown ID is rejected (`google_account_not_found`). A build may compile
 a Google "Desktop app" OAuth client ID and secret into the main process from
-the git-ignored `opencode/packages/desktop/.env.local`
+the git-ignored `tenon/packages/desktop/.env.local`
 (`MAIN_VITE_GOOGLE_CLIENT_ID`, `MAIN_VITE_GOOGLE_CLIENT_SECRET`). Google treats
 an installed app's client secret as non-confidential: anyone with the build can
 read it, and it grants nothing without the user's consent in the browser. The
@@ -216,7 +216,7 @@ two help-text links printed by the developer-only `providers login` command.
 Phase 8 removed the TUI and the upstream CLI commands that reached GitHub,
 the OpenCode console, and share or install endpoints (`github`, `pr`,
 `account`, `upgrade`, `uninstall`, `web`, `acp`, `attach`, `stats`, `plug`,
-`export`, `import`). The remaining CLI in `packages/opencode/src/index.ts`
+`export`, `import`). The remaining CLI in `packages/tenon/src/index.ts`
 runs only from source for development (`serve`, `generate`, `mcp`, `debug`,
 `providers`, `agent`, `models`, `session`, `db`) and isn't shipped.
 
@@ -252,7 +252,7 @@ be updated from that package's registry entry.
 ## Built-in harness setup
 
 The setup dialog ([ADR-013](../adr/ADR-013-built-in-harness-setup.md),
-`opencode/packages/core/src/harness/setup.ts`) adds these surfaces:
+`tenon/packages/core/src/harness/setup.ts`) adds these surfaces:
 
 - **Install.** `POST /api/harness/setup/:id/install` takes only a harness ID.
   - The npm package comes from a fixed recipe for the three built-ins, so no
@@ -288,7 +288,7 @@ the desktop main process.
 
 ## Harness usage limits
 
-`GET /api/harness/usage` (`opencode/packages/core/src/harness/usage.ts`,
+`GET /api/harness/usage` (`tenon/packages/core/src/harness/usage.ts`,
 `HarnessRuntime.usage`) reports plan usage windows. It takes no input beyond
 the location query and has the same auth as the other harness routes.
 
@@ -475,7 +475,7 @@ you'd trust with the credentials you configure for them.
 
 Agents can start work in another harness through the delegation endpoint
 ([ADR-011](../adr/ADR-011-cross-harness-delegation.md),
-`opencode/packages/core/src/harness/delegation.ts`). Controls:
+`tenon/packages/core/src/harness/delegation.ts`). Controls:
 
 - The endpoint listens on `127.0.0.1` only, on its own port. Every request
   needs a bearer token (32 random bytes, compared in constant time). Each
@@ -828,25 +828,25 @@ From the repository root, `bun run typecheck` checks every workspace package
 through turbo. `bun run test` runs every package suite except the engine
 (core, server) and the client and schema suites, then the Second Brain
 domains; `bun run test:engine` runs core and server suites. `bun run lint`
-checks `opencode/`, and `bun run check:generated` fails when the generated
+checks `tenon/`, and `bun run check:generated` fails when the generated
 client is stale. These commands are defined in the root `package.json`.
 Relevant focused tests include
-`opencode/packages/desktop/src/main/google-calendar-domain.test.ts`,
-`opencode/packages/opencode/test/project/brain.test.ts`,
-`opencode/packages/session-ui/src/components/svg-window.test.ts`, and the note tests
-under `opencode/packages/opencode/test/knowledge/`. Run server tests from
-`opencode/packages/opencode` with Bun when changing those paths. These checks
+`tenon/packages/desktop/src/main/google-calendar-domain.test.ts`,
+`tenon/packages/tenon/test/project/brain.test.ts`,
+`tenon/packages/session-ui/src/components/svg-window.test.ts`, and the note tests
+under `tenon/packages/tenon/test/knowledge/`. Run server tests from
+`tenon/packages/tenon` with Bun when changing those paths. These checks
 run locally; GitHub Actions workflows are disabled. Local test results do not
 establish cross-platform installer or signed-update safety.
 
-Focused commands from `opencode/packages/opencode`:
+Focused commands from `tenon/packages/tenon`:
 
 ```sh
 bun run test ./test/knowledge ./test/planner ./test/project/brain.test.ts
 bun run test ./test/server/httpapi-instance-route-auth.test.ts ./test/server/httpapi-ui.test.ts
 ```
 
-From `opencode/packages/desktop`:
+From `tenon/packages/desktop`:
 
 ```sh
 bun test src/main/google-calendar-domain.test.ts src/main/attachment-picker.test.ts src/main/external-url.test.ts
@@ -894,7 +894,7 @@ location and canonical Git worktree.
 ## Known gaps
 
 Found during the 2026-10-02 scope audit. Paths are relative to
-`opencode/packages/desktop/src/main/`. Entries move back into the model once a
+`tenon/packages/desktop/src/main/`. Entries move back into the model once a
 fix lands.
 
 - `open-path` (`ipc.ts`) opens any renderer-supplied absolute path.

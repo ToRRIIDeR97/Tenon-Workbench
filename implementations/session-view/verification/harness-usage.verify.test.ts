@@ -1,9 +1,9 @@
 // Independent verification for AC-7.
-// Run from opencode/packages/core (needs the task folder's node_modules junction):
+// Run from tenon/packages/core (needs the task folder's node_modules junction):
 //   bun test ../../../implementations/session-view/verification/harness-usage.verify.test.ts
 import { describe, expect, test } from "bun:test"
 import { Exit } from "effect"
-import { AcpHarness } from "../../../opencode/packages/core/src/harness/acp"
+import { AcpHarness } from "../../../tenon/packages/core/src/harness/acp"
 
 const update = (sessionId: string, value: Record<string, unknown>) => ({
   method: "session/update",

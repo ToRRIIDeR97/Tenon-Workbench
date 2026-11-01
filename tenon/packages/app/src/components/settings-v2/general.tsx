@@ -1,0 +1,523 @@
+import { Component, For, Show, createMemo, createResource } from "solid-js"
+import { createMediaQuery } from "@solid-primitives/media"
+import { ButtonV2 } from "@tenon/ui/v2/button-v2"
+import { SegmentedControlItemV2, SegmentedControlV2 } from "@tenon/ui/v2/segmented-control-v2"
+import { SelectV2 } from "@tenon/ui/v2/select-v2"
+import { Switch } from "@tenon/ui/v2/switch-v2"
+import { TextInputV2 } from "@tenon/ui/v2/text-input-v2"
+import { useLanguage } from "@/context/language"
+import { usePlatform } from "@/context/platform"
+import { useUpdaterAction } from "../updater-action"
+import { useSettings } from "@/context/settings"
+import { SettingsListV2 } from "./parts/list"
+import { SettingsRowV2 } from "./parts/row"
+import {
+  createAppearanceSettingsController,
+  createPermissionScopeController,
+  createShellOptions,
+  createShellSettingsController,
+  createSoundSettingsController,
+  soundOptions,
+  type AppearanceSettingsController,
+  type PermissionScopeController,
+  type ShellSettingsController,
+  type SoundSettingsController,
+} from "./general-controllers"
+import "./settings-v2.css"
+
+const schemeOptions: ("system" | "light" | "dark")[] = ["system", "light", "dark"]
+const fontSettings = {
+  ui: {
+    action: "settings-ui-font",
+    title: "settings.general.row.uiFont.title",
+    font: "ui",
+    input: "setUI",
+  },
+  code: {
+    action: "settings-code-font",
+    title: "settings.general.row.font.title",
+    font: "code",
+    input: "setCode",
+  },
+  terminal: {
+    action: "settings-terminal-font",
+    title: "settings.general.row.terminalFont.title",
+    font: "terminal",
+    input: "setTerminal",
+  },
+} as const
+const soundSettings = {
+  agent: {
+    action: "settings-sounds-agent",
+    title: "settings.general.sounds.agent.title",
+  },
+  permissions: {
+    action: "settings-sounds-permissions",
+    title: "settings.general.sounds.permissions.title",
+  },
+  errors: {
+    action: "settings-sounds-errors",
+    title: "settings.general.sounds.errors.title",
+  },
+} as const
+
+const PermissionScopeSetting: Component<{ controller: PermissionScopeController }> = (props) => {
+  const language = useLanguage()
+  return (
+    <SettingsRowV2 title={language.t("command.permissions.autoaccept.enable")}>
+      <div data-action="settings-auto-accept-permissions">
+        <Switch
+          checked={props.controller.accepting()}
+          disabled={!props.controller.enabled()}
+          onChange={props.controller.set}
+          hideLabel
+        >
+          {language.t("command.permissions.autoaccept.enable")}
+        </Switch>
+      </div>
+    </SettingsRowV2>
+  )
+}
+
+const DeliverySetting = () => {
+  const language = useLanguage()
+  const settings = useSettings()
+  const options = createMemo(() =>
+    (["steer", "queue"] as const).map((value) => ({
+      value,
+      label: language.t(`secondBrain.composer.delivery.${value}`),
+    })),
+  )
+  return (
+    <SettingsRowV2
+      title={language.t("secondBrain.composer.delivery.title")}
+      description={language.t("secondBrain.composer.delivery.description")}
+    >
+      <SelectV2
+        appearance="inline"
+        data-action="settings-followup-delivery"
+        options={options()}
+        current={options().find((option) => option.value === settings.general.followup())}
+        placement="bottom-end"
+        gutter={6}
+        value={(option) => option.value}
+        label={(option) => option.label}
+        onSelect={(option) => option && settings.general.setFollowup(option.value)}
+      />
+    </SettingsRowV2>
+  )
+}
+
+const ShellSetting: Component<{ controller: ShellSettingsController }> = (props) => {
+  const language = useLanguage()
+  const options = createMemo(() =>
+    createShellOptions({
+      shells: props.controller.shells(),
+      current: props.controller.current(),
+    }),
+  )
+  return (
+    <SettingsRowV2
+      title={language.t("settings.general.row.shell.title")}
+      description={language.t("settings.general.row.shell.description")}
+    >
+      <SelectV2
+        appearance="inline"
+        data-action="settings-shell"
+        options={options()}
+        current={options().find((option) => option.value === props.controller.current()) ?? options()[0]}
+        placement="bottom-end"
+        gutter={6}
+        value={(option) => option.id}
+        label={(option) => {
+          if (option.id === "auto") return language.t("settings.general.row.shell.autoDefault")
+          if (!option.terminalOnly) return option.name
+          return `${option.name} (${language.t("settings.general.row.shell.terminalOnly")})`
+        }}
+        onSelect={(option) => option && props.controller.select(option.value)}
+      />
+    </SettingsRowV2>
+  )
+}
+
+const AppearanceSection: Component<{ controller: AppearanceSettingsController }> = (props) => {
+  const language = useLanguage()
+  return (
+    <div class="settings-v2-section">
+      <h3 class="settings-v2-section-title">{language.t("settings.general.section.appearance")}</h3>
+      <SettingsListV2>
+        <SettingsRowV2 title={language.t("settings.general.row.colorScheme.title")}>
+          <SegmentedControlV2
+            data-action="settings-color-scheme"
+            aria-label={language.t("settings.general.row.colorScheme.title")}
+            value={props.controller.scheme.current()}
+          >
+            <For each={schemeOptions}>
+              {(option) => (
+                <SegmentedControlItemV2 value={option} onClick={() => props.controller.scheme.select(option)}>
+                  {language.t(`theme.scheme.${option}`)}
+                </SegmentedControlItemV2>
+              )}
+            </For>
+          </SegmentedControlV2>
+        </SettingsRowV2>
+
+        <SettingsRowV2 title={language.t("settings.general.row.theme.title")}>
+          <SelectV2
+            appearance="inline"
+            data-action="settings-theme"
+            options={props.controller.theme.options()}
+            current={props.controller.theme.current()}
+            placement="bottom-end"
+            gutter={6}
+            value={(option) => option.id}
+            label={(option) => option.name}
+            onSelect={props.controller.theme.select}
+          />
+        </SettingsRowV2>
+
+        <FontSetting kind="ui" fonts={props.controller.fonts} />
+        <FontSetting kind="code" fonts={props.controller.fonts} />
+        <FontSetting kind="terminal" fonts={props.controller.fonts} />
+      </SettingsListV2>
+    </div>
+  )
+}
+
+const FontSetting: Component<{
+  kind: "ui" | "code" | "terminal"
+  fonts: AppearanceSettingsController["fonts"]
+}> = (props) => {
+  const language = useLanguage()
+  const config = () => fontSettings[props.kind]
+  return (
+    <SettingsRowV2 title={language.t(config().title)}>
+      <div class="w-full sm:w-[220px]">
+        <TextInputV2
+          data-action={config().action}
+          type="text"
+          appearance="base"
+          value={props.fonts[config().font]().value}
+          onInput={(event) => props.fonts[config().input](event.currentTarget.value)}
+          placeholder={props.fonts[config().font]().placeholder}
+          spellcheck={false}
+          autocorrect="off"
+          autocomplete="off"
+          autocapitalize="off"
+          aria-label={language.t(config().title)}
+          style={{ "font-family": props.fonts[config().font]().family }}
+        />
+      </div>
+    </SettingsRowV2>
+  )
+}
+
+const SoundsSection: Component<{ controller: SoundSettingsController }> = (props) => {
+  const language = useLanguage()
+  return (
+    <div class="settings-v2-section">
+      <h3 class="settings-v2-section-title">{language.t("settings.general.section.sounds")}</h3>
+      <SettingsListV2>
+        <SoundSetting kind="agent" channel={props.controller.agent} />
+        <SoundSetting kind="permissions" channel={props.controller.permissions} />
+        <SoundSetting kind="errors" channel={props.controller.errors} />
+      </SettingsListV2>
+    </div>
+  )
+}
+
+const SoundSetting: Component<{
+  kind: "agent" | "permissions" | "errors"
+  channel: SoundSettingsController["agent"]
+}> = (props) => {
+  const language = useLanguage()
+  const config = () => soundSettings[props.kind]
+  return (
+    <SettingsRowV2 title={language.t(config().title)}>
+      <SelectV2
+        appearance="inline"
+        data-action={config().action}
+        options={soundOptions}
+        current={props.channel.current()}
+        value={(option) => option.id}
+        label={(option) => language.t(option.label)}
+        onHighlight={props.channel.highlight}
+        onSelect={props.channel.select}
+        placement="bottom-end"
+        gutter={6}
+      />
+    </SettingsRowV2>
+  )
+}
+
+const LanguageSetting = () => {
+  const language = useLanguage()
+  const options = createMemo(() =>
+    language.locales.map((locale) => ({
+      value: locale,
+      label: language.label(locale),
+    })),
+  )
+  return (
+    <SettingsRowV2 title={language.t("settings.general.row.language.title")}>
+      <SelectV2
+        appearance="inline"
+        data-action="settings-language"
+        options={options()}
+        placement="bottom-end"
+        gutter={6}
+        current={options().find((option) => option.value === language.locale())}
+        value={(option) => option.value}
+        label={(option) => option.label}
+        onSelect={(option) => option && language.setLocale(option.value)}
+      />
+    </SettingsRowV2>
+  )
+}
+
+export const SettingsGeneralV2: Component<{
+  sessionID?: string
+}> = (props) => {
+  const language = useLanguage()
+  const platform = usePlatform()
+  const settings = useSettings()
+  const mobile = createMediaQuery("(max-width: 767px)")
+  const updater = useUpdaterAction()
+  const permissionScope = createPermissionScopeController(() => props.sessionID)
+  const shell = createShellSettingsController()
+  const appearance = createAppearanceSettingsController()
+  const sounds = createSoundSettingsController()
+  const desktop = createMemo(() => platform.platform === "desktop")
+
+  const [pinchZoom, { mutate: setPinchZoom }] = createResource(
+    () => desktop() && "getPinchZoomEnabled" in platform,
+    () => Promise.resolve(platform.getPinchZoomEnabled?.() ?? false).catch(() => false),
+    { initialValue: false },
+  )
+
+  const onPinchZoomChange = (checked: boolean) => {
+    setPinchZoom(checked)
+    const update = platform.setPinchZoomEnabled?.(checked)
+    if (!update) return
+    void update.catch(() => setPinchZoom(!checked))
+  }
+
+  const GeneralSection = () => (
+    <div class="settings-v2-section">
+      <SettingsListV2>
+        <LanguageSetting />
+
+        <PermissionScopeSetting controller={permissionScope} />
+
+        <DeliverySetting />
+
+        <ShellSetting controller={shell} />
+
+        <SettingsRowV2 title={language.t("settings.general.row.reasoningSummaries.title")}>
+          <div data-action="settings-feed-reasoning-summaries">
+            <Switch
+              checked={settings.general.showReasoningSummaries()}
+              onChange={(checked) => settings.general.setShowReasoningSummaries(checked)}
+              hideLabel
+            >
+              {language.t("settings.general.row.reasoningSummaries.title")}
+            </Switch>
+          </div>
+        </SettingsRowV2>
+
+        <SettingsRowV2 title={language.t("settings.general.row.shellToolPartsExpanded.title")}>
+          <div data-action="settings-feed-shell-tool-parts-expanded">
+            <Switch
+              checked={settings.general.shellToolPartsExpanded()}
+              onChange={(checked) => settings.general.setShellToolPartsExpanded(checked)}
+              hideLabel
+            >
+              {language.t("settings.general.row.shellToolPartsExpanded.title")}
+            </Switch>
+          </div>
+        </SettingsRowV2>
+
+        <SettingsRowV2 title={language.t("settings.general.row.editToolPartsExpanded.title")}>
+          <div data-action="settings-feed-edit-tool-parts-expanded">
+            <Switch
+              checked={settings.general.editToolPartsExpanded()}
+              onChange={(checked) => settings.general.setEditToolPartsExpanded(checked)}
+              hideLabel
+            >
+              {language.t("settings.general.row.editToolPartsExpanded.title")}
+            </Switch>
+          </div>
+        </SettingsRowV2>
+
+        <Show when={mobile() && import.meta.env.VITE_OPENCODE_CHANNEL !== "prod"}>
+          <SettingsRowV2 title={language.t("settings.general.row.mobileTitlebarBottom.title")}>
+            <div data-action="settings-mobile-titlebar-bottom">
+              <Switch
+                checked={settings.general.mobileTitlebarPosition() === "bottom"}
+                onChange={(checked) => settings.general.setMobileTitlebarPosition(checked ? "bottom" : "top")}
+                hideLabel
+              >
+                {language.t("settings.general.row.mobileTitlebarBottom.title")}
+              </Switch>
+            </div>
+          </SettingsRowV2>
+        </Show>
+      </SettingsListV2>
+    </div>
+  )
+
+  const AdvancedSection = () => (
+    <div class="settings-v2-section">
+      <h3 class="settings-v2-section-title">{language.t("settings.general.section.advanced")}</h3>
+
+      <SettingsListV2>
+        <SettingsRowV2 title={language.t("settings.general.row.showFileTree.title")}>
+          <div data-action="settings-show-file-tree">
+            <Switch
+              checked={settings.general.showFileTree()}
+              onChange={(checked) => settings.general.setShowFileTree(checked)}
+              hideLabel
+            >
+              {language.t("settings.general.row.showFileTree.title")}
+            </Switch>
+          </div>
+        </SettingsRowV2>
+
+        <SettingsRowV2 title={language.t("settings.general.row.showStatus.title")}>
+          <div data-action="settings-show-status">
+            <Switch
+              checked={settings.general.showStatus()}
+              onChange={(checked) => settings.general.setShowStatus(checked)}
+              hideLabel
+            >
+              {language.t("settings.general.row.showStatus.title")}
+            </Switch>
+          </div>
+        </SettingsRowV2>
+
+        <SettingsRowV2
+          title={language.t("settings.general.row.showCustomAgents.title")}
+          description={language.t("settings.general.row.showCustomAgents.description")}
+        >
+          <div data-action="settings-show-custom-agents">
+            <Switch
+              checked={settings.general.showCustomAgents()}
+              onChange={(checked) => settings.general.setShowCustomAgents(checked)}
+              hideLabel
+            >
+              {language.t("settings.general.row.showCustomAgents.title")}
+            </Switch>
+          </div>
+        </SettingsRowV2>
+      </SettingsListV2>
+    </div>
+  )
+
+  const NotificationsSection = () => (
+    <div class="settings-v2-section">
+      <h3 class="settings-v2-section-title">{language.t("settings.general.section.notifications")}</h3>
+
+      <SettingsListV2>
+        <SettingsRowV2 title={language.t("settings.general.notifications.agent.title")}>
+          <div data-action="settings-notifications-agent">
+            <Switch
+              checked={settings.notifications.agent()}
+              onChange={(checked) => settings.notifications.setAgent(checked)}
+              hideLabel
+            >
+              {language.t("settings.general.notifications.agent.title")}
+            </Switch>
+          </div>
+        </SettingsRowV2>
+
+        <SettingsRowV2 title={language.t("settings.general.notifications.permissions.title")}>
+          <div data-action="settings-notifications-permissions">
+            <Switch
+              checked={settings.notifications.permissions()}
+              onChange={(checked) => settings.notifications.setPermissions(checked)}
+              hideLabel
+            >
+              {language.t("settings.general.notifications.permissions.title")}
+            </Switch>
+          </div>
+        </SettingsRowV2>
+
+        <SettingsRowV2 title={language.t("settings.general.notifications.errors.title")}>
+          <div data-action="settings-notifications-errors">
+            <Switch
+              checked={settings.notifications.errors()}
+              onChange={(checked) => settings.notifications.setErrors(checked)}
+              hideLabel
+            >
+              {language.t("settings.general.notifications.errors.title")}
+            </Switch>
+          </div>
+        </SettingsRowV2>
+      </SettingsListV2>
+    </div>
+  )
+
+  const UpdatesSection = () => (
+    <div class="settings-v2-section">
+      <h3 class="settings-v2-section-title">{language.t("settings.general.section.updates")}</h3>
+
+      <SettingsListV2>
+        <SettingsRowV2 title={language.t("settings.updates.row.check.title")}>
+          <ButtonV2
+            size="normal"
+            variant="ghost"
+            class="settings-v2-tonal"
+            disabled={!updater.action().run}
+            onClick={() => updater.run()}
+          >
+            {language.t(updater.action().label)}
+          </ButtonV2>
+        </SettingsRowV2>
+      </SettingsListV2>
+    </div>
+  )
+
+  const DisplaySection = () => (
+    <Show when={desktop()}>
+      <div class="settings-v2-section">
+        <h3 class="settings-v2-section-title">{language.t("settings.general.section.display")}</h3>
+
+        <SettingsListV2>
+          <SettingsRowV2 title={language.t("settings.general.row.pinchZoom.title")}>
+            <div data-action="settings-pinch-zoom">
+              <Switch checked={pinchZoom.latest} onChange={onPinchZoomChange} hideLabel>
+                {language.t("settings.general.row.pinchZoom.title")}
+              </Switch>
+            </div>
+          </SettingsRowV2>
+        </SettingsListV2>
+      </div>
+    </Show>
+  )
+
+  return (
+    <>
+      <div class="settings-v2-tab-header">
+        <h2 class="settings-v2-tab-title">{language.t("settings.tab.general")}</h2>
+      </div>
+
+      <div class="settings-v2-tab-body">
+        <GeneralSection />
+
+        <AppearanceSection controller={appearance} />
+
+        <NotificationsSection />
+
+        <SoundsSection controller={sounds} />
+
+        <Show when={desktop()}>
+          <UpdatesSection />
+        </Show>
+
+        <DisplaySection />
+
+        <AdvancedSection />
+      </div>
+    </>
+  )
+}

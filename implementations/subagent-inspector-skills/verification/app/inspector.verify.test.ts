@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test"
 import { createMemo, createRoot } from "solid-js"
 import { createStore } from "solid-js/store"
-import type { SessionMessageInfo } from "@opencode-ai/client/promise"
+import type { SessionMessageInfo } from "@tenon/client/promise"
 import type { ToolPart } from "@opencode-ai/sdk/v2"
-import { createSessionTabs } from "../../../../opencode/packages/app/src/pages/session/helpers"
-import { normalizeSessionMessages } from "../../../../opencode/packages/app/src/utils/session-message"
-import { subagentDetail } from "../../../../opencode/packages/app/src/components/session/subagent-detail"
-import { skillSections } from "../../../../opencode/packages/app/src/components/settings-v2/skills-sections"
+import { createSessionTabs } from "../../../../tenon/packages/app/src/pages/session/helpers"
+import { normalizeSessionMessages } from "../../../../tenon/packages/app/src/utils/session-message"
+import { subagentDetail } from "../../../../tenon/packages/app/src/components/session/subagent-detail"
+import { skillSections } from "../../../../tenon/packages/app/src/components/settings-v2/skills-sections"
 
 function activeTab(active: string | undefined, all: string[]) {
   return createRoot((dispose) => {

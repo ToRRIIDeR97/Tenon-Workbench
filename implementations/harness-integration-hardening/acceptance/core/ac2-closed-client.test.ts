@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { Effect, Queue, Sink, Stream } from "effect"
-import { make } from "../../../../opencode/packages/core/src/harness/codex-app-server"
+import { make } from "../../../../tenon/packages/core/src/harness/codex-app-server"
 
 describe("AC-2 a client whose process exited fails new requests at once", () => {
   test("closed turns true when stdout ends and a later request fails with an exit error", async () => {

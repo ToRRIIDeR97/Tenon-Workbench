@@ -10,14 +10,14 @@ but apps normally ship one so users only click "Sign in with Google".
 - Before: Calendar → Google Calendar & Tasks shows client ID, client secret
   and access fields. Nothing works until both are filled.
 - After: a build made with `MAIN_VITE_GOOGLE_CLIENT_ID` and
-  `MAIN_VITE_GOOGLE_CLIENT_SECRET` in `opencode/packages/desktop/.env.local`
+  `MAIN_VITE_GOOGLE_CLIENT_SECRET` in `tenon/packages/desktop/.env.local`
   shows the access choice and one **Sign in with Google** button. The typed
   fields move under a **Use your own OAuth client** toggle. A build without
   those values behaves as before.
 
 ## Scope
 
-Files, all under `opencode/packages/`:
+Files, all under `tenon/packages/`:
 
 - `desktop/src/main/google-calendar-domain.ts`: add `builtInGoogleClient(env)`
   and `resolveGoogleClient(input, builtIn)`; move credential validation here.
@@ -84,7 +84,7 @@ link), `activity.tsx` (pending/failed counts); the new field is additive.
   shows the access choice and **Sign in with Google**; typed fields are behind
   a **Use your own OAuth client** toggle. Without a built-in client it shows the
   current form and requires both fields.
-- **AC-7** `opencode/packages/desktop/.env.local` is git-ignored.
+- **AC-7** `tenon/packages/desktop/.env.local` is git-ignored.
 
 | Criterion | Acceptance | Verification | Manual / review |
 |---|---|---|---|
@@ -104,7 +104,7 @@ link), `activity.tsx` (pending/failed counts); the new field is additive.
 
 ## Verification
 
-From `opencode/packages/desktop`:
+From `tenon/packages/desktop`:
 
 ```sh
 bun test ../../../implementations/google-builtin-client/acceptance
@@ -142,4 +142,4 @@ Limitations:
 - Not run in the app: sign-in needs a real Desktop OAuth client in `.env.local`.
 - A malformed built-in client silently falls back to the typed-credentials form.
 - The env file is read from the build's working directory; all scripts use
-  `opencode/packages/desktop`.
+  `tenon/packages/desktop`.

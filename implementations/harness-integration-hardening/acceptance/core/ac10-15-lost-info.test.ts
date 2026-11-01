@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { AcpHarness } from "../../../../opencode/packages/core/src/harness/acp"
-import { codexInputItems, codexState, parseCodexNotification } from "../../../../opencode/packages/core/src/harness"
+import { AcpHarness } from "../../../../tenon/packages/core/src/harness/acp"
+import { codexInputItems, codexState, parseCodexNotification } from "../../../../tenon/packages/core/src/harness"
 
 const acp = (value: Record<string, unknown>) => ({ method: "session/update", params: { sessionId: "s1", update: value } })
 const png = "data:image/png;base64,aGVsbG8="

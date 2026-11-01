@@ -132,7 +132,7 @@ def states_platform():
     E([(360, 564), (360, 585), (120, 585), (120, 474)], "sync() retries pending | offline", at=(240, 580))
     s.text(40, 610, "5th transient failure → failed · pruning keeps pending | offline", "s")
     # D project status
-    s.zone(540, 360, 500, 260, "Project status · opencode/src/project/brain.ts")
+    s.zone(540, 360, 500, 260, "Project status · tenon/src/project/brain.ts")
     s.start(565, 437)
     st(s, 590, 420, 110, "active")
     st(s, 750, 420, 110, "paused")

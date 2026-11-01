@@ -1,0 +1,149 @@
+import { For, Show, createEffect, createMemo } from "solid-js"
+import { createStore } from "solid-js/store"
+import { ButtonV2 } from "@tenon/ui/v2/button-v2"
+import { Icon as IconV2 } from "@tenon/ui/v2/icon"
+import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
+import { Reveal } from "@tenon/ui/v2/reveal"
+import { useLanguage } from "@/context/language"
+import { createExitList } from "./exit-list"
+import type { SessionComposerRevertDock } from "./session-composer-region-controller"
+
+/**
+ * The rollback rows on top of the composer's tray (the context strip and the composer below it). It
+ * folds in through Reveal and, while closing, keeps rendering the last value it had.
+ */
+export function SessionRevertTray(props: { dock: () => SessionComposerRevertDock | undefined }) {
+  const rolled = () => (props.dock()?.items.length ? props.dock() : undefined)
+  const last = createMemo<SessionComposerRevertDock | undefined>((previous) => rolled() ?? previous)
+  // The dock object is rebuilt on every read, so the tray takes accessors instead of remounting (which
+  // would reset its collapsed state, focus and row motion) whenever the rollback or its actions change.
+  return (
+    <Reveal open={!!rolled()}>
+      <Show when={last()}>
+        {(dock) => (
+          <SessionRevertDock
+            items={dock().items}
+            restoring={dock().restoring}
+            disabled={dock().disabled}
+            onRestore={(id) => dock().onRestore(id)}
+          />
+        )}
+      </Show>
+    </Reveal>
+  )
+}
+
+export function SessionRevertDock(props: {
+  items: { id: string; text: string }[]
+  restoring?: string
+  disabled?: boolean
+  onRestore: (id: string) => void
+}) {
+  const language = useLanguage()
+  const [store, setStore] = createStore({
+    collapsed: true,
+  })
+
+  createEffect(() => {
+    props.items.length
+    props.items[0]?.id
+    setStore("collapsed", true)
+  })
+
+  const toggle = () => setStore("collapsed", (value) => !value)
+  const total = createMemo(() => props.items.length)
+  const label = createMemo(() => language.plural("session.revertDock.summary", total()))
+  const preview = createMemo(() => props.items[0]?.text ?? "")
+  const entries = createExitList(
+    () => props.items,
+    (item) => item.id,
+  )
+
+  const onHeaderKeyDown = (event: KeyboardEvent) => {
+    if (event.key !== "Enter" && event.key !== " ") return
+    event.preventDefault()
+    toggle()
+  }
+
+  return (
+    // Same surface and radius as the context strip. The last 14px sit under the next row of the tray
+    // (the strip or the composer), as the strip's own bottom does, so the rows read as one surface.
+    <div
+      data-component="session-revert-dock"
+      class="w-full overflow-hidden rounded-t-[24px] bg-v2-background-bg-layer-01"
+      style={{ "margin-bottom": "-14px" }}
+    >
+      <div
+        class="flex h-[42px] items-center gap-2 pl-5 pr-3"
+        role="button"
+        tabIndex={0}
+        onClick={toggle}
+        onKeyDown={onHeaderKeyDown}
+      >
+        <IconV2 name="outline-reset" size="normal" class="text-v2-icon-icon-muted" />
+        <span
+          classList={{
+            "font-[440] shrink-0 cursor-default text-[13px] leading-5 tracking-[-0.04px]": true,
+            "text-v2-text-text-base": !store.collapsed,
+            "text-v2-text-text-muted": store.collapsed,
+          }}
+        >
+          {label()}
+        </span>
+        <Show when={store.collapsed && preview()}>
+          <span class="min-w-0 flex-1 truncate cursor-default text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-faint animate-enter">
+            {preview()}
+          </span>
+        </Show>
+        <div class="ml-auto shrink-0">
+          <IconButtonV2
+            icon={<IconV2 name="outline-chevron-down" size="small" />}
+            size="large"
+            variant="ghost-muted"
+            class="transition-transform motion-reduce:transition-none"
+            style={{ transform: `rotate(${store.collapsed ? 180 : 0}deg)` }}
+            onMouseDown={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+            }}
+            onClick={(event) => {
+              event.stopPropagation()
+              toggle()
+            }}
+            aria-label={
+              store.collapsed ? language.t("session.revertDock.expand") : language.t("session.revertDock.collapse")
+            }
+          />
+        </div>
+      </div>
+
+      {/* The list folds through Reveal and rows expand in and collapse out (createExitList). */}
+      <Reveal open={!store.collapsed}>
+        {/* Scroll viewport ends above the composer */}
+        <div class="flex max-h-42 flex-col overflow-y-auto px-5 pt-px pb-3 no-scrollbar">
+          <For each={entries()}>
+            {(entry, index) => (
+              <Reveal open={entry.open}>
+                <div classList={{ "flex h-6 min-w-0 items-center gap-2": true, "mt-2": index() > 0 }}>
+                  <span class="min-w-0 flex-1 truncate text-[13px] font-[400] leading-5 tracking-[-0.04px] text-v2-text-text-muted">
+                    {entry.item.text}
+                  </span>
+                  <ButtonV2
+                    size="small"
+                    variant="neutral"
+                    class="shrink-0"
+                    disabled={props.disabled || !!props.restoring}
+                    onClick={() => props.onRestore(entry.key)}
+                  >
+                    {language.t("session.revertDock.restore")}
+                  </ButtonV2>
+                </div>
+              </Reveal>
+            )}
+          </For>
+        </div>
+      </Reveal>
+      <div class="h-[14px]" aria-hidden="true" />
+    </div>
+  )
+}

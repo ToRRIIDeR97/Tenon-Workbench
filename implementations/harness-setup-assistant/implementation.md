@@ -56,8 +56,8 @@ failing-first baseline.
 
 | Check | Result |
 |---|---|
-| `acceptance/verify.test.ts -t core`, run from `opencode/packages/core` | 4 pass |
-| `acceptance/verify.test.ts -t route`, run from `opencode/packages/opencode` | 1 pass |
+| `acceptance/verify.test.ts -t core`, run from `tenon/packages/core` | 4 pass |
+| `acceptance/verify.test.ts -t route`, run from `tenon/packages/tenon` | 1 pass |
 | `settings-v2/harness-assistant-behavior.test.ts` (app) | 5 pass |
 | Settings-page plan tests, core (regression) | 20 pass |
 | `bun run typecheck`, `lint`, `test`, `build` | pass. Lint has 0 errors and 4353 warnings, below `main`'s 4356. |
@@ -79,7 +79,7 @@ assistant to quick checks, spent minutes writing its own ACP test scripts.
 Setup, once per checkout. The link is gitignored:
 
 ```sh
-cd "Implementations/harness-setup-assistant" && ln -s ../../opencode/packages/opencode/node_modules node_modules
+cd "Implementations/harness-setup-assistant" && ln -s ../../tenon/packages/tenon/node_modules node_modules
 ```
 
 ## Limitations

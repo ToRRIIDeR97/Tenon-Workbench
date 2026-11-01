@@ -1,9 +1,9 @@
 // Acceptance tests for session-wide usage (AC-5, AC-6).
-// Run from opencode/packages/app:
+// Run from tenon/packages/app:
 //   bun test ../../../implementations/session-view/acceptance/session-usage.test.ts
 import { describe, expect, test } from "bun:test"
 import type { Message } from "@opencode-ai/sdk/v2/client"
-import { getSessionUsage } from "../../../opencode/packages/app/src/components/session/session-usage"
+import { getSessionUsage } from "../../../tenon/packages/app/src/components/session/session-usage"
 
 let seq = 0
 function assistant(

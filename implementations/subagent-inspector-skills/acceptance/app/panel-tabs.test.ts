@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { createMemo, createRoot } from "solid-js"
 import { createStore } from "solid-js/store"
-import { createSessionTabs } from "../../../../opencode/packages/app/src/pages/session/helpers"
+import { createSessionTabs } from "../../../../tenon/packages/app/src/pages/session/helpers"
 
 const fileTab = (tab: string) => (tab.startsWith("file://") ? tab.slice("file://".length) : undefined)
 

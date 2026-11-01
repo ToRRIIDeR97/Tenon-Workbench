@@ -10,7 +10,7 @@
 Second Brain OS runs agent turns through Harnesses. Only two drivers can
 execute: `opencode` (in-process) and `codex` (Codex app-server). A config
 entry with any other driver shows "Driver '…' is not installed"
-(`opencode/packages/core/src/harness.ts`). Adding another agent CLI, such as
+(`tenon/packages/core/src/harness.ts`). Adding another agent CLI, such as
 Gemini CLI or a local tool, needs code changes. An agent can't add one either,
 even when the user asks.
 
@@ -30,7 +30,7 @@ one, or after someone writes a dedicated driver.
 
 ## Scope
 
-In scope, all paths under `opencode/packages/`:
+In scope, all paths under `tenon/packages/`:
 
 - `schema/src/harness.ts`: add the `acp` driver kind.
 - `core/src/config/harness.ts`: add the ACP settings schema: `command`,
@@ -178,7 +178,7 @@ Invariants:
 Setup, once per checkout, from the repository root. The link is git-ignored:
 
 ```sh
-ln -s ../../opencode/packages/core/node_modules implementations/acp-harness-driver/node_modules
+ln -s ../../tenon/packages/core/node_modules implementations/acp-harness-driver/node_modules
 ```
 
 The fake ACP agent at `fixtures/fake-acp-agent.ts` is a deterministic
@@ -186,7 +186,7 @@ stdio script. Its behavior is selected by `FAKE_ACP_SCENARIO`, and it records
 received messages to `FAKE_ACP_LOG`. Tests run it with the current Bun
 executable. They make no network calls and use no live providers.
 
-Run from `opencode/packages/core`:
+Run from `tenon/packages/core`:
 
 ```sh
 bun test ../../../implementations/acp-harness-driver/acceptance
@@ -229,7 +229,7 @@ Results on the final tree (2026-10-02, macOS, Bun 1.3.14, Node 22.22.3):
 | --- | --- |
 | Acceptance set | 11 pass, 0 fail |
 | Verification set | 17 pass, 0 fail |
-| `bun test` in `opencode/packages/core` | 1110 pass, 0 fail, including the new `test/harness-acp.test.ts` |
+| `bun test` in `tenon/packages/core` | 1110 pass, 0 fail, including the new `test/harness-acp.test.ts` |
 | `bun run test:engine` | core 1110 pass; server 3323 pass |
 | `bun run typecheck`, server package `tsgo --noEmit` | pass |
 | `bun run lint` | 0 errors, 4350 warnings (unchanged baseline) |

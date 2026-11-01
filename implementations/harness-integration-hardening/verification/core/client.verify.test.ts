@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { Effect, Fiber, Queue, Sink, Stream } from "effect"
-import { make } from "../../../../opencode/packages/core/src/harness/codex-app-server"
+import { make } from "../../../../tenon/packages/core/src/harness/codex-app-server"
 
 describe("verify AC-2 closed client", () => {
   test("a request in flight when the process exits fails, and the client reports closed", async () => {

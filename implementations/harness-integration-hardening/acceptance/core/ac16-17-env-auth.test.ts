@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import { Exit } from "effect"
-import { harnessEnvironment } from "../../../../opencode/packages/core/src/harness/env"
-import { AcpHarness } from "../../../../opencode/packages/core/src/harness/acp"
-import { ProtocolError } from "../../../../opencode/packages/core/src/harness/codex-app-server"
+import { harnessEnvironment } from "../../../../tenon/packages/core/src/harness/env"
+import { AcpHarness } from "../../../../tenon/packages/core/src/harness/acp"
+import { ProtocolError } from "../../../../tenon/packages/core/src/harness/codex-app-server"
 
 describe("AC-16 harnesses get the network, config and tooling settings the shell has", () => {
   test("proxy, CA, config-dir, routing and tooling variables pass; keys don't", () => {

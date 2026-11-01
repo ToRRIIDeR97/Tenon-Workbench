@@ -1,11 +1,11 @@
 # OpenCode upstream
 
-The `opencode/` directory is imported from `anomalyco/opencode` at commit
+The `tenon/` directory is imported from `anomalyco/opencode` at commit
 `bb72277407798e31e3f7d323c3144807238e0d6e` under the MIT License.
 
 Keep the agent runtime, permission controls, Electron host, workspace access,
 and session compatibility needed by Tenon Workbench. Add product behavior in
-`opencode/packages/app` and native behavior in `opencode/packages/desktop`.
+`tenon/packages/app` and native behavior in `tenon/packages/desktop`.
 Hosted billing/console, public websites, statistics infrastructure, bots, editor
 extensions, and upstream release automation have been removed from this fork.
 So have the Storybook and `sdk-next` packages, upstream specs and perf notes,
@@ -15,7 +15,7 @@ runtime calls and links to `opencode.ai` listed in the
 `httpapi-codegen` stays because `packages/client` generates its SDK with it.
 
 The terminal UI is gone too: the `tui` and `cli` packages,
-`packages/opencode/src/cli/tui`, the `run` command, and the upstream
+`packages/tenon/src/cli/tui`, the `run` command, and the upstream
 `github`, `pr`, `account`, `upgrade`, `uninstall`, `web`, `acp`, `attach`,
 `stats`, `plug`, `export`, and `import` commands. The ACP harness driver in
 `packages/core/src/harness/acp.ts` is unrelated and stays. A headless CLI

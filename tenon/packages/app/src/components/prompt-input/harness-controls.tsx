@@ -1,0 +1,168 @@
+import { Show, createMemo } from "solid-js"
+import { Harness } from "@tenon/schema/harness"
+import { PromptInputV2Select } from "@tenon/session-ui/v2/prompt-input"
+import { Icon } from "@tenon/ui/v2/icon"
+import { useDialog } from "@tenon/ui/context/dialog"
+import { useLanguage } from "@/context/language"
+import { harnessModelSlot } from "./harness-model-slot"
+
+export type PromptInputHarnessController = {
+  instances: () => ReadonlyArray<Harness.Instance> | undefined
+  loading: () => boolean
+  /** True while any harness check runs or the current harness's models are still being listed. */
+  checking?: () => boolean
+  disabled?: () => boolean
+  /** Checks the harnesses again in the background; the shown list stays until the answer arrives. */
+  revalidate?: () => void
+  current: () => Harness.InstanceID
+  select: (instanceID: Harness.InstanceID) => void
+  model: {
+    current: () => Harness.ModelSelection | undefined
+    set: (model: Harness.ModelSelection | undefined) => void
+  }
+}
+
+// Tenon Workbench's own loop first, then every external agent (built-in or registered) as one group.
+export function orderHarnesses(instances: ReadonlyArray<Harness.Instance> | undefined) {
+  return instances?.toSorted((a, b) => Number(isExternalHarness(a)) - Number(isExternalHarness(b)))
+}
+
+export function isExternalHarness(instance: Pick<Harness.Instance, "driver">) {
+  return instance.driver !== Harness.OpenCodeDriver
+}
+
+export async function openHarnessSettings(dialog: ReturnType<typeof useDialog>) {
+  // Loaded on demand: Settings renders these controls too, so a static import would be circular.
+  const { DialogSettings } = await import("@/components/settings-v2/dialog-settings-v2")
+  void dialog.show(() => <DialogSettings defaultValue="harnesses" />)
+}
+
+const SELECT_CLASS =
+  "prompt-input-responsive-select !h-7 !w-auto min-w-0 max-w-[220px] !bg-transparent !shadow-none hover:!bg-v2-overlay-simple-overlay-hover"
+
+export function PromptInputHarnessControls(props: { controller: PromptInputHarnessController }) {
+  const language = useLanguage()
+  const dialog = useDialog()
+  const options = createMemo(() => orderHarnesses(props.controller.instances()))
+  const addHarness = () => openHarnessSettings(dialog)
+  const checking = () => props.controller.loading() || !!props.controller.checking?.()
+  // While a check runs, the last answer for the same harness stays in place, so its model and effort
+  // pickers keep their slot instead of collapsing until the new list arrives.
+  const instance = createMemo<Harness.Instance | undefined>((previous) => {
+    const next = props.controller.instances()?.find((item) => item.id === props.controller.current())
+    const kept = previous?.id === props.controller.current() && previous.models.length > 0 ? previous : undefined
+    if (!next) return checking() ? kept : undefined
+    if (next.models.length === 0 && checking()) return kept ?? next
+    return next
+  })
+  // Falls back to the model the picker shows when none is saved yet, so effort and tier stay selectable.
+  const model = createMemo(() => {
+    const selection = props.controller.model.current()
+    const models = instance()?.models
+    return selection ? models?.find((item) => item.id === selection.id) : models?.[0]
+  })
+  const selectModel = (id: string) => {
+    const selected = instance()?.models.find((item) => item.id === id)
+    if (!selected) return
+    props.controller.model.set({
+      id: selected.id,
+      reasoningEffort: selected.defaultReasoningEffort,
+      serviceTier: selected.defaultServiceTier,
+    })
+  }
+
+  return (
+    <>
+      <PromptInputV2Select
+        title={language.t("harness.label")}
+        options={
+          options()?.map((item) => ({
+            id: item.id,
+            label: item.name + (item.status === "unavailable" ? ` - ${language.t("harness.unavailable")}` : ""),
+            disabled: item.status === "unavailable",
+            title: item.error,
+            group: isExternalHarness(item) ? language.t("harness.group.external") : undefined,
+          })) ?? [{ id: props.controller.current(), label: language.t("harness.checking") }]
+        }
+        footer={{ label: language.t("harness.settings.add"), onSelect: () => void addHarness() }}
+        current={props.controller.current()}
+        control="harness"
+        currentIcon={<Icon name="console" />}
+        class={SELECT_CLASS}
+        disabled={props.controller.loading() || props.controller.disabled?.() || !props.controller.instances()}
+        onOpenChange={(open) => open && props.controller.revalidate?.()}
+        onSelect={(id) => props.controller.select(Harness.InstanceID.make(id))}
+      />
+      <Show when={instance()?.driver !== Harness.OpenCodeDriver && instance()}>
+        {(item) => (
+          <Show
+            when={harnessModelSlot({ models: item().models.length, checking: checking() }) === "select"}
+            fallback={
+              <span class="px-2 text-[12px] text-v2-text-text-faint">
+                {harnessModelSlot({ models: 0, checking: checking() }) === "loading"
+                  ? language.t("harness.models.loading")
+                  : language.t("harness.models.none")}
+              </span>
+            }
+          >
+            <PromptInputV2Select
+              title={language.t("harness.model")}
+              options={item().models.map((option) => ({ id: option.id, label: option.name }))}
+              current={props.controller.model.current()?.id ?? item().models[0]?.id ?? ""}
+              control="harness-model"
+              currentIcon={<Icon name="monitor" />}
+              class={SELECT_CLASS}
+              capitalize={false}
+              disabled={props.controller.disabled?.()}
+              onSelect={selectModel}
+            />
+          </Show>
+        )}
+      </Show>
+      <Show when={model()}>
+        {(selected) => (
+          <>
+            <Show when={selected().reasoningEfforts.length > 0}>
+              <PromptInputV2Select
+                title={language.t("harness.effort")}
+                options={[
+                  { id: "", label: language.t("harness.default") },
+                  ...selected().reasoningEfforts.map((effort) => ({ id: effort, label: effort })),
+                ]}
+                current={props.controller.model.current()?.reasoningEffort ?? ""}
+                control="harness-effort"
+                currentIcon={<Icon name="settings-gear" />}
+                class={SELECT_CLASS}
+                capitalize={false}
+                disabled={props.controller.disabled?.()}
+                onSelect={(reasoningEffort) => {
+                  const current = props.controller.model.current() ?? { id: selected().id }
+                  props.controller.model.set({ ...current, reasoningEffort: reasoningEffort || undefined })
+                }}
+              />
+            </Show>
+            <Show when={selected().serviceTiers.length > 0}>
+              <PromptInputV2Select
+                title={language.t("harness.serviceTier")}
+                options={[
+                  { id: "", label: language.t("harness.default") },
+                  ...selected().serviceTiers.map((tier) => ({ id: tier.id, label: tier.name })),
+                ]}
+                current={props.controller.model.current()?.serviceTier ?? ""}
+                control="harness-service-tier"
+                currentIcon={<Icon name="outline-sliders" />}
+                class={SELECT_CLASS}
+                capitalize={false}
+                disabled={props.controller.disabled?.()}
+                onSelect={(serviceTier) => {
+                  const current = props.controller.model.current() ?? { id: selected().id }
+                  props.controller.model.set({ ...current, serviceTier: serviceTier || undefined })
+                }}
+              />
+            </Show>
+          </>
+        )}
+      </Show>
+    </>
+  )
+}

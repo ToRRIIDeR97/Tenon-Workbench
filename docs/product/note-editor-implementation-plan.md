@@ -13,7 +13,7 @@ The parity reference is `origin/main` at commit `4b8c687`, especially:
 - `app/src/features/editor/markdown/extensions.ts`
 - `app/src/features/editor/markdown/attachments.ts`
 
-The current implementation lives in `opencode/packages/app/src/pages/notes.tsx`. It already has note persistence, revision conflict checks, metadata, backlinks, and a Markdown renderer with GFM tables, task lists, KaTeX, and Shiki code highlighting.
+The current implementation lives in `tenon/packages/app/src/pages/notes.tsx`. It already has note persistence, revision conflict checks, metadata, backlinks, and a Markdown renderer with GFM tables, task lists, KaTeX, and Shiki code highlighting.
 
 ## Module seam
 

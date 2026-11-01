@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test"
-import { LLM, Model } from "@opencode-ai/llm"
-import { route } from "@opencode-ai/llm/protocols/openai-chat"
-import { idleRuntimeKeys, renderCodexInstructions, renderHarnessPrompt } from "../../../../opencode/packages/core/src/harness"
-import { AcpHarness } from "../../../../opencode/packages/core/src/harness/acp"
+import { LLM, Model } from "@tenon/llm"
+import { route } from "@tenon/llm/protocols/openai-chat"
+import { idleRuntimeKeys, renderCodexInstructions, renderHarnessPrompt } from "../../../../tenon/packages/core/src/harness"
+import { AcpHarness } from "../../../../tenon/packages/core/src/harness/acp"
 
 const minute = 60_000
 

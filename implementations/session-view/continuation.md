@@ -53,14 +53,14 @@ What changed:
 
 All four steps are implemented. The notes below record the original plan. Results are in [implementation.md](implementation.md#completion-evidence).
 
-Paths are under `opencode/packages/`.
+Paths are under `tenon/packages/`.
 
 ### 3. Tool rows from `stepOf` (AC-4) — done
 
 - Unregistered tools fall through to `GenericTool` (`session-ui/src/components/basic-tool.tsx:323-343`). It renders `ui.basicTool.called` = "Called `{{tool}}`" (`ui/src/i18n/en.ts:168`) plus key=value args. Replace that fallback with a row showing an icon, a verb and a target from `stepOf`. Keep the expanded detail (input/output).
 - `ToolRegistry` is at `message-part.tsx:1514-1534`, and `getTool` aliases at 1528. `getToolInfo` (466–569) picks the icon and title; its `default` uses the `mcp` icon and the raw name. Route Codex names (`command_execution`, `file_change`, `mcp_tool_call`, `web_search`) and `acp_*` names through `stepOf` so they get the same icon and verb as the built-in tool of the same kind.
 - `toolGroupCounts` (`part-group.ts:107-118`) only knows built-in names. Base it on `stepOf` kinds so Codex and ACP runs count too. That changes the existing "Ran N tools" / "Explored" copy inputs, so check `message-part.test.ts`.
-- MCP server names for `stepOf(…, { mcpServers })`: the legacy server names MCP tools `sanitize(client) + "_" + sanitize(tool)` (`opencode/src/mcp/catalog.ts:119`). Pass the configured server names from wherever the app already lists MCP status. Without them, MCP calls show as "other", which is acceptable for now.
+- MCP server names for `stepOf(…, { mcpServers })`: the legacy server names MCP tools `sanitize(client) + "_" + sanitize(tool)` (`tenon/src/mcp/catalog.ts:119`). Pass the configured server names from wherever the app already lists MCP status. Without them, MCP calls show as "other", which is acceptable for now.
 - Verbs, as new i18n keys: Read, Searched, Edited, Ran / Running, Fetched, Called (MCP), Loaded skill, Thought. Subagent rows show the agent name.
 
 ### 4. Folded turn rows (AC-3) — done
@@ -68,7 +68,7 @@ Paths are under `opencode/packages/`.
 Record the timeline benchmark baseline before touching rows (app `AGENTS.md`):
 
 ```powershell
-cd opencode/packages/app; $env:PLAYWRIGHT_WORKERS="1"; bun run test:bench
+cd tenon/packages/app; $env:PLAYWRIGHT_WORKERS="1"; bun run test:bench
 ```
 
 Keep the `BENCHMARK` lines for comparison.

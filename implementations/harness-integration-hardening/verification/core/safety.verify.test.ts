@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test"
 import { Schema } from "effect"
-import { configuredInstances } from "../../../../opencode/packages/core/src/harness"
-import { ConfigHarness } from "../../../../opencode/packages/core/src/config/harness"
-import type { Config } from "../../../../opencode/packages/core/src/config"
-import { HarnessSetup } from "../../../../opencode/packages/core/src/harness/setup"
-import { AcpHarness } from "../../../../opencode/packages/core/src/harness/acp"
-import { Harness } from "../../../../opencode/packages/schema/src/harness"
+import { configuredInstances } from "../../../../tenon/packages/core/src/harness"
+import { ConfigHarness } from "../../../../tenon/packages/core/src/config/harness"
+import type { Config } from "../../../../tenon/packages/core/src/config"
+import { HarnessSetup } from "../../../../tenon/packages/core/src/harness/setup"
+import { AcpHarness } from "../../../../tenon/packages/core/src/harness/acp"
+import { Harness } from "../../../../tenon/packages/schema/src/harness"
 
 const entry = Schema.decodeUnknownSync(ConfigHarness.Instance)
 

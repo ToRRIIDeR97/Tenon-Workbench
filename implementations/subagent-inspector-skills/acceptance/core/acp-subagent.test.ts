@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { Exit } from "effect"
-import { AcpHarness } from "../../../../opencode/packages/core/src/harness/acp"
+import { AcpHarness } from "../../../../tenon/packages/core/src/harness/acp"
 
 const update = (value: Record<string, unknown>) => ({
   method: "session/update",

@@ -4,7 +4,7 @@ The active Electron app was compared against
 [the product brief](../product/PRODUCT-BRIEF-V1.md)
 and [the navigation map](../product/NAVIGATION-MAP-V1.md).
 The audit read the source and did not run the app. Paths are relative to
-`opencode/packages/`.
+`tenon/packages/`.
 
 ## Summary
 
@@ -14,7 +14,7 @@ The audit read the source and did not run the app. Paths are relative to
 | Top bar | Mostly missing | Back and Forward exist. There is no breadcrumb, Create menu, Ask button, or attention indicator. `mod+k` and `mod+shift+p` open one palette (`app/src/context/command.tsx:14`). |
 | Home | Partial | Today, Active Projects, Resume, and Running exist. Resume lists sessions only. Empty panels always render. Approvals are not routed to a review view. |
 | Projects | Partial | Active, Paused, and Archived lists, and Overview editing, work. Plan has no milestone entity, timeline, or dependencies. Work, Files, and Activity are link-out cards. Map shows notes only. |
-| Project creation | Partial | Name, outcome, existing location, instructions, and tags work. There is no new-folder option or template; `templateId` exists in `opencode/src/project/brain.ts` but the UI never uses it. |
+| Project creation | Partial | Name, outcome, existing location, instructions, and tags work. There is no new-folder option or template; `templateId` exists in `tenon/src/project/brain.ts` but the UI never uses it. |
 | Calendar and tasks | Largely built | All views, local planner, project links, Google read/write consent split, and an outbox work. There are no milestones or conflict-resolution UI, and only the primary Google calendar syncs. |
 | Knowledge | Partial | Markdown notes, editor, wiki-links, and backlinks work. There are no Daily notes, Collections, or Saved views. Search is a full scan without source labels. Notes do not open as workbench tabs. |
 | Activity | Partial | Built around sessions. It has no records of planner, note, or sync mutations, no Project filter, and no recovery items. |

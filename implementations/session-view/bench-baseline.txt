@@ -2,7 +2,7 @@ Timeline benchmark baseline, recorded before the step-4 rows change.
 Date: 2026-10-16. Branch continue-implementation @ bacd937, plus Implementer A's uncommitted step-3 edits in
 session-ui and ui/i18n (they were in the working tree when the bundle was built). macOS arm64.
 
-How it was run (from opencode/packages/app):
+How it was run (from tenon/packages/app):
   PLAYWRIGHT_WORKERS=1 bunx playwright test --config e2e/performance/playwright.config.ts e2e/performance/timeline/
 
 Why not plain `bun run test:bench`:

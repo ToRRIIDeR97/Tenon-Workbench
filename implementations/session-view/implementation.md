@@ -45,7 +45,7 @@ ran the tests:
 
 ## Scope
 
-Paths are under `opencode/packages/`.
+Paths are under `tenon/packages/`.
 
 - `session-ui/src/components/step-kind.ts` (new): `stepOf` and `summarizeTurn`
   (contract below).
@@ -269,7 +269,7 @@ Docs to update in the same change:
 
 Setup, once per checkout. The `node_modules` junction is gitignored by
 `implementations/*/node_modules` and lets the core tests resolve `effect` and
-`@opencode-ai/llm`:
+`@tenon/llm`:
 
 ```powershell
 New-Item -ItemType Junction -Path implementations\session-view\node_modules -Target (Resolve-Path opencode\packages\core\node_modules)
@@ -279,9 +279,9 @@ Commands. Run each from the named package directory:
 
 | Package dir | Command |
 |---|---|
-| `opencode/packages/session-ui` | `bun test ../../../implementations/session-view/acceptance/step-kind.test.ts` |
-| `opencode/packages/app` | `bun test ../../../implementations/session-view/acceptance/session-usage.test.ts` |
-| `opencode/packages/core` | `bun test ../../../implementations/session-view/acceptance/harness-usage.test.ts` |
+| `tenon/packages/session-ui` | `bun test ../../../implementations/session-view/acceptance/step-kind.test.ts` |
+| `tenon/packages/app` | `bun test ../../../implementations/session-view/acceptance/session-usage.test.ts` |
+| `tenon/packages/core` | `bun test ../../../implementations/session-view/acceptance/harness-usage.test.ts` |
 
 The verification set uses the same directories with
 `verification/<name>.verify.test.ts`.
@@ -290,7 +290,7 @@ Repository checks, from the root: `bun run typecheck`, `bun run lint`,
 `bun run test`, `bun run build`, `bun run test:engine` (core changes) and
 `bun run test:routes`.
 
-Timeline benchmark: from `opencode/packages/app`, run
+Timeline benchmark: from `tenon/packages/app`, run
 `$env:PLAYWRIGHT_WORKERS="1"; bun run test:bench`. Run it before step 4 and
 after. Compare the `BENCHMARK` lines. Also run `bun run test:stability`.
 
@@ -333,7 +333,7 @@ and 6 (tool rows and the composer status line). Implementer B did steps 4 and
 | AC-8 | Superseded | The composer status line was removed in `codex/live-step-ticker`: the turn header's live ticker shows the running step, its target and a timer instead |
 | AC-9 | Met | i18n keys are additions only; required checks pass and timeline stability is back to the baseline 40 pass / 4 fail (verifier) |
 
-Worker results (Implementer B; run from `opencode/packages/app`):
+Worker results (Implementer B; run from `tenon/packages/app`):
 
 - `bun run typecheck`: clean. `bun run test:unit`: 790 pass, 0 fail.
 - `bun test` on `acceptance/session-usage.test.ts` and

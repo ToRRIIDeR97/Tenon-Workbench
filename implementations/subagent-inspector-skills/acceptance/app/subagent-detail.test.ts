@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test"
-import type { SessionMessageInfo } from "@opencode-ai/client/promise"
+import type { SessionMessageInfo } from "@tenon/client/promise"
 import type { ToolPart } from "@opencode-ai/sdk/v2"
-import { normalizeSessionMessages } from "../../../../opencode/packages/app/src/utils/session-message"
-import { subagentDetail } from "../../../../opencode/packages/app/src/components/session/subagent-detail"
+import { normalizeSessionMessages } from "../../../../tenon/packages/app/src/utils/session-message"
+import { subagentDetail } from "../../../../tenon/packages/app/src/components/session/subagent-detail"
 
 const transcript = [
   { type: "reasoning", text: "Plan: grep" },
