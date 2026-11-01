@@ -254,10 +254,17 @@ export function createSidebarController() {
   const removeProject = (project: SidebarProjectItem) =>
     isLinked(project) ? unlinkProject(project) : archiveProject(project)
 
-  // Per-directory thread lists, kept live by session.created/updated/deleted events.
+  // Per-directory thread lists, kept live by session.created/updated/deleted events. Only expanded
+  // groups render their threads, so collapsed Projects skip the list request and their per-directory
+  // stores; the recent-thread index below still covers their root threads.
   const directories = createMemo(() => {
     const brain = brainDirectory()
-    const all = [...projects().map((project) => project.threadDirectory), ...(brain ? [brain] : [])]
+    const all = [
+      ...projects()
+        .filter((project) => state.expanded[project.id])
+        .map((project) => project.threadDirectory),
+      ...(brain && state.expanded[BRAIN_GROUP] ? [brain] : []),
+    ]
     return [...new Map(all.map((directory) => [pathKey(directory), directory] as const)).values()]
   })
   createEffect(() => {

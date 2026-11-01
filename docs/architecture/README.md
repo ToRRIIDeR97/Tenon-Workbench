@@ -128,9 +128,11 @@ and the queued and rolled-back docks keep removed rows closing in place with
 `createExitList` (`pages/session/composer/exit-list.ts`).
 
 The sidebar's controller (`components/sidebar/sidebar-controller.ts`) reads
-`GET /second-brain/project-threads`, loads each Project's threads with
+`GET /second-brain/project-threads`, loads each expanded Project's threads
+(and General's, when expanded) with
 `serverSync().project.loadSessions(threadDirectory)` (kept live by
-`session.created/updated/deleted` events), adds the recent-session index for
+`session.created/updated/deleted` events; collapsed groups make no request),
+adds the recent-session index for
 threads outside any Project folder, and groups them with
 `features/second-brain/sidebar-threads.ts` into Projects (the deepest Project
 folder holding the thread) and General (the rest of the workspace folder).
