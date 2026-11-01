@@ -161,12 +161,12 @@ RunAsNode.
 ## Managed server controls
 
 - **Bind guard.** `Server.listen` refuses a non-loopback hostname unless
-  `OPENCODE_SERVER_PASSWORD` is set (`server/network-guard.ts`). The WSL
+  `TENON_SERVER_PASSWORD` is set (`server/network-guard.ts`). The WSL
   sidecar listens on `127.0.0.1` inside the distro.
 
 - **Child processes.** Terminals, agent shell commands, MCP stdio servers and
-  LSP servers don't inherit `OPENCODE_SERVER_PASSWORD` or
-  `OPENCODE_SERVER_USERNAME`. `ChildEnv.from` (`core/src/child-env.ts`) strips
+  LSP servers don't inherit `TENON_SERVER_PASSWORD` or
+  `TENON_SERVER_USERNAME`. `ChildEnv.from` (`core/src/child-env.ts`) strips
   them in the cross-spawn spawner and `Process.spawn`, which apply it to every
   child environment. All other variables are still inherited.
 - **Credential checks.** `ServerAuth.authorized` compares the username and
@@ -383,7 +383,7 @@ only files in the global config folder count (`harnessDocuments` in
 folder (`opencode.json`, `.opencode/`) are ignored for harnesses, because
 listing harnesses runs each one's availability check, so a cloned repo could
 otherwise run its own command just by being opened. Inline config without a
-file (`OPENCODE_CONFIG_CONTENT` set by the user) still counts.
+file (`TENON_CONFIG_CONTENT` set by the user) still counts.
 
 Attachments on a harness turn now leave the app: Codex and ACP agents get
 pasted images as image data, which their provider receives, and local files
@@ -395,7 +395,7 @@ CLI allows:
 
 - Codex runs with `workspace-write` and `on-request` approvals.
 - OpenCode's own default lets edits and shell commands run without asking.
-  The app launches it with `OPENCODE_CONFIG_CONTENT` setting `edit` and
+  The app launches it with `TENON_CONFIG_CONTENT` setting `edit` and
   `bash` to `ask` (requests reach Tenon's approvals over ACP), unless the
   user's global OpenCode config sets `permission` or the harness's configured
   `env` sets that variable.
@@ -573,7 +573,7 @@ The built-in `opencode-acp` instance starts upstream OpenCode from `PATH` as
 separate child process running as the user, and it gets the same treatment:
 
 - It receives only the launch allowlist from `core/src/harness/env.ts`. No
-  `OPENCODE_*` variables and no provider keys from the app reach it.
+  `TENON_*` variables and no provider keys from the app reach it.
 - It uses its own credentials, set up with `opencode auth login`.
 - The client advertises no file-system or terminal capability. Its tool
   approvals arrive as `session/request_permission` and go through

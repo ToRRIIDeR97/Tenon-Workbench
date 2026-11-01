@@ -30,7 +30,7 @@ describe("HttpApi route authorization coverage", () => {
     await using tmp = await tmpdir({ git: true, config: { formatter: false, lsp: false } })
     const handler = HttpRouter.toWebHandler(
       HttpApiApp.routes.pipe(
-        Layer.provide(ConfigProvider.layer(ConfigProvider.fromUnknown({ OPENCODE_SERVER_PASSWORD: "secret" }))),
+        Layer.provide(ConfigProvider.layer(ConfigProvider.fromUnknown({ TENON_SERVER_PASSWORD: "secret" }))),
       ),
       { disableLogger: true },
     ).handler

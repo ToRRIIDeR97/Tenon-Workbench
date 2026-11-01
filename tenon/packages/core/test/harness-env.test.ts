@@ -12,7 +12,7 @@ describe("harnessEnvironment", () => {
         TERM: "xterm-256color",
         XDG_CONFIG_HOME: "/home/me/.config",
         SECRET_TOKEN: "s3cret",
-        OPENCODE_PROVIDER_KEY: "key",
+        TENON_PROVIDER_KEY: "key",
       },
     )
     expect(env).toEqual({

@@ -67,8 +67,8 @@ describe("SkillV2 with switched-off skills", () => {
       await fs.mkdir(path.join(skills, name), { recursive: true })
       await fs.writeFile(path.join(skills, name, "SKILL.md"), `---\nname: ${name}\ndescription: ${name}\n---\nBody`)
     }
-    const previous = process.env.OPENCODE_CONFIG_DIR
-    process.env.OPENCODE_CONFIG_DIR = config
+    const previous = process.env.TENON_CONFIG_DIR
+    process.env.TENON_CONFIG_DIR = config
     try {
       await Effect.runPromise(SkillToggle.set(config, "review", false))
       const discovery = Layer.succeed(
@@ -88,8 +88,8 @@ describe("SkillV2 with switched-off skills", () => {
       )
       expect(names).toEqual({ list: ["notes"], all: ["notes", "review"] })
     } finally {
-      if (previous === undefined) delete process.env.OPENCODE_CONFIG_DIR
-      else process.env.OPENCODE_CONFIG_DIR = previous
+      if (previous === undefined) delete process.env.TENON_CONFIG_DIR
+      else process.env.TENON_CONFIG_DIR = previous
     }
   })
 })

@@ -121,11 +121,11 @@ Phase 2 (safety):
   harness defined in a project document is absent from both. Built-in IDs stay
   protected as before.
 - **AC-7** `openCodeLaunchEnv(userConfig)` returns
-  `OPENCODE_CONFIG_CONTENT` with `permission.edit` and `permission.bash` set to
+  `TENON_CONFIG_CONTENT` with `permission.edit` and `permission.bash` set to
   `ask` when the user's global OpenCode config text has no `permission` key
   (or there is no such file); it returns nothing when the user set
   `permission`. The OpenCode harness's launch environment includes it unless
-  its configured `env` already sets `OPENCODE_CONFIG_CONTENT`.
+  its configured `env` already sets `TENON_CONFIG_CONTENT`.
 - **AC-8** `safeAcpMode(modes)` returns `"default"` when the agent reports
   current mode `bypassPermissions` and lists a `default` mode; otherwise it
   returns nothing. After opening a session the app requests
@@ -379,9 +379,9 @@ passes the global config folder to `configuredInstances` and gives its
 config document a path inside it; its assertions are unchanged. Plan test
 files match their recorded checksums.
 
-Path-less config documents (inline `OPENCODE_CONFIG_CONTENT` the user set)
+Path-less config documents (inline `TENON_CONFIG_CONTENT` the user set)
 still count as global. The installed `opencode` v2.2.0 binary reads
-`OPENCODE_CONFIG_CONTENT` but not `OPENCODE_PERMISSION`, so the former is
+`TENON_CONFIG_CONTENT` but not `TENON_PERMISSION`, so the former is
 used.
 
 Repository checks: typecheck, lint, check:generated, build pass; `test`,

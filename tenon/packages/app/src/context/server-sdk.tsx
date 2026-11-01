@@ -369,7 +369,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
           const events = (
             await eventSdk.global.event({
               signal: attempt.signal,
-              headers: { "x-opencode-skip-sync-events": "1" },
+              headers: { "x-tenon-skip-sync-events": "1" },
             })
           ).stream
           let yielded = Date.now()

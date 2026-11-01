@@ -62,12 +62,15 @@ const layer = Layer.effect(
       return yield* projectDirectories.list(input.projectID)
     })
 
-    const cached = Effect.fnUntraced(function* (dir: string) {
-      return yield* fs.readFileString(path.join(dir, "opencode")).pipe(
+    // The project ID file in the git directory; the pre-rename `opencode` file is still read.
+    const readID = (file: string) =>
+      fs.readFileString(file).pipe(
         Effect.map((value) => value.trim()),
         Effect.map((value) => (value ? ID.make(value) : undefined)),
         Effect.catch(() => Effect.succeed(undefined)),
       )
+    const cached = Effect.fnUntraced(function* (dir: string) {
+      return (yield* readID(path.join(dir, "tenon"))) ?? (yield* readID(path.join(dir, "opencode")))
     })
 
     const remote = Effect.fnUntraced(function* (repo: Git.Repository) {
@@ -122,7 +125,7 @@ const layer = Layer.effect(
     })
 
     const commit = Effect.fn("Project.commit")(function* (input: { store: AbsolutePath; id: ID }) {
-      yield* fs.writeFileString(path.join(input.store, "opencode"), input.id).pipe(Effect.ignore)
+      yield* fs.writeFileString(path.join(input.store, "tenon"), input.id).pipe(Effect.ignore)
     })
 
     return Service.of({ directories, resolve, commit })

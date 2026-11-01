@@ -5,7 +5,13 @@ export * as ChildEnv from "./child-env"
  * MCP or LSP servers run code the user or the model chose, so they must not inherit them. Every
  * other variable is kept so user tools keep working.
  */
-const serverCredentials = new Set(["OPENCODE_SERVER_PASSWORD", "OPENCODE_SERVER_USERNAME"])
+// The OPENCODE_ names are the pre-rename spellings, still honoured by legacy-env.ts.
+const serverCredentials = new Set([
+  "TENON_SERVER_PASSWORD",
+  "TENON_SERVER_USERNAME",
+  "OPENCODE_SERVER_PASSWORD",
+  "OPENCODE_SERVER_USERNAME",
+])
 
 /** Returns a copy of `source` (default `process.env`) without the server credential variables. */
 export function from(source: Readonly<Record<string, string | undefined>> = process.env) {

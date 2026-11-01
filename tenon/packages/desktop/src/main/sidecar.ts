@@ -1,3 +1,5 @@
+// Must run first: maps pre-rename OPENCODE_* variables to TENON_* before other modules read them.
+import "./legacy-env"
 import * as http from "node:http"
 import * as tls from "node:tls"
 
@@ -82,8 +84,8 @@ async function stop() {
 
 function prepareSidecarEnv(password: string, userDataPath: string) {
   Object.assign(process.env, {
-    OPENCODE_SERVER_USERNAME: "opencode",
-    OPENCODE_SERVER_PASSWORD: password,
+    TENON_SERVER_USERNAME: "opencode",
+    TENON_SERVER_PASSWORD: password,
     XDG_STATE_HOME: process.env.XDG_STATE_HOME ?? userDataPath,
   })
 }

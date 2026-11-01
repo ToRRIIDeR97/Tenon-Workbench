@@ -5,7 +5,9 @@ import { Workspace } from "@/control-plane/workspace"
 import type { WorkspaceV2 } from "@tenon/core/workspace"
 import { Effect } from "effect"
 
-export const HEADER = "x-opencode-sync"
+export const HEADER = "x-tenon-sync"
+// Pre-rename name, still emitted and read so older Tenon and OpenCode workspace servers interoperate.
+export const LEGACY_HEADER = "x-opencode-sync"
 export type State = Record<string, number>
 
 export function load(db: Database.Interface["db"], ids?: string[]) {
@@ -32,7 +34,7 @@ export function diff(prev: State, next: State) {
 }
 
 export function parse(headers: Headers): State | undefined {
-  const raw = headers.get(HEADER)
+  const raw = headers.get(HEADER) ?? headers.get(LEGACY_HEADER)
   if (!raw) return
 
   let data

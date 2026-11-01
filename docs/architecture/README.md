@@ -373,7 +373,7 @@ routing to it. `Harness.OpenCodeAcp` in `packages/schema/src/harness.ts` names
 the new instance, and the app's fallback list (`fallbackHarnesses` in
 `app/src/utils/server.ts`) shows it as unavailable until the server reports
 otherwise. The upstream child gets only the harness environment allowlist from
-`core/src/harness/env.ts`, so no `OPENCODE_*` variables or app provider keys
+`core/src/harness/env.ts`, so no `TENON_*` variables or app provider keys
 reach it. It uses its own credentials from `opencode auth login`.
 
 `Harness.ClaudeCode` names the Claude Code instance. It runs
@@ -404,7 +404,7 @@ Electron `userData`), cache in `$XDG_CACHE_HOME/tenon-workbench`, and temp files
 in `os.tmpdir()/tenon-workbench`. Database filenames are unchanged (`opencode.db`
 on latest, beta and prod, `opencode-<channel>.db` otherwise; `path()` in
 `core/src/database/database.ts`). An unset build channel falls back to the git
-branch, so the installed desktop app sets `OPENCODE_DB` by its own channel
+branch, so the installed desktop app sets `TENON_DB` by its own channel
 instead (`opencode-dev.db`, `opencode-beta.db`, `opencode.db`;
 `desktop/src/main/database-name.ts`). See
 [release operations](../release-operations.md).
@@ -1136,7 +1136,7 @@ buffer a bounded number of events per subscriber (4096 for the first two, 256
 for `/api/event`) and disconnect a subscriber that falls further behind. The
 renderer reconnects and resyncs on the `server.connected` event. `/global/event`
 also carries a `sync` copy of each durable event for remote control planes;
-the renderer sends `x-opencode-skip-sync-events: 1` and the server leaves
+the renderer sends `x-tenon-skip-sync-events: 1` and the server leaves
 those copies out of its stream. `/api/event`
 skips bus events outside its served schema, such as TUI events. `GET /provider`
 caches its projection until models.dev data, config, provider state, or stored

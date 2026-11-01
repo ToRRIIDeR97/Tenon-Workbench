@@ -13,7 +13,7 @@ const printEnv = (env?: Record<string, string>) =>
     process.execPath,
     [
       "-e",
-      "process.stdout.write(JSON.stringify([process.env.OPENCODE_SERVER_PASSWORD, process.env.OPENCODE_SERVER_USERNAME, process.env.CHILD_ENV_TEST_KEEP]))",
+      "process.stdout.write(JSON.stringify([process.env.TENON_SERVER_PASSWORD, process.env.TENON_SERVER_USERNAME, process.env.CHILD_ENV_TEST_KEEP]))",
     ],
     env ? { env, extendEnv: true } : {},
   )
@@ -22,14 +22,14 @@ const printEnv = (env?: Record<string, string>) =>
 const withServerCredentials = Effect.acquireRelease(
   Effect.sync(() => {
     const original = { ...process.env }
-    process.env.OPENCODE_SERVER_PASSWORD = "secret"
-    process.env.OPENCODE_SERVER_USERNAME = "opencode"
+    process.env.TENON_SERVER_PASSWORD = "secret"
+    process.env.TENON_SERVER_USERNAME = "opencode"
     process.env.CHILD_ENV_TEST_KEEP = "kept"
     return original
   }),
   (original) =>
     Effect.sync(() => {
-      for (const name of ["OPENCODE_SERVER_PASSWORD", "OPENCODE_SERVER_USERNAME", "CHILD_ENV_TEST_KEEP"]) {
+      for (const name of ["TENON_SERVER_PASSWORD", "TENON_SERVER_USERNAME", "CHILD_ENV_TEST_KEEP"]) {
         if (original[name] === undefined) delete process.env[name]
         else process.env[name] = original[name]
       }
@@ -43,7 +43,7 @@ describe("ChildEnv.from", () => {
       expect(
         ChildEnv.from({
           PATH: "/usr/bin",
-          OPENCODE_SERVER_PASSWORD: "secret",
+          TENON_SERVER_PASSWORD: "secret",
           opencode_server_username: "opencode",
           OPENAI_API_KEY: "user-key",
         }),

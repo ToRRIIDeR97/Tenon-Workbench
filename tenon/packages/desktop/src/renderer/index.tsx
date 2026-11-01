@@ -51,10 +51,7 @@ if (import.meta.env.VITE_SENTRY_DSN) {
       return integrations.filter(
         (i) =>
           i.name !== "Breadcrumbs" &&
-          !(
-            import.meta.env.OPENCODE_CHANNEL === "prod" &&
-            (i.name === "GlobalHandlers" || i.name === "BrowserApiErrors")
-          ),
+          !(import.meta.env.TENON_CHANNEL === "prod" && (i.name === "GlobalHandlers" || i.name === "BrowserApiErrors")),
       )
     },
   })
@@ -71,9 +68,9 @@ type DesktopWindowState = {
 
 const emitDeepLinks = (urls: string[]) => {
   if (urls.length === 0) return
-  window.__OPENCODE__ ??= {}
-  const pending = window.__OPENCODE__.deepLinks ?? []
-  window.__OPENCODE__.deepLinks = [...pending, ...urls]
+  window.__TENON__ ??= {}
+  const pending = window.__TENON__.deepLinks ?? []
+  window.__TENON__.deepLinks = [...pending, ...urls]
   window.dispatchEvent(new CustomEvent(deepLinkEvent, { detail: { urls } }))
 }
 

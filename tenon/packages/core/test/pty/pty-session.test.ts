@@ -48,7 +48,7 @@ const subscribePtyEvents = Effect.fn("PtySessionTest.subscribePtyEvents")(functi
 const createPty = Effect.fn("PtySessionTest.createPty")(function* (command: string, args: string[] = []) {
   const pty = yield* Pty.Service
   return yield* Effect.acquireRelease(
-    pty.create({ command, args, cwd: "/tmp", env: { TERM: "xterm-256color", OPENCODE_TERMINAL: "1" } }),
+    pty.create({ command, args, cwd: "/tmp", env: { TERM: "xterm-256color", TENON_TERMINAL: "1" } }),
     (info) => pty.remove(info.id).pipe(Effect.ignore),
   )
 })
@@ -169,17 +169,17 @@ describe("pty", () => {
       yield* Effect.acquireRelease(
         Effect.sync(() => {
           const original = {
-            password: process.env.OPENCODE_SERVER_PASSWORD,
+            password: process.env.TENON_SERVER_PASSWORD,
             keep: process.env.CHILD_ENV_TEST_KEEP,
           }
-          process.env.OPENCODE_SERVER_PASSWORD = "secret"
+          process.env.TENON_SERVER_PASSWORD = "secret"
           process.env.CHILD_ENV_TEST_KEEP = "kept"
           return original
         }),
         (original) =>
           Effect.sync(() => {
-            if (original.password === undefined) delete process.env.OPENCODE_SERVER_PASSWORD
-            else process.env.OPENCODE_SERVER_PASSWORD = original.password
+            if (original.password === undefined) delete process.env.TENON_SERVER_PASSWORD
+            else process.env.TENON_SERVER_PASSWORD = original.password
             if (original.keep === undefined) delete process.env.CHILD_ENV_TEST_KEEP
             else process.env.CHILD_ENV_TEST_KEEP = original.keep
           }),
@@ -187,7 +187,7 @@ describe("pty", () => {
       const info = yield* createPty("/usr/bin/env", [
         "sh",
         "-c",
-        'echo "pw=${OPENCODE_SERVER_PASSWORD:-none} keep=${CHILD_ENV_TEST_KEEP:-none}"; cat',
+        'echo "pw=${TENON_SERVER_PASSWORD:-none} keep=${CHILD_ENV_TEST_KEEP:-none}"; cat',
       ])
       const attached = yield* attachCollecting(info.id)
       const output = yield* waitForOutput(attached.output, "keep=kept")

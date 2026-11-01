@@ -169,7 +169,7 @@ declare global {
     exportDebugLogs: () => Promise<string>
   }
   interface Window {
-    __OPENCODE__?: {
+    __TENON__?: {
       deepLinks?: string[]
     }
     api: OpenCodeDesktopAPI

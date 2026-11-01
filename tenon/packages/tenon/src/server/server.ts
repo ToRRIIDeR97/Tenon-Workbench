@@ -73,7 +73,7 @@ export async function openapi() {
 export let url: URL | undefined
 
 export async function listen(opts: ListenOptions): Promise<Listener> {
-  ServerNetworkGuard.assertExposureAllowed(opts.hostname, Flag.OPENCODE_SERVER_PASSWORD)
+  ServerNetworkGuard.assertExposureAllowed(opts.hostname, Flag.TENON_SERVER_PASSWORD)
   const listener = await Effect.runPromise(listenEffect(opts))
   return {
     hostname: listener.hostname,

@@ -156,7 +156,7 @@ to the git branch (`opencode-<branch>.db`), so each build from another branch
 showed an empty thread list. Builds before this change left their threads in
 those branch-named files; they stay on disk and are not merged. Unpackaged
 `bun run dev` runs keep the per-branch name, so they never write to an
-installed build's database. A set `OPENCODE_DB` (environment or login shell)
+installed build's database. A set `TENON_DB` (environment or login shell)
 overrides the pin.
 
 On the first start of such a build, the server copies each legacy `opencode`

@@ -48,9 +48,9 @@ export async function preferAppEnv(userDataPath: string) {
   const shellEnv = shell ? await loadShellEnv(shell, getLogger()) : null
   Object.assign(process.env, {
     ...shellEnv,
-    OPENCODE_EXPERIMENTAL_ICON_DISCOVERY: "true",
-    OPENCODE_EXPERIMENTAL_FILEWATCHER: "true",
-    OPENCODE_CLIENT: "desktop",
+    TENON_EXPERIMENTAL_ICON_DISCOVERY: "true",
+    TENON_EXPERIMENTAL_FILEWATCHER: "true",
+    TENON_CLIENT: "desktop",
     XDG_STATE_HOME: process.env.XDG_STATE_HOME ?? userDataPath,
   })
   // Without a shell environment the bare GUI PATH hides Homebrew, npm and bun installs, so harness CLIs and npm
@@ -60,10 +60,10 @@ export async function preferAppEnv(userDataPath: string) {
   // Windows has no login shell; its registry holds the PATH as it is now, CLIs installed since sign-in included.
   if (process.platform === "win32")
     process.env.PATH = windowsPath(process.env.PATH ?? "", await readRegistryPaths(), process.env)
-  // A set OPENCODE_DB wins: the onboarding test uses ":memory:", and a user may pick their own file. Assigning
+  // A set TENON_DB wins: the onboarding test uses ":memory:", and a user may pick their own file. Assigning
   // undefined to process.env would store the string "undefined", so it is set only when there is a name.
   const database = stableDatabaseName(CHANNEL, app.isPackaged)
-  if (!process.env.OPENCODE_DB && database) process.env.OPENCODE_DB = database
+  if (!process.env.TENON_DB && database) process.env.TENON_DB = database
   return shellEnv
 }
 

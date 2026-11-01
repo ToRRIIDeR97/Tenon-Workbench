@@ -102,10 +102,10 @@ describe("layout deep links", () => {
 
   test("drains global deep links once", () => {
     const target = {
-      __OPENCODE__: {
+      __TENON__: {
         deepLinks: ["tenon://open-project?directory=/a"],
       },
-    } as unknown as Window & { __OPENCODE__?: { deepLinks?: string[] } }
+    } as unknown as Window & { __TENON__?: { deepLinks?: string[] } }
 
     expect(drainPendingDeepLinks(target)).toEqual(["tenon://open-project?directory=/a"])
     expect(drainPendingDeepLinks(target)).toEqual([])

@@ -30,8 +30,8 @@ const configLayer = Layer.succeed(
 
 const flagsLayer = ConfigProvider.layer(
   ConfigProvider.fromUnknown({
-    OPENCODE_EXPERIMENTAL_FILEWATCHER: "true",
-    OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER: "false",
+    TENON_EXPERIMENTAL_FILEWATCHER: "true",
+    TENON_EXPERIMENTAL_DISABLE_FILEWATCHER: "false",
   }),
 )
 

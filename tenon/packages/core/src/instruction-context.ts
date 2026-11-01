@@ -46,12 +46,12 @@ const layer = Layer.effectDiscard(
       const insideProject =
         fromProject === "" || (fromProject !== ".." && !fromProject.startsWith(`..${sep}`) && !isAbsolute(fromProject))
       // In a Tenon workspace the project's AGENTS.md replaces the workspace one instead of stacking.
-      const workspace = Flag.OPENCODE_DISABLE_PROJECT_CONFIG
+      const workspace = Flag.TENON_DISABLE_PROJECT_CONFIG
         ? undefined
         : yield* WorkspaceInstructions.resolve(start, global.data).pipe(Effect.provideService(FSUtil.Service, fs))
       const found = yield* Effect.forEach(
         workspace ??
-          (Flag.OPENCODE_DISABLE_PROJECT_CONFIG || !insideProject
+          (Flag.TENON_DISABLE_PROJECT_CONFIG || !insideProject
             ? []
             : yield* fs.up({
                 targets: ["AGENTS.md"],

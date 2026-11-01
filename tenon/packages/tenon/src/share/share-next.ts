@@ -20,7 +20,7 @@ import { ProviderV2 } from "@tenon/core/provider"
 import { ModelV2 } from "@tenon/core/model"
 import { EventV2 } from "@tenon/core/event"
 
-const disabled = process.env["OPENCODE_DISABLE_SHARE"] === "true" || process.env["OPENCODE_DISABLE_SHARE"] === "1"
+const disabled = process.env["TENON_DISABLE_SHARE"] === "true" || process.env["TENON_DISABLE_SHARE"] === "1"
 
 export type Api = {
   create: string

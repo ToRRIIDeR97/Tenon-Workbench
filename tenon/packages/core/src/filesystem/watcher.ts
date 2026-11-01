@@ -19,7 +19,7 @@ import { Protected } from "./protected"
 import os from "os"
 import { isBroadFolder } from "../util/broad-folder"
 
-declare const OPENCODE_LIBC: string | undefined
+declare const TENON_LIBC: string | undefined
 
 const SUBSCRIBE_TIMEOUT_MS = 10_000
 
@@ -27,7 +27,7 @@ export const Event = FileSystemWatcher.Event
 
 const watcher = lazy((): typeof import("@parcel/watcher") | undefined => {
   try {
-    const libc = typeof OPENCODE_LIBC === "undefined" ? undefined : OPENCODE_LIBC
+    const libc = typeof TENON_LIBC === "undefined" ? undefined : TENON_LIBC
     const binding = require(
       `@parcel/watcher-${process.platform}-${process.arch}${process.platform === "linux" ? `-${libc || "glibc"}` : ""}`,
     )
@@ -59,7 +59,7 @@ export class Service extends Context.Service<Service, Interface>()("@opencode/v2
 const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
-    if (yield* Flag.OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER) return Service.of({})
+    if (yield* Flag.TENON_EXPERIMENTAL_DISABLE_FILEWATCHER) return Service.of({})
 
     const backend = getBackend()
     const location = yield* Location.Service
@@ -111,7 +111,7 @@ const layer = Layer.effect(
     // Git folders are watched as before; a folder outside git too, unless it is the home folder or a root.
     if (
       (location.vcs || !isBroadFolder(location.directory, os.homedir())) &&
-      (yield* Flag.OPENCODE_EXPERIMENTAL_FILEWATCHER)
+      (yield* Flag.TENON_EXPERIMENTAL_FILEWATCHER)
     ) {
       yield* Effect.forkScoped(
         subscribe(location.directory, [...Ignore.PATTERNS, ...config, ...protecteds(location.directory)]),

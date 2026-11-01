@@ -10,7 +10,7 @@ jobs:
   package:
     runs-on: windows-latest
     env:
-      OPENCODE_CHANNEL: dev
+      TENON_CHANNEL: dev
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
     steps:
       - uses: actions/checkout@v4

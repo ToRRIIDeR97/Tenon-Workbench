@@ -69,23 +69,23 @@ describe("util.process", () => {
   })
 
   test("merges environment overrides", async () => {
-    const out = await Process.run(node('process.stdout.write(process.env.OPENCODE_TEST ?? "")'), {
+    const out = await Process.run(node('process.stdout.write(process.env.TENON_TEST ?? "")'), {
       env: {
-        OPENCODE_TEST: "set",
+        TENON_TEST: "set",
       },
     })
     expect(out.stdout.toString()).toBe("set")
   })
 
   test("does not pass the server credentials to children", async () => {
-    const original = process.env.OPENCODE_SERVER_PASSWORD
-    process.env.OPENCODE_SERVER_PASSWORD = "secret"
-    const script = node('process.stdout.write(process.env.OPENCODE_SERVER_PASSWORD ?? "none")')
+    const original = process.env.TENON_SERVER_PASSWORD
+    process.env.TENON_SERVER_PASSWORD = "secret"
+    const script = node('process.stdout.write(process.env.TENON_SERVER_PASSWORD ?? "none")')
     const inherited = await Process.run(script).finally(() => {
-      if (original === undefined) delete process.env.OPENCODE_SERVER_PASSWORD
-      else process.env.OPENCODE_SERVER_PASSWORD = original
+      if (original === undefined) delete process.env.TENON_SERVER_PASSWORD
+      else process.env.TENON_SERVER_PASSWORD = original
     })
-    const explicit = await Process.run(script, { env: { ...process.env, OPENCODE_SERVER_PASSWORD: "secret" } })
+    const explicit = await Process.run(script, { env: { ...process.env, TENON_SERVER_PASSWORD: "secret" } })
     expect(inherited.stdout.toString()).toBe("none")
     expect(explicit.stdout.toString()).toBe("none")
   })
@@ -93,15 +93,15 @@ describe("util.process", () => {
   test("uses shell in run on Windows", async () => {
     if (process.platform !== "win32") return
 
-    const out = await Process.run(["set", "OPENCODE_TEST_SHELL"], {
+    const out = await Process.run(["set", "TENON_TEST_SHELL"], {
       shell: true,
       env: {
-        OPENCODE_TEST_SHELL: "ok",
+        TENON_TEST_SHELL: "ok",
       },
     })
 
     expect(out.code).toBe(0)
-    expect(out.stdout.toString()).toContain("OPENCODE_TEST_SHELL=ok")
+    expect(out.stdout.toString()).toContain("TENON_TEST_SHELL=ok")
   })
 
   test("runs cmd scripts with spaces on Windows without shell", async () => {

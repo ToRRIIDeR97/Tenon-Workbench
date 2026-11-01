@@ -79,7 +79,7 @@ const layer: Layer.Layer<
 
     const relative = Effect.fnUntraced(function* (instruction: string) {
       const ctx = yield* InstanceState.context
-      if (!Flag.OPENCODE_DISABLE_PROJECT_CONFIG) {
+      if (!Flag.TENON_DISABLE_PROJECT_CONFIG) {
         return yield* fs
           .globUp(instruction, ctx.directory, ctx.worktree)
           .pipe(Effect.catch(() => Effect.succeed([] as string[])))
@@ -121,7 +121,7 @@ const layer: Layer.Layer<
       }
 
       // In a Tenon workspace the project's AGENTS.md replaces the workspace one.
-      const workspace = Flag.OPENCODE_DISABLE_PROJECT_CONFIG
+      const workspace = Flag.TENON_DISABLE_PROJECT_CONFIG
         ? undefined
         : yield* WorkspaceInstructions.resolve(ctx.directory, global.data).pipe(
             Effect.provideService(FSUtil.Service, fs),
@@ -129,7 +129,7 @@ const layer: Layer.Layer<
       workspace?.forEach((item) => paths.add(path.resolve(item)))
 
       // The first project-level match wins so we don't stack AGENTS.md/CLAUDE.md from every ancestor.
-      if (!Flag.OPENCODE_DISABLE_PROJECT_CONFIG && !workspace) {
+      if (!Flag.TENON_DISABLE_PROJECT_CONFIG && !workspace) {
         for (const file of instructionFiles) {
           const matches = yield* fs
             .findUp(file, ctx.directory, ctx.worktree)

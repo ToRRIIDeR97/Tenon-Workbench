@@ -45,7 +45,7 @@ describe("verify AC-6", () => {
 describe("verify AC-7", () => {
   test("a JSONC user config with a commented-out permission still gets ask", () => {
     const env = HarnessSetup.openCodeLaunchEnv('{\n  // "permission": { "edit": "allow" }\n  "model": "x"\n}')
-    expect(JSON.parse(env.OPENCODE_CONFIG_CONTENT!).permission.bash).toBe("ask")
+    expect(JSON.parse(env.TENON_CONFIG_CONTENT!).permission.bash).toBe("ask")
   })
 })
 

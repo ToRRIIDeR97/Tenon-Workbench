@@ -1,4 +1,5 @@
 import { LayerNode } from "@tenon/core/effect/layer-node"
+import { ConfigNames } from "@tenon/core/config/names"
 import { httpClient } from "@tenon/core/effect/app-node-platform"
 import { serviceUse } from "@tenon/core/effect/service-use"
 import path from "path"
@@ -143,9 +144,11 @@ export class Service extends Context.Service<Service, Interface>()("@opencode/Co
 export const use = serviceUse(Service)
 
 function globalConfigFile() {
-  const candidates = ["opencode.jsonc", "opencode.json", "config.json"].map((file) =>
-    path.join(Global.Path.config, file),
-  )
+  // Prefer an existing file (Tenon names first); a fresh install gets tenon.jsonc.
+  const candidates = [
+    ...ConfigNames.files.toReversed().flatMap((name) => [`${name}.jsonc`, `${name}.json`]),
+    "config.json",
+  ].map((file) => path.join(Global.Path.config, file))
   for (const file of candidates) {
     if (existsSync(file)) return file
   }
@@ -253,7 +256,7 @@ const layer = Layer.effect(
       let result: Info = {}
       // Seed the default global config with the schema for editor completion, but avoid writing when the user
       // explicitly routes config through env-provided paths or content.
-      if (!Flag.OPENCODE_CONFIG && !Flag.OPENCODE_CONFIG_DIR && !Flag.OPENCODE_CONFIG_CONTENT) {
+      if (!Flag.TENON_CONFIG && !Flag.TENON_CONFIG_DIR && !Flag.TENON_CONFIG_CONTENT) {
         const file = globalConfigFile()
         if (!existsSync(file)) {
           yield* fs
@@ -262,8 +265,10 @@ const layer = Layer.effect(
         }
       }
       result = mergeConfig(result, yield* loadFile(path.join(Global.Path.config, "config.json"), env))
-      result = mergeConfig(result, yield* loadFile(path.join(Global.Path.config, "opencode.json"), env))
-      result = mergeConfig(result, yield* loadFile(path.join(Global.Path.config, "opencode.jsonc"), env))
+      for (const name of ConfigNames.files) {
+        result = mergeConfig(result, yield* loadFile(path.join(Global.Path.config, `${name}.json`), env))
+        result = mergeConfig(result, yield* loadFile(path.join(Global.Path.config, `${name}.jsonc`), env))
+      }
 
       const legacy = path.join(Global.Path.config, "config")
       if (existsSync(legacy)) {
@@ -328,7 +333,7 @@ const layer = Layer.effect(
 
         const pluginScopeForSource = Effect.fnUntraced(function* (source: string) {
           if (source.startsWith("http://") || source.startsWith("https://")) return "global"
-          if (source === "OPENCODE_CONFIG_CONTENT") return "local"
+          if (source === "TENON_CONFIG_CONTENT") return "local"
           if (containsPath(source, ctx)) return "local"
           return "global"
         })
@@ -404,13 +409,15 @@ const layer = Layer.effect(
         const global = Object.keys(authEnv).length ? yield* loadGlobal(authEnv) : yield* getGlobal()
         yield* merge(Global.Path.config, global, "global")
 
-        if (Flag.OPENCODE_CONFIG) {
-          yield* merge(Flag.OPENCODE_CONFIG, yield* loadFile(Flag.OPENCODE_CONFIG, authEnv))
-          yield* Effect.logDebug("loaded custom config", { path: Flag.OPENCODE_CONFIG })
+        if (Flag.TENON_CONFIG) {
+          yield* merge(Flag.TENON_CONFIG, yield* loadFile(Flag.TENON_CONFIG, authEnv))
+          yield* Effect.logDebug("loaded custom config", { path: Flag.TENON_CONFIG })
         }
 
-        if (!Flag.OPENCODE_DISABLE_PROJECT_CONFIG) {
-          for (const file of yield* ConfigPaths.files("opencode", ctx.directory, ctx.worktree).pipe(Effect.orDie)) {
+        if (!Flag.TENON_DISABLE_PROJECT_CONFIG) {
+          for (const file of yield* ConfigPaths.files(ConfigNames.files, ctx.directory, ctx.worktree).pipe(
+            Effect.orDie,
+          )) {
             yield* merge(file, withoutSharing(yield* loadFile(file, authEnv)), "local")
           }
         }
@@ -421,20 +428,20 @@ const layer = Layer.effect(
 
         const directories = yield* ConfigPaths.directories(ctx.directory, ctx.worktree)
 
-        if (Flag.OPENCODE_CONFIG_DIR) {
-          yield* Effect.logDebug("loading config from OPENCODE_CONFIG_DIR", { path: Flag.OPENCODE_CONFIG_DIR })
+        if (Flag.TENON_CONFIG_DIR) {
+          yield* Effect.logDebug("loading config from TENON_CONFIG_DIR", { path: Flag.TENON_CONFIG_DIR })
         }
 
         const deps: Fiber.Fiber<void>[] = []
 
         const userDirectories = new Set([
           Global.Path.config,
-          path.join(Global.Path.home, ".opencode"),
-          ...(Flag.OPENCODE_CONFIG_DIR ? [Flag.OPENCODE_CONFIG_DIR] : []),
+          ...ConfigNames.directories.map((name) => path.join(Global.Path.home, name)),
+          ...(Flag.TENON_CONFIG_DIR ? [Flag.TENON_CONFIG_DIR] : []),
         ])
         for (const dir of directories) {
-          if (dir.endsWith(".opencode") || dir === Flag.OPENCODE_CONFIG_DIR) {
-            for (const file of ["opencode.json", "opencode.jsonc"]) {
+          if (ConfigNames.isDirectory(path.basename(dir)) || dir === Flag.TENON_CONFIG_DIR) {
+            for (const file of ConfigNames.files.flatMap((name) => [`${name}.json`, `${name}.jsonc`])) {
               const source = path.join(dir, file)
               yield* Effect.logDebug(`loading config from ${source}`)
               const loaded = yield* loadFile(source, authEnv)
@@ -477,14 +484,14 @@ const layer = Layer.effect(
           yield* mergePluginOrigins(dir, list)
         }
 
-        if (process.env.OPENCODE_CONFIG_CONTENT) {
-          const source = "OPENCODE_CONFIG_CONTENT"
-          const next = yield* loadConfig(process.env.OPENCODE_CONFIG_CONTENT, {
+        if (process.env.TENON_CONFIG_CONTENT) {
+          const source = "TENON_CONFIG_CONTENT"
+          const next = yield* loadConfig(process.env.TENON_CONFIG_CONTENT, {
             dir: ctx.directory,
             source,
           })
           yield* merge(source, next, "local")
-          yield* Effect.logDebug("loaded custom config from OPENCODE_CONFIG_CONTENT")
+          yield* Effect.logDebug("loaded custom config from TENON_CONFIG_CONTENT")
         }
 
         const activeAccount = Option.getOrUndefined(
@@ -500,8 +507,8 @@ const layer = Layer.effect(
               { concurrency: 2 },
             )
             if (Option.isSome(tokenOpt)) {
-              process.env["OPENCODE_CONSOLE_TOKEN"] = tokenOpt.value
-              yield* env.set("OPENCODE_CONSOLE_TOKEN", tokenOpt.value)
+              process.env["TENON_CONSOLE_TOKEN"] = tokenOpt.value
+              yield* env.set("TENON_CONSOLE_TOKEN", tokenOpt.value)
             }
 
             if (Option.isSome(configOpt)) {
@@ -525,9 +532,9 @@ const layer = Layer.effect(
           )
         }
 
-        const managedDir = ConfigManaged.managedConfigDir()
-        if (existsSync(managedDir)) {
-          for (const file of ["opencode.json", "opencode.jsonc"]) {
+        for (const managedDir of ConfigManaged.managedConfigDirs()) {
+          if (!existsSync(managedDir)) continue
+          for (const file of ConfigNames.files.flatMap((name) => [`${name}.json`, `${name}.jsonc`])) {
             const source = path.join(managedDir, file)
             yield* merge(source, yield* loadFile(source), "global")
           }
@@ -554,11 +561,11 @@ const layer = Layer.effect(
           })
         }
 
-        if (Flag.OPENCODE_PERMISSION) {
+        if (Flag.TENON_PERMISSION) {
           try {
-            result.permission = mergeDeep(result.permission ?? {}, JSON.parse(Flag.OPENCODE_PERMISSION))
+            result.permission = mergeDeep(result.permission ?? {}, JSON.parse(Flag.TENON_PERMISSION))
           } catch (err) {
-            yield* Effect.logWarning("OPENCODE_PERMISSION contains invalid JSON, skipping", { err })
+            yield* Effect.logWarning("TENON_PERMISSION contains invalid JSON, skipping", { err })
           }
         }
 
@@ -588,10 +595,10 @@ const layer = Layer.effect(
           result.share = "auto"
         }
 
-        if (Flag.OPENCODE_DISABLE_AUTOCOMPACT) {
+        if (Flag.TENON_DISABLE_AUTOCOMPACT) {
           result.compaction = { ...result.compaction, auto: false }
         }
-        if (Flag.OPENCODE_DISABLE_PRUNE) {
+        if (Flag.TENON_DISABLE_PRUNE) {
           result.compaction = { ...result.compaction, prune: false }
         }
 

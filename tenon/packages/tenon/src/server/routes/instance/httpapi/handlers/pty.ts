@@ -15,6 +15,7 @@ import {
   PTY_CONNECT_TICKET_QUERY,
   PTY_CONNECT_TOKEN_HEADER,
   PTY_CONNECT_TOKEN_HEADER_VALUE,
+  PTY_CONNECT_TOKEN_TENON_HEADER,
 } from "@/server/shared/pty-ticket"
 import { Effect, Layer, Option, Queue, Schema } from "effect"
 import { HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
@@ -147,7 +148,8 @@ export const ptyHandlers = HttpApiBuilder.group(InstanceHttpApi, "pty", (handler
 
     const connectToken = Effect.fn("PtyHttpApi.connectToken")(function* (ctx: { params: { ptyID: PtyID } }) {
       const request = yield* HttpServerRequest.HttpServerRequest
-      if (request.headers[PTY_CONNECT_TOKEN_HEADER] !== PTY_CONNECT_TOKEN_HEADER_VALUE || !validOrigin(request, cors))
+      const token = request.headers[PTY_CONNECT_TOKEN_TENON_HEADER] ?? request.headers[PTY_CONNECT_TOKEN_HEADER]
+      if (token !== PTY_CONNECT_TOKEN_HEADER_VALUE || !validOrigin(request, cors))
         return yield* new ApiError.PtyForbiddenError({ message: "Invalid PTY connect token request" })
       yield* get(ctx)
       return yield* tickets.issue({ ptyID: ctx.params.ptyID, ...(yield* ticketScope) })
@@ -233,7 +235,10 @@ export const ptyConnectHandlers = HttpApiBuilder.group(PtyConnectApi, "pty-conne
           const admitted = budget.admit(chunk)
           if (admitted === "send") Queue.offerUnsafe(outbox, chunk)
           else if (admitted === "close")
-            Queue.offerUnsafe(outbox, new Socket.CloseEvent(PtyProtocol.TOO_SLOW_CLOSE.code, PtyProtocol.TOO_SLOW_CLOSE.reason))
+            Queue.offerUnsafe(
+              outbox,
+              new Socket.CloseEvent(PtyProtocol.TOO_SLOW_CLOSE.code, PtyProtocol.TOO_SLOW_CLOSE.reason),
+            )
         }
         const attachment = yield* pty(
           Pty.Service.use((service) =>

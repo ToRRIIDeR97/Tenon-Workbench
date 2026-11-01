@@ -12,14 +12,15 @@ export const fenceLayer = HttpRouter.middleware<{ requires: Database.Service; ha
     return (effect) =>
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest
-        if (!Flag.OPENCODE_WORKSPACE_ID || ignoredMethods.has(request.method)) return yield* effect
+        if (!Flag.TENON_WORKSPACE_ID || ignoredMethods.has(request.method)) return yield* effect
 
         const previous = yield* Fence.load(db)
         const response = yield* effect
         const current = Fence.diff(previous, yield* Fence.load(db))
         if (Object.keys(current).length === 0) return response
 
-        return HttpServerResponse.setHeader(response, Fence.HEADER, JSON.stringify(current))
+        const value = JSON.stringify(current)
+        return HttpServerResponse.setHeaders(response, { [Fence.HEADER]: value, [Fence.LEGACY_HEADER]: value })
       })
   }),
 ).layer

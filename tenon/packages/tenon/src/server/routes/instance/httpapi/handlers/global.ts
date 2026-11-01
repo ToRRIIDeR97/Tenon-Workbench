@@ -20,7 +20,7 @@ const subscriberCapacity = 4096
 // `sync` copy that remote control planes replay. Local clients that do not
 // replay can send this header to skip the copies (half the bytes and stringify
 // work while a session streams). Without it the stream is unchanged.
-export const SKIP_SYNC_EVENTS_HEADER = "x-opencode-skip-sync-events"
+export const SKIP_SYNC_EVENTS_HEADER = "x-tenon-skip-sync-events"
 
 function eventData(data: unknown): Sse.Event {
   return {

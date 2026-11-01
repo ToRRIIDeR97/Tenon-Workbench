@@ -15,18 +15,18 @@ import { testEffect } from "../lib/effect"
 const testStateLayer = Layer.effectDiscard(
   Effect.gen(function* () {
     const original = {
-      OPENCODE_SERVER_PASSWORD: Flag.OPENCODE_SERVER_PASSWORD,
-      OPENCODE_SERVER_USERNAME: Flag.OPENCODE_SERVER_USERNAME,
-      envPassword: process.env.OPENCODE_SERVER_PASSWORD,
-      envUsername: process.env.OPENCODE_SERVER_USERNAME,
+      TENON_SERVER_PASSWORD: Flag.TENON_SERVER_PASSWORD,
+      TENON_SERVER_USERNAME: Flag.TENON_SERVER_USERNAME,
+      envPassword: process.env.TENON_SERVER_PASSWORD,
+      envUsername: process.env.TENON_SERVER_USERNAME,
     }
 
     yield* Effect.addFinalizer(() =>
       Effect.sync(() => {
-        Flag.OPENCODE_SERVER_PASSWORD = original.OPENCODE_SERVER_PASSWORD
-        Flag.OPENCODE_SERVER_USERNAME = original.OPENCODE_SERVER_USERNAME
-        restoreEnv("OPENCODE_SERVER_PASSWORD", original.envPassword)
-        restoreEnv("OPENCODE_SERVER_USERNAME", original.envUsername)
+        Flag.TENON_SERVER_PASSWORD = original.TENON_SERVER_PASSWORD
+        Flag.TENON_SERVER_USERNAME = original.TENON_SERVER_USERNAME
+        restoreEnv("TENON_SERVER_PASSWORD", original.envPassword)
+        restoreEnv("TENON_SERVER_USERNAME", original.envUsername)
       }),
     )
   }),
@@ -56,8 +56,8 @@ function app(input?: { password?: string; username?: string }) {
       Layer.provide(
         ConfigProvider.layer(
           ConfigProvider.fromUnknown({
-            OPENCODE_SERVER_PASSWORD: input?.password,
-            OPENCODE_SERVER_USERNAME: input?.username,
+            TENON_SERVER_PASSWORD: input?.password,
+            TENON_SERVER_USERNAME: input?.username,
           }),
         ),
       ),

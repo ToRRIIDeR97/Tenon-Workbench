@@ -18,8 +18,8 @@ ORANGE='\033[38;5;214m'
 MUTED='\033[0;2m'
 NC='\033[0m'
 
-OPENCODE_DIR="${OPENCODE_DIR:-$HOME/.opencode}"
-OPENCODE_SRC="${OPENCODE_SRC:-$HOME/.opencode-src}"
+TENON_DIR="${TENON_DIR:-$HOME/.opencode}"
+TENON_SRC="${TENON_SRC:-$HOME/.opencode-src}"
 FORK_REPO="${FORK_REPO:-https://github.com/claudianus/opencode.git}"
 FORK_BRANCH="${FORK_BRANCH:-fix-zhipuai-coding-plan-thinking}"
 
@@ -39,18 +39,18 @@ need git
 need bun
 
 # ── 1. Clone or update fork ────────────────────────────────────────────
-if [ -d "$OPENCODE_SRC/.git" ]; then
-  info "Updating existing source at $OPENCODE_SRC ..."
-  git -C "$OPENCODE_SRC" fetch origin "$FORK_BRANCH"
-  git -C "$OPENCODE_SRC" checkout "$FORK_BRANCH"
-  git -C "$OPENCODE_SRC" reset --hard "origin/$FORK_BRANCH"
+if [ -d "$TENON_SRC/.git" ]; then
+  info "Updating existing source at $TENON_SRC ..."
+  git -C "$TENON_SRC" fetch origin "$FORK_BRANCH"
+  git -C "$TENON_SRC" checkout "$FORK_BRANCH"
+  git -C "$TENON_SRC" reset --hard "origin/$FORK_BRANCH"
 else
-  info "Cloning fork (shallow) to $OPENCODE_SRC ..."
-  git clone --depth 1 --branch "$FORK_BRANCH" "$FORK_REPO" "$OPENCODE_SRC"
+  info "Cloning fork (shallow) to $TENON_SRC ..."
+  git clone --depth 1 --branch "$FORK_BRANCH" "$FORK_REPO" "$TENON_SRC"
 fi
 
 # ── 2. Verify the IME fix is present in source ────────────────────────
-PROMPT_FILE="$OPENCODE_SRC/packages/tenon/src/cli/cmd/tui/component/prompt/index.tsx"
+PROMPT_FILE="$TENON_SRC/packages/tenon/src/cli/cmd/tui/component/prompt/index.tsx"
 if [ ! -f "$PROMPT_FILE" ]; then
   err "Prompt file not found: $PROMPT_FILE"
   exit 1
@@ -72,16 +72,16 @@ fi
 
 # ── 3. Install dependencies ────────────────────────────────────────────
 info "Installing dependencies (this may take a minute) ..."
-cd "$OPENCODE_SRC"
+cd "$TENON_SRC"
 bun install --frozen-lockfile 2>/dev/null || bun install
 
 # ── 4. Build (current platform only) ──────────────────────────────────
 info "Building opencode for current platform ..."
-cd "$OPENCODE_SRC/packages/tenon"
+cd "$TENON_SRC/packages/tenon"
 bun run build --single
 
 # ── 5. Install binary ──────────────────────────────────────────────────
-mkdir -p "$OPENCODE_DIR/bin"
+mkdir -p "$TENON_DIR/bin"
 
 PLATFORM=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
@@ -90,23 +90,23 @@ ARCH=$(uname -m)
 [ "$PLATFORM" = "darwin" ] && true
 [ "$PLATFORM" = "linux" ] && true
 
-BUILT_BINARY="$OPENCODE_SRC/packages/tenon/dist/opencode-${PLATFORM}-${ARCH}/bin/opencode"
+BUILT_BINARY="$TENON_SRC/packages/tenon/dist/opencode-${PLATFORM}-${ARCH}/bin/opencode"
 
 if [ ! -f "$BUILT_BINARY" ]; then
-  BUILT_BINARY=$(find "$OPENCODE_SRC/packages/tenon/dist" -name "opencode" -type f -executable 2>/dev/null | head -1)
+  BUILT_BINARY=$(find "$TENON_SRC/packages/tenon/dist" -name "opencode" -type f -executable 2>/dev/null | head -1)
 fi
 
 if [ -f "$BUILT_BINARY" ]; then
-  if [ -f "$OPENCODE_DIR/bin/opencode" ]; then
-    cp "$OPENCODE_DIR/bin/opencode" "$OPENCODE_DIR/bin/opencode.bak.$(date +%Y%m%d%H%M%S)"
+  if [ -f "$TENON_DIR/bin/opencode" ]; then
+    cp "$TENON_DIR/bin/opencode" "$TENON_DIR/bin/opencode.bak.$(date +%Y%m%d%H%M%S)"
   fi
-  cp "$BUILT_BINARY" "$OPENCODE_DIR/bin/opencode"
-  chmod +x "$OPENCODE_DIR/bin/opencode"
-  ok "Installed to $OPENCODE_DIR/bin/opencode"
+  cp "$BUILT_BINARY" "$TENON_DIR/bin/opencode"
+  chmod +x "$TENON_DIR/bin/opencode"
+  ok "Installed to $TENON_DIR/bin/opencode"
 else
   err "Build failed - binary not found in dist/"
   info "Try running manually:"
-  echo "  cd $OPENCODE_SRC/packages/tenon && bun run build --single"
+  echo "  cd $TENON_SRC/packages/tenon && bun run build --single"
   exit 1
 fi
 

@@ -1,3 +1,4 @@
+import { ConfigNames } from "@tenon/core/config/names"
 import { cmd } from "./cmd"
 import { ConfigV1 } from "@tenon/core/v1/config/config"
 import { effectCmd } from "../effect-cmd"
@@ -392,12 +393,15 @@ export const McpLogoutCommand = effectCmd({
 })
 
 async function resolveConfigPath(baseDir: string, global = false) {
-  // Check for existing config files (prefer .jsonc over .json, check .opencode/ subdirectory too)
-  const candidates = [path.join(baseDir, "opencode.json"), path.join(baseDir, "opencode.jsonc")]
-
-  if (!global) {
-    candidates.push(path.join(baseDir, ".opencode", "opencode.json"), path.join(baseDir, ".opencode", "opencode.jsonc"))
-  }
+  // Check for existing config files (Tenon names before the pre-rename OpenCode ones, then the
+  // config directories when not global).
+  const files = ConfigNames.files.toReversed().flatMap((name) => [`${name}.json`, `${name}.jsonc`])
+  const candidates = [
+    ...files.map((file) => path.join(baseDir, file)),
+    ...(global
+      ? []
+      : ConfigNames.directories.toReversed().flatMap((dir) => files.map((file) => path.join(baseDir, dir, file)))),
+  ]
 
   for (const candidate of candidates) {
     if (await Filesystem.exists(candidate)) {
@@ -405,7 +409,7 @@ async function resolveConfigPath(baseDir: string, global = false) {
     }
   }
 
-  // Default to opencode.json if none exist
+  // Default to tenon.json if none exist
   return candidates[0]
 }
 

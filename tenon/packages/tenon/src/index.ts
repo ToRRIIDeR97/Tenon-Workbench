@@ -1,3 +1,5 @@
+// Must run first: maps pre-rename OPENCODE_* variables to TENON_* before other modules read them.
+import "@tenon/core/legacy-env"
 import yargs from "yargs"
 import { hideBin } from "yargs/helpers"
 import { GenerateCommand } from "./cli/cmd/generate"
@@ -50,17 +52,17 @@ const cli = yargs(args)
     type: "boolean",
   })
   .middleware(async (opts) => {
-    if (opts.printLogs) process.env.OPENCODE_PRINT_LOGS = "1"
-    if (opts.logLevel) process.env.OPENCODE_LOG_LEVEL = opts.logLevel
+    if (opts.printLogs) process.env.TENON_PRINT_LOGS = "1"
+    if (opts.logLevel) process.env.TENON_LOG_LEVEL = opts.logLevel
     if (opts.pure) {
-      process.env.OPENCODE_PURE = "1"
+      process.env.TENON_PURE = "1"
     }
 
     Heap.start()
 
     process.env.AGENT = "1"
     process.env.OPENCODE = "1"
-    process.env.OPENCODE_PID = String(process.pid)
+    process.env.TENON_PID = String(process.pid)
   })
   .usage("")
   .completion("completion", "generate shell completion script")

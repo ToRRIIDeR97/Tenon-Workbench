@@ -1,3 +1,5 @@
+// Must run first: maps pre-rename OPENCODE_* variables to TENON_* before other modules read them.
+import "./legacy-env"
 import { blockBrowserOrigin, startBrowserBridge } from "./browser"
 import { registerFileViewerProtocol } from "./file-viewer"
 import { randomUUID } from "node:crypto"
@@ -69,10 +71,10 @@ const APP_IDS: Record<string, string> = {
   prod: "io.github.torriider97.tenonworkbench",
 }
 const LEGACY_DEV_APP_ID = "ai.opencode.desktop.dev"
-const TEST_ONBOARDING = process.env.OPENCODE_TEST_ONBOARDING === "1"
+const TEST_ONBOARDING = process.env.TENON_TEST_ONBOARDING === "1"
 // The opt-in v2 sidecar is upstream's `opencode-cli` background service. Only the dev channel bundles
 // that CLI, and the service is meant to outlive the app (`opencode-cli service stop` ends it).
-const SIDECAR_V2_REQUESTED = process.env.OPENCODE_SIDECAR_V2 === "1"
+const SIDECAR_V2_REQUESTED = process.env.TENON_SIDECAR_V2 === "1"
 const SIDECAR_VERSION = SIDECAR_V2_REQUESTED && CHANNEL === "dev" ? "v2" : "v1"
 const jsCallStackFeature = "DocumentPolicyIncludeJSCallStacksInCrashReports"
 // Covers the sidecar's own graceful stop (6 s) before it is killed.
@@ -220,7 +222,7 @@ const main = Effect.gen(function* () {
     process.chdir(homedir())
   } catch {}
 
-  process.env.OPENCODE_DISABLE_EMBEDDED_WEB_UI = "true"
+  process.env.TENON_DISABLE_EMBEDDED_WEB_UI = "true"
 
   const channel = app.isPackaged ? CHANNEL : "dev"
   // An unpackaged run (`bun run dev`) gets its own ID, so its settings, window state and single-instance lock
@@ -234,7 +236,7 @@ const main = Effect.gen(function* () {
     ;["data", "config", "cache", "state", "desktop", "session"].forEach((dir) =>
       mkdirSync(join(root, dir), { recursive: true }),
     )
-    process.env.OPENCODE_DB = ":memory:"
+    process.env.TENON_DB = ":memory:"
     process.env.XDG_DATA_HOME = join(root, "data")
     process.env.XDG_CONFIG_HOME = join(root, "config")
     process.env.XDG_CACHE_HOME = join(root, "cache")
@@ -477,7 +479,7 @@ const main = Effect.gen(function* () {
       return
     }
 
-    const parsedPort = Number.parseInt(process.env.OPENCODE_PORT ?? "", 10)
+    const parsedPort = Number.parseInt(process.env.TENON_PORT ?? "", 10)
     const fixedPort = Number.isNaN(parsedPort) ? undefined : parsedPort
     const hostname = "127.0.0.1"
     const password = randomUUID()

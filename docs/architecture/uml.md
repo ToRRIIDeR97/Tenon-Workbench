@@ -57,7 +57,7 @@ reading of the code, not a runtime trace, except where a step says it was run.
   `userData` no longer collides with upstream OpenCode Desktop. On the dev
   channel, `desktop/src/main/user-data-migration.ts` copies the old
   `ai.opencode.desktop.dev` `userData` once before startup sets the path.
-- The `opencode-cli` daemon (`OPENCODE_SIDECAR_V2=1`) ships only in the
+- The `opencode-cli` daemon (`TENON_SIDECAR_V2=1`) ships only in the
   development channel. Packaging and update limits are covered in
   [release operations](../release-operations.md).
 

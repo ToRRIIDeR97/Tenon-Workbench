@@ -14,7 +14,8 @@ import { stat } from "node:fs/promises"
 // request names a directory that is not there, answer with a typed 404 the app can act on.
 const missingDirectory = Effect.gen(function* () {
   const request = yield* HttpServerRequest.HttpServerRequest
-  const header = request.headers["x-opencode-directory"]
+  // x-opencode-directory is the OpenCode protocol name the app and SDK still send.
+  const header = request.headers["x-tenon-directory"] || request.headers["x-opencode-directory"]
   const query = new URL(request.url, "http://localhost").searchParams
   // Instance routes take `directory`; the location-scoped `/api` routes take `location[directory]`.
   const directory =

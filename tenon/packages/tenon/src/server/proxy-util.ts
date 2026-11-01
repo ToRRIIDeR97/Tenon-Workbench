@@ -19,8 +19,10 @@ function sanitize(out: Headers) {
   for (const key of hop) out.delete(key)
   for (const key of credentials) out.delete(key)
   out.delete("accept-encoding")
-  out.delete("x-opencode-directory")
-  out.delete("x-opencode-workspace")
+  for (const prefix of ["x-tenon-", "x-opencode-"]) {
+    out.delete(`${prefix}directory`)
+    out.delete(`${prefix}workspace`)
+  }
 }
 
 export function headers(input: Request | HeadersInit | Record<string, string>, extra?: HeadersInit) {

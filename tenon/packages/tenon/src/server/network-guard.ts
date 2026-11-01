@@ -8,11 +8,11 @@ export function isLoopback(hostname: string) {
 
 /**
  * An unauthenticated server gives anyone who can reach it file, shell and provider access,
- * so it may only listen on a loopback address. Set OPENCODE_SERVER_PASSWORD to listen wider.
+ * so it may only listen on a loopback address. Set TENON_SERVER_PASSWORD to listen wider.
  */
 export function assertExposureAllowed(hostname: string, password: string | undefined) {
   if (isLoopback(hostname) || password) return
   throw new Error(
-    `Refusing to listen on ${hostname} without authentication; set OPENCODE_SERVER_PASSWORD or use 127.0.0.1.`,
+    `Refusing to listen on ${hostname} without authentication; set TENON_SERVER_PASSWORD or use 127.0.0.1.`,
   )
 }
