@@ -46,10 +46,13 @@ test("shows a pending question dock", async ({ page }) => {
       rejectRequests.push(request.url())
   })
 
-  await question.locator('[data-component="icon-button"][data-icon="chevron-down"]').click()
+  await question.getByRole("button", { name: "Minimize question" }).click()
   await expect(question).toBeVisible()
   await expect(question.getByText("Which implementation should be used?")).toBeVisible()
-  await expect(question.getByText("Select one answer")).toBeHidden()
+  // The hint folds away (0fr row, opacity 0, aria-hidden) rather than leaving the DOM.
+  const hintFold = question.locator('div[aria-hidden]:has(> div > [data-slot="question-hint"])')
+  await expect(hintFold).toHaveAttribute("aria-hidden", "true")
+  await expect(hintFold).toHaveCSS("opacity", "0")
   await expect(question.getByRole("radio", { name: /Minimal/ })).toBeHidden()
   await expect(question.getByRole("radio", { name: /Extended/ })).toBeHidden()
   await expect(question.getByRole("button", { name: "Dismiss" })).toBeVisible()
@@ -57,7 +60,7 @@ test("shows a pending question dock", async ({ page }) => {
   await expect(page.locator('[data-component="question-minimized-dock"]')).toHaveCount(0)
   expect(rejectRequests).toEqual([])
 
-  await question.locator('[data-component="icon-button"][data-icon="chevron-down"]').click()
+  await question.getByRole("button", { name: "Restore question" }).click()
   await expect(question).toBeVisible()
   await expect(question.getByText("Which implementation should be used?")).toBeVisible()
   await expect(question.getByRole("radio", { name: /Minimal/ })).toBeVisible()

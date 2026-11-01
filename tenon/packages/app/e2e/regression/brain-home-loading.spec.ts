@@ -42,21 +42,34 @@ test("Home remains usable during loading and reuses fresh harness availability",
   })
   await page.route("**/second-brain/**", async (route) => {
     const path = new URL(route.request().url()).pathname
+    const project = {
+      id: "project_loading",
+      folder: "projects/loading",
+      name: "Loading test project",
+      outcome: "Responsive Home",
+      instructions: "",
+      status: "active",
+      progressPercent: 25,
+      tags: [],
+      createdAt: date,
+      updatedAt: date,
+    }
     if (path === "/second-brain/projects") {
+      await projects.promise
+      return route.fulfill({ json: [project] })
+    }
+    // Home and the sidebar list Projects through their thread folders.
+    if (path === "/second-brain/project-threads") {
       await projects.promise
       return route.fulfill({
         json: [
           {
-            id: "project_loading",
-            folder: "projects/loading",
-            name: "Loading test project",
-            outcome: "Responsive Home",
-            instructions: "",
-            status: "active",
-            progressPercent: 25,
-            tags: [],
-            createdAt: date,
-            updatedAt: date,
+            project,
+            threadDirectory: `${fixture.directory}/${project.folder}`,
+            threadDirectoryKind: "project",
+            workspace: null,
+            rootSessionCount: 0,
+            lastActivityAt: null,
           },
         ],
       })
@@ -83,7 +96,9 @@ test("Home remains usable during loading and reuses fresh harness availability",
     await expect(home).toBeVisible()
     await prompt.fill("A draft while data loads")
     await expect(prompt).toHaveValue("A draft while data loads")
-    await expect(start).toBeDisabled()
+    // The built-in loop is known by id, so a Run can start before the harness list arrives
+    // (brain-home.tsx waitingForHarness); the picker still shows that it is checking.
+    await expect(start).toBeEnabled()
     await expect(page.getByText("Checking harnesses…", { exact: true })).toBeVisible()
     await page.screenshot({ path: testInfo.outputPath("home-pending.png"), fullPage: true })
 
@@ -98,15 +113,17 @@ test("Home remains usable during loading and reuses fresh harness availability",
     calendar.resolve()
     await expect(page.getByRole("button", { name: /Loading test event/ })).toBeVisible()
     projects.resolve()
-    await expect(page.getByRole("button", { name: /Loading test project/ })).toBeVisible()
-    await expect(start).toBeDisabled()
+    await expect(
+      page.getByRole("region", { name: "Home", exact: true }).getByRole("button", { name: /Loading test project/ }),
+    ).toBeVisible()
+    await expect(start).toBeEnabled()
     harness.resolve()
     await expect(selector).toBeEnabled()
     await expect(selector).toHaveText("OpenCode")
     await expect(start).toBeEnabled()
     await page.screenshot({ path: testInfo.outputPath("home-loaded.png"), fullPage: true })
 
-    await page.locator('[data-sidebar-item="projects"]').click()
+    await page.locator('[data-sidebar-item="activity"]').click()
     await expect(home).not.toBeVisible()
     await page.locator('[data-sidebar-item="overview"]').click()
     await expect(selector).toBeEnabled()
@@ -115,7 +132,7 @@ test("Home remains usable during loading and reuses fresh harness availability",
 
     // Advance freshness without a sleep. A stale result stays usable during refresh.
     await page.clock.setFixedTime(new Date(now.getTime() + 31_000))
-    await page.locator('[data-sidebar-item="projects"]').click()
+    await page.locator('[data-sidebar-item="activity"]').click()
     await expect(home).not.toBeVisible()
     const requested = page.waitForRequest((request) => new URL(request.url()).pathname === "/api/harness")
     await page.locator('[data-sidebar-item="overview"]').click()

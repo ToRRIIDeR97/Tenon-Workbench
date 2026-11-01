@@ -370,6 +370,10 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
             await eventSdk.global.event({
               signal: attempt.signal,
               headers: { "x-tenon-skip-sync-events": "1" },
+              // End the stream on the first failure instead of letting the SDK retry it: its retry
+              // resends Last-Event-ID (the event streams are volatile and do not replay) and bypasses
+              // this loop's backoff. This loop reconnects with a fresh request.
+              sseMaxRetryAttempts: 1,
             })
           ).stream
           let yielded = Date.now()

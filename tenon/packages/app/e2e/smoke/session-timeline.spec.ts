@@ -290,7 +290,7 @@ test.describe("smoke: session timeline", () => {
     expect(Math.abs(result.bottomError ?? Infinity)).toBeLessThanOrEqual(1)
   })
 
-  test("renders seeded timeline in order while paging through history", async ({ page }) => {
+  async function openTargetAtHistoryStart(page: Page) {
     const errors = trackPageErrors(page)
     await mockTenonServer(page, {
       sessions: fixture.sessions,
@@ -309,7 +309,16 @@ test.describe("smoke: session timeline", () => {
     const expectedMessageIDs = fixture.expected.targetMessageIDs
     await expectSessionTimelineReady(page, expectedPartIDs, expectedMessageIDs, errors)
     await expectCanScrollToStart(page, expectedPartIDs, expectedMessageIDs, errors)
+  }
 
+  test("renders seeded timeline in order while paging through history", async ({ page }) => {
+    await openTargetAtHistoryStart(page)
+  })
+
+  // Regression: the first expanded step to render a file view used to load the lazy viewer under the
+  // page-level Suspense, which detached the timeline for a frame and snapped it back to the bottom.
+  test("expands an older turn's steps without jumping to the bottom", async ({ page }) => {
+    await openTargetAtHistoryStart(page)
     await page
       .locator(`[data-timeline-row="TurnSteps"][data-message-id="${fixture.expected.expandedShellTurnID}"] button`)
       .click()

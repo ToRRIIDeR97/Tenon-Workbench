@@ -106,6 +106,7 @@ export function createViewSwitch<K>(key: Accessor<K>, nodes: Accessor<JSX.Elemen
     }
     clearTimeout(timer.current)
     timer.current = undefined
+    setFrozen(undefined)
     setPhase("idle")
   }
 
@@ -135,7 +136,9 @@ export function createViewSwitch<K>(key: Accessor<K>, nodes: Accessor<JSX.Elemen
 
   return {
     phase,
-    nodes: () => frozen() ?? nodes(),
+    // Router navigations run in a transition, so the key change can commit after this timer has already
+    // advanced outside it. Only the fade-out shows the frozen view; any other phase shows the live one.
+    nodes: () => (phase() === "out" ? frozen() : undefined) ?? nodes(),
     advance,
   }
 }

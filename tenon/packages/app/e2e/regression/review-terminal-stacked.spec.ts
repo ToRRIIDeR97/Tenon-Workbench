@@ -266,6 +266,14 @@ async function expectMountedTree(page: Page, total: number) {
 }
 
 async function expectStackGeometry(page: Page) {
+  // The stacked terminal grows in with a height animation on its wrapper; measure once it has finished.
+  await page.evaluate(() =>
+    Promise.all(
+      [document.querySelector("#review-panel"), document.querySelector("#terminal-panel")]
+        .flatMap((panel) => panel?.parentElement?.getAnimations() ?? [])
+        .map((animation) => animation.finished),
+    ),
+  )
   const geometry = await page.evaluate(() => {
     const review = document.querySelector<HTMLElement>("#review-panel")!
     const terminal = document.querySelector<HTMLElement>("#terminal-panel")!

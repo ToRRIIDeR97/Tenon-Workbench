@@ -173,6 +173,9 @@ export function createAutoScroll(options: AutoScrollOptions) {
     () => store.contentRef,
     () => {
       const el = store.scrollRef
+      // A detached or hidden scroller (a Suspense boundary pulling it out for a frame) has no
+      // layout; it says nothing about whether the user's position can scroll.
+      if (el && el.clientHeight === 0) return
       if (el && !canScroll(el)) {
         if (store.userScrolled) setStore("userScrolled", false)
         return
