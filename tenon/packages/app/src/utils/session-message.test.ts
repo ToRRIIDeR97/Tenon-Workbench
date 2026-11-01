@@ -95,12 +95,50 @@ describe("normalizeSessionMessages", () => {
         text: { value: "@src/client.ts", start: 8, end: 22 },
       },
     })
-    expect(result.parts.get("msg_4")?.map((part) => part.id)).toEqual(["msg_4:reasoning:0", "msg_4:text:0", "call_1"])
+    expect(result.parts.get("msg_4")?.map((part) => part.id)).toEqual(["msg_4:00000", "msg_4:00001", "msg_4:00002"])
     expect(result.parts.get("msg_4")?.[2]).toMatchObject({
       type: "tool",
       tool: "read",
       state: { status: "completed", output: "hello" },
     })
+  })
+
+  test("keeps a harness turn's reasoning and tool calls in order when sorted by ID", () => {
+    const tool = (id: string) => ({
+      type: "tool",
+      id,
+      name: "acp_execute",
+      state: { status: "completed", input: {}, content: [] },
+      time: { created: 2, ran: 2, completed: 3 },
+    })
+    const source = [
+      { id: "msg_u", type: "user", text: "scan", time: { created: 1 } },
+      {
+        id: "msg_a",
+        type: "assistant",
+        agent: "build",
+        model: { id: "opencode", providerID: "opencode-acp" },
+        // The IDs an ACP agent gives: its reasoning blocks are numbered, its tool calls are UUIDs.
+        content: [
+          { type: "reasoning", text: "Look at the structure.", time: { created: 2 } },
+          tool("f3a1c0de-0000-4000-8000-000000000001"),
+          { type: "reasoning", text: "Small repo.", time: { created: 3 } },
+          tool("0b7e2a11-0000-4000-8000-000000000002"),
+          { type: "text", text: "Done." },
+        ],
+        time: { created: 2 },
+      },
+    ] as unknown as SessionMessageInfo[]
+
+    const parts = normalizeSessionMessages("ses_1", source).parts.get("msg_a") ?? []
+    const sorted = [...parts].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+    expect(sorted.map((part) => (part.type === "tool" ? part.callID : part.type))).toEqual([
+      "reasoning",
+      "f3a1c0de-0000-4000-8000-000000000001",
+      "reasoning",
+      "0b7e2a11-0000-4000-8000-000000000002",
+      "text",
+    ])
   })
 
   test("does not invent a parent for an assistant-only page", () => {
@@ -260,7 +298,7 @@ describe("normalizeSessionMessages", () => {
 
     const parts = normalizeSessionMessages("ses_1", source).parts.get("msg_assistant") ?? []
     const metadata = (id: string) => {
-      const part = parts.find((item) => item.id === id)
+      const part = parts.find((item) => item.type === "tool" && item.callID === id)
       return part?.type === "tool" ? part.metadata : undefined
     }
 
