@@ -798,7 +798,11 @@ export default function Page() {
         : skipToken,
     }
   })
-  const refreshVcs = debounce(() => void queryClient.invalidateQueries({ queryKey: vcsKey() }), 100)
+  // File changes refresh both review modes while the agent works, not only when the turn ends.
+  const refreshVcs = debounce(() => {
+    void queryClient.invalidateQueries({ queryKey: vcsKey() })
+    void queryClient.invalidateQueries({ queryKey: ["session-turn-diff"] })
+  }, 100)
   const reviewDiffs = () => {
     if (reviewMode() === "git" || reviewMode() === "branch")
       // avoids suspense

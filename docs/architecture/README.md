@@ -1595,3 +1595,14 @@ main process with a bearer token passed in the server's environment
 An agent call brings the matching tab forward and logs the step in it.
 `browser_navigate` to a site other than localhost asks the user in a native
 dialog first.
+
+`render_svg` rides the same bridge so agents can check a diagram before
+sending it (`desktop/src/main/svg-render.ts`). The main process loads the SVG
+into a hidden offscreen window whose page has the chat's CSP (no scripts, no
+network) and theme variables, sizes it as the chat would (the ~760px column,
+at most 640px tall), measures every `<text>` and returns a PNG plus a list of
+problems (`svg-report.ts`): overlapping labels, text past the shape it sits
+in, text cut off by the viewBox, and text under 9px once scaled. Renders run
+one at a time. `ChatDisplay.svgGuidance` tells agents to use it whenever it's
+listed. The page falls back to Segoe UI or the system font, so widths can
+differ slightly from the chat's Inter.

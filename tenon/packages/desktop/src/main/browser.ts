@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto"
 import { createServer, type IncomingMessage } from "node:http"
 import { BrowserWindow, dialog, session, WebContentsView } from "electron"
 import { nativeT } from "./native-translations"
+import { renderSvg } from "./svg-render"
 import { deviceInput, deviceLogs, deviceScreenshot, deviceStatus, installApp, launchApp } from "./device"
 
 // The Workbench panel's browser: one WebContentsView laid over the panel's Browser tab, in its own
@@ -207,6 +208,7 @@ const SNAPSHOT = `(() => {
 
 async function runTool(name: string, args: Record<string, unknown>): Promise<{ text?: string; image?: string }> {
   if (name.startsWith("device_")) return runDeviceTool(name, args)
+  if (name === "render_svg") return renderSvg(String(args.svg ?? ""))
   const window = state.window ?? BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
   if (!window) throw new Error("Open Tenon Workbench to use its browser.")
   const view = attach(window)
@@ -222,7 +224,10 @@ async function runTool(name: string, args: Record<string, unknown>): Promise<{ t
         type: "question",
         title: nativeT("secondBrain.desktop.browser.agentNavigate.title"),
         message: nativeT("secondBrain.desktop.browser.agentNavigate.message", { host: parsed.host }),
-        buttons: [nativeT("secondBrain.desktop.browser.agentNavigate.allow"), nativeT("secondBrain.desktop.browser.agentNavigate.deny")],
+        buttons: [
+          nativeT("secondBrain.desktop.browser.agentNavigate.allow"),
+          nativeT("secondBrain.desktop.browser.agentNavigate.deny"),
+        ],
         defaultId: 1,
         cancelId: 1,
       })
@@ -282,7 +287,10 @@ export function startBrowserBridge() {
         .then((args) => runTool((request.url ?? "").replace(/^\//, ""), args))
         .then(
           (result) =>
-            answer(200, result.image ? { image: result.image, mimeType: "image/png" } : { text: result.text }),
+            answer(
+              200,
+              result.image ? { image: result.image, mimeType: "image/png", text: result.text } : { text: result.text },
+            ),
           (cause: unknown) => answer(200, { error: cause instanceof Error ? cause.message : String(cause) }),
         )
     })
@@ -306,7 +314,8 @@ function readJSON(request: IncomingMessage) {
     let body = ""
     request.on("data", (chunk: Buffer) => {
       body += chunk.toString()
-      if (body.length > 64_000) request.destroy()
+      // render_svg carries a whole diagram; the other tools send a few fields.
+      if (body.length > 400_000) request.destroy()
     })
     request.on("end", () => {
       try {

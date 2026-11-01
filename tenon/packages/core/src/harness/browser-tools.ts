@@ -10,6 +10,17 @@ export const available = () => !!process.env[URL_ENV] && !!process.env[TOKEN_ENV
 
 export const TOOLS = [
   {
+    name: "render_svg",
+    description:
+      "Render an SVG diagram the way Tenon Workbench's chat shows it and inspect the layout before sending it. Returns a PNG of the result and a list of problems: labels that overlap each other, text that runs past the box it sits in, and anything cut off by the viewBox. Call it with the complete <svg> element, fix every problem it reports, and call it again until it reports none before putting the diagram in a ```svg block.",
+    inputSchema: {
+      type: "object",
+      properties: { svg: { type: "string", description: "One complete <svg> element with a viewBox" } },
+      required: ["svg"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "browser_navigate",
     description:
       "Open a URL in the browser in the user's Tenon Workbench panel, which the user can see. localhost and 127.0.0.1 open directly; any other site asks the user first. Returns the page's URL and title once it has loaded.",
@@ -148,8 +159,8 @@ export const TOOLS = [
 const names = new Set<string>(TOOLS.map((tool) => tool.name))
 export const isTool = (name: string) => names.has(name)
 
-/** An MCP tool result: text, or an image for browser_screenshot. */
-export type Result = { readonly text: string } | { readonly image: string; readonly mimeType: string }
+/** An MCP tool result: text, an image (browser_screenshot), or both (render_svg's picture and its findings). */
+export type Result = { readonly text?: string; readonly image?: string; readonly mimeType?: string }
 
 export async function call(name: string, args: Record<string, unknown>, sessionID: string): Promise<Result> {
   const url = process.env[URL_ENV]
@@ -165,6 +176,6 @@ export async function call(name: string, args: Record<string, unknown>, sessionI
     | { error?: string; text?: string; image?: string; mimeType?: string }
     | undefined
   if (!response.ok || !body || body.error) throw new Error(body?.error ?? `The browser answered ${response.status}.`)
-  if (body.image) return { image: body.image, mimeType: body.mimeType ?? "image/png" }
+  if (body.image) return { image: body.image, mimeType: body.mimeType ?? "image/png", text: body.text }
   return { text: body.text ?? "" }
 }

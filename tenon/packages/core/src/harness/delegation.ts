@@ -279,9 +279,8 @@ export async function handleMessage(message: Message, caller: Caller, handler: H
       await HarnessBrowserTools.call(name, args, caller.sessionID).then(
         (value) => ({
           content: [
-            "image" in value
-              ? { type: "image", data: value.image, mimeType: value.mimeType }
-              : { type: "text", text: value.text },
+            ...(value.image ? [{ type: "image", data: value.image, mimeType: value.mimeType ?? "image/png" }] : []),
+            ...(value.text !== undefined || !value.image ? [{ type: "text", text: value.text ?? "" }] : []),
           ],
           isError: false,
         }),
