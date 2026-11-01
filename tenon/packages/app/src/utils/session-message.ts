@@ -210,7 +210,7 @@ function shellPart(sessionID: string, message: SessionMessageShell): ToolPart {
   }
 }
 
-export function sessionMessagePartID(messageID: string, type: "text" | "reasoning", ordinal: number) {
+function sessionMessagePartID(messageID: string, type: "text", ordinal: number) {
   return `${messageID}:${type}:${ordinal}`
 }
 
@@ -314,16 +314,25 @@ function assistantMessage(
   }
 }
 
+/**
+ * An assistant part's ID. The stores order a message's parts by ID, so it leads with the part's place in the
+ * message's content. A harness turn keeps reasoning, text and tool calls in one message, and their own IDs
+ * (`acp-reasoning-1`, a tool call's UUID) don't sort in the order they happened. The tool's call ID stays `callID`.
+ */
+export function assistantPartID(messageID: string, position: number) {
+  return `${messageID}:${String(position).padStart(5, "0")}`
+}
+
 function assistantParts(sessionID: string, message: SessionMessageAssistant): Part[] {
-  const ordinals = { text: 0, reasoning: 0 }
-  return message.content.flatMap((content): Part[] => {
+  return message.content.flatMap((content, position): Part[] => {
+    const id = assistantPartID(message.id, position)
     if (content.type === "text") {
-      const part = textPart(sessionID, message.id, ordinals.text++, content.text)
+      const part = { ...textPart(sessionID, message.id, 0, content.text), id }
       return content.text.trim() ? [part] : []
     }
     if (content.type === "reasoning") {
       const part: Part = {
-        id: sessionMessagePartID(message.id, "reasoning", ordinals.reasoning++),
+        id,
         sessionID,
         messageID: message.id,
         type: "reasoning",
@@ -336,7 +345,7 @@ function assistantParts(sessionID: string, message: SessionMessageAssistant): Pa
       }
       return content.text.trim() ? [part] : []
     }
-    return [toolPart(sessionID, message.id, content)]
+    return [{ ...toolPart(sessionID, message.id, content), id }]
   })
 }
 

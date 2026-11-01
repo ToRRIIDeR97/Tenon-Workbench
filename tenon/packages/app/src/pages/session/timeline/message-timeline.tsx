@@ -247,6 +247,8 @@ export function MessageTimeline(props: {
   onHistoryScroll: () => void
   onAutoScrollInteraction: (event: MouseEvent) => void
   shouldAnchorBottom: () => boolean
+  /** Stops following the bottom, as a scroll up does; called when the user opens or closes a turn's steps. */
+  onPauseFollow?: () => void
   centered: boolean
   setContentRef: (el: HTMLDivElement) => void
   userMessages: UserMessage[]
@@ -465,6 +467,15 @@ export function MessageTimeline(props: {
     },
   })
   const resizeItem = virtualizer.resizeItem
+  // Opening or closing a card is reading, like scrolling up: stop following the bottom, so the card grows below
+  // its header instead of shoving the thread above it out from under the cursor. Scrolling to the bottom resumes.
+  // The card keeps the clicked row in place itself; the list's own scroll correction for rows above the visible
+  // range would jump the view for a frame first, so it waits until the card has settled.
+  let toggledAt = -Infinity
+  const holdBottom = () => {
+    toggledAt = performance.now()
+    props.onPauseFollow?.()
+  }
   let resizeAnchorScheduled = false
   const anchorResizedBottom = () => {
     if (resizeAnchorScheduled || props.hasScrollGesture()) return
@@ -495,11 +506,17 @@ export function MessageTimeline(props: {
         })
       })
     }
+    // Near the end, an end-anchored list scrolls by whatever a row grew (virtual-core's `wasAtEnd`), whatever
+    // `shouldAdjustScrollPositionOnItemSizeChange` says. A card the user toggled grows in place instead.
+    const toggling = performance.now() - toggledAt < 800
+    const anchorTo = virtualizer.options.anchorTo
+    if (toggling) virtualizer.options.anchorTo = "start"
     resizeItem(index, size)
+    if (toggling) virtualizer.options.anchorTo = anchorTo
     if (root && props.shouldAnchorBottom()) anchorResizedBottom()
   }
   virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item) => {
-    if (props.shouldAnchorBottom()) return false
+    if (props.shouldAnchorBottom() || performance.now() - toggledAt < 800) return false
     const first = virtualizer.range?.startIndex
     return first !== undefined && item.index < first
   }
@@ -1122,9 +1139,11 @@ export function MessageTimeline(props: {
                     : undefined
                 }
                 onToggle={(open) => {
+                  holdBottom()
                   setToolOpen(`turn:${turnStepsRow().userMessageID}:${turnStepsRow().segment}`, open)
                   onSizeChange?.()
                 }}
+                onResize={holdBottom}
               />
             </div>
           </TimelineRowFrame>

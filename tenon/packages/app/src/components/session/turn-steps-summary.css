@@ -44,15 +44,17 @@
   }
 }
 
-/* Open card: the body grows from zero height (a 0fr to 1fr grid row animates to the content's height) while its
-   rows fade up, and shrinks back on close. Rendering open from the start doesn't animate. */
+/* Open card: the body grows from zero height (a 0fr to 1fr grid row animates to the content's height) on the long
+   emphasized curve, and its steps follow one after another. Closing is quicker and folds everything at once.
+   Rendering open from the start doesn't animate. */
 [data-slot="turn-steps-body"] {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate);
+  transition: grid-template-rows var(--v2-duration-medium) var(--v2-ease-emphasized-accelerate);
 
   &[data-open] {
     grid-template-rows: 1fr;
+    transition: grid-template-rows var(--v2-duration-long) var(--v2-ease-emphasized-decelerate);
   }
 
   > div {
@@ -62,15 +64,67 @@
 
   [data-slot="turn-steps-rows"] {
     opacity: 0;
-    transform: translateY(-4px);
-    transition:
-      opacity var(--v2-duration-short) var(--v2-ease-standard),
-      transform var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate);
+    transition: opacity var(--v2-duration-short) var(--v2-ease-standard);
   }
 
   &[data-open] [data-slot="turn-steps-rows"] {
     opacity: 1;
-    transform: none;
+  }
+
+  /* Each step slides in a beat after the one above it; past the eighth they arrive together. */
+  &[data-open][data-animate] :is([data-slot="turn-steps-item"], [data-slot="turn-steps-note"]) {
+    animation: turn-steps-item-in var(--v2-duration-long) var(--v2-ease-emphasized-decelerate) both;
+    animation-delay: calc(min(var(--i, 0), 8) * 30ms);
+  }
+}
+
+/* A row's output and a reasoning note open the same way as the card: the height follows a grid row, long and
+   decelerating to open, shorter and accelerating to close. A folded note keeps its first line (20px) showing. */
+[data-slot="turn-steps-reveal"],
+[data-slot="turn-steps-note-text"] {
+  display: grid;
+  transition: grid-template-rows var(--v2-duration-medium) var(--v2-ease-emphasized-accelerate);
+
+  &[data-open] {
+    transition: grid-template-rows var(--v2-duration-long) var(--v2-ease-emphasized-decelerate);
+  }
+
+  > * {
+    min-height: 0;
+    overflow: hidden;
+  }
+}
+
+[data-slot="turn-steps-reveal"] {
+  grid-template-rows: 0fr;
+
+  &[data-open] {
+    grid-template-rows: 1fr;
+  }
+
+  [data-slot="turn-steps-detail"] {
+    opacity: 0;
+    transition: opacity var(--v2-duration-short) var(--v2-ease-standard);
+  }
+
+  &[data-open] [data-slot="turn-steps-detail"] {
+    opacity: 1;
+    transition: opacity var(--v2-duration-medium) var(--v2-ease-standard) 60ms;
+  }
+}
+
+[data-slot="turn-steps-note-text"] {
+  grid-template-rows: minmax(20px, 0fr);
+
+  &[data-open] {
+    grid-template-rows: minmax(20px, 1fr);
+  }
+}
+
+@keyframes turn-steps-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
   }
 }
 
@@ -81,8 +135,17 @@
   }
 
   [data-slot="turn-steps-body"],
-  [data-slot="turn-steps-body"] [data-slot="turn-steps-rows"] {
+  [data-slot="turn-steps-body"][data-open],
+  [data-slot="turn-steps-body"] [data-slot="turn-steps-rows"],
+  :is([data-slot="turn-steps-reveal"], [data-slot="turn-steps-note-text"]),
+  :is([data-slot="turn-steps-reveal"], [data-slot="turn-steps-note-text"])[data-open],
+  [data-slot="turn-steps-reveal"] [data-slot="turn-steps-detail"] {
     transition: none;
+  }
+
+  [data-slot="turn-steps-body"][data-open][data-animate]
+    :is([data-slot="turn-steps-item"], [data-slot="turn-steps-note"]) {
+    animation: none;
   }
 
   [data-slot="turn-steps-lane"][data-running] [data-slot="turn-steps-lane-fill"] {

@@ -1439,8 +1439,21 @@ in its own body. Each tool is a full-width tonal row (icon, verb from
 `stepVerbKey`, target, duration) that opens to `toolDetail` (the error, or a
 command with its output); a subagent row opens its tab. A reasoning part is a
 one-line note that opens to its full text. The body grows with a `0fr` to
-`1fr` grid-row transition (`turn-steps-summary.css`) and its rows mount on
-first open. `stepOf` names an ACP tool without a kind by its `questions`
+`1fr` grid-row transition (`turn-steps-summary.css`, 450 ms open and 300 ms
+close) and its rows mount on first open; on an open while the card is on
+screen the steps slide in one after another. A row's output (in the app's
+`ScrollView`, a pill thumb on hover) and a reasoning note open the same way.
+A toggle keeps the clicked row in place: it pauses auto-scroll's bottom follow
+(`onPauseFollow`, as a scroll up does), `message-timeline.tsx` treats the list
+as start-anchored for row resizes during the next 800 ms (virtual-core
+otherwise scrolls by the growth near the end), and the card turns off the
+scroller's `overflow-anchor` and corrects any drift for 700 ms
+(`keepInPlace`). While a turn works, the header title and the running step's
+verb shimmer. Steps keep the order they happened in because
+`normalizeSessionMessages` gives each assistant part an ID that leads with
+its position in the message content (`assistantPartID`); the stores sort a
+message's parts by ID, and harness IDs (`acp-reasoning-1`, tool-call UUIDs)
+don't sort in time order. A tool part's call ID stays in `callID`. `stepOf` names an ACP tool without a kind by its `questions`
 input ("Asked" and the first question) or else by the agent's title.
 
 The side panel's Session tab (`components/session/session-context-tab.tsx`,

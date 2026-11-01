@@ -47,11 +47,11 @@ describe("current session timeline rows", () => {
     expect(result.activeMessageID).toBe("msg_3")
     expect(result.rows.map(TimelineRow.key)).toEqual([
       "user-message:msg_1",
-      "assistant-part:msg_1:part:msg_2:msg_2:text:0",
+      "assistant-part:msg_1:part:msg_2:msg_2:00000",
       "turn-gap:msg_3",
       "user-message:msg_3",
       "turn-steps:msg_3:0",
-      "assistant-part:msg_3:part:msg_4:msg_4:reasoning:0",
+      "assistant-part:msg_3:part:msg_4:msg_4:00000",
     ])
   })
 
@@ -124,10 +124,10 @@ describe("current session timeline rows", () => {
 
     expect(result.rows.map(TimelineRow.key)).toEqual([
       "user-message:msg_user_1",
-      "assistant-part:msg_user_1:part:msg_assistant_1:msg_assistant_1:text:0",
+      "assistant-part:msg_user_1:part:msg_assistant_1:msg_assistant_1:00000",
       "turn-gap:msg_user_2",
       "user-message:msg_user_2",
-      "assistant-part:msg_user_2:part:msg_assistant_2:msg_assistant_2:text:0",
+      "assistant-part:msg_user_2:part:msg_assistant_2:msg_assistant_2:00000",
     ])
   })
 

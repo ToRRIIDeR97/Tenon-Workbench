@@ -1,8 +1,10 @@
-import { For, Index, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js"
+import { For, Index, Show, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
 import type { Part, ReasoningPart, ToolPart } from "@opencode-ai/sdk/v2"
 import { Icon } from "@tenon/ui/v2/icon"
 import { LoaderV2 } from "@tenon/ui/v2/loader-v2"
+import { ScrollView } from "@tenon/ui/scroll-view"
+import { TextShimmer } from "@tenon/ui/text-shimmer"
 import { Icon as StepIcon } from "@tenon/ui/icon"
 import {
   stepIcon,
@@ -98,6 +100,45 @@ function plain(value: string) {
   )
 }
 
+/**
+ * Keeps the row the user clicked where it is on screen while the card grows or shrinks around it. The timeline
+ * otherwise keeps whatever lies below steady, so a card whose header has scrolled off the top grows upward.
+ */
+function keepInPlace(element: Element) {
+  const scroller = scrollParent(element)
+  if (!scroller) return
+  // The browser's scroll anchoring would hold content below the card steady and grow the card upward; turn it off
+  // while the card animates, then correct any drift the list's own measuring causes.
+  // Pausing auto-scroll sets the property again right after the click, so it's re-applied every frame and the
+  // last value anyone else set comes back at the end.
+  let anchoring = scroller.style.overflowAnchor
+  const suppress = () => {
+    if (scroller.style.overflowAnchor === "none") return
+    anchoring = scroller.style.overflowAnchor
+    scroller.style.overflowAnchor = "none"
+  }
+  suppress()
+  const start = element.getBoundingClientRect().top
+  const until = performance.now() + 700
+  const step = () => {
+    if (!element.isConnected) return
+    suppress()
+    const drift = element.getBoundingClientRect().top - start
+    if (Math.abs(drift) >= 1) scroller.scrollTop += drift
+    if (performance.now() < until) return requestAnimationFrame(step)
+    scroller.style.overflowAnchor = anchoring
+  }
+  requestAnimationFrame(step)
+}
+
+function scrollParent(element: Element) {
+  for (let node = element.parentElement; node; node = node.parentElement) {
+    const overflow = getComputedStyle(node).overflowY
+    if ((overflow === "auto" || overflow === "scroll") && node.scrollHeight > node.clientHeight) return node
+  }
+  return undefined
+}
+
 /** What an open step row shows: the error, or a command with its output, or the tool's output. */
 export function toolDetail(part: ToolPart) {
   const state = part.state
@@ -163,6 +204,8 @@ export function TurnStepsSummary(props: {
   durationMs?: number
   open: boolean
   onToggle: (open: boolean) => void
+  /** Called before a row inside the open card opens or closes, which changes the card's height. */
+  onResize?: () => void
   /** Opens a harness subagent's tab; its lanes become buttons when this is set. */
   onOpenSubagent?: (part: ToolPart) => void
 }) {
@@ -185,11 +228,31 @@ export function TurnStepsSummary(props: {
   // Finished lanes stay, with a full bar, until the turn ends so parallel subagents don't jump around.
   const lanes = createMemo(() => (live() ? subagentLanes(props.parts) : []))
   // The body's rows mount on first open and stay, so closing animates instead of emptying at once.
-  const [body, setBody] = createStore({ mounted: props.open, expanded: {} as Record<string, boolean> })
-  createEffect(() => {
-    if (props.open) setBody("mounted", true)
+  const [body, setBody] = createStore({
+    mounted: props.open,
+    // Set once the card opens while on screen: the timeline remounts rows on scroll, and an open card coming back
+    // into view shouldn't replay its entrance.
+    animate: false,
+    expanded: {} as Record<string, boolean>,
+    seen: {} as Record<string, boolean>,
   })
-  const toggle = (id: string) => setBody("expanded", id, (value) => !value)
+  createEffect(
+    on(
+      () => props.open,
+      (open, previous) => {
+        if (open) setBody("mounted", true)
+        if (open && previous === false) setBody("animate", true)
+      },
+    ),
+  )
+  const toggle = (id: string, anchor: Element) => {
+    props.onResize?.()
+    keepInPlace(anchor)
+    if (body.seen[id]) return setBody("expanded", id, (value) => !value)
+    // First open: mount the panel closed, then open it a frame later so it grows instead of appearing.
+    setBody("seen", id, true)
+    requestAnimationFrame(() => setBody("expanded", id, true))
+  }
   // One clock drives the turn and step timers; it only ticks while the turn works.
   const [now, setNow] = createSignal(Date.now())
   createEffect(() => {
@@ -238,7 +301,10 @@ export function TurnStepsSummary(props: {
         data-working={props.working ? "" : undefined}
         aria-expanded={props.open}
         class="flex h-9 w-full min-w-0 items-center gap-2 rounded-[16px] px-3 text-left text-[14px] leading-5 text-v2-text-text-base"
-        onClick={() => props.onToggle(!props.open)}
+        onClick={(event) => {
+          keepInPlace(event.currentTarget)
+          props.onToggle(!props.open)
+        }}
       >
         <Show
           when={props.working}
@@ -247,7 +313,7 @@ export function TurnStepsSummary(props: {
           <LoaderV2 width={14} height={14} class="text-v2-icon-icon-accent" />
         </Show>
         <span data-slot="turn-steps-title" class="shrink-0 [font-weight:500] tabular-nums">
-          {title()}
+          <TextShimmer text={title()} active={props.working} />
         </span>
         <span data-slot="turn-steps-counts" class="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
           <For each={counts()}>
@@ -297,9 +363,12 @@ export function TurnStepsSummary(props: {
                         >
                           <StepIcon name="brain" size="small" class="shrink-0 text-v2-text-text-muted" />
                           <span class="shrink-0 [font-weight:500]">
-                            {language.t(
-                              isThinking(part()) ? "secondBrain.turnSteps.thinking" : "secondBrain.turnSteps.thought",
-                            )}
+                            <TextShimmer
+                              text={language.t(
+                                isThinking(part()) ? "secondBrain.turnSteps.thinking" : "secondBrain.turnSteps.thought",
+                              )}
+                              active={isThinking(part())}
+                            />
                           </span>
                           <Show when={item.topic}>
                             {(topic) => <span class="min-w-0 truncate text-v2-text-text-muted">{topic()}</span>}
@@ -324,7 +393,9 @@ export function TurnStepsSummary(props: {
                         size="small"
                         class="shrink-0 text-v2-text-text-muted"
                       />
-                      <span class="shrink-0 [font-weight:500]">{label(part())}</span>
+                      <span class="shrink-0 [font-weight:500]">
+                        <TextShimmer text={label(part())} active={isRunning(part())} />
+                      </span>
                       <Show when={stepOf(part()).target}>
                         {(target) => (
                           <span
@@ -422,12 +493,17 @@ export function TurnStepsSummary(props: {
       </Show>
       {/* Open: every step on the card's own surface. Tools are filled rows that open to their output; reasoning is a
           one-line note that opens to its full text. */}
-      <div data-slot="turn-steps-body" data-open={props.open ? "" : undefined} aria-hidden={!props.open}>
+      <div
+        data-slot="turn-steps-body"
+        data-open={props.open ? "" : undefined}
+        data-animate={body.animate ? "" : undefined}
+        aria-hidden={!props.open}
+      >
         <div>
           <Show when={body.mounted}>
             <div data-slot="turn-steps-rows" class="flex flex-col gap-1 px-2 pb-2">
               <For each={props.parts}>
-                {(part) => (
+                {(part, index) => (
                   <>
                     <Show when={part.type === "tool" ? part : undefined}>
                       {(tool) => {
@@ -435,17 +511,17 @@ export function TurnStepsSummary(props: {
                         const open = () => !!body.expanded[tool().id]
                         const step = () => stepOf(tool())
                         return (
-                          <div class="flex min-w-0 flex-col">
+                          <div data-slot="turn-steps-item" style={{ "--i": index() }} class="flex min-w-0 flex-col">
                             <button
                               type="button"
                               data-slot="turn-steps-row"
                               tabIndex={props.open ? 0 : -1}
                               aria-expanded={detail() ? open() : undefined}
                               class="flex min-h-8 w-full min-w-0 items-center gap-2 rounded-[12px] bg-v2-background-bg-layer-02 px-2.5 py-1.5 text-left text-[13px] leading-5 text-v2-text-text-base transition-colors hover:bg-v2-background-bg-layer-03 focus-visible:outline focus-visible:outline-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
-                              onClick={() => {
+                              onClick={(event) => {
                                 const opener = openable(tool())
                                 if (opener) return opener(tool())
-                                if (detail()) toggle(tool().id)
+                                if (detail()) toggle(tool().id, event.currentTarget)
                               }}
                             >
                               <StepIcon
@@ -489,11 +565,21 @@ export function TurnStepsSummary(props: {
                                 />
                               </Show>
                             </button>
-                            <Show when={open() ? detail() : undefined}>
+                            {/* Mounted on first open and kept, so closing animates like the card itself. */}
+                            <Show when={body.seen[tool().id] ? detail() : undefined}>
                               {(text) => (
-                                <pre class="mt-1 max-h-60 overflow-auto whitespace-pre-wrap break-words rounded-[10px] bg-v2-background-bg-base px-3 py-2 font-mono text-[12px] leading-[18px] text-v2-text-text-muted">
-                                  {text()}
-                                </pre>
+                                <div data-slot="turn-steps-reveal" data-open={open() ? "" : undefined}>
+                                  <div>
+                                    <ScrollView
+                                      data-slot="turn-steps-detail"
+                                      class="mt-1 max-h-60 rounded-[10px] bg-v2-background-bg-base"
+                                    >
+                                      <pre class="m-0 whitespace-pre-wrap break-words px-3 py-2 font-mono text-[12px] leading-[18px] text-v2-text-text-muted">
+                                        {text()}
+                                      </pre>
+                                    </ScrollView>
+                                  </div>
+                                </div>
                               )}
                             </Show>
                           </div>
@@ -508,28 +594,31 @@ export function TurnStepsSummary(props: {
                           <Show when={text()}>
                             <div
                               data-slot="turn-steps-note"
+                              style={{ "--i": index() }}
                               role="button"
                               tabIndex={props.open ? 0 : -1}
                               aria-expanded={open()}
                               class="flex w-full min-w-0 cursor-pointer items-start gap-2 rounded-[12px] px-2.5 py-1 text-[13px] leading-5 text-v2-text-text-muted transition-colors select-text hover:bg-v2-background-bg-layer-02 focus-visible:outline focus-visible:outline-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
-                              onClick={() => {
+                              onClick={(event) => {
                                 // Selecting text to copy it shouldn't fold the note.
                                 if (window.getSelection()?.toString()) return
-                                toggle(note().id)
+                                toggle(note().id, event.currentTarget)
                               }}
                               onKeyDown={(event) => {
                                 if (event.key !== "Enter" && event.key !== " ") return
                                 event.preventDefault()
-                                toggle(note().id)
+                                toggle(note().id, event.currentTarget)
                               }}
                             >
                               <StepIcon name="brain" size="small" class="mt-0.5 shrink-0" />
-                              <span
+                              {/* One block clipped to its first line when folded, so opening grows it smoothly. */}
+                              <div
+                                data-slot="turn-steps-note-text"
+                                data-open={open() ? "" : undefined}
                                 class="min-w-0 flex-1"
-                                classList={{ truncate: !open(), "whitespace-pre-wrap break-words": open() }}
                               >
-                                {open() ? text() : text().replace(/\s+/g, " ")}
-                              </span>
+                                <div class="whitespace-pre-wrap break-words">{text()}</div>
+                              </div>
                             </div>
                           </Show>
                         )
