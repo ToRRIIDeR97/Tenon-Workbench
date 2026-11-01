@@ -1,6 +1,7 @@
 import { describe, expect, mock, test } from "bun:test"
 
-mock.module("electron", () => ({ net: {}, protocol: {} }))
+// Mocks are process-wide in bun, so this one also serves later files that import Electron's default export.
+mock.module("electron", () => ({ default: {}, net: {}, protocol: {} }))
 const { resolveInside } = await import("./file-viewer")
 
 describe("resolveInside", () => {

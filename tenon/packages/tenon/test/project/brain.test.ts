@@ -10,7 +10,7 @@ import { Location } from "@tenon/core/location"
 import { LocationMutation } from "@tenon/core/location-mutation"
 import { ProjectV2 } from "@tenon/core/project"
 import { AbsolutePath } from "@tenon/core/schema"
-import { tmpdir } from "../fixture/fixture"
+import { canSymlink, tmpdir } from "../fixture/fixture"
 import { PlannerCalendar } from "../../src/planner/calendar"
 import { BrainProject } from "../../src/project/brain"
 
@@ -607,7 +607,7 @@ describe("BrainProject project folders", () => {
     expect(readdirSync(path.join(root, ".tenon", "workspace.json"))).toEqual([])
   })
 
-  test("an AGENTS.md symlinked outside the folder is not read", async () => {
+  test.skipIf(!canSymlink)("an AGENTS.md symlinked outside the folder is not read", async () => {
     await using tmp = await tmpdir()
     const root = path.join(tmp.path, "Brain")
     mkdirSync(root, { recursive: true })
