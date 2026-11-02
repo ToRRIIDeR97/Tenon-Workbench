@@ -49,6 +49,7 @@ export interface Settings {
   notifications: NotificationSettings
   sounds: SoundSettings
   calendar?: CalendarSyncSettings
+  commandCentre?: Partial<CommandCentreSettings>
   harnesses?: {
     /** Model IDs left out of each harness's picker, by harness instance ID. New models show by default. */
     hiddenModels?: Record<string, string[]>
@@ -77,6 +78,26 @@ export const defaultCalendarSync: CalendarSyncSettings = {
   intervalMinutes: 15,
   onOpen: true,
   onFocus: true,
+}
+
+export type CommandCentreSettings = {
+  /** The harness Command Centre threads start with; undefined is the built-in agent. */
+  harnessID?: string
+  /** A harness model id (`provider/model`); undefined is the harness default. */
+  modelID?: string
+  /** Threads last updated longer ago than this are summarised into memory and deleted (1–365). */
+  memoryDays: number
+  /** When this renderer last asked the server to compact memory (epoch ms); compaction runs at most daily. */
+  compactedAt?: number
+}
+
+export const defaultCommandCentre: CommandCentreSettings = { memoryDays: 45 }
+
+/** Clamp a memory age to whole days between 1 and 365; anything unreadable is the default. */
+export function memoryDays(value: unknown) {
+  const number = typeof value === "number" ? value : Number(value)
+  if (!Number.isFinite(number)) return defaultCommandCentre.memoryDays
+  return Math.min(365, Math.max(1, Math.round(number)))
 }
 
 export type HarnessChoice = {
@@ -395,6 +416,15 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         sync: (): CalendarSyncSettings => ({ ...defaultCalendarSync, ...store.calendar }),
         setSync(value: Partial<CalendarSyncSettings>) {
           setStore("calendar", (current) => ({ ...defaultCalendarSync, ...current, ...value }))
+        },
+      },
+      commandCentre: {
+        current: (): CommandCentreSettings => {
+          const value = { ...defaultCommandCentre, ...store.commandCentre }
+          return { ...value, memoryDays: memoryDays(value.memoryDays) }
+        },
+        set(value: Partial<CommandCentreSettings>) {
+          setStore("commandCentre", (current) => ({ ...defaultCommandCentre, ...current, ...value }))
         },
       },
       harnesses: {

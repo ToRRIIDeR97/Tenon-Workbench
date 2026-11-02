@@ -23,6 +23,9 @@ export {
   type GoogleTaskProviderTask,
   type GoogleTaskWrite,
   type GoogleTaskWriteResult,
+  type MailAccount,
+  type MailImapInput,
+  type MailPlatform,
   type Platform,
   PlatformProvider,
 } from "./context/platform"

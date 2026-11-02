@@ -1,7 +1,7 @@
 import { useLocation } from "@solidjs/router"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { ViewSwitch } from "@tenon/ui/v2/view-switch"
-import { createEffect, createMemo, ErrorBoundary, on, Suspense, untrack, type ParentProps } from "solid-js"
+import { createEffect, createMemo, ErrorBoundary, on, Show, Suspense, untrack, type ParentProps } from "solid-js"
 import { createStore } from "solid-js/store"
 import { PageEmpty, PageFrame } from "@/components/page"
 import { DebugBar } from "@/components/debug-bar"
@@ -9,6 +9,8 @@ import { Titlebar, type TitlebarUpdate } from "@/components/titlebar"
 import { SecondBrainSidebar } from "@/components/second-brain-sidebar"
 import { AgentWritePill } from "@/features/agent-writes/cards"
 import { AgentWritesProvider } from "@/features/agent-writes/store"
+import { CommandCentreProvider } from "@/features/command-centre/command-centre"
+import { CommandStrip } from "@/features/command-centre/command-strip"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
 import { setV2Toast, ToastRegion } from "@/utils/toast"
@@ -53,22 +55,28 @@ export default function NewLayout(props: ParentProps) {
               : undefined
           }
         />
-        <div class="relative flex flex-1 min-h-0 min-w-0">
-          <SecondBrainSidebar />
-          <main class="flex-1 min-h-0 min-w-0 overflow-x-hidden flex flex-col items-start contain-strict">
-            {/* A failed page request shows a retryable message here and keeps the sidebar usable. */}
-            <ErrorBoundary fallback={(error, reset) => <PageError error={error} reset={reset} />}>
-              <Suspense>
-                <ViewSwitch key={pageKey().count} class="flex min-h-0 min-w-0 w-full flex-1 flex-col items-start">
-                  {props.children}
-                </ViewSwitch>
-              </Suspense>
-            </ErrorBoundary>
-          </main>
-          {/* Writes by agents in other threads (W4), below the titlebar's drag strip; the writing
+        <CommandCentreProvider>
+          <div class="relative flex flex-1 min-h-0 min-w-0">
+            <SecondBrainSidebar />
+            <main class="relative flex-1 min-h-0 min-w-0 overflow-x-hidden flex flex-col items-start contain-strict">
+              {/* A failed page request shows a retryable message here and keeps the sidebar usable. */}
+              <ErrorBoundary fallback={(error, reset) => <PageError error={error} reset={reset} />}>
+                <Suspense>
+                  <ViewSwitch key={pageKey().count} class="flex min-h-0 min-w-0 w-full flex-1 flex-col items-start">
+                    {props.children}
+                  </ViewSwitch>
+                </Suspense>
+              </ErrorBoundary>
+              {/* K3: the Command Centre strip, centred on the page (main contains it), everywhere but the Command Centre. */}
+              <Show when={location.pathname !== "/command"}>
+                <CommandStrip />
+              </Show>
+            </main>
+            {/* Writes by agents in other threads (W4), below the titlebar's drag strip; the writing
               thread shows them inline instead. */}
-          <AgentWritePill />
-        </div>
+            <AgentWritePill />
+          </div>
+        </CommandCentreProvider>
         {import.meta.env.DEV && state.debugTools && <DebugBar inline />}
         <ToastRegion v2 />
       </div>

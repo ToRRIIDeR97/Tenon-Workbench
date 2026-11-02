@@ -83,7 +83,8 @@ test("the sidebar is the only navigation", async ({ page }) => {
   for (const [item, path] of [
     ["notes", /\/notes$/],
     ["calendar", /\/calendar$/],
-    ["activity", /\/activity$/],
+    // AC-7.1: Command Centre took Activity's place on the rail.
+    ["command", /\/command$/],
     ["overview", /\/$/],
   ] as const) {
     await sidebar(page).locator(`[data-sidebar-item="${item}"]`).click()

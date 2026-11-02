@@ -103,7 +103,7 @@ test("Home remains usable during loading and reuses fresh harness availability",
     await page.screenshot({ path: testInfo.outputPath("home-pending.png"), fullPage: true })
 
     // Navigation works even when all three Home requests are still pending.
-    await page.locator('[data-sidebar-item="activity"]').click()
+    await page.locator('[data-sidebar-item="command"]').click()
     await expect(home).not.toBeVisible()
     await page.locator('[data-sidebar-item="overview"]').click()
     await expect(prompt).toBeEditable()
@@ -123,7 +123,7 @@ test("Home remains usable during loading and reuses fresh harness availability",
     await expect(start).toBeEnabled()
     await page.screenshot({ path: testInfo.outputPath("home-loaded.png"), fullPage: true })
 
-    await page.locator('[data-sidebar-item="activity"]').click()
+    await page.locator('[data-sidebar-item="command"]').click()
     await expect(home).not.toBeVisible()
     await page.locator('[data-sidebar-item="overview"]').click()
     await expect(selector).toBeEnabled()
@@ -132,7 +132,7 @@ test("Home remains usable during loading and reuses fresh harness availability",
 
     // Advance freshness without a sleep. A stale result stays usable during refresh.
     await page.clock.setFixedTime(new Date(now.getTime() + 31_000))
-    await page.locator('[data-sidebar-item="activity"]').click()
+    await page.locator('[data-sidebar-item="command"]').click()
     await expect(home).not.toBeVisible()
     const requested = page.waitForRequest((request) => new URL(request.url()).pathname === "/api/harness")
     await page.locator('[data-sidebar-item="overview"]').click()
