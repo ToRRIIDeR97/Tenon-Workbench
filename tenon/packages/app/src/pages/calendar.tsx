@@ -10,6 +10,7 @@ import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { ViewSwitch } from "@tenon/ui/v2/view-switch"
 import { createEffect, createMemo, createResource, For, on, Show } from "solid-js"
 import { createStore } from "solid-js/store"
+import { RevealShow } from "@tenon/ui/v2/reveal"
 import { PageEmpty, PageFrame, PageHeader, pageRowClass } from "@/components/page"
 import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
@@ -1039,15 +1040,13 @@ export default function CalendarPage() {
               onSelect={(projectID) => setState("projectFilter", projectID === "__all__" ? "" : (projectID ?? ""))}
             />
           </Show>
-          <Show when={state.googleError}>
-            <span
-              role="alert"
-              title={state.googleError}
-              class="max-w-48 animate-enter truncate text-[11px] text-v2-text-text-critical"
-            >
-              {state.googleError}
-            </span>
-          </Show>
+          <RevealShow when={state.googleError} class="max-w-48 min-w-0">
+            {(error) => (
+              <span role="alert" title={error()} class="block truncate text-[11px] text-v2-text-text-critical">
+                {error()}
+              </span>
+            )}
+          </RevealShow>
           <ButtonV2
             variant="ghost"
             size="small"

@@ -177,20 +177,21 @@
 }
 
 /* Material 3 shape and motion: large-radius dialog that rises in (medium + emphasized-decelerate)
-   and fades out (short + emphasized-accelerate). */
+   and leaves as the mirror of that (exit + ease-exit: sinks 16px, shrinks to .98, fades). The scrim
+   fades on the same timing. */
 [data-component="dialog-v2"] [data-slot="dialog-container"] {
   border-radius: var(--v2-radius-xxl);
   animation: dialog-v2-enter var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate);
 }
 
 [data-component="dialog-v2"] [data-slot="dialog-container"]:has(> [data-slot="dialog-content"][data-closed]) {
-  animation: dialog-v2-exit var(--v2-duration-short) var(--v2-ease-emphasized-accelerate) forwards;
+  animation: dialog-v2-exit var(--v2-duration-exit) var(--v2-ease-exit) forwards;
 }
 
 /* Kobalte's presence watches the content element, not the container. A same-length animation with its
    own name keeps the content mounted while the container plays the exit. */
 [data-component="dialog-v2"] [data-slot="dialog-content"][data-closed] {
-  animation: dialog-v2-hold var(--v2-duration-short) linear forwards;
+  animation: dialog-v2-hold var(--v2-duration-exit) linear forwards;
 }
 
 [data-component="dialog-overlay"][data-expanded] {
@@ -198,7 +199,7 @@
 }
 
 [data-component="dialog-overlay"][data-closed] {
-  animation: dialog-v2-overlay-out var(--v2-duration-short) var(--v2-ease-emphasized-accelerate) forwards;
+  animation: dialog-v2-overlay-out var(--v2-duration-exit) var(--v2-ease-exit) forwards;
 }
 
 [data-component="dialog-v2"] [data-slot="dialog-close-button"] {
@@ -219,7 +220,7 @@
 @keyframes dialog-v2-exit {
   to {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(16px) scale(0.98);
   }
 }
 

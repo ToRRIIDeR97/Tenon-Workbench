@@ -7,7 +7,7 @@ import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { KeybindV2 } from "@tenon/ui/v2/keybind-v2"
 import { SelectV2 } from "@tenon/ui/v2/select-v2"
 import { TextInputV2 } from "@tenon/ui/v2/text-input-v2"
-import { Reveal } from "@tenon/ui/v2/reveal"
+import { Reveal, RevealShow } from "@tenon/ui/v2/reveal"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { debounce } from "@solid-primitives/scheduled"
 import { createEffect, createMemo, createResource, createSignal, For, on, onCleanup, Show } from "solid-js"
@@ -566,11 +566,13 @@ export default function NotesPage() {
                     value={state.newTitle}
                     onInput={(event) => setState("newTitle", event.currentTarget.value)}
                   />
-                  <Show when={state.error}>
-                    <p id="new-note-error" role="alert" class="animate-enter text-[12px] text-v2-text-text-critical">
-                      {state.error}
-                    </p>
-                  </Show>
+                  <RevealShow when={state.error}>
+                    {(error) => (
+                      <p id="new-note-error" role="alert" class="text-[12px] text-v2-text-text-critical">
+                        {error()}
+                      </p>
+                    )}
+                  </RevealShow>
                   <div class="flex justify-end gap-1.5">
                     <ButtonV2
                       type="button"
@@ -763,29 +765,33 @@ export default function NotesPage() {
                       </nav>
                     </Show>
 
-                    <Show when={loadedNote.error}>
-                      <div class="flex animate-enter flex-wrap items-center gap-2">
-                        <p role="alert" class="text-[12px] text-v2-text-text-critical">
-                          {language.t("secondBrain.error.request")}
-                        </p>
-                        <ButtonV2 size="small" variant="outline" onClick={reload}>
-                          {language.t("secondBrain.error.retry")}
-                        </ButtonV2>
-                      </div>
-                    </Show>
-
-                    <Show when={state.error}>
-                      <div class="flex animate-enter flex-wrap items-center gap-2">
-                        <p role="alert" class="text-[12px] text-v2-text-text-critical">
-                          {state.error}
-                        </p>
-                        <Show when={state.conflict}>
-                          <ButtonV2 size="small" variant="outline" disabled={loadedNote.loading} onClick={reload}>
-                            {language.t("secondBrain.notes.reload")}
+                    <RevealShow when={!!loadedNote.error}>
+                      {() => (
+                        <div class="flex flex-wrap items-center gap-2">
+                          <p role="alert" class="text-[12px] text-v2-text-text-critical">
+                            {language.t("secondBrain.error.request")}
+                          </p>
+                          <ButtonV2 size="small" variant="outline" onClick={reload}>
+                            {language.t("secondBrain.error.retry")}
                           </ButtonV2>
-                        </Show>
-                      </div>
-                    </Show>
+                        </div>
+                      )}
+                    </RevealShow>
+
+                    <RevealShow when={state.error}>
+                      {(error) => (
+                        <div class="flex flex-wrap items-center gap-2">
+                          <p role="alert" class="text-[12px] text-v2-text-text-critical">
+                            {error()}
+                          </p>
+                          <Show when={state.conflict}>
+                            <ButtonV2 size="small" variant="outline" disabled={loadedNote.loading} onClick={reload}>
+                              {language.t("secondBrain.notes.reload")}
+                            </ButtonV2>
+                          </Show>
+                        </div>
+                      )}
+                    </RevealShow>
 
                     <div class="flex min-h-[360px] flex-1">
                       <NoteEditor

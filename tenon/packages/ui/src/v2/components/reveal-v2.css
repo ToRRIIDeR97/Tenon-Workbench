@@ -44,6 +44,18 @@
   }
 }
 
+/* Variant line (a conditional line: form error, notice, dock label): opens over swap-in +
+   emphasized-decelerate and closes over short + ease-exit. */
+[data-component="reveal-v2"][data-variant="line"] {
+  transition-duration: var(--v2-duration-short);
+  transition-timing-function: var(--v2-ease-exit);
+
+  &[data-phase="opening"] {
+    transition-duration: var(--v2-duration-swap-in);
+    transition-timing-function: var(--v2-ease-emphasized-decelerate);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   [data-component="reveal-v2"] {
     transition: none;

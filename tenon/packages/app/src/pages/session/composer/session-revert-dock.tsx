@@ -3,7 +3,7 @@ import { createStore } from "solid-js/store"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Icon as IconV2 } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
-import { Reveal } from "@tenon/ui/v2/reveal"
+import { Reveal, RevealShow } from "@tenon/ui/v2/reveal"
 import { useLanguage } from "@/context/language"
 import { createExitList } from "./exit-list"
 import type { SessionComposerRevertDock } from "./session-composer-region-controller"
@@ -90,11 +90,13 @@ export function SessionRevertDock(props: {
         >
           {label()}
         </span>
-        <Show when={store.collapsed && preview()}>
-          <span class="min-w-0 flex-1 truncate cursor-default text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-faint animate-enter">
-            {preview()}
-          </span>
-        </Show>
+        <RevealShow when={store.collapsed && preview()} class="min-w-0 flex-1">
+          {(text) => (
+            <span class="block truncate cursor-default text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-faint">
+              {text()}
+            </span>
+          )}
+        </RevealShow>
         <div class="ml-auto shrink-0">
           <IconButtonV2
             icon={<IconV2 name="outline-chevron-down" size="small" />}

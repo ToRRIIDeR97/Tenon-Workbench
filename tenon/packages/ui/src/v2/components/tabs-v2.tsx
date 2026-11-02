@@ -180,6 +180,7 @@ function TabsV2Content(props: ParentProps<TabsV2ContentProps>) {
     <Kobalte.Content
       {...rest}
       data-slot="tabs-v2-content"
+      data-force-mount={props.forceMount ? "" : undefined}
       classList={{
         ...split.classList,
         [split.class ?? ""]: !!split.class,

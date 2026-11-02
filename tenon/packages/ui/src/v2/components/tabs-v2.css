@@ -279,8 +279,50 @@
   box-shadow: inset 0 0 0 0.5px var(--v2-border-border-muted);
 }
 
+/* Panel fade-through (settings variant): the old panel fades out (swap-out + ease-exit), then the new one
+   fades and rises 4px in (swap-in + emphasized-decelerate). Kobalte keeps the old panel mounted while its
+   exit runs (its own animation name); meanwhile the new panel is display: none, so the two never share the
+   layout, and it starts its enter once the old one unmounts. Panels mounted with forceMount stay out of
+   this. Other variants hold heavy surfaces (terminals, browser views) that should not wait or remount
+   hidden, and their panels mostly swap through a keyed Show, so they switch at once. */
+[data-component="tabs-v2"][data-variant="settings"] > [data-slot="tabs-v2-content"][data-selected] {
+  animation: tabs-v2-panel-in var(--v2-duration-swap-in) var(--v2-ease-emphasized-decelerate) both;
+}
+
+[data-component="tabs-v2"][data-variant="settings"]
+  > [data-slot="tabs-v2-content"]:not([data-selected], [data-force-mount]) {
+  pointer-events: none;
+  animation: tabs-v2-panel-out var(--v2-duration-swap-out) var(--v2-ease-exit) forwards;
+}
+
+[data-component="tabs-v2"][data-variant="settings"]:has(
+    > [data-slot="tabs-v2-content"]:not([data-selected], [data-force-mount])
+  )
+  > [data-slot="tabs-v2-content"][data-selected] {
+  display: none;
+}
+
+@keyframes tabs-v2-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@keyframes tabs-v2-panel-out {
+  to {
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   [data-component="tabs-v2"] [data-slot="tabs-v2-list"][data-indicator] [data-slot="tabs-v2-indicator"] {
     transition: none;
+  }
+
+  [data-component="tabs-v2"][data-variant="settings"] > [data-slot="tabs-v2-content"][data-selected],
+  [data-component="tabs-v2"][data-variant="settings"]
+    > [data-slot="tabs-v2-content"]:not([data-selected], [data-force-mount]) {
+    animation: none;
   }
 }
