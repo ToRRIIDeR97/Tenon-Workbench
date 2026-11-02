@@ -214,10 +214,12 @@ export const discover = (process: Process, settings: Settings, directory: string
       const levels = (effort: EffortOption | undefined) =>
         (effort?.values ?? []).filter((value) => value !== EFFORT_DEFAULT)
       // Agents report levels for the active model only, so this throwaway session switches to each model once.
-      // A switch can fail without saying anything about levels (Claude Code checks some models with its
-      // server first), so a failed switch keeps the active model's levels rather than none.
+      // It does so even when the active model has none: OpenCode starts on a model without levels while most of
+      // its others have them (476 switches take well under a second). A switch can fail without saying anything
+      // about levels (Claude Code checks some models with its server first), so a failed switch keeps the active
+      // model's levels rather than none.
       const models =
-        selector.effort && configId
+        configId
           ? yield* Effect.forEach(selector.models, (model) =>
               model.isDefault
                 ? Effect.succeed(model)

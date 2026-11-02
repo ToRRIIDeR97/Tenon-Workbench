@@ -12,7 +12,8 @@ import { Hash } from "../util/hash"
  * Rebuildable: a missing or corrupt file only means the next check runs as on a first start.
  * Entries are keyed by a hash of the instance key, because an instance's config can carry API keys.
  */
-export const fileName = "harness-models.json"
+// v2: lists from before OpenCode models had their reasoning levels read, dropped once so every harness re-checks.
+export const fileName = "harness-models.v2.json"
 export const probeFileName = "harness-probes.json"
 
 const Entry = Schema.Struct({ models: Schema.Array(Harness.Model), checked: Schema.Number })
