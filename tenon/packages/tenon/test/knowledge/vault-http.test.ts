@@ -1,6 +1,6 @@
 import { afterEach, describe, expect } from "bun:test"
 import { NodeHttpServer, NodeServices } from "@effect/platform-node"
-import { readdir, symlink } from "node:fs/promises"
+import { mkdir, readdir, rm, symlink, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { Config, Effect, Layer } from "effect"
 import { HttpClient, HttpClientRequest, HttpClientResponse, HttpRouter, HttpServer } from "effect/unstable/http"
@@ -116,6 +116,57 @@ describe("vault routes", () => {
       const response = yield* put(headers, "Escape/x.md", { body: "x", create: true })
       expect(response.status).toBe(400)
       expect(yield* Effect.promise(() => readdir(outside))).toEqual([])
+    }),
+  )
+
+  it.instance("a dangling link at this machine's log path is refused, not followed", () =>
+    Effect.gen(function* () {
+      const { headers, project, folder } = yield* setup
+      const log = (text: string) =>
+        request(`/second-brain/vault/log?project=${project.id}`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ text, author: "agent" }),
+        })
+      yield* log("first").pipe(Effect.flatMap(json<unknown>))
+      const logs = path.join(folder, "Acme API", "log")
+      const own = path.join(logs, (yield* Effect.promise(() => readdir(logs)))[0]!)
+      const outside = yield* tmpdirScoped()
+      yield* Effect.promise(async () => {
+        await rm(own)
+        await symlink(path.join(outside, "missing"), own, "junction")
+      })
+      expect((yield* log("second")).status).toBe(400)
+      expect(yield* Effect.promise(() => readdir(outside))).toEqual([])
+    }),
+  )
+
+  it.instance("a linked .backups folder cannot carry migration backups outside the vault", () =>
+    Effect.gen(function* () {
+      const { root, headers } = yield* setup
+      const test = yield* TestInstance
+      const outside = yield* tmpdirScoped()
+      yield* Effect.promise(async () => {
+        await symlink(outside, path.join(root, ".backups"), "junction")
+        await mkdir(path.join(test.directory, "notes"), { recursive: true })
+        await writeFile(path.join(test.directory, "notes", "loose.md"), "# Loose")
+      })
+      const response = yield* request("/second-brain/vault/migrate", { method: "POST", headers })
+      expect(response.status).toBe(400)
+      expect(yield* Effect.promise(() => readdir(outside))).toEqual([])
+      // Nothing is removed unless the backup succeeded.
+      expect(yield* Effect.promise(() => readdir(path.join(test.directory, "notes")))).toEqual(["loose.md"])
+    }),
+  )
+
+  it.instance("a vault root inside the workspace is refused", () =>
+    Effect.gen(function* () {
+      const test = yield* TestInstance
+      process.env.TENON_VAULT_DIR = path.join(test.directory, "vault")
+      const response = yield* request("/second-brain/vault", { headers: { "x-opencode-directory": test.directory } })
+      expect(response.status).toBe(400)
+      expect(yield* response.text).toContain("vault_inside_workspace")
+      expect(yield* Effect.promise(() => readdir(test.directory))).not.toContain("vault")
     }),
   )
 

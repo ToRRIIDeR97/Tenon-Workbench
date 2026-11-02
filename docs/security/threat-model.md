@@ -709,6 +709,12 @@ location, so it has its own containment instead of `LocationMutation`:
   the folder the user picked in a native dialog through `choose-vault-folder`,
   else `app.getPath("documents")/Tenon`) or `<home>/Documents/Tenon`. No route
   takes a vault root or an absolute path from the renderer.
+- A root that is, or sits inside, the request's workspace or one of its linked
+  Project folders (compared lexically and by real path) is refused with 400
+  `vault_inside_workspace`, so vault writes never land in a code folder. The
+  desktop picker also refuses a folder at or below a `.git` or
+  `.tenon/workspace.json` under the home folder (`error: "inside_workspace"`,
+  not saved; `desktop/src/main/vault-folder.ts`).
 - A request reaches only its own workspace's vault folder, chosen by the
   server from the request's workspace directory. Page paths must be relative,
   `/`-separated `.md` names: absolute and drive paths, backslashes, `..`, empty
@@ -716,10 +722,13 @@ location, so it has its own containment instead of `LocationMutation`:
   characters Windows refuses, reserved device names and a Project's `log/`
   folder are refused with 400. History revisions must match
   `<13 digits>-<16 hex>`; Project ids must match `project_<id>` and exist.
-- Each target's nearest existing ancestor is resolved with `realpath` and must
-  stay inside the workspace's vault folder, so a symlink or junction placed in
-  the vault (by a sync client or by hand) cannot lead a read or write outside
-  it. Writes go through `FileMutation` (staged temp file, create without
+- Each target's nearest existing entry (found with `lstat`, so a dangling link
+  counts) is resolved with `realpath` and must stay inside the workspace's vault
+  folder, so a symlink or junction placed in the vault (by a sync client or by
+  hand) cannot lead a read or write outside it; a dangling link is refused. The
+  log append, which follows links, also refuses anything but a regular file at
+  `log/<machine>.md`. Migration backups are resolved the same way under the
+  real vault root, so a linked `.backups` cannot carry them elsewhere. Writes go through `FileMutation` (staged temp file, create without
   replace, compare-and-swap on the bytes read); pages over 5 MiB and id files
   over 64 KiB are refused before reading. Front matter goes through
   `Frontmatter.parse`.
@@ -727,7 +736,9 @@ location, so it has its own containment instead of `LocationMutation`:
   vault folder map and the machine id are kept in `vault-machine.json` in the
   server data folder. `workspace.json` holds a workspace id, a display name
   and the git root commit; log files are named by the machine id, which
-  includes the host name.
+  includes the host name. Because the folder is matched by that root commit,
+  two checkouts (or forks) with the same root commit share one vault folder and
+  can read and write each other's pages.
 - The vault may be synced by OneDrive, iCloud, Dropbox or Syncthing; anyone
   with access to that sync account can read the notes. Each machine appends
   only to its own log file, so log lines are never lost to a merge. Pages are
@@ -735,10 +746,12 @@ location, so it has its own containment instead of `LocationMutation`:
   produce a sync client's conflict copy, which `GET /second-brain/vault/conflicts`
   reports and never deletes. Pages edited elsewhere still win if they sync
   before a local save; the stale save then returns 409.
-- `POST /second-brain/vault/migrate` reads only `<workspace>/notes/**` and
-  `.tenon/projects/<id>/notes/**` through `LocationMutation`, copies them in,
+- `POST /second-brain/vault/migrate` reads only `<workspace>/notes/**`,
+  `.tenon/projects/project_*/notes/**` and the legacy
+  `projects/project_*/notes/**` through `LocationMutation`, copies them in,
   writes a full backup under `<root>/.backups/<timestamp>/`, and only then
-  removes the originals. Backups and `.history` are plain copies of note text
+  removes the originals. If a backup fails, the originals stay and the copies
+  already made stay in the vault (a rerun reuses identical copies). Backups and `.history` are plain copies of note text
   and are not pruned except history beyond 20 versions per page.
 - Vault content is workspace data, never agent instructions. Logs carry the
   operation, the relative path and the error tag, never page content.

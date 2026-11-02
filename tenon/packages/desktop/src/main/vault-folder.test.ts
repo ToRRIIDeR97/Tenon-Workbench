@@ -1,6 +1,22 @@
 import { describe, expect, test } from "bun:test"
 import path from "node:path"
-import { vaultFolder } from "./vault-folder"
+import { insideCodeFolder, vaultFolder } from "./vault-folder"
+
+describe("insideCodeFolder", () => {
+  test("refuses folders inside a repository or workspace, below the home folder", () => {
+    const win = new Set(["C:\\Users\\ana\\dev\\acme\\.git", "C:\\Users\\ana\\work\\.tenon\\workspace.json"])
+    const winExists = (file: string) => win.has(file)
+    expect(insideCodeFolder("C:\\Users\\ana\\dev\\acme\\notes", "C:\\Users\\ana", winExists, path.win32)).toBe(true)
+    expect(insideCodeFolder("C:\\Users\\ana\\work", "C:\\Users\\ana", winExists, path.win32)).toBe(true)
+    expect(insideCodeFolder("C:\\Users\\ana\\Documents\\Tenon", "C:\\Users\\ana", winExists, path.win32)).toBe(false)
+    const mac = new Set(["/Users/ana/.git", "/Users/ana/dev/acme/.git"])
+    const macExists = (file: string) => mac.has(file)
+    expect(insideCodeFolder("/Users/ana/dev/acme/vault", "/Users/ana", macExists, path.posix)).toBe(true)
+    // A dotfiles repository in the home folder does not refuse every folder.
+    expect(insideCodeFolder("/Users/ana/Documents/Tenon", "/Users/ana", macExists, path.posix)).toBe(false)
+    expect(insideCodeFolder("/Volumes/Sync/Tenon", "/Users/ana", macExists, path.posix)).toBe(false)
+  })
+})
 
 describe("vaultFolder", () => {
   test("defaults to Documents/Tenon on Windows and macOS", () => {

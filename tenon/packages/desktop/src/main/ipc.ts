@@ -24,7 +24,7 @@ import { setForceFocus } from "./debug"
 import { assertAttachmentBudget, createPickedFileAuthorizations } from "./attachment-picker"
 import { getStore, rendererStore, removeStoreFileIfEmpty } from "./store"
 import { VAULT_FOLDER_KEY } from "./store-keys"
-import { vaultFolder } from "./vault-folder"
+import { insideCodeFolder, vaultFolder } from "./vault-folder"
 import { assertStoreName } from "./store-name"
 import {
   getPinchZoomEnabled,
@@ -285,6 +285,8 @@ export function registerIpcHandlers(deps: Deps) {
     })
     if (result.canceled || !result.filePaths[0]) return null
     const folder = vaultFolder(result.filePaths[0], app.getPath("documents"))
+    // A vault inside a repository or workspace would write notes next to code; the server refuses it too.
+    if (insideCodeFolder(folder, app.getPath("home"))) return { error: "inside_workspace" as const, folder }
     getStore().set(VAULT_FOLDER_KEY, folder)
     process.env.TENON_VAULT_DIR = folder
     return { folder, restartRequired: folder !== current }

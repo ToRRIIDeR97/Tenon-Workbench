@@ -293,7 +293,10 @@ folder the user chose (`vaultFolder` in `tenon.settings`, picked through the
 `choose-vault-folder` IPC; it takes effect after a relaunch), else
 `app.getPath("documents")/Tenon`. On Windows a OneDrive "Documents" backup and
 on macOS iCloud "Desktop & Documents" redirect that folder, so the default
-vault may already be synced; the vault is written to be sync-safe.
+vault may already be synced; the vault is written to be sync-safe. A root
+inside the workspace or a linked Project folder is refused (400
+`vault_inside_workspace`), and the picker refuses a folder inside a repository
+or workspace (`{ error: "inside_workspace" }`).
 
 ```text
 <root>/

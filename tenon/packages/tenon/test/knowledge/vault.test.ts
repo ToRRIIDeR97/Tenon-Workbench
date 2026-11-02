@@ -36,6 +36,16 @@ describe("KnowledgeVault", () => {
       expect(KnowledgeVault.isPagePath(bad)).toBe(false)
   })
 
+  test("a vault root inside a workspace or Project folder is detected on both platforms", () => {
+    expect(KnowledgeVault.rootInside("C:\\dev\\acme\\vault", ["c:\\DEV\\acme"], path.win32)).toBe(true)
+    expect(KnowledgeVault.rootInside("C:\\dev\\acme", ["C:\\dev\\acme\\"], path.win32)).toBe(true)
+    expect(KnowledgeVault.rootInside("C:\\dev\\acme-notes", ["C:\\dev\\acme"], path.win32)).toBe(false)
+    expect(KnowledgeVault.rootInside("/Users/ana/Documents/Tenon", ["/Users/ana/dev/acme"], path.posix)).toBe(false)
+    expect(KnowledgeVault.rootInside("/Users/ana/dev/acme/notes", ["/Users/ana/dev/acme"], path.posix)).toBe(true)
+    // posix paths keep their case.
+    expect(KnowledgeVault.rootInside("/users/ana/dev/acme/notes", ["/Users/ana/dev/acme"], path.posix)).toBe(false)
+  })
+
   test("conflict copies name the file they were copied from", () => {
     expect(KnowledgeVault.conflictOriginal("Plan (conflicted copy 2026-11-02).md")).toBe("Plan.md")
     expect(KnowledgeVault.conflictOriginal("Acme/Plan (Ana's conflicted copy).md")).toBe("Acme/Plan.md")

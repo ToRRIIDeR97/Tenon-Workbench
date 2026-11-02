@@ -10,7 +10,7 @@ import { LocationMutation } from "@tenon/core/location-mutation"
 import { Effect, Option, Schema } from "effect"
 import matter from "gray-matter"
 import { createHash, randomBytes } from "node:crypto"
-import { rmdir } from "node:fs/promises"
+import { lstat, rmdir } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { ulid } from "ulid"
@@ -165,11 +165,31 @@ export function rootFor(env: Record<string, string | undefined>, home: string, a
   return api.resolve(chosen || api.join(home, "Documents", "Tenon"))
 }
 
-/** Find or create the workspace's folder under the vault root. */
+/**
+ * Whether `root` is, or sits inside, one of `folders` (a workspace or Project code folder). Windows paths
+ * compare without letter case. `api` lets tests check both platforms.
+ */
+export function rootInside(root: string, folders: ReadonlyArray<string>, api: path.PlatformPath = path) {
+  const fold = (value: string) => (api === path.win32 ? value.toLowerCase() : value)
+  return folders.some((folder) => {
+    const relative = api.relative(fold(api.resolve(folder)), fold(api.resolve(root)))
+    return relative === "" || (!relative.startsWith("..") && !api.isAbsolute(relative))
+  })
+}
+
+/**
+ * Find or create the workspace's folder under the vault root. A root inside this workspace or one of
+ * its linked Project folders is refused, so vault writes can never land in a code folder.
+ */
 export const open = Effect.fn("KnowledgeVault.open")(function* (workspace: Workspace) {
   const fs = yield* FSUtil.Service
   const global = yield* Global.Service
   const root = rootFor(process.env, global.home)
+  const code = [workspace.directory, ...(yield* BrainProject.linkedFolders())]
+  const real = yield* fs.realPath(root).pipe(Effect.orElseSucceed(() => root))
+  const codeReal = yield* Effect.forEach(code, (folder) => fs.realPath(folder).pipe(Effect.orElseSucceed(() => folder)))
+  if (rootInside(root, code) || rootInside(real, codeReal))
+    return yield* new InvalidError({ reason: "vault_inside_workspace" })
   return yield* locks.withLock(`root:${root}`)(
     Effect.gen(function* () {
       yield* fs.ensureDir(root)
@@ -400,9 +420,16 @@ export const appendLog = Effect.fn("KnowledgeVault.appendLog")(function* (
   const target = yield* resolveInside(vault, `${folder}/log/${vault.machine}.md`)
   const entry = { at: new Date().toISOString(), author, text, machine: vault.machine }
   yield* fs.ensureDir(path.dirname(target.canonical))
-  // Appending (no rename) keeps the file's identity, which sync clients merge best.
+  // Appending (no rename) keeps the file's identity, which sync clients merge best. An append follows
+  // links, so anything but a regular file (or nothing) at the log path is refused first.
   yield* locks.withLock(`file:${target.canonical}`)(
-    fs.writeFileString(target.canonical, `- ${entry.at} · ${entry.author} · ${entry.text}\n`, { flag: "a" }),
+    Effect.gen(function* () {
+      const kind = yield* entryKind(target.canonical)
+      if (kind !== "missing" && kind !== "file") return yield* new InvalidError({ reason: "not_a_file" })
+      yield* fs.writeFileString(target.canonical, `- ${entry.at} · ${entry.author} · ${entry.text}\n`, {
+        flag: "a",
+      })
+    }),
   )
   return entry
 })
@@ -467,9 +494,14 @@ export const migrate = Effect.fn("KnowledgeVault.migrate")(function* (vault: Vau
 
   yield* Effect.forEach(notes, (note) => copyInto(vault, note.destination, note.bytes), { discard: true })
   const backup = `.backups/${new Date().toISOString().replace(/[:.]/g, "-")}`
+  // Backups sit beside the workspace folders, so they are contained by the real vault root.
+  const root = yield* fs.realPath(vault.root)
   yield* Effect.forEach(
     notes,
-    (note) => fs.writeWithDirs(path.join(vault.root, backup, vault.folder, ...note.source.split("/")), note.bytes),
+    (note) =>
+      resolveUnder(root, `${backup}/${vault.folder}/${note.source}`).pipe(
+        Effect.flatMap((target) => files.create({ target, content: note.bytes })),
+      ),
     { discard: true },
   )
   yield* Effect.forEach(notes, (note) => files.remove({ target: note.target }), { discard: true })
@@ -926,19 +958,34 @@ function parents(file: string) {
  * Resolve a validated relative path inside the workspace's vault folder. The nearest existing ancestor
  * is resolved through symlinks, so a link inside the vault cannot lead a read or write outside it.
  */
-const resolveInside = Effect.fnUntraced(function* (vault: Vault, relative: string) {
+const resolveInside = (vault: Vault, relative: string) => resolveUnder(vault.directory, relative)
+
+/**
+ * Resolve `relative` under the canonical folder `base`. The walk stops at the nearest entry that exists
+ * without following links, so a dangling symlink is caught too: its target must resolve inside `base`.
+ */
+const resolveUnder = Effect.fnUntraced(function* (base: string, relative: string) {
   const fs = yield* FSUtil.Service
-  const absolute = path.join(vault.directory, ...relative.split("/"))
+  const absolute = path.join(base, ...relative.split("/"))
   let anchor = absolute
-  while (anchor !== vault.directory && !(yield* fs.existsSafe(anchor))) {
+  while (anchor !== base && (yield* entryKind(anchor)) === "missing") {
     const parent = path.dirname(anchor)
     if (parent === anchor) break
     anchor = parent
   }
-  const real = yield* fs.realPath(anchor)
-  if (!FSUtil.contains(vault.directory, real)) return yield* new InvalidError({ reason: "outside_vault" })
+  const real = yield* fs.realPath(anchor).pipe(Effect.mapError(() => new InvalidError({ reason: "outside_vault" })))
+  if (!FSUtil.contains(base, real)) return yield* new InvalidError({ reason: "outside_vault" })
   return { canonical: path.join(real, path.relative(anchor, absolute)), resource: relative }
 })
+
+/** What sits at `file` without following a final symlink. */
+const entryKind = (file: string) =>
+  Effect.tryPromise(() => lstat(file)).pipe(
+    Effect.map((stat) =>
+      stat.isSymbolicLink() ? "symlink" : stat.isFile() ? "file" : stat.isDirectory() ? "directory" : "other",
+    ),
+    Effect.orElseSucceed(() => "missing" as const),
+  )
 
 /** File bytes, or undefined when missing; files above `limit` are refused before reading. */
 const readSmall = Effect.fnUntraced(function* (file: string, limit: number) {
