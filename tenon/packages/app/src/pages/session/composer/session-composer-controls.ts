@@ -104,9 +104,9 @@ export function createPromptProjectControls() {
         .map((project) => ({ ...project, server: item }))
     })
   })
-  const selectProject = (worktree: string, serverKey?: string) => {
+  const selectProject = (worktree: string, serverKey?: string, projectID?: string) => {
     if (!serverKey && layout.home.workspace()) {
-      const project = workspaceProjects().find((item) => item.worktree === worktree)
+      const project = workspaceProjects().find((item) => item.worktree === worktree && item.id === projectID)
       if (search.draftId)
         drafts.update(search.draftId, { server: server.key, directory: worktree, projectID: project?.id })
       else void drafts.create({ server: server.key, directory: worktree, projectID: project?.id })
@@ -155,6 +155,7 @@ export function createPromptProjectControls() {
   return createMemo<PromptProjectControls>(() => ({
     available: projects(),
     directory: sdk().directory,
+    projectID: drafts.get(search.draftId)?.projectID,
     server: server.list.length > 1 ? ServerConnection.key(projectServer()) : undefined,
     select: selectProject,
     add: addProject,
