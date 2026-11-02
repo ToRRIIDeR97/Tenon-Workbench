@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 790" width="980" height="790" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 870" width="980" height="870" role="img" aria-labelledby="title desc">
 <title id="title">Component view of Tenon Workbench</title>
-<desc id="desc">UML component view: Solid renderer, preload bridge, Electron main, the bundled Tenon server with HTTP API, Second Brain domains, location services and agent runtime, plus stores and external services.</desc>
+<desc id="desc">UML component view: Solid renderer, preload bridge, Electron main, the bundled Tenon server with HTTP API, Second Brain domains, location services and agent runtime, the dictation engine, plus stores and external services.</desc>
 
 <style>
   .bg{fill:#ffffff}
@@ -57,7 +57,7 @@
   <marker id="dm" viewBox="0 0 12 12" refX="1" refY="6" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path class="bar" d="M1,6 L6,1 L11,6 L6,11 z"/></marker>
 </defs>
 
-<rect class="bg" x="0" y="0" width="980" height="790"/>
+<rect class="bg" x="0" y="0" width="980" height="870"/>
 <text x="20" y="28" text-anchor="start" class="h">Component view</text>
 <text x="20" y="46" text-anchor="start" class="s">UML 2.5.1 component diagram · paths relative to tenon/packages/</text>
 <rect class="box" x="20" y="70" width="250" height="160" rx="6"/>
@@ -80,7 +80,7 @@
 <text x="30" y="472" text-anchor="start" class="s">windows + URL policy</text>
 <text x="30" y="488" text-anchor="start" class="s">server launcher (server.ts)</text>
 <text x="30" y="504" text-anchor="start" class="s">Google Calendar/Tasks service</text>
-<text x="30" y="520" text-anchor="start" class="s">drafts, session export</text>
+<text x="30" y="520" text-anchor="start" class="s">drafts, export, dictation.ts</text>
 <rect class="store" x="20" y="590" width="200" height="60" rx="6"/>
 <text x="30" y="608" text-anchor="start" class="t">userData stores</text>
 <text x="30" y="624" text-anchor="start" class="s">drafts.sqlite, electron-store</text>
@@ -156,6 +156,16 @@
 <path class="e " d="M415,610 L415,705" marker-end="url(#a)"/>
 <path class="e " d="M590,610 L590,705" marker-end="url(#a)"/>
 <path class="e " d="M640,610 L760,705" marker-end="url(#a)"/>
+<rect class="proc" x="20" y="795" width="270" height="64" rx="6"/>
+<text x="30" y="813" text-anchor="start" class="t">tenon-dictation</text>
+<text x="30" y="829" text-anchor="start" class="s">packages/dictation (Rust): handy-recorder,</text>
+<text x="30" y="845" text-anchor="start" class="s">earshot VAD, transcribe-cpp</text>
+<rect class="ext" x="340" y="795" width="200" height="64" rx="6"/>
+<text x="350" y="813" text-anchor="start" class="t">Hugging Face</text>
+<text x="350" y="829" text-anchor="start" class="s">speech models (GGUF),</text>
+<text x="350" y="845" text-anchor="start" class="s">SHA-256 checked</text>
+<path class="e " d="M20,545 L10,545 L10,827 L20,827" marker-end="url(#a)"/>
+<path class="e " d="M270,505 L310,505 L310,827 L340,827" marker-end="url(#a)"/>
 <rect class="lblbg" x="154.6" y="248.0" width="70.9" height="13" rx="2"/>
 <text class="lbl" x="190" y="258" text-anchor="middle">invoke / on</text>
 <rect class="lblbg" x="158.2" y="360.0" width="23.7" height="13" rx="2"/>
@@ -192,4 +202,10 @@
 <text class="lbl" x="590" y="681" text-anchor="middle">+ tenon MCP</text>
 <rect class="lblbg" x="704.2" y="680.0" width="35.5" height="13" rx="2"/>
 <text class="lbl" x="722" y="690" text-anchor="middle">HTTPS</text>
+<rect class="lblbg" x="96.8" y="774.0" width="106.3" height="13" rx="2"/>
+<text class="lbl" x="150" y="784" text-anchor="middle">spawn, JSON lines</text>
+<rect class="lblbg" x="123.4" y="787.0" width="53.2" height="13" rx="2"/>
+<text class="lbl" x="150" y="797" text-anchor="middle">on stdio</text>
+<rect class="lblbg" x="355.7" y="774.0" width="88.6" height="13" rx="2"/>
+<text class="lbl" x="400" y="784" text-anchor="middle">model download</text>
 </svg>

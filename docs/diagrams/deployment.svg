@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 640" width="1000" height="640" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 730" width="1000" height="730" role="img" aria-labelledby="title desc">
 <title id="title">Deployment view of Tenon Workbench</title>
-<desc id="desc">UML deployment view: the user's machine runs the Electron main, renderer and utility-process server, optional harness processes and CLI daemon, with userData, XDG data and workspace artifacts, plus external services.</desc>
+<desc id="desc">UML deployment view: the user's machine runs the Electron main, renderer and utility-process server, optional harness processes, CLI daemon and dictation engine, with userData, XDG data and workspace artifacts, plus external services.</desc>
 
 <style>
   .bg{fill:#ffffff}
@@ -57,10 +57,10 @@
   <marker id="dm" viewBox="0 0 12 12" refX="1" refY="6" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path class="bar" d="M1,6 L6,1 L11,6 L6,11 z"/></marker>
 </defs>
 
-<rect class="bg" x="0" y="0" width="1000" height="640"/>
+<rect class="bg" x="0" y="0" width="1000" height="730"/>
 <text x="20" y="28" text-anchor="start" class="h">Deployment view</text>
 <text x="20" y="46" text-anchor="start" class="s">UML 2.5.1 deployment diagram · unsigned development candidates; auto-update disabled</text>
-<rect class="zone" x="20" y="70" width="740" height="555" rx="10"/>
+<rect class="zone" x="20" y="70" width="740" height="645" rx="10"/>
 <text x="30" y="86" text-anchor="start" class="zonet">«device» user machine</text>
 <rect class="zone" x="40" y="100" width="450" height="300" rx="10"/>
 <text x="50" y="116" text-anchor="start" class="zonet">«executionEnvironment» Electron app</text>
@@ -93,7 +93,7 @@
 <rect class="proc" x="510" y="190" width="230" height="50" rx="6"/>
 <text x="520" y="208" text-anchor="start" class="t">WSL sidecars</text>
 <text x="520" y="224" text-anchor="start" class="s">Windows only, optional</text>
-<rect class="store" x="40" y="430" width="230" height="182" rx="6"/>
+<rect class="store" x="40" y="430" width="230" height="200" rx="6"/>
 <text x="50" y="448" text-anchor="start" class="t">userData = appData/&lt;appId&gt;</text>
 <text x="50" y="464" text-anchor="start" class="s">tenon.settings, tenon.updater</text>
 <text x="50" y="480" text-anchor="start" class="s">second-brain.google</text>
@@ -104,6 +104,7 @@
 <text x="50" y="560" text-anchor="start" class="s">(XDG_STATE_HOME default)</text>
 <text x="50" y="576" text-anchor="start" class="s">cli/&lt;ver&gt;/opencode-cli (v2)</text>
 <text x="50" y="592" text-anchor="start" class="s">.user-data-migrated (dev copy)</text>
+<text x="50" y="608" text-anchor="start" class="s">dictation/models/*.gguf</text>
 <rect class="store" x="290" y="430" width="200" height="100" rx="6"/>
 <text x="300" y="448" text-anchor="start" class="t">XDG data/tenon-workbench</text>
 <text x="300" y="464" text-anchor="start" class="s">auth.json, mcp-auth.json,</text>
@@ -131,13 +132,22 @@
 <text x="810" y="498" text-anchor="start" class="t">Package registries</text>
 <text x="810" y="514" text-anchor="start" class="s">npm, Bun, Homebrew, WinGet,</text>
 <text x="810" y="530" text-anchor="start" class="s">Scoop, PyPI: harness CLIs</text>
-<rect class="sub" x="800" y="340" width="180" height="118" rx="6"/>
-<text x="810" y="358" text-anchor="start" class="t">Build host</text>
-<text x="810" y="374" text-anchor="start" class="s">bun run desktop:build</text>
-<text x="810" y="390" text-anchor="start" class="s">prebuild: build-node.ts</text>
-<text x="810" y="406" text-anchor="start" class="s">electron-builder,</text>
-<text x="810" y="422" text-anchor="start" class="s">publish: null →</text>
-<text x="810" y="438" text-anchor="start" class="s">installer + SHA-256</text>
+<rect class="proc" x="290" y="630" width="450" height="70" rx="6"/>
+<text x="300" y="648" text-anchor="start" class="t">tenon-dictation (child of the main process)</text>
+<text x="300" y="664" text-anchor="start" class="s">resources/dictation/tenon-dictation[.exe]; JSON lines on stdio</text>
+<text x="300" y="680" text-anchor="start" class="s">microphone capture and transcription stay on this machine</text>
+<rect class="ext" x="800" y="560" width="180" height="70" rx="6"/>
+<text x="810" y="578" text-anchor="start" class="t">Hugging Face</text>
+<text x="810" y="594" text-anchor="start" class="s">speech model GGUF files,</text>
+<text x="810" y="610" text-anchor="start" class="s">fetched by main, SHA-256</text>
+<rect class="sub" x="800" y="330" width="180" height="136" rx="6"/>
+<text x="810" y="348" text-anchor="start" class="t">Build host</text>
+<text x="810" y="364" text-anchor="start" class="s">bun run desktop:build</text>
+<text x="810" y="380" text-anchor="start" class="s">prebuild: build-node.ts</text>
+<text x="810" y="396" text-anchor="start" class="s">electron-builder,</text>
+<text x="810" y="412" text-anchor="start" class="s">publish: null →</text>
+<text x="810" y="428" text-anchor="start" class="s">installer + SHA-256,</text>
+<text x="810" y="444" text-anchor="start" class="s">cargo build: dictation</text>
 <path class="e " d="M260,172 L270,172" marker-end="url(#a)"/>
 <path class="e " d="M160,216 L160,240" marker-end="url(#a)"/>
 <path class="e " d="M370,216 L370,240" marker-end="url(#a)"/>

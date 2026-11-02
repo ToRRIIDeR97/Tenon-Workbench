@@ -6,16 +6,16 @@ OUT = sys.argv[1]
 
 
 def component():
-    s = SVG(980, 790, "Component view of Tenon Workbench",
+    s = SVG(980, 870, "Component view of Tenon Workbench",
             "UML component view: Solid renderer, preload bridge, Electron main, the bundled Tenon server "
-            "with HTTP API, Second Brain domains, location services and agent runtime, plus stores and external services.")
+            "with HTTP API, Second Brain domains, location services and agent runtime, the dictation engine, plus stores and external services.")
     s.heading("Component view", "UML 2.5.1 component diagram · paths relative to tenon/packages/")
     # left column
     s.box(20, 70, 250, 160, "Solid renderer", ["app/src", "sidebar: Home, Notes, Calendar,", "Activity, Projects + threads",
           "ServerSDK + compat API (v1/v2)", "Second Brain client, drafts"], stereo="component")
     s.box(20, 280, 250, 64, "window.api", ["desktop/src/preload (contextBridge)"], stereo="interface")
     s.box(20, 390, 250, 170, "Electron main", ["desktop/src/main", "IPC registry (ipc.ts)", "windows + URL policy",
-          "server launcher (server.ts)", "Google Calendar/Tasks service", "drafts, session export"], stereo="component")
+          "server launcher (server.ts)", "Google Calendar/Tasks service", "drafts, export, dictation.ts"], stereo="component")
     s.box(20, 590, 200, 60, "userData stores", ["drafts.sqlite, electron-store", "(second-brain.google)"], cls="store")
     # server container
     s.zone(340, 60, 360, 570, "Tenon server «subsystem» · 127.0.0.1")
@@ -55,6 +55,11 @@ def component():
     s.edge([(415, 610), (415, 705)], "JSON-RPC stdio\n+ tenon MCP", at=(415, 668))
     s.edge([(590, 610), (590, 705)], "ACP stdio\n+ tenon MCP", at=(590, 668))
     s.edge([(640, 610), (760, 705)], "HTTPS", at=(722, 690))
+    # dictation engine (child of Electron main) and its model source
+    s.box(20, 795, 270, 64, "tenon-dictation", ["packages/dictation (Rust): handy-recorder,", "earshot VAD, transcribe-cpp"], cls="proc")
+    s.box(340, 795, 200, 64, "Hugging Face", ["speech models (GGUF),", "SHA-256 checked"], cls="ext")
+    s.edge([(20, 545), (10, 545), (10, 827), (20, 827)], "spawn, JSON lines\non stdio", at=(150, 784))
+    s.edge([(270, 505), (310, 505), (310, 827), (340, 827)], "model download", at=(400, 784))
     s.save(f"{OUT}/component-overview.svg")
 
 
@@ -106,11 +111,11 @@ def trust():
 
 
 def deployment():
-    s = SVG(1000, 640, "Deployment view of Tenon Workbench",
+    s = SVG(1000, 730, "Deployment view of Tenon Workbench",
             "UML deployment view: the user's machine runs the Electron main, renderer and utility-process server, optional "
-            "harness processes and CLI daemon, with userData, XDG data and workspace artifacts, plus external services.")
+            "harness processes, CLI daemon and dictation engine, with userData, XDG data and workspace artifacts, plus external services.")
     s.heading("Deployment view", "UML 2.5.1 deployment diagram · unsigned development candidates; auto-update disabled")
-    s.zone(20, 70, 740, 555, "«device» user machine")
+    s.zone(20, 70, 740, 645, "«device» user machine")
     s.zone(40, 100, 450, 300, "«executionEnvironment» Electron app")
     s.box(60, 130, 200, 86, "Main process", ["out/main/index.js", "io.github.torriider97.tenonworkbench"], stereo="process")
     s.box(270, 130, 200, 86, "Renderer process", ["oc://renderer/index.html", "out/preload/index.js"], stereo="process")
@@ -120,10 +125,10 @@ def deployment():
     s.box(270, 322, 200, 64, "opencode-cli daemon", ["opt-in v2, dev channel only"], cls="sub")
     s.box(510, 100, 230, 76, "Harness and device processes", ["codex app-server, ACP agents (stdio,", "cwd = workspace); adb, emulator,", "simctl (macOS) for the Device tab"], cls="proc")
     s.box(510, 190, 230, 50, "WSL sidecars", ["Windows only, optional"], cls="proc")
-    s.box(40, 430, 230, 182, "userData = appData/<appId>", ["tenon.settings, tenon.updater", "second-brain.google",
+    s.box(40, 430, 230, 200, "userData = appData/<appId>", ["tenon.settings, tenon.updater", "second-brain.google",
           "drafts.sqlite (+wal/shm)", "window-state-<id>.json", "logs/<stamp>/, Crashpad/", "tenon-workbench/ server state",
           "(XDG_STATE_HOME default)", "cli/<ver>/opencode-cli (v2)",
-          ".user-data-migrated (dev copy)"], cls="store")
+          ".user-data-migrated (dev copy)", "dictation/models/*.gguf"], cls="store")
     s.box(290, 430, 200, 100, "XDG data/tenon-workbench", ["auth.json, mcp-auth.json,", "harness-credentials.json", "SQLite, snapshots, links", "copied once from opencode/"], cls="store")
     s.box(290, 545, 200, 64, "Global config dir", ["config/tenon-workbench", "harnesses.json"], cls="store")
     s.box(510, 430, 230, 90, "Workspace directories", ["notes/, projects/* (Projects)", ".tenon/ (cards, manifest, calendar)"], cls="store")
@@ -131,8 +136,11 @@ def deployment():
     s.box(800, 180, 180, 60, "LLM provider APIs", ["opencode driver, agents"], cls="ext")
     s.box(800, 260, 180, 50, "System browser", [], cls="ext")
     s.box(800, 480, 180, 60, "Package registries", ["npm, Bun, Homebrew, WinGet,", "Scoop, PyPI: harness CLIs"], cls="ext")
-    s.box(800, 340, 180, 118, "Build host", ["bun run desktop:build", "prebuild: build-node.ts", "electron-builder,", "publish: null →",
-          "installer + SHA-256"], cls="sub")
+    s.box(290, 630, 450, 70, "tenon-dictation (child of the main process)", ["resources/dictation/tenon-dictation[.exe]; JSON lines on stdio",
+          "microphone capture and transcription stay on this machine"], cls="proc")
+    s.box(800, 560, 180, 70, "Hugging Face", ["speech model GGUF files,", "fetched by main, SHA-256"], cls="ext")
+    s.box(800, 330, 180, 136, "Build host", ["bun run desktop:build", "prebuild: build-node.ts", "electron-builder,", "publish: null →",
+          "installer + SHA-256,", "cargo build: dictation"], cls="sub")
     s.edge([(260, 172), (270, 172)])
     s.edge([(160, 216), (160, 240)], "fork", at=(185, 232))
     s.edge([(370, 216), (370, 240)], "HTTP + SSE", at=(410, 232))
