@@ -312,8 +312,10 @@ function TimelineGrid(props: {
                         title={`${row.item.title} · ${props.statusLabel(row.item.status)}`}
                         classList={{
                           "absolute top-1/2 h-5 -translate-y-1/2 rounded-full": true,
-                          "bg-v2-background-bg-accent": row.item.status === "done",
-                          "bg-v2-background-bg-accent-container": row.item.status === "doing",
+                          // Work in progress carries the accent; finished work steps back to grey. Both keep
+                          // at least 3:1 against the panel in light and dark.
+                          "bg-v2-icon-icon-accent": row.item.status === "doing",
+                          "bg-v2-icon-icon-muted": row.item.status === "done",
                           "bg-v2-background-bg-layer-03 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]":
                             row.item.status === "todo",
                         }}

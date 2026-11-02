@@ -382,6 +382,9 @@ a Project is pushed onto history, so Back returns to that Project and tab.
   "Moved N notes into the Tenon vault" when anything moved. A
   `vault_inside_workspace` 400 replaces the page with a message that names the
   problem. Conflict copies are listed in a banner and open like pages.
+- Settings › General › Tenon vault (desktop only, through the platform's
+  `getVaultFolder` and `chooseVaultFolder`) shows the folder and picks another;
+  a folder inside a workspace is refused, and a new one asks for a restart.
 - The Projects page Map and `/projects/overview` list vault pages (as note
   summaries without links) and open them at `/notes?page=`.
 

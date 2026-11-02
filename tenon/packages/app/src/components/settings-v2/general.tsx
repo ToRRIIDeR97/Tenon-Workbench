@@ -1,5 +1,6 @@
 import { Component, For, Show, createMemo, createResource } from "solid-js"
 import { createMediaQuery } from "@solid-primitives/media"
+import { createStore } from "solid-js/store"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { SegmentedControlItemV2, SegmentedControlV2 } from "@tenon/ui/v2/segmented-control-v2"
 import { SelectV2 } from "@tenon/ui/v2/select-v2"
@@ -304,6 +305,62 @@ const LanguageSetting = () => {
   )
 }
 
+/** Where Notes keeps its pages (desktop only). A new folder takes effect after a restart. */
+function VaultFolderSetting() {
+  const language = useLanguage()
+  const platform = usePlatform()
+  const [state, setState] = createStore({ choosing: false, message: "" as "" | "inside" | "restart" | "failed" })
+  const [folder, { mutate }] = createResource(() => Promise.resolve(platform.getVaultFolder?.()).catch(() => undefined))
+  const choose = async () => {
+    setState({ choosing: true, message: "" })
+    const result = await Promise.resolve(platform.chooseVaultFolder?.()).catch(() => "failed" as const)
+    setState("choosing", false)
+    if (result === "failed") return setState("message", "failed")
+    if (!result) return
+    if ("error" in result) return setState("message", "inside")
+    mutate({ folder: result.folder, chosen: true })
+    if (result.restartRequired) setState("message", "restart")
+  }
+  const message = () =>
+    ({
+      "": "",
+      inside: language.t("secondBrain.vault.settings.inside"),
+      restart: language.t("secondBrain.vault.settings.restart"),
+      failed: language.t("secondBrain.error.request"),
+    })[state.message]
+  return (
+    <SettingsRowV2
+      title={language.t("secondBrain.vault.settings.title")}
+      description={
+        <>
+          <span class="block break-all">{folder.latest?.folder ?? ""}</span>
+          <Show when={message()}>
+            <span
+              role={state.message === "restart" ? "status" : "alert"}
+              classList={{
+                "mt-1 block": true,
+                "text-v2-text-text-critical": state.message === "inside" || state.message === "failed",
+              }}
+            >
+              {message()}
+            </span>
+          </Show>
+        </>
+      }
+    >
+      <ButtonV2
+        size="normal"
+        variant="ghost"
+        class="settings-v2-tonal"
+        disabled={state.choosing}
+        onClick={() => void choose()}
+      >
+        {language.t("secondBrain.vault.settings.choose")}
+      </ButtonV2>
+    </SettingsRowV2>
+  )
+}
+
 export const SettingsGeneralV2: Component<{
   sessionID?: string
 }> = (props) => {
@@ -343,6 +400,10 @@ export const SettingsGeneralV2: Component<{
         <WorkStepsSetting />
 
         <ShellSetting controller={shell} />
+
+        <Show when={desktop() && "getVaultFolder" in platform && "chooseVaultFolder" in platform}>
+          <VaultFolderSetting />
+        </Show>
 
         <SettingsRowV2 title={language.t("settings.general.row.reasoningSummaries.title")}>
           <div data-action="settings-feed-reasoning-summaries">
