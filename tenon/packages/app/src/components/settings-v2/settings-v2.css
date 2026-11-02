@@ -257,17 +257,7 @@
   background-color: var(--v2-background-bg-accent-container);
 }
 
-/* A tab's content enters as it replaces the previous one (Kobalte unmounts the old panel at once). */
-[data-component="tabs-v2"][data-variant="settings"] [data-slot="tabs-v2-content"] {
-  animation: settings-v2-panel-enter var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate) both;
-}
-
-@keyframes settings-v2-panel-enter {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-}
+/* Tab panels fade through as they swap (tabs-v2.css, settings variant). */
 
 @media (prefers-reduced-motion: reduce) {
   [data-component="tabs-v2"][data-variant="settings"][data-orientation="vertical"]
@@ -279,10 +269,6 @@
   .settings-v2-harness-group-chevron,
   .settings-v2-harness-setup-chip {
     transition: none;
-  }
-
-  [data-component="tabs-v2"][data-variant="settings"] [data-slot="tabs-v2-content"] {
-    animation: none;
   }
 }
 

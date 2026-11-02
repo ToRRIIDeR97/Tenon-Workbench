@@ -3,7 +3,7 @@ import { Icon } from "@tenon/ui/v2/icon"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { KeybindV2 } from "@tenon/ui/v2/keybind-v2"
-import { Reveal } from "@tenon/ui/v2/reveal"
+import { Reveal, RevealShow } from "@tenon/ui/v2/reveal"
 import { PathTooltip, TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { createEffect, createMemo, createResource, For, Show, Suspense } from "solid-js"
 import { useQuery } from "@tanstack/solid-query"
@@ -334,23 +334,25 @@ export default function BrainHomePage() {
               </div>
             </form>
 
-            <Show when={projects.failed() || calendar.error}>
-              <div class="flex animate-enter flex-wrap items-center justify-center gap-2">
-                <p role="alert" class="text-[13px] text-v2-text-text-critical">
-                  {language.t("secondBrain.error.request")}
-                </p>
-                <ButtonV2
-                  size="small"
-                  variant="outline"
-                  onClick={() => {
-                    if (projects.failed()) projects.retry()
-                    if (calendar.error) void calendarActions.refetch()
-                  }}
-                >
-                  {language.t("secondBrain.error.retry")}
-                </ButtonV2>
-              </div>
-            </Show>
+            <RevealShow when={!!(projects.failed() || calendar.error)}>
+              {() => (
+                <div class="flex flex-wrap items-center justify-center gap-2">
+                  <p role="alert" class="text-[13px] text-v2-text-text-critical">
+                    {language.t("secondBrain.error.request")}
+                  </p>
+                  <ButtonV2
+                    size="small"
+                    variant="outline"
+                    onClick={() => {
+                      if (projects.failed()) projects.retry()
+                      if (calendar.error) void calendarActions.refetch()
+                    }}
+                  >
+                    {language.t("secondBrain.error.retry")}
+                  </ButtonV2>
+                </div>
+              )}
+            </RevealShow>
 
             <Show when={projects.list()?.length === 0}>
               <section class="flex flex-col items-center gap-3 text-center" aria-labelledby="brain-home-first-run">

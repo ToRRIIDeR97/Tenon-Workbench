@@ -206,6 +206,17 @@
   }
 }
 
+/* Exit: exit + ease-exit, fading as it slides 24px toward the screen edge (solid-sonner's own rule slides the
+   front toast by its full height). solid-sonner unmounts a removed toast after 200ms, the exit duration. */
+.toast-v2[data-sonner-toast][data-removed="true"] {
+  transition-duration: var(--v2-duration-exit);
+  transition-timing-function: var(--v2-ease-exit);
+}
+
+.toast-v2[data-sonner-toast][data-removed="true"][data-front="true"][data-swipe-out="false"] {
+  --y: translateY(calc(var(--lift) * -24px));
+}
+
 @media (prefers-reduced-motion: reduce) {
   .toast-v2,
   .toast-v2 > * {

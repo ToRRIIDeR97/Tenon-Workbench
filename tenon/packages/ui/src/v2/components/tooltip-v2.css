@@ -35,7 +35,7 @@
   transform-origin: var(--kb-tooltip-content-transform-origin);
 
   &[data-closed] {
-    animation: tooltipV2Out var(--v2-duration-short) var(--v2-ease-emphasized-accelerate) forwards;
+    animation: tooltipV2Out var(--v2-duration-exit-small) var(--v2-ease-exit) forwards;
   }
 }
 

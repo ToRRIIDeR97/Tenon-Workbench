@@ -200,8 +200,10 @@
   );
 }
 
+/* Lists the small size too: the motion rule above names it, so a lone selector would lose to it. */
 @media (prefers-reduced-motion: reduce) {
-  [data-component="icon-button-v2"] {
+  [data-component="icon-button-v2"],
+  [data-component="icon-button-v2"][data-size="small"] {
     transition: none;
   }
 }

@@ -1,7 +1,15 @@
 // Shared runtime reads of the Material 3 motion tokens in v2/styles/theme.css, for JS that has to time
 // work against a CSS animation (dispose after an exit, fall back when an animation event never fires).
 
-const FALLBACK = { short: 150, medium: 300, long: 450 }
+const FALLBACK = {
+  short: 150,
+  medium: 300,
+  long: 450,
+  exit: 200,
+  "exit-small": 120,
+  "swap-out": 100,
+  "swap-in": 200,
+}
 
 export type MotionDuration = keyof typeof FALLBACK
 

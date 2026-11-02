@@ -15,7 +15,7 @@
     outline: none;
   }
 
-  animation: contextMenuContentHide var(--v2-duration-short) var(--v2-ease-emphasized-accelerate) forwards;
+  animation: contextMenuContentHide var(--v2-duration-exit-small) var(--v2-ease-exit) forwards;
 
   @starting-style {
     animation: none;
@@ -121,14 +121,15 @@
   }
 }
 
+/* The small-surface exit shared with menus, popovers and tooltips. */
 @keyframes contextMenuContentHide {
   from {
     opacity: 1;
-    transform: scaleY(1);
+    transform: scale(1);
   }
   to {
     opacity: 0;
-    transform: scaleY(0.95);
+    transform: scale(0.96);
   }
 }
 

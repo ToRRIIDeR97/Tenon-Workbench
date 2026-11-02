@@ -186,12 +186,18 @@
 }
 
 /* Material 3 shape and motion: rounded menu surface that scales in from its anchor (short +
-   emphasized-decelerate). Menus and selects close at once: an exit would keep the menu mounted, so a
-   selection or a dismissal would wait on it. */
+   emphasized-decelerate) and fades and shrinks to .96 toward it on close (exit-small + ease-exit), the
+   exit every small surface shares. The exit has its own animation name, so Kobalte keeps the menu mounted
+   until it ends; selection and dismissal have already run by then, and the leaving menu takes no pointer. */
 [data-component="menu-v2-content"] {
   border-radius: var(--v2-radius-lg);
   transform-origin: var(--kb-menu-content-transform-origin, top left);
   animation: menu-v2-enter var(--v2-duration-short) var(--v2-ease-emphasized-decelerate);
+
+  &[data-closed] {
+    pointer-events: none;
+    animation: menu-v2-exit var(--v2-duration-exit-small) var(--v2-ease-exit) forwards;
+  }
 }
 
 @keyframes menu-v2-enter {
@@ -205,8 +211,16 @@
   }
 }
 
+@keyframes menu-v2-exit {
+  to {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  [data-component="menu-v2-content"] {
+  [data-component="menu-v2-content"],
+  [data-component="menu-v2-content"][data-closed] {
     animation: none;
   }
 }

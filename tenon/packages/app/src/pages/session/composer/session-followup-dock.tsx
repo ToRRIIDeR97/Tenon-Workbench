@@ -3,7 +3,7 @@ import { createStore } from "solid-js/store"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
-import { Reveal } from "@tenon/ui/v2/reveal"
+import { Reveal, RevealShow } from "@tenon/ui/v2/reveal"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { useLanguage } from "@/context/language"
 import { createExitList } from "./exit-list"
@@ -52,11 +52,11 @@ export function SessionFollowupDock(props: {
         <span class="shrink-0 cursor-default text-[13px] leading-5 text-v2-text-text-base [font-weight:500]">
           {label()}
         </span>
-        <Show when={store.collapsed && preview()}>
-          <span class="min-w-0 flex-1 truncate cursor-default text-[13px] leading-5 text-v2-text-text-faint animate-enter">
-            {preview()}
-          </span>
-        </Show>
+        <RevealShow when={store.collapsed && preview()} class="min-w-0 flex-1">
+          {(text) => (
+            <span class="block truncate cursor-default text-[13px] leading-5 text-v2-text-text-faint">{text()}</span>
+          )}
+        </RevealShow>
         <div class="ml-auto shrink-0">
           <TooltipV2
             placement="top"

@@ -146,11 +146,20 @@ function init() {
     mount(element, owner, onClose, stack().length)
   }
 
+  // Replaces every open dialog. The replaced ones play their exit under the new one and leave the stack
+  // afterwards, so `close` and Escape already reach the new dialog (the top of the stack).
   const show = (element: DialogElement, owner: Owner, onClose?: () => void) => {
     settle()
-    for (const item of stack()) item.dispose()
-    setStack([])
+    const replaced = stack()
     lock.value = false
+    if (replaced.length > 0) {
+      for (const item of replaced) item.setClosing(true)
+      pending.finish = () => {
+        for (const item of replaced) item.dispose()
+        setStack((items) => items.filter((item) => !replaced.includes(item)))
+      }
+      pending.timer = setTimeout(settle, exitDelay())
+    }
     mount(element, owner, onClose, 0)
   }
 
@@ -162,11 +171,11 @@ function init() {
   }
 }
 
-// The overlay and dialog exits run for --v2-duration-short (dialog-v2.css); dispose one frame after them so
+// The overlay and dialog exits run for --v2-duration-exit (dialog-v2.css); dispose one frame after them so
 // the root is not torn down mid-animation. Reduced motion has no exit, so dispose at once.
 function exitDelay() {
   if (prefersReducedMotion()) return 0
-  return motionDuration("short") + 16
+  return motionDuration("exit") + 16
 }
 
 // Kobalte's selectable collection calls preventDefault on Escape for a tab list, where it has nothing to clear.

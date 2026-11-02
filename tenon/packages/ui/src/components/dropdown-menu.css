@@ -16,7 +16,7 @@
   }
 
   &[data-closed] {
-    animation: dropdown-menu-close var(--v2-duration-short) var(--v2-ease-emphasized-accelerate) forwards;
+    animation: dropdown-menu-close var(--v2-duration-exit-small) var(--v2-ease-exit) forwards;
   }
 
   &[data-expanded] {

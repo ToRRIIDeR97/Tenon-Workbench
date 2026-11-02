@@ -108,7 +108,7 @@
 
   /* Its own animation-name, so Kobalte's presence keeps the list mounted until the exit ends. */
   &[data-closed] {
-    animation: select-close var(--v2-duration-short) var(--v2-ease-emphasized-accelerate) forwards;
+    animation: select-close var(--v2-duration-exit-small) var(--v2-ease-exit) forwards;
   }
 
   [data-slot="select-select-content-list"] {

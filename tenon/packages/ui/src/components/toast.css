@@ -57,7 +57,7 @@
   }
 
   &[data-closed] {
-    animation: toastPopOut var(--v2-duration-short) var(--v2-ease-emphasized-accelerate) forwards;
+    animation: toastPopOut var(--v2-duration-exit) var(--v2-ease-exit) forwards;
   }
 
   &[data-swipe="move"] {
@@ -70,7 +70,7 @@
   }
 
   &[data-swipe="end"] {
-    animation: toastSwipeOut var(--v2-duration-short) var(--v2-ease-emphasized-accelerate) forwards;
+    animation: toastSwipeOut var(--v2-duration-exit) var(--v2-ease-exit) forwards;
   }
 
   /* &[data-variant="success"] { */
@@ -222,7 +222,7 @@
   }
   to {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(24px);
   }
 }
 

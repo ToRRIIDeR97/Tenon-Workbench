@@ -128,14 +128,15 @@
   }
 }
 
-/* Same timing as the v2 dialog: enter medium + emphasized-decelerate, exit short + emphasized-accelerate. */
+/* Same timing as the v2 dialog: enter medium + emphasized-decelerate, exit (the mirror of the enter) exit +
+   ease-exit, with the scrim on the same timing. */
 [data-component="dialog"] [data-slot="dialog-content"] {
   &[data-expanded] {
     animation: contentShow var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate);
   }
 
   &[data-closed] {
-    animation: contentHide var(--v2-duration-short) var(--v2-ease-emphasized-accelerate) forwards;
+    animation: contentHide var(--v2-duration-exit) var(--v2-ease-exit) forwards;
   }
 }
 
@@ -144,7 +145,7 @@
 }
 
 [data-component="dialog-overlay"][data-closed] {
-  animation: overlayHide var(--v2-duration-short) var(--v2-ease-emphasized-accelerate) forwards;
+  animation: overlayHide var(--v2-duration-exit) var(--v2-ease-exit) forwards;
 }
 
 @media (prefers-reduced-motion: reduce) {

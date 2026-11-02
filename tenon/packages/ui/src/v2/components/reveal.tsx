@@ -1,9 +1,23 @@
-import { type Accessor, type ParentProps, Show, createComputed, createSignal, on, onCleanup, untrack } from "solid-js"
+import {
+  type Accessor,
+  type JSX,
+  type ParentProps,
+  Show,
+  createComputed,
+  createMemo,
+  createSignal,
+  on,
+  onCleanup,
+  untrack,
+} from "solid-js"
 import { motionDuration, prefersReducedMotion } from "./motion"
 import "./reveal-v2.css"
 
 export interface RevealProps extends ParentProps {
   open: boolean
+  /** `line`: a conditional line (form error, notice, dock label) that opens over swap-in and closes over
+   * short + ease-exit, so the content below slides back instead of jumping. */
+  variant?: "line"
   class?: string
   onTransitionEnd?: (event: TransitionEvent) => void
   /** Runs when an open or a close has finished, from `transitionend` or the fallback timer (once per phase). */
@@ -26,6 +40,7 @@ export function Reveal(props: RevealProps) {
   return (
     <div
       data-component="reveal-v2"
+      data-variant={props.variant}
       data-open={props.open ? "" : undefined}
       data-phase={reveal.phase()}
       class={props.class}
@@ -40,6 +55,25 @@ export function Reveal(props: RevealProps) {
         <Show when={reveal.mounted()}>{props.children}</Show>
       </div>
     </div>
+  )
+}
+
+export interface RevealShowProps<T> {
+  when: T | undefined | null | false
+  class?: string
+  children: (value: Accessor<NonNullable<T>>) => JSX.Element
+}
+
+/**
+ * `Show` for a conditional line that collapses as it leaves (Reveal variant `line`). The children get the
+ * last truthy `when`, so a message keeps its text until it has collapsed.
+ */
+export function RevealShow<T>(props: RevealShowProps<T>) {
+  const value = createMemo<NonNullable<T> | undefined>((last) => (props.when ? (props.when as NonNullable<T>) : last))
+  return (
+    <Reveal open={!!props.when} variant="line" class={props.class}>
+      {props.children(value as Accessor<NonNullable<T>>)}
+    </Reveal>
   )
 }
 
