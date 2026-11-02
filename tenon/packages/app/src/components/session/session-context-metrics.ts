@@ -44,7 +44,8 @@ const lastAssistantWithTokens = (messages: Message[], selectedHarness?: string) 
     const msg = messages[i]
     if (msg.role !== "assistant") continue
     if (selectedHarness && harnessID(msg) !== selectedHarness) continue
-    if (tokenTotal(msg) <= 0) continue
+    // A harness's live context report counts before the step's tokens arrive.
+    if (tokenTotal(msg) <= 0 && ((msg as HarnessAssistant).contextUsed ?? 0) <= 0) continue
     return msg
   }
 }
@@ -57,7 +58,7 @@ const build = (messages: Message[] = [], providers: Provider[] = [], selectedHar
   const model = provider ? provider.models[message.modelID] : sharedModel(providers, message.modelID)
   // A harness's own report wins: it names the window it ran with, and its model id may be an alias.
   const limit = (message as HarnessAssistant).contextWindow || model?.limit.context
-  const total = tokenTotal(message)
+  const total = tokenTotal(message) || ((message as HarnessAssistant).contextUsed ?? 0)
 
   return {
     message,

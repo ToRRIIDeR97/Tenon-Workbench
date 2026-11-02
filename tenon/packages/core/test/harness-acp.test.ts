@@ -398,6 +398,21 @@ describe("ACP harness", () => {
     expect(state.tools.get("sub")?.usage).toEqual({ used: 900, size: 1000 })
   })
 
+  test("sends the context in use as soon as the agent reports it", () => {
+    const state = AcpHarness.acpState()
+    const [event] = AcpHarness.parseAcpNotification(
+      update({ sessionUpdate: "usage_update", used: 4200, size: 200000 }),
+      "s1",
+      state,
+    )
+    expect(event?.type).toBe("step-usage")
+    expect(event?.type === "step-usage" && event.usage.providerMetadata?.harness).toEqual({
+      contextUsed: 4200,
+      contextSize: 200000,
+    })
+    expect(AcpHarness.parseAcpNotification(update({ sessionUpdate: "usage_update", size: 1 }), "s1", state)).toEqual([])
+  })
+
   test("offers the agent's reasoning levels on its active model only", () => {
     const parsed = AcpHarness.sessionModels({
       configOptions: [

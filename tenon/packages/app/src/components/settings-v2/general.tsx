@@ -108,6 +108,35 @@ const DeliverySetting = () => {
   )
 }
 
+const WorkStepsSetting = () => {
+  const language = useLanguage()
+  const settings = useSettings()
+  const options = createMemo(() =>
+    (["grouped", "rows"] as const).map((value) => ({
+      value,
+      label: language.t(`secondBrain.settings.workSteps.${value}`),
+    })),
+  )
+  return (
+    <SettingsRowV2
+      title={language.t("secondBrain.settings.workSteps.title")}
+      description={language.t("secondBrain.settings.workSteps.description")}
+    >
+      <SelectV2
+        appearance="inline"
+        data-action="settings-work-steps"
+        options={options()}
+        current={options().find((option) => option.value === settings.general.workSteps())}
+        placement="bottom-end"
+        gutter={6}
+        value={(option) => option.value}
+        label={(option) => option.label}
+        onSelect={(option) => option && settings.general.setWorkSteps(option.value)}
+      />
+    </SettingsRowV2>
+  )
+}
+
 const ShellSetting: Component<{ controller: ShellSettingsController }> = (props) => {
   const language = useLanguage()
   const options = createMemo(() =>
@@ -310,6 +339,8 @@ export const SettingsGeneralV2: Component<{
         <PermissionScopeSetting controller={permissionScope} />
 
         <DeliverySetting />
+
+        <WorkStepsSetting />
 
         <ShellSetting controller={shell} />
 

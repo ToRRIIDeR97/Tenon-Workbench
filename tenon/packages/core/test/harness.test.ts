@@ -85,6 +85,25 @@ describe("Codex harness", () => {
     })
   })
 
+  test("sends the context in use with each token update", () => {
+    const events = parseCodexNotification(
+      {
+        method: "thread/tokenUsage/updated",
+        params: {
+          tokenUsage: {
+            total: { inputTokens: 300, outputTokens: 40 },
+            last: { inputTokens: 100, outputTokens: 20 },
+            modelContextWindow: 258400,
+          },
+        },
+      },
+      codexState(),
+    )
+    expect(events).toMatchObject([
+      { type: "step-usage", usage: { providerMetadata: { harness: { contextSize: 258400, contextUsed: 120 } } } },
+    ])
+  })
+
   test("adds the Tenon context block only on handoff turns", () => {
     const model = Model.make({ id: "gpt-test", provider: "test", route })
     const request = LLM.request({

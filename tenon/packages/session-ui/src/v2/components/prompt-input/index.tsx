@@ -45,6 +45,8 @@ export type PromptInputV2Props = {
   borderUnderlay?: boolean
   class?: string
   runtimeControl?: JSX.Element
+  /** A row inside the top of the box, above the text, for where the prompt runs (folder, worktree). */
+  headerControl?: JSX.Element
   /** Trailing toolbar slot next to the submit button (e.g. the prompt stash menu). */
   trailingControl?: JSX.Element
   modelControl?: JSX.Element
@@ -168,6 +170,15 @@ export function PromptInputV2(props: PromptInputV2Props) {
             {i18n.t("ui.promptInput.dropFiles")}
           </div>
         </Presence>
+
+        <Show when={props.headerControl}>
+          <div
+            data-slot="prompt-input-header"
+            class="flex h-10 min-w-0 items-center gap-0.5 border-b border-v2-border-border-muted pl-2.5 pr-2"
+          >
+            {props.headerControl}
+          </div>
+        </Show>
 
         <Show when={state.mode === "normal"}>
           <PromptInputV2Attachments

@@ -111,11 +111,7 @@ import { Harness } from "@tenon/schema/harness"
 import { createSessionOwnership } from "./session/session-ownership"
 import { createSessionLineage } from "./session/session-lineage"
 import { pagePanelClass } from "@/components/page"
-import {
-  ComposerContextRing,
-  ComposerContextStrip,
-  createComposerContext,
-} from "@/components/prompt-input/context-strip"
+import { ComposerContextRing, ComposerWhereRow, createComposerContext } from "@/components/prompt-input/context-strip"
 
 type ChangeMode = "git" | "branch" | "turn"
 type VcsMode = "git" | "branch"
@@ -2184,17 +2180,9 @@ export default function Page() {
                   controller={promptController}
                   harness={sessionHarness}
                   borderUnderlay
-                  header={
-                    <>
-                      <SessionRevertTray dock={controller.revert} />
-                      <ComposerContextStrip
-                        context={composerContext}
-                        attached={!!controller.revert()?.items.length}
-                        harness={sessionHarness}
-                      />
-                    </>
-                  }
-                  trailing={<ComposerContextRing context={composerContext} />}
+                  header={<SessionRevertTray dock={controller.revert} />}
+                  boxHeader={<ComposerWhereRow />}
+                  trailing={<ComposerContextRing context={composerContext} harness={sessionHarness} />}
                 />
               }
             />

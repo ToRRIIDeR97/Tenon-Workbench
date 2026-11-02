@@ -213,6 +213,12 @@ export function update(adapter: Adapter, event: SessionEvent.Event) {
           )
         })
       },
+      "session.next.step.usage": (event) => {
+        return updateOwnedAssistant(event.data.assistantMessageID, (draft) => {
+          if (event.data.contextWindow !== undefined) draft.contextWindow = event.data.contextWindow
+          if (event.data.contextUsed !== undefined) draft.contextUsed = event.data.contextUsed
+        })
+      },
       "session.next.step.ended": (event) => {
         return updateOwnedAssistant(event.data.assistantMessageID, (draft) => {
           draft.time.completed = event.data.timestamp

@@ -312,9 +312,12 @@ usable, and the boundary resets when the route changes. Notes, Projects, Home,
 Activity and the instructions dialog show request failures inline with
 **Retry** instead of throwing.
 
-Home's composer starts a Run in one step. It renders the thread composer's
-`PromptInputHarnessControls`, so an external harness offers its model, effort
-and service tier there too; the default model comes from `defaultModel`
+Home's composer starts a Run in one step. It uses the new-thread layout: the
+greeting carousel, the window-scaled width, a top row with the workspace folder
+and its branch picker, and the drill-in model pill (`PromptModelPill`), so an
+external harness offers its model, effort and service tier there too. The
+built-in agent's model comes from the folder's providers, which Home doesn't
+load, so its Model step says it is picked once the thread opens; the default model comes from `defaultModel`
 (`components/prompt-input/harness-controller.ts`). `startSession` in
 `pages/brain-home.tsx` creates a draft with the prompt, the chosen harness, its
 model selection (`harnessModel`) and `send: true`, then opens it. The harness
@@ -324,6 +327,34 @@ only, so a reload never sends twice. Once the draft's prompt and harness list
 have loaded, `new-session-draft-controller.ts` submits through the normal
 composer path. If the chosen harness is no longer available, the prompt stays
 in the composer instead (`canSendOnOpen`).
+
+The new-thread (draft) screen (`pages/new-session/new-session-view.tsx`) scales
+with the window: the view is an inline-size container, the content is
+`min(92cqw, clamp(640px, 40cqw + 240px, 960px))` wide
+(`NEW_SESSION_CONTENT_WIDTH`), and the headline, gaps and editor height use
+`clamp()`. The greeting (`pages/new-session/greeting.tsx`) changes its headline
+every 6 s, each change with the next of four effects in turn (`greetingStep`:
+words rising, typing, a blur crossfade, a rolling verb in "What should we ___
+today?"); with reduced motion the lines swap plainly. Where the thread runs sits
+inside the composer's top, in session-ui's `headerControl` slot: the folder
+(`PromptProjectSelector`, or the add-folder button without one), its branch
+(`PromptBranchPicker`, which lists the local branches from `GET /vcs/branches`
+and switches with `POST /vcs/branch`; with none the list is empty) and the
+`PromptWorktreeSwitch` on the right. A thread's composer uses the same header
+(`ComposerWhereRow` in `components/prompt-input/context-strip.tsx`) with its
+fixed folder and the branch picker; the context ring opens a popover list
+instead of a strip above the box. The composer
+(`PromptInputV2Composer`, given a harness) replaces the separate harness, model,
+effort and service-tier pickers with one pill (`components/prompt-input/model-pill.tsx`):
+its panel is a drill-in stack: a summary row each for harness, model, reasoning
+and speed (the last two only when the model offers them), and each row slides to
+a full-width list of that choice, so names never truncate. Picking returns to
+the summary; the back arrow, Left, Backspace or Esc goes back. It is
+`clamp(300px, 22vw, 360px)` wide, and focus lands on the panel itself, so rows
+show a ring only for keyboard focus. For the built-in loop the Model row opens the provider model
+dialog and reasoning is the model's variants. Settings' harness assistant still
+uses the separate `PromptInputHarnessControls`, which share `createHarnessView`
+with the pill.
 
 ## Startup and request flow
 
@@ -605,7 +636,13 @@ switch ends the turn with an error naming the model. Codex turn usage is the
 growth of the thread's cumulative `tokenUsage.total`; the last call's input
 and output are reported as `contextUsed`, which the step stores on the
 assistant message next to `contextWindow` and the context meter divides by
-the window. A setup read that finds a harness newly signed in closes its open
+the window. Both drivers also send the context in use as it changes: each ACP
+`usage_update` and Codex `thread/tokenUsage/updated` becomes a `step-usage`
+LLM event, which the runner publishes as `session.next.step.usage` (not
+durable) on the open step's assistant message. Core's message updater and the
+renderer's v2 reducer set `contextUsed` and `contextWindow` from it, so the
+context ring moves during the turn; `Step.Ended` settles the final values. A
+setup read that finds a harness newly signed in closes its open
 runtimes (`newlySignedIn`). Windows npm shims (`.cmd`, `.ps1`) resolve to
 `<npm folder>/node_modules/<package>` for update checks.
 
@@ -1229,65 +1266,61 @@ renderer removes the same messages from its store when the event arrives.
 
 The rolled-back messages show as the top row of the composer's tray
 (`SessionRevertTray` in `app/src/pages/session/composer/session-revert-dock.tsx`,
-passed through `PromptInputV2`'s `header` above the context strip): the same
-surface and top radius as the strip, collapsed by default, with Restore on each
+passed through `PromptInputV2`'s `header` above the composer): collapsed by default, with Restore on each
 row. Restore on a row restores that message and every earlier rolled-back one;
 a messages-only rewind never restores files when the boundary moves
 (`revertRestoresFiles` in `app/src/utils/session.ts`).
 
-### Composer context strip
+### Composer context ring and menu
 
-`ComposerContextStrip` (`app/src/components/prompt-input/context-strip.tsx`)
-sits on the top edge of a thread's composer through `PromptInputV2`'s
-`header` prop. It shows:
-
-- the thread folder's name. When the folder is one of the project's
-  `sandboxes` (`sync().project`; the Git worktrees beside the main checkout)
-  it is labelled "Worktree"; the main checkout and folders outside Git show
-  the folder name alone. This reads data the app already has, so a project
-  first opened from a linked worktree counts that worktree as its main
-  checkout;
-- the git branch (`sync().data.vcs.branch`).
-
-Ahead/behind counts are not shown: no VCS route reports them. There is no
-strip in drafts.
+A thread's composer header row (`ComposerWhereRow` in
+`app/src/components/prompt-input/context-strip.tsx`, passed as `boxHeader`)
+shows the thread folder's name, labelled "Worktree" when the folder is one of
+the project's `sandboxes` (`sync().project`; the Git worktrees beside the main
+checkout), then the branch picker. The main checkout and folders outside Git
+show the folder name alone. This reads data the app already has, so a project
+first opened from a linked worktree counts that worktree as its main checkout.
+Ahead/behind counts are not shown: no VCS route reports them.
 
 `ComposerContextRing` sits in the composer toolbar before the stash menu,
 through the `trailing` prop. It fills with the context percentage from
 `getSessionContext` and is labelled "Context: N% used" ("Context: N tokens
 used" when the model's limit is unknown); it is hidden until a response has
-reported tokens. Clicking it (`aria-expanded`, `aria-controls` the sheet)
-unfolds the strip upward behind the composer into a sheet; clicking it again,
-Esc while focus is in the ring or sheet, a click outside both, or focus moving
-outside both folds it back. Opening it from the keyboard moves focus to the
-sheet's first control (the sheet sits before the composer in the DOM); folding
-from inside the sheet returns focus to the ring, and a pointer open leaves
-focus where it is. The sheet's body row
-animates from `0fr` to `1fr` in 300 ms (emphasized decelerate), the details
-fade and slide in, and the gauge arc and bars fill after it; with
-`prefers-reduced-motion` nothing animates. The worktree and branch row stays
-on the bottom edge. `createComposerContext` holds the shared open state and
-context metrics, and closes the sheet when the thread changes.
+reported tokens. It is the trigger of a popover (`@tenon/ui/popover`, opening
+above the ring, right-aligned, `clamp(320px, 24vw, 380px)` wide), which closes
+on Esc, an outside click or the ring again. `createComposerContext` holds the
+thread's messages and context metrics.
 
-The sheet shows a half-circle gauge with the percentage, tokens used of the
-limit and tokens left, then one row per token kind the last response reported
-(cache read, cache write, input, output, reasoning; zero kinds are left out),
-each with a bar against the whole context window, its count and its share.
-Below them are the model, the session cost (hidden when no response reported a
-cost) and "View context usage" (`openSessionContext`). When the limit is
-unknown the gauge shows the token total without a percentage and the rows show
-counts without bars or shares.
+The popover is a list in grouped rows, label left and value right:
 
-Under the details a "Usage limits · <harness>" section (`UsageLimits`) shows
-the thread's own harness only, with one bar per plan window ("N% used",
-"resets in …" from `Intl.RelativeTimeFormat`). A harness that doesn't report
-usage (OpenCode or the built-in agent without an OpenCode Go key, other ACP
-agents) hides the section. It calls
-`GET /api/harness/usage` (`listHarnessUsage` in `app/src/utils/server.ts`)
-when the sheet opens and at most once a minute while it stays open. The
-section reads "No usage limits on this plan" or "Couldn't load usage" for
-those states, and a signed-out report shows the server's reason (for example
-an expired OpenCode Go key) or "Sign in to see usage" when there is none.
+- Context window: tokens used of the limit with a small meter and the
+  percentage. When the limit is unknown it shows the token count and "Window
+  size: Not reported". Tokens left are not shown.
+- This turn: cache hit (cache reads over all input-side tokens) with a meter,
+  the turn's tokens, both summed by `getTurnUsage` over the assistant messages
+  since the last user message and hidden until the turn has a reply; the
+  session cost (hidden when no response reported one); and the model id. The
+  per-kind token breakdown (input, output, reasoning, cache read, cache write)
+  lives in the sidebar's Context tab.
+- Plan limits · <harness> (`PlanLimits`): the thread's own harness only, one row
+  per window with "resets in …" (`Intl.RelativeTimeFormat`), a meter and the
+  percentage. A harness that doesn't report usage (OpenCode or the built-in
+  agent without an OpenCode Go key, other ACP agents) hides the group. The ring
+  (`createPlanUsage`) calls `GET /api/harness/usage` (`listHarnessUsage` in
+  `app/src/utils/server.ts`) as soon as it shows, keeps the answer between
+  openings, and asks again when the menu opens a minute or more after the last
+  check and once a minute while it stays open. There is no loading line: until
+  the first answer for the harness the group stays out, and meters ease to new
+  values. The last
+  answer is kept in the browser's local storage (`cachedUsage` and
+  `rememberUsage` in `harness-usage.tsx`), so the menu and Settings draw it at
+  once and update in place; a failed refresh keeps it. The group reads "No
+  usage limits on this plan" or "Couldn't load usage" for those states, and a
+  signed-out report shows the server's reason (for example an expired OpenCode
+  Go key) or "Sign in to see usage" when there is none.
+
+"View context usage" at the bottom closes the menu and opens the thread's
+Context tab (`openSessionContext`).
 
 Settings → Harnesses asks the same route once when the tab opens. Each harness
 in the list shows its fullest window as a slim bar with its percentage, and the
@@ -1408,13 +1441,18 @@ one "Ran N tools" summary row (`session-ui/src/components/part-group.ts`).
 File edits, questions, subagent tasks, errored tools and running tools stay as
 their own rows. Read-only runs keep the "Explored" context group.
 
-Each assistant turn also gets a `TurnSteps` header row
-(`app/src/pages/session/timeline/rows.ts`, one per segment when an interrupt
-splits the turn). It is inserted before the turn's first tool or reasoning
-group, and those group rows carry `step: true`. Text and other parts stay
-visible in their original order. `foldTimelineRows`
+Each run of an assistant turn's tool and reasoning groups gets a `TurnSteps`
+header row (`app/src/pages/session/timeline/rows.ts`). It is inserted before
+the run's first group, and those group rows carry `step: true`. Text and other
+parts stay visible in their original order and end the run, so when the agent
+writes an update to the user and keeps working, the steps after it start a new
+card; an interrupt starts one too. `segment` numbers the cards within the turn.
+A card with text after it is `settled`: it shows as finished, timed from its
+own steps (`stepsSpan`), while the turn's last card keeps working. A later card
+also times its own steps; the first card times the whole turn. `foldTimelineRows`
 (`timeline/row-reconciliation.ts`) removes a folded turn's step rows from the
-virtual list after row reuse, so group keys stay stable. A turn is folded
+virtual list after row reuse, so group keys stay stable. A card stays open
+while its steps stream in and folds once it is settled or the turn ends,
 unless one of its tools failed. `rows.ts` computes the `failed` flag on the
 header, so the fold check doesn't read parts. A user toggle wins and is cached
 per session in `toolOpen` under `turn:<userMessageID>:<segment>`. The header
@@ -1435,12 +1473,24 @@ latest paragraph, read from the streaming text). A new topic slides in like a
 new step. `summarizeTurn` still counts tools only.
 Opened, the card draws the steps itself: the projection's `folded` always
 hides the step rows, and `TurnStepsSummary` renders the header row's `steps`
-in its own body. Each tool is a full-width tonal row (icon, verb from
+in its own body. Consecutive reads, searches, edits, commands or fetches merge
+into one row named by the count phrase ("Read 3 files") with their targets,
+which opens to the individual rows; reasoning and subagents always stand
+alone. An edit row (`editDiffs` in `components/session/step-diff.ts`) shows
+the change counts and opens to the diff in the app's file viewer, built from
+`metadata.filediff`, a patch's `metadata.files`, a harness edit's old and new
+text, or a write's content; other tools open to their text output. Settings →
+General → Agent steps (`settings.general.workSteps`) picks the layout:
+"Grouped card" (`grouped`, the default) as above, or "Line per step" (`rows`),
+where a working card has no header or surface and lists every step unmerged as
+a quiet line with the step in progress as one accent-tonal row, then folds into
+the same card once it is settled or the turn ends. Each tool is a full-width tonal row (icon, verb from
 `stepVerbKey`, target, duration) that opens to `toolDetail` (the error, or a
 command with its output); a subagent row opens its tab. A reasoning part is a
 one-line note that opens to its full text. The body grows with a `0fr` to
-`1fr` grid-row transition (`turn-steps-summary.css`, 450 ms open and 300 ms
-close) and its rows mount on first open; on an open while the card is on
+`1fr` grid-row transition (`turn-steps-summary.css`, 450 ms open; folding
+takes 300 to 700 ms by the card's height, `foldDuration`, on the standard
+curve) and its rows mount on first open; on an open while the card is on
 screen the steps slide in one after another. A row's output (in the app's
 `ScrollView`, a pill thumb on hover) and a reasoning note open the same way.
 A toggle keeps the clicked row in place: it pauses auto-scroll's bottom follow

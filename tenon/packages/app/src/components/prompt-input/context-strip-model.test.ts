@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test"
-import { contextTokenRows, formatResetIn, formatShare, threadUsage, threadWorktree } from "./context-strip-model"
+import type { Message } from "@opencode-ai/sdk/v2/client"
+import { getTurnUsage } from "@/components/session/session-usage"
+import { formatResetIn, threadUsage, threadWorktree } from "./context-strip-model"
 
 describe("usage limits", () => {
   test("shows only the thread's own harness, and nothing for one that doesn't report usage", () => {
@@ -45,19 +47,24 @@ describe("context strip worktree", () => {
   })
 })
 
-describe("context strip tokens", () => {
-  test("lists only the reported token parts, cache first", () => {
-    expect(contextTokenRows({ input: 1200, output: 300, reasoning: 0, cache: { read: 5000, write: 0 } })).toEqual([
-      { key: "cacheRead", value: 5000 },
-      { key: "input", value: 1200 },
-      { key: "output", value: 300 },
+describe("turn usage", () => {
+  const assistant = (read: number, input: number, output: number) =>
+    ({ role: "assistant", tokens: { input, output, reasoning: 0, cache: { read, write: 0 } } }) as Message
+  const user = { role: "user" } as Message
+
+  test("counts only the messages since the last user message", () => {
+    const usage = getTurnUsage([
+      user,
+      assistant(9000, 1000, 100),
+      user,
+      assistant(3000, 1000, 50),
+      assistant(3600, 400, 50),
     ])
+    expect(usage.cacheHit).toBe(0.825)
+    expect(usage.total).toBe(8100)
   })
 
-  test("formats a share of the context window", () => {
-    expect(formatShare(78_720, 200_000, "en")).toBe("39%")
-    expect(formatShare(648, 200_000, "en")).toBe("0.3%")
-    expect(formatShare(20, 200_000, "en")).toBe("<0.1%")
-    expect(formatShare(0, 200_000, "en")).toBe("0%")
+  test("reports no hit rate before the turn has a reply", () => {
+    expect(getTurnUsage([assistant(9000, 1000, 100), user]).cacheHit).toBeUndefined()
   })
 })

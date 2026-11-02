@@ -45,12 +45,13 @@
 }
 
 /* Open card: the body grows from zero height (a 0fr to 1fr grid row animates to the content's height) on the long
-   emphasized curve, and its steps follow one after another. Closing is quicker and folds everything at once.
-   Rendering open from the start doesn't animate. */
+   emphasized curve, and its steps follow one after another. Folding takes longer the taller the card is
+   (`--turn-steps-close`, set from its height) and settles on the standard curve instead of accelerating into the
+   end; the rows fade over most of it rather than vanishing first. Rendering open from the start doesn't animate. */
 [data-slot="turn-steps-body"] {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows var(--v2-duration-medium) var(--v2-ease-emphasized-accelerate);
+  transition: grid-template-rows var(--turn-steps-close, var(--v2-duration-medium)) var(--v2-ease-standard);
 
   &[data-open] {
     grid-template-rows: 1fr;
@@ -64,17 +65,23 @@
 
   [data-slot="turn-steps-rows"] {
     opacity: 0;
-    transition: opacity var(--v2-duration-short) var(--v2-ease-standard);
+    transition: opacity calc(var(--turn-steps-close, var(--v2-duration-medium)) * 0.7) var(--v2-ease-standard);
   }
 
   &[data-open] [data-slot="turn-steps-rows"] {
     opacity: 1;
+    transition: opacity var(--v2-duration-short) var(--v2-ease-standard);
   }
 
   /* Each step slides in a beat after the one above it; past the eighth they arrive together. */
-  &[data-open][data-animate] :is([data-slot="turn-steps-item"], [data-slot="turn-steps-note"]) {
+  &[data-open][data-animate] :is([data-slot="turn-steps-item"], [data-slot="turn-steps-note"]):not([data-new]) {
     animation: turn-steps-item-in var(--v2-duration-long) var(--v2-ease-emphasized-decelerate) both;
     animation-delay: calc(min(var(--i, 0), 8) * 30ms);
+  }
+
+  /* A step that arrives while the card is open slides in at the bottom on its own. */
+  &[data-open] [data-new] {
+    animation: turn-steps-enter var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate) both;
   }
 }
 
@@ -144,12 +151,76 @@
   }
 
   [data-slot="turn-steps-body"][data-open][data-animate]
-    :is([data-slot="turn-steps-item"], [data-slot="turn-steps-note"]) {
+    :is([data-slot="turn-steps-item"], [data-slot="turn-steps-note"]),
+  [data-slot="turn-steps-body"][data-open] [data-new] {
     animation: none;
   }
 
   [data-slot="turn-steps-lane"][data-running] [data-slot="turn-steps-lane-fill"] {
     width: 100%;
     opacity: 0.5;
+  }
+}
+
+/* "rows" layout: while the card works there is no card, only the steps as lines in the thread. Finished steps are
+   quiet lines and the step in progress is the one accent-tonal row; a new step slides in at the bottom. Once the
+   card works no more it folds into the usual card, whose open body keeps the quiet lines. */
+[data-slot="turn-steps"][data-transcript] > [data-component="turn-steps-summary"] {
+  display: none;
+}
+
+[data-slot="turn-steps"][data-transcript] [data-slot="turn-steps-rows"] {
+  padding-inline: 0;
+}
+
+[data-slot="turn-steps"][data-layout="rows"] {
+  [data-slot="turn-steps-rows"] {
+    gap: 2px;
+  }
+
+  [data-slot="turn-steps-row"],
+  [data-slot="turn-steps-note"] {
+    min-height: 26px;
+    padding-block: 3px;
+    background: transparent;
+    font-size: 12.5px;
+    color: var(--v2-text-text-muted);
+    transition:
+      background-color var(--v2-duration-short) var(--v2-ease-standard),
+      min-height var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate),
+      padding var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate);
+
+    &:hover {
+      background: var(--v2-background-bg-layer-02);
+    }
+  }
+
+  [data-slot="turn-steps-row"][data-running],
+  [data-slot="turn-steps-note"][data-running] {
+    min-height: 40px;
+    padding-block: 8px;
+    border-radius: 14px;
+    background: var(--v2-background-bg-accent-container);
+    font-size: 13px;
+    color: var(--v2-text-text-on-accent-container);
+
+    svg {
+      color: inherit;
+    }
+  }
+
+  &[data-transcript] [data-slot="turn-steps-detail"] {
+    margin-inline-start: 24px;
+    border-radius: 16px;
+    background: var(--v2-background-bg-layer-01);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="turn-steps"][data-layout="rows"] {
+    [data-slot="turn-steps-row"],
+    [data-slot="turn-steps-note"] {
+      transition: none;
+    }
   }
 }

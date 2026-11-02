@@ -155,6 +155,53 @@ describe("Vcs", () => {
   )
 })
 
+describe("Vcs branches", () => {
+  afterEach(async () => {
+    await disposeAllInstances()
+  })
+
+  it.instance(
+    "lists local branches and switches to one",
+    () =>
+      Effect.gen(function* () {
+        const test = yield* TestInstance
+        yield* git(test.directory, ["branch", "feature-b"])
+        yield* git(test.directory, ["branch", "feature-a"])
+        const vcs = yield* init()
+
+        const branches = yield* vcs.branches()
+        expect(branches).toContain("feature-a")
+        expect(branches).toContain("feature-b")
+        expect(branches.indexOf("feature-a")).toBeLessThan(branches.indexOf("feature-b"))
+
+        const info = yield* vcs.switchBranch({ branch: "feature-a" })
+        expect(info.branch).toBe("feature-a")
+        expect(yield* vcs.branch()).toBe("feature-a")
+      }),
+    { git: true },
+  )
+
+  it.instance(
+    "refuses a name that isn't a local branch, so it never reaches git as an option",
+    () =>
+      Effect.gen(function* () {
+        const vcs = yield* init()
+        const error = yield* vcs.switchBranch({ branch: "--orphan=x" }).pipe(Effect.flip)
+        expect(error.reason).toBe("unknown-branch")
+      }),
+    { git: true },
+  )
+
+  it.instance("has no branches and refuses to switch outside git", () =>
+    Effect.gen(function* () {
+      const vcs = yield* init()
+      expect(yield* vcs.branches()).toEqual([])
+      const error = yield* vcs.switchBranch({ branch: "main" }).pipe(Effect.flip)
+      expect(error.reason).toBe("non-git")
+    }),
+  )
+})
+
 describe("Vcs diff", () => {
   afterEach(async () => {
     await disposeAllInstances()

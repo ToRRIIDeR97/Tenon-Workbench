@@ -26,13 +26,20 @@ export namespace TimelineRow {
     /** Set on tool and reasoning groups, which fold into the turn's TurnSteps row. */
     step?: true
   }> {}
-  /** Fold header for one assistant turn's steps; `segment` counts interrupts within the turn. */
+  /**
+   * Fold header for one run of an assistant turn's steps; `segment` numbers the runs within the turn, which an
+   * interrupt or an update the agent writes between steps splits.
+   */
   export class TurnSteps extends Data.TaggedClass("TurnSteps")<{
     userMessageID: string
     segment: number
     /** Tool and reasoning parts, in order; the summary counts the tools and its ticker shows the latest step. */
     steps: PartRef[]
     failed: boolean
+    /** Something the agent wrote follows this run, so it is finished even while the turn still works. */
+    settled: boolean
+    /** Something of the turn comes before this card, so it keeps the same gap above as text rows do. */
+    previousAssistantPart?: boolean
   }> {}
   export class Thinking extends Data.TaggedClass("Thinking")<{
     userMessageID: string

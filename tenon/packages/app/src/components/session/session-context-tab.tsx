@@ -300,6 +300,14 @@ export function SessionContextTab() {
         value: u.reasoning > 0 ? formatter().number(u.reasoning) : undefined,
       },
       {
+        label: "secondBrain.sessionTab.cacheRead",
+        value: u.cacheRead > 0 ? formatter().number(u.cacheRead) : undefined,
+      },
+      {
+        label: "secondBrain.sessionTab.cacheWrite",
+        value: u.cacheWrite > 0 ? formatter().number(u.cacheWrite) : undefined,
+      },
+      {
         label: "secondBrain.sessionTab.cacheHit",
         value:
           u.cacheHit === undefined

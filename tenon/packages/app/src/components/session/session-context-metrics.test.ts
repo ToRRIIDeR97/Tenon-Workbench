@@ -100,7 +100,13 @@ describe("getSessionContext", () => {
     const providers = [{ id: "anthropic", models: { "claude-x": { name: "Claude X", limit: { context: 200 } } } }]
     const reported = (modelID: string) => [
       {
-        ...(assistant("a1", { input: 40, output: 10, reasoning: 0, read: 0, write: 0 }, 0, "claude-code", modelID) as object),
+        ...(assistant(
+          "a1",
+          { input: 40, output: 10, reasoning: 0, read: 0, write: 0 },
+          0,
+          "claude-code",
+          modelID,
+        ) as object),
         contextWindow: 1000,
       } as unknown as Message,
     ]
@@ -108,6 +114,20 @@ describe("getSessionContext", () => {
     expect(getSessionContext(reported("haiku"), providers)?.limit).toBe(1000)
     expect(getSessionContext(reported("haiku"), providers)?.usage).toBe(5)
     expect(getSessionContext(reported("claude-x"), providers)?.limit).toBe(1000)
+  })
+
+  test("follows a harness's live context report before the step's tokens arrive", () => {
+    const done = assistant("a1", { input: 40, output: 10, reasoning: 0, read: 0, write: 0 }, 0, "claude-code", "x")
+    const live = {
+      ...(assistant("a2", { input: 0, output: 0, reasoning: 0, read: 0, write: 0 }, 0, "claude-code", "x") as object),
+      contextWindow: 1000,
+      contextUsed: 300,
+    } as unknown as Message
+
+    const context = getSessionContext([done, user("u2"), live], [])
+    expect(context?.message.id).toBe("a2")
+    expect(context?.total).toBe(300)
+    expect(context?.usage).toBe(30)
   })
 
   test("leaves a harness model's limit unknown when providers disagree on it", () => {

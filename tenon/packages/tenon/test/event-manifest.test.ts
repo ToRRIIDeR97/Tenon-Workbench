@@ -9,7 +9,7 @@ describe("public event manifest", () => {
     expect(EventManifest.Definitions).toBe(SchemaEventManifest.Definitions)
     expect(EventManifest.Latest).toBe(SchemaEventManifest.Latest)
     expect(EventManifest.Durable).toBe(SchemaEventManifest.Durable)
-    expect(EventManifest.Latest.size).toBe(93)
+    expect(EventManifest.Latest.size).toBe(94)
     expect(EventManifest.Latest.get("session.next.harness.continuation.set")).toBe(SessionEvent.HarnessContinuationSet)
     expect(EventManifest.Latest.get("session.next.harness.switched")).toBe(SessionEvent.HarnessSwitched)
     expect(EventManifest.Latest.get("session.next.message.imported")).toBe(SessionEvent.MessageImported)

@@ -273,6 +273,16 @@ export const ApplyResult = Schema.Struct({
 })
 export type ApplyResult = Schema.Schema.Type<typeof ApplyResult>
 
+export const SwitchBranchInput = Schema.Struct({
+  branch: Schema.String,
+})
+export type SwitchBranchInput = Schema.Schema.Type<typeof SwitchBranchInput>
+
+export class BranchSwitchError extends Schema.TaggedErrorClass<BranchSwitchError>()("VcsBranchSwitchError", {
+  message: Schema.String,
+  reason: Schema.Literals(["non-git", "unknown-branch", "failed"]),
+}) {}
+
 export class PatchApplyError extends Schema.TaggedErrorClass<PatchApplyError>()("VcsPatchApplyError", {
   message: Schema.String,
   reason: Schema.Literals(["non-git", "not-clean"]),
@@ -286,6 +296,10 @@ export interface Interface {
   readonly diff: (mode: Mode, options?: DiffOptions) => Effect.Effect<FileDiff[]>
   readonly diffRaw: () => Effect.Effect<string>
   readonly apply: (input: ApplyInput) => Effect.Effect<ApplyResult, PatchApplyError>
+  /** The repository's local branches by short name; empty outside git. */
+  readonly branches: () => Effect.Effect<string[]>
+  /** Switches the working tree to a local branch; git refuses when local changes would be lost. */
+  readonly switchBranch: (input: SwitchBranchInput) => Effect.Effect<Info, BranchSwitchError>
 }
 
 interface State {
@@ -414,9 +428,51 @@ const layer: Layer.Layer<Service, never, Git.Service | EventV2Bridge.Service> = 
         }
         return { applied: true }
       }),
+      branches: Effect.fn("Vcs.branches")(function* () {
+        const ctx = yield* InstanceState.context
+        if (ctx.project.vcs !== "git") return []
+        return yield* localBranches(git, ctx.directory)
+      }),
+      switchBranch: Effect.fn("Vcs.switchBranch")(function* (input: SwitchBranchInput) {
+        const ctx = yield* InstanceState.context
+        if (ctx.project.vcs !== "git") {
+          return yield* new BranchSwitchError({ message: "This folder isn't a git repository", reason: "non-git" })
+        }
+        // Only an existing local branch name reaches git, so the input can never act as an option.
+        if (!(yield* localBranches(git, ctx.directory)).includes(input.branch)) {
+          return yield* new BranchSwitchError({
+            message: `No local branch named ${input.branch}`,
+            reason: "unknown-branch",
+          })
+        }
+        const result = yield* git.run(["switch", input.branch], { cwd: ctx.directory })
+        if (result.exitCode !== 0) {
+          const detail = result.stderr.toString("utf8").trim().split(/\r?\n/)[0]
+          return yield* new BranchSwitchError({
+            message: detail || `Couldn't switch to ${input.branch}`,
+            reason: "failed",
+          })
+        }
+        // The HEAD watcher publishes the change; answer with the branch now so the caller needn't wait for it.
+        const value = yield* InstanceState.get(state)
+        value.current = input.branch
+        yield* events.publish(Event.BranchUpdated, { branch: input.branch })
+        return { branch: input.branch, default_branch: value.root?.name }
+      }),
     })
   }),
 )
+
+const localBranches = Effect.fnUntraced(function* (git: Git.Interface, cwd: string) {
+  const result = yield* git.run(["for-each-ref", "--format=%(refname:short)", "refs/heads"], { cwd })
+  if (result.exitCode !== 0) return []
+  return result
+    .text()
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b))
+})
 
 export const node = LayerNode.make({ service: Service, layer: layer, deps: [Git.node, EventV2Bridge.node] })
 

@@ -477,10 +477,18 @@ type NextData = {
   cost: number
   tokens: unknown
   files: string[]
+  contextWindow?: number
+  contextUsed?: number
 }
 type NextEvent = { type: string; metadata?: Assistant["metadata"]; data: NextData }
 type Tool = Extract<Assistant["content"][number], { type: "tool" }>
 type LooseTool = Tool & { provider?: NextData["provider"] }
+
+/** The context window and context in use a harness reported, leaving out what it didn't. */
+const harnessContext = (data: NextData) => ({
+  ...(data.contextWindow === undefined ? {} : { contextWindow: data.contextWindow }),
+  ...(data.contextUsed === undefined ? {} : { contextUsed: data.contextUsed }),
+})
 
 function reduceNext(
   source: readonly SessionMessageInfo[],
@@ -522,9 +530,12 @@ function reduceNext(
       } as Assistant
       return { sessionID, messages: [...closed, next], touched: current ? [current.id, next.id] : [next.id] }
     }
+    case "session.next.step.usage":
+      return assistant((item) => ({ ...item, ...harnessContext(data) }))
     case "session.next.step.ended":
       return assistant((item) => ({
         ...item,
+        ...harnessContext(data),
         finish: data.finish as Assistant["finish"],
         cost: data.cost,
         tokens: data.tokens as Assistant["tokens"],

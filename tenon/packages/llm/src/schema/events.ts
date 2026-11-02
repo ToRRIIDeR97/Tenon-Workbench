@@ -201,6 +201,13 @@ export const StepFinish = Schema.Struct({
 }).annotate({ identifier: "LLM.Event.StepFinish" })
 export type StepFinish = Schema.Schema.Type<typeof StepFinish>
 
+/** Running usage of the step in progress, for drivers that report it before the step finishes. */
+export const StepUsage = Schema.Struct({
+  type: Schema.tag("step-usage"),
+  usage: Usage,
+}).annotate({ identifier: "LLM.Event.StepUsage" })
+export type StepUsage = Schema.Schema.Type<typeof StepUsage>
+
 export const Finish = Schema.Struct({
   type: Schema.tag("finish"),
   reason: FinishReason,
@@ -234,6 +241,7 @@ const llmEventTagged = Schema.Union([
   ToolResult,
   ToolError,
   StepFinish,
+  StepUsage,
   Finish,
   ProviderErrorEvent,
 ]).pipe(Schema.toTaggedUnion("type"))
@@ -281,6 +289,7 @@ export const LLMEvent = Object.assign(llmEventTagged, {
       ...input,
       usage: input.usage === undefined ? undefined : Usage.from(input.usage),
     }),
+  stepUsage: (input: { readonly usage: UsageInput }) => StepUsage.make({ usage: Usage.from(input.usage) }),
   finish: (input: WithUsage<Finish>) =>
     Finish.make({
       ...input,
@@ -303,6 +312,7 @@ export const LLMEvent = Object.assign(llmEventTagged, {
     toolResult: llmEventTagged.guards["tool-result"],
     toolError: llmEventTagged.guards["tool-error"],
     stepFinish: llmEventTagged.guards["step-finish"],
+    stepUsage: llmEventTagged.guards["step-usage"],
     finish: llmEventTagged.guards.finish,
     providerError: llmEventTagged.guards["provider-error"],
   },

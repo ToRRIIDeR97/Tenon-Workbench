@@ -1656,8 +1656,10 @@ export function parseCodexNotification(
       Object.entries(total).map(([key, value]) => [key, Math.max(0, value - (base[key] ?? 0))]),
     )
     const contextUsed = last ? (last.inputTokens ?? 0) + (last.outputTokens ?? 0) : undefined
-    state.usage = normalizeUsage(turn, number(tokenUsage?.modelContextWindow), contextUsed)
-    return []
+    const usage = normalizeUsage(turn, number(tokenUsage?.modelContextWindow), contextUsed)
+    state.usage = usage
+    // Sent now so the thread's context ring follows the turn; the step's settlement repeats it.
+    return usage && contextUsed !== undefined ? [LLMEvent.stepUsage({ usage })] : []
   }
   if (notification.method === "error") {
     if (params.willRetry === true) return []

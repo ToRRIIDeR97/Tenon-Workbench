@@ -23,6 +23,8 @@ export interface Settings {
   general: {
     autoSave: boolean
     followup: "queue" | "steer"
+    /** How an agent's steps show in a thread: one card with same-kind steps merged, or a line per step. */
+    workSteps: "grouped" | "rows"
     showFileTree: boolean
     showNavigation: boolean
     showStatus: boolean
@@ -169,6 +171,7 @@ const defaultSettings: Settings = {
   general: {
     autoSave: true,
     followup: "steer",
+    workSteps: "grouped",
     showFileTree: false,
     showNavigation: false,
     showStatus: false,
@@ -273,6 +276,10 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         followup: withFallback(() => store.general?.followup, defaultSettings.general.followup),
         setFollowup(value: "queue" | "steer") {
           setStore("general", "followup", value)
+        },
+        workSteps: withFallback(() => store.general?.workSteps, defaultSettings.general.workSteps),
+        setWorkSteps(value: "grouped" | "rows") {
+          setStore("general", "workSteps", value)
         },
         showFileTree,
         setShowFileTree(value: boolean) {

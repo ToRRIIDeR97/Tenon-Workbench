@@ -192,6 +192,8 @@ export namespace Timeline {
     }
 
     let assistantGroupIndex = 0
+    // Cards are numbered across the turn: an interrupt or an update from the agent between steps starts a new one.
+    let card = 0
     segments.forEach((refs, segment) => {
       if (segment > 0)
         rows.push(
@@ -201,20 +203,31 @@ export namespace Timeline {
           }),
         )
       const partByID = new Map(refs.map((ref) => [ref.part.id, ref.part] as const))
-      const steps = refs.flatMap((ref) =>
-        ref.part.type === "tool" || ref.part.type === "reasoning"
-          ? [{ messageID: ref.messageID, partID: ref.part.id }]
-          : [],
-      )
-      const failed = refs.some((ref) => ref.part.type === "tool" && ref.part.state.status === "error")
-      // Tool and reasoning groups fold under one TurnSteps header; text and other parts stay visible in order.
-      let header = false
-      groupParts(refs).forEach((group) => {
+      const groups = groupParts(refs).map((group) => {
         const type = group.type === "part" ? partByID.get(group.ref.partID)?.type : "tool"
-        const step = foldSteps && (type === "tool" || type === "reasoning")
-        if (step && !header) {
-          header = true
-          rows.push(new TimelineRow.TurnSteps({ userMessageID: userMessage.id, segment, steps, failed }))
+        return { group, step: foldSteps && (type === "tool" || type === "reasoning") }
+      })
+      // A run of tool and reasoning groups folds under one TurnSteps card; text and other parts stay visible in
+      // order and close the card, so the steps after an update to the user start a fresh one.
+      groups.forEach(({ group, step }, index) => {
+        if (step && !groups[index - 1]?.step) {
+          const end = groups.findIndex((item, at) => at > index && !item.step)
+          const run = groups.slice(index, end === -1 ? undefined : end)
+          const steps = run.flatMap((item) => (item.group.type === "part" ? [item.group.ref] : item.group.refs))
+          const failed = steps.some((ref) => {
+            const part = partByID.get(ref.partID)
+            return part?.type === "tool" && part.state.status === "error"
+          })
+          rows.push(
+            new TimelineRow.TurnSteps({
+              userMessageID: userMessage.id,
+              segment: card++,
+              steps,
+              failed,
+              settled: end !== -1,
+              previousAssistantPart: assistantGroupIndex > 0,
+            }),
+          )
         }
         rows.push(
           new TimelineRow.AssistantPart({

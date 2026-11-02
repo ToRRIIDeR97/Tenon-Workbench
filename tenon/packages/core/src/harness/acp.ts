@@ -663,7 +663,13 @@ export function parseAcpNotification(
   if (kind === "usage_update") {
     const cost = isRecord(update.cost) && update.cost.currency === "USD" ? number(update.cost.amount) : undefined
     state.usage = { used: number(update.used), size: number(update.size), cost }
-    return []
+    // The context in use goes out now so the thread's ring follows the turn; the step's settlement repeats it.
+    if (state.usage.used === undefined) return []
+    return [
+      LLMEvent.stepUsage({
+        usage: { providerMetadata: { harness: { contextUsed: state.usage.used, contextSize: state.usage.size } } },
+      }),
+    ]
   }
   if (kind === "available_commands_update") {
     state.commands = commandList(update)

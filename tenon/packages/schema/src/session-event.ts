@@ -196,6 +196,18 @@ export namespace Shell {
 }
 
 export namespace Step {
+  /** Context in use while a step runs, from harnesses that report it mid-step. Step.Ended settles the final value. */
+  export const Usage = Event.define({
+    type: "session.next.step.usage",
+    schema: {
+      ...Base,
+      assistantMessageID: SessionMessage.ID,
+      contextWindow: Schema.Finite.pipe(optional),
+      contextUsed: Schema.Finite.pipe(optional),
+    },
+  })
+  export type Usage = typeof Usage.Type
+
   export const Started = Event.define({
     type: "session.next.step.started",
     ...options,
@@ -551,6 +563,7 @@ export const Definitions = Event.inventory(
   Shell.Started,
   Shell.Ended,
   Step.Started,
+  Step.Usage,
   Step.Ended,
   Step.Failed,
   Text.Started,

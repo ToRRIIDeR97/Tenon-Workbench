@@ -69,7 +69,7 @@ import { observeElementOffsetReconnectAware } from "./observe-element-offset"
 import { createTimelineProjection } from "./projection"
 import { MessageComment, SummaryDiff, TimelineRow, TimelineRowMap } from "./rows"
 import { filterVirtualIndexes } from "./virtual-items"
-import { TurnStepsSummary } from "@/components/session/turn-steps-summary"
+import { TurnStepsSummary, stepsSpan } from "@/components/session/turn-steps-summary"
 import { useData } from "@tenon/session-ui/context"
 
 const emptyMessages: MessageType[] = []
@@ -83,7 +83,9 @@ type TimelineRowByTag<T extends TimelineRow.TimelineRow["_tag"]> = Extract<Timel
 
 const timelineFallbackItemSize = 60
 // Matches the TurnSteps row: a 36px summary button plus 8px bottom padding.
-const turnStepsRowSize = 44
+// The folded card's 36px header, plus 12px above it after earlier text and 8px below when it ends its run of the turn.
+const turnStepsRowSize = (row: TimelineRow.TurnSteps) =>
+  36 + (row.previousAssistantPart ? 12 : 0) + (row.settled ? 0 : 8)
 const timelineCache = new Map<string, { measurements: VirtualItem[]; toolOpen: Record<string, boolean | undefined> }>()
 
 const taskDescription = (part: PartType, sessionID: string) => {
@@ -336,9 +338,11 @@ export function MessageTimeline(props: {
   })
   const showHeader = createMemo(() => !!(titleValue() || parentID()))
   const [toolOpen, setToolOpen] = createStore<Record<string, boolean | undefined>>(cached?.toolOpen ?? {})
-  // A user toggle wins; otherwise steps open only when one failed. A working turn shows its live ticker instead.
+  // A user toggle wins; otherwise a card stays open while its steps stream in, then folds unless a step failed.
+  // Folded while working, it shows a one-line ticker of the current step.
   const turnStepsOpen = (row: TimelineRow.TurnSteps) =>
-    toolOpen[`turn:${row.userMessageID}:${row.segment}`] ?? row.failed
+    toolOpen[`turn:${row.userMessageID}:${row.segment}`] ??
+    ((workingTurn(row.userMessageID) && !row.settled) || row.failed)
   const projection = createTimelineProjection({
     messages: sessionMessages,
     userMessages: () => props.userMessages,
@@ -432,8 +436,10 @@ export function MessageTimeline(props: {
     initialOffset: () => (props.shouldAnchorBottom() ? Number.MAX_SAFE_INTEGER : 0),
     initialMeasurementsCache: initialMeasurements,
     // A turn-steps header has a fixed height; estimating it exactly keeps the rows below it from shifting on mount.
-    estimateSize: (index) =>
-      timelineRows()[index]?._tag === "TurnSteps" ? turnStepsRowSize : timelineFallbackItemSize,
+    estimateSize: (index) => {
+      const row = timelineRows()[index]
+      return row?._tag === "TurnSteps" ? turnStepsRowSize(row) : timelineFallbackItemSize
+    },
     scrollToFn: (offset, options, instance) => {
       // Expose the computed range before core writes an anchor correction so the browser does not clamp it to the old height.
       if (virtualContent) virtualContent.style.height = `${instance.getTotalSize()}px`
@@ -998,7 +1004,7 @@ export function MessageTimeline(props: {
     }
     const previousAssistantPart = () => {
       const row = input.row()
-      return row._tag === "AssistantPart" && row.previousAssistantPart
+      return (row._tag === "AssistantPart" || row._tag === "TurnSteps") && !!row.previousAssistantPart
     }
 
     return (
@@ -1111,7 +1117,13 @@ export function MessageTimeline(props: {
         const assistantPartRow = row as Accessor<TimelineRowByTag<"AssistantPart">>
         return (
           <TimelineRowFrame row={assistantPartRow}>
-            <div data-slot="session-turn-message-container" class="w-full px-4 md:px-5">
+            {/* After a card or earlier text the row's own gap spaces it, so the text part drops its top margin; the
+                turn's first text keeps it as the space below the user's message. */}
+            <div
+              data-slot="session-turn-message-container"
+              class="w-full px-4 md:px-5"
+              classList={{ "[&_[data-component=text-part]]:mt-0": assistantPartRow().previousAssistantPart }}
+            >
               <div
                 data-slot="session-turn-assistant-content"
                 aria-hidden={workingTurn(assistantPartRow().userMessageID)}
@@ -1130,15 +1142,30 @@ export function MessageTimeline(props: {
             return part ? [part] : []
           }),
         )
+        // The turn's first card times the whole turn; a later one, after an update to the user, times its own steps.
+        const span = createMemo(() =>
+          turnStepsRow().segment > 0 || turnStepsRow().settled ? stepsSpan(parts()) : undefined,
+        )
+        const duration = () => {
+          const value = span()
+          if (!value) return turnDurationMs(turnStepsRow().userMessageID)
+          return value.end === undefined ? undefined : value.end - value.start
+        }
         return (
           <TimelineRowFrame row={turnStepsRow}>
-            <div data-slot="session-turn-message-container" class="w-full px-4 pb-2 md:px-5">
+            {/* Text after the card brings its own gap; a card that ends the turn keeps one below it. */}
+            <div
+              data-slot="session-turn-message-container"
+              class="w-full px-4 md:px-5"
+              classList={{ "pb-2": !turnStepsRow().settled }}
+            >
               <TurnStepsSummary
                 parts={parts()}
-                working={workingTurn(turnStepsRow().userMessageID)}
-                startedAt={userMessageCreated(turnStepsRow().userMessageID)}
-                durationMs={turnDurationMs(turnStepsRow().userMessageID)}
+                working={workingTurn(turnStepsRow().userMessageID) && !turnStepsRow().settled}
+                startedAt={span()?.start ?? userMessageCreated(turnStepsRow().userMessageID)}
+                durationMs={duration()}
                 open={turnStepsOpen(turnStepsRow())}
+                layout={settings.general.workSteps()}
                 onOpenSubagent={
                   data.openSubagent
                     ? (part) => data.openSubagent?.({ sessionID: part.sessionID, partID: part.id })

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { Part, ToolPart } from "@opencode-ai/sdk/v2"
-import { reasoningTopic, subagentLanes, tickerStep, toolDetail } from "./turn-steps-summary"
+import { foldDuration, reasoningTopic, subagentLanes, tickerStep, toolDetail } from "./turn-steps-summary"
 
 const tool = (
   id: string,
@@ -91,5 +91,13 @@ describe("subagentLanes", () => {
       ["t", false, 0],
     ])
     expect(lanes[0]!.current).toEqual({ tool: "acp_read", title: "/w/a.txt", status: "in_progress" })
+  })
+})
+
+describe("foldDuration", () => {
+  test("grows with the card's height between 300 and 700 ms", () => {
+    expect(foldDuration(60)).toBe(300)
+    expect(foldDuration(400)).toBe(420)
+    expect(foldDuration(2000)).toBe(700)
   })
 })

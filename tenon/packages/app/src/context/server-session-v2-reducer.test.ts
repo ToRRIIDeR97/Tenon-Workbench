@@ -253,6 +253,14 @@ describe("v2 session reducer: session.next events", () => {
       })?.touched,
     ).toEqual([assistantMessageID])
 
+    send("session.next.step.usage", { assistantMessageID, contextUsed: 4200, contextWindow: 200000 })
+    expect(
+      normalizeSessionMessages("ses_1", messages).messages.find((item) => item.id === assistantMessageID),
+    ).toMatchObject({
+      contextUsed: 4200,
+      contextWindow: 200000,
+    })
+
     send("session.next.text.started", { assistantMessageID, textID: "txt_1" })
     send("session.next.text.delta", { assistantMessageID, textID: "txt_1", delta: "Checking" })
     send("session.next.text.delta", { assistantMessageID, textID: "txt_1", delta: " the repo." })

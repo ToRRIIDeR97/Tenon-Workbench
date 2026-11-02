@@ -18,7 +18,7 @@ import { useServerSDK } from "@/context/server-sdk"
 import { useServerSync } from "@/context/server-sync"
 import { modelProvider, useSettings, withVisibleModels } from "@/context/settings"
 import { harnessSettingsChanged } from "@/components/prompt-input/harness-controller"
-import { HarnessUsageWindows, fullestWindow } from "@/components/harness-usage"
+import { HarnessUsageWindows, cachedUsage, fullestWindow, rememberUsage } from "@/components/harness-usage"
 import {
   addHarness,
   discoverHarness,
@@ -75,12 +75,16 @@ export const SettingsHarnessesV2: Component<{
   const [updates, { mutate: setUpdates }] = createResource(directory, (dir) =>
     listHarnessUpdates(server(), dir).catch(() => []),
   )
-  // Plan limits, asked once when the tab opens; the server caches each harness's answer for a minute.
-  const [usage] = createResource(directory, (dir) =>
-    listHarnessUsage(server(), dir).then(
-      (reports) => ({ reports, now: Date.now() }),
-      () => ({ reports: [], now: Date.now() }),
-    ),
+  // Plan limits, asked once when the tab opens; the server caches each harness's answer for a minute. The
+  // last known answer shows until the new one arrives, and stays if the request fails.
+  const [usage] = createResource(
+    directory,
+    (dir) =>
+      listHarnessUsage(server(), dir).then(
+        (reports) => rememberUsage(reports, Date.now()),
+        () => cachedUsage() ?? { reports: [], now: Date.now() },
+      ),
+    { initialValue: cachedUsage() },
   )
   const [titleAgent, { mutate: setTitleAgentValue }] = createResource(directory, (dir) =>
     getTitleAgent(server(), dir).catch(() => undefined),
