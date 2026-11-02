@@ -107,12 +107,12 @@
 <text x="330" y="398" text-anchor="start" class="s">auth.json, harness-credentials.json</text>
 <text x="330" y="414" text-anchor="start" class="s">SQLite profile, harnesses.json</text>
 <rect class="zone" x="680" y="70" width="300" height="150" rx="10"/>
-<text x="690" y="86" text-anchor="start" class="zonet">Workspace filesystem</text>
+<text x="690" y="86" text-anchor="start" class="zonet">Workspace filesystem + Tenon vault</text>
 <rect class="store" x="700" y="100" width="260" height="100" rx="6"/>
 <text x="710" y="118" text-anchor="start" class="t">Canonical files</text>
-<text x="710" y="134" text-anchor="start" class="s">notes/, projects/*, .tenon/</text>
-<text x="710" y="150" text-anchor="start" class="s">.tenon/calendar-v1.json</text>
-<text x="710" y="166" text-anchor="start" class="s">source of truth</text>
+<text x="710" y="134" text-anchor="start" class="s">projects/*, .tenon/ (cards, calendar)</text>
+<text x="710" y="150" text-anchor="start" class="s">vault: pages, timeline, logs</text>
+<text x="710" y="166" text-anchor="start" class="s">no machine paths; may be synced</text>
 <rect class="zone" x="680" y="250" width="300" height="180" rx="10"/>
 <text x="690" y="266" text-anchor="start" class="zonet">Harness child processes (run as user)</text>
 <rect class="proc" x="700" y="280" width="260" height="64" rx="6"/>

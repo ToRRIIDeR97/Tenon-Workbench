@@ -1,5 +1,6 @@
 import { InstanceState } from "@/effect/instance-state"
 import { KnowledgeNote } from "@/knowledge/note"
+import { KnowledgeVault } from "@/knowledge/vault"
 import { PlannerCalendar } from "@/planner/calendar"
 import { BrainProject } from "@/project/brain"
 import { Project } from "@/project/project"
@@ -205,7 +206,61 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
       )
     })
 
+    // Vault work runs with the workspace's filesystem services (Project names come from its cards).
+    const vault = Effect.fnUntraced(function* <A, E, R>(
+      operation: string,
+      run: (vault: KnowledgeVault.Vault) => Effect.Effect<A, E, R>,
+      relative?: string,
+    ) {
+      const context = yield* InstanceState.context
+      const workspace: KnowledgeVault.Workspace = {
+        directory: context.directory,
+        name: path.basename(context.directory) || context.project.name || "Workspace",
+        ...(context.project.id !== ProjectV2.ID.global ? { repository: context.project.id } : {}),
+      }
+      return yield* filesystem(
+        KnowledgeVault.open(workspace).pipe(Effect.flatMap(run), Effect.provideService(Global.Service, Global.make())),
+      ).pipe(failure(operation, relative))
+    })
+
     return handlers
+      .handle("readVault", () => vault("readVault", (opened) => Effect.succeed(KnowledgeVault.info(opened))))
+      .handle("listVaultPages", (ctx) =>
+        vault("listVaultPages", (opened) =>
+          KnowledgeVault.listPages(opened, { project: ctx.query.project, search: ctx.query.search }),
+        ),
+      )
+      .handle("readVaultPage", (ctx) =>
+        vault("readVaultPage", (opened) => KnowledgeVault.readPage(opened, ctx.query.path), ctx.query.path),
+      )
+      .handle("writeVaultPage", (ctx) =>
+        vault(
+          "writeVaultPage",
+          (opened) => KnowledgeVault.writePage(opened, ctx.query.path, ctx.payload),
+          ctx.query.path,
+        ),
+      )
+      .handle("readVaultPageHistory", (ctx) =>
+        vault(
+          "readVaultPageHistory",
+          (opened) => KnowledgeVault.history(opened, ctx.query.path, ctx.query.revision),
+          ctx.query.path,
+        ),
+      )
+      .handle("readVaultTimeline", (ctx) =>
+        vault("readVaultTimeline", (opened) => KnowledgeVault.readTimeline(opened, ctx.query.project)),
+      )
+      .handle("writeVaultTimeline", (ctx) =>
+        vault("writeVaultTimeline", (opened) => KnowledgeVault.writeTimeline(opened, ctx.query.project, ctx.payload)),
+      )
+      .handle("readVaultLog", (ctx) =>
+        vault("readVaultLog", (opened) => KnowledgeVault.readLog(opened, ctx.query.project)),
+      )
+      .handle("appendVaultLog", (ctx) =>
+        vault("appendVaultLog", (opened) => KnowledgeVault.appendLog(opened, ctx.query.project, ctx.payload)),
+      )
+      .handle("listVaultConflicts", () => vault("listVaultConflicts", KnowledgeVault.conflicts))
+      .handle("migrateVault", () => serialized(vault("migrateVault", KnowledgeVault.migrate)))
       .handle("listNotes", listNotes)
       .handle("readNote", readNote)
       .handle("writeNote", writeNote)
@@ -358,14 +413,23 @@ function toApiFailure(operation: string, path: string | undefined, error: unknow
   ) {
     return Effect.fail(error)
   }
-  if (error instanceof KnowledgeNote.NotFoundError || error instanceof BrainProject.NotFoundError) {
+  if (
+    error instanceof KnowledgeNote.NotFoundError ||
+    error instanceof KnowledgeVault.NotFoundError ||
+    error instanceof BrainProject.NotFoundError
+  ) {
     return Effect.fail(new HttpApiError.NotFound({}))
   }
-  if (error instanceof KnowledgeNote.ConflictError || error instanceof BrainProject.ConflictError) {
+  if (
+    error instanceof KnowledgeNote.ConflictError ||
+    error instanceof KnowledgeVault.ConflictError ||
+    error instanceof BrainProject.ConflictError
+  ) {
     return Effect.fail(conflict(error.reason))
   }
   if (
     error instanceof KnowledgeNote.InvalidError ||
+    error instanceof KnowledgeVault.InvalidError ||
     error instanceof BrainProject.InvalidError ||
     error instanceof PlannerCalendar.InvalidError ||
     error instanceof LocationMutation.PathError
