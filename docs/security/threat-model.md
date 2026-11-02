@@ -800,6 +800,18 @@ revealed in the file manager, never run. The path is the thread folder plus
 the checked relative path, so a reply can't open a file outside its thread
 folder.
 
+## Branch switching from the composer
+
+The composer's branch picker lists a folder's local branches
+(`GET /vcs/branches`) and switches to one (`POST /vcs/branch`), both on the
+folder the request names (`x-opencode-directory`), behind the managed server's
+usual auth. `Vcs.switchBranch` (`packages/tenon/src/project/vcs.ts`) only passes
+a name that is in the folder's own `for-each-ref refs/heads` list to
+`git switch`, so the request body can't add a git option or reach a remote ref,
+and it never creates, deletes or resets a branch. Git refuses a switch that
+would overwrite local changes; that first stderr line goes back as the error
+message and shows in a toast. It doesn't run outside git.
+
 ## Workbench panel tools
 
 - **`tenon-file://`.** The renderer names a folder and a relative path; main

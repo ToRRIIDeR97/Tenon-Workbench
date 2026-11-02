@@ -1,3 +1,4 @@
+import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { createMemo, For, Show } from "solid-js"
 import { useLanguage } from "@/context/language"
 import { TaskCheck } from "./calendar-peek"
@@ -70,11 +71,11 @@ export function CalendarGrid(props: {
           {(day) => (
             <button
               type="button"
-              class="flex cursor-pointer flex-col items-center gap-0.5 rounded-[12px] py-1.5 transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none"
+              class="flex flex-col items-center gap-0.5 rounded-[12px] py-1.5 transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none"
               aria-current={day.today ? "date" : undefined}
               onClick={() => props.onOpenDay(day.date)}
             >
-              <span class="text-[11px] uppercase tracking-[0.04em] text-v2-text-text-muted [font-weight:560]">
+              <span class="text-[11px] uppercase tracking-[0.04em] text-v2-text-text-muted [font-weight:600]">
                 {day.weekday}
               </span>
               <span
@@ -96,19 +97,20 @@ export function CalendarGrid(props: {
               <div class="flex min-w-0 flex-col gap-1 px-0.5 pb-2 pt-1">
                 <For each={day.allDay}>
                   {(event) => (
-                    <button
-                      type="button"
-                      classList={{
-                        "h-6 min-w-0 shrink-0 cursor-pointer truncate rounded-[8px] px-2 text-left text-[11.5px] [font-weight:500] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus": true,
-                        "bg-v2-icon-icon-accent text-v2-icon-icon-contrast": props.selected === event.id,
-                        "bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container hover:brightness-95":
-                          props.selected !== event.id,
-                      }}
-                      title={event.title}
-                      onClick={() => props.onOpenEvent(event)}
-                    >
-                      {event.title}
-                    </button>
+                    <TooltipV2 class="min-w-0 shrink-0" value={event.title}>
+                      <button
+                        type="button"
+                        classList={{
+                          "h-6 w-full min-w-0 truncate rounded-[8px] px-2 text-left text-[12px] [font-weight:500] focus-visible:outline-offset-[-2px]": true,
+                          "bg-v2-icon-icon-accent text-v2-icon-icon-contrast": props.selected === event.id,
+                          "bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container hover:brightness-95":
+                            props.selected !== event.id,
+                        }}
+                        onClick={() => props.onOpenEvent(event)}
+                      >
+                        {event.title}
+                      </button>
+                    </TooltipV2>
                   )}
                 </For>
                 <For each={day.tasks}>
@@ -121,14 +123,15 @@ export function CalendarGrid(props: {
                       }}
                     >
                       <TaskCheck task={task} onToggle={props.onToggle} small />
-                      <button
-                        type="button"
-                        class="min-w-0 flex-1 cursor-pointer truncate rounded-[8px] text-left text-[12px] text-v2-text-text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus"
-                        title={task.title}
-                        onClick={() => props.onOpenTask(task)}
-                      >
-                        {task.title}
-                      </button>
+                      <TooltipV2 class="min-w-0 flex-1" value={task.title}>
+                        <button
+                          type="button"
+                          class="w-full min-w-0 truncate rounded-[8px] text-left text-[12px] text-v2-text-text-base focus-visible:outline-offset-[-2px]"
+                          onClick={() => props.onOpenTask(task)}
+                        >
+                          {task.title}
+                        </button>
+                      </TooltipV2>
                     </div>
                   )}
                 </For>
@@ -164,21 +167,23 @@ export function CalendarGrid(props: {
             >
               <For each={blocks(day)}>
                 {(block) => (
-                  <button
-                    type="button"
-                    classList={{
-                      "absolute flex cursor-pointer flex-col gap-px overflow-hidden rounded-[8px] px-2 py-1 text-left text-[12px] leading-4 transition-[filter] duration-short ease-standard hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none": true,
-                      "bg-v2-icon-icon-accent text-v2-icon-icon-contrast": props.selected === block.event.id,
-                      "bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container":
-                        props.selected !== block.event.id,
-                    }}
-                    style={block.style}
-                    title={block.event.title}
-                    onClick={() => props.onOpenEvent(block.event)}
-                  >
-                    <span class="truncate [font-weight:560]">{block.event.title}</span>
-                    <span class="truncate opacity-85">{`${block.event.start} – ${block.event.end}`}</span>
-                  </button>
+                  <div class="absolute" style={block.style}>
+                    <TooltipV2 class="size-full" value={block.event.title}>
+                      <button
+                        type="button"
+                        classList={{
+                          "flex size-full flex-col gap-px overflow-hidden rounded-[8px] px-2 py-1 text-left text-[12px] leading-4 transition-[filter] duration-short ease-standard hover:brightness-110 focus-visible:outline-offset-[-2px] motion-reduce:transition-none": true,
+                          "bg-v2-icon-icon-accent text-v2-icon-icon-contrast": props.selected === block.event.id,
+                          "bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container":
+                            props.selected !== block.event.id,
+                        }}
+                        onClick={() => props.onOpenEvent(block.event)}
+                      >
+                        <span class="truncate [font-weight:600]">{block.event.title}</span>
+                        <span class="truncate opacity-85">{`${block.event.start} – ${block.event.end}`}</span>
+                      </button>
+                    </TooltipV2>
+                  </div>
                 )}
               </For>
             </div>

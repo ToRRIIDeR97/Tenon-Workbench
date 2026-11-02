@@ -17,7 +17,7 @@
   }
 }
 
-/* Enter: fade + 4px rise, medium + emphasized-decelerate. Exit: fade, short + emphasized-accelerate.
+/* Enter: fade + 4px rise, medium + emphasized-decelerate. Exit: fade, short + ease-exit.
    Under reduced motion both resolve to `animation: none`, so the end state shows at once and
    presence-based unmounting (Kobalte, solid-presence) does not wait. */
 @utility animate-enter {
@@ -29,17 +29,18 @@
 }
 
 @utility animate-exit {
-  animation: v2-motion-exit var(--v2-duration-short) var(--v2-ease-emphasized-accelerate) forwards;
+  animation: v2-motion-exit var(--v2-duration-short) var(--v2-ease-exit) forwards;
 
   @media (prefers-reduced-motion: reduce) {
     animation: none;
   }
 }
 
-/* Hand-rolled popups (a dropdown that is not a Kobalte menu): the MenuV2 scale and fade. Set the
-   transform origin (`origin-top-left`) to where the popup opens from. */
+/* Hand-rolled popups (a dropdown that is not a Kobalte menu): the MenuV2 motion. Enter scales up from .92
+   (short + emphasized-decelerate); exit fades and shrinks to .96 (exit-small + ease-exit). Set the transform
+   origin (`origin-top-left`) to where the popup opens from. */
 @utility animate-menu-enter {
-  animation: v2-motion-menu-enter var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate) both;
+  animation: v2-motion-menu-enter var(--v2-duration-short) var(--v2-ease-emphasized-decelerate) both;
 
   @media (prefers-reduced-motion: reduce) {
     animation: none;
@@ -47,7 +48,7 @@
 }
 
 @utility animate-menu-exit {
-  animation: v2-motion-menu-exit var(--v2-duration-short) var(--v2-ease-emphasized-accelerate) forwards;
+  animation: v2-motion-menu-exit var(--v2-duration-exit-small) var(--v2-ease-exit) forwards;
 
   @media (prefers-reduced-motion: reduce) {
     animation: none;

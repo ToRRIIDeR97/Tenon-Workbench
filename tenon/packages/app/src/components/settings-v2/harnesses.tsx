@@ -5,6 +5,7 @@ import { Icon } from "@tenon/ui/v2/icon"
 import { SelectV2 } from "@tenon/ui/v2/select-v2"
 import { Switch } from "@tenon/ui/v2/switch-v2"
 import { TextInputV2 } from "@tenon/ui/v2/text-input-v2"
+import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { useDialog } from "@tenon/ui/context/dialog"
 import { Reveal } from "@tenon/ui/v2/reveal"
 import { Harness } from "@tenon/schema/harness"
@@ -18,7 +19,7 @@ import { useServerSDK } from "@/context/server-sdk"
 import { useServerSync } from "@/context/server-sync"
 import { modelProvider, useSettings, withVisibleModels } from "@/context/settings"
 import { harnessSettingsChanged } from "@/components/prompt-input/harness-controller"
-import { HarnessUsageWindows, fullestWindow } from "@/components/harness-usage"
+import { HarnessUsageWindows, cachedUsage, fullestWindow, rememberUsage } from "@/components/harness-usage"
 import {
   addHarness,
   discoverHarness,
@@ -75,12 +76,16 @@ export const SettingsHarnessesV2: Component<{
   const [updates, { mutate: setUpdates }] = createResource(directory, (dir) =>
     listHarnessUpdates(server(), dir).catch(() => []),
   )
-  // Plan limits, asked once when the tab opens; the server caches each harness's answer for a minute.
-  const [usage] = createResource(directory, (dir) =>
-    listHarnessUsage(server(), dir).then(
-      (reports) => ({ reports, now: Date.now() }),
-      () => ({ reports: [], now: Date.now() }),
-    ),
+  // Plan limits, asked once when the tab opens; the server caches each harness's answer for a minute. The
+  // last known answer shows until the new one arrives, and stays if the request fails.
+  const [usage] = createResource(
+    directory,
+    (dir) =>
+      listHarnessUsage(server(), dir).then(
+        (reports) => rememberUsage(reports, Date.now()),
+        () => cachedUsage() ?? { reports: [], now: Date.now() },
+      ),
+    { initialValue: cachedUsage() },
   )
   const [titleAgent, { mutate: setTitleAgentValue }] = createResource(directory, (dir) =>
     getTitleAgent(server(), dir).catch(() => undefined),
@@ -440,19 +445,15 @@ const HarnessDetails: Component<{
             </Show>
           </span>
           <Show when={props.update?.method && !props.update?.manual}>
-            <ButtonV2
-              size="normal"
-              variant="neutral"
-              disabled={props.busy}
-              onClick={props.onUpgrade}
-              title={props.update?.command}
-            >
-              {props.busy
-                ? language.t("harness.settings.updating")
-                : props.update?.latest
-                  ? language.t("harness.settings.update")
-                  : language.t("harness.settings.selfUpdate")}
-            </ButtonV2>
+            <TooltipV2 placement="top" inactive={!props.update?.command} value={props.update?.command}>
+              <ButtonV2 size="normal" variant="neutral" disabled={props.busy} onClick={props.onUpgrade}>
+                {props.busy
+                  ? language.t("harness.settings.updating")
+                  : props.update?.latest
+                    ? language.t("harness.settings.update")
+                    : language.t("harness.settings.selfUpdate")}
+              </ButtonV2>
+            </TooltipV2>
           </Show>
         </div>
         <Show when={props.update?.manual && props.update?.command}>
@@ -539,7 +540,9 @@ const HarnessModels: Component<{ entry: Harness.SettingsEntry; models: ReadonlyA
       disabled={hiddenProviders().has(modelProvider(model.id) ?? "")}
       onChange={(checked) => settings.harnesses.setModelHidden(props.entry.id, model.id, !checked)}
     >
-      <span title={model.description}>{inGroup ? model.name.slice(model.name.indexOf("/") + 1) : model.name}</span>
+      <TooltipV2 placement="top" inactive={!model.description} value={model.description}>
+        <span>{inGroup ? model.name.slice(model.name.indexOf("/") + 1) : model.name}</span>
+      </TooltipV2>
     </Switch>
   )
 

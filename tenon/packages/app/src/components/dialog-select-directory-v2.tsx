@@ -259,7 +259,31 @@ export function DialogSelectDirectoryV2(props: DialogSelectDirectoryV2Props) {
         }
         [data-file-tree-virtualized-scroll] {
           overscroll-behavior: contain;
-          scrollbar-width: thin;
+          scrollbar-width: auto;
+          scrollbar-color: auto;
+        }
+        /* The tree renders in a shadow root, so repeat the app's overlay pill scrollbar here. */
+        ::-webkit-scrollbar {
+          width: 12px;
+          height: 12px;
+          background: transparent;
+        }
+        ::-webkit-scrollbar-track,
+        ::-webkit-scrollbar-corner {
+          background: transparent;
+        }
+        ::-webkit-scrollbar-button {
+          display: none;
+        }
+        ::-webkit-scrollbar-thumb {
+          min-height: 32px;
+          border: 4px solid transparent;
+          border-radius: 9999px;
+          background-color: var(--border-weak-base);
+          background-clip: padding-box;
+        }
+        :hover::-webkit-scrollbar-thumb {
+          background-color: var(--border-strong-base);
         }
       `,
       onExpansionChange(change) {

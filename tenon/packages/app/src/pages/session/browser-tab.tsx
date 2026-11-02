@@ -1,6 +1,7 @@
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
+import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { For, Show, createSignal, onCleanup, onMount } from "solid-js"
 import { createStore, produce } from "solid-js/store"
 import { useLanguage } from "@/context/language"
@@ -204,46 +205,60 @@ export function SessionBrowserTab() {
   return (
     <Show
       when={browser}
-      fallback={<div class="px-6 py-4 text-13-regular text-v2-text-text-weak">{language.t("secondBrain.browser.desktopOnly")}</div>}
+      fallback={
+        <div class="px-6 py-4 text-13-regular text-v2-text-text-weak">
+          {language.t("secondBrain.browser.desktopOnly")}
+        </div>
+      }
     >
       <div class="flex h-full min-h-0 flex-col gap-2 px-3 pb-3" data-component="browser-tab">
         <form class="flex items-center gap-1" onSubmit={go}>
-          <IconButtonV2
-            icon={<Icon name="arrow-left" />}
-            variant="ghost"
-            size="small"
-            aria-label={language.t("secondBrain.browser.back")}
-            disabled={!page.canGoBack}
-            onClick={() => void browser!.history("back")}
-          />
-          <IconButtonV2
-            icon={<Icon name="chevron-right" />}
-            variant="ghost"
-            size="small"
-            aria-label={language.t("secondBrain.browser.forward")}
-            disabled={!page.canGoForward}
-            onClick={() => void browser!.history("forward")}
-          />
-          <IconButtonV2
-            icon={<Icon name="reset" />}
-            variant="ghost"
-            size="small"
-            aria-label={language.t("secondBrain.browser.reload")}
-            onClick={() => void browser!.history("reload")}
-          />
+          <TooltipV2 placement="bottom" value={language.t("secondBrain.browser.back")}>
+            <IconButtonV2
+              icon={<Icon name="arrow-left" />}
+              variant="ghost"
+              size="small"
+              aria-label={language.t("secondBrain.browser.back")}
+              disabled={!page.canGoBack}
+              onClick={() => void browser!.history("back")}
+            />
+          </TooltipV2>
+          <TooltipV2 placement="bottom" value={language.t("secondBrain.browser.forward")}>
+            <IconButtonV2
+              icon={<Icon name="chevron-right" />}
+              variant="ghost"
+              size="small"
+              aria-label={language.t("secondBrain.browser.forward")}
+              disabled={!page.canGoForward}
+              onClick={() => void browser!.history("forward")}
+            />
+          </TooltipV2>
+          <TooltipV2 placement="bottom" value={language.t("secondBrain.browser.reload")}>
+            <IconButtonV2
+              icon={<Icon name="reset" />}
+              variant="ghost"
+              size="small"
+              aria-label={language.t("secondBrain.browser.reload")}
+              onClick={() => void browser!.history("reload")}
+            />
+          </TooltipV2>
           <label for="browser-address" class="sr-only">
             {language.t("secondBrain.browser.address")}
           </label>
           <input
             id="browser-address"
-            class="h-8 min-w-0 flex-1 rounded-full bg-v2-background-bg-layer-01 px-3 font-mono text-12-regular outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus"
+            class="h-8 min-w-0 flex-1 rounded-full bg-v2-background-bg-layer-01 px-3 font-mono text-12-regular "
             placeholder={language.t("secondBrain.browser.address.placeholder")}
             value={address()}
             onInput={(event) => setAddress(event.currentTarget.value)}
             spellcheck={false}
           />
         </form>
-        <div class="flex flex-wrap items-center gap-1" role="toolbar" aria-label={language.t("secondBrain.browser.tools")}>
+        <div
+          class="flex flex-wrap items-center gap-1"
+          role="toolbar"
+          aria-label={language.t("secondBrain.browser.tools")}
+        >
           <ButtonV2
             size="small"
             variant="ghost"
@@ -285,12 +300,11 @@ export function SessionBrowserTab() {
             </ButtonV2>
           </Show>
           <span class="flex-1" />
-          <span
-            class="rounded-full bg-v2-background-bg-layer-02 px-2 py-0.5 text-11-medium text-v2-text-text-weak"
-            title={language.t("secondBrain.browser.agentTools.description")}
-          >
-            {language.t("secondBrain.browser.agentTools")}
-          </span>
+          <TooltipV2 placement="bottom" value={language.t("secondBrain.browser.agentTools.description")}>
+            <span class="rounded-full bg-v2-background-bg-layer-02 px-2 py-0.5 text-11-medium text-v2-text-text-weak">
+              {language.t("secondBrain.browser.agentTools")}
+            </span>
+          </TooltipV2>
         </div>
         <div
           ref={stage}

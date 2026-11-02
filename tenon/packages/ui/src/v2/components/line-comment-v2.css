@@ -48,7 +48,7 @@
   width: 100%;
   font-size: 13px;
   font-style: normal;
-  font-weight: 440;
+  font-weight: 400;
   line-height: 1;
   letter-spacing: -0.04px;
   color: var(--v2-text-text-base);
@@ -58,7 +58,7 @@
 [data-component="line-comment-v2"][data-variant="display"] [data-slot="line-comment-v2-meta"] {
   font-size: 11px;
   font-style: normal;
-  font-weight: 530;
+  font-weight: 500;
   line-height: 1;
   letter-spacing: 0.05px;
   color: var(--v2-text-text-faint);
@@ -86,7 +86,7 @@
   border-radius: 4px;
   background: transparent;
   color: var(--v2-icon-icon-muted);
-  cursor: pointer;
+  cursor: default;
   outline: none;
 }
 
@@ -137,7 +137,7 @@
   width: 100%;
   font-size: 13px;
   font-style: normal;
-  font-weight: 530;
+  font-weight: 500;
   line-height: 1;
   letter-spacing: -0.04px;
   color: var(--v2-text-text-base);
@@ -157,7 +157,7 @@
   background: var(--v2-background-bg-button-neutral);
   font-size: 13px;
   font-style: normal;
-  font-weight: 440;
+  font-weight: 400;
   line-height: 1.35;
   letter-spacing: -0.04px;
   color: var(--v2-text-text-base);
@@ -188,7 +188,7 @@
   min-width: 0;
   font-size: 11px;
   font-style: normal;
-  font-weight: 530;
+  font-weight: 500;
   line-height: 1;
   letter-spacing: 0.05px;
   color: var(--v2-text-text-faint);
@@ -228,7 +228,7 @@
   background: transparent;
   color: var(--v2-text-text-base);
   text-align: start;
-  cursor: pointer;
+  cursor: default;
 }
 
 [data-component="line-comment-v2"][data-variant="editor"] [data-slot="line-comment-v2-mention-item"][data-active] {

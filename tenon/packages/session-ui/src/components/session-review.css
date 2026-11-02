@@ -194,7 +194,7 @@
     border: none;
     background: transparent;
     color: var(--v2-text-text-muted);
-    cursor: pointer;
+    cursor: default;
     border-radius: var(--v2-radius-full);
     opacity: 0;
     will-change: opacity;

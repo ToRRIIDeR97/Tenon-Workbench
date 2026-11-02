@@ -66,12 +66,16 @@ export function FileViewer(props: {
   return (
     <div class="flex h-full min-h-0 flex-col" data-component="file-viewer" data-kind={props.kind}>
       <Show when={textKind()}>
-        <div class="flex items-center gap-1 px-4 pb-2" role="group" aria-label={language.t("secondBrain.fileViewer.view")}>
+        <div
+          class="flex items-center gap-1 px-4 pb-2"
+          role="group"
+          aria-label={language.t("secondBrain.fileViewer.view")}
+        >
           <For each={["rendered", "source"] as const}>
             {(value) => (
               <button
                 type="button"
-                class="h-7 rounded-full px-3 text-12-medium text-v2-text-text-weak aria-pressed:bg-v2-background-bg-layer-02 aria-pressed:text-v2-text-text-base"
+                class="h-7 rounded-full px-3 text-12-medium text-v2-text-text-weak transition-[background-color,color] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base active:bg-v2-overlay-simple-overlay-pressed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none aria-pressed:bg-v2-background-bg-accent-container aria-pressed:text-v2-text-text-on-accent-container"
                 aria-pressed={mode() === value}
                 data-action={`file-viewer-${value}`}
                 onClick={() => setMode(value)}
@@ -111,7 +115,9 @@ export function FileViewer(props: {
             <Doc url={url()!} />
           </Match>
           <Match when={!url.loading && !url()}>
-            <div class="px-6 py-4 text-13-regular text-v2-text-text-weak">{language.t("secondBrain.fileViewer.unavailable")}</div>
+            <div class="px-6 py-4 text-13-regular text-v2-text-text-weak">
+              {language.t("secondBrain.fileViewer.unavailable")}
+            </div>
           </Match>
         </Switch>
       </Show>
@@ -232,7 +238,7 @@ function JsonNode(props: { name?: string; value: unknown; depth: number }): JSX.
       }
     >
       <details open={props.depth < 2} class="pl-3">
-        <summary class="-ml-3 cursor-pointer select-none">
+        <summary class="-ml-3 select-none">
           <span class="text-v2-text-text-weak">{label()}</span>
           {Array.isArray(props.value) ? `[ ${entries().length} ]` : `{ ${entries().length} }`}
         </summary>
@@ -280,19 +286,25 @@ function Sheet(props: { url: string }) {
         <Show
           when={sheets().length > 0}
           fallback={
-            <div class="px-6 py-4 text-13-regular text-v2-text-text-weak">{language.t("secondBrain.fileViewer.unavailable")}</div>
+            <div class="px-6 py-4 text-13-regular text-v2-text-text-weak">
+              {language.t("secondBrain.fileViewer.unavailable")}
+            </div>
           }
         >
           <div class="flex min-h-0 flex-col">
             <Table rows={sheets()[active()]?.rows ?? []} />
-            <div class="flex flex-wrap gap-1 px-4 pb-4" role="tablist" aria-label={language.t("secondBrain.fileViewer.sheets")}>
+            <div
+              class="flex flex-wrap gap-1 px-4 pb-4"
+              role="tablist"
+              aria-label={language.t("secondBrain.fileViewer.sheets")}
+            >
               <For each={sheets()}>
                 {(sheet, index) => (
                   <button
                     type="button"
                     role="tab"
                     aria-selected={index() === active()}
-                    class="h-7 rounded-full px-3 text-12-medium text-v2-text-text-weak aria-selected:bg-v2-background-bg-layer-02 aria-selected:text-v2-text-text-base"
+                    class="h-7 rounded-full px-3 text-12-medium text-v2-text-text-weak transition-[background-color,color] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base active:bg-v2-overlay-simple-overlay-pressed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none aria-selected:bg-v2-background-bg-accent-container aria-selected:text-v2-text-text-on-accent-container"
                     onClick={() => setActive(index())}
                   >
                     {sheet.name}
@@ -329,7 +341,9 @@ function Doc(props: { url: string }) {
       <Show
         when={html()}
         fallback={
-          <div class="px-6 py-4 text-13-regular text-v2-text-text-weak">{language.t("secondBrain.fileViewer.unavailable")}</div>
+          <div class="px-6 py-4 text-13-regular text-v2-text-text-weak">
+            {language.t("secondBrain.fileViewer.unavailable")}
+          </div>
         }
       >
         <div class="px-4 pb-40">

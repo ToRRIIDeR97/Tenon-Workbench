@@ -6,6 +6,8 @@ import { createPromptInputV2Store, type PromptInputV2StoreInput } from "./store"
 import type {
   PromptInputV2Attachment,
   PromptInputV2Comment,
+  PromptInputV2ContextItem,
+  PromptInputV2Quote,
   PromptInputV2History,
   PromptInputV2HistoryEntry,
   PromptInputV2Option,
@@ -73,7 +75,7 @@ export function createPromptInputV2Controller(input: {
   ) => PromptInputV2Suggestion[] | Promise<PromptInputV2Suggestion[]>
   openAttachment?: (attachment: PromptInputV2Attachment) => void
   openContext?: (key: string) => void
-  onContextRemove?: (item: PromptInputV2Comment) => void
+  onContextRemove?: (item: PromptInputV2ContextItem) => void
   onEditor?: (element: HTMLElement) => void
   onSuggestionSelect?: (item: PromptInputV2Suggestion) => (() => void) | void
   view: PromptInputV2ViewConfig
@@ -342,7 +344,12 @@ export function createPromptInputV2Controller(input: {
       return draft.state.context.items.find((item) => item.key === id)
     },
     comments() {
-      return draft.state.context.items.filter((item) => !!item.comment?.trim())
+      return draft.state.context.items.filter(
+        (item): item is PromptInputV2Comment => item.type === "file" && !!item.comment?.trim(),
+      )
+    },
+    quotes() {
+      return draft.state.context.items.filter((item): item is PromptInputV2Quote => item.type === "quote")
     },
     attachments(): PromptInputV2Attachment[] {
       return draft.state.prompt.filter((part): part is PromptInputV2Attachment => part.type === "image")
@@ -366,7 +373,7 @@ export function createPromptInputV2Controller(input: {
     canSubmit() {
       const persisted = draft.state
       if (persisted.prompt.some((part) => part.type === "image")) return true
-      if (persisted.context.items.some((item) => !!item.comment?.trim())) return true
+      if (persisted.context.items.some((item) => item.type === "quote" || !!item.comment?.trim())) return true
       return persisted.prompt.some((part) => "content" in part && !!part.content.trim())
     },
     setEditor(element: HTMLElement) {

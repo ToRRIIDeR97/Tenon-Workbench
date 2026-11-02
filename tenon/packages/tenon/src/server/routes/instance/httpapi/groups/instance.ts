@@ -29,6 +29,17 @@ export const VcsDiffQuery = Schema.Struct({
   context: Schema.optional(Schema.NumberFromString.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0))),
 })
 
+export class ApiVcsBranchError extends Schema.ErrorClass<ApiVcsBranchError>("VcsBranchError")(
+  {
+    name: Schema.Literal("VcsBranchError"),
+    data: Schema.Struct({
+      message: Schema.String,
+      reason: Schema.Literals(["non-git", "unknown-branch", "failed"]),
+    }),
+  },
+  { httpApiStatus: 400 },
+) {}
+
 export class ApiVcsApplyError extends Schema.ErrorClass<ApiVcsApplyError>("VcsApplyError")(
   {
     name: Schema.Literal("VcsApplyError"),
@@ -48,6 +59,8 @@ export const InstancePaths = {
   vcsDiff: "/vcs/diff",
   vcsDiffRaw: "/vcs/diff/raw",
   vcsApply: "/vcs/apply",
+  vcsBranches: "/vcs/branches",
+  vcsSwitchBranch: "/vcs/branch",
   command: "/command",
   agent: "/agent",
   skill: "/skill",
@@ -133,6 +146,28 @@ export const InstanceApi = HttpApi.make("instance")
             identifier: "vcs.apply",
             summary: "Apply VCS patch",
             description: "Apply a raw patch to the current working tree.",
+          }),
+        ),
+        HttpApiEndpoint.get("vcsBranches", InstancePaths.vcsBranches, {
+          query: WorkspaceRoutingQuery,
+          success: described(Schema.Array(Schema.String), "Local branches"),
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "vcs.branches",
+            summary: "List local branches",
+            description: "List the repository's local branches by name; empty outside git.",
+          }),
+        ),
+        HttpApiEndpoint.post("vcsSwitchBranch", InstancePaths.vcsSwitchBranch, {
+          query: WorkspaceRoutingQuery,
+          payload: Vcs.SwitchBranchInput,
+          success: described(Vcs.Info, "Branch switched"),
+          error: ApiVcsBranchError,
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "vcs.branch.switch",
+            summary: "Switch branch",
+            description: "Switch the working tree to a local branch. Git refuses when local changes would be lost.",
           }),
         ),
         HttpApiEndpoint.get("command", InstancePaths.command, {

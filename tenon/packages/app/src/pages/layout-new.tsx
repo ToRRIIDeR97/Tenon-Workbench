@@ -78,13 +78,15 @@ function PageError(props: { error: unknown; reset: () => void }) {
   return (
     <PageFrame>
       <PageEmpty
+        error
+        title={language.t("secondBrain.state.error.title")}
         action={
           <ButtonV2 variant="outline" onClick={props.reset}>
-            {language.t("secondBrain.error.retry")}
+            {language.t("secondBrain.state.retry")}
           </ButtonV2>
         }
       >
-        {language.t("secondBrain.error.request")}
+        {language.t("secondBrain.state.error.body")}
       </PageEmpty>
     </PageFrame>
   )

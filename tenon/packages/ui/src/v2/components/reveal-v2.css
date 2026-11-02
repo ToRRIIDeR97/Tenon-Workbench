@@ -44,6 +44,47 @@
   }
 }
 
+/* Variant line (a conditional line: form error, notice, dock label): opens over swap-in +
+   emphasized-decelerate and closes over short + ease-exit. */
+[data-component="reveal-v2"][data-variant="line"] {
+  transition-duration: var(--v2-duration-short);
+  transition-timing-function: var(--v2-ease-exit);
+
+  &[data-phase="opening"] {
+    transition-duration: var(--v2-duration-swap-in);
+    transition-timing-function: var(--v2-ease-emphasized-decelerate);
+  }
+}
+
+/* Variant inline (an item in a row): the same timing as line, through grid columns instead of rows. */
+[data-component="reveal-v2"][data-variant="inline"] {
+  grid-template-rows: none;
+  grid-template-columns: 0fr;
+  transition-property: grid-template-columns, opacity;
+  transition-duration: var(--v2-duration-short);
+  transition-timing-function: var(--v2-ease-exit);
+
+  > [data-slot="reveal-v2-content"] {
+    min-width: 0;
+    white-space: nowrap;
+  }
+
+  &[data-phase="opening"] {
+    grid-template-columns: 1fr;
+    transition-duration: var(--v2-duration-swap-in);
+    transition-timing-function: var(--v2-ease-emphasized-decelerate);
+
+    @starting-style {
+      grid-template-columns: 0fr;
+      opacity: 0;
+    }
+  }
+
+  &[data-phase="open"] {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   [data-component="reveal-v2"] {
     transition: none;

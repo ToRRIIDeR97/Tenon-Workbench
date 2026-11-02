@@ -1,5 +1,6 @@
 import { For, Match, Show, Switch } from "solid-js"
 import type { Harness } from "@tenon/schema/harness"
+import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { useLanguage } from "@/context/language"
 import { formatResetIn } from "@/components/prompt-input/context-strip-model"
 
@@ -15,7 +16,11 @@ export function HarnessUsageWindows(props: { report: Harness.UsageReport; now: n
 
   return (
     <Switch
-      fallback={<span title={props.report.reason}>{language.t("secondBrain.contextStrip.usage.unsupported")}</span>}
+      fallback={
+        <TooltipV2 placement="top" inactive={!props.report.reason} value={props.report.reason}>
+          <span>{language.t("secondBrain.contextStrip.usage.unsupported")}</span>
+        </TooltipV2>
+      }
     >
       <Match when={props.report.status === "available" && props.report.windows.length > 0}>
         <For each={props.report.windows}>
@@ -69,10 +74,34 @@ export function HarnessUsageWindows(props: { report: Harness.UsageReport; now: n
         <span>{props.report.reason ?? language.t("secondBrain.contextStrip.usage.signedOut")}</span>
       </Match>
       <Match when={props.report.status === "error"}>
-        <span title={props.report.reason}>{language.t("secondBrain.contextStrip.usage.error")}</span>
+        <TooltipV2 placement="top" inactive={!props.report.reason} value={props.report.reason}>
+          <span>{language.t("secondBrain.contextStrip.usage.error")}</span>
+        </TooltipV2>
       </Match>
     </Switch>
   )
+}
+
+const CACHE_KEY = "tenon.global.dat:harness-usage"
+
+/**
+ * The last usage reports the server sent, so the context sheet and Settings draw their bars at once from the
+ * previous answer and update them when a fresh one arrives. It lives only in this browser and may be empty.
+ */
+export function cachedUsage(): { reports: ReadonlyArray<Harness.UsageReport>; now: number } | undefined {
+  try {
+    const value = JSON.parse(localStorage.getItem(CACHE_KEY) ?? "null")
+    return value && Array.isArray(value.reports) && typeof value.now === "number" ? value : undefined
+  } catch {
+    return undefined
+  }
+}
+
+export function rememberUsage(reports: ReadonlyArray<Harness.UsageReport>, now: number) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ reports, now }))
+  } catch {}
+  return { reports, now }
 }
 
 /** The fullest limit window of a report, for a one-number summary; undefined when it reports no windows. */

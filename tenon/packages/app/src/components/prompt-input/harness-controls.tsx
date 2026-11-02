@@ -40,36 +40,56 @@ export async function openHarnessSettings(dialog: ReturnType<typeof useDialog>) 
 const SELECT_CLASS =
   "prompt-input-responsive-select !h-7 !w-auto min-w-0 max-w-[220px] !bg-transparent !shadow-none hover:!bg-v2-overlay-simple-overlay-hover"
 
-export function PromptInputHarnessControls(props: { controller: PromptInputHarnessController }) {
-  const language = useLanguage()
-  const dialog = useDialog()
-  const options = createMemo(() => orderHarnesses(props.controller.instances()))
-  const addHarness = () => openHarnessSettings(dialog)
-  const checking = () => props.controller.loading() || !!props.controller.checking?.()
-  // While a check runs, the last answer for the same harness stays in place, so its model and effort
-  // pickers keep their slot instead of collapsing until the new list arrives.
+/**
+ * The harness the controls show and its chosen model, shared by the separate pickers and the one-pill panel.
+ * While a check runs, the last answer for the same harness stays in place, so the model and effort pickers keep
+ * their slot instead of collapsing until the new list arrives.
+ */
+export function createHarnessView(controller: PromptInputHarnessController) {
+  const options = createMemo(() => orderHarnesses(controller.instances()))
+  const checking = () => controller.loading() || !!controller.checking?.()
   const instance = createMemo<Harness.Instance | undefined>((previous) => {
-    const next = props.controller.instances()?.find((item) => item.id === props.controller.current())
-    const kept = previous?.id === props.controller.current() && previous.models.length > 0 ? previous : undefined
+    const next = controller.instances()?.find((item) => item.id === controller.current())
+    const kept = previous?.id === controller.current() && previous.models.length > 0 ? previous : undefined
     if (!next) return checking() ? kept : undefined
     if (next.models.length === 0 && checking()) return kept ?? next
     return next
   })
   // Falls back to the model the picker shows when none is saved yet, so effort and tier stay selectable.
   const model = createMemo(() => {
-    const selection = props.controller.model.current()
+    const selection = controller.model.current()
     const models = instance()?.models
     return selection ? models?.find((item) => item.id === selection.id) : models?.[0]
   })
   const selectModel = (id: string) => {
     const selected = instance()?.models.find((item) => item.id === id)
     if (!selected) return
-    props.controller.model.set({
+    controller.model.set({
       id: selected.id,
       reasoningEffort: selected.defaultReasoningEffort,
       serviceTier: selected.defaultServiceTier,
     })
   }
+  const setEffort = (reasoningEffort: string) => {
+    const selected = model()
+    if (!selected) return
+    const current = controller.model.current() ?? { id: selected.id }
+    controller.model.set({ ...current, reasoningEffort: reasoningEffort || undefined })
+  }
+  const setTier = (serviceTier: string) => {
+    const selected = model()
+    if (!selected) return
+    const current = controller.model.current() ?? { id: selected.id }
+    controller.model.set({ ...current, serviceTier: serviceTier || undefined })
+  }
+  return { options, checking, instance, model, selectModel, setEffort, setTier }
+}
+
+export function PromptInputHarnessControls(props: { controller: PromptInputHarnessController }) {
+  const language = useLanguage()
+  const dialog = useDialog()
+  const addHarness = () => openHarnessSettings(dialog)
+  const { options, checking, instance, model, selectModel, setEffort, setTier } = createHarnessView(props.controller)
 
   return (
     <>
@@ -135,10 +155,7 @@ export function PromptInputHarnessControls(props: { controller: PromptInputHarne
                 class={SELECT_CLASS}
                 capitalize={false}
                 disabled={props.controller.disabled?.()}
-                onSelect={(reasoningEffort) => {
-                  const current = props.controller.model.current() ?? { id: selected().id }
-                  props.controller.model.set({ ...current, reasoningEffort: reasoningEffort || undefined })
-                }}
+                onSelect={setEffort}
               />
             </Show>
             <Show when={selected().serviceTiers.length > 0}>
@@ -154,10 +171,7 @@ export function PromptInputHarnessControls(props: { controller: PromptInputHarne
                 class={SELECT_CLASS}
                 capitalize={false}
                 disabled={props.controller.disabled?.()}
-                onSelect={(serviceTier) => {
-                  const current = props.controller.model.current() ?? { id: selected().id }
-                  props.controller.model.set({ ...current, serviceTier: serviceTier || undefined })
-                }}
+                onSelect={setTier}
               />
             </Show>
           </>

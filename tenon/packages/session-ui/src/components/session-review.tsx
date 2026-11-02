@@ -7,7 +7,7 @@ import { FileIcon } from "@tenon/ui/file-icon"
 import { Icon } from "@tenon/ui/icon"
 import { IconButton } from "@tenon/ui/icon-button"
 import { StickyAccordionHeader } from "@tenon/ui/sticky-accordion-header"
-import { Tooltip } from "@tenon/ui/tooltip"
+import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { ScrollView } from "@tenon/ui/scroll-view"
 import { useFileComponent } from "@tenon/ui/context/file"
 import { useI18n } from "@tenon/ui/context/i18n"
@@ -521,7 +521,7 @@ export const SessionReview = (props: SessionReviewProps) => {
                                   </Show>
                                   <span data-slot="session-review-filename">{getFilename(file)}</span>
                                   <Show when={props.onViewFile && diffCanRender()}>
-                                    <Tooltip value={openFileLabel()} placement="top" gutter={4}>
+                                    <TooltipV2 value={openFileLabel()} placement="top" gutter={4}>
                                       <button
                                         data-slot="session-review-view-button"
                                         type="button"
@@ -533,7 +533,7 @@ export const SessionReview = (props: SessionReviewProps) => {
                                       >
                                         <Icon name="open-file" size="small" />
                                       </button>
-                                    </Tooltip>
+                                    </TooltipV2>
                                   </Show>
                                 </div>
                               </div>

@@ -51,12 +51,12 @@ import { getDirectory as _getDirectory, getFilename } from "@tenon/core/util/pat
 import { AttachmentCardV2 } from "../v2/components/attachment-card-v2"
 import { CommentCardV2 } from "../v2/components/comment-card-v2"
 import { checksum } from "@tenon/core/util/encode"
-import { Tooltip } from "@tenon/ui/tooltip"
 import { IconButton } from "@tenon/ui/icon-button"
 import { Icon as IconV2 } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
+import { readQuoteMetadata } from "./quote-note"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
-import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
+import { PathTooltip, TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { Spinner } from "@tenon/ui/spinner"
 import { TextShimmer } from "@tenon/ui/text-shimmer"
 import { AnimatedCountList } from "./tool-count-summary"
@@ -250,11 +250,11 @@ function MessageActionButton(
     <Show
       when={props.useV2}
       fallback={
-        <Tooltip value={props.label} placement="top" gutter={4}>
+        <TooltipV2 value={props.label} placement="top" gutter={4}>
           <Show when={props.menu} fallback={<IconButton {...v1()} />}>
             <DropdownMenu.Trigger as={IconButton} {...v1()} />
           </Show>
-        </Tooltip>
+        </TooltipV2>
       }
     >
       <TooltipV2 value={props.label} placement="top" gutter={4}>
@@ -1254,6 +1254,12 @@ export function UserMessageDisplay(props: {
 
   const messageComments = createMemo(() => (newLayout() ? (props.comments ?? []) : []))
 
+  const quotes = createMemo(() =>
+    (props.parts ?? []).flatMap((part) =>
+      part.type === "text" && (part as TextPart).synthetic ? (readQuoteMetadata(part.metadata) ?? []) : [],
+    ),
+  )
+
   const inlineFiles = createMemo(() => files().filter(inline))
 
   const agents = createMemo(() => (props.parts?.filter((p) => p.type === "agent") as AgentPart[]) ?? [])
@@ -1319,37 +1325,39 @@ export function UserMessageDisplay(props: {
               <Show
                 when={newLayout() && type === "file"}
                 fallback={
-                  <div
-                    data-slot="user-message-attachment"
-                    data-type={type}
-                    data-clickable={type === "image" ? "true" : undefined}
-                    title={type === "file" ? name : undefined}
-                    onClick={() => {
-                      if (type === "image") openImagePreview(file.url, name)
-                    }}
-                  >
-                    <Show
-                      when={type === "image"}
-                      fallback={
-                        <div data-slot="user-message-attachment-file">
-                          <FileIcon node={{ path: name, type: "file" }} />
-                          <span data-slot="user-message-attachment-name">{name}</span>
-                        </div>
-                      }
+                  <PathTooltip placement="top" inactive={type !== "file"} name={getFilename(name)} path={name}>
+                    <div
+                      data-slot="user-message-attachment"
+                      data-type={type}
+                      data-clickable={type === "image" ? "true" : undefined}
+                      onClick={() => {
+                        if (type === "image") openImagePreview(file.url, name)
+                      }}
                     >
-                      <img data-slot="user-message-attachment-image" src={file.url} alt={name} />
-                    </Show>
-                  </div>
+                      <Show
+                        when={type === "image"}
+                        fallback={
+                          <div data-slot="user-message-attachment-file">
+                            <FileIcon node={{ path: name, type: "file" }} />
+                            <span data-slot="user-message-attachment-name">{name}</span>
+                          </div>
+                        }
+                      >
+                        <img data-slot="user-message-attachment-image" src={file.url} alt={name} />
+                      </Show>
+                    </div>
+                  </PathTooltip>
                 }
               >
-                <AttachmentCardV2
-                  title={getFilename(name)}
-                  hover={name}
-                  clickable={!!props.actions?.openAttachment}
-                  onClick={() => props.actions?.openAttachment?.(file)}
-                >
-                  {typeLabel(name, file.mime, i18n.t("ui.common.file"), i18n.t("secondBrain.attachment.thread"))}
-                </AttachmentCardV2>
+                <PathTooltip placement="top" name={getFilename(name)} path={name}>
+                  <AttachmentCardV2
+                    title={getFilename(name)}
+                    clickable={!!props.actions?.openAttachment}
+                    onClick={() => props.actions?.openAttachment?.(file)}
+                  >
+                    {typeLabel(name, file.mime, i18n.t("ui.common.file"), i18n.t("secondBrain.attachment.thread"))}
+                  </AttachmentCardV2>
+                </PathTooltip>
               </Show>
             )
           }}
@@ -1361,6 +1369,18 @@ export function UserMessageDisplay(props: {
   return (
     <div data-component="user-message" data-timeline-part-id={textPart()?.id}>
       <Show when={!props.useV2Actions}>{renderAttachments()}</Show>
+      <Show when={quotes().length > 0}>
+        <div data-slot="user-message-quotes" class="flex flex-col items-end gap-1 pb-1.5">
+          <For each={quotes()}>
+            {(quote) => (
+              <div class="flex max-w-[min(100%,480px)] items-start gap-1.5 text-[12px] leading-[18px] text-v2-text-text-muted">
+                <IconV2 name="reply" class="mt-px shrink-0" />
+                <span class="line-clamp-2 min-w-0">{quote}</span>
+              </div>
+            )}
+          </For>
+        </div>
+      </Show>
       <Show
         when={text()}
         fallback={

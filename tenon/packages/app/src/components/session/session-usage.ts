@@ -1,6 +1,12 @@
 import type { AssistantMessage, Message } from "@opencode-ai/sdk/v2/client"
 import { Harness } from "@tenon/schema/harness"
 
+/** The latest turn's totals: every assistant message since the last user message. */
+export function getTurnUsage(messages: Message[]) {
+  const start = messages.findLastIndex((message) => message.role === "user")
+  return getSessionUsage(messages.slice(start + 1))
+}
+
 // Session-wide totals. Unlike getSessionContext, which reads the last message,
 // this sums every assistant message, optionally for one harness.
 export function getSessionUsage(messages: Message[], options?: { harness?: string }) {
@@ -26,6 +32,7 @@ export function getSessionUsage(messages: Message[], options?: { harness?: strin
     cacheRead,
     cacheWrite,
     cacheHit: inputSide > 0 ? cacheRead / inputSide : undefined,
+    total: inputSide + sum((message) => message.tokens.output) + sum((message) => message.tokens.reasoning),
     cost: reported.length > 0 ? reported.reduce((total, message) => total + message.cost, 0) : undefined,
   }
 }

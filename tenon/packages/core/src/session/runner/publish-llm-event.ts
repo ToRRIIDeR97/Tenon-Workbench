@@ -42,7 +42,10 @@ const harnessCost = (usage: Usage | undefined) => {
  * USD from catalog prices per million tokens, as the V1 runtime computes it: the largest context tier
  * the prompt exceeds applies, and reasoning is charged at the output rate.
  */
-export const pricedCost = (pricing: ReadonlyArray<typeof ModelV2.Cost.Type> | undefined, used: ReturnType<typeof tokens>) => {
+export const pricedCost = (
+  pricing: ReadonlyArray<typeof ModelV2.Cost.Type> | undefined,
+  used: ReturnType<typeof tokens>,
+) => {
   if (!pricing?.length) return 0
   const context = used.input + used.cache.read + used.cache.write
   const price =
@@ -470,6 +473,20 @@ export const createLLMEventPublisher = (events: EventV2.Interface, input: Input)
           contextUsed: harnessContextUsed(event.usage),
         }
         return
+      case "step-usage": {
+        // Only the open step's message takes a live value; the settlement carries the final one.
+        if (assistantMessageID === undefined || stepSettlement) return
+        const contextUsed = harnessContextUsed(event.usage)
+        if (contextUsed === undefined) return
+        yield* events.publish(SessionEvent.Step.Usage, {
+          sessionID: input.sessionID,
+          timestamp: yield* timestamp,
+          assistantMessageID,
+          contextWindow: harnessContextWindow(event.usage),
+          contextUsed,
+        })
+        return
+      }
       case "finish":
         return
       case "provider-error":

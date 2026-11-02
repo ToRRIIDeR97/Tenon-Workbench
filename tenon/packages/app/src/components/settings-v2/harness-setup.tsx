@@ -6,6 +6,7 @@ import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { TextInputV2 } from "@tenon/ui/v2/text-input-v2"
 import { ProviderIcon } from "@tenon/ui/provider-icon"
 import { useDialog } from "@tenon/ui/context/dialog"
+import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { Harness } from "@tenon/schema/harness"
 import { useQueryClient } from "@tanstack/solid-query"
 import { type Component, For, type JSX, Match, Show, Switch, createResource, onCleanup, onMount } from "solid-js"
@@ -452,18 +453,20 @@ const HarnessSetupDialog: Component<{ directory: string; harness?: string; onClo
     >
       <DialogHeader closeLabel={language.t("common.close")}>
         <Show when={selected()} fallback={<DialogTitle>{language.t("harness.setup.title")}</DialogTitle>}>
-          <IconButtonV2
-            variant="ghost-muted"
-            size="small"
-            class="-my-1"
-            icon={<Icon name="chevron-left" />}
-            onClick={() => {
-              setup.closeTerminal()
-              if (props.harness) return dialog.close()
-              setView("selected", undefined)
-            }}
-            aria-label={language.t("common.goBack")}
-          />
+          <TooltipV2 placement="bottom" value={language.t("common.goBack")}>
+            <IconButtonV2
+              variant="ghost-muted"
+              size="small"
+              class="-my-1"
+              icon={<Icon name="chevron-left" />}
+              onClick={() => {
+                setup.closeTerminal()
+                if (props.harness) return dialog.close()
+                setView("selected", undefined)
+              }}
+              aria-label={language.t("common.goBack")}
+            />
+          </TooltipV2>
         </Show>
       </DialogHeader>
       <DialogBody class="settings-v2-harness-setup-body">

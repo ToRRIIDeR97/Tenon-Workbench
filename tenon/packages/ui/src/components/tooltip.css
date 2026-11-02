@@ -45,7 +45,7 @@
 
   &[data-closed]:not([data-force-open="true"]) {
     opacity: 0;
-    animation: tooltip-out var(--v2-duration-short) var(--v2-ease-emphasized-accelerate) forwards;
+    animation: tooltip-out var(--v2-duration-exit-small) var(--v2-ease-exit) forwards;
   }
 
   /* &[data-placement="top"] { */

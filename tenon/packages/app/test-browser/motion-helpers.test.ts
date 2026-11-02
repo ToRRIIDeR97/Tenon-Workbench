@@ -20,6 +20,8 @@ describe("motion tokens", () => {
     expect(prefersReducedMotion()).toBe(true)
     expect(motionDuration("short")).toBe(150)
     expect(motionDuration("medium")).toBe(300)
+    expect(motionDuration("exit")).toBe(200)
+    expect(motionDuration("exit-small")).toBe(120)
   })
 })
 

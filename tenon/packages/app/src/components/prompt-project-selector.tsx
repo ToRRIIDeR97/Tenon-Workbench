@@ -12,6 +12,7 @@ import { createStore } from "solid-js/store"
 import { Icon } from "@tenon/ui/v2/icon"
 import { MenuV2 } from "@tenon/ui/v2/menu-v2"
 import { ProjectAvatar } from "@tenon/ui/v2/project-avatar-v2"
+import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { getProjectAvatarVariant } from "@/context/layout"
 import { useLanguage } from "@/context/language"
 import { displayName, getProjectAvatarSource } from "@/pages/layout/helpers"
@@ -33,7 +34,9 @@ export type PromptProjectControls = {
   available: PromptProject[]
   directory: string
   server?: string
-  select: (worktree: string, server?: string) => void
+  /** The draft's Project. Several Projects can share a thread folder, so the folder alone can't pick one. */
+  projectID?: string
+  select: (worktree: string, server?: string, projectID?: string) => void
   add: (title: string, server?: string) => void
 }
 
@@ -41,11 +44,29 @@ const actionPrefix = "action:"
 const projectPrefix = "project:"
 
 function projectKey(project: PromptProject) {
-  return `${projectPrefix}${encodeURIComponent(project.server?.key ?? "")}:${encodeURIComponent(project.worktree)}`
+  const id = project.id ? `#${encodeURIComponent(project.id)}` : ""
+  return `${projectPrefix}${encodeURIComponent(project.server?.key ?? "")}:${encodeURIComponent(project.worktree)}${id}`
 }
 
 function actionKey(server?: string) {
   return `${actionPrefix}${encodeURIComponent(server ?? "")}`
+}
+
+/** The Project the composer is in: the draft's Project among those using its folder, else the folder's own. */
+export function currentProject(
+  controls: Pick<PromptProjectControls, "available" | "directory" | "server" | "projectID">,
+) {
+  const key = pathKey(controls.directory)
+  const inFolder = controls.available.filter(
+    (project) =>
+      (!project.server || project.server.key === controls.server) &&
+      (pathKey(project.worktree) === key || project.sandboxes?.some((sandbox) => pathKey(sandbox) === key)),
+  )
+  return (
+    inFolder.find((project) => project.id && project.id === controls.projectID) ??
+    inFolder.find((project) => !project.id) ??
+    inFolder[0]
+  )
 }
 
 export function createPromptProjectController(input: {
@@ -56,16 +77,7 @@ export function createPromptProjectController(input: {
   const [store, setStore] = createStore({ open: false, search: "", active: "" })
   let searchRef: HTMLInputElement | undefined
 
-  const current = () => {
-    const key = pathKey(input.controls().directory)
-    return input
-      .controls()
-      .available.find(
-        (project) =>
-          (!project.server || project.server.key === input.controls().server) &&
-          (pathKey(project.worktree) === key || project.sandboxes?.some((sandbox) => pathKey(sandbox) === key)),
-      )
-  }
+  const current = () => currentProject(input.controls())
   const selected = () => current() ?? input.controls().available[0]
   const projects = () => {
     const search = store.search.trim().toLowerCase()
@@ -101,11 +113,9 @@ export function createPromptProjectController(input: {
     input.onDone()
   }
   const select = (project: PromptProject) => {
-    if (
-      pathKey(project.worktree) !== pathKey(current()?.worktree ?? "") ||
-      project.server?.key !== current()?.server?.key
-    ) {
-      input.controls().select(project.worktree, project.server?.key)
+    const now = current()
+    if (!now || projectKey(project) !== projectKey(now)) {
+      input.controls().select(project.worktree, project.server?.key, project.id)
     }
     close()
   }
@@ -345,15 +355,17 @@ export function PromptProjectSelector(props: {
               }}
             />
             <Show when={props.controller.search().trim()}>
-              <button
-                type="button"
-                class="absolute right-2 flex size-6 items-center justify-center rounded-full text-v2-icon-icon-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover"
-                onPointerDown={(event) => event.preventDefault()}
-                onClick={() => props.controller.clearSearch()}
-                aria-label={props.controller.labels.clear()}
-              >
-                <Icon name="close" size="small" />
-              </button>
+              <TooltipV2 class="absolute right-2" value={props.controller.labels.clear()}>
+                <button
+                  type="button"
+                  class="flex size-6 items-center justify-center rounded-full text-v2-icon-icon-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover"
+                  onPointerDown={(event) => event.preventDefault()}
+                  onClick={() => props.controller.clearSearch()}
+                  aria-label={props.controller.labels.clear()}
+                >
+                  <Icon name="close" size="small" />
+                </button>
+              </TooltipV2>
             </Show>
           </div>
           <div class="flex max-h-[240px] flex-col gap-0.5 overflow-y-auto">
@@ -448,7 +460,7 @@ export function PromptProjectAddButton(props: { controller: PromptProjectControl
 
 /** Composer chip: a pill that tightens its corners while pressed. */
 const chipClass =
-  "flex h-8 min-w-0 items-center gap-1.5 rounded-full px-2.5 text-[13px] font-[440] leading-5 tracking-[-0.04px] transition-[background-color,border-radius] duration-short ease-standard active:rounded-[12px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none"
+  "flex h-8 min-w-0 items-center gap-1.5 rounded-full px-2.5 text-[13px] font-[400] leading-5 tracking-[-0.04px] transition-[background-color,border-radius] duration-short ease-standard active:rounded-[12px] motion-reduce:transition-none"
 
 function ProjectTrigger(props: ComponentProps<"button"> & { controller: PromptProjectController }) {
   const [local, rest] = splitProps(props, ["controller", "class", "classList", "onClick", "onKeyDown"])

@@ -375,13 +375,14 @@ export default function ProjectsPage() {
           <>
             <PageHeader id="projects-title" title={language.t("secondBrain.projects.title")} />
             <PageEmpty
+              title={language.t("secondBrain.state.noWorkspace.title")}
               action={
                 <ButtonV2 variant="contrast" onClick={() => command.trigger("project.open")}>
                   {language.t("secondBrain.home.openWorkspace")}
                 </ButtonV2>
               }
             >
-              {language.t("secondBrain.empty.workspace")}
+              {language.t("secondBrain.state.noWorkspace.body")}
             </PageEmpty>
           </>
         }
@@ -497,7 +498,10 @@ export default function ProjectsPage() {
                       />
                     </TooltipV2>
                     <div class="flex min-w-0 flex-1 items-baseline gap-2">
-                      <h1 id="projects-title" class="truncate text-[17px] text-v2-text-text-base [font-weight:560]">
+                      <h1
+                        id="projects-title"
+                        class="truncate text-[17px] leading-6 text-v2-text-text-base [font-weight:600]"
+                      >
                         {project.name}
                       </h1>
                       <span class="shrink-0 text-[12px] text-v2-text-text-faint">
@@ -604,9 +608,9 @@ const panelClass = "mx-auto flex w-full max-w-4xl flex-col gap-6 px-6 pb-10 pt-4
 const labelClass = "flex flex-col gap-1.5 text-[12px] text-v2-text-text-muted"
 // M3 slider: a 16px pill track filled to the value and a thin vertical handle. The native range input keeps keyboard and screen reader support.
 const sliderClass =
-  "h-4 w-full cursor-pointer appearance-none rounded-full outline-none [&::-webkit-slider-thumb]:h-10 [&::-webkit-slider-thumb]:w-1 [&::-webkit-slider-thumb]:cursor-grab [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-v2-background-bg-accent [&::-webkit-slider-thumb]:[box-shadow:0_0_0_5px_var(--v2-background-bg-base)] focus-visible:[&::-webkit-slider-thumb]:[box-shadow:0_0_0_5px_var(--v2-background-bg-base),0_0_0_7px_var(--v2-border-border-focus)] [&::-moz-range-thumb]:h-10 [&::-moz-range-thumb]:w-1 [&::-moz-range-thumb]:cursor-grab [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-v2-background-bg-accent [&::-moz-range-thumb]:[box-shadow:0_0_0_5px_var(--v2-background-bg-base)] focus-visible:[&::-moz-range-thumb]:[box-shadow:0_0_0_5px_var(--v2-background-bg-base),0_0_0_7px_var(--v2-border-border-focus)]"
+  "h-4 w-full appearance-none rounded-full outline-none [&::-webkit-slider-thumb]:h-10 [&::-webkit-slider-thumb]:w-1 [&::-webkit-slider-thumb]:cursor-grab [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-v2-background-bg-accent [&::-webkit-slider-thumb]:[box-shadow:0_0_0_5px_var(--v2-background-bg-base)] focus-visible:[&::-webkit-slider-thumb]:[box-shadow:0_0_0_5px_var(--v2-background-bg-base),0_0_0_7px_var(--v2-border-border-focus)] [&::-moz-range-thumb]:h-10 [&::-moz-range-thumb]:w-1 [&::-moz-range-thumb]:cursor-grab [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-v2-background-bg-accent [&::-moz-range-thumb]:[box-shadow:0_0_0_5px_var(--v2-background-bg-base)] focus-visible:[&::-moz-range-thumb]:[box-shadow:0_0_0_5px_var(--v2-background-bg-base),0_0_0_7px_var(--v2-border-border-focus)]"
 const summaryClass =
-  "-ml-3 w-fit cursor-pointer rounded-full px-3 py-1.5 text-[13px] text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none"
+  "-ml-3 w-fit rounded-full px-3 py-1.5 text-[13px] text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base motion-reduce:transition-none"
 
 function ProjectList(props: {
   projects: ProjectRecord[]
@@ -629,13 +633,15 @@ function ProjectList(props: {
           when={!props.failed}
           fallback={
             <PageEmpty
+              error
+              title={props.language.t("secondBrain.state.error.title")}
               action={
                 <ButtonV2 variant="outline" onClick={props.retry}>
-                  {props.language.t("secondBrain.error.retry")}
+                  {props.language.t("secondBrain.state.retry")}
                 </ButtonV2>
               }
             >
-              {props.language.t("secondBrain.error.request")}
+              {props.language.t("secondBrain.state.error.body")}
             </PageEmpty>
           }
         >
@@ -647,7 +653,7 @@ function ProjectList(props: {
               <Icon name="workspace" size="small" />
             </span>
             <span class="min-w-0 flex-1">
-              <span class="block truncate text-[13px] text-v2-text-text-base [font-weight:530]">
+              <span class="block truncate text-[13px] text-v2-text-text-base [font-weight:500]">
                 {props.language.t("secondBrain.projects.overview.title")}
               </span>
               <span class="block truncate text-[12px] text-v2-text-text-faint">
@@ -684,7 +690,7 @@ function ProjectList(props: {
                     class="!size-8 [&_[data-slot=project-avatar-surface]]:!rounded-full [&_[data-slot=project-avatar-surface]]:!text-[13px]"
                   />
                   <span class="min-w-0 flex-1">
-                    <span class="block truncate text-[13px] text-v2-text-text-base [font-weight:530]">
+                    <span class="block truncate text-[13px] text-v2-text-text-base [font-weight:500]">
                       {project.name}
                     </span>
                     <span class="block truncate text-[12px] text-v2-text-text-faint">{project.outcome}</span>
@@ -936,7 +942,7 @@ function ProjectWork(props: {
       <Show when={props.project.instructions}>
         {(instructions) => (
           <section class="flex max-w-3xl flex-col gap-1">
-            <h2 class="text-[13px] text-v2-text-text-muted [font-weight:530]">
+            <h2 class="text-[13px] text-v2-text-text-muted [font-weight:500]">
               {props.language.t("secondBrain.projects.instructions")}
             </h2>
             <p class="whitespace-pre-wrap text-[13px] leading-5 text-v2-text-text-base">{instructions()}</p>

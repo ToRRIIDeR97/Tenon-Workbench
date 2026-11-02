@@ -3,6 +3,7 @@ import { Effect } from "effect"
 import fs from "fs/promises"
 import os from "os"
 import path from "path"
+import { HarnessRuntime } from "@tenon/core/harness"
 import { HarnessCatalogCache } from "@tenon/core/harness/catalog-cache"
 
 const temp = () => fs.mkdtemp(path.join(os.tmpdir(), "harness-catalog-"))
@@ -37,5 +38,18 @@ describe("harness catalog cache", () => {
     expect(await Effect.runPromise(HarnessCatalogCache.read(dir))).toEqual({
       [HarnessCatalogCache.id("codex:[]")]: { models: [model("gpt-5.5")], checked: 3 },
     })
+  })
+})
+
+describe("keepLevels", () => {
+  test("keeps known levels for models a session reports none for, and takes the session's own", () => {
+    const level = (id: string, efforts: string[]) => ({ ...model(id), reasoningEfforts: efforts })
+    const fresh = [model("a"), level("b", ["low"]), model("c")]
+    const known = [level("a", ["low", "high"]), level("b", ["high"])]
+    expect(HarnessRuntime.keepLevels(fresh, known).map((item) => [item.id, item.reasoningEfforts])).toEqual([
+      ["a", ["low", "high"]],
+      ["b", ["low"]],
+      ["c", []],
+    ])
   })
 })

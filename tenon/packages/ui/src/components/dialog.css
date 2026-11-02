@@ -38,13 +38,6 @@
       overflow: auto;
       pointer-events: auto;
 
-      /* Hide scrollbar */
-      scrollbar-width: none;
-      -ms-overflow-style: none;
-      &::-webkit-scrollbar {
-        display: none;
-      }
-
       /* padding: 8px; */
       /* padding: 8px 8px 0 8px; */
       border-radius: var(--radius-xl);
@@ -135,14 +128,15 @@
   }
 }
 
-/* Same timing as the v2 dialog: enter medium + emphasized-decelerate, exit short + emphasized-accelerate. */
+/* Same timing as the v2 dialog: enter medium + emphasized-decelerate, exit (the mirror of the enter) exit +
+   ease-exit, with the scrim on the same timing. */
 [data-component="dialog"] [data-slot="dialog-content"] {
   &[data-expanded] {
     animation: contentShow var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate);
   }
 
   &[data-closed] {
-    animation: contentHide var(--v2-duration-short) var(--v2-ease-emphasized-accelerate) forwards;
+    animation: contentHide var(--v2-duration-exit) var(--v2-ease-exit) forwards;
   }
 }
 
@@ -151,7 +145,7 @@
 }
 
 [data-component="dialog-overlay"][data-closed] {
-  animation: overlayHide var(--v2-duration-short) var(--v2-ease-emphasized-accelerate) forwards;
+  animation: overlayHide var(--v2-duration-exit) var(--v2-ease-exit) forwards;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -202,5 +196,5 @@
 
 /* Material 3 shape, shared with the v2 dialog. Show/hide motion is defined above. */
 [data-component="dialog"] [data-slot="dialog-container"] [data-slot="dialog-content"] {
-  border-radius: var(--v2-radius-xxl);
+  border-radius: var(--v2-radius-xl);
 }

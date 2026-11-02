@@ -94,7 +94,7 @@
     transform: none;
     background: transparent;
     color: var(--v2-icon-icon-muted);
-    cursor: pointer;
+    cursor: default;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -135,7 +135,7 @@
     white-space: nowrap;
     font-size: 13px;
     font-style: normal;
-    font-weight: 530;
+    font-weight: 500;
     line-height: 20px;
     letter-spacing: -0.04px;
     font-synthesis: none;
@@ -150,7 +150,7 @@
     word-break: break-word;
     font-size: 13px;
     font-style: normal;
-    font-weight: 440;
+    font-weight: 400;
     line-height: 20px;
     letter-spacing: -0.04px;
     font-synthesis: none;
@@ -173,7 +173,7 @@
     min-height: 24px;
     font-size: 13px;
     font-style: normal;
-    font-weight: 530;
+    font-weight: 500;
     line-height: 20px;
     letter-spacing: -0.04px;
     font-synthesis: none;
@@ -204,6 +204,17 @@
     min-width: 0;
     overflow: hidden;
   }
+}
+
+/* Exit: exit + ease-exit, fading as it slides 24px toward the screen edge (solid-sonner's own rule slides the
+   front toast by its full height). solid-sonner unmounts a removed toast after 200ms, the exit duration. */
+.toast-v2[data-sonner-toast][data-removed="true"] {
+  transition-duration: var(--v2-duration-exit);
+  transition-timing-function: var(--v2-ease-exit);
+}
+
+.toast-v2[data-sonner-toast][data-removed="true"][data-front="true"][data-swipe-out="false"] {
+  --y: translateY(calc(var(--lift) * -24px));
 }
 
 @media (prefers-reduced-motion: reduce) {

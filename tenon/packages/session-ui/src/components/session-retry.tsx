@@ -2,18 +2,21 @@ import { createEffect, createMemo, createSignal, on, onCleanup, Show } from "sol
 import type { SessionStatus } from "@opencode-ai/sdk/v2/client"
 import { useI18n } from "@tenon/ui/context/i18n"
 import { Card } from "@tenon/ui/card"
-import { Tooltip } from "@tenon/ui/tooltip"
+import { Reveal } from "@tenon/ui/v2/reveal"
+import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { Spinner } from "@tenon/ui/spinner"
 
 export function SessionRetry(props: { status: SessionStatus; show?: boolean }) {
   const i18n = useI18n()
-  const retry = createMemo(() => {
+  const live = createMemo(() => {
     if (props.status.type !== "retry") return
     return props.status
   })
+  // Keeps the last retry so the card keeps its text while it collapses.
+  const retry = createMemo<Extract<SessionStatus, { type: "retry" }> | undefined>((last) => live() ?? last)
   const [seconds, setSeconds] = createSignal(0)
   createEffect(
-    on(retry, (current) => {
+    on(live, (current) => {
       if (!current) return
       const update = () => {
         const next = retry()?.next
@@ -51,24 +54,24 @@ export function SessionRetry(props: { status: SessionStatus; show?: boolean }) {
   })
 
   return (
-    <Show when={retry() && (props.show ?? true)}>
-      <div data-slot="session-turn-retry" class="animate-enter">
+    <Reveal open={!!live() && (props.show ?? true)} variant="line">
+      <div data-slot="session-turn-retry">
         <Card variant="error" class="error-card">
           <div class="flex items-start gap-2">
             <Spinner class="size-4 mt-0.5" />
             <div class="min-w-0">
               <Show when={truncated()} fallback={<div data-slot="session-turn-retry-message">{message()}</div>}>
-                <Tooltip value={retry()?.message ?? ""} placement="top">
+                <TooltipV2 value={retry()?.message ?? ""} placement="top" contentClass="max-w-[320px] break-words">
                   <div data-slot="session-turn-retry-message" class="cursor-help truncate">
                     {message()}
                   </div>
-                </Tooltip>
+                </TooltipV2>
               </Show>
               <Show when={info()}>{(line) => <div data-slot="session-turn-retry-info">{line()}</div>}</Show>
             </div>
           </div>
         </Card>
       </div>
-    </Show>
+    </Reveal>
   )
 }

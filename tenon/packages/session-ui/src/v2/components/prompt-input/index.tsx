@@ -21,6 +21,7 @@ import type {
   PromptInputV2Option,
   PromptInputV2PersistedState,
   PromptInputV2Prompt,
+  PromptInputV2Quote,
   PromptInputV2Suggestion,
 } from "./types"
 import type { PromptInputV2Interaction, PromptInputV2SelectControl } from "./interaction"
@@ -45,6 +46,10 @@ export type PromptInputV2Props = {
   borderUnderlay?: boolean
   class?: string
   runtimeControl?: JSX.Element
+  /** A row inside the top of the box, above the text, for where the prompt runs (folder, worktree). */
+  headerControl?: JSX.Element
+  /** Accessible label of a quote chip's remove button. */
+  quoteRemoveLabel?: string
   /** Trailing toolbar slot next to the submit button (e.g. the prompt stash menu). */
   trailingControl?: JSX.Element
   modelControl?: JSX.Element
@@ -169,16 +174,28 @@ export function PromptInputV2(props: PromptInputV2Props) {
           </div>
         </Presence>
 
+        <Show when={props.headerControl}>
+          <div
+            data-slot="prompt-input-header"
+            class="flex h-10 min-w-0 items-center gap-0.5 border-b border-v2-border-border-muted pl-2.5 pr-2"
+          >
+            {props.headerControl}
+          </div>
+        </Show>
+
         <Show when={state.mode === "normal"}>
           <PromptInputV2Attachments
             attachments={props.controller.attachments()}
             comments={props.controller.comments()}
+            quotes={props.controller.quotes()}
+            quoteRemoveLabel={props.quoteRemoveLabel}
             activeCommentID={state.activeContextID}
             removeLabel={i18n.t("ui.promptInput.removeAttachment")}
             onAttachmentClick={props.controller.openAttachment}
             onAttachmentRemove={(attachment) => props.controller.removeAttachment(attachment.id)}
             onCommentClick={(comment) => props.controller.toggleContext(comment.key)}
             onCommentRemove={(comment) => props.controller.removeContext(comment.key)}
+            onQuoteRemove={(quote) => props.controller.removeContext(quote.key)}
           />
         </Show>
 
@@ -199,7 +216,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
             spellcheck={state.mode === "normal"}
             // @ts-expect-error
             autocomplete="off"
-            class="relative z-10 block min-h-[60px] max-h-[180px] w-full overflow-y-auto whitespace-pre-wrap bg-transparent px-5 pt-4 pb-2 text-[13px] font-[440] leading-5 text-v2-text-text-base focus:outline-none [&_[data-mention=file]]:text-syntax-property [&_[data-mention=agent]]:text-syntax-type [&_[data-mention=skill]]:text-syntax-type [&_[data-mention=reference]]:text-syntax-keyword"
+            class="relative z-10 block min-h-[60px] max-h-[180px] w-full overflow-y-auto whitespace-pre-wrap bg-transparent px-5 pt-4 pb-2 text-[13px] font-[400] leading-5 text-v2-text-text-base focus:outline-none [&_[data-mention=file]]:text-syntax-property [&_[data-mention=agent]]:text-syntax-type [&_[data-mention=skill]]:text-syntax-type [&_[data-mention=reference]]:text-syntax-keyword"
             classList={{ "font-mono!": state.mode === "shell", "opacity-50": props.disabled }}
             onInput={(event) => syncEditor(event.currentTarget)}
             // A thread reference switches between its summary and the full thread on click.
@@ -226,7 +243,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
           />
           <Show when={!props.controller.value()}>
             <div
-              class="pointer-events-none absolute inset-x-0 top-0 px-5 pt-4 text-[13px] font-[440] leading-5 text-v2-text-text-faint"
+              class="pointer-events-none absolute inset-x-0 top-0 px-5 pt-4 text-[13px] font-[400] leading-5 text-v2-text-text-faint"
               classList={{ "font-mono!": state.mode === "shell" }}
             >
               {view.placeholder?.() ??
@@ -444,19 +461,28 @@ function promptInputV2Cursor(editor: HTMLDivElement) {
 export function PromptInputV2Attachments(props: {
   attachments: PromptInputV2Attachment[]
   comments?: PromptInputV2Comment[]
+  quotes?: PromptInputV2Quote[]
+  quoteRemoveLabel?: string
   activeCommentID?: string
   removeLabel: string
   onAttachmentClick?: (attachment: PromptInputV2Attachment) => void
   onAttachmentRemove: (attachment: PromptInputV2Attachment) => void
   onCommentClick?: (comment: PromptInputV2Comment) => void
   onCommentRemove?: (comment: PromptInputV2Comment) => void
+  onQuoteRemove?: (quote: PromptInputV2Quote) => void
 }) {
   const i18n = useI18n()
-  const filled = () => props.attachments.length > 0 || (props.comments?.length ?? 0) > 0
+  const filled = () =>
+    props.attachments.length > 0 || (props.comments?.length ?? 0) > 0 || (props.quotes?.length ?? 0) > 0
   // The strip folds through Reveal once the last card goes, and keeps showing the last cards while it does.
-  const shown = createMemo<{ attachments: PromptInputV2Attachment[]; comments: PromptInputV2Comment[] }>(
-    (last) => (filled() ? { attachments: props.attachments, comments: props.comments ?? [] } : last),
-    { attachments: [], comments: [] },
+  const shown = createMemo<{
+    attachments: PromptInputV2Attachment[]
+    comments: PromptInputV2Comment[]
+    quotes: PromptInputV2Quote[]
+  }>(
+    (last) =>
+      filled() ? { attachments: props.attachments, comments: props.comments ?? [], quotes: props.quotes ?? [] } : last,
+    { attachments: [], comments: [], quotes: [] },
   )
   return (
     <Reveal open={filled()}>
@@ -465,15 +491,31 @@ export function PromptInputV2Attachments(props: {
           data-slot="prompt-attachments-scroll"
           class="flex flex-nowrap gap-2 overflow-x-auto no-scrollbar px-3.5 pt-3 pb-1"
         >
+          <For each={shown().quotes}>
+            {(quote) => (
+              <TooltipV2 value={quote.text} placement="top" contentClass="max-w-[360px] break-words" class="shrink-0">
+                <div
+                  data-slot="prompt-quote"
+                  class="flex h-8 max-w-[360px] items-center gap-2 rounded-full bg-v2-background-bg-accent-container pl-3 pr-1 text-[13px] text-v2-text-text-on-accent-container animate-enter"
+                >
+                  <IconV2 name="reply" class="shrink-0" />
+                  <span class="min-w-0 truncate">{`“${quote.text}”`}</span>
+                  <button
+                    type="button"
+                    onClick={() => props.onQuoteRemove?.(quote)}
+                    class="flex size-6 shrink-0 items-center justify-center rounded-full transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none"
+                    aria-label={props.quoteRemoveLabel ?? props.removeLabel}
+                  >
+                    <IconV2 name="outline-xmark" />
+                  </button>
+                </div>
+              </TooltipV2>
+            )}
+          </For>
           <For each={shown().comments}>
             {(comment) => (
               <div class="relative group shrink-0">
-                <TooltipV2
-                  value={comment.comment}
-                  placement="top"
-                  openDelay={800}
-                  contentClass="max-w-[300px] break-words"
-                >
+                <TooltipV2 value={comment.comment} placement="top" contentClass="max-w-[300px] break-words">
                   <CommentCardV2
                     comment={comment.comment ?? ""}
                     path={comment.path}
@@ -661,7 +703,7 @@ export function PromptInputV2Select(props: {
           as={ButtonV2}
           variant="ghost-muted"
           size="normal"
-          class={`prompt-input-responsive-select max-w-[220px] justify-start ![font-weight:440] ${props.class ?? ""}`}
+          class={`prompt-input-responsive-select max-w-[220px] justify-start ![font-weight:400] ${props.class ?? ""}`}
           data-control={props.control}
           disabled={props.disabled}
           aria-label={props.title}
@@ -735,7 +777,7 @@ export function PromptInputV2Popover(props: {
 }) {
   return (
     <div
-      class="absolute inset-x-0 -top-2 z-40 flex max-h-80 -translate-y-full flex-col overflow-auto rounded-[16px] bg-v2-background-bg-base p-2 shadow-[var(--v2-elevation-raised)] no-scrollbar"
+      class="absolute inset-x-0 -top-2 z-40 flex max-h-80 -translate-y-full flex-col overflow-auto rounded-[16px] bg-v2-background-bg-layer-01 p-2 shadow-[var(--v2-elevation-floating)]"
       onMouseDown={(event) => event.preventDefault()}
     >
       <Show when={props.search}>

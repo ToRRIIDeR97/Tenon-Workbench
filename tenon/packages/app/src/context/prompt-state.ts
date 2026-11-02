@@ -62,7 +62,14 @@ export type FileContextItem = {
   preview?: string
 }
 
-export type ContextItem = FileContextItem
+/** A passage the user selected in an assistant reply to answer. */
+export type QuoteContextItem = {
+  type: "quote"
+  text: string
+  messageID?: string
+}
+
+export type ContextItem = FileContextItem | QuoteContextItem
 export type PromptScope = { draftID: string } | { dir: string; id?: string }
 
 export const DEFAULT_PROMPT: Prompt = [{ type: "text", content: "", start: 0, end: 0 }]
@@ -140,7 +147,7 @@ function clonePrompt(prompt: Prompt): Prompt {
 }
 
 function contextItemKey(item: ContextItem) {
-  if (item.type !== "file") return item.type
+  if (item.type === "quote") return `quote:${(checksum(item.text) ?? item.text).slice(0, 12)}`
   const start = item.selection?.startLine
   const end = item.selection?.endLine
   const key = `${item.type}:${item.path}:${start}:${end}`

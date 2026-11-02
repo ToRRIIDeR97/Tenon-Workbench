@@ -3,6 +3,7 @@ import { useI18n } from "@tenon/ui/context/i18n"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
+import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { Component, createSignal, onMount, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { usePlatform } from "@/context/platform"
@@ -298,21 +299,26 @@ export const ErrorPage: Component<ErrorPageProps> = (props) => {
         </div>
         <div class="relative w-full rounded-[16px] bg-v2-background-bg-layer-01 shadow-[0_0_0_0.5px_var(--v2-border-border-muted)]">
           <pre
-            class="no-scrollbar max-h-96 overflow-auto whitespace-pre-wrap break-words p-4 pr-12 font-mono text-[12px] leading-5 text-v2-text-text-base select-text"
+            class="max-h-96 overflow-auto whitespace-pre-wrap break-words p-4 pr-12 font-mono text-[12px] leading-5 text-v2-text-text-base select-text"
             aria-label={language.t("error.page.details.label")}
             tabIndex={0}
           >
             {formattedError()}
           </pre>
-          <IconButtonV2
-            type="button"
-            variant="ghost-muted"
-            size="large"
+          <TooltipV2
+            placement="top"
             class="absolute right-2 top-2"
-            icon={<Icon name={copied() ? "check" : "outline-copy"} />}
-            onClick={() => void copyDetails()}
-            aria-label={i18n.t(copied() ? "ui.textField.copied" : "ui.textField.copyToClipboard")}
-          />
+            value={i18n.t(copied() ? "ui.textField.copied" : "ui.textField.copyToClipboard")}
+          >
+            <IconButtonV2
+              type="button"
+              variant="ghost-muted"
+              size="large"
+              icon={<Icon name={copied() ? "check" : "outline-copy"} />}
+              onClick={() => void copyDetails()}
+              aria-label={i18n.t(copied() ? "ui.textField.copied" : "ui.textField.copyToClipboard")}
+            />
+          </TooltipV2>
         </div>
         <div class="flex flex-row flex-wrap items-center justify-center gap-2">
           <ButtonV2 size="large" variant="contrast" onClick={platform.restart}>

@@ -2,12 +2,13 @@ import { useDialog } from "@tenon/ui/context/dialog"
 import { pagePanelClass } from "@/components/page"
 import { Icon as IconV2 } from "@tenon/ui/v2/icon"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
-import { Show, createMemo, createSignal, onCleanup, type Accessor } from "solid-js"
+import { Show, createMemo, createSignal, type Accessor } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Portal } from "solid-js/web"
 import createPresence from "solid-presence"
 import { PromptInputV2Composer } from "@/components/prompt-input-v2"
-import { PromptGitStatus, PromptWorkspaceSelector } from "@/components/prompt-workspace-selector"
+import { PromptBranchPicker, PromptWorktreeSwitch } from "@/components/prompt-workspace-selector"
+import { Greeting } from "./greeting"
 import {
   PromptProjectAddButton,
   PromptProjectSelector,
@@ -25,10 +26,6 @@ import type { NewSessionWorkspaceController } from "./new-session-workspace-cont
 import { Harness } from "@tenon/schema/harness"
 
 const providerTipDismissalDuration = 30 * 24 * 60 * 60 * 1000
-// Local, single-user app for now; replace with the signed-in profile name when there is one.
-const userName = "Nat"
-const greetingPrompts = [1, 2, 3, 4, 5] as const
-const greetingInterval = 6000
 
 export function NewSessionView(props: {
   input: NewSessionDraftController["input"]
@@ -41,32 +38,17 @@ export function NewSessionView(props: {
       <div data-component="session-new-design" class={`relative flex-1 min-h-0 overflow-hidden ${pagePanelClass}`}>
         <div class="absolute inset-0 flex items-center justify-center px-6 pb-[12vh]">
           <div class={NEW_SESSION_CONTENT_WIDTH}>
-            {/* The composer's own 0.5px border-muted edge vanishes on the dark panel; give it a 1px ring here. */}
-            <div class="flex flex-col gap-6 [&_[data-component=prompt-input-v2]]:shadow-[0_0_0_1px_var(--v2-border-border-base),0_8px_24px_-12px_rgb(0_0_0/0.18)]">
+            {/* The composer's own 0.5px border-muted edge vanishes on the dark panel; give it a 1px ring here. The
+                editor's height follows the window like the rest of the screen. */}
+            <div class="flex flex-col gap-[clamp(16px,3.2vh,40px)] [&_[data-component=prompt-input-v2]]:shadow-[0_0_0_1px_var(--v2-border-border-base),0_8px_24px_-12px_rgb(0_0_0/0.18)] [&_[data-component=prompt-input]]:min-h-[clamp(60px,9vh,112px)]">
               <Greeting />
-              <PromptInputV2Composer controller={props.input} harness={props.harness} />
-              <Show when={props.project.empty()}>
-                <PromptProjectAddButton controller={props.project} />
-              </Show>
-              <Show when={props.project.selected()}>
-                <div class="flex min-h-7 min-w-0 flex-col items-center justify-center gap-0 text-v2-text-text-faint sm:flex-row">
-                  <PromptProjectSelector controller={props.project} placement="bottom" />
-                  <Show
-                    when={props.workspace.bar.visible()}
-                    fallback={
-                      <PromptGitStatus branch={props.workspace.bar.branch()} noGit={!props.workspace.project.git()} />
-                    }
-                  >
-                    <PromptWorkspaceSelector
-                      value={props.workspace.selection.value()}
-                      projectRoot={props.workspace.project.root()}
-                      branch={props.workspace.bar.branch()}
-                      onChange={props.workspace.selection.set}
-                      onDone={props.input.restoreFocus}
-                    />
-                  </Show>
-                </div>
-              </Show>
+              <PromptInputV2Composer
+                controller={props.input}
+                harness={props.harness}
+                boxHeader={
+                  <WhereRow project={props.project} workspace={props.workspace} onDone={props.input.restoreFocus} />
+                }
+              />
             </div>
           </div>
         </div>
@@ -78,25 +60,34 @@ export function NewSessionView(props: {
   )
 }
 
-function Greeting() {
-  const language = useLanguage()
-  const [index, setIndex] = createSignal(Math.floor(Math.random() * greetingPrompts.length))
-  const timer = setInterval(() => setIndex((value) => (value + 1) % greetingPrompts.length), greetingInterval)
-  onCleanup(() => clearInterval(timer))
-
+/**
+ * Where the thread runs, inside the composer's top: the folder, its branch, and on the right the switch that
+ * starts the thread in a new worktree. Without a folder it offers to add one.
+ */
+function WhereRow(props: {
+  project: PromptProjectController
+  workspace: NewSessionWorkspaceController
+  onDone: () => void
+}) {
   return (
-    <div data-component="new-thread-greeting" class="flex flex-col items-center gap-1 text-center">
-      <p class="text-[14px] text-v2-text-text-faint">
-        {language.t("secondBrain.newThread.welcome", { name: userName })}
-      </p>
-      <Show when={greetingPrompts[index()]} keyed>
-        {(prompt) => (
-          <h1 class="animate-enter text-[28px] leading-9 tracking-[-0.4px] text-v2-text-text-base [font-weight:500]">
-            {language.t(`secondBrain.newThread.prompt.${prompt}`)}
-          </h1>
-        )}
+    <Show when={props.project.selected()} fallback={<PromptProjectAddButton controller={props.project} />}>
+      <PromptProjectSelector controller={props.project} placement="bottom-start" />
+      <IconV2 name="chevron-down" size="small" class="shrink-0 -rotate-90 text-v2-icon-icon-muted" />
+      <PromptBranchPicker
+        directory={props.workspace.project.root()}
+        branch={props.workspace.bar.branch()}
+        noGit={!props.workspace.project.git()}
+      />
+      <span class="flex-1" />
+      <Show when={props.workspace.bar.visible()}>
+        <PromptWorktreeSwitch
+          value={props.workspace.selection.value()}
+          projectRoot={props.workspace.project.root()}
+          onChange={props.workspace.selection.set}
+          onDone={props.onDone}
+        />
       </Show>
-    </div>
+    </Show>
   )
 }
 
@@ -158,7 +149,7 @@ function ProviderTip() {
         >
           <button
             type="button"
-            class="flex h-8 min-w-0 items-center rounded-full pl-3.5 pr-1.5 text-[13px] leading-none tracking-[-0.04px] text-v2-text-text-faint transition-[background-color,color] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none"
+            class="flex h-8 min-w-0 items-center rounded-full pl-3.5 pr-1.5 text-[13px] leading-5 tracking-[-0.04px] text-v2-text-text-faint transition-[background-color,color] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-muted motion-reduce:transition-none"
             onClick={openProviders}
           >
             <span class="truncate">{language.t("home.providerTip")}</span>
@@ -169,12 +160,11 @@ function ProviderTip() {
           <TooltipV2
             class="hover-reveal absolute left-full top-0 flex h-8 w-9 items-center justify-end delay-0 duration-0 group-hover/provider-tip:delay-[250ms] group-hover/provider-tip:duration-short group-hover/provider-tip:opacity-100 focus-within:delay-0 focus-within:duration-0 focus-within:opacity-100"
             placement="top"
-            openDelay={1000}
             value={language.t("common.dismiss")}
           >
             <button
               type="button"
-              class="flex size-8 items-center justify-center rounded-full text-v2-icon-icon-muted transition-[background-color,color] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-icon-icon-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none"
+              class="flex size-8 items-center justify-center rounded-full text-v2-icon-icon-muted transition-[background-color,color] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-icon-icon-base motion-reduce:transition-none"
               aria-label={language.t("common.dismiss")}
               onClick={() => setPersistedState("dismissedAt", Date.now())}
             >

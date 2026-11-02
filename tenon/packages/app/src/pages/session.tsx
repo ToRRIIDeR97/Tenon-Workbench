@@ -110,12 +110,8 @@ import { switchHarnessForServer } from "@/utils/server"
 import { Harness } from "@tenon/schema/harness"
 import { createSessionOwnership } from "./session/session-ownership"
 import { createSessionLineage } from "./session/session-lineage"
-import { pagePanelClass } from "@/components/page"
-import {
-  ComposerContextRing,
-  ComposerContextStrip,
-  createComposerContext,
-} from "@/components/prompt-input/context-strip"
+import { PageEmpty, pagePanelClass } from "@/components/page"
+import { ComposerContextRing, ComposerWhereRow, createComposerContext } from "@/components/prompt-input/context-strip"
 
 type ChangeMode = "git" | "branch" | "turn"
 type VcsMode = "git" | "branch"
@@ -219,7 +215,7 @@ function SessionErrorFallback(props: { error: unknown; sessionID?: string; serve
       <div class="flex-1 min-h-0 overflow-hidden">
         <div class="h-full px-6 pb-42 -mt-4 flex flex-col items-center justify-center text-center gap-4">
           <div class="flex flex-col items-center gap-2">
-            <div class="max-w-md text-[17px] text-v2-text-text-base [font-weight:560]">
+            <div class="max-w-md text-[17px] leading-6 text-v2-text-text-base [font-weight:600]">
               {language.t("session.error.notFound")}
             </div>
             <div class="max-w-md text-[13px] leading-5 text-v2-text-text-muted">
@@ -1297,7 +1293,7 @@ export default function Page() {
 
   const createGit = (input: { emptyClass: string }) => (
     <div class={input.emptyClass}>
-      <div class="text-[14px] text-v2-text-text-base [font-weight:530]">
+      <div class="text-[14px] text-v2-text-text-base [font-weight:500]">
         {language.t("session.review.noVcs.createGit.title")}
       </div>
       <ButtonV2 variant="contrast" size="large" disabled={gitMutation.isPending} onClick={initGit}>
@@ -1342,17 +1338,11 @@ export default function Page() {
   const reviewEmptyV2 = () => {
     if (reviewError())
       return (
-        <div role="alert" class="px-6 py-4 text-[13px] text-v2-state-fg-danger">
-          {language.t("common.requestFailed")}
-        </div>
+        <PageEmpty error title={language.t("secondBrain.state.error.title")}>
+          {language.t("secondBrain.state.error.body")}
+        </PageEmpty>
       )
-    if (!reviewReady()) {
-      return (
-        <div role="status" class="px-6 py-4 text-[13px] text-v2-text-text-muted">
-          {language.t("session.review.loadingChanges")}
-        </div>
-      )
-    }
+    if (!reviewReady()) return <PageEmpty loading title={language.t("session.review.loadingChanges")} />
     if (reviewMode() === "turn" && nogit()) {
       return <SessionReviewEmptyNoGitV2 pending={gitMutation.isPending} onInitGit={initGit} />
     }
@@ -2184,17 +2174,9 @@ export default function Page() {
                   controller={promptController}
                   harness={sessionHarness}
                   borderUnderlay
-                  header={
-                    <>
-                      <SessionRevertTray dock={controller.revert} />
-                      <ComposerContextStrip
-                        context={composerContext}
-                        attached={!!controller.revert()?.items.length}
-                        harness={sessionHarness}
-                      />
-                    </>
-                  }
-                  trailing={<ComposerContextRing context={composerContext} />}
+                  header={<SessionRevertTray dock={controller.revert} />}
+                  boxHeader={<ComposerWhereRow />}
+                  trailing={<ComposerContextRing context={composerContext} harness={sessionHarness} />}
                 />
               }
             />

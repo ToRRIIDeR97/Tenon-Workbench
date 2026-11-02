@@ -35,7 +35,7 @@
   transform-origin: var(--kb-tooltip-content-transform-origin);
 
   &[data-closed] {
-    animation: tooltipV2Out var(--v2-duration-short) var(--v2-ease-emphasized-accelerate) forwards;
+    animation: tooltipV2Out var(--v2-duration-exit-small) var(--v2-ease-exit) forwards;
   }
 }
 
@@ -70,4 +70,25 @@
 
 [data-component="tooltip-v2"] {
   border-radius: var(--v2-radius-sm);
+}
+
+[data-slot="tooltip-v2-path"] {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 320px;
+  min-width: 0;
+}
+
+[data-slot="tooltip-v2-path-name"] {
+  overflow-wrap: anywhere;
+}
+
+[data-slot="tooltip-v2-path-value"] {
+  font-family: var(--font-family-mono);
+  font-feature-settings: var(--font-family-mono--font-feature-settings);
+
+  color: var(--v2-text-text-muted);
+  overflow-wrap: anywhere;
+  white-space: normal;
 }

@@ -140,7 +140,8 @@ async function highlight(request: Extract<MarkdownWorkerRequest, { type: "highli
       type: "highlight",
       id: request.id,
       key: request.key,
-      language,
+      // The fence's own label, as for a complete block: a streaming ```svg must stay `svg` for svg-window.ts.
+      language: label,
       reset,
       stable: result.stable.filter((token) => token.content.length > 0).map(token),
       unstable: result.unstable.filter((token) => token.content.length > 0).map(token),

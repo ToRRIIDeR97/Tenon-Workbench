@@ -21,7 +21,7 @@ export function CalendarPeek(props: {
   return (
     <div class="flex flex-col gap-4 p-4 pl-5">
       <div class="flex items-center gap-1">
-        <span class="min-w-0 truncate rounded-full bg-v2-background-bg-base px-2.5 py-1 text-[11px] text-v2-text-text-muted [font-weight:530]">
+        <span class="min-w-0 truncate rounded-full bg-v2-background-bg-base px-2.5 py-1 text-[11px] text-v2-text-text-muted [font-weight:500]">
           {props.tag}
         </span>
         <span class="flex-1" />
@@ -48,7 +48,7 @@ export function CalendarPeek(props: {
       </div>
       <div class="flex items-start gap-3">
         <Show when={props.task}>{(task) => <TaskCheck task={task()} onToggle={props.onToggle} />}</Show>
-        <h2 class="min-w-0 break-words text-[20px] leading-[26px] text-v2-text-text-base [font-weight:560]">
+        <h2 class="min-w-0 break-words text-[20px] leading-[26px] text-v2-text-text-base [font-weight:600]">
           {props.title}
         </h2>
       </div>
@@ -94,7 +94,7 @@ export function TaskCheck(props: {
         checked={Boolean(props.task.completedAt)}
         aria-label={language.t("secondBrain.tasks.toggle", { title: props.task.title })}
         classList={{
-          "peer cursor-pointer appearance-none rounded-full border-[1.5px] border-v2-border-border-base transition-colors duration-short ease-standard checked:border-transparent checked:bg-v2-icon-icon-accent hover:border-v2-icon-icon-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none": true,
+          "peer appearance-none rounded-full border-[1.5px] border-v2-border-border-base transition-colors duration-short ease-standard checked:border-transparent checked:bg-v2-icon-icon-accent hover:border-v2-icon-icon-accent motion-reduce:transition-none": true,
           "size-5": !props.small,
           "size-4": props.small,
         }}

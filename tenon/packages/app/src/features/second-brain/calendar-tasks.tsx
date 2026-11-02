@@ -284,7 +284,10 @@ export function CalendarTasks(props: {
           </ButtonV2>
         </div>
         <div class="flex flex-col gap-0.5">
-          <Show when={visible().length > 0} fallback={<PageEmpty>{language.t("secondBrain.tasks.empty")}</PageEmpty>}>
+          <Show
+            when={visible().length > 0}
+            fallback={<PageEmpty class="!pt-8">{language.t("secondBrain.tasks.empty")}</PageEmpty>}
+          >
             <For each={visible()}>
               {(task) => (
                 <div
@@ -296,7 +299,7 @@ export function CalendarTasks(props: {
                   <TaskCheck task={task} onToggle={props.onToggle} />
                   <button
                     type="button"
-                    class="min-w-0 flex-1 cursor-pointer rounded-[8px] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus"
+                    class="min-w-0 flex-1 rounded-[8px] text-left focus-visible:outline-offset-[-2px]"
                     aria-pressed={state.peek === task.id}
                     onClick={() => setState({ peek: task.id, editing: false })}
                   >
@@ -382,7 +385,7 @@ export function CalendarTasks(props: {
             }}
           >
             <div class="flex items-center gap-2">
-              <h3 class="min-w-0 flex-1 text-[14px] text-v2-text-text-base [font-weight:530]">
+              <h3 class="min-w-0 flex-1 text-[14px] text-v2-text-text-base [font-weight:500]">
                 {state.draft.id ? language.t("secondBrain.tasks.edit") : language.t("secondBrain.tasks.new")}
               </h3>
               <TooltipV2 value={language.t("common.cancel")}>

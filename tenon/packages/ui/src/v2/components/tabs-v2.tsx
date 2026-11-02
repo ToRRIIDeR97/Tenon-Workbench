@@ -1,7 +1,8 @@
 import { Tabs as Kobalte } from "@kobalte/core/tabs"
-import { createSignal, onCleanup, onMount, Show, splitProps, type JSX } from "solid-js"
+import { createSignal, Show, splitProps, type JSX } from "solid-js"
 import type { ComponentProps, ParentProps, Component } from "solid-js"
 import { useI18n } from "../../context/i18n"
+import { createSlidingIndicator } from "./sliding-indicator"
 import "./tabs-v2.css"
 
 export interface TabsV2Props extends ComponentProps<typeof Kobalte> {
@@ -62,44 +63,17 @@ function TabsV2List(props: TabsV2ListProps) {
  * whether the indicator is placed; until then each selected tab draws its own highlight.
  */
 function createTabsIndicator(list: () => HTMLElement | undefined) {
-  const [placed, setPlaced] = createSignal(false)
-
-  onMount(() => {
-    const element = list()
-    const variant = element?.closest<HTMLElement>('[data-component="tabs-v2"]')?.dataset.variant
-    if (!element || (variant !== "pill" && variant !== "settings")) return
-    if (typeof MutationObserver === "undefined" || typeof ResizeObserver === "undefined") return
-
-    const measure = () => {
-      const wrapper = element.querySelector<HTMLElement>('[data-slot="tabs-v2-trigger"][data-selected]')?.parentElement
-      if (!wrapper || wrapper.offsetParent !== element) {
-        setPlaced(false)
-        return
-      }
-      element.style.setProperty("--tabs-v2-indicator-x", `${wrapper.offsetLeft}px`)
-      element.style.setProperty("--tabs-v2-indicator-y", `${wrapper.offsetTop}px`)
-      element.style.setProperty("--tabs-v2-indicator-width", `${wrapper.offsetWidth}px`)
-      element.style.setProperty("--tabs-v2-indicator-height", `${wrapper.offsetHeight}px`)
-      setPlaced(true)
-    }
-
-    const mutations = new MutationObserver(measure)
-    mutations.observe(element, {
-      subtree: true,
-      childList: true,
-      characterData: true,
-      attributeFilter: ["data-selected"],
-    })
-    const resize = new ResizeObserver(measure)
-    resize.observe(element)
-    measure()
-    onCleanup(() => {
-      mutations.disconnect()
-      resize.disconnect()
-    })
+  return createSlidingIndicator({
+    container: list,
+    target: (element) =>
+      element.querySelector<HTMLElement>('[data-slot="tabs-v2-trigger"][data-selected]')?.parentElement,
+    property: "--tabs-v2-indicator",
+    attributes: ["data-selected"],
+    enabled: (element) => {
+      const variant = element.closest<HTMLElement>('[data-component="tabs-v2"]')?.dataset.variant
+      return variant === "pill" || variant === "settings"
+    },
   })
-
-  return placed
 }
 
 function TabsV2Trigger(props: ParentProps<TabsV2TriggerProps>) {
@@ -180,6 +154,7 @@ function TabsV2Content(props: ParentProps<TabsV2ContentProps>) {
     <Kobalte.Content
       {...rest}
       data-slot="tabs-v2-content"
+      data-force-mount={props.forceMount ? "" : undefined}
       classList={{
         ...split.classList,
         [split.class ?? ""]: !!split.class,

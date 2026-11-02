@@ -20,7 +20,7 @@
   background-color: transparent;
   color: var(--v2-text-text-muted);
   text-align: start;
-  cursor: pointer;
+  cursor: default;
   scroll-margin-block: 8px;
   transition:
     background-color var(--v2-duration-short) var(--v2-ease-standard),
@@ -117,7 +117,7 @@
   width: 16px;
   height: 16px;
   font-size: 11px;
-  font-weight: 530;
+  font-weight: 500;
   line-height: 1;
   letter-spacing: -0.04px;
   text-align: center;

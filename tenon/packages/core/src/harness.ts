@@ -612,9 +612,13 @@ const layer = Layer.effect(
           continuation: session.sessionId,
         })
       }
-      // Each opened session reports the agent's current models; the picker shows them on its next check.
+      // Each opened session reports the agent's current models; the picker shows them on its next check. A
+      // session knows only the active model's levels, so the others keep what discovery found.
       if (session.models.length > 0) {
-        yield* setCatalog(instanceKey(instance), session.models)
+        yield* setCatalog(
+          instanceKey(instance),
+          keepLevels(session.models, catalogs.get(instanceKey(instance))?.models ?? []),
+        )
         probes.delete(instanceKey(instance))
       }
       return {
@@ -988,9 +992,8 @@ const layer = Layer.effect(
         HarnessUsage.isCommandCode(AcpHarness.decodeSettings(instance.config)?.command)
       )
         return HarnessUsage.readCommandCodeKey().pipe(
-          Effect.flatMap(
-            (key): Effect.Effect<HarnessUsage.Result, Error> =>
-              key ? HarnessUsage.fetchCommandCodeUsage(key) : Effect.succeed({ status: "signed-out", windows: [] }),
+          Effect.flatMap((key): Effect.Effect<HarnessUsage.Result, Error> =>
+            key ? HarnessUsage.fetchCommandCodeUsage(key) : Effect.succeed({ status: "signed-out", windows: [] }),
           ),
         )
       // OpenCode Go is a plan on an OpenCode key: the built-in agent reads the app's own keys, the OpenCode
@@ -1656,8 +1659,10 @@ export function parseCodexNotification(
       Object.entries(total).map(([key, value]) => [key, Math.max(0, value - (base[key] ?? 0))]),
     )
     const contextUsed = last ? (last.inputTokens ?? 0) + (last.outputTokens ?? 0) : undefined
-    state.usage = normalizeUsage(turn, number(tokenUsage?.modelContextWindow), contextUsed)
-    return []
+    const usage = normalizeUsage(turn, number(tokenUsage?.modelContextWindow), contextUsed)
+    state.usage = usage
+    // Sent now so the thread's context ring follows the turn; the step's settlement repeats it.
+    return usage && contextUsed !== undefined ? [LLMEvent.stepUsage({ usage })] : []
   }
   if (notification.method === "error") {
     if (params.willRetry === true) return []
@@ -1871,6 +1876,19 @@ function permissionSource(input: StreamInput, callID: string | undefined) {
 }
 
 type Catalog = { readonly models: ReadonlyArray<Harness.Model>; readonly checked: number }
+
+/** A fresh model list with the reasoning levels and speeds of `known` kept for models it reports none for. */
+export function keepLevels(fresh: ReadonlyArray<Harness.Model>, known: ReadonlyArray<Harness.Model>) {
+  const byID = new Map(known.map((model) => [model.id, model]))
+  return fresh.map((model) => {
+    const previous = byID.get(model.id)
+    if (!previous) return model
+    const reasoningEfforts = model.reasoningEfforts.length ? model.reasoningEfforts : previous.reasoningEfforts
+    const serviceTiers = model.serviceTiers.length ? model.serviceTiers : previous.serviceTiers
+    if (reasoningEfforts === model.reasoningEfforts && serviceTiers === model.serviceTiers) return model
+    return Harness.Model.make({ ...model, reasoningEfforts, serviceTiers })
+  })
+}
 type ProbeEntry = { readonly expires: number; readonly instance: Harness.Instance }
 type Probe = (
   known: ReadonlyArray<Harness.Model> | undefined,

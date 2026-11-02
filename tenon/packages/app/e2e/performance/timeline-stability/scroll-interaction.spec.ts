@@ -34,7 +34,7 @@ test("does not reverse visible rows when the user wheels during shell remeasurem
   })
   const scroller = page.locator(".scroll-view__viewport", { has: page.locator("[data-timeline-row]") })
   const regions = defineVisualRegions({
-    shell: { selector: `[data-timeline-part-id="${shellID}"]`, closest: '[data-timeline-row="AssistantPart"]' },
+    shell: { selector: `[data-timeline-part-id="${shellID}"]`, closest: '[data-timeline-row="TurnSteps"]' },
     following: { selector: `[data-timeline-part-id="${followingID}"]`, closest: '[data-timeline-row="AssistantPart"]' },
   })
   await startVisualProbe(page, regions)
@@ -143,8 +143,9 @@ test("tracks keyboard scrolling from a focused timeline descendant", async ({ pa
     reducedMotion: true,
   })
   const scroller = page.locator(".scroll-view__viewport", { has: page.locator("[data-timeline-row]") })
-  const row = page.locator(`[data-timeline-part-id="${shellID}"]`).first()
-  const trigger = page.locator(`[data-timeline-part-id="${shellID}"] [data-slot="collapsible-trigger"]`)
+  // The shell is a step in the Worked card (opened by the fixture); its row button opens the output below it.
+  const row = page.locator(`[data-timeline-part-id="${shellID}"]`)
+  const trigger = row.locator('[data-slot="turn-steps-row"]')
   await row.evaluate((element) => element.setAttribute("tabindex", "0"))
   await row.focus()
   for (let index = 0; index < 3; index++) {
@@ -179,7 +180,8 @@ test("tracks keyboard scrolling from a focused timeline descendant", async ({ pa
     anchor: { selector: `[data-timeline-key="${anchor}"]` },
   })
   await startVisualProbe(page, regions)
-  await trigger.click()
+  // The step sits below the fold after the PageUps; a pointer click would first scroll it into view.
+  await trigger.dispatchEvent("click")
   await page.waitForTimeout(300)
   const trace = await stopVisualProbe<keyof typeof regions>(page)
   await reportVisualStability(testInfo, "descendant-keyboard-resize", trace, anchorPlan(regions))
@@ -196,6 +198,8 @@ test("does not claim keyboard scrolling owned by a nested scrollable", async ({ 
   })
   const scroller = page.locator(".scroll-view__viewport", { has: page.locator("[data-timeline-row]") })
   const nested = page.locator(`[data-timeline-part-id="${shellID}"] [data-scrollable]`)
+  // The fixture opens the Worked card; the setting opens the shell step's output.
+  await expect(nested).toBeVisible()
   await nested.evaluate((element) => (element.scrollTop = element.scrollHeight))
   await nested.focus()
   await page.waitForFunction(() => {
@@ -251,7 +255,7 @@ test("jump to latest lands on stable final rows after offscreen growth", async (
   )
   await timeline.send(partUpdated(shell(shellID, "running", lines(50))), 300)
   const regions = defineVisualRegions({
-    shell: { selector: `[data-timeline-part-id="${shellID}"]`, closest: '[data-timeline-row="AssistantPart"]' },
+    shell: { selector: `[data-timeline-part-id="${shellID}"]`, closest: '[data-timeline-row="TurnSteps"]' },
     following: { selector: `[data-timeline-part-id="${followingID}"]`, closest: '[data-timeline-row="AssistantPart"]' },
   })
   await startVisualProbe(page, regions)
@@ -290,11 +294,12 @@ test("handles a single row taller than the viewport", async ({ page }, testInfo)
     seedHistory: true,
   })
   const regions = defineVisualRegions({
-    shell: { selector: `[data-timeline-part-id="${shellID}"]`, closest: '[data-timeline-row="AssistantPart"]' },
+    shell: { selector: `[data-timeline-part-id="${shellID}"]`, closest: '[data-timeline-row="TurnSteps"]' },
     following: { selector: `[data-timeline-part-id="${followingID}"]`, closest: '[data-timeline-row="AssistantPart"]' },
   })
   await startVisualProbe(page, regions)
-  await timeline.send(partUpdated(shell(shellID, "completed", lines(100))), 700)
+  // Still running, so its card stays open: a finished step before text would fold the card by design.
+  await timeline.send(partUpdated(shell(shellID, "running", lines(100))), 700)
   const trace = await stopVisualProbe<keyof typeof regions>(page)
   await reportVisualStability(
     testInfo,

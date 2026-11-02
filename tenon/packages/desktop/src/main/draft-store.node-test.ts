@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
-import { mkdtempSync, rmSync, statSync } from "node:fs"
+import { existsSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { DatabaseSync } from "node:sqlite"
@@ -100,5 +100,20 @@ void test("keeps the draft files readable by the owner only", { skip: process.pl
   store.flush()
   for (const file of [filename, `${filename}-wal`]) assert.equal(statSync(file).mode & 0o777, 0o600)
   store.close()
+  rmSync(dir, { recursive: true, force: true })
+})
+
+void test("moves a damaged store aside and starts empty", () => {
+  const dir = mkdtempSync(join(tmpdir(), "draft-store-"))
+  const filename = join(dir, "drafts.sqlite")
+  writeFileSync(filename, "not a database ".repeat(400))
+  const moved: string[] = []
+  const store = createDesktopDraftStore(filename, undefined, (aside) => moved.push(aside))
+  store.set("prompt", "fresh")
+  store.flush()
+  assert.equal(store.get("prompt"), "fresh")
+  store.close()
+  assert.equal(moved.length, 1)
+  assert.ok(existsSync(moved[0]))
   rmSync(dir, { recursive: true, force: true })
 })

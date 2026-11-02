@@ -372,6 +372,50 @@ export async function listHarnessUsage(input: HarnessServer, directory: string) 
   return decodeUsage(await harnessSettingsRequest(input, directory, "/usage")).data
 }
 
+/** The folder's local git branches by name; empty outside git. */
+export async function listBranches(input: HarnessServer, directory: string) {
+  const body = await instanceRequest(input, directory, "/vcs/branches", "Couldn't list branches")
+  return Array.isArray(body) ? body.filter((item): item is string => typeof item === "string") : []
+}
+
+/** Switches the folder to a local branch; git refuses when local changes would be lost, and the error says so. */
+export async function switchBranch(input: HarnessServer, directory: string, branch: string) {
+  await instanceRequest(input, directory, "/vcs/branch", "Couldn't switch branch", {
+    method: "POST",
+    body: JSON.stringify({ branch }),
+  })
+}
+
+// Instance routes resolve the folder from the `x-opencode-directory` header; their errors carry `data.message`.
+async function instanceRequest(
+  input: HarnessServer,
+  directory: string,
+  route: string,
+  failure: string,
+  init?: RequestInit,
+) {
+  const headers = new Headers(init?.headers)
+  headers.set("x-opencode-directory", encodeURIComponent(directory))
+  if (init?.body !== undefined) headers.set("content-type", "application/json")
+  if (input.server.password)
+    headers.set(
+      "Authorization",
+      `Basic ${authTokenFromCredentials({ username: input.server.username, password: input.server.password })}`,
+    )
+  const response = await (input.fetch ?? globalThis.fetch)(`${input.server.url.replace(/\/+$/, "")}${route}`, {
+    ...init,
+    headers,
+  })
+  const body: unknown = await response.json().catch(() => undefined)
+  if (response.ok) return body
+  const data = typeof body === "object" && body !== null && "data" in body ? body.data : undefined
+  const message =
+    typeof data === "object" && data !== null && "message" in data && typeof data.message === "string"
+      ? data.message
+      : `${failure} (${response.status}).`
+  throw new Error(message)
+}
+
 export async function upgradeHarness(input: HarnessServer, directory: string, id: string) {
   return decodeUpdate(
     await harnessSettingsRequest(input, directory, `/upgrade/${encodeURIComponent(id)}`, { method: "POST" }),

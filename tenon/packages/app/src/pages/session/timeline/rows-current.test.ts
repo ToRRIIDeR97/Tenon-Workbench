@@ -227,7 +227,7 @@ describe("current session timeline rows", () => {
     ])
   })
 
-  test("puts one steps header before a turn's first tool or reasoning group and leaves text unmarked", () => {
+  test("starts a steps card at each run of tool or reasoning groups and leaves text unmarked", () => {
     const user = { id: "msg_u", sessionID: "ses_1", role: "user", time: { created: 1 } } as UserMessage
     const assistant = { id: "msg_a", sessionID: "ses_1", role: "assistant", time: { created: 2 } } as AssistantMessage
     const parts = [
@@ -261,14 +261,24 @@ describe("current session timeline rows", () => {
       "turn-steps:msg_u:0",
       "assistant-part:msg_u:part:msg_a:t1",
       "assistant-part:msg_u:part:msg_a:x2",
+      "turn-steps:msg_u:1",
       "assistant-part:msg_u:context:t2",
     ])
     expect(rows.flatMap((row) => (row._tag === "AssistantPart" && row.step ? [row.group.key] : []))).toEqual([
       "part:msg_a:t1",
       "context:t2",
     ])
-    const header = rows.find((row) => row._tag === "TurnSteps")
-    expect(header?._tag === "TurnSteps" ? header.steps.map((ref) => ref.partID) : []).toEqual(["t1", "t2"])
-    expect(header?._tag === "TurnSteps" && header.failed).toBe(true)
+    const cards = rows.flatMap((row) => (row._tag === "TurnSteps" ? [row] : []))
+    expect(cards.map((card) => card.steps.map((ref) => ref.partID))).toEqual([["t1"], ["t2"]])
+    // The update after the first run settles it; the last run stays open while the turn works.
+    expect(cards.map((card) => [card.failed, card.settled])).toEqual([
+      [true, true],
+      [false, false],
+    ])
+
+    // A step still running keeps its card open even after text follows it.
+    const running = parts.map((part) => (part.id === "t1" ? { ...part, state: { status: "running" } } : part)) as Part[]
+    const live = Timeline.constructMessageRows(user, () => running, [assistant], 0, true, "idle", true, true)
+    expect(live.flatMap((row) => (row._tag === "TurnSteps" ? [row.settled] : []))).toEqual([false, false])
   })
 })

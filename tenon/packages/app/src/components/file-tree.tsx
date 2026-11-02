@@ -92,7 +92,7 @@ const buildDragImage = (target: HTMLElement) => {
 
   const image = document.createElement("div")
   image.className =
-    "flex items-center gap-x-2 h-8 px-3 rounded-full bg-v2-background-bg-layer-02 text-[12.5px] text-v2-text-text-base"
+    "flex items-center gap-x-2 h-8 px-3 rounded-full bg-v2-background-bg-layer-02 text-[13px] text-v2-text-text-base"
   image.style.position = "absolute"
   image.style.top = "-1000px"
   image.innerHTML = (icon as SVGElement).outerHTML + (text as HTMLSpanElement).outerHTML
@@ -147,7 +147,7 @@ const FileTreeNode = (
     <Dynamic
       component={local.as ?? "div"}
       classList={{
-        "w-full min-w-0 h-8 flex items-center justify-start gap-x-2 rounded-full px-2.5 py-0 text-start cursor-pointer transition-[background-color,border-radius] duration-short ease-standard active:rounded-[12px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none": true,
+        "w-full min-w-0 h-8 flex items-center justify-start gap-x-2 rounded-full px-2.5 py-0 text-start transition-[background-color,border-radius] duration-short ease-standard active:rounded-[12px] focus-visible:outline-offset-[-2px] motion-reduce:transition-none": true,
         "hover:bg-v2-overlay-simple-overlay-hover": !selected(),
         "bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container": selected(),
         ...local.classList,
@@ -168,7 +168,7 @@ const FileTreeNode = (
       {local.children}
       <span
         classList={{
-          "flex-1 min-w-0 text-[12.5px] [font-weight:500] whitespace-nowrap truncate": true,
+          "flex-1 min-w-0 text-[13px] [font-weight:500] whitespace-nowrap truncate": true,
           "text-v2-text-text-faint": local.node.ignored,
           "text-v2-text-text-muted": !local.node.ignored && !active() && !selected(),
         }}
@@ -437,7 +437,7 @@ export default function FileTree(props: {
                     />
                     <Show
                       when={level < MAX_DEPTH && !chain.includes(key(node.path))}
-                      fallback={<div class="px-3 py-1 text-[12.5px] text-v2-text-text-muted">...</div>}
+                      fallback={<div class="px-3 py-1 text-[13px] text-v2-text-text-muted">...</div>}
                     >
                       <FileTree
                         path={node.path}

@@ -81,7 +81,6 @@ const ModelList: Component<{
           class="w-full"
           placement="right-start"
           gutter={12}
-          openDelay={0}
           value={<ModelTooltip model={item} latest={item.latest} free={isFree(item.provider.id, item.cost)} />}
         >
           {node}
@@ -301,7 +300,7 @@ function ModelSelectorPopoverV2View(props: {
       <MenuV2.Portal>
         <MenuV2.Content
           ref={(element: HTMLDivElement) => (contentRef = element)}
-          class={`w-[300px] overflow-hidden !rounded-[24px] border-0 bg-v2-background-bg-layer-01 !p-0 shadow-[var(--v2-elevation-floating)] focus:outline-none ${menuItemsClass}`}
+          class={`w-[300px] overflow-hidden !rounded-[16px] border-0 bg-v2-background-bg-layer-01 !p-0 shadow-[var(--v2-elevation-floating)] focus:outline-none ${menuItemsClass}`}
           onPointerDownOutside={dismiss.preventTriggerRestore}
           onFocusOutside={dismiss.preventTriggerRestore}
           onCloseAutoFocus={dismiss.onCloseAutoFocus}
@@ -348,15 +347,17 @@ function ModelSelectorPopoverV2View(props: {
                 }}
               />
               <Show when={store.search.trim()}>
-                <button
-                  type="button"
-                  class="absolute right-2 flex size-6 items-center justify-center rounded-full text-v2-icon-icon-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover"
-                  onPointerDown={(event) => event.preventDefault()}
-                  onClick={() => setSearch("")}
-                  aria-label={language.t("common.clear")}
-                >
-                  <Icon name="close" size="small" />
-                </button>
+                <TooltipV2 class="absolute right-2" value={language.t("common.clear")}>
+                  <button
+                    type="button"
+                    class="flex size-6 items-center justify-center rounded-full text-v2-icon-icon-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover"
+                    onPointerDown={(event) => event.preventDefault()}
+                    onClick={() => setSearch("")}
+                    aria-label={language.t("common.clear")}
+                  >
+                    <Icon name="close" size="small" />
+                  </button>
+                </TooltipV2>
               </Show>
             </div>
           </div>
@@ -369,7 +370,7 @@ function ModelSelectorPopoverV2View(props: {
               <Show
                 when={models().length > 0}
                 fallback={
-                  <div class="flex h-12 items-center px-3 text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-faint">
+                  <div class="flex h-12 items-center px-3 text-[13px] font-[400] leading-5 tracking-[-0.04px] text-v2-text-text-faint">
                     {language.t("dialog.model.empty")}
                   </div>
                 }
@@ -392,7 +393,6 @@ function ModelSelectorPopoverV2View(props: {
                                   class="w-full"
                                   placement="right-start"
                                   gutter={6}
-                                  openDelay={0}
                                   value={
                                     <ModelTooltip
                                       model={item}

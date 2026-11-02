@@ -52,7 +52,7 @@
     }
 
     &[data-clickable] {
-      cursor: pointer;
+      cursor: default;
     }
 
     &[data-type="image"] {
@@ -354,12 +354,6 @@
     height: auto;
     max-height: 240px;
     overflow-y: auto;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-
-    &::-webkit-scrollbar {
-      display: none;
-    }
 
     [data-component="markdown"] {
       overflow: visible;
@@ -396,11 +390,6 @@
     overflow-y: auto;
     overflow-x: hidden;
     max-height: 240px;
-
-    scrollbar-width: none;
-    &::-webkit-scrollbar {
-      display: none;
-    }
   }
 
   [data-slot="bash-pre"] {
@@ -642,7 +631,7 @@
 
   [data-slot="collapsible-arrow"] {
     color: var(--v2-icon-icon-muted);
-    cursor: pointer;
+    cursor: default;
   }
 }
 
@@ -799,12 +788,6 @@
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-
-    &::-webkit-scrollbar {
-      display: none;
-    }
 
     code {
       font-size: 14px;
@@ -891,7 +874,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    cursor: pointer;
+    cursor: default;
     touch-action: manipulation;
 
     &::after {
@@ -956,12 +939,6 @@
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-
-    &::-webkit-scrollbar {
-      display: none;
-    }
   }
 
   [data-slot="question-option"] {
@@ -975,7 +952,7 @@
     box-shadow: none;
     text-align: left;
     width: 100%;
-    cursor: pointer;
+    cursor: default;
     transition: background-color var(--v2-duration-short) var(--v2-ease-standard);
 
     &:hover:not([data-picked="true"]) {
@@ -1157,7 +1134,7 @@
     background: transparent;
     color: var(--v2-text-text-base);
     text-align: left;
-    cursor: pointer;
+    cursor: default;
     touch-action: manipulation;
 
     &:disabled {
@@ -1372,7 +1349,7 @@
 }
 
 body[data-new-layout] [data-component="user-message"] {
-  font-weight: 440;
+  font-weight: 400;
 
   [data-slot="user-message-text"] {
     background: var(--v2-background-bg-layer-01);
@@ -1398,9 +1375,9 @@ body[data-new-layout] [data-component="user-message"] {
 
     [data-component="button-v2"] {
       font-family: var(--v2-font-family-sans, "Inter", sans-serif);
-      font-weight: 530;
+      font-weight: 500;
       font-variation-settings:
-        "wght" 530,
+        "wght" 500,
         "slnt" 0;
     }
   }

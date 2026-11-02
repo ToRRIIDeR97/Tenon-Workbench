@@ -2,9 +2,13 @@ import { Tooltip as KobalteTooltip } from "@kobalte/core/tooltip"
 import { createEffect, Match, onCleanup, splitProps, Switch, type JSX } from "solid-js"
 import type { ComponentProps } from "solid-js"
 import { createStore } from "solid-js/store"
+import { tooltipOpenDelay } from "./tooltip-delay"
 import "./tooltip-v2.css"
 
-export interface TooltipV2Props extends ComponentProps<typeof KobalteTooltip> {
+// Shared by every TooltipV2 so moving between triggers right after one closes skips the delay.
+let lastClosedAt: number | undefined
+
+export interface TooltipV2Props extends Omit<ComponentProps<typeof KobalteTooltip>, "openDelay" | "skipDelayDuration"> {
   value: JSX.Element
   class?: string
   contentClass?: string
@@ -31,7 +35,12 @@ export function TooltipV2(props: TooltipV2Props) {
     "value",
   ])
 
-  const close = () => setState("open", false)
+  const setOpen = (open: boolean) => {
+    if (!open && state.open) lastClosedAt = Date.now()
+    setState("open", open)
+  }
+
+  const close = () => setOpen(false)
 
   const inside = () => {
     const active = document.activeElement
@@ -88,9 +97,10 @@ export function TooltipV2(props: TooltipV2Props) {
       <Match when={true}>
         <KobalteTooltip
           gutter={4}
-          openDelay={400}
-          skipDelayDuration={300}
           {...others}
+          // Read when the pointer enters, so the skip window is checked at that moment.
+          openDelay={tooltipOpenDelay(lastClosedAt, Date.now())}
+          skipDelayDuration={0}
           closeDelay={0}
           ignoreSafeArea={local.ignoreSafeArea ?? true}
           open={local.forceOpen || state.open}
@@ -101,7 +111,7 @@ export function TooltipV2(props: TooltipV2Props) {
               justClickedTrigger = false
               return
             }
-            setState("open", open)
+            setOpen(open)
           }}
         >
           <KobalteTooltip.Trigger
@@ -143,5 +153,26 @@ export function TooltipV2(props: TooltipV2Props) {
         </KobalteTooltip>
       </Match>
     </Switch>
+  )
+}
+
+export interface PathTooltipProps extends Omit<TooltipV2Props, "value"> {
+  name: JSX.Element
+  path: string
+}
+
+// Name on the first line, the full path below it in muted monospace.
+export function PathTooltip(props: PathTooltipProps) {
+  const [local, others] = splitProps(props, ["name", "path"])
+  return (
+    <TooltipV2
+      {...others}
+      value={
+        <div data-slot="tooltip-v2-path">
+          <span data-slot="tooltip-v2-path-name">{local.name}</span>
+          <span data-slot="tooltip-v2-path-value">{local.path}</span>
+        </div>
+      }
+    />
   )
 }

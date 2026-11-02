@@ -1,8 +1,9 @@
-import { For, Index, Show, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js"
+import { For, Index, Show, createEffect, createMemo, createSignal, on, onCleanup, untrack } from "solid-js"
 import { createStore } from "solid-js/store"
 import type { Part, ReasoningPart, ToolPart } from "@opencode-ai/sdk/v2"
 import { Icon } from "@tenon/ui/v2/icon"
 import { LoaderV2 } from "@tenon/ui/v2/loader-v2"
+import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { ScrollView } from "@tenon/ui/scroll-view"
 import { TextShimmer } from "@tenon/ui/text-shimmer"
 import { Icon as StepIcon } from "@tenon/ui/icon"
@@ -18,6 +19,11 @@ import {
 import { readPartText } from "@tenon/session-ui/message-part-text"
 import { useData } from "@tenon/session-ui/context"
 import { useLanguage } from "@/context/language"
+import { useSettings } from "@/context/settings"
+import { DiffChanges } from "@tenon/ui/diff-changes"
+import { useFileComponent } from "@tenon/ui/context/file"
+import { Dynamic } from "solid-js/web"
+import { editDiffs } from "./step-diff"
 import "./turn-steps-summary.css"
 
 // Fixed order so the phrase list doesn't reshuffle while a turn streams.
@@ -51,6 +57,30 @@ function stepCountPhrase(language: ReturnType<typeof useLanguage>, kind: StepKin
   return language.plural(`secondBrain.turnSteps.${kind}`, count, { count: count.toLocaleString(language.intl()) })
 }
 
+/**
+ * When a card's steps began and, once every step has finished, when the last one ended. A card after an update
+ * to the user times its own steps instead of the whole turn.
+ */
+export function stepsSpan(parts: readonly Part[]) {
+  const times = parts.flatMap((part) => {
+    if (part.type === "reasoning") return part.time ? [{ start: part.time.start, end: part.time.end }] : []
+    if (part.type !== "tool" || part.state.status === "pending") return []
+    const time = part.state.time as { start: number; end?: number }
+    return [{ start: time.start, end: time.end }]
+  })
+  if (times.length === 0) return undefined
+  const start = Math.min(...times.map((time) => time.start))
+  const ends = times.map((time) => time.end)
+  const end = ends.every((value): value is number => value !== undefined) ? Math.max(...ends) : undefined
+  return { start, end }
+}
+
+/** How long the open card takes to fold, from its height: 300 ms for a few rows, up to 700 ms for a long list. */
+export function foldDuration(height: number) {
+  return Math.round(Math.min(700, Math.max(300, 220 + height * 0.5)))
+}
+
+const GROUPED = new Set<StepKind>(["read", "search", "edit", "run", "fetch"])
 const isRunning = (part: ToolPart) => part.state.status === "pending" || part.state.status === "running"
 const isSubagent = (part: ToolPart) => stepOf(part).kind === "subagent"
 // Paths, patterns, commands and URLs read as code; a question or an agent's task reads as prose.
@@ -143,10 +173,17 @@ function scrollParent(element: Element) {
 export function toolDetail(part: ToolPart) {
   const state = part.state
   if (state.status === "error") return state.error
-  if (state.status !== "completed") return undefined
+  // A running command streams its output through metadata, so an open row shows it live.
+  const raw =
+    state.status === "completed"
+      ? state.output
+      : state.status === "running" && typeof state.metadata?.output === "string"
+        ? state.metadata.output
+        : undefined
+  if (raw === undefined) return undefined
   // Escape sequences from terminals; the row is plain text.
   // oxlint-disable-next-line no-control-regex
-  const output = (state.output ?? "")
+  const output = raw
     .replace(/\u001b\[[0-9;]*[A-Za-z]/g, "")
     .trim()
     .slice(0, 20_000)
@@ -208,12 +245,22 @@ export function TurnStepsSummary(props: {
   onResize?: () => void
   /** Opens a harness subagent's tab; its lanes become buttons when this is set. */
   onOpenSubagent?: (part: ToolPart) => void
+  /**
+   * "grouped" (default) is one card whose same-kind steps merge into one row. "rows" lists each step as its own
+   * line straight in the thread while the card works, the current one highlighted, then folds into the card.
+   */
+  layout?: "grouped" | "rows"
 }) {
   const language = useLanguage()
+  const settings = useSettings()
   const summary = createMemo(() => summarizeTurn(props.parts))
   const counts = createMemo(() => stepCounts(summary().counts))
-  const live = () => props.working && !props.open
+  // Working in the "rows" layout there is no card: no header, and the steps always show.
+  const transcript = () => props.layout === "rows" && props.working
+  const shown = () => transcript() || props.open
+  const live = () => props.working && !shown()
   const data = useData()
+  const fileComponent = useFileComponent()
   // A new value whenever the step or the reasoning topic changes, so the keyed ticker slides the new line in.
   const ticker = createMemo(
     () => {
@@ -229,26 +276,44 @@ export function TurnStepsSummary(props: {
   const lanes = createMemo(() => (live() ? subagentLanes(props.parts) : []))
   // The body's rows mount on first open and stay, so closing animates instead of emptying at once.
   const [body, setBody] = createStore({
-    mounted: props.open,
+    mounted: shown(),
     // Set once the card opens while on screen: the timeline remounts rows on scroll, and an open card coming back
     // into view shouldn't replay its entrance.
     animate: false,
     expanded: {} as Record<string, boolean>,
     seen: {} as Record<string, boolean>,
   })
+  let bodyEl: HTMLDivElement | undefined
   createEffect(
     on(
-      () => props.open,
+      () => shown(),
       (open, previous) => {
         if (open) setBody("mounted", true)
         if (open && previous === false) setBody("animate", true)
+        // A taller card takes longer to fold, so a long list doesn't snap shut. Set before the frame paints, so the
+        // transition that starts from this change already uses it.
+        const rows = bodyEl?.querySelector<HTMLElement>('[data-slot="turn-steps-rows"]')
+        if (!open && previous && rows)
+          bodyEl?.style.setProperty("--turn-steps-close", `${foldDuration(rows.scrollHeight)}ms`)
       },
     ),
   )
-  const toggle = (id: string, anchor: Element) => {
+  // Rows built a frame or more after the body mounted are steps that just arrived, and slide in. Rows built with the
+  // body (its first open, or the timeline remounting the card on scroll) don't, so nothing replays.
+  const [arriving, setArriving] = createSignal(false)
+  createEffect(() => {
+    if (!body.mounted) return
+    const frame = requestAnimationFrame(() => setArriving(true))
+    onCleanup(() => cancelAnimationFrame(frame))
+  })
+  const fresh = () => (untrack(arriving) ? "" : undefined)
+  const toggle = (id: string, anchor: Element, open = !!body.expanded[id]) => {
     props.onResize?.()
     keepInPlace(anchor)
-    if (body.seen[id]) return setBody("expanded", id, (value) => !value)
+    if (body.seen[id] || open) {
+      setBody("seen", id, true)
+      return setBody("expanded", id, !open)
+    }
     // First open: mount the panel closed, then open it a frame later so it grows instead of appearing.
     setBody("seen", id, true)
     requestAnimationFrame(() => setBody("expanded", id, true))
@@ -282,6 +347,13 @@ export function TurnStepsSummary(props: {
     if (step.kind === "subagent" && typeof agent === "string" && agent) return agent
     return language.t(stepVerbKey(step.kind, isRunning(part)))
   }
+  // The "Expand shell/edit tool parts" settings open those steps until the user toggles them.
+  const startsOpen = (part: ToolPart) => {
+    const kind = stepOf(part).kind
+    if (kind === "run") return settings.general.shellToolPartsExpanded()
+    if (kind === "edit") return settings.general.editToolPartsExpanded()
+    return false
+  }
   const openable = (part: ToolPart) => (part.tool === "acp_subagent" ? props.onOpenSubagent : undefined)
   const startOf = (part: ToolPart) => (part.state.status === "running" ? part.state.time.start : undefined)
   // Finished steps show how long they took, from a second up.
@@ -292,8 +364,235 @@ export function TurnStepsSummary(props: {
     return ms >= 1000 ? formatTurnDuration(language, ms) : undefined
   }
 
+  // One step: a tool row that opens to its output, or a reasoning note that opens to its full text.
+  const stepRow = (part: Part, index: number) => (
+    <>
+      <Show when={part.type === "tool" ? part : undefined}>
+        {(tool) => {
+          const detail = createMemo(() => toolDetail(tool()))
+          // An edit opens to its diff instead of the tool's "applied" text.
+          const diffs = createMemo(() => editDiffs(tool()))
+          const expandable = () => diffs().length > 0 || !!detail()
+          const open = () => body.expanded[tool().id] ?? (expandable() && startsOpen(tool()))
+          const mounted = () => body.seen[tool().id] || open()
+          const step = () => stepOf(tool())
+          return (
+            <div
+              data-slot="turn-steps-item"
+              data-timeline-part-id={tool().id}
+              data-new={fresh()}
+              style={{ "--i": index }}
+              class="flex min-w-0 flex-col"
+            >
+              <button
+                type="button"
+                data-slot="turn-steps-row"
+                data-running={isRunning(tool()) ? "" : undefined}
+                tabIndex={shown() ? 0 : -1}
+                aria-expanded={expandable() ? open() : undefined}
+                class="flex min-h-8 w-full min-w-0 items-center gap-2 rounded-[12px] bg-v2-background-bg-layer-02 px-2.5 py-1.5 text-left text-[13px] leading-5 text-v2-text-text-base transition-colors hover:bg-v2-background-bg-layer-03 focus-visible:outline focus-visible:outline-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
+                onClick={(event) => {
+                  const opener = openable(tool())
+                  if (opener) return opener(tool())
+                  if (expandable()) toggle(tool().id, event.currentTarget, open())
+                }}
+              >
+                <StepIcon name={stepIcon(step().kind)} size="small" class="shrink-0 text-v2-text-text-muted" />
+                <span
+                  class="shrink-0 [font-weight:500]"
+                  classList={{ "text-v2-text-text-critical": tool().state.status === "error" }}
+                >
+                  {label(tool())}
+                </span>
+                <Show when={step().target}>
+                  {(target) => (
+                    <span
+                      class="min-w-0 truncate text-v2-text-text-muted"
+                      classList={{ "font-mono text-[12px]": codeTarget(step().kind) }}
+                    >
+                      {target()}
+                    </span>
+                  )}
+                </Show>
+                <span class="flex-1" />
+                <Show when={isRunning(tool())}>
+                  <LoaderV2 width={12} height={12} class="shrink-0 text-v2-icon-icon-accent" />
+                </Show>
+                <Show when={diffs().length > 0}>
+                  <DiffChanges changes={diffs()} class="shrink-0 text-[12px]" />
+                </Show>
+                <Show when={tookOf(tool())}>
+                  {(took) => <span class="shrink-0 tabular-nums text-[12px] text-v2-text-text-muted">{took()}</span>}
+                </Show>
+                <Show when={expandable() || openable(tool())}>
+                  <Icon
+                    name="chevron-right"
+                    size="small"
+                    class="shrink-0 text-v2-text-text-muted transition-transform motion-reduce:transition-none"
+                    classList={{ "rotate-90 rtl:-rotate-90": open() }}
+                  />
+                </Show>
+              </button>
+              {/* Mounted on first open and kept, so closing animates like the card itself. */}
+              <Show when={mounted() && diffs().length > 0}>
+                <div data-slot="turn-steps-reveal" data-open={open() ? "" : undefined}>
+                  <div>
+                    <ScrollView
+                      data-slot="turn-steps-detail"
+                      class="mt-1 max-h-96 rounded-[10px] bg-v2-background-bg-base"
+                    >
+                      <For each={diffs()}>
+                        {(diff) => (
+                          <div data-slot="turn-steps-diff" class="flex min-w-0 flex-col">
+                            {/* Several files in one patch each get their name above their diff. */}
+                            <Show when={diffs().length > 1}>
+                              <div class="flex min-w-0 items-center gap-2 px-3 pt-2 text-[12px] text-v2-text-text-muted">
+                                <span class="min-w-0 truncate font-mono">{diff.file}</span>
+                                <DiffChanges changes={diff} class="shrink-0" />
+                              </div>
+                            </Show>
+                            <Dynamic component={fileComponent} mode="diff" fileDiff={diff.fileDiff} />
+                          </div>
+                        )}
+                      </For>
+                    </ScrollView>
+                  </div>
+                </div>
+              </Show>
+              <Show when={mounted() && diffs().length === 0 ? detail() : undefined}>
+                {(text) => (
+                  <div data-slot="turn-steps-reveal" data-open={open() ? "" : undefined}>
+                    <div>
+                      <ScrollView
+                        data-slot="turn-steps-detail"
+                        class="mt-1 max-h-60 rounded-[10px] bg-v2-background-bg-base"
+                      >
+                        <pre class="m-0 whitespace-pre-wrap break-words px-3 py-2 font-mono text-[12px] leading-[18px] text-v2-text-text-muted">
+                          {text()}
+                        </pre>
+                      </ScrollView>
+                    </div>
+                  </div>
+                )}
+              </Show>
+            </div>
+          )
+        }}
+      </Show>
+      <Show when={part.type === "reasoning" ? part : undefined}>
+        {(note) => {
+          const text = () => readPartText(data.store.part_text_accum_delta, note())
+          const open = () => !!body.expanded[note().id]
+          return (
+            <Show when={text()}>
+              <div
+                data-slot="turn-steps-note"
+                data-new={fresh()}
+                data-running={isThinking(note()) ? "" : undefined}
+                style={{ "--i": index }}
+                role="button"
+                tabIndex={shown() ? 0 : -1}
+                aria-expanded={open()}
+                class="flex w-full min-w-0 items-start gap-2 rounded-[12px] px-2.5 py-1 text-[13px] leading-5 text-v2-text-text-muted transition-colors select-text hover:bg-v2-background-bg-layer-02 focus-visible:outline focus-visible:outline-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
+                onClick={(event) => {
+                  // Selecting text to copy it shouldn't fold the note.
+                  if (window.getSelection()?.toString()) return
+                  toggle(note().id, event.currentTarget)
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" && event.key !== " ") return
+                  event.preventDefault()
+                  toggle(note().id, event.currentTarget)
+                }}
+              >
+                <StepIcon name="brain" size="small" class="mt-0.5 shrink-0" />
+                {/* One block clipped to its first line when folded, so opening grows it smoothly. */}
+                <div data-slot="turn-steps-note-text" data-open={open() ? "" : undefined} class="min-w-0 flex-1">
+                  <div class="whitespace-pre-wrap break-words">{text()}</div>
+                </div>
+              </div>
+            </Show>
+          )
+        }}
+      </Show>
+    </>
+  )
+  // A run of same-kind steps ("Read 3 files") that opens to the steps themselves.
+  const groupRow = (run: () => ToolPart[], index: number) => {
+    const id = () => `group:${run()[0]?.id}`
+    const open = () => !!body.expanded[id()]
+    const kind = () => stepOf(run()[0]).kind
+    const diffs = createMemo(() => run().flatMap(editDiffs))
+    return (
+      <div data-slot="turn-steps-item" data-new={fresh()} style={{ "--i": index }} class="flex min-w-0 flex-col">
+        <button
+          type="button"
+          data-slot="turn-steps-row"
+          tabIndex={shown() ? 0 : -1}
+          aria-expanded={open()}
+          class="flex min-h-8 w-full min-w-0 items-center gap-2 rounded-[12px] bg-v2-background-bg-layer-02 px-2.5 py-1.5 text-left text-[13px] leading-5 text-v2-text-text-base transition-colors hover:bg-v2-background-bg-layer-03 focus-visible:outline focus-visible:outline-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
+          onClick={(event) => toggle(id(), event.currentTarget)}
+        >
+          <StepIcon name={stepIcon(kind())} size="small" class="shrink-0 text-v2-text-text-muted" />
+          <span
+            class="shrink-0 [font-weight:500]"
+            classList={{ "text-v2-text-text-critical": run().some((part) => part.state.status === "error") }}
+          >
+            {stepCountPhrase(language, kind(), run().length)}
+          </span>
+          <span
+            class="min-w-0 truncate text-v2-text-text-muted"
+            classList={{ "font-mono text-[12px]": codeTarget(kind()) }}
+          >
+            {run()
+              .flatMap((part) => stepOf(part).target ?? [])
+              .join(", ")}
+          </span>
+          <span class="flex-1" />
+          <Show when={run().some(isRunning)}>
+            <LoaderV2 width={12} height={12} class="shrink-0 text-v2-icon-icon-accent" />
+          </Show>
+          <Show when={diffs().length > 0}>
+            <DiffChanges changes={diffs()} class="shrink-0 text-[12px]" />
+          </Show>
+          <Icon
+            name="chevron-right"
+            size="small"
+            class="shrink-0 text-v2-text-text-muted transition-transform motion-reduce:transition-none"
+            classList={{ "rotate-90 rtl:-rotate-90": open() }}
+          />
+        </button>
+        <Show when={body.seen[id()]}>
+          <div data-slot="turn-steps-reveal" data-open={open() ? "" : undefined}>
+            <div>
+              <div class="mt-1 flex flex-col gap-1 ps-4">
+                <Index each={run()}>{(part, at) => stepRow(part(), at)}</Index>
+              </div>
+            </div>
+          </div>
+        </Show>
+      </div>
+    )
+  }
+  // Consecutive reads, searches, edits, commands or fetches merge into one row; reasoning and agents stand alone.
+  const runs = createMemo(() =>
+    props.parts.reduce<Part[][]>((list, part) => {
+      const last = list.at(-1)
+      const kind = part.type === "tool" && props.layout !== "rows" ? stepOf(part).kind : undefined
+      if (kind && GROUPED.has(kind) && last?.[0]?.type === "tool" && stepOf(last[0]).kind === kind) last.push(part)
+      else list.push([part])
+      return list
+    }, []),
+  )
+
   return (
-    <div data-slot="turn-steps" class="flex w-full min-w-0 flex-col rounded-[16px] bg-v2-background-bg-layer-01">
+    <div
+      data-slot="turn-steps"
+      data-layout={props.layout ?? "grouped"}
+      data-transcript={transcript() ? "" : undefined}
+      class="flex w-full min-w-0 flex-col rounded-[16px] transition-colors motion-reduce:transition-none"
+      classList={{ "bg-v2-background-bg-layer-01": !transcript() }}
+    >
       <button
         type="button"
         data-component="turn-steps-summary"
@@ -318,15 +617,16 @@ export function TurnStepsSummary(props: {
         <span data-slot="turn-steps-counts" class="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
           <For each={counts()}>
             {(item) => (
-              <span
-                data-slot="turn-steps-count"
-                title={stepCountPhrase(language, item.kind, item.count)}
-                class="flex h-5 shrink-0 items-center gap-1 rounded-full bg-v2-background-bg-base px-2 text-[12px] tabular-nums text-v2-text-text-muted"
-              >
-                <StepIcon name={stepIcon(item.kind)} size="small" aria-hidden="true" />
-                <span aria-hidden="true">{item.count.toLocaleString(language.intl())}</span>
-                <span class="sr-only">{stepCountPhrase(language, item.kind, item.count)}</span>
-              </span>
+              <TooltipV2 placement="top" class="shrink-0" value={stepCountPhrase(language, item.kind, item.count)}>
+                <span
+                  data-slot="turn-steps-count"
+                  class="flex h-5 shrink-0 items-center gap-1 rounded-full bg-v2-background-bg-base px-2 text-[12px] tabular-nums text-v2-text-text-muted"
+                >
+                  <StepIcon name={stepIcon(item.kind)} size="small" aria-hidden="true" />
+                  <span aria-hidden="true">{item.count.toLocaleString(language.intl())}</span>
+                  <span class="sr-only">{stepCountPhrase(language, item.kind, item.count)}</span>
+                </span>
+              </TooltipV2>
             )}
           </For>
         </span>
@@ -479,7 +779,7 @@ export function TurnStepsSummary(props: {
                       data-slot="turn-steps-lane"
                       data-running={lane().running ? "" : undefined}
                       aria-label={language.t("secondBrain.agentTab.open", { agent: label(lane().part) })}
-                      class="-mx-1.5 flex w-[calc(100%+12px)] cursor-pointer flex-col gap-1 rounded-[8px] px-1.5 py-0.5 text-left transition-colors hover:bg-v2-background-bg-layer-02 motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-v2-border-border-focus"
+                      class="-mx-1.5 flex w-[calc(100%+12px)] flex-col gap-1 rounded-[8px] px-1.5 py-0.5 text-left transition-colors hover:bg-v2-background-bg-layer-02 motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-v2-border-border-focus"
                       onClick={() => open()(lane().part)}
                     >
                       {content()}
@@ -494,139 +794,24 @@ export function TurnStepsSummary(props: {
       {/* Open: every step on the card's own surface. Tools are filled rows that open to their output; reasoning is a
           one-line note that opens to its full text. */}
       <div
+        ref={bodyEl}
         data-slot="turn-steps-body"
-        data-open={props.open ? "" : undefined}
+        data-open={shown() ? "" : undefined}
         data-animate={body.animate ? "" : undefined}
-        aria-hidden={!props.open}
+        aria-hidden={!shown()}
       >
         <div>
           <Show when={body.mounted}>
             <div data-slot="turn-steps-rows" class="flex flex-col gap-1 px-2 pb-2">
-              <For each={props.parts}>
-                {(part, index) => (
-                  <>
-                    <Show when={part.type === "tool" ? part : undefined}>
-                      {(tool) => {
-                        const detail = createMemo(() => toolDetail(tool()))
-                        const open = () => !!body.expanded[tool().id]
-                        const step = () => stepOf(tool())
-                        return (
-                          <div data-slot="turn-steps-item" style={{ "--i": index() }} class="flex min-w-0 flex-col">
-                            <button
-                              type="button"
-                              data-slot="turn-steps-row"
-                              tabIndex={props.open ? 0 : -1}
-                              aria-expanded={detail() ? open() : undefined}
-                              class="flex min-h-8 w-full min-w-0 items-center gap-2 rounded-[12px] bg-v2-background-bg-layer-02 px-2.5 py-1.5 text-left text-[13px] leading-5 text-v2-text-text-base transition-colors hover:bg-v2-background-bg-layer-03 focus-visible:outline focus-visible:outline-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
-                              onClick={(event) => {
-                                const opener = openable(tool())
-                                if (opener) return opener(tool())
-                                if (detail()) toggle(tool().id, event.currentTarget)
-                              }}
-                            >
-                              <StepIcon
-                                name={stepIcon(step().kind)}
-                                size="small"
-                                class="shrink-0 text-v2-text-text-muted"
-                              />
-                              <span
-                                class="shrink-0 [font-weight:500]"
-                                classList={{ "text-v2-text-text-critical": tool().state.status === "error" }}
-                              >
-                                {label(tool())}
-                              </span>
-                              <Show when={step().target}>
-                                {(target) => (
-                                  <span
-                                    class="min-w-0 truncate text-v2-text-text-muted"
-                                    classList={{ "font-mono text-[12px]": codeTarget(step().kind) }}
-                                  >
-                                    {target()}
-                                  </span>
-                                )}
-                              </Show>
-                              <span class="flex-1" />
-                              <Show when={isRunning(tool())}>
-                                <LoaderV2 width={12} height={12} class="shrink-0 text-v2-icon-icon-accent" />
-                              </Show>
-                              <Show when={tookOf(tool())}>
-                                {(took) => (
-                                  <span class="shrink-0 tabular-nums text-[12px] text-v2-text-text-muted">
-                                    {took()}
-                                  </span>
-                                )}
-                              </Show>
-                              <Show when={detail() || openable(tool())}>
-                                <Icon
-                                  name="chevron-right"
-                                  size="small"
-                                  class="shrink-0 text-v2-text-text-muted transition-transform motion-reduce:transition-none"
-                                  classList={{ "rotate-90 rtl:-rotate-90": open() }}
-                                />
-                              </Show>
-                            </button>
-                            {/* Mounted on first open and kept, so closing animates like the card itself. */}
-                            <Show when={body.seen[tool().id] ? detail() : undefined}>
-                              {(text) => (
-                                <div data-slot="turn-steps-reveal" data-open={open() ? "" : undefined}>
-                                  <div>
-                                    <ScrollView
-                                      data-slot="turn-steps-detail"
-                                      class="mt-1 max-h-60 rounded-[10px] bg-v2-background-bg-base"
-                                    >
-                                      <pre class="m-0 whitespace-pre-wrap break-words px-3 py-2 font-mono text-[12px] leading-[18px] text-v2-text-text-muted">
-                                        {text()}
-                                      </pre>
-                                    </ScrollView>
-                                  </div>
-                                </div>
-                              )}
-                            </Show>
-                          </div>
-                        )
-                      }}
-                    </Show>
-                    <Show when={part.type === "reasoning" ? part : undefined}>
-                      {(note) => {
-                        const text = () => readPartText(data.store.part_text_accum_delta, note())
-                        const open = () => !!body.expanded[note().id]
-                        return (
-                          <Show when={text()}>
-                            <div
-                              data-slot="turn-steps-note"
-                              style={{ "--i": index() }}
-                              role="button"
-                              tabIndex={props.open ? 0 : -1}
-                              aria-expanded={open()}
-                              class="flex w-full min-w-0 cursor-pointer items-start gap-2 rounded-[12px] px-2.5 py-1 text-[13px] leading-5 text-v2-text-text-muted transition-colors select-text hover:bg-v2-background-bg-layer-02 focus-visible:outline focus-visible:outline-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
-                              onClick={(event) => {
-                                // Selecting text to copy it shouldn't fold the note.
-                                if (window.getSelection()?.toString()) return
-                                toggle(note().id, event.currentTarget)
-                              }}
-                              onKeyDown={(event) => {
-                                if (event.key !== "Enter" && event.key !== " ") return
-                                event.preventDefault()
-                                toggle(note().id, event.currentTarget)
-                              }}
-                            >
-                              <StepIcon name="brain" size="small" class="mt-0.5 shrink-0" />
-                              {/* One block clipped to its first line when folded, so opening grows it smoothly. */}
-                              <div
-                                data-slot="turn-steps-note-text"
-                                data-open={open() ? "" : undefined}
-                                class="min-w-0 flex-1"
-                              >
-                                <div class="whitespace-pre-wrap break-words">{text()}</div>
-                              </div>
-                            </div>
-                          </Show>
-                        )
-                      }}
-                    </Show>
-                  </>
+              <Index each={runs()}>
+                {(run, index) => (
+                  // Built untracked: Show reads these on every runs() update, and reading run() there would rebuild
+                  // every row each time a step arrives. A row only rebuilds when it turns into a group.
+                  <Show when={run().length > 1} fallback={untrack(() => stepRow(run()[0], index))}>
+                    {untrack(() => groupRow(() => run() as ToolPart[], index))}
+                  </Show>
                 )}
-              </For>
+              </Index>
             </div>
           </Show>
         </div>

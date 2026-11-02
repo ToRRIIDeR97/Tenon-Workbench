@@ -88,7 +88,7 @@ export const lineCommentStyles = `
 }
 
 [data-component="line-comment"][data-inline][data-variant="default"] [data-slot="line-comment-popover"][data-inline-body] {
-  cursor: pointer;
+  cursor: default;
 }
 
 [data-component="line-comment"][data-variant="editor"] [data-slot="line-comment-popover"] {

@@ -16,6 +16,7 @@
     "./markdown-cache": "./src/components/markdown-cache.tsx",
     "./design-fence": "./src/components/design-fence.ts",
     "./line-comment-styles": "./src/components/line-comment-styles.ts",
+    "./quote-note": "./src/components/quote-note.ts",
     "./pierre": "./src/pierre/index.ts",
     "./pierre/*": "./src/pierre/*.ts",
     "./context": "./src/context/index.ts",

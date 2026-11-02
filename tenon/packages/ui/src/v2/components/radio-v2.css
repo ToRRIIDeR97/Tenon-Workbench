@@ -11,7 +11,7 @@
     color: var(--v2-text-text-faint);
     font-size: 11px;
     font-style: normal;
-    font-weight: 440;
+    font-weight: 400;
     line-height: 1;
     letter-spacing: 0.05px;
     font-variation-settings: "slnt" 0;
@@ -20,7 +20,7 @@
   [data-slot="radio-v2-description"] {
     color: var(--v2-text-text-faint);
     font-size: 11px;
-    font-weight: 440;
+    font-weight: 400;
     line-height: 1.2;
     letter-spacing: 0.05px;
   }
@@ -167,7 +167,7 @@
     user-select: none;
     color: inherit;
     font-style: normal;
-    font-weight: 440;
+    font-weight: 400;
     font-variant-numeric: tabular-nums;
     font-variation-settings: "slnt" 0;
   }
@@ -185,7 +185,7 @@
   [data-slot="radio-v2-item-description"] {
     color: var(--v2-text-text-muted);
     font-size: 11px;
-    font-weight: 440;
+    font-weight: 400;
     line-height: 1;
     letter-spacing: 0.05px;
     font-variant-numeric: tabular-nums;

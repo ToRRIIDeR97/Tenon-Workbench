@@ -14,6 +14,7 @@ import {
   createResource,
   createSignal,
 } from "solid-js"
+import { PageEmpty } from "@/components/page"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
@@ -91,15 +92,20 @@ export const SettingsSkillsV2: Component<{ directory: Accessor<string | undefine
             </div>
           </Match>
           <Match when={catalog.error}>
-            <div class="settings-v2-provider-empty" role="alert">
-              {catalog.error instanceof Error ? catalog.error.message : language.t("common.requestFailed")}
-            </div>
+            <PageEmpty
+              error
+              title={language.t("secondBrain.state.error.title")}
+              action={
+                <ButtonV2 variant="outline" onClick={reload}>
+                  {language.t("secondBrain.state.retry")}
+                </ButtonV2>
+              }
+            >
+              {language.t("secondBrain.state.error.body")}
+            </PageEmpty>
           </Match>
           <Match when={catalog.loading && !catalog.latest}>
-            <div class="settings-v2-provider-empty" role="status">
-              {language.t("common.loading")}
-              {language.t("common.loading.ellipsis")}
-            </div>
+            <PageEmpty loading title={language.t("secondBrain.skills.loading")} />
           </Match>
           <Match when={catalog.latest}>
             {(sections) => (
@@ -132,13 +138,13 @@ const SkillSectionView: Component<{
       <div class="flex min-w-0 items-center gap-2 pr-2">
         <h3 class="settings-v2-section-title">{props.section.title}</h3>
         <Show when={!props.section.editable}>
-          <span class="flex shrink-0 items-center gap-1 text-[12px] leading-none text-v2-text-text-muted">
+          <span class="flex shrink-0 items-center gap-1 text-[12px] leading-4 text-v2-text-text-muted">
             <LockIcon />
             {language.t("secondBrain.skills.readOnly")}
           </span>
         </Show>
         <Show when={props.section.source === "reported"}>
-          <span class="min-w-0 truncate text-[12px] leading-none text-v2-text-text-muted">
+          <span class="min-w-0 truncate text-[12px] leading-4 text-v2-text-text-muted">
             {language.t("secondBrain.skills.source.reported")}
           </span>
         </Show>
@@ -231,14 +237,16 @@ const SkillRow: Component<{
             <Show
               when={canOpen()}
               fallback={
-                <IconButtonV2
-                  type="button"
-                  variant="ghost-muted"
-                  size="normal"
-                  aria-label={language.t("secondBrain.skills.copyPath")}
-                  icon={<Icon name="outline-copy" />}
-                  onClick={() => copy(location())}
-                />
+                <TooltipV2 placement="top" value={language.t("secondBrain.skills.copyPath")}>
+                  <IconButtonV2
+                    type="button"
+                    variant="ghost-muted"
+                    size="normal"
+                    aria-label={language.t("secondBrain.skills.copyPath")}
+                    icon={<Icon name="outline-copy" />}
+                    onClick={() => copy(location())}
+                  />
+                </TooltipV2>
               }
             >
               <ButtonV2 size="normal" variant="ghost" onClick={() => open(location())}>

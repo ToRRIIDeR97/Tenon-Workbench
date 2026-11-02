@@ -4,6 +4,25 @@ import { buildRequestParts } from "./build-request-parts"
 import { SKILL_REFERENCE_MIME } from "@/utils/skill-reference"
 
 describe("buildRequestParts", () => {
+  test("sends a quote as a synthetic Markdown quote with its metadata", () => {
+    const result = buildRequestParts({
+      prompt: [{ type: "text", content: "why?", start: 0, end: 4 }],
+      context: [{ key: "quote:1", type: "quote", text: "line one\nline two" }],
+      images: [],
+      text: "why?",
+      messageID: "msg_1",
+      sessionID: "ses_1",
+      sessionDirectory: "/repo",
+    })
+
+    const quote = result.requestParts.find((part) => part.type === "text" && part.synthetic)
+    expect(quote?.type === "text" && quote.text).toBe(
+      "The user is replying to this passage from your earlier message:\n\n> line one\n> line two",
+    )
+    expect(quote?.type === "text" && quote.metadata).toEqual({ tenonQuote: { text: "line one\nline two" } })
+    expect(result.requestParts.some((part) => part.type === "file")).toBe(false)
+  })
+
   test("turns skill chips into synthetic instructions instead of files", () => {
     // "missing" stands for a harness's own skill: no content here, so the harness is asked to load it.
     const skill = (name: string, start: number) => ({

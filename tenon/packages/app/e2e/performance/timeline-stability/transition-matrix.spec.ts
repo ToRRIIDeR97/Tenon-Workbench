@@ -105,7 +105,7 @@ test("inserts a completed question between stable rows", async ({ page }, testIn
     ],
     cpuRate: 4,
   })
-  await expect(page.locator(`[data-timeline-part-id="${questionID}"]`)).toHaveCount(0)
+  const card = page.locator('[data-timeline-row="TurnSteps"]')
   const regions = defineVisualRegions({
     first: { selector: `[data-timeline-part-id="${firstID}"]`, closest: '[data-timeline-row="AssistantPart"]' },
     last: { selector: `[data-timeline-part-id="${lastID}"]`, closest: '[data-timeline-row="AssistantPart"]' },
@@ -115,7 +115,8 @@ test("inserts a completed question between stable rows", async ({ page }, testIn
     partUpdated(toolPart(questionID, "question", "completed", input, { metadata: { answers: [["Yes"]] } })),
     600,
   )
-  await expect(page.locator(`[data-timeline-part-id="${questionID}"]`)).toBeVisible()
+  // The answered question joins the turn as a step in a Worked card between the two texts.
+  await expect(card.locator(`[data-timeline-part-id="${questionID}"]`)).toBeVisible()
   const trace = await stopVisualProbe<keyof typeof regions>(page)
   await reportVisualStability(testInfo, "question-insert", trace, stablePairPlan(regions, 0))
 })

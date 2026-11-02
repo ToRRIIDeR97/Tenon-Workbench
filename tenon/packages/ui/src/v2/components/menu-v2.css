@@ -14,7 +14,7 @@
   pointer-events: auto;
 
   background: var(--v2-background-bg-layer-01);
-  border-radius: 6px;
+  border-radius: var(--v2-radius-lg);
   box-shadow: var(--v2-elevation-floating);
 
   outline: none;
@@ -78,8 +78,8 @@
     min-width: 0;
 
     font-size: 13px;
-    font-weight: 440;
-    line-height: 100%;
+    font-weight: 400;
+    line-height: 20px;
     letter-spacing: -0.04px;
     color: var(--menu-v2-fg);
   }
@@ -88,11 +88,11 @@
     display: inline-flex;
     align-items: center;
     flex: none;
-    height: 11px;
+    height: 16px;
 
     font-size: 11px;
-    font-weight: 530;
-    line-height: 100%;
+    font-weight: 500;
+    line-height: 16px;
     letter-spacing: 0.05px;
     color: var(--menu-v2-fg-muted);
     white-space: nowrap;
@@ -114,8 +114,8 @@
     border-radius: 2px;
 
     font-size: 11px;
-    font-weight: 530;
-    line-height: 100%;
+    font-weight: 500;
+    line-height: 16px;
     letter-spacing: 0.05px;
     color: var(--menu-v2-fg-subtle);
     white-space: nowrap;
@@ -147,7 +147,7 @@
   }
 
   &[data-checked] [data-slot="menu-v2-item-content"] {
-    font-weight: 530;
+    font-weight: 500;
     color: var(--menu-v2-accent);
   }
 
@@ -177,8 +177,8 @@
   padding: 0 12px;
 
   font-size: 11px;
-  font-weight: 530;
-  line-height: 100%;
+  font-weight: 500;
+  line-height: 16px;
   letter-spacing: 0.05px;
   color: var(--v2-text-text-faint);
   user-select: none;
@@ -186,12 +186,18 @@
 }
 
 /* Material 3 shape and motion: rounded menu surface that scales in from its anchor (short +
-   emphasized-decelerate). Menus and selects close at once: an exit would keep the menu mounted, so a
-   selection or a dismissal would wait on it. */
+   emphasized-decelerate) and fades and shrinks to .96 toward it on close (exit-small + ease-exit), the
+   exit every small surface shares. The exit has its own animation name, so Kobalte keeps the menu mounted
+   until it ends; selection and dismissal have already run by then, and the leaving menu takes no pointer. */
 [data-component="menu-v2-content"] {
-  border-radius: var(--v2-radius-md);
+  border-radius: var(--v2-radius-lg);
   transform-origin: var(--kb-menu-content-transform-origin, top left);
   animation: menu-v2-enter var(--v2-duration-short) var(--v2-ease-emphasized-decelerate);
+
+  &[data-closed] {
+    pointer-events: none;
+    animation: menu-v2-exit var(--v2-duration-exit-small) var(--v2-ease-exit) forwards;
+  }
 }
 
 @keyframes menu-v2-enter {
@@ -205,13 +211,21 @@
   }
 }
 
+@keyframes menu-v2-exit {
+  to {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  [data-component="menu-v2-content"] {
+  [data-component="menu-v2-content"],
+  [data-component="menu-v2-content"][data-closed] {
     animation: none;
   }
 }
 
 [data-component="menu-v2-item"] {
-  border-radius: var(--v2-radius-sm);
+  border-radius: var(--v2-radius-md);
   transition: background-color var(--v2-duration-short) var(--v2-ease-standard);
 }

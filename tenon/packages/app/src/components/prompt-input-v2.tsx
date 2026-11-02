@@ -17,11 +17,9 @@ import type { ReferenceInfo } from "@opencode-ai/sdk/v2/client"
 import { createEffect, createMemo, createSignal, For, on, Show, type JSX } from "solid-js"
 import { ModelSelectorPopoverV2 } from "@/components/dialog-select-model"
 import { DialogSelectModelUnpaidV2 } from "@/components/dialog-select-model-unpaid-v2"
+import { PromptModelPill } from "@/components/prompt-input/model-pill"
 import type { PromptInputProps } from "@/components/prompt-input/contracts"
-import {
-  PromptInputHarnessControls,
-  type PromptInputHarnessController,
-} from "@/components/prompt-input/harness-controls"
+import type { PromptInputHarnessController } from "@/components/prompt-input/harness-controls"
 import { normalizePromptHistoryEntry, promptLength, type PromptHistoryComment } from "@/components/prompt-input/history"
 import { createPersistedPromptInputHistory } from "@/components/prompt-input/history-store"
 import { promptDesignPlaceholder, promptPlaceholder } from "@/components/prompt-input/placeholder"
@@ -57,6 +55,8 @@ export type PromptInputV2ComposerProps = {
   trailing?: JSX.Element
   /** A strip attached to the composer's top edge, such as the thread's context strip. */
   header?: JSX.Element
+  /** A row inside the box above the text, such as the new thread's folder and worktree. */
+  boxHeader?: JSX.Element
 }
 
 export type PromptInputV2ControllerProps = Omit<PromptInputProps, "class" | "submission">
@@ -76,18 +76,46 @@ export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
     const instance = props.harness.instances()?.find((item) => item.id === id)
     return instance ? instance.driver === Harness.OpenCodeDriver : id === Harness.OpenCode
   }
+  // The built-in loop picks its model from providers, in the same dialog as the model command.
+  const chooseBuiltInModel = () => {
+    if (!props.controller.model.paid)
+      return void dialog.show(() => <DialogSelectModelUnpaidV2 model={props.controller.model.selection} />)
+    void import("@/components/dialog-select-model").then(({ DialogSelectModel }) =>
+      dialog.show(() => <DialogSelectModel model={props.controller.model.selection} />, props.controller.restoreFocus),
+    )
+  }
 
   return (
     <div class="flex flex-col">
       {props.header}
       <PromptInputV2
         controller={props.controller}
-        runtimeControl={props.harness ? <PromptInputHarnessControls controller={props.harness} /> : undefined}
+        headerControl={props.boxHeader}
+        quoteRemoveLabel={language.t("secondBrain.quote.remove")}
+        runtimeControl={
+          props.harness ? (
+            <PromptModelPill
+              harness={props.harness}
+              builtIn={builtInLoop()}
+              builtInModel={{
+                name: props.controller.model.selection.current()?.name ?? language.t("dialog.model.select.title"),
+                choose: chooseBuiltInModel,
+              }}
+              builtInVariant={{
+                options: () => ["default", ...props.controller.model.selection.variant.list()],
+                current: () => props.controller.model.selection.variant.current() ?? "default",
+                set: (value) => props.controller.model.selection.variant.set(value === "default" ? undefined : value),
+                disabled: () => props.controller.model.loading,
+              }}
+            />
+          ) : undefined
+        }
         agentControlVisible={builtInLoop()}
-        modelControlVisible={builtInLoop()}
+        // With a harness, the one model pill holds the model and reasoning; the separate pickers are the fallback.
+        modelControlVisible={builtInLoop() && !props.harness}
         borderUnderlay={props.borderUnderlay}
         class={props.class}
-        variantControlVisible={builtInLoop()}
+        variantControlVisible={builtInLoop() && !props.harness}
         trailingControl={
           <>
             {props.trailing}
@@ -183,7 +211,7 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
   )
   const commentCount = createMemo(() => {
     if (mode() === "shell") return 0
-    return prompt.context.items().filter((item) => !!item.comment?.trim()).length
+    return prompt.context.items().filter((item) => item.type === "quote" || !!item.comment?.trim()).length
   })
   const blank = createMemo(() => {
     const text = prompt
@@ -210,6 +238,7 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
   const historyComments = () => {
     const byID = new Map(comments.all().map((item) => [`${item.file}\n${item.id}`, item] as const))
     return prompt.context.items().flatMap((item) => {
+      if (item.type !== "file") return []
       const comment = item.comment?.trim()
       if (!comment) return []
       const selection = item.commentID ? byID.get(`${item.path}\n${item.commentID}`)?.selection : undefined
@@ -486,13 +515,13 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
         mention: { type: "file", path, content: `@${path}`, start: 0, end: 0 },
       })),
     onContextRemove(item) {
-      if (item?.commentID) comments.remove(item.path, item.commentID)
+      if (item?.type === "file" && item.commentID) comments.remove(item.path, item.commentID)
     },
     openAttachment: (attachment) =>
       dialog.show(() => <AttachmentPreview src={attachment.blob.url} name={attachment.filename} />),
     openContext(key) {
       const item = controller.contextItem(key)
-      if (item) openComment(item, props, sync, layout, files, comments)
+      if (item?.type === "file") openComment(item, props, sync, layout, files, comments)
     },
     onEditor(element) {
       editor = element as HTMLDivElement
@@ -709,7 +738,7 @@ function PromptInputV2ModelControl(props: {
       </span>
     </>
   )
-  const buttonClass = "prompt-input-responsive-select min-w-0 max-w-[220px] justify-start ![font-weight:440] group"
+  const buttonClass = "prompt-input-responsive-select min-w-0 max-w-[220px] justify-start ![font-weight:400] group"
   return (
     <TooltipV2
       placement="top"

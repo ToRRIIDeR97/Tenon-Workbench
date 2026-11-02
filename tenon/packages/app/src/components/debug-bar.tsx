@@ -2,7 +2,6 @@ import { useIsRouting, useLocation } from "@solidjs/router"
 import { batch, createEffect, onCleanup, onMount } from "solid-js"
 import { createStore } from "solid-js/store"
 import { makeEventListener } from "@solid-primitives/event-listener"
-import { Tooltip } from "@tenon/ui/tooltip"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
@@ -111,9 +110,9 @@ function Cell(props: {
   }
 
   return (
-    <Tooltip value={props.tip} placement="top">
+    <TooltipV2 value={props.tip} placement="top">
       {content()}
-    </Tooltip>
+    </TooltipV2>
   )
 }
 
@@ -160,9 +159,9 @@ function ToggleCell(props: {
   }
 
   return (
-    <Tooltip value={props.tip} placement="top">
+    <TooltipV2 value={props.tip} placement="top">
       {content()}
-    </Tooltip>
+    </TooltipV2>
   )
 }
 

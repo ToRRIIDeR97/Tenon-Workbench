@@ -55,6 +55,7 @@ import { useFileComponent } from "@tenon/ui/context/file"
 import { shouldMarkBoundaryGesture, normalizeWheelDelta } from "@/pages/session/message-gesture"
 import { useDialog } from "@tenon/ui/context/dialog"
 import { useLanguage } from "@/context/language"
+import { usePrompt } from "@/context/prompt"
 import { useSessionKey, useSessionLayout } from "@/pages/session/session-layout"
 import { useSessionArchive } from "@/pages/session/session-archive"
 import { useSettings } from "@/context/settings"
@@ -68,8 +69,9 @@ import { scheduleConnectedMeasure } from "./measure"
 import { observeElementOffsetReconnectAware } from "./observe-element-offset"
 import { createTimelineProjection } from "./projection"
 import { MessageComment, SummaryDiff, TimelineRow, TimelineRowMap } from "./rows"
+import { SelectionReply } from "./selection-reply"
 import { filterVirtualIndexes } from "./virtual-items"
-import { TurnStepsSummary } from "@/components/session/turn-steps-summary"
+import { TurnStepsSummary, stepsSpan } from "@/components/session/turn-steps-summary"
 import { useData } from "@tenon/session-ui/context"
 
 const emptyMessages: MessageType[] = []
@@ -83,7 +85,9 @@ type TimelineRowByTag<T extends TimelineRow.TimelineRow["_tag"]> = Extract<Timel
 
 const timelineFallbackItemSize = 60
 // Matches the TurnSteps row: a 36px summary button plus 8px bottom padding.
-const turnStepsRowSize = 44
+// The folded card's 36px header, plus 12px above it after earlier text and 8px below when it ends its run of the turn.
+const turnStepsRowSize = (row: TimelineRow.TurnSteps) =>
+  36 + (row.previousAssistantPart ? 12 : 0) + (row.settled ? 0 : 8)
 const timelineCache = new Map<string, { measurements: VirtualItem[]; toolOpen: Record<string, boolean | undefined> }>()
 
 const taskDescription = (part: PartType, sessionID: string) => {
@@ -275,6 +279,7 @@ export function MessageTimeline(props: {
   const coldBottomMount = !initialMeasurements?.length && props.shouldAnchorBottom()
 
   const [listRoot, setListRoot] = createSignal<HTMLDivElement>()
+  const prompt = usePrompt()
   const sessionID = createMemo(() => params.id)
   const sessionStatus = createMemo(() => {
     const id = sessionID()
@@ -336,9 +341,11 @@ export function MessageTimeline(props: {
   })
   const showHeader = createMemo(() => !!(titleValue() || parentID()))
   const [toolOpen, setToolOpen] = createStore<Record<string, boolean | undefined>>(cached?.toolOpen ?? {})
-  // A user toggle wins; otherwise steps open only when one failed. A working turn shows its live ticker instead.
+  // A user toggle wins; otherwise a card stays open while its steps stream in, then folds unless a step failed.
+  // Folded while working, it shows a one-line ticker of the current step.
   const turnStepsOpen = (row: TimelineRow.TurnSteps) =>
-    toolOpen[`turn:${row.userMessageID}:${row.segment}`] ?? row.failed
+    toolOpen[`turn:${row.userMessageID}:${row.segment}`] ??
+    ((workingTurn(row.userMessageID) && !row.settled) || row.failed)
   const projection = createTimelineProjection({
     messages: sessionMessages,
     userMessages: () => props.userMessages,
@@ -432,8 +439,10 @@ export function MessageTimeline(props: {
     initialOffset: () => (props.shouldAnchorBottom() ? Number.MAX_SAFE_INTEGER : 0),
     initialMeasurementsCache: initialMeasurements,
     // A turn-steps header has a fixed height; estimating it exactly keeps the rows below it from shifting on mount.
-    estimateSize: (index) =>
-      timelineRows()[index]?._tag === "TurnSteps" ? turnStepsRowSize : timelineFallbackItemSize,
+    estimateSize: (index) => {
+      const row = timelineRows()[index]
+      return row?._tag === "TurnSteps" ? turnStepsRowSize(row) : timelineFallbackItemSize
+    },
     scrollToFn: (offset, options, instance) => {
       // Expose the computed range before core writes an anchor correction so the browser does not clamp it to the old height.
       if (virtualContent) virtualContent.style.height = `${instance.getTotalSize()}px`
@@ -998,7 +1007,7 @@ export function MessageTimeline(props: {
     }
     const previousAssistantPart = () => {
       const row = input.row()
-      return row._tag === "AssistantPart" && row.previousAssistantPart
+      return (row._tag === "AssistantPart" || row._tag === "TurnSteps") && !!row.previousAssistantPart
     }
 
     return (
@@ -1037,7 +1046,7 @@ export function MessageTimeline(props: {
                   <Index each={comments()}>
                     {(comment) => (
                       <div class="shrink-0 max-w-[260px] rounded-[16px] bg-v2-background-bg-layer-01 px-3 py-2">
-                        <div class="flex items-center gap-1.5 min-w-0 text-[11px] text-v2-text-text-base [font-weight:530]">
+                        <div class="flex items-center gap-1.5 min-w-0 text-[11px] text-v2-text-text-base [font-weight:500]">
                           <FileIcon node={{ path: comment().path, type: "file" }} class="size-3.5 shrink-0" />
                           <span class="truncate">{getFilename(comment().path)}</span>
                           <Show when={comment().selection}>
@@ -1050,7 +1059,7 @@ export function MessageTimeline(props: {
                             )}
                           </Show>
                         </div>
-                        <div class="pt-1 text-[12.5px] leading-5 text-v2-text-text-base whitespace-pre-wrap break-words">
+                        <div class="pt-1 text-[13px] leading-5 text-v2-text-text-base whitespace-pre-wrap break-words">
                           {comment().comment}
                         </div>
                       </div>
@@ -1111,7 +1120,13 @@ export function MessageTimeline(props: {
         const assistantPartRow = row as Accessor<TimelineRowByTag<"AssistantPart">>
         return (
           <TimelineRowFrame row={assistantPartRow}>
-            <div data-slot="session-turn-message-container" class="w-full px-4 md:px-5">
+            {/* After a card or earlier text the row's own gap spaces it, so the text part drops its top margin; the
+                turn's first text keeps it as the space below the user's message. */}
+            <div
+              data-slot="session-turn-message-container"
+              class="w-full px-4 md:px-5"
+              classList={{ "[&_[data-component=text-part]]:mt-0": assistantPartRow().previousAssistantPart }}
+            >
               <div
                 data-slot="session-turn-assistant-content"
                 aria-hidden={workingTurn(assistantPartRow().userMessageID)}
@@ -1130,15 +1145,30 @@ export function MessageTimeline(props: {
             return part ? [part] : []
           }),
         )
+        // The turn's first card times the whole turn; a later one, after an update to the user, times its own steps.
+        const span = createMemo(() =>
+          turnStepsRow().segment > 0 || turnStepsRow().settled ? stepsSpan(parts()) : undefined,
+        )
+        const duration = () => {
+          const value = span()
+          if (!value) return turnDurationMs(turnStepsRow().userMessageID)
+          return value.end === undefined ? undefined : value.end - value.start
+        }
         return (
           <TimelineRowFrame row={turnStepsRow}>
-            <div data-slot="session-turn-message-container" class="w-full px-4 pb-2 md:px-5">
+            {/* Text after the card brings its own gap; a card that ends the turn keeps one below it. */}
+            <div
+              data-slot="session-turn-message-container"
+              class="w-full px-4 md:px-5"
+              classList={{ "pb-2": !turnStepsRow().settled }}
+            >
               <TurnStepsSummary
                 parts={parts()}
-                working={workingTurn(turnStepsRow().userMessageID)}
-                startedAt={userMessageCreated(turnStepsRow().userMessageID)}
-                durationMs={turnDurationMs(turnStepsRow().userMessageID)}
+                working={workingTurn(turnStepsRow().userMessageID) && !turnStepsRow().settled}
+                startedAt={span()?.start ?? userMessageCreated(turnStepsRow().userMessageID)}
+                durationMs={duration()}
                 open={turnStepsOpen(turnStepsRow())}
+                layout={settings.general.workSteps()}
                 onOpenSubagent={
                   data.openSubagent
                     ? (part) => data.openSubagent?.({ sessionID: part.sessionID, partID: part.id })
@@ -1291,7 +1321,7 @@ export function MessageTimeline(props: {
         <button
           type="button"
           aria-label={language.t("session.messages.jumpToLatest")}
-          class="pointer-events-auto flex items-center justify-center size-9 rounded-full border-none cursor-pointer text-v2-text-text-base backdrop-blur-[2px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus"
+          class="pointer-events-auto flex items-center justify-center size-9 rounded-full border-none text-v2-text-text-base backdrop-blur-[2px]"
           style={{
             background: "color-mix(in srgb, var(--v2-background-bg-base) 92%, transparent)",
             "box-shadow": "0 0 0 0.5px var(--v2-border-border-muted), 0 6px 16px -8px rgb(0 0 0 / 0.2)",
@@ -1340,7 +1370,7 @@ export function MessageTimeline(props: {
                     <button
                       type="button"
                       data-slot="session-title-parent"
-                      class="min-w-0 max-w-[40%] truncate pl-3 text-[14px] font-[530] leading-5 tracking-[-0.04px] text-v2-text-text-faint transition-colors duration-150 ease-standard hover:text-v2-text-text-muted motion-reduce:transition-none"
+                      class="min-w-0 max-w-[40%] truncate pl-3 text-[14px] font-[500] leading-5 tracking-[-0.04px] text-v2-text-text-faint transition-colors duration-150 ease-standard hover:text-v2-text-text-muted motion-reduce:transition-none"
                       onClick={navigateParent}
                     >
                       {parentTitle()}
@@ -1359,7 +1389,7 @@ export function MessageTimeline(props: {
                       fallback={
                         <h1
                           data-slot="session-title-child"
-                          class="truncate text-[14px] font-[530] leading-5 tracking-[-0.04px] text-v2-text-text-base w-fit rounded-full px-3 py-1 transition-colors duration-150 ease-standard hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none"
+                          class="truncate text-[14px] font-[500] leading-5 tracking-[-0.04px] text-v2-text-text-base w-fit rounded-full px-3 py-1 transition-colors duration-150 ease-standard hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none"
                           onClick={openTitleEditor}
                         >
                           {childTitle()}
@@ -1373,7 +1403,7 @@ export function MessageTimeline(props: {
                         data-slot="session-title-child"
                         value={title.draft}
                         disabled={titleMutation.isPending}
-                        class="block text-[14px] font-[530] leading-5 tracking-[-0.04px] text-v2-text-text-base field-sizing-content self-start rounded-full px-3 py-1"
+                        class="block text-[14px] font-[500] leading-5 tracking-[-0.04px] text-v2-text-text-base field-sizing-content self-start rounded-full px-3 py-1"
                         style={{
                           "--inline-input-shadow": "none",
                         }}
@@ -1404,7 +1434,7 @@ export function MessageTimeline(props: {
                         <button
                           type="button"
                           data-action="session-changes"
-                          class="hidden md:flex h-7 items-center rounded-full px-2.5 transition-colors duration-150 ease-standard hover:bg-v2-overlay-simple-overlay-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none"
+                          class="hidden md:flex h-7 items-center rounded-full px-2.5 transition-colors duration-150 ease-standard hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none"
                           aria-label={`${language.t("session.review.change.other")} +${summary().additions} -${summary().deletions}`}
                           aria-expanded={sessionView().reviewPanel.opened()}
                           aria-controls="review-panel"
@@ -1494,6 +1524,13 @@ export function MessageTimeline(props: {
           </Show>
         </div>
       </ScrollView>
+      <SelectionReply
+        root={listRoot}
+        onReply={(text) => {
+          prompt.context.add({ type: "quote", text })
+          document.querySelector<HTMLElement>('[data-component="prompt-input"]')?.focus()
+        }}
+      />
     </div>
   )
 }

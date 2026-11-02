@@ -206,7 +206,7 @@ export function SessionFileBrowserTab(props: {
               <span class="flex size-12 items-center justify-center rounded-[16px] bg-v2-background-bg-layer-01 text-v2-icon-icon-muted">
                 <Icon name="filetree" size="large" />
               </span>
-              <div class="text-[14px] text-v2-text-text-base [font-weight:530]">{language.t("command.file.open")}</div>
+              <div class="text-[14px] text-v2-text-text-base [font-weight:500]">{language.t("command.file.open")}</div>
               <div class="text-[13px] leading-5">{language.t("session.files.selectToOpen")}</div>
             </div>
           </SessionFilePanelV2Empty>

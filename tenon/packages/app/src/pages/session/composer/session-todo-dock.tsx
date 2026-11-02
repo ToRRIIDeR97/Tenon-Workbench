@@ -6,6 +6,7 @@ import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { useSpring } from "@tenon/ui/motion-spring"
 import { TextReveal } from "@tenon/ui/text-reveal"
 import { TextStrikethrough } from "@tenon/ui/text-strikethrough"
+import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { Index, createEffect, createMemo } from "solid-js"
 import { createStore } from "solid-js/store"
@@ -89,7 +90,7 @@ export function SessionTodoDock(props: {
           }}
         >
           <span
-            class="cursor-default inline-flex items-baseline shrink-0 overflow-visible font-[440] text-[13px] leading-5 tracking-[-0.04px] text-v2-text-text-muted"
+            class="cursor-default inline-flex items-baseline shrink-0 overflow-visible font-[400] text-[13px] leading-5 tracking-[-0.04px] text-v2-text-text-muted"
             aria-label={label()}
             style={{
               "--tool-motion-odometer-ms": "var(--v2-duration-long)",
@@ -121,7 +122,7 @@ export function SessionTodoDock(props: {
             }}
           >
             <TextReveal
-              class="cursor-default text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-faint"
+              class="cursor-default text-[13px] font-[400] leading-5 tracking-[-0.04px] text-v2-text-text-faint"
               text={props.collapsed ? preview() : undefined}
               duration="var(--v2-duration-long)"
               travel={25}
@@ -133,23 +134,25 @@ export function SessionTodoDock(props: {
             />
           </div>
           <div class="ml-auto">
-            <IconButtonV2
-              data-action="session-todo-toggle-button"
-              data-collapsed={props.collapsed ? "true" : "false"}
-              icon={<Icon name="outline-chevron-down" size="small" />}
-              size="large"
-              variant="ghost-muted"
-              style={{ transform: `rotate(${turn() * 180}deg)` }}
-              onMouseDown={(event) => {
-                event.preventDefault()
-                event.stopPropagation()
-              }}
-              onClick={(event) => {
-                event.stopPropagation()
-                props.onToggle()
-              }}
-              aria-label={props.collapsed ? props.expandLabel : props.collapseLabel}
-            />
+            <TooltipV2 placement="top" value={props.collapsed ? props.expandLabel : props.collapseLabel}>
+              <IconButtonV2
+                data-action="session-todo-toggle-button"
+                data-collapsed={props.collapsed ? "true" : "false"}
+                icon={<Icon name="outline-chevron-down" size="small" />}
+                size="large"
+                variant="ghost-muted"
+                style={{ transform: `rotate(${turn() * 180}deg)` }}
+                onMouseDown={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                }}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  props.onToggle()
+                }}
+                aria-label={props.collapsed ? props.expandLabel : props.collapseLabel}
+              />
+            </TooltipV2>
           </div>
         </div>
 
@@ -179,7 +182,7 @@ function TodoList(props: { todos: Todo[] }) {
   return (
     <div class="relative">
       <div
-        class="px-5 pb-11 flex flex-col gap-1.5 max-h-42 overflow-y-auto no-scrollbar"
+        class="px-5 pb-11 flex flex-col gap-1.5 max-h-42 overflow-y-auto"
         style={{ "overflow-anchor": "none" }}
         onScroll={(e) => {
           setStore("stuck", e.currentTarget.scrollTop > 0)

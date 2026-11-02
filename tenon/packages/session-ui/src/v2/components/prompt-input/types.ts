@@ -65,12 +65,21 @@ export type PromptInputV2Comment = {
   preview?: string
 }
 
+export type PromptInputV2Quote = {
+  type: "quote"
+  key: string
+  text: string
+  messageID?: string
+}
+
+export type PromptInputV2ContextItem = PromptInputV2Comment | PromptInputV2Quote
+
 export type PromptInputV2PersistedState = {
   prompt: PromptInputV2Prompt
   cursor?: number
   model?: PromptInputV2Model
   context: {
-    items: PromptInputV2Comment[]
+    items: PromptInputV2ContextItem[]
   }
 }
 
