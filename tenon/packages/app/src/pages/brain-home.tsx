@@ -4,7 +4,7 @@ import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { KeybindV2 } from "@tenon/ui/v2/keybind-v2"
 import { Reveal } from "@tenon/ui/v2/reveal"
-import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
+import { PathTooltip, TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { createEffect, createMemo, createResource, For, Show, Suspense } from "solid-js"
 import { useQuery } from "@tanstack/solid-query"
 import { createStore } from "solid-js/store"
@@ -272,15 +272,14 @@ export default function BrainHomePage() {
               }}
             >
               <div class="flex h-10 min-w-0 items-center gap-0.5 border-b border-v2-border-border-muted pl-2.5 pr-2">
-                <span
-                  class="flex h-8 min-w-0 shrink items-center gap-1.5 px-2 text-[13px] leading-5 text-v2-text-text-muted"
-                  title={directory()}
-                >
-                  <Icon name="folder" size="small" class="shrink-0 text-v2-icon-icon-muted" />
-                  <span class="min-w-0 truncate text-v2-text-text-base [font-weight:530]">
-                    {getFilename(directory())}
+                <PathTooltip placement="top" class="min-w-0 shrink" name={getFilename(directory())} path={directory()}>
+                  <span class="flex h-8 min-w-0 shrink items-center gap-1.5 px-2 text-[13px] leading-5 text-v2-text-text-muted">
+                    <Icon name="folder" size="small" class="shrink-0 text-v2-icon-icon-muted" />
+                    <span class="min-w-0 truncate text-v2-text-text-base [font-weight:530]">
+                      {getFilename(directory())}
+                    </span>
                   </span>
-                </span>
+                </PathTooltip>
                 <Icon name="chevron-down" size="small" class="shrink-0 -rotate-90 text-v2-icon-icon-muted" />
                 <PromptBranchPicker directory={directory()} branch={serverSync().child(directory())[0].vcs?.branch} />
               </div>
@@ -319,15 +318,17 @@ export default function BrainHomePage() {
                   />
                 </Suspense>
                 <span class="flex-1" />
-                <IconButtonV2
-                  type="submit"
-                  variant="contrast"
-                  size="large"
-                  class="!size-9"
-                  aria-label={language.t("secondBrain.home.start")}
-                  icon={<Icon name="arrow-up" />}
-                  disabled={!state.prompt.trim() || state.starting || waitingForHarness()}
-                />
+                <TooltipV2 placement="top" value={language.t("secondBrain.home.start")}>
+                  <IconButtonV2
+                    type="submit"
+                    variant="contrast"
+                    size="large"
+                    class="!size-9"
+                    aria-label={language.t("secondBrain.home.start")}
+                    icon={<Icon name="arrow-up" />}
+                    disabled={!state.prompt.trim() || state.starting || waitingForHarness()}
+                  />
+                </TooltipV2>
               </div>
             </form>
 

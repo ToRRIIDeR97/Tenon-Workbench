@@ -3,6 +3,7 @@ import { createStore } from "solid-js/store"
 import { Harness } from "@tenon/schema/harness"
 import { Popover } from "@tenon/ui/popover"
 import { Icon } from "@tenon/ui/v2/icon"
+import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { useDialog } from "@tenon/ui/context/dialog"
 import { useLanguage } from "@/context/language"
 import { createHarnessView, openHarnessSettings, type PromptInputHarnessController } from "./harness-controls"
@@ -152,7 +153,7 @@ export function PromptModelPill(props: {
     items[next]?.focus()
   }
 
-  return (
+  const pill = (
     <Popover
       open={state.open}
       onOpenChange={(open) => {
@@ -167,7 +168,6 @@ export function PromptModelPill(props: {
       triggerAs="button"
       triggerProps={{
         type: "button",
-        title: language.t("secondBrain.composer.modelPill.title"),
         disabled: props.harness.disabled?.(),
         class:
           "flex h-7 min-w-0 max-w-[280px] items-center gap-1.5 rounded-full px-2.5 text-[13px] font-[440] leading-5 text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base active:bg-v2-overlay-simple-overlay-pressed data-[expanded]:bg-v2-overlay-simple-overlay-hover data-[expanded]:text-v2-text-text-base focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus disabled:opacity-50 disabled:hover:bg-transparent motion-reduce:transition-none",
@@ -325,6 +325,12 @@ export function PromptModelPill(props: {
       </div>
     </Popover>
   )
+
+  return (
+    <TooltipV2 placement="top" class="min-w-0" value={language.t("secondBrain.composer.modelPill.title")}>
+      {pill}
+    </TooltipV2>
+  )
 }
 
 // Rows show a ring only for keyboard focus; a pointer opening the panel never draws one.
@@ -341,14 +347,13 @@ function Choice(props: {
   capitalize?: boolean
   onSelect: () => void
 }): JSX.Element {
-  return (
+  const row = (
     <button
       type="button"
       data-row
       role="menuitemradio"
       aria-checked={!!props.selected}
       disabled={props.disabled}
-      title={props.title}
       class={ROW_CLASS + " min-h-9"}
       classList={{
         "bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container": !!props.selected,
@@ -369,5 +374,11 @@ function Choice(props: {
         <Icon name="check" size="small" class="shrink-0" />
       </Show>
     </button>
+  )
+
+  return (
+    <TooltipV2 placement="right" class="w-full min-w-0" inactive={!props.title} value={props.title}>
+      {row}
+    </TooltipV2>
   )
 }

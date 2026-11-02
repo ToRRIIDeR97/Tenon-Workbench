@@ -4,6 +4,7 @@ import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { ViewSwitch } from "@tenon/ui/v2/view-switch"
+import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { useLanguage } from "@/context/language"
 import { useDesignCanvas } from "@/pages/session/design-canvas"
 
@@ -78,12 +79,14 @@ export function SessionCanvasTab() {
         {(design) => (
           <div class="flex h-full min-h-0 flex-col">
             <div class="flex shrink-0 items-center gap-2 px-3 pb-2">
-              <IconButtonV2
-                icon={<Icon name="arrow-left" />}
-                variant="ghost-muted"
-                aria-label={language.t("secondBrain.canvas.back")}
-                onClick={() => canvas.select(undefined)}
-              />
+              <TooltipV2 placement="bottom" value={language.t("secondBrain.canvas.back")}>
+                <IconButtonV2
+                  icon={<Icon name="arrow-left" />}
+                  variant="ghost-muted"
+                  aria-label={language.t("secondBrain.canvas.back")}
+                  onClick={() => canvas.select(undefined)}
+                />
+              </TooltipV2>
               <span class="min-w-0 truncate text-[13px] text-v2-text-text-base [font-weight:530]">{title(design)}</span>
               <ButtonV2 size="small" variant="neutral" class="ml-auto shrink-0" onClick={() => canvas.use(design)}>
                 {language.t("secondBrain.canvas.use")}

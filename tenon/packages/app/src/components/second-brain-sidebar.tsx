@@ -7,7 +7,7 @@ import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { KeybindV2 } from "@tenon/ui/v2/keybind-v2"
 import { MenuV2 } from "@tenon/ui/v2/menu-v2"
 import { createReveal, Reveal } from "@tenon/ui/v2/reveal"
-import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
+import { PathTooltip, TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { useDialog } from "@tenon/ui/context/dialog"
 import { formatKeybind, useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
@@ -287,9 +287,14 @@ function WorkspaceHeader(props: { ctrl: SidebarController }) {
                         <Icon name="check" size="small" />
                       </Show>
                     </span>
-                    <span class="min-w-0 truncate" title={workspace.worktree}>
-                      {name(workspace.worktree)}
-                    </span>
+                    <PathTooltip
+                      placement="right"
+                      class="min-w-0"
+                      name={name(workspace.worktree)}
+                      path={workspace.worktree}
+                    >
+                      <span class="min-w-0 truncate">{name(workspace.worktree)}</span>
+                    </PathTooltip>
                     <Show when={props.ctrl.folderMissing(workspace.worktree)}>
                       <span class="shrink-0 text-[12px] text-v2-text-text-faint">
                         {language.t("secondBrain.sidebar.folderMissing")}

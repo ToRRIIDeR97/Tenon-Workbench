@@ -10,6 +10,7 @@ import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { LoaderV2 } from "@tenon/ui/v2/loader-v2"
 import { TextInputV2 } from "@tenon/ui/v2/text-input-v2"
 import { ViewSwitch } from "@tenon/ui/v2/view-switch"
+import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { focusWhenConnected } from "@/utils/focus-when-connected"
 import { showToast } from "@/utils/toast"
 import {
@@ -105,14 +106,16 @@ export const DialogConnectProvider: Component<{
           when={controller.selected()}
           fallback={<DialogTitle>{language.t("command.provider.connect")}</DialogTitle>}
         >
-          <IconButtonV2
-            variant="ghost-muted"
-            size="small"
-            class="-my-1"
-            icon={<Icon name="chevron-left" />}
-            onClick={() => back.current()}
-            aria-label={language.t("common.goBack")}
-          />
+          <TooltipV2 placement="bottom" value={language.t("common.goBack")}>
+            <IconButtonV2
+              variant="ghost-muted"
+              size="small"
+              class="-my-1"
+              icon={<Icon name="chevron-left" />}
+              onClick={() => back.current()}
+              aria-label={language.t("common.goBack")}
+            />
+          </TooltipV2>
         </Show>
       </DialogHeader>
       <DialogBody class="min-h-0 flex-1 overflow-hidden px-2 pb-2">

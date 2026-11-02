@@ -81,7 +81,6 @@ const ModelList: Component<{
           class="w-full"
           placement="right-start"
           gutter={12}
-          openDelay={0}
           value={<ModelTooltip model={item} latest={item.latest} free={isFree(item.provider.id, item.cost)} />}
         >
           {node}
@@ -392,7 +391,6 @@ function ModelSelectorPopoverV2View(props: {
                                   class="w-full"
                                   placement="right-start"
                                   gutter={6}
-                                  openDelay={0}
                                   value={
                                     <ModelTooltip
                                       model={item}

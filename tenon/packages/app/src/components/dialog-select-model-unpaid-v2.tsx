@@ -88,7 +88,6 @@ export const DialogSelectModelUnpaidV2: Component<{ model?: ModelState }> = (pro
                   class="w-full"
                   placement="right-start"
                   gutter={6}
-                  openDelay={0}
                   contentStyle={{ "font-family": "var(--v2-font-family-sans)" }}
                   value={
                     <ModelTooltip

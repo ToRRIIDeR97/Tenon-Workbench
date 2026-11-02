@@ -4,7 +4,7 @@ import { Card, CardDescription } from "@tenon/ui/card"
 import { Collapsible } from "@tenon/ui/collapsible"
 import { Icon } from "@tenon/ui/icon"
 import { IconButton } from "@tenon/ui/icon-button"
-import { Tooltip } from "@tenon/ui/tooltip"
+import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { useI18n } from "@tenon/ui/context/i18n"
 
 export interface ToolErrorCardProps extends Omit<ComponentProps<typeof Card>, "children" | "variant"> {
@@ -134,7 +134,7 @@ export function ToolErrorCard(props: ToolErrorCardProps) {
           <div data-slot="tool-error-card-content">
             <Show when={open()}>
               <div data-slot="tool-error-card-copy">
-                <Tooltip
+                <TooltipV2
                   value={copied() ? i18n.t("ui.message.copied") : i18n.t("ui.toolErrorCard.copyError")}
                   placement="top"
                   gutter={4}
@@ -150,7 +150,7 @@ export function ToolErrorCard(props: ToolErrorCardProps) {
                     }}
                     aria-label={copied() ? i18n.t("ui.message.copied") : i18n.t("ui.toolErrorCard.copyError")}
                   />
-                </Tooltip>
+                </TooltipV2>
               </div>
             </Show>
             <Show when={body()}>{(value) => <CardDescription>{value()}</CardDescription>}</Show>

@@ -1,6 +1,7 @@
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { ProgressCircleV2 } from "@tenon/ui/v2/progress-circle-v2"
+import { PathTooltip, TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { Popover } from "@tenon/ui/popover"
 import { Harness } from "@tenon/schema/harness"
 import { For, Match, Show, Switch, createEffect, createMemo, onCleanup, onMount, untrack, type JSX } from "solid-js"
@@ -118,17 +119,18 @@ export function ComposerWhereRow() {
     <>
       <Show when={worktree()}>
         {(value) => (
-          <span
-            data-slot="composer-where-folder"
-            class="flex h-8 min-w-0 shrink items-center gap-1.5 px-2 text-[13px] leading-5 text-v2-text-text-muted"
-            title={directory()}
-          >
-            <Icon name="folder" size="small" class="shrink-0 text-v2-icon-icon-muted" />
-            <Show when={value().linked}>
-              <span class="shrink-0">{language.t("secondBrain.contextStrip.worktree")}</span>
-            </Show>
-            <span class="min-w-0 truncate text-v2-text-text-base [font-weight:530]">{value().name}</span>
-          </span>
+          <PathTooltip placement="top" class="min-w-0 shrink" name={value().name} path={directory()}>
+            <span
+              data-slot="composer-where-folder"
+              class="flex h-8 min-w-0 shrink items-center gap-1.5 px-2 text-[13px] leading-5 text-v2-text-text-muted"
+            >
+              <Icon name="folder" size="small" class="shrink-0 text-v2-icon-icon-muted" />
+              <Show when={value().linked}>
+                <span class="shrink-0">{language.t("secondBrain.contextStrip.worktree")}</span>
+              </Show>
+              <span class="min-w-0 truncate text-v2-text-text-base [font-weight:530]">{value().name}</span>
+            </span>
+          </PathTooltip>
         )}
       </Show>
       <Icon name="chevron-down" size="small" class="shrink-0 -rotate-90 text-v2-icon-icon-muted" />
@@ -210,9 +212,9 @@ function ContextMenu(props: {
           {(amount) => <Row label={language.t("secondBrain.contextMenu.cost")}>{usd().format(amount())}</Row>}
         </Show>
         <Row label={language.t("harness.model")}>
-          <span class="min-w-0 truncate font-mono text-[12px] font-normal" title={props.context.modelLabel}>
-            {props.context.modelLabel}
-          </span>
+          <TooltipV2 placement="top" class="min-w-0" value={props.context.modelLabel}>
+            <span class="min-w-0 truncate font-mono text-[12px] font-normal">{props.context.modelLabel}</span>
+          </TooltipV2>
         </Row>
       </Group>
 
@@ -279,9 +281,9 @@ function PlanLimits(props: { usage: PlanUsage; harness?: ComposerHarness }) {
   const shown = () => !!report() || (state.failed && !state.reports)
   const name = () => props.harness?.instances()?.find((item) => item.id === props.harness?.current())?.name ?? ""
   const status = (text: string, title?: string) => (
-    <p class="py-2 text-[12px] text-v2-text-text-muted" title={title}>
-      {text}
-    </p>
+    <TooltipV2 placement="top" inactive={!title} value={title}>
+      <p class="py-2 text-[12px] text-v2-text-text-muted">{text}</p>
+    </TooltipV2>
   )
 
   return (

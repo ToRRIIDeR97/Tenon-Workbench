@@ -2,7 +2,7 @@ import { createEffect, createMemo, createSignal, on, onCleanup, Show } from "sol
 import type { SessionStatus } from "@opencode-ai/sdk/v2/client"
 import { useI18n } from "@tenon/ui/context/i18n"
 import { Card } from "@tenon/ui/card"
-import { Tooltip } from "@tenon/ui/tooltip"
+import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { Spinner } from "@tenon/ui/spinner"
 
 export function SessionRetry(props: { status: SessionStatus; show?: boolean }) {
@@ -58,11 +58,11 @@ export function SessionRetry(props: { status: SessionStatus; show?: boolean }) {
             <Spinner class="size-4 mt-0.5" />
             <div class="min-w-0">
               <Show when={truncated()} fallback={<div data-slot="session-turn-retry-message">{message()}</div>}>
-                <Tooltip value={retry()?.message ?? ""} placement="top">
+                <TooltipV2 value={retry()?.message ?? ""} placement="top" contentClass="max-w-[320px] break-words">
                   <div data-slot="session-turn-retry-message" class="cursor-help truncate">
                     {message()}
                   </div>
-                </Tooltip>
+                </TooltipV2>
               </Show>
               <Show when={info()}>{(line) => <div data-slot="session-turn-retry-info">{line()}</div>}</Show>
             </div>
