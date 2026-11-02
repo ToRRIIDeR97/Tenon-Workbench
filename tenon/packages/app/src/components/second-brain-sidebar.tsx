@@ -53,11 +53,25 @@ export function SecondBrainSidebar() {
     <div
       data-component="second-brain-sidebar"
       data-expanded={layout.sidebar.opened() ? "" : undefined}
-      class="flex min-h-0 shrink-0"
+      // One outlined container: its width grows from the rail (80px + border) into rail plus panel.
+      // Not overflow-hidden, so rail labels can still float past its edge; the panel clips itself.
+      classList={{
+        "mb-2 ml-2 mr-2 flex min-h-0 shrink-0 rounded-[20px] border border-v2-border-border-muted bg-v2-background-bg-base transition-[width] will-change-[width] motion-reduce:duration-0": true,
+        "w-[82px] duration-medium ease-emphasized-decelerate md:w-[338px]": layout.sidebar.opened(),
+        "w-[82px] duration-[200ms] ease-emphasized-accelerate": !layout.sidebar.opened(),
+      }}
+      onTransitionEnd={(event) => {
+        if (event.target === event.currentTarget && event.propertyName === "width") panel.settle()
+      }}
     >
       <nav
-        // The rail and the Projects panel carry different gradients so the two columns read apart.
-        class="flex w-20 shrink-0 flex-col items-center gap-3 bg-[linear-gradient(to_bottom,var(--v2-background-bg-layer-01),var(--v2-background-bg-deep))] pb-4 pt-3"
+        // The rail keeps a grey gradient so it reads apart from the plain neutral panel. It follows the
+        // container's corners: all four when it fills the container, only the left ones beside the panel.
+        classList={{
+          "flex w-20 shrink-0 flex-col items-center gap-3 rounded-[19px] bg-[linear-gradient(to_bottom,var(--v2-background-bg-layer-01),var(--v2-background-bg-deep))] pb-4 pt-3 transition-[border-radius] motion-reduce:duration-0": true,
+          "duration-medium ease-emphasized-decelerate md:rounded-r-none": layout.sidebar.opened(),
+          "duration-[200ms] ease-emphasized-accelerate": !layout.sidebar.opened(),
+        }}
         aria-label={language.t("secondBrain.sidebar.title")}
       >
         <For each={items()}>
@@ -84,18 +98,16 @@ export function SecondBrainSidebar() {
         inert={layout.sidebar.opened() ? undefined : true}
         classList={{
           // The rail stays at every width; the Projects panel needs the room of a md window.
-          "hidden min-h-0 flex-col overflow-hidden bg-[linear-gradient(to_bottom,color-mix(in_srgb,var(--v2-background-bg-accent-container)_14%,var(--v2-background-bg-deep)),var(--v2-background-bg-deep)_60%)] transition-[width,opacity] will-change-[width] motion-reduce:transition-none md:flex": true,
-          "w-[248px] opacity-100 duration-medium ease-emphasized-decelerate": layout.sidebar.opened(),
-          "w-0 opacity-0 duration-short ease-emphasized-accelerate": !layout.sidebar.opened(),
-        }}
-        onTransitionEnd={(event) => {
-          if (event.target === event.currentTarget && event.propertyName === "width") panel.settle()
+          // It fills what the container leaves beside the rail and fades on the container's timing.
+          "hidden min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-r-[19px] transition-opacity motion-reduce:duration-0 md:flex": true,
+          "opacity-100 duration-medium ease-emphasized-decelerate": layout.sidebar.opened(),
+          "opacity-0 duration-[200ms] ease-emphasized-accelerate": !layout.sidebar.opened(),
         }}
       >
         <Show when={panel.mounted()}>
           <div
             data-sidebar-section="projects"
-            class="flex min-h-0 w-[248px] flex-1 flex-col overflow-y-auto pb-3 pr-2 pt-1"
+            class="flex min-h-0 w-[256px] flex-1 flex-col overflow-y-auto pb-3 pr-2 pt-1"
           >
             <WorkspaceHeader ctrl={ctrl} />
             <Show
