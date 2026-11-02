@@ -3,7 +3,8 @@ import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
-import { createMemo, createResource, For, Show } from "solid-js"
+import { debounce } from "@solid-primitives/scheduled"
+import { createEffect, createMemo, createResource, For, on, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
@@ -13,6 +14,7 @@ import { useServerSDK } from "@/context/server-sdk"
 import {
   listVaultConflicts,
   listVaultPages,
+  migrateVault,
   readProjectLog,
   readTimeline,
   SecondBrainRequestError,
@@ -41,24 +43,68 @@ export default function NotesPage() {
   const brainProjects = useBrainProjects()
   // `note` is the pre-vault link form (wiki links in page previews still use it).
   const [search] = useSearchParams<{ project?: string; tab?: string; page?: string; note?: string }>()
-  const [state, setState] = createStore({ creating: false, error: "" })
-  const directory = () => layout.home.workspace() ?? ""
+  const [state, setState] = createStore({
+    directory: "",
+    /** The open page has unsaved edits. */
+    dirty: false,
+    creating: false,
+    error: "",
+    /** Notes the first visit moved into the vault; 0 hides the notice. */
+    moved: 0,
+    search: "",
+    /** The debounced search the server runs. */
+    query: "",
+  })
+  const directory = () => state.directory
   const client = (target: string) => ({
     server: serverSDK().server,
     fetch: platform.fetch,
     target: { directory: target },
   })
 
+  // Follow the sidebar workspace, but an open page with unsaved edits holds its workspace until they are
+  // saved or discarded; the page says why meanwhile.
+  const sidebarDirectory = () => layout.home.workspace() ?? ""
+  const held = () => state.dirty && sidebarDirectory() !== state.directory
+  createEffect(() => {
+    const next = sidebarDirectory()
+    if (next === state.directory || state.dirty) return
+    setState({ directory: next, error: "", moved: 0, search: "", query: "" })
+  })
+
+  // The first visit to a workspace moves its pre-vault notes in, then lists the vault.
   const [pages, pagesActions] = createResource(
     () => directory() || undefined,
-    (target) => listVaultPages(client(target)),
+    async (target) => {
+      const moved = await migrateOnce(client(target), target)
+      if (moved > 0 && target === state.directory) setState("moved", moved)
+      return listVaultPages(client(target))
+    },
   )
   const [conflicts] = createResource(
     () => directory() || undefined,
     (target) => listVaultConflicts(client(target)).catch(() => []),
   )
+  const scheduleQuery = debounce((value: string) => setState("query", value), 250)
+  createEffect(
+    on(
+      () => state.search.trim(),
+      (value) => {
+        if (value) return scheduleQuery(value)
+        scheduleQuery.clear()
+        setState("query", "")
+      },
+    ),
+  )
+  const [matches] = createResource(
+    () => (directory() && state.query ? ([directory(), state.query] as const) : undefined),
+    ([target, query]) => listVaultPages(client(target), { search: query }),
+  )
   const pageList = () => (pages.error ? [] : (pages.latest ?? []))
-  const projects = () => brainProjects.list() ?? []
+  const projects = () => (held() ? [] : (brainProjects.list() ?? []))
+  // The vault refuses to live inside a workspace or Project folder; say so instead of a generic failure.
+  const misplaced = () =>
+    pages.error instanceof SecondBrainRequestError && pages.error.reason === "vault_inside_workspace"
 
   const pagePath = () => search.page ?? search.note ?? ""
   const projectId = () => (pagePath() ? "" : (search.project ?? ""))
@@ -139,6 +185,18 @@ export default function NotesPage() {
           {state.error}
         </p>
       </Show>
+      <label class="relative mx-3 mb-2 block shrink-0">
+        <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-v2-icon-icon-muted">
+          <Icon name="magnifying-glass" size="small" />
+        </span>
+        <input
+          class="h-9 w-full rounded-full bg-v2-background-bg-layer-01 pl-9 pr-3 text-[13px] text-v2-text-text-base transition-[background-color,box-shadow] duration-short ease-standard placeholder:text-v2-text-text-faint hover:bg-v2-background-bg-layer-02 motion-reduce:transition-none"
+          aria-label={language.t("secondBrain.vault.search")}
+          placeholder={language.t("secondBrain.vault.search")}
+          value={state.search}
+          onInput={(event) => setState("search", event.currentTarget.value)}
+        />
+      </label>
       <nav class="min-h-0 flex-1 overflow-y-auto px-2 pb-3" aria-label={language.t("secondBrain.vault.tree")}>
         <Show
           when={!pages.error}
@@ -157,20 +215,77 @@ export default function NotesPage() {
             </PageEmpty>
           }
         >
-          <NotesTree
-            projects={projects()}
-            pages={pageList()}
-            activeProject={activeProject()}
-            activePage={pagePath() || undefined}
-            onProject={openProject}
-            onPage={openPage}
-          />
+          <Show
+            when={state.search.trim()}
+            fallback={
+              <NotesTree
+                projects={projects()}
+                pages={pageList()}
+                activeProject={activeProject()}
+                activePage={pagePath() || undefined}
+                onProject={openProject}
+                onPage={openPage}
+              />
+            }
+          >
+            <Show
+              when={!matches.loading && state.query}
+              fallback={<p class="px-3 py-2 text-[12px] text-v2-text-text-faint">{language.t("common.loading")}</p>}
+            >
+              <Show
+                when={(matches.error ? [] : (matches.latest ?? [])).length > 0}
+                fallback={<PageEmpty class="!px-3">{language.t("secondBrain.vault.noMatches")}</PageEmpty>}
+              >
+                <ul class="flex flex-col gap-px" aria-label={language.t("secondBrain.vault.results")}>
+                  <For each={matches.error ? [] : matches.latest}>
+                    {(page) => (
+                      <li>
+                        <button
+                          type="button"
+                          class={`${pageRowClass} !py-2 text-[13px] text-v2-text-text-base`}
+                          onClick={() => openPage(page.path)}
+                        >
+                          <span class="min-w-0 flex-1 truncate">{page.title}</span>
+                        </button>
+                      </li>
+                    )}
+                  </For>
+                </ul>
+              </Show>
+            </Show>
+          </Show>
         </Show>
       </nav>
     </aside>
   )
 
   const conflictBanner = () => (
+    <>
+      <Show when={state.moved > 0}>
+        <div
+          role="status"
+          class="mx-4 mt-3 flex shrink-0 items-center gap-2 rounded-[16px] bg-v2-background-bg-layer-01 py-1.5 pl-4 pr-1.5 text-[13px] text-v2-text-text-base sm:mx-6"
+        >
+          <span class="min-w-0 flex-1">
+            {language.plural("secondBrain.vault.moved", state.moved, {
+              count: state.moved.toLocaleString(language.intl()),
+            })}
+          </span>
+          <IconButtonV2
+            type="button"
+            variant="ghost-muted"
+            class="!size-8"
+            aria-label={language.t("common.dismiss")}
+            icon={<Icon name="xmark-small" size="small" />}
+            onClick={() => setState("moved", 0)}
+          />
+        </div>
+      </Show>
+      {conflictCopies()}
+    </>
+  )
+
+  const conflictCopies = () => (
     <Show when={(conflicts.latest ?? []).length > 0}>
       <div
         role="status"
@@ -258,74 +373,113 @@ export default function NotesPage() {
           }
         >
           <Show
-            when={pagePath() ? { path: pagePath(), directory: directory() } : undefined}
-            keyed
+            when={!misplaced()}
             fallback={
-              <div class="flex min-h-0 min-w-0 flex-1 flex-col md:flex-row">
-                {tree()}
-                <main class="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
-                  {conflictBanner()}
-                  <Show when={projectId()} fallback={overview()}>
-                    <Show
-                      when={project()}
-                      fallback={
-                        <PageEmpty
-                          loading={brainProjects.loading()}
-                          title={
-                            brainProjects.loading()
-                              ? language.t("common.loading")
-                              : language.t("secondBrain.vault.projectMissing")
-                          }
-                        />
-                      }
-                    >
-                      {(item) => (
-                        <NotesProject
-                          project={item()}
-                          tab={tab()}
-                          onTab={(next) =>
-                            navigate(`/notes?project=${encodeURIComponent(item().id)}&tab=${next}`, { replace: true })
-                          }
-                          timeline={{
-                            value: timeline.error ? undefined : timeline.latest,
-                            loading: timeline.loading,
-                            failed: !!timeline.error,
-                            retry: () => void timelineActions.refetch(),
-                          }}
-                          log={{
-                            value: log.error ? undefined : log.latest,
-                            loading: log.loading,
-                            failed: !!log.error,
-                            retry: () => void logActions.refetch(),
-                          }}
-                          pages={pageList().filter((page) => page.projectId === item().id)}
-                          pageHref={pageHref}
-                          onPage={openPage}
-                        />
-                      )}
-                    </Show>
-                  </Show>
-                </main>
-              </div>
+              <PageEmpty error title={language.t("secondBrain.vault.misplaced.title")}>
+                {language.t("secondBrain.vault.misplaced.body")}
+              </PageEmpty>
             }
           >
-            {(open) => (
-              <div class="flex min-h-0 min-w-0 flex-1 flex-col">
-                {conflictBanner()}
-                <NotesPageView
-                  client={client(open.directory)}
-                  path={open.path}
-                  pages={pageList()}
-                  projects={projects()}
-                  onBack={back}
-                  onOpen={openPage}
-                  onSaved={storePage}
-                />
-              </div>
-            )}
+            <Show
+              when={pagePath() ? { path: pagePath(), directory: directory() } : undefined}
+              keyed
+              fallback={
+                <div class="flex min-h-0 min-w-0 flex-1 flex-col md:flex-row">
+                  {tree()}
+                  <main class="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+                    {conflictBanner()}
+                    <Show when={projectId()} fallback={overview()}>
+                      <Show
+                        when={project()}
+                        fallback={
+                          <PageEmpty
+                            loading={brainProjects.loading()}
+                            title={
+                              brainProjects.loading()
+                                ? language.t("common.loading")
+                                : language.t("secondBrain.vault.projectMissing")
+                            }
+                          />
+                        }
+                      >
+                        {(item) => (
+                          <NotesProject
+                            project={item()}
+                            tab={tab()}
+                            onTab={(next) =>
+                              navigate(`/notes?project=${encodeURIComponent(item().id)}&tab=${next}`, { replace: true })
+                            }
+                            timeline={{
+                              value: timeline.error ? undefined : timeline.latest,
+                              loading: timeline.loading,
+                              failed: !!timeline.error,
+                              retry: () => void timelineActions.refetch(),
+                            }}
+                            log={{
+                              value: log.error ? undefined : log.latest,
+                              loading: log.loading,
+                              failed: !!log.error,
+                              retry: () => void logActions.refetch(),
+                            }}
+                            pages={pageList().filter((page) => page.projectId === item().id)}
+                            pageHref={pageHref}
+                            onPage={openPage}
+                          />
+                        )}
+                      </Show>
+                    </Show>
+                  </main>
+                </div>
+              }
+            >
+              {(open) => (
+                <div class="flex min-h-0 min-w-0 flex-1 flex-col">
+                  {conflictBanner()}
+                  <NotesPageView
+                    client={client(open.directory)}
+                    path={open.path}
+                    pages={pageList()}
+                    projects={projects()}
+                    onBack={back}
+                    onOpen={openPage}
+                    onSaved={storePage}
+                    onDirty={(dirty) => setState("dirty", dirty)}
+                    held={held()}
+                  />
+                </div>
+              )}
+            </Show>
           </Show>
         </Show>
       </div>
     </section>
   )
+}
+
+const migratedKey = "tenon.notes.migrated:"
+const migrated = new Set<string>()
+
+/**
+ * Ask the server once per workspace to move pre-vault notes in (it backs them up and a repeat moves nothing).
+ * A failed call is retried on the next visit; the page list then reports any lasting failure.
+ */
+async function migrateOnce(client: Parameters<typeof migrateVault>[0], directory: string) {
+  if (migrated.has(directory) || storedFlag(directory)) return 0
+  const result = await migrateVault(client).catch(() => undefined)
+  if (!result) return 0
+  migrated.add(directory)
+  try {
+    localStorage.setItem(migratedKey + directory, "1")
+  } catch {
+    // Blocked storage only costs one repeat request next launch, which moves nothing.
+  }
+  return result.moved
+}
+
+function storedFlag(directory: string) {
+  try {
+    return localStorage.getItem(migratedKey + directory) === "1"
+  } catch {
+    return false
+  }
 }

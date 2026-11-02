@@ -339,3 +339,17 @@ export const readProjectLog = (client: Client, projectId: string) =>
   request<LogEntry[]>(client, `/second-brain/vault/log?project=${encodeURIComponent(projectId)}`)
 
 export const listVaultConflicts = (client: Client) => request<VaultConflict[]>(client, "/second-brain/vault/conflicts")
+
+/** Moves the workspace's pre-vault notes into the vault (with a backup); a repeat call moves nothing. */
+export const migrateVault = (client: Client) =>
+  request<{ moved: number; backup: string }>(client, "/second-brain/vault/migrate", { method: "POST" })
+
+/** A vault page in the shape the Projects map and overview list notes in. The vault keeps no link index. */
+export const vaultPageSummary = (info: VaultPageInfo): NoteSummary => ({
+  path: info.path,
+  title: info.title,
+  projectIds: info.projectId ? [info.projectId] : [],
+  tags: [],
+  links: [],
+  updatedAt: info.updatedAt,
+})

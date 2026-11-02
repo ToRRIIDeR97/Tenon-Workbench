@@ -28,11 +28,12 @@ import { invalidateProjectThreads, useBrainProjects } from "@/components/sidebar
 import { showToast } from "@/utils/toast"
 import {
   createProject,
-  listNotes,
+  listVaultPages,
   listProjects,
   readCalendar,
   SecondBrainRequestError,
   updateProject,
+  vaultPageSummary,
   type CalendarSnapshot,
   type NoteSummary,
   type ProjectRecord,
@@ -127,7 +128,7 @@ export default function ProjectsPage() {
   )
   const [notes] = createResource(
     () => (wantNotes() && brainDirectory()) || undefined,
-    (directory) => listNotes(client(directory)),
+    (directory) => listVaultPages(client(directory)).then((pages) => pages.map(vaultPageSummary)),
   )
   // Reading a failed resource throws, so read through these and show the failure inline instead.
   const projectList = () => (projects.error ? [] : (projects.latest ?? []))
@@ -586,9 +587,7 @@ export default function ProjectsPage() {
                         failed={!!notes.error}
                         openNotes={openNotes}
                         language={language}
-                        openNote={(path) =>
-                          navigate(`/notes?project=${encodeURIComponent(project.id)}&note=${encodeURIComponent(path)}`)
-                        }
+                        openNote={(path) => navigate(`/notes?page=${encodeURIComponent(path)}`)}
                       />
                     </Show>
                   </ViewSwitch>

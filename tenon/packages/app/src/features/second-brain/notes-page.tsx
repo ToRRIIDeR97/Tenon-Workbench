@@ -34,6 +34,10 @@ export function NotesPageView(props: {
   onBack: () => void
   onOpen: (path: string) => void
   onSaved: (info: VaultPageInfo) => void
+  /** Reports unsaved edits, so the page can hold its workspace until they are saved or discarded. */
+  onDirty: (dirty: boolean) => void
+  /** The sidebar switched workspace while this page had unsaved edits. */
+  held: boolean
 }) {
   const language = useLanguage()
   const command = useCommand()
@@ -53,6 +57,8 @@ export function NotesPageView(props: {
   const dirty = createMemo(
     () => state.revision !== "" && (state.body !== state.baseBody || state.title !== state.baseTitle),
   )
+  createEffect(() => props.onDirty(dirty()))
+  onCleanup(() => props.onDirty(false))
   const [page, pageActions] = createResource(
     () => props.path,
     (path) => readVaultPage(props.client, path),
@@ -250,7 +256,7 @@ export function NotesPageView(props: {
               </div>
             )}
           </RevealShow>
-          <RevealShow when={state.error}>
+          <RevealShow when={state.error || (props.held ? language.t("secondBrain.vault.unsaved") : "")}>
             {(error) => (
               <div class="flex flex-wrap items-center gap-2">
                 <p role="alert" class="text-[12px] text-v2-text-text-critical">

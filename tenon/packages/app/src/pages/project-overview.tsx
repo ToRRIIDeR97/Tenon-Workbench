@@ -12,7 +12,7 @@ import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
 import { useServerSDK } from "@/context/server-sdk"
 import { localDateKey } from "@/features/second-brain/calendar-domain"
-import { listNotes, listProjects, readCalendar } from "@/features/second-brain/client"
+import { listProjects, listVaultPages, readCalendar, vaultPageSummary } from "@/features/second-brain/client"
 import {
   filterProjectOverview,
   groupProjectOverview,
@@ -41,7 +41,9 @@ export default function ProjectOverviewPage() {
   const brainDirectory = () => layout.home.workspace() ?? ""
   const source = () => brainDirectory() || undefined
   const [projects, projectActions] = createResource(source, (directory) => listProjects(client(directory)))
-  const [notes, noteActions] = createResource(source, (directory) => listNotes(client(directory)))
+  const [notes, noteActions] = createResource(source, (directory) =>
+    listVaultPages(client(directory)).then((pages) => pages.map(vaultPageSummary)),
+  )
   const [calendar, calendarActions] = createResource(source, (directory) => readCalendar(client(directory)))
 
   const loading = () => projects.loading || notes.loading || calendar.loading
@@ -76,8 +78,7 @@ export default function ProjectOverviewPage() {
   }
   const projectQuery = (group: OverviewGroup) =>
     group.projectId ? `project=${encodeURIComponent(group.projectId)}` : ""
-  const openNote = (group: OverviewGroup, path: string) =>
-    navigate(`/notes?${[projectQuery(group), `note=${encodeURIComponent(path)}`].filter(Boolean).join("&")}`)
+  const openNote = (path: string) => navigate(`/notes?page=${encodeURIComponent(path)}`)
   const openAll = (page: "notes" | "calendar", group: OverviewGroup) =>
     navigate(group.projectId ? `/${page}?${projectQuery(group)}` : `/${page}`)
 
@@ -252,11 +253,7 @@ export default function ProjectOverviewPage() {
                               <For each={group.notes.slice(0, preview)}>
                                 {(note) => (
                                   <li>
-                                    <button
-                                      type="button"
-                                      class={pageRowClass}
-                                      onClick={() => openNote(group, note.path)}
-                                    >
+                                    <button type="button" class={pageRowClass} onClick={() => openNote(note.path)}>
                                       <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base">
                                         {note.title}
                                       </span>
