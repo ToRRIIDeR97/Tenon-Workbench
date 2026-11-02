@@ -195,6 +195,9 @@ user's approval.
 
 ## Completion evidence
 
+PR3: TOR-2 pair; P5+P6 PASS at `4191d7ce` after one round. PR4: TOR-2 pair; stage 1 (no PR3 dependency) PASS at `b1e53450`, stage 2 rebased onto `4191d7ce`, PASS at `961f6079` after one round; PR3's tests re-run green on the rebased branch. Not run on `961f6079`: full core suite (Windows baseline failures known: git trees, file mode, symlinked AGENTS.md), `bun run build`. Manual checks still open: real Gmail/Outlook/IMAP accounts, a real Google Tasks round trip, real dictation on Windows and macOS, macOS engine build, desktop-only Settings rows, motion feel in the packaged app.
+
+
 PR1 integration (merge `0babf352` of P1 + P2 onto `fc3dda2e`): PASS — no conflicts; both items' suites, `bun run typecheck`, `lint`, `test` (11/11 tasks), `test:routes` (11) green. Install note: worktrees under `.claude/worktrees` hit the Windows path limit during `bun install`; a partial install shows as missing modules.
 
 Filled in as phases pass. Verifier results and implementor reports are kept apart.
@@ -205,8 +208,8 @@ Filled in as phases pass. Verifier results and implementor reports are kept apar
 | P2 | `6332bd3e` | 0 (docs added before verification) | PASS: cargo 5/5 (incl. verify), desktop dictation 9/9, desktop 150 pass, app unit 920, web spec 1/1, lint 0 errors. Desktop-only UI (AC-2.4 positive path, AC-2.5) code-reviewed only; macOS build not run | Implementor: Windows release binary builds with the documented env (Build Tools CMake+Ninja, short target dir) |
 | P3 | | | | |
 | P4 | | | | |
-| P5 | | | | |
-| P6 | | | | |
-| P7 | | | | |
-| P8 | | | | |
-| P9 | | | | |
+| P5 | `ef14fee4` (+ PR4 stage-2 changes in `961f6079`) | 1 (Google task dispatch, default in-process agent without tools, lenient calendar undo) | PASS: core app-tools 9, tenon app-tools + agents 14, typecheck, test, test:routes, lint | Implementor: built-in loop registers tools per folder; writes ask `tenon_write` |
+| P6 | `4191d7ce` | 1 (typing under reduced motion; pill over titlebar) | PASS: Playwright 27 incl. reduced-motion regression | Implementor: step list exported for P7 |
+| P7 | `961f6079` | 2 (stage 2: pill duplicating the step list; Command Centre-only tools shown to project threads in the built-in loop) | PASS: tenon acceptance+verification 46, Playwright 41 incl. AC-7.7, typecheck all, test, test:routes | Implementor: two stages (before/after PR3), rebased onto `4191d7ce` |
+| P8 | `961f6079` | 0 functional (minor: oversized body now answered 413) | PASS: desktop mail 12, mail-tools 3/3, no send path, safeStorage, loopback bearer | Implementor: imapflow 1.0.191 (MIT); Outlook needs `MAIN_VITE_MICROSOFT_CLIENT_ID` |
+| P9 | `961f6079` | 0 | PASS: routines acceptance 7 + verification 4, Playwright routines | Implementor: last-run state is per machine |
