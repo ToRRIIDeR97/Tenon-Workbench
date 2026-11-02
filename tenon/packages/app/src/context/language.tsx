@@ -37,6 +37,7 @@ type PluralKey =
   | "secondBrain.sessionTab.messages"
   | "secondBrain.turnSteps.failed"
   | "secondBrain.turnSteps.laneSteps"
+  | "secondBrain.vault.moved"
   | `secondBrain.turnSteps.${StepKind}`
 type Source = { dict: Record<string, string> }
 

@@ -95,7 +95,7 @@
 <text x="370" y="172" text-anchor="start" class="s">→ domains and SessionV2</text>
 <rect class="sub" x="360" y="215" width="290" height="104" rx="6"/>
 <text x="370" y="233" text-anchor="start" class="t">Second Brain domains</text>
-<text x="370" y="249" text-anchor="start" class="s">tenon/src/knowledge/note.ts</text>
+<text x="370" y="249" text-anchor="start" class="s">tenon/src/knowledge/note.ts, vault.ts</text>
 <text x="370" y="265" text-anchor="start" class="s">tenon/src/project/brain.ts</text>
 <text x="370" y="281" text-anchor="start" class="s">tenon/src/planner/calendar.ts</text>
 <text x="370" y="297" text-anchor="start" class="s">SecondBrainApi handlers</text>
@@ -113,9 +113,9 @@
 <text x="370" y="554" text-anchor="start" class="s">EventV2 (durable events), Snapshot</text>
 <text x="370" y="570" text-anchor="start" class="s">registry.ts, tenon MCP (ask, delegate)</text>
 <rect class="store" x="760" y="335" width="200" height="76" rx="6"/>
-<text x="770" y="353" text-anchor="start" class="t">Workspace files</text>
-<text x="770" y="369" text-anchor="start" class="s">notes/, projects/*, .tenon/</text>
-<text x="770" y="385" text-anchor="start" class="s">.tenon/calendar-v1.json</text>
+<text x="770" y="353" text-anchor="start" class="t">Workspace files + vault</text>
+<text x="770" y="369" text-anchor="start" class="s">projects/*, .tenon/ (calendar)</text>
+<text x="770" y="385" text-anchor="start" class="s">vault: Documents/Tenon/&lt;ws&gt;/</text>
 <rect class="store" x="760" y="445" width="200" height="56" rx="6"/>
 <text x="770" y="463" text-anchor="start" class="t">Profile SQLite</text>
 <text x="770" y="479" text-anchor="start" class="s">sessions, events, permissions</text>

@@ -8,7 +8,8 @@ import { stableDatabaseName } from "./database-name"
 import { getLogger } from "./logging"
 import { fallbackPath, getUserShell, loadShellEnv, readRegistryPaths, windowsPath } from "./shell-env"
 import { getStore } from "./store"
-import { DEFAULT_SERVER_URL_KEY } from "./store-keys"
+import { DEFAULT_SERVER_URL_KEY, VAULT_FOLDER_KEY } from "./store-keys"
+import { vaultFolder } from "./vault-folder"
 
 type SidecarMessage =
   | { type: "ready" }
@@ -64,6 +65,7 @@ export async function preferAppEnv(userDataPath: string) {
   // undefined to process.env would store the string "undefined", so it is set only when there is a name.
   const database = stableDatabaseName(CHANNEL, app.isPackaged)
   if (!process.env.TENON_DB && database) process.env.TENON_DB = database
+  process.env.TENON_VAULT_DIR = vaultFolder(getStore().get(VAULT_FOLDER_KEY), app.getPath("documents"))
   return shellEnv
 }
 

@@ -1,5 +1,6 @@
 import { Schema } from "effect"
 import { KnowledgeNote } from "@/knowledge/note"
+import { KnowledgeVault } from "@/knowledge/vault"
 import { PlannerCalendar } from "@/planner/calendar"
 import { BrainProject } from "@/project/brain"
 import { HttpApi, HttpApiEndpoint, HttpApiError, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
@@ -11,6 +12,16 @@ import { described } from "./metadata"
 const NoteQuery = Schema.Struct({
   ...WorkspaceRoutingQueryFields,
   path: Schema.String,
+})
+
+const VaultPageQuery = Schema.Struct({
+  ...WorkspaceRoutingQueryFields,
+  path: Schema.String,
+})
+
+const VaultProjectQuery = Schema.Struct({
+  ...WorkspaceRoutingQueryFields,
+  project: Schema.String,
 })
 
 const ProjectQuery = Schema.Struct({
@@ -55,6 +66,14 @@ export const SecondBrainPaths = {
   projectLink: "/second-brain/projects/link",
   projectUnlink: "/second-brain/projects/unlink",
   instructions: "/second-brain/instructions",
+  vault: "/second-brain/vault",
+  vaultPages: "/second-brain/vault/pages",
+  vaultPage: "/second-brain/vault/page",
+  vaultPageHistory: "/second-brain/vault/page/history",
+  vaultTimeline: "/second-brain/vault/timeline",
+  vaultLog: "/second-brain/vault/log",
+  vaultConflicts: "/second-brain/vault/conflicts",
+  vaultMigrate: "/second-brain/vault/migrate",
 } as const
 
 export const SecondBrainApi = HttpApi.make("secondBrain").add(
@@ -158,11 +177,76 @@ export const SecondBrainApi = HttpApi.make("secondBrain").add(
         success: described(BrainProject.Info, "Project updated"),
         error: errors,
       }),
+      HttpApiEndpoint.get("readVault", SecondBrainPaths.vault, {
+        query: Schema.Struct(WorkspaceRoutingQueryFields),
+        success: described(KnowledgeVault.Info, "The vault root and this workspace's folder"),
+        error: errors,
+      }),
+      HttpApiEndpoint.get("listVaultPages", SecondBrainPaths.vaultPages, {
+        query: Schema.Struct({
+          ...WorkspaceRoutingQueryFields,
+          project: Schema.optional(Schema.String),
+          search: Schema.optional(Schema.String),
+        }),
+        success: described(Schema.Array(KnowledgeVault.PageInfo), "Vault pages"),
+        error: errors,
+      }),
+      HttpApiEndpoint.get("readVaultPage", SecondBrainPaths.vaultPage, {
+        query: VaultPageQuery,
+        success: described(KnowledgeVault.Page, "Vault page"),
+        error: errors,
+      }),
+      HttpApiEndpoint.put("writeVaultPage", SecondBrainPaths.vaultPage, {
+        query: VaultPageQuery,
+        payload: KnowledgeVault.PageWriteInput,
+        success: described(KnowledgeVault.Page, "Vault page saved"),
+        error: errors,
+      }),
+      HttpApiEndpoint.get("readVaultPageHistory", SecondBrainPaths.vaultPageHistory, {
+        query: Schema.Struct({ ...VaultPageQuery.fields, revision: Schema.optional(Schema.String) }),
+        success: described(
+          Schema.Union([Schema.Array(KnowledgeVault.PageVersion), KnowledgeVault.PageVersionBody]),
+          "Earlier versions of a page, or one version's body when a revision is given",
+        ),
+        error: errors,
+      }),
+      HttpApiEndpoint.get("readVaultTimeline", SecondBrainPaths.vaultTimeline, {
+        query: VaultProjectQuery,
+        success: described(KnowledgeVault.Timeline, "Project timeline"),
+        error: errors,
+      }),
+      HttpApiEndpoint.put("writeVaultTimeline", SecondBrainPaths.vaultTimeline, {
+        query: VaultProjectQuery,
+        payload: KnowledgeVault.TimelineWriteInput,
+        success: described(KnowledgeVault.Timeline, "Project timeline saved"),
+        error: errors,
+      }),
+      HttpApiEndpoint.get("readVaultLog", SecondBrainPaths.vaultLog, {
+        query: VaultProjectQuery,
+        success: described(Schema.Array(KnowledgeVault.LogEntry), "Project log, newest first"),
+        error: errors,
+      }),
+      HttpApiEndpoint.post("appendVaultLog", SecondBrainPaths.vaultLog, {
+        query: VaultProjectQuery,
+        payload: KnowledgeVault.LogInput,
+        success: described(KnowledgeVault.LogEntry, "Log entry appended"),
+        error: errors,
+      }),
+      HttpApiEndpoint.get("listVaultConflicts", SecondBrainPaths.vaultConflicts, {
+        query: Schema.Struct(WorkspaceRoutingQueryFields),
+        success: described(Schema.Array(KnowledgeVault.Conflict), "Sync conflict copies"),
+        error: errors,
+      }),
+      HttpApiEndpoint.post("migrateVault", SecondBrainPaths.vaultMigrate, {
+        query: Schema.Struct(WorkspaceRoutingQueryFields),
+        success: described(KnowledgeVault.MigrateResult, "Workspace notes moved into the vault"),
+        error: errors,
+      }),
     )
     .annotateMerge(
       OpenApi.annotations({
         title: "second brain",
-        description: "Workspace-scoped notes and local calendar data.",
+        description: "Workspace-scoped notes, the Tenon vault and local calendar data.",
       }),
     )
     .middleware(InstanceContextMiddleware)

@@ -1,7 +1,9 @@
 import { expect, test, type Page } from "@playwright/test"
 import { fixture } from "../smoke/session-timeline.fixture"
 import { mockTenonServer } from "../utils/mock-server"
-import type { NoteDocument, ProjectRecord } from "../../src/features/second-brain/client"
+import type { ProjectRecord, VaultPage } from "../../src/features/second-brain/client"
+
+type Writes = { path: string; body: Record<string, unknown> }[]
 
 async function setup(page: Page, spanish = false) {
   await mockTenonServer(page, {
@@ -44,32 +46,27 @@ async function setup(page: Page, spanish = false) {
     createdAt: date,
     updatedAt: date,
   }
-  const notes: NoteDocument[] = [
-    {
-      info: {
-        path: "notes/alpha.md",
-        title: "Alpha",
-        projectIds: [project.id],
-        tags: [],
-        links: ["Beta"],
-        updatedAt: date,
-      },
-      body: "# First heading\n\nUnique-body-needle and [[Beta]].",
-      revision: "1",
+  // Vault pages: paths are relative to the workspace's vault folder; a Project's pages sit in its folder.
+  const folder = "Audit Project"
+  const vaultPage = (path: string, title: string, body: string): VaultPage => ({
+    info: {
+      id: `page_${title.replaceAll(" ", "")}`,
+      path,
+      title,
+      projectId: project.id,
+      properties: {},
+      updatedAt: date,
     },
-    {
-      info: {
-        path: "notes/beta.md",
-        title: "Beta Updated",
-        projectIds: [project.id],
-        tags: [],
-        links: [],
-        updatedAt: date,
-      },
-      body: "# Beta body",
-      revision: "1",
-    },
+    body,
+    revision: "1",
+  })
+  const pages = [
+    vaultPage(`${folder}/Alpha.md`, "Alpha", "# First heading\n\nUnique-body-needle and [[Beta]]."),
+    vaultPage(`${folder}/Beta.md`, "Beta Updated", "# Beta body"),
   ]
+  // A file the page list has not seen yet (written by another machine), so creating it is refused.
+  const unlisted = new Set(["Untitled.md"])
+  const writes: Writes = []
   await page.route("**/second-brain/**", async (route) => {
     const url = new URL(route.request().url())
     if (!url.pathname.startsWith("/second-brain/")) return route.fallback()
@@ -93,27 +90,42 @@ async function setup(page: Page, spanish = false) {
       if (method === "PATCH") Object.assign(project, route.request().postDataJSON())
       return route.fulfill({ json: project })
     }
-    if (url.pathname === "/second-brain/notes") {
+    if (url.pathname === "/second-brain/vault/migrate") return route.fulfill({ json: { moved: 2, backup: "b" } })
+    if (url.pathname === "/second-brain/vault/pages") {
       const search = (url.searchParams.get("search") ?? "").toLowerCase()
       return route.fulfill({
-        json: notes
-          .filter((note) => !search || `${note.info.title} ${note.body}`.toLowerCase().includes(search))
-          .map((note) => note.info),
+        json: pages
+          .filter((page) => !search || `${page.info.title} ${page.body}`.toLowerCase().includes(search))
+          .map((page) => page.info),
       })
     }
-    if (url.pathname === "/second-brain/note") {
-      const note = notes.find((item) => item.info.path === url.searchParams.get("path"))
-      if (method === "PUT") {
-        const body = route.request().postDataJSON()
-        if (body.create && note) return route.fulfill({ status: 409, json: {} })
-        if (note) {
-          note.body = body.body
-          note.info.title = body.title
-          note.revision = "2"
-        }
+    if (url.pathname === "/second-brain/vault/page") {
+      const path = url.searchParams.get("path") ?? ""
+      if (method !== "PUT") {
+        const page = pages.find((item) => item.info.path === path)
+        return page ? route.fulfill({ json: page }) : route.fulfill({ status: 404, json: {} })
       }
-      return route.fulfill({ json: note })
+      const body = route.request().postDataJSON()
+      writes.push({ path, body })
+      const full = body.projectId && !path.startsWith(`${folder}/`) ? `${folder}/${path}` : path
+      const page = pages.find((item) => item.info.path === full)
+      if (body.create) {
+        if (page || unlisted.has(full)) return route.fulfill({ status: 409, json: { data: { message: "exists" } } })
+        const created = vaultPage(full, body.title, body.body)
+        pages.push(created)
+        return route.fulfill({ json: created })
+      }
+      if (!page) return route.fulfill({ status: 404, json: {} })
+      if (body.expectedRevision !== page.revision)
+        return route.fulfill({ status: 409, json: { data: { message: "stale" } } })
+      Object.assign(page, { body: body.body, revision: String(Number(page.revision) + 1) })
+      page.info.title = body.title ?? page.info.title
+      return route.fulfill({ json: page })
     }
+    if (url.pathname === "/second-brain/vault/timeline")
+      return route.fulfill({ json: { projectId: project.id, revision: "1", items: [], progress: 0 } })
+    if (url.pathname === "/second-brain/vault/log" || url.pathname === "/second-brain/vault/conflicts")
+      return route.fulfill({ json: [] })
     if (url.pathname === "/second-brain/calendar")
       return route.fulfill({
         json: {
@@ -136,66 +148,73 @@ async function setup(page: Page, spanish = false) {
       })
     return route.fulfill({ status: 404, json: {} })
   })
+  return writes
 }
 
 test("notes preserve edits across navigation, search bodies, render headings and stable wiki links", async ({
   page,
 }, testInfo) => {
-  await setup(page)
-  await page.goto("/notes?note=notes%2Falpha.md")
-  await expect(page.getByRole("heading", { name: "First heading" })).toBeVisible({ timeout: 20_000 })
+  const writes = await setup(page)
+  await page.goto("/notes")
+  // The first visit moves the workspace's pre-vault notes into the vault and says how many.
+  await expect(page.getByRole("status").filter({ hasText: "Moved 2 notes into the Tenon vault" })).toBeVisible()
+  await page.getByRole("textbox", { name: "Search pages" }).fill("Unique-body-needle")
+  const results = page.getByRole("list", { name: "Search results" })
+  await expect(results.getByRole("button", { name: "Alpha", exact: true })).toBeVisible()
+  await expect(results.getByRole("button", { name: "Beta Updated", exact: true })).toHaveCount(0)
+  await results.getByRole("button", { name: "Alpha", exact: true }).click()
+  await expect(page).toHaveURL(/\/notes\?page=Audit%20Project%2FAlpha\.md$/)
+  await expect(page.getByRole("heading", { name: "First heading" })).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath("note-preview.png"), fullPage: true })
   await page.getByRole("link", { name: "Beta", exact: true }).click()
+  await expect(page).toHaveURL(/\/notes\?page=Audit%20Project%2FBeta\.md$/)
   await expect(page.getByRole("heading", { name: "Beta body" })).toBeVisible()
-  await page.getByRole("textbox", { name: "Search notes" }).fill("Unique-body-needle")
-  await expect(
-    page.getByRole("navigation", { name: "Notes", exact: true }).getByRole("button", { name: "Alpha", exact: true }),
-  ).toBeVisible()
-  await expect(
-    page
-      .getByRole("navigation", { name: "Notes", exact: true })
-      .getByRole("button", { name: "Beta Updated", exact: true }),
-  ).toHaveCount(0)
-  await page
-    .getByRole("navigation", { name: "Notes", exact: true })
-    .getByRole("button", { name: "Alpha", exact: true })
-    .click()
   await page.getByRole("button", { name: "Write", exact: true }).click()
   const editor = page.getByRole("textbox", { name: "Markdown note editor" })
   await editor.fill("Edited, unsaved body")
   await page.getByRole("button", { name: "Calendar", exact: true }).click()
-  await expect(page).toHaveURL(/\/notes/)
+  await expect(page).toHaveURL(/\/notes\?page=/)
   await expect(editor).toHaveValue("Edited, unsaved body")
   await expect(page.getByRole("alert")).toContainText("Save or discard")
   await page.screenshot({ path: testInfo.outputPath("notes.png"), fullPage: true })
   await page.getByRole("button", { name: "Save", exact: true }).click()
-  // Saving patches the open search results in place instead of re-running the search (notes.tsx
-  // save()), so the saved note stays listed and the unsaved-changes warning clears.
+  // Saving sends the revision the page was loaded at, clears the warning and keeps the text.
   await expect(page.getByRole("alert")).toHaveCount(0)
   await expect(editor).toHaveValue("Edited, unsaved body")
-  await expect(
-    page.getByRole("navigation", { name: "Notes", exact: true }).getByRole("button", { name: "Alpha", exact: true }),
-  ).toBeVisible()
+  expect(writes).toEqual([
+    {
+      path: "Audit Project/Beta.md",
+      body: expect.objectContaining({ body: "Edited, unsaved body", expectedRevision: "1" }),
+    },
+  ])
+  // Saved, the page can be left again.
+  await page.getByRole("button", { name: "Calendar", exact: true }).click()
+  await expect(page).toHaveURL(/\/calendar$/)
 })
 
-test("new note validation stays inside the narrow sidebar", async ({ page }, testInfo) => {
-  await setup(page)
+test("new page errors stay inside the narrow page tree, and New page in a Project opens there", async ({
+  page,
+}, testInfo) => {
+  const writes = await setup(page)
   await page.goto("/notes")
-  await page
-    .getByRole("region", { name: "Notes", exact: true })
-    .getByRole("complementary")
-    .getByRole("button", { name: "New note", exact: true })
-    .click()
-  await page.getByRole("button", { name: "Create", exact: true }).click()
-  await expect(page.getByRole("alert")).toContainText("Enter a note name")
-  const title = page.getByRole("textbox", { name: "Note name" })
-  await title.fill("Alpha")
-  await page.getByRole("button", { name: "Create", exact: true }).click()
-  await expect(page.getByRole("alert")).toContainText("already exists")
-  const bounds = await title.boundingBox()
-  const form = await page.locator("form").filter({ has: title }).boundingBox()
-  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(form!.x + form!.width)
-  await page.screenshot({ path: testInfo.outputPath("new-note.png"), fullPage: true })
+  const column = page.getByRole("region", { name: "Notes", exact: true }).getByRole("complementary")
+  await column.getByRole("button", { name: "New page", exact: true }).click()
+  const alert = column.getByRole("alert")
+  await expect(alert).toContainText("A page with this name already exists")
+  const bounds = await alert.boundingBox()
+  const tree = await column.boundingBox()
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(tree!.x + tree!.width)
+  await page.screenshot({ path: testInfo.outputPath("new-page.png"), fullPage: true })
+
+  await column.getByRole("treeitem", { name: "Audit Project" }).getByText("Audit Project", { exact: true }).click()
+  await expect(page).toHaveURL(/\/notes\?project=project_audit$/)
+  await column.getByRole("button", { name: "New page", exact: true }).click()
+  await expect(page).toHaveURL(/\/notes\?page=Audit%20Project%2FUntitled\.md$/)
+  await expect(page.getByRole("textbox", { name: "Page title" })).toHaveValue("Untitled")
+  expect(writes.map((write) => [write.path, write.body.create, write.body.projectId])).toEqual([
+    ["Untitled.md", true, undefined],
+    ["Untitled.md", true, "project_audit"],
+  ])
 })
 
 test("Home opens the selected event, task and project; Today resets the displayed date", async ({ page }, testInfo) => {
@@ -246,8 +265,10 @@ test("Spanish Brain navigation and harness names are localized", async ({ page }
   await setup(page, true)
   await page.goto("/")
   await expect(page.getByRole("heading", { name: "Inicio", exact: true })).toBeVisible()
-  await expect(page.getByRole("button", { name: "Conocimiento", exact: true })).toBeVisible()
-  await expect(page.getByRole("button", { name: "Motor de agente" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Notas", exact: true })).toBeVisible()
+  // The harness is chosen in the composer's model pill since the composer redesign.
+  await page.getByRole("button", { name: "Claude Opus 4.6", exact: true }).click()
+  await expect(page.getByText("Motor de agente", { exact: true })).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath("spanish-home.png"), fullPage: true })
 })
 

@@ -27,8 +27,9 @@ and a coverage index are in [the UML architecture views](uml.md).
 - The Tenon server owns sessions, workspace routing, and Second Brain HTTP
   handlers. `packages/tenon` mounts the native `/api` routes from
   `packages/server` (contracts in `packages/protocol`) next to its legacy
-  instance routes; the session and harness runtime lives in `packages/core`. Notes and project records use workspace files through the location
-  and file mutation services; calendar data is stored in `.tenon/calendar-v1.json`. The first calendar
+  instance routes; the session and harness runtime lives in `packages/core`. Project records use workspace files through the location
+  and file mutation services; notes, timelines and Project logs live in the
+  [Tenon vault](#tenon-vault) outside the workspace; calendar data is stored in `.tenon/calendar-v1.json`. The first calendar
   read moves a file left at the old `.second-brain/calendar-v1.json` into `.tenon`
   (new file first, then the old one and its folder if empty); when both exist the
   `.tenon` file wins and the old one is left alone.
@@ -183,7 +184,7 @@ The active Project is derived from the route's thread or draft directory. The
 header is the workspace dropdown (`layout.home.selection`, resolved by
 `layout.home.workspace` to the selected or first open folder). Home, Notes,
 Calendar and Projects read `layout.home.workspace` and have no picker of their
-own; Notes keeps an open note with unsaved edits in its workspace until it is
+own; Notes keeps an open page with unsaved edits in its workspace until it is
 saved or discarded. Home, Notes and the Projects page's thread folders read the
 same cached project-threads query as the sidebar (`useProjectThreads` and
 `useBrainProjects` in `sidebar-controller.ts`, 30 seconds of freshness); the
@@ -222,7 +223,10 @@ state alive across route changes; it replaced the tab store.
 
 | Data                       | Owner and persistence                                                                                                 |
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Notes                      | `packages/tenon/src/knowledge/note.ts`; workspace Markdown files                                                   |
+| Notes (legacy)             | `packages/tenon/src/knowledge/note.ts`; workspace Markdown files, moved into the vault by migration                 |
+| Vault pages, timelines, logs | `packages/tenon/src/knowledge/vault.ts`; the Tenon vault (`TENON_VAULT_DIR`, default `Documents/Tenon`); see [Tenon vault](#tenon-vault) |
+| Vault machine map          | `vault.ts`; `vault-machine.json` in the data folder (machine id, workspace directory → vault folder id); rebuilt by opening the vault |
+| Vault folder choice        | `packages/desktop/src/main/vault-folder.ts`; `vaultFolder` key in `tenon.settings`                                   |
 | Project records            | `packages/tenon/src/project/brain.ts`; workspace `.tenon/projects/<id>/` Markdown cards (legacy `projects/<id>/`)   |
 | Workspace manifest         | `brain.ts`; workspace `.tenon/workspace.json` (linked project folders)                                                |
 | Linked-folder index        | `brain.ts` writes, `core/src/workspace-instructions.ts` reads; `workspace-links.json` in the data folder; rebuilt by a scan; the first workspace to link a folder keeps it |
@@ -278,6 +282,114 @@ workspace routing):
 - `POST /second-brain/projects/workspace` with `{ workspaceId }` still returns
   or creates the Project linked to that Tenon project id. The renderer no
   longer calls it.
+
+### Tenon vault
+
+Notes no longer live next to code. `packages/tenon/src/knowledge/vault.ts`
+keeps them in one machine-wide folder, the Tenon vault: `TENON_VAULT_DIR`, else
+`<home>/Documents/Tenon`. The desktop app always sets `TENON_VAULT_DIR`
+(`desktop/src/main/vault-folder.ts`, set in `server.ts` `preferAppEnv`): the
+folder the user chose (`vaultFolder` in `tenon.settings`, picked through the
+`choose-vault-folder` IPC; it takes effect after a relaunch), else
+`app.getPath("documents")/Tenon`. On Windows a OneDrive "Documents" backup and
+on macOS iCloud "Desktop & Documents" redirect that folder, so the default
+vault may already be synced; the vault is written to be sync-safe. A root
+inside the workspace or a linked Project folder is refused (400
+`vault_inside_workspace`), and the picker refuses a folder inside a repository
+or workspace (`{ error: "inside_workspace" }`).
+
+```text
+<root>/
+  <Workspace>/                     readable name from the workspace folder
+    workspace.json                 { version, id: workspace_<ulid>, name, repository? }
+    <page>.md                      workspace pages (any depth)
+    <Project>/                     readable name from the Project card
+      project.json                 { version, id: project_<ulid>, name }
+      <page>.md                    Project pages
+      timeline.json                { version, items }
+      log/<machine>.md             one append-only file per machine
+    .history/<page path>/<epoch>-<hash>.md   up to 20 earlier versions per page
+  .backups/<timestamp>/<Workspace>/...       originals moved in by a migration
+```
+
+- No absolute machine path is written into the vault. Which vault folder
+  belongs to which workspace directory, and this machine's id
+  (`<hostname>-<6 hex>`), live in `vault-machine.json` in the server data
+  folder. On a machine without that entry the folder is found by
+  `workspace.json` `repository` (the git root commit, the Tenon project id) or
+  a new folder is created. Two checkouts of one repository share a vault
+  folder. Project folders are found by `project.json` id, so renaming a folder
+  by hand keeps it; renaming a Project does not rename its folder.
+- Pages are Markdown with front matter `id`, `title`, `updated_at` plus free
+  `properties` (other keys: simple names, JSON scalars or lists, at most 64
+  keys and 16 KiB). A page's `path` is relative to the workspace folder; its
+  `projectId` comes from the Project folder it sits in, not from front matter.
+  The revision is a SHA-256 of the file; saves compare and swap. Before an
+  overwrite the old bytes go to `.history`; `updated_at` always moves forward,
+  so version names stay in save order.
+- `timeline.json` has a SHA-256 revision (`"new"` before the first save); an
+  unreadable file reads as empty but its revision still guards the next save.
+  `progress` is done tasks over tasks; milestones don't count.
+- Each machine appends `- <ISO time> · <author> · <text>` lines only to its own
+  `log/<machine>.md`, so sync never merges one file from two machines. Reads
+  merge every `log/*.md`, newest first (at most 1,000).
+- Conflict copies are files whose name contains `conflicted copy`,
+  `(conflict` or `.sync-conflict-` (Dropbox, OneDrive, Syncthing). They are left
+  in place, excluded from the page list and reported with the file they came
+  from. iCloud's `Plan 2.md` copies are not recognised.
+- `POST /second-brain/vault/migrate` copies `<workspace>/notes/**` and
+  `.tenon/projects/<id>/notes/**` (and legacy `projects/<id>/notes/**`) into
+  the vault, then writes a backup of every original, then removes the originals
+  and the folders that emptied. Card notes go to their Project; a workspace note
+  goes to the first existing Project in its `project_ids`. An identical page
+  already in the vault is reused; a different one gets ` (migrated)` in the
+  name. A second run moves nothing.
+
+| Route (workspace from `x-opencode-directory`) | Behaviour |
+| --- | --- |
+| `GET /second-brain/vault` | `{ root, workspace: { id, name, folder } }`; creates the workspace folder once |
+| `GET /second-brain/vault/pages?project=&search=` | Page `info` list, newest first, at most 1,000 |
+| `GET`, `PUT /second-brain/vault/page?path=` | Read; write `{ body, title?, projectId?, properties?, expectedRevision?, create? }`. With `projectId` the path is relative to that Project's folder unless it already starts with it. 400 for unsafe paths or `log/` in a Project, 404 missing, 409 stale or existing |
+| `GET /second-brain/vault/page/history?path=&revision=` | Versions `[{ revision, updatedAt }]`, or one version's `{ revision, body }` |
+| `GET`, `PUT /second-brain/vault/timeline?project=` | `{ projectId, revision, items, progress }`; `PUT { items, expectedRevision? }` |
+| `GET`, `POST /second-brain/vault/log?project=` | Merged entries; `POST { text, author }` appends one line |
+| `GET /second-brain/vault/conflicts` | `[{ path, original }]` |
+| `POST /second-brain/vault/migrate` | `{ moved, backup }` (`backup` relative to the root, null when nothing moved) |
+
+The older `/second-brain/notes` and `/second-brain/note` routes still read and
+write `<workspace>/notes`; no page of the app uses them any more.
+
+#### Notes page
+
+`app/src/pages/notes.tsx` shows the vault of the sidebar's workspace. URLs:
+`/notes`, `/notes?project=<id>&tab=timeline|board|table|docs|log` (Timeline
+first) and `/notes?page=<path>` (`?note=` is read as `page`). A page opened from
+a Project is pushed onto history, so Back returns to that Project and tab.
+
+- The left column (`features/second-brain/notes-tree.tsx`) is an ARIA tree: a
+  Projects group (each Project from `useBrainProjects`, its pages beneath) and
+  a Workspace pages group (pages with no known Project), plus "Search pages"
+  (`GET …/vault/pages?search=`) and "New page", which creates `Untitled.md`
+  (or the next free name) with `create: true` in the open Project or the
+  workspace and opens it.
+- A Project (`notes-project.tsx`) shows its progress and the tabs: a week
+  grid with one bar per item and ◆ for milestones, a board by status, a table,
+  the Project's pages and its log. Layout helpers are in `notes-timeline.ts`.
+- A page (`notes-page.tsx`) opens full width in the shared `NoteEditor`. Save
+  and Ctrl/Cmd+S send the loaded revision; a 409 shows "This page changed
+  somewhere else" with a reload instead of overwriting. While a page has
+  unsaved edits it keeps its workspace (a sidebar switch waits) and leaving is
+  refused until they are saved or discarded.
+- The first visit to a workspace calls `POST …/vault/migrate` once (remembered
+  in `localStorage` per workspace directory) before listing pages, and shows
+  "Moved N notes into the Tenon vault" when anything moved. A
+  `vault_inside_workspace` 400 replaces the page with a message that names the
+  problem. Conflict copies are listed in a banner and open like pages.
+- Settings › General › Tenon vault (desktop only, through the platform's
+  `getVaultFolder` and `chooseVaultFolder`) shows the folder and picks another;
+  a folder inside a workspace is refused, and a new one asks for a restart.
+- The Projects page Map and `/projects/overview` list vault pages (as note
+  summaries without links) and open them at `/notes?page=`.
 
 ### Workspace instructions
 

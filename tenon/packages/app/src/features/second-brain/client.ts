@@ -258,3 +258,98 @@ export const writeInstructions = (client: Client, content: string) =>
 
 export const removeInstructions = (client: Client) =>
   request<Instructions>(client, "/second-brain/instructions", { method: "DELETE" })
+
+/** The workspace's folder in the Tenon vault, where its pages, timelines and Project logs live. */
+export type VaultInfo = { root: string; workspace: { id: string; name: string; folder: string } }
+/** `path` is relative to the workspace's vault folder and uses `/` on every platform. */
+export type VaultPageInfo = {
+  id: string
+  path: string
+  title: string
+  projectId: string | null
+  properties: Record<string, unknown>
+  updatedAt: string
+}
+export type VaultPage = { info: VaultPageInfo; body: string; revision: string }
+export type TimelineItem = {
+  id: string
+  title: string
+  kind: "task" | "milestone"
+  status: "todo" | "doing" | "done"
+  start?: string
+  end?: string
+}
+export type Timeline = { projectId: string; revision: string; items: ReadonlyArray<TimelineItem>; progress: number }
+export type LogEntry = { at: string; author: string; text: string; machine: string }
+export type VaultConflict = { path: string; original: string }
+
+export const readVault = (client: Client) => request<VaultInfo>(client, "/second-brain/vault")
+
+/** Newest first. */
+export const listVaultPages = (client: Client, filter: { project?: string; search?: string } = {}) => {
+  const query = new URLSearchParams()
+  if (filter.project) query.set("project", filter.project)
+  if (filter.search) query.set("search", filter.search)
+  return request<VaultPageInfo[]>(client, `/second-brain/vault/pages${query.size ? `?${query}` : ""}`)
+}
+
+export const readVaultPage = (client: Client, path: string) =>
+  request<VaultPage>(client, `/second-brain/vault/page?path=${encodeURIComponent(path)}`)
+
+/** With `projectId` the path may be relative to the Project's folder. A 409 means stale, or (with `create`) taken. */
+export const writeVaultPage = (
+  client: Client,
+  input: {
+    path: string
+    body: string
+    title?: string
+    projectId?: string
+    properties?: Record<string, unknown>
+    expectedRevision?: string
+    create?: boolean
+  },
+) =>
+  request<VaultPage>(client, `/second-brain/vault/page?path=${encodeURIComponent(input.path)}`, {
+    method: "PUT",
+    body: JSON.stringify({
+      body: input.body,
+      title: input.title,
+      projectId: input.projectId,
+      properties: input.properties,
+      expectedRevision: input.expectedRevision,
+      create: input.create,
+    }),
+  })
+
+export const readTimeline = (client: Client, projectId: string) =>
+  request<Timeline>(client, `/second-brain/vault/timeline?project=${encodeURIComponent(projectId)}`)
+
+export const writeTimeline = (
+  client: Client,
+  projectId: string,
+  input: { items: ReadonlyArray<TimelineItem>; expectedRevision?: string },
+) =>
+  request<Timeline>(client, `/second-brain/vault/timeline?project=${encodeURIComponent(projectId)}`, {
+    method: "PUT",
+    body: JSON.stringify(input),
+  })
+
+/** Newest first, merged from every machine's log file. */
+export const readProjectLog = (client: Client, projectId: string) =>
+  request<LogEntry[]>(client, `/second-brain/vault/log?project=${encodeURIComponent(projectId)}`)
+
+export const listVaultConflicts = (client: Client) => request<VaultConflict[]>(client, "/second-brain/vault/conflicts")
+
+/** Moves the workspace's pre-vault notes into the vault (with a backup); a repeat call moves nothing. */
+export const migrateVault = (client: Client) =>
+  request<{ moved: number; backup: string }>(client, "/second-brain/vault/migrate", { method: "POST" })
+
+/** A vault page in the shape the Projects map and overview list notes in. The vault keeps no link index. */
+export const vaultPageSummary = (info: VaultPageInfo): NoteSummary => ({
+  path: info.path,
+  title: info.title,
+  projectIds: info.projectId ? [info.projectId] : [],
+  tags: [],
+  links: [],
+  updatedAt: info.updatedAt,
+})

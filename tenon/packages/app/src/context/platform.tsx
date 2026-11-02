@@ -252,6 +252,16 @@ type PlatformBase = {
   /** Local dictation (desktop only); absent in the web build, which hides the composer mic. */
   dictation?: DictationPlatform
 
+  /** The Tenon vault folder and whether the user chose it (desktop only). */
+  getVaultFolder?(): Promise<{ folder: string; chosen: boolean }>
+  /**
+   * Pick another vault folder in a native dialog; null when cancelled. It takes effect after a restart; a folder
+   * inside a repository or workspace is refused with `error: "inside_workspace"` (desktop only).
+   */
+  chooseVaultFolder?(): Promise<
+    { folder: string; restartRequired: boolean } | { error: "inside_workspace"; folder: string } | null
+  >
+
   /** Get the configured default server URL (platform-specific) */
   getDefaultServer?(): Promise<ServerConnection.Key | null>
 
