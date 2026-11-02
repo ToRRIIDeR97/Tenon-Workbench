@@ -1656,3 +1656,29 @@ in, text cut off by the viewBox, and text under 9px once scaled. Renders run
 one at a time. `ChatDisplay.svgGuidance` tells agents to use it whenever it's
 listed. The page falls back to Segoe UI or the system font, so widths can
 differ slightly from the chat's Inter.
+
+## UI conventions
+
+Shared rules for every screen, set by the November 2026 UX audit. New UI
+follows them instead of local choices.
+
+- **Tooltips.** `TooltipV2` opens after 400ms; once one is open, the next opens
+  at once for a short skip window (`ui/src/v2/components/tooltip-delay.ts`).
+  Paths use `PathTooltip` (name and full path), not the native `title`.
+- **Motion.** Exits mirror entrances with the tokens in
+  `ui/src/v2/styles/theme.css`: `--v2-ease-exit`, `--v2-duration-exit` (200ms,
+  dialogs and panels), `--v2-duration-exit-small` (120ms, menus shrink to .96),
+  and `--v2-duration-swap-out`/`-in` (100/200ms fade-through between tab
+  panels). Lines that come and go (errors, notices) use `RevealShow`
+  (`ui/src/v2/reveal`), which collapses them instead of cutting.
+- **Interaction states.** Segmented tabs show a hover overlay and a sliding
+  tonal pill (`ui/src/v2/components/sliding-indicator.ts`). Selected items use
+  the accent tonal fill everywhere. The cursor stays the default arrow; disabled
+  controls show `not-allowed`. Focus is an outside ring from `base.css`
+  (`:where(:focus-visible)`), drawn inside the item in clipped lists.
+- **Surfaces.** Popovers, menus and selects share one family: 16px radius and
+  the floating elevation; dialogs use 24px. Scrollbars are an overlay pill thumb
+  set once in `ui/src/styles/base.css`.
+- **Type.** Three weights: 400 body, 500 labels, 600 headings.
+- **Empty, loading and error.** Screens use `PageEmpty` (title, body, loading or
+  error) as a centred block.
