@@ -931,6 +931,76 @@ answer that delegation is turned off.
   takes the focused option and moves on or submits. In a multi-select question
   Enter toggles the focused option, and Next/Submit or Ctrl/Cmd+Enter moves on.
 
+### App tools and agent writes
+
+The same `tenon` endpoint gives agents Tenon's own data: notes in the
+[Tenon vault](#tenon-vault), a Project's timeline and log, the workspace
+calendar and tasks, and the thread list.
+
+![Sequence: an agent calls notes_write over the tenon MCP endpoint, AgentAppTools resolves the thread's workspace and Project, refuses a write to another Project, publishes agent.write started and done, and the renderer's Undo posts the single-use token back](../diagrams/sequence-app-tools.svg)
+
+- `core/src/harness/app-tools.ts` holds the hook:
+  `HarnessAppTools.install({ list(caller), call(name, args, caller) })` returns
+  an uninstall function. While a provider is installed, every Codex and ACP
+  runtime gets the endpoint, `tools/list` adds `list(caller)`, and a
+  `tools/call` for one of those names goes to `call`; a rejection becomes
+  `isError: true` with its message.
+- `tenon/src/agents/app-tools.ts` (`AgentAppTools.layer`, mounted next to
+  `HarnessDelegationTasks.layer` in `server.ts`) installs the provider for the
+  server's lifetime. `AgentAppTools.TOOLS`, `list({ sessionID })` and
+  `call(name, args, { sessionID })` → `Effect<{ isError, value }>` are also
+  callable in process.
+- Scope: a thread whose directory is a Project's thread directory
+  (`BrainProject.threadDirectory`, as `/second-brain/project-threads` lists
+  them) is a Project thread. Its workspace is the folder holding that card:
+  an ancestor of the thread's folder with `.tenon/projects`, or a known
+  workspace that links the folder. Any other thread is a workspace thread
+  (the nearest ancestor with Project cards, else its repository root or
+  folder). A Project thread reads anything in its workspace and writes only
+  its own Project's pages, timeline and log; naming another `projectId`
+  fails with "… outside this Project". A workspace thread may write to a
+  named Project.
+- A tool `path` is relative to the target Project's vault folder (the
+  thread's Project unless `projectId` is given) or, without a Project, the
+  workspace's vault folder. `notes_search` covers the whole workspace.
+
+| Tool | Arguments | Result |
+| --- | --- | --- |
+| `notes_search` | `{ query, projectId? }` | `{ pages }` (page info, at most 50) |
+| `notes_read` | `{ path, projectId? }` | `{ info, body, revision }` |
+| `notes_write` | `{ path, body, title?, projectId?, expectedRevision?, create? }` | `{ path, revision, undo }`; `create` omitted writes or creates, `true` only creates, `false` only replaces |
+| `timeline_get` | `{ projectId? }` | The vault timeline |
+| `timeline_update` | `{ projectId?, items, expectedRevision? }` | `{ revision, progress, undo }` |
+| `log_append` | `{ text, projectId? }` | `{ revision, undo }`; author `agent` |
+| `calendar_list` | `{ from?, to? }` | `{ revision, events, tasks }` |
+| `calendar_apply` | `{ events: [{ title, date, start?, end?, details? }] }` | `{ revision, events, undo }`; local events, tagged with the thread's Project |
+| `tasks_create` | `{ tasks: [{ title, dueDate?, notes?, accountId? }] }` | `{ revision, tasks, undo }` |
+| `threads_list` | `{ limit? }` | `{ threads: [{ id, title, updatedAt }] }` of the Project (or workspace) |
+
+- Calendar tools read and save `.tenon/calendar-v1.json` through
+  `planner/calendar-store.ts` (shared with `/second-brain/calendar`),
+  compare-and-swap with one retry. A task with `accountId` is stored as a
+  pending Google create (`providerId: pending:<id>`, `outboxKind: create`),
+  the shape the planner gives a task it queues for Google Tasks.
+- Every write publishes on `GlobalBus`, for the thread's directory,
+  `{ payload: { type: "agent.write", properties: { id, sessionID, kind,
+  phase, target, preview, undo?, open?, failed? } } }`: `started` before the
+  write and `done` after it with `undo` and `open` (`{ page?, projectId? }`).
+  A failed write ends with `done` and `failed: true`. `kind` is `note`
+  (pages and log lines), `timeline`, `calendar`, `tasks` or `email` (P8).
+  `preview`: note `{ title, text }` (text capped at 4,000 characters), tasks
+  `{ tasks: [{ title, dueDate? }] }`, calendar `{ events: [{ title, date,
+  start?, end? }] }`, timeline `{ projectId, items }`, email
+  `{ to, subject, body }`.
+- `POST /second-brain/writes/<undo>/undo` reverts one write: a page is
+  restored (or removed when the write created it) with `expectedRevision` set
+  to the written revision, a timeline gets its earlier items, a log line is
+  removed from this machine's file, and added events or tasks are removed.
+  It answers 200 `{ undone: true }`, 409 when the token was used or what it
+  wrote has changed since, and 404 for an unknown or expired token. Tokens are
+  random, single use, kept in memory for 24 hours (at most 500), and lost on
+  restart.
+
 ### Harness model lists
 
 The picker shows the models each harness reports, not a list saved when the

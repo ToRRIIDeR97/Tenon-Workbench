@@ -65,6 +65,7 @@ import { Ripgrep } from "@tenon/core/ripgrep"
 import { SessionProjector } from "@tenon/core/session/projector"
 import { SessionV2 } from "@tenon/core/session"
 import { HarnessDelegationTasks } from "@tenon/core/harness/delegation-tasks"
+import { AgentAppTools } from "@/agents/app-tools"
 import { SessionExecution } from "@tenon/core/session/execution"
 import * as SessionExecutionLocal from "@tenon/core/session/execution/local"
 import { lazy } from "@/util/lazy"
@@ -285,6 +286,7 @@ export function createRoutes(
     docRoute,
     uiRoute,
     HarnessDelegationTasks.layer,
+    AgentAppTools.layer,
   ).pipe(
     Layer.provide([
       errorLayer,

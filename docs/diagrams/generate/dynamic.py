@@ -251,8 +251,44 @@ def seq_delegation():
     s.save(f"{OUT}/sequence-delegation.svg")
 
 
+def seq_app_tools():
+    s = SVG(1100, 860, "Sequence: agent app tool write and undo",
+            "UML sequence for an agent writing through a Tenon app tool: the tenon MCP endpoint routes the call to the "
+            "installed app tools, which resolve the thread's workspace and Project, refuse writes outside that Project, "
+            "publish agent.write started and done on the global bus, and register a single-use undo token that the "
+            "renderer's Undo button posts back.")
+    s.heading("Sequence: agent app tool write and undo",
+              "core/src/harness/delegation.ts · harness/app-tools.ts · tenon/src/agents/app-tools.ts · knowledge/vault.ts")
+    C, E, A, V, B, R = 80, 250, 430, 620, 800, 990
+    s.lifelines([("Agent", C, "Codex or ACP harness"), ("tenon MCP endpoint", E, "127.0.0.1"),
+                 ("AgentAppTools", A, "installed at start"), ("Vault / calendar", V, "vault.ts · calendar-store.ts"),
+                 ("GlobalBus", B, "SSE /global/event"), ("Renderer", R, "agent-writes")], 64, 840, w=160)
+    s.msg(C, E, 130, "tools/list → HarnessAppTools.list(caller)")
+    s.msg(C, E, 176, "tools/call notes_write {path, body}")
+    s.msg(E, A, 206, "call(name, args, {sessionID})")
+    s.msg(A, A, 222, "session → workspace + Project (card thread directory)")
+    s.frag(40, 240, 1030, 76, "alt", "[Project thread names another projectId]")
+    s.msg(A, C, 290, "isError: … outside this Project", reply=True)
+    s.msg(A, B, 350, "agent.write started {kind, target, preview}")
+    s.msg(B, R, 378, "inline card (own thread) or top pill", reply=True)
+    s.msg(A, V, 418, "read before · writePage (revision checked)")
+    s.msg(V, A, 448, "page + revision", reply=True)
+    s.msg(A, A, 464, "remember undo token (single use, 24 h, in memory)")
+    s.msg(A, B, 506, "agent.write done {preview, undo}")
+    s.msg(A, C, 540, "{revision, undo}", reply=True)
+    s.msg(B, R, 570, "fold to one line · Open · Undo · Show", reply=True)
+    s.msg(R, A, 620, "POST /second-brain/writes/:undo/undo")
+    s.frag(40, 640, 1030, 150, "alt", "[unused token and target unchanged since the write]",
+           dividers=[(714, "[already undone or changed since]")])
+    s.msg(A, V, 676, "restore before state (expectedRevision = after)")
+    s.msg(A, R, 700, "200 → Undone", reply=True)
+    s.msg(A, R, 760, "409 → Already changed (unknown token 404)", reply=True)
+    s.save(f"{OUT}/sequence-app-tools.svg")
+
+
 states_session()
 states_platform()
 seq_startup()
 seq_acp()
 seq_delegation()
+seq_app_tools()
