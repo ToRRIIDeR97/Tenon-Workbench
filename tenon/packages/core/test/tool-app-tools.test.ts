@@ -55,7 +55,10 @@ const permission = Layer.succeed(
   }),
 )
 
-const withRegistry = <A, E, R>(body: (registry: ToolRegistry.Interface) => Effect.Effect<A, E, R>) =>
+const withRegistry = <A, E, R>(
+  body: (registry: ToolRegistry.Interface) => Effect.Effect<A, E, R>,
+  directory = process.cwd(),
+) =>
   Effect.gen(function* () {
     return yield* body(yield* ToolRegistry.Service)
   }).pipe(
@@ -65,7 +68,7 @@ const withRegistry = <A, E, R>(body: (registry: ToolRegistry.Interface) => Effec
           Location.node,
           Layer.succeed(
             Location.Service,
-            Location.Service.of(location({ directory: AbsolutePath.make(process.cwd()) })),
+            Location.Service.of(location({ directory: AbsolutePath.make(directory) })),
           ),
         ],
         [PermissionV2.node, permission],
@@ -88,6 +91,29 @@ const install = () => {
 const it = testEffect(Layer.empty)
 
 describe("AppToolsTool", () => {
+  // AC-7.6: Command Centre-only tools are registered only in the Command Centre's folder.
+  it.live("registers each folder's own catalog", () => {
+    const commandFolder = `${process.cwd()}/.command-centre`
+    const memory: HarnessAppTools.Tool = {
+      name: "memory_search",
+      description: "Search memory",
+      inputSchema: { type: "object", properties: { query: { type: "string" } } },
+      annotations: { readOnlyHint: true },
+    }
+    uninstall = HarnessAppTools.install({
+      catalog: [...catalog, memory],
+      catalogFor: (directory) => (directory === commandFolder ? [...catalog, memory] : catalog),
+      list: () => catalog,
+      call: async () => ({}),
+    })
+    return Effect.gen(function* () {
+      const project = yield* withRegistry((registry) => toolDefinitions(registry))
+      expect(project.map((tool) => tool.name)).not.toContain("memory_search")
+      const command = yield* withRegistry((registry) => toolDefinitions(registry), commandFolder)
+      expect(command.map((tool) => tool.name)).toContain("memory_search")
+    })
+  })
+
   it.live("registers nothing while no app tools are installed", () =>
     withRegistry((registry) =>
       Effect.gen(function* () {

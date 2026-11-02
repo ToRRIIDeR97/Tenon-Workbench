@@ -1,7 +1,7 @@
 import { A, useSearchParams } from "@solidjs/router"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Markdown } from "@tenon/session-ui/markdown"
-import { createEffect, createMemo, createResource, For, Show } from "solid-js"
+import { createEffect, createMemo, createResource, For, onCleanup, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { PageEmpty, PageHeader, pagePanelClass, pageRowClass } from "@/components/page"
 import { useLanguage } from "@/context/language"
@@ -9,6 +9,7 @@ import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
 import { useServerSDK } from "@/context/server-sdk"
 import { AgentWriteSteps } from "@/features/agent-writes/cards"
+import { useAgentWrites } from "@/features/agent-writes/store"
 import { useCommandCentre } from "@/features/command-centre/command-centre"
 import { searchCommandMemory } from "@/features/second-brain/client"
 import { getRelativeTime } from "@/utils/time"
@@ -30,6 +31,10 @@ export default function CommandCentrePage() {
     const id = selected()
     if (id) centre.sync(id)
   })
+  // The open thread's writes show in its step list here, so the top pill leaves them out.
+  const agentWrites = useAgentWrites()
+  createEffect(() => agentWrites?.focus(selected()))
+  onCleanup(() => agentWrites?.focus(undefined))
   const [hits] = createResource(
     () => {
       const workspace = layout.home.workspace()

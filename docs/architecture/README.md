@@ -503,16 +503,22 @@ assistant that spans workspaces, with its own threads, memory and routines.
   `mail_read` and `mail_draft` (`tenon/src/agents/mail-tools.ts`, which posts
   JSON to the desktop's `/search`, `/thread` and `/draft` with the bearer
   token). A thread counts as a Command Centre thread once `session.created`
-  names the `.command-centre` folder, or when the MCP endpoint or the
-  in-process loop looks it up; every call checks the session table again.
+  names the `.command-centre` folder, or when a call looks its folder up in
+  the session table; the answer is then cached for the process, since a
+  session's folder never changes.
   Command Centre threads are not Project-scoped: each app-tool call takes an
   optional `workspace` (absolute folder with `.tenon`), else the workspace
   holding `projectId`, else the only known workspace (Tenon projects, vault
   workspaces, and workspaces above recent threads). `mail_draft` publishes
   `agent.write` of kind `email` with preview `{ to, subject, body }` and no
   undo token (delete an unwanted draft in the mail client). The in-process
-  loop registers the full catalog; a call outside the thread's list fails
-  with "… is only available in the Command Centre."
+  loop registers tools per folder (`HarnessAppTools.catalog(directory)`,
+  `AgentAppTools.catalogFor`): the `.command-centre` folder gets the Command
+  Centre tools, every other folder only the app tools. A call outside the
+  thread's list still fails with "… is only available in the Command Centre."
+- **Pill.** The Command Centre page marks its open thread as focused
+  (`useAgentWrites().focus`), so the top pill leaves that thread's writes to
+  the step list.
 
 | Route (workspace from `x-opencode-directory` or `?directory=`) | Behaviour |
 | --- | --- |

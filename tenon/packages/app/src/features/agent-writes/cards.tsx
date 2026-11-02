@@ -74,7 +74,7 @@ export function AgentWritePill() {
   const current = createMemo(() => {
     const store = writes
     if (!store) return undefined
-    const open = sessionFromPath(location.pathname)
+    const open = sessionFromPath(location.pathname) ?? store.focused()
     return store
       .writes()
       .filter((write) => !write.hidden && write.sessionID !== open)

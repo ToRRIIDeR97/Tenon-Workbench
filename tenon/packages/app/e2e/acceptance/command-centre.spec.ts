@@ -125,4 +125,8 @@ test("AC-7.7 writes in a Command Centre turn show one step list", async ({ page 
   const steps = page.locator('[data-agent-write][data-variant="steps"]')
   await expect(steps).toHaveCount(1)
   await expect(steps.getByRole("listitem")).toHaveCount(2)
+  // The open thread's writes show only in the step list, never as the top pill as well. Counted once, right
+  // after the steps render: a pill would render from the same writes and hides itself after 6 s, so a
+  // retrying assertion could pass by waiting it out.
+  expect(await page.locator('[data-agent-write][data-variant="pill"]').count()).toBe(0)
 })

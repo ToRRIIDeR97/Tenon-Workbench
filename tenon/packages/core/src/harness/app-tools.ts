@@ -25,6 +25,8 @@ export interface Provider {
    * a folder's services start rather than per call. Calls still go through `list(caller)`.
    */
   readonly catalog?: ReadonlyArray<Tool>
+  /** The catalog for one folder's in-process loop, when some tools only exist in some folders. */
+  readonly catalogFor?: (directory: string) => ReadonlyArray<Tool>
   readonly list: (caller: Caller) => ReadonlyArray<Tool> | Promise<ReadonlyArray<Tool>>
   /** Resolves with the tool's JSON result; a rejection becomes an `isError` result carrying its message. */
   readonly call: (name: string, args: Record<string, unknown>, caller: Caller) => Promise<unknown>
@@ -42,8 +44,12 @@ export function install(provider: Provider) {
 
 export const installed = () => state.provider !== undefined
 
-/** The installed provider's full tool set; empty while nothing is installed. */
-export const catalog = (): ReadonlyArray<Tool> => state.provider?.catalog ?? []
+/** The installed provider's tools for `directory` (its full set without one); empty while nothing is installed. */
+export const catalog = (directory?: string): ReadonlyArray<Tool> => {
+  const provider = state.provider
+  if (!provider) return []
+  return (directory !== undefined ? provider.catalogFor?.(directory) : undefined) ?? provider.catalog ?? []
+}
 
 /** The tools `caller` may use; empty while nothing is installed or the provider fails. */
 export async function list(caller: Caller): Promise<ReadonlyArray<Tool>> {

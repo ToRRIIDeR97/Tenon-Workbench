@@ -368,6 +368,12 @@ export const catalog = () => [
 ]
 
 /**
+ * The in-process loop's tools for one folder: the Command Centre's folder gets the full catalog, every
+ * other folder only the app tools (it can never run a Command Centre thread).
+ */
+export const catalogFor = (directory: string) => (CommandMemory.isCommandDirectory(directory) ? catalog() : TOOLS)
+
+/**
  * The tools `sessionID` may use. Every thread gets the app tools; a Command Centre thread also gets
  * `memory_search`, `project_setup` and (with the desktop mail endpoint) the mail tools. Synchronous:
  * a thread the process hasn't seen yet counts as not a Command Centre thread until `known` looks it up.
@@ -445,6 +451,7 @@ export const layer = Layer.effectDiscard(
         state.context = context
         const uninstall = HarnessAppTools.install({
           catalog: catalog(),
+          catalogFor,
           list: (caller) => Effect.runPromise(known(caller)),
           call: (name, args, caller) =>
             Effect.runPromise(call(name, args, caller)).then((result) =>
