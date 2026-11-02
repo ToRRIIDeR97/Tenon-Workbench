@@ -110,13 +110,16 @@ type Deps = {
 }
 
 export function registerIpcHandlers(deps: Deps) {
-  const drafts = createDesktopDraftStore(join(app.getPath("userData"), "drafts.sqlite"), (error) =>
-    writeLog(
-      "drafts",
-      "draft flush failed",
-      { error: error instanceof Error ? error.message : String(error) },
-      "error",
-    ),
+  const drafts = createDesktopDraftStore(
+    join(app.getPath("userData"), "drafts.sqlite"),
+    (error) =>
+      writeLog(
+        "drafts",
+        "draft flush failed",
+        { error: error instanceof Error ? error.message : String(error) },
+        "error",
+      ),
+    (aside) => writeLog("drafts", "damaged draft store moved aside", { aside }, "warn"),
   )
   const updaterSubscriptions = createUpdaterSubscriptions()
   const updaterSenders = new WeakSet<Electron.WebContents>()

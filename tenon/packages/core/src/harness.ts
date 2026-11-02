@@ -992,9 +992,8 @@ const layer = Layer.effect(
         HarnessUsage.isCommandCode(AcpHarness.decodeSettings(instance.config)?.command)
       )
         return HarnessUsage.readCommandCodeKey().pipe(
-          Effect.flatMap(
-            (key): Effect.Effect<HarnessUsage.Result, Error> =>
-              key ? HarnessUsage.fetchCommandCodeUsage(key) : Effect.succeed({ status: "signed-out", windows: [] }),
+          Effect.flatMap((key): Effect.Effect<HarnessUsage.Result, Error> =>
+            key ? HarnessUsage.fetchCommandCodeUsage(key) : Effect.succeed({ status: "signed-out", windows: [] }),
           ),
         )
       // OpenCode Go is a plan on an OpenCode key: the built-in agent reads the app's own keys, the OpenCode

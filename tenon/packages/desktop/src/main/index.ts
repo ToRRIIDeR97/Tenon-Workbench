@@ -580,4 +580,7 @@ const main = Effect.gen(function* () {
   if (Exit.isFailure(loaded)) logger.error("loading task failed", Cause.pretty(loaded.cause))
 })
 
-Effect.runFork(main)
+// A startup failure would otherwise leave the app running with no window and nothing in the log.
+Effect.runFork(
+  main.pipe(Effect.catchCause((cause) => Effect.sync(() => logger.error("app startup failed", Cause.pretty(cause))))),
+)

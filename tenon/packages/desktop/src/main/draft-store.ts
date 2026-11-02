@@ -1,4 +1,4 @@
-import { chmodSync, existsSync } from "node:fs"
+import { chmodSync, existsSync, renameSync } from "node:fs"
 import { DatabaseSync } from "node:sqlite"
 import { eq, sql } from "drizzle-orm"
 import { drizzle } from "drizzle-orm/node-sqlite"
@@ -46,30 +46,61 @@ export function ownerOnly(filename: string) {
   }
 }
 
-export function createDesktopDraftStore(filename: string, onFlushError?: (error: unknown) => void) {
+/**
+ * Opens the draft store. A damaged database file (a crash or a killed process mid-write) is moved aside, so the app
+ * still starts with an empty store instead of failing at launch; `onRecovered` hears where the old file went.
+ */
+export function createDesktopDraftStore(
+  filename: string,
+  onFlushError?: (error: unknown) => void,
+  onRecovered?: (aside: string) => void,
+) {
+  try {
+    return openDraftStore(filename, onFlushError)
+  } catch (error) {
+    if (filename === ":memory:" || !isCorrupt(error)) throw error
+    const aside = `${filename}.damaged-${Date.now()}`
+    for (const suffix of ["", "-wal", "-shm"])
+      if (existsSync(`${filename}${suffix}`)) renameSync(`${filename}${suffix}`, `${aside}${suffix}`)
+    onRecovered?.(aside)
+    return openDraftStore(filename, onFlushError)
+  }
+}
+
+function isCorrupt(error: unknown) {
+  return error instanceof Error && /malformed|not a database|SQLITE_CORRUPT|SQLITE_NOTADB/i.test(error.message)
+}
+
+function openDraftStore(filename: string, onFlushError?: (error: unknown) => void) {
   const native = new DatabaseSync(filename)
-  native.exec(
-    "PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS document (key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE IF NOT EXISTS blob (id TEXT PRIMARY KEY, data BLOB NOT NULL);",
-  )
-  ownerOnly(filename)
   const db = drizzle({ client: native })
   const used = new Set<string>()
-  db.select({ value: documents.value })
-    .from(documents)
-    .all()
-    .forEach(({ value }) =>
-      JSON.parse(value, (_key, item) => {
-        if (item?.blob && typeof item.blob.id === "string") used.add(item.blob.id)
-        return item
-      }),
+  try {
+    native.exec(
+      "PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS document (key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE IF NOT EXISTS blob (id TEXT PRIMARY KEY, data BLOB NOT NULL);",
     )
-  // One statement for all orphans; json_each sidesteps SQLite's bound-parameter limit.
-  db.transaction((tx) =>
-    tx
-      .delete(blobs)
-      .where(sql`${blobs.id} NOT IN (SELECT value FROM json_each(${JSON.stringify([...used])}))`)
-      .run(),
-  )
+    ownerOnly(filename)
+    db.select({ value: documents.value })
+      .from(documents)
+      .all()
+      .forEach(({ value }) =>
+        JSON.parse(value, (_key, item) => {
+          if (item?.blob && typeof item.blob.id === "string") used.add(item.blob.id)
+          return item
+        }),
+      )
+    // One statement for all orphans; json_each sidesteps SQLite's bound-parameter limit.
+    db.transaction((tx) =>
+      tx
+        .delete(blobs)
+        .where(sql`${blobs.id} NOT IN (SELECT value FROM json_each(${JSON.stringify([...used])}))`)
+        .run(),
+    )
+  } catch (error) {
+    // Closed so a damaged file can be moved aside (Windows won't rename an open file).
+    native.close()
+    throw error
+  }
   const pending = new Map<string, string | null>()
   let timer: ReturnType<typeof setTimeout> | undefined
   const flush = () => {
