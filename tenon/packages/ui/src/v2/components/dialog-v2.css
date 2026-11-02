@@ -171,15 +171,16 @@
 }
 
 /* Material 3 shape and motion: large-radius dialog that rises in (medium + emphasized-decelerate)
-   and leaves as the mirror of that (exit + ease-exit: sinks 16px, shrinks to .98, fades). The scrim
-   fades on the same timing. */
+   and leaves on emphasized-accelerate (exit: sinks 24px, shrinks to .94, fades). The accelerate curve
+   holds the dialog in view at the start of the exit, so even a large dialog visibly falls away instead
+   of blinking out. The scrim fades on the same timing. */
 [data-component="dialog-v2"] [data-slot="dialog-container"] {
   border-radius: var(--v2-radius-xl);
   animation: dialog-v2-enter var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate);
 }
 
 [data-component="dialog-v2"] [data-slot="dialog-container"]:has(> [data-slot="dialog-content"][data-closed]) {
-  animation: dialog-v2-exit var(--v2-duration-exit) var(--v2-ease-exit) forwards;
+  animation: dialog-v2-exit var(--v2-duration-exit) var(--v2-ease-emphasized-accelerate) forwards;
 }
 
 /* Kobalte's presence watches the content element, not the container. A same-length animation with its
@@ -214,7 +215,7 @@
 @keyframes dialog-v2-exit {
   to {
     opacity: 0;
-    transform: translateY(16px) scale(0.98);
+    transform: translateY(24px) scale(0.94);
   }
 }
 

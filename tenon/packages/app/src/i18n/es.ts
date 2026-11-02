@@ -1155,7 +1155,7 @@ export const dict = {
   "secondBrain.sidebar.overview": "Inicio",
   "secondBrain.sidebar.workspace": "Espacio de trabajo",
   "secondBrain.sidebar.projects": "Proyectos",
-  "secondBrain.sidebar.notes": "Conocimiento",
+  "secondBrain.sidebar.notes": "Notas",
   "secondBrain.sidebar.calendar": "Calendario",
   "secondBrain.sidebar.activity": "Actividad",
   "secondBrain.sidebar.files": "Archivos",

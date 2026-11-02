@@ -9,6 +9,7 @@ import { TextInputV2 } from "@tenon/ui/v2/text-input-v2"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { ViewSwitch } from "@tenon/ui/v2/view-switch"
 import { createEffect, createMemo, createResource, For, on, Show } from "solid-js"
+import { createCalendarResource } from "@/features/second-brain/calendar-cache"
 import { createStore } from "solid-js/store"
 import { RevealShow } from "@tenon/ui/v2/reveal"
 import { PageEmpty, PageFrame, PageHeader, pageRowClass } from "@/components/page"
@@ -37,7 +38,6 @@ import { focusWhenConnected } from "@/utils/focus-when-connected"
 import { calendarSync, providerTask, syncGoogleCalendar } from "@/features/second-brain/calendar-sync"
 import {
   listProjects,
-  readCalendar,
   SecondBrainRequestError,
   writeCalendar,
   type CalendarEvent,
@@ -183,12 +183,10 @@ export default function CalendarPage() {
     on(directory, () => setState({ editing: false, peek: "", selectedTask: "", draft: emptyDraft() }), { defer: true }),
   )
 
-  const [events, eventActions] = createResource(
-    () => directory() || undefined,
-    (directory) => readCalendar(client(directory)),
-  )
-  // A failed load is shown inline with a retry; reading the resource directly would throw it.
-  const snapshot = () => (events.error ? undefined : events.latest)
+  // Cached per workspace: a launch or background sync updates the shown items in place. A failed load is
+  // shown inline with a retry.
+  const events = createCalendarResource(() => directory() || undefined, client)
+  const snapshot = events.snapshot
   const [brainProjects] = createResource(
     () => directory() || undefined,
     (directory) => listProjects(client(directory)),
@@ -494,7 +492,7 @@ export default function CalendarPage() {
       const result = await syncGoogleCalendar({ google, client: client(target), current: snapshot() })
       // A sidebar workspace switch during the call leaves snapshot() pointing at another calendar.
       if (!result || directory() !== target) return
-      eventActions.mutate(result.saved)
+      events.mutate(result.saved)
       googleActions.mutate(result.connection)
     } catch (error) {
       setState("googleError", googleMessage(error))
@@ -510,7 +508,7 @@ export default function CalendarPage() {
       calendarSync.version,
       () => {
         if (state.googleBusy) return
-        void eventActions.refetch()
+        void events.refetch()
         void googleActions.refetch()
       },
       { defer: true },
@@ -536,7 +534,7 @@ export default function CalendarPage() {
         (snapshot()?.tasks ?? []).filter(keep),
       )
       if (directory() !== target) return
-      eventActions.mutate(saved)
+      events.mutate(saved)
       setState({ editing: false, ...(connection.connected ? {} : { googlePanel: false }) })
     } catch (error) {
       setState("googleError", googleMessage(error))
@@ -553,7 +551,7 @@ export default function CalendarPage() {
       const saved = await writeCalendar(client(workspace), next, snapshot()?.revision, snapshot()?.tasks)
       // A workspace switch during the write leaves the view on another calendar; don't overwrite it.
       if (directory() !== workspace) return
-      eventActions.mutate(saved)
+      events.mutate(saved)
       setState({ editing: false, draft: emptyDraft() })
     } catch (error) {
       setState(
@@ -626,7 +624,7 @@ export default function CalendarPage() {
       await googleActions.refetch()
     }
     const saved = await writeCalendar(client(workspace), base?.events ?? [], base?.revision, next)
-    if (directory() === workspace) eventActions.mutate(saved)
+    if (directory() === workspace) events.mutate(saved)
   }
 
   const toggleTask = async (task: PlannerTask) => {
@@ -893,7 +891,7 @@ export default function CalendarPage() {
           })()
       const saved = await writeCalendar(client(target), next, snapshot()?.revision, snapshot()?.tasks)
       if (directory() !== target) return
-      eventActions.mutate(saved)
+      events.mutate(saved)
       setState({ editing: false, draft: emptyDraft(), googleConfirm: "", googleWriteKey: "" })
       await googleActions.refetch()
       if (result.state !== "synced") {
@@ -1092,13 +1090,13 @@ export default function CalendarPage() {
             <div class={sidePanelGridClass(panelOpen())}>
               <div class="flex min-h-[560px] min-w-0 flex-col">
                 <Show
-                  when={!events.error}
+                  when={!events.error()}
                   fallback={
                     <PageEmpty
                       error
                       title={language.t("secondBrain.state.error.title")}
                       action={
-                        <ButtonV2 variant="outline" onClick={() => void eventActions.refetch()}>
+                        <ButtonV2 variant="outline" onClick={() => void events.refetch()}>
                           {language.t("secondBrain.state.retry")}
                         </ButtonV2>
                       }
@@ -1108,7 +1106,7 @@ export default function CalendarPage() {
                   }
                 >
                   <Show
-                    when={!events.loading}
+                    when={!events.loading()}
                     fallback={
                       <div class="flex flex-1 items-center justify-center text-[13px] text-v2-text-text-faint">
                         {language.t("common.loading")}

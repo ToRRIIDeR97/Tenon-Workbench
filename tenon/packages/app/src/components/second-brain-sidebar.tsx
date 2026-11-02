@@ -4,12 +4,11 @@ import { useNavigate } from "@solidjs/router"
 import { createSignal, For, Show } from "solid-js"
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
-import { KeybindV2 } from "@tenon/ui/v2/keybind-v2"
 import { MenuV2 } from "@tenon/ui/v2/menu-v2"
 import { createReveal, Reveal } from "@tenon/ui/v2/reveal"
 import { PathTooltip, TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { useDialog } from "@tenon/ui/context/dialog"
-import { formatKeybind, useCommand } from "@/context/command"
+import { formatKeybind } from "@/context/command"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { useSettingsDialog } from "@/components/settings-dialog"
@@ -39,7 +38,6 @@ export function SecondBrainSidebar() {
   const layout = useLayout()
   const navigate = useNavigate()
   const openSettings = useSettingsDialog()
-  const command = useCommand()
   const ctrl = createSidebarController()
   // The panel keeps its content while its width collapses, so it never closes as an empty column.
   const panel = createReveal(() => layout.sidebar.opened())
@@ -58,28 +56,10 @@ export function SecondBrainSidebar() {
       class="flex min-h-0 shrink-0"
     >
       <nav
-        class="flex w-20 shrink-0 flex-col items-center gap-3 pb-4 pt-2"
+        // The rail and the Projects panel carry different gradients so the two columns read apart.
+        class="flex w-20 shrink-0 flex-col items-center gap-3 bg-[linear-gradient(to_bottom,var(--v2-background-bg-layer-01),var(--v2-background-bg-deep))] pb-4 pt-3"
         aria-label={language.t("secondBrain.sidebar.title")}
       >
-        <TooltipV2
-          placement="right"
-          value={
-            <>
-              {language.t("secondBrain.sidebar.newThread")}
-              <KeybindV2 keys={command.keybindParts("session.new")} variant="neutral" />
-            </>
-          }
-        >
-          <button
-            type="button"
-            data-sidebar-item="new-thread"
-            class="mb-3 flex size-14 items-center justify-center rounded-[16px] bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container transition-[border-radius,background-color,transform] duration-medium ease-spring hover:rounded-[20px] active:scale-95 motion-reduce:transition-none"
-            aria-label={language.t("secondBrain.sidebar.newThread")}
-            onClick={() => ctrl.newThread()}
-          >
-            <Icon name="plus" size="large" />
-          </button>
-        </TooltipV2>
         <For each={items()}>
           {(item) => (
             <RailItem
@@ -91,18 +71,12 @@ export function SecondBrainSidebar() {
             />
           )}
         </For>
-        <div class="flex-1" />
-        <TooltipV2 placement="right" value={language.t("sidebar.settings")}>
-          <IconButtonV2
-            type="button"
-            data-sidebar-item="settings"
-            variant="ghost-muted"
-            class="!size-11"
-            icon={<Icon name="settings-gear" size="large" />}
-            aria-label={language.t("sidebar.settings")}
-            onClick={() => openSettings()}
-          />
-        </TooltipV2>
+        <RailItem
+          id="settings"
+          icon="settings-gear"
+          label={language.t("sidebar.settings")}
+          onClick={() => openSettings()}
+        />
       </nav>
 
       <aside
@@ -110,7 +84,7 @@ export function SecondBrainSidebar() {
         inert={layout.sidebar.opened() ? undefined : true}
         classList={{
           // The rail stays at every width; the Projects panel needs the room of a md window.
-          "hidden min-h-0 flex-col overflow-hidden transition-[width,opacity] will-change-[width] motion-reduce:transition-none md:flex": true,
+          "hidden min-h-0 flex-col overflow-hidden bg-[linear-gradient(to_bottom,color-mix(in_srgb,var(--v2-background-bg-accent-container)_14%,var(--v2-background-bg-deep)),var(--v2-background-bg-deep)_60%)] transition-[width,opacity] will-change-[width] motion-reduce:transition-none md:flex": true,
           "w-[248px] opacity-100 duration-medium ease-emphasized-decelerate": layout.sidebar.opened(),
           "w-0 opacity-0 duration-short ease-emphasized-accelerate": !layout.sidebar.opened(),
         }}

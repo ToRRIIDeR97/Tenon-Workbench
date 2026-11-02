@@ -80,7 +80,11 @@ front matter over 64 KiB. Cards and the manifest over 1 MiB, notes over 5 MiB
 and the calendar over 16 MiB are refused after a `stat`, before they are read.
 The calendar lives at `.tenon/calendar-v1.json` inside the workspace, resolved
 through `LocationMutation` like the other Second Brain files; a file left at the
-old `.second-brain/calendar-v1.json` is moved there on the first read.
+old `.second-brain/calendar-v1.json` is moved there on the first read. The
+renderer keeps the last calendar snapshot per workspace in its own localStorage
+(`tenon.calendar-cache:<directory>`, `calendar-cache.ts`) so a launch paints at
+once; it holds event and task titles, is never sent anywhere, and is rebuilt
+from the server on the next read.
 
 Workspace notes, projects, calendar files, session data, provider tokens, and
 agent tool permissions are sensitive. Treat note contents, provider responses,

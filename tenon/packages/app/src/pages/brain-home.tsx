@@ -5,7 +5,7 @@ import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { KeybindV2 } from "@tenon/ui/v2/keybind-v2"
 import { Reveal, RevealShow } from "@tenon/ui/v2/reveal"
 import { PathTooltip, TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
-import { createEffect, createMemo, createResource, For, Show, Suspense } from "solid-js"
+import { createEffect, createMemo, For, Show, Suspense } from "solid-js"
 import { useQuery } from "@tanstack/solid-query"
 import { createStore } from "solid-js/store"
 import { useLanguage } from "@/context/language"
@@ -20,7 +20,8 @@ import { useDialog } from "@tenon/ui/context/dialog"
 import { DialogHarnessSetup } from "@/components/settings-v2/harness-setup"
 import { PageEmpty, PageFrame, PageSection, pageRowClass } from "@/components/page"
 import { localDateKey } from "@/features/second-brain/calendar-domain"
-import { readCalendar, type CalendarEvent, type PlannerTask } from "@/features/second-brain/client"
+import { createCalendarResource } from "@/features/second-brain/calendar-cache"
+import { type CalendarEvent, type PlannerTask } from "@/features/second-brain/client"
 import { useBrainProjects } from "@/components/sidebar/sidebar-controller"
 import { createHomeController } from "@/pages/home/home-controller"
 import { createHomeSessionsController } from "@/pages/home/home-sessions-controller"
@@ -103,10 +104,8 @@ export default function BrainHomePage() {
   })
 
   const projects = useBrainProjects()
-  const [calendar, calendarActions] = createResource(
-    () => directory() || undefined,
-    (directory) => readCalendar(client(directory)),
-  )
+  // Cached per workspace, so Today paints at launch and a background sync updates it in place.
+  const calendar = createCalendarResource(() => directory() || undefined, client)
   const harnessQuery = useQuery(() => ({
     queryKey: ["home", "harnesses", server.key, directory()],
     enabled: !!directory(),
@@ -174,12 +173,12 @@ export default function BrainHomePage() {
   )
   const projectNames = createMemo(() => new Map((projects.list() ?? []).map((project) => [project.id, project.name])))
   const todayItems = createMemo<TodayItem[]>(() => {
-    // Reading a failed resource throws; the failure shows inline below instead.
-    if (calendar.loading || calendar.error) return []
-    const events = (calendar()?.events ?? [])
+    // A failure shows inline below instead.
+    const snapshot = calendar.snapshot()
+    const events = (snapshot?.events ?? [])
       .filter((event) => event.date === today)
       .map((value): TodayItem => ({ kind: "event", value }))
-    const tasks = (calendar()?.tasks ?? [])
+    const tasks = (snapshot?.tasks ?? [])
       .filter(
         (task) =>
           !task.completedAt &&
@@ -344,7 +343,7 @@ export default function BrainHomePage() {
               </div>
             </form>
 
-            <RevealShow when={!!(projects.failed() || calendar.error)}>
+            <RevealShow when={!!(projects.failed() || calendar.error())}>
               {() => (
                 <div class="flex flex-wrap items-center justify-center gap-2">
                   <p role="alert" class="text-[12px] text-v2-text-text-critical">
@@ -355,7 +354,7 @@ export default function BrainHomePage() {
                     variant="outline"
                     onClick={() => {
                       if (projects.failed()) projects.retry()
-                      if (calendar.error) void calendarActions.refetch()
+                      if (calendar.error()) void calendar.refetch()
                     }}
                   >
                     {language.t("secondBrain.error.retry")}

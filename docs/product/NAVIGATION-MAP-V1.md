@@ -47,11 +47,11 @@ The sidebar has two columns: a navigation rail that is always shown, at every
 window width, and a Projects panel beside it. Below 768 px the Projects panel
 is hidden and the rail remains.
 
-1. **Rail**, from top to bottom: a **New thread** button (same as `mod+n`; with
-   no workspace open it asks for a folder first),
-   then **Home**, **Notes** (labelled Knowledge), **Calendar** and
-   **Activity** as icons with a label underneath (the current page gets a
-   pill highlight), and **Settings** at the bottom.
+1. **Rail**, a gradient column distinct from the Projects panel's: **Home**,
+   **Notes**, **Calendar**, **Activity** and **Settings** as icons whose label
+   slides out on hover (the current page gets a pill highlight; Settings opens
+   the Settings dialog). A new thread starts from `mod+n`, a Project's **+**,
+   or Home's composer.
 2. **Workspace** panel. The heading is a dropdown: the opened folders (the
    current one checked), **Open folder as workspace**, **New Project** (opens the
    Projects page's create form, `/projects?new=1`, to create a card), **Scan for projects**,
@@ -156,7 +156,7 @@ deleted.
 | `alt+up` / `alt+down` | Previous / next visible thread in the sidebar |
 | `mod+shift+[` / `mod+shift+]` | Previous / next Project |
 | `mod+[` / `mod+]` | Back / forward |
-| `mod+k` | Command palette (also lists Go to Home, Knowledge, Calendar and Activity) |
+| `mod+k` | Command palette (also lists Go to Home, Notes, Calendar and Activity) |
 | `mod+z` | Undo the last sidebar action while its undo toast is open (not in text fields) |
 
 On the Notes page `mod+s` saves the open note from anywhere on the page,
