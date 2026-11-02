@@ -55,6 +55,16 @@ describe("toolDetail", () => {
     expect(toolDetail(failed)).toBe("MCP error -32001: Request timed out")
     expect(toolDetail(tool("r", "running") as ToolPart)).toBeUndefined()
   })
+
+  test("streams a running command's output from its metadata", () => {
+    const running = {
+      id: "t",
+      type: "tool",
+      tool: "bash",
+      state: { status: "running", input: { command: "ls" }, metadata: { output: "a\nb" }, time: { start: 1 } },
+    } as unknown as ToolPart
+    expect(toolDetail(running)).toBe("$ ls\n\na\nb")
+  })
 })
 
 describe("reasoningTopic", () => {

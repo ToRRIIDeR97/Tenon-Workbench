@@ -19,6 +19,7 @@ import {
 import { readPartText } from "@tenon/session-ui/message-part-text"
 import { useData } from "@tenon/session-ui/context"
 import { useLanguage } from "@/context/language"
+import { useSettings } from "@/context/settings"
 import { DiffChanges } from "@tenon/ui/diff-changes"
 import { useFileComponent } from "@tenon/ui/context/file"
 import { Dynamic } from "solid-js/web"
@@ -172,10 +173,17 @@ function scrollParent(element: Element) {
 export function toolDetail(part: ToolPart) {
   const state = part.state
   if (state.status === "error") return state.error
-  if (state.status !== "completed") return undefined
+  // A running command streams its output through metadata, so an open row shows it live.
+  const raw =
+    state.status === "completed"
+      ? state.output
+      : state.status === "running" && typeof state.metadata?.output === "string"
+        ? state.metadata.output
+        : undefined
+  if (raw === undefined) return undefined
   // Escape sequences from terminals; the row is plain text.
   // oxlint-disable-next-line no-control-regex
-  const output = (state.output ?? "")
+  const output = raw
     .replace(/\u001b\[[0-9;]*[A-Za-z]/g, "")
     .trim()
     .slice(0, 20_000)
@@ -244,6 +252,7 @@ export function TurnStepsSummary(props: {
   layout?: "grouped" | "rows"
 }) {
   const language = useLanguage()
+  const settings = useSettings()
   const summary = createMemo(() => summarizeTurn(props.parts))
   const counts = createMemo(() => stepCounts(summary().counts))
   // Working in the "rows" layout there is no card: no header, and the steps always show.
@@ -298,10 +307,13 @@ export function TurnStepsSummary(props: {
     onCleanup(() => cancelAnimationFrame(frame))
   })
   const fresh = () => (untrack(arriving) ? "" : undefined)
-  const toggle = (id: string, anchor: Element) => {
+  const toggle = (id: string, anchor: Element, open = !!body.expanded[id]) => {
     props.onResize?.()
     keepInPlace(anchor)
-    if (body.seen[id]) return setBody("expanded", id, (value) => !value)
+    if (body.seen[id] || open) {
+      setBody("seen", id, true)
+      return setBody("expanded", id, !open)
+    }
     // First open: mount the panel closed, then open it a frame later so it grows instead of appearing.
     setBody("seen", id, true)
     requestAnimationFrame(() => setBody("expanded", id, true))
@@ -335,6 +347,13 @@ export function TurnStepsSummary(props: {
     if (step.kind === "subagent" && typeof agent === "string" && agent) return agent
     return language.t(stepVerbKey(step.kind, isRunning(part)))
   }
+  // The "Expand shell/edit tool parts" settings open those steps until the user toggles them.
+  const startsOpen = (part: ToolPart) => {
+    const kind = stepOf(part).kind
+    if (kind === "run") return settings.general.shellToolPartsExpanded()
+    if (kind === "edit") return settings.general.editToolPartsExpanded()
+    return false
+  }
   const openable = (part: ToolPart) => (part.tool === "acp_subagent" ? props.onOpenSubagent : undefined)
   const startOf = (part: ToolPart) => (part.state.status === "running" ? part.state.time.start : undefined)
   // Finished steps show how long they took, from a second up.
@@ -354,10 +373,17 @@ export function TurnStepsSummary(props: {
           // An edit opens to its diff instead of the tool's "applied" text.
           const diffs = createMemo(() => editDiffs(tool()))
           const expandable = () => diffs().length > 0 || !!detail()
-          const open = () => !!body.expanded[tool().id]
+          const open = () => body.expanded[tool().id] ?? (expandable() && startsOpen(tool()))
+          const mounted = () => body.seen[tool().id] || open()
           const step = () => stepOf(tool())
           return (
-            <div data-slot="turn-steps-item" data-new={fresh()} style={{ "--i": index }} class="flex min-w-0 flex-col">
+            <div
+              data-slot="turn-steps-item"
+              data-timeline-part-id={tool().id}
+              data-new={fresh()}
+              style={{ "--i": index }}
+              class="flex min-w-0 flex-col"
+            >
               <button
                 type="button"
                 data-slot="turn-steps-row"
@@ -368,7 +394,7 @@ export function TurnStepsSummary(props: {
                 onClick={(event) => {
                   const opener = openable(tool())
                   if (opener) return opener(tool())
-                  if (expandable()) toggle(tool().id, event.currentTarget)
+                  if (expandable()) toggle(tool().id, event.currentTarget, open())
                 }}
               >
                 <StepIcon name={stepIcon(step().kind)} size="small" class="shrink-0 text-v2-text-text-muted" />
@@ -408,7 +434,7 @@ export function TurnStepsSummary(props: {
                 </Show>
               </button>
               {/* Mounted on first open and kept, so closing animates like the card itself. */}
-              <Show when={body.seen[tool().id] && diffs().length > 0}>
+              <Show when={mounted() && diffs().length > 0}>
                 <div data-slot="turn-steps-reveal" data-open={open() ? "" : undefined}>
                   <div>
                     <ScrollView
@@ -433,7 +459,7 @@ export function TurnStepsSummary(props: {
                   </div>
                 </div>
               </Show>
-              <Show when={body.seen[tool().id] && diffs().length === 0 ? detail() : undefined}>
+              <Show when={mounted() && diffs().length === 0 ? detail() : undefined}>
                 {(text) => (
                   <div data-slot="turn-steps-reveal" data-open={open() ? "" : undefined}>
                     <div>

@@ -181,7 +181,9 @@ export async function setupTimeline(
   await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
   await transport.waitForConnection()
   await expectSessionTitle(page, title)
-  if (input.cpuRate && input.cpuRate > 1) {
+  // Specs name the throttle they were tuned with, but it only applies with TIMELINE_STABILITY_THROTTLE=1: it
+  // slows each run about fourfold and fights parallel workers for CPU.
+  if (process.env.TIMELINE_STABILITY_THROTTLE === "1" && input.cpuRate && input.cpuRate > 1) {
     const devtools = await page.context().newCDPSession(page)
     await devtools.send("Emulation.setCPUThrottlingRate", { rate: input.cpuRate })
   }

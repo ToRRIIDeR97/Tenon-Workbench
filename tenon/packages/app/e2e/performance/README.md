@@ -54,6 +54,14 @@ Benchmarks do not assert machine-dependent performance budgets. Streaming proces
 
 Committed smoke and regression tests continue to own correctness coverage for pagination, tab paint, context resize, collapse state, and composer spacing.
 
+## Timeline stability
+
+`bun run test:stability` checks the timeline's layout contracts (no overlap, no reversed rows, stable
+anchors). Unlike the benchmarks it runs in parallel against one production build: half the CPU cores, at
+most 6 workers. Set `PLAYWRIGHT_WORKERS=1` for a serial run. Specs keep the CPU throttle they were tuned
+with, but it applies only with `TIMELINE_STABILITY_THROTTLE=1` (then prefer one worker, so throttled
+pages don't compete for CPU).
+
 ## Chrome traces
 
 Set `TENON_PERFORMANCE_TRACE_DIR` to emit a standard Chrome DevTools trace for every benchmark page automatically:
