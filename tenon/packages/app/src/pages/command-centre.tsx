@@ -8,6 +8,7 @@ import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
 import { useServerSDK } from "@/context/server-sdk"
+import { AgentWriteSteps } from "@/features/agent-writes/cards"
 import { useCommandCentre } from "@/features/command-centre/command-centre"
 import { searchCommandMemory } from "@/features/second-brain/client"
 import { getRelativeTime } from "@/utils/time"
@@ -166,6 +167,12 @@ export default function CommandCentrePage() {
                     )}
                   </For>
                 </ol>
+              </Show>
+              {/* AC-7.7: the writes of the open thread's current turn as one step list. */}
+              <Show when={centre.writes(selected()).length > 0}>
+                <div class="mx-auto mt-4 max-w-[760px]">
+                  <AgentWriteSteps writes={centre.writes(selected())} />
+                </div>
               </Show>
             </div>
             <form

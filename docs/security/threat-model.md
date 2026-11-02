@@ -783,7 +783,13 @@ apply unchanged: loopback only, a bearer token per runtime bound to its Run,
   Reads across the workspace are allowed, so an agent in one Project can read
   another Project's pages. A path that names another Project's folder from a
   Project thread is placed inside the caller's own folder, not the other one.
-  Workspace threads are not limited to one Project.
+  Workspace threads are not limited to one Project. Command Centre threads
+  (directory `<vault root>/.command-centre`) may write in any workspace with
+  Project cards, named by `workspace` or found from `projectId`, and also get
+  `memory_search`, `project_setup` and the draft-only mail tools (see
+  [Command Centre memory and routines](#command-centre-memory-and-routines)
+  and [Email accounts](#email-accounts)); each call re-checks the thread's
+  directory in the session table, so other threads can't reach them.
 - Tool arguments and page text are data. Arguments are decoded against a
   schema per tool and passed to the same vault and calendar validation as the
   HTTP routes; page bodies are stored verbatim and never interpreted. Content a

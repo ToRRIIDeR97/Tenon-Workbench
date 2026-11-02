@@ -9,6 +9,7 @@ import { useServerSDK } from "@/context/server-sdk"
 import { useServerSync } from "@/context/server-sync"
 import { useSettings } from "@/context/settings"
 import { commandDirectory, compactCommandMemory, readVault, type ModelChoice } from "@/features/second-brain/client"
+import { useAgentWrites, type AgentWrite } from "@/features/agent-writes/store"
 import { Identifier } from "@/utils/id"
 
 export type CommandThread = { id: string; title: string; directory: string; updated: number }
@@ -37,6 +38,14 @@ export function modelChoice(modelID: string | undefined): ModelChoice | undefine
   const index = modelID?.indexOf("/") ?? -1
   if (!modelID || index <= 0 || index === modelID.length - 1) return undefined
   return { providerID: modelID.slice(0, index), modelID: modelID.slice(index + 1) }
+}
+
+/**
+ * The writes of a thread's current turn: those since its latest user message (all of them when no
+ * message is known yet), oldest first.
+ */
+export function turnWrites(writes: ReadonlyArray<AgentWrite>, turnStart: number | undefined) {
+  return writes.filter((write) => turnStart === undefined || write.at >= turnStart)
 }
 
 /** Whether the daily compaction is due: never ran, or last ran a day or more ago. */
@@ -109,6 +118,12 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
       })
     }
     const sync = (sessionID: string) => void serverSync().session.sync(sessionID)
+    const agentWrites = useAgentWrites()
+    // When the thread's latest turn began (its last user message), so writes can be grouped per turn.
+    const turnStart = (sessionID: string) =>
+      (serverSync().session.data.message[sessionID] ?? []).findLast((message) => message.role === "user")?.time.created
+    const writes = (sessionID: string | undefined) =>
+      sessionID && agentWrites ? turnWrites(agentWrites.forSession(sessionID), turnStart(sessionID)) : []
     createEffect(
       on(
         () => latest()?.id,
@@ -187,6 +202,12 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
 
     return {
       directory,
+      /** The open thread's writes in its current turn, for the step list (AC-7.7). */
+      writes,
+      /** The latest thread's last write in its current turn that can be undone, for the K3 strip. */
+      lastWrite: () =>
+        writes(latest()?.id).findLast((write) => write.phase === "done" && !!write.undo && !write.failed),
+      undo: (id: string) => agentWrites?.undo(id),
       threads: list,
       loading: () => threads.loading || vault.loading,
       latest,

@@ -58,7 +58,8 @@ const fold = (value: string) => {
 
 /** Whether a session directory is the Command Centre's. */
 export function isCommandDirectory(value: string, base = root()) {
-  return fold(value) === fold(path.join(base, ".command-centre"))
+  const target = fold(value)
+  return spellings(path.join(base, ".command-centre")).some((spelling) => fold(spelling) === target)
 }
 
 const spellings = (folder: string) => {

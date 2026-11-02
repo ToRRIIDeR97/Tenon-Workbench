@@ -471,8 +471,12 @@ assistant that spans workspaces, with its own threads, memory and routines.
   (`/command?thread=<id>`). Ctrl+J / Cmd+J (`commandCentre.strip.toggle`,
   `mod+j`) or a click opens it; Esc closes it. Height moves over 300 ms
   emphasized-decelerate when opening and 200 ms emphasized-accelerate when
-  closing, with no motion under reduced motion. The Undo button for the
-  reply's last write and the per-turn step list arrive with the app tools.
+  closing, with no motion under reduced motion. When the latest reply made
+  a write, Undo redeems that write's token (`useAgentWrites().undo`) and then
+  shows Undone, Already changed or Couldn't undo.
+- **Step list.** On `/command` the open thread's writes since its latest user
+  message render as one `AgentWriteSteps` list (`[data-agent-write]
+  [data-variant="steps"]`, a row per write and the active row's preview).
 - **Memory.** `CommandMemory.compact({ now?, days, summarize })` summarises
   Command Centre root threads last updated more than `days` ago (1–365) into
   `.command-centre/memory/<thread>.md` (readable, synced with the vault), then
@@ -491,8 +495,24 @@ assistant that spans workspaces, with its own threads, memory and routines.
   point at `tor-project-setup`, `tor-implementation`,
   `tor-feature-map-verification` and `tor-workflow`, then creates the Project
   card (a folder outside the workspace is also linked) and an empty vault
-  timeline. A failed setup removes a folder it created. It becomes the
-  `project_setup` tool for Command Centre sessions with the app tools.
+  timeline. A failed setup removes a folder it created. Command Centre
+  sessions call it as the `project_setup` app tool.
+- **Tools.** `AgentAppTools.list({ sessionID })` (synchronous) gives a
+  Command Centre thread the app tools plus `memory_search`, `project_setup`
+  and, when `TENON_MAIL_URL` and `TENON_MAIL_TOKEN` are set, `mail_search`,
+  `mail_read` and `mail_draft` (`tenon/src/agents/mail-tools.ts`, which posts
+  JSON to the desktop's `/search`, `/thread` and `/draft` with the bearer
+  token). A thread counts as a Command Centre thread once `session.created`
+  names the `.command-centre` folder, or when the MCP endpoint or the
+  in-process loop looks it up; every call checks the session table again.
+  Command Centre threads are not Project-scoped: each app-tool call takes an
+  optional `workspace` (absolute folder with `.tenon`), else the workspace
+  holding `projectId`, else the only known workspace (Tenon projects, vault
+  workspaces, and workspaces above recent threads). `mail_draft` publishes
+  `agent.write` of kind `email` with preview `{ to, subject, body }` and no
+  undo token (delete an unwanted draft in the mail client). The in-process
+  loop registers the full catalog; a call outside the thread's list fails
+  with "… is only available in the Command Centre."
 
 | Route (workspace from `x-opencode-directory` or `?directory=`) | Behaviour |
 | --- | --- |

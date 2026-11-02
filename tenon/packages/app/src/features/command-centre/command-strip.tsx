@@ -10,7 +10,7 @@ import { useCommandCentre } from "./command-centre"
 /**
  * K3 · Slim strip. A handle just above the bottom edge of every page but the Command Centre; Ctrl/Cmd+J
  * or a click opens a strip (at most 90 px) with the latest reply on one line, a composer that sends to
- * the latest Command Centre thread and "Open full". Esc hides it. Height moves over 300 ms
+ * the latest Command Centre thread, Undo when that reply made a write, and "Open full". Esc hides it. Height moves over 300 ms
  * emphasized-decelerate when opening and 200 ms emphasized-accelerate when closing; reduced motion snaps.
  */
 export function CommandStrip() {
@@ -85,6 +85,35 @@ export function CommandStrip() {
                 ? language.t("common.requestFailed")
                 : centre.lastReply() || language.t("secondBrain.commandCentre.strip.empty")}
             </p>
+            {/* Undo for the latest reply's last write; after it the button reports how that went. */}
+            <Show when={centre.lastWrite()} keyed>
+              {(write) => (
+                <Show
+                  when={write.undoState === "idle" || write.undoState === "pending"}
+                  fallback={
+                    <span class="shrink-0 text-[12px] text-v2-text-text-muted" role="status">
+                      {language.t(
+                        write.undoState === "undone"
+                          ? "secondBrain.agentWrites.undone"
+                          : write.undoState === "changed"
+                            ? "secondBrain.agentWrites.changed"
+                            : "secondBrain.agentWrites.undoFailed",
+                      )}
+                    </span>
+                  }
+                >
+                  <ButtonV2
+                    size="small"
+                    variant="ghost"
+                    data-action="command-strip-undo"
+                    disabled={write.undoState === "pending"}
+                    onClick={() => void centre.undo(write.id)}
+                  >
+                    {language.t("secondBrain.agentWrites.undo")}
+                  </ButtonV2>
+                </Show>
+              )}
+            </Show>
             <ButtonV2 size="small" variant="ghost" onClick={openFull}>
               {language.t("secondBrain.commandCentre.strip.openFull")}
             </ButtonV2>

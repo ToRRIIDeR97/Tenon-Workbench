@@ -1,6 +1,9 @@
 import { afterEach, describe, expect } from "bun:test"
+import { NodeHttpServer, NodeServices } from "@effect/platform-node"
 import { mkdir } from "node:fs/promises"
-import { Effect, Layer } from "effect"
+import { Config, Effect, Layer } from "effect"
+import { HttpRouter, HttpServer } from "effect/unstable/http"
+import { layerWebSocketConstructorGlobal } from "effect/unstable/socket/Socket"
 import { AppNodeBuilder } from "@tenon/core/effect/app-node-builder"
 import { LayerNode } from "@tenon/core/effect/layer-node"
 import { CrossSpawnSpawner } from "@tenon/core/cross-spawn-spawner"
@@ -10,6 +13,7 @@ import { Workspace } from "../../src/control-plane/workspace"
 import { InstanceBootstrap as InstanceBootstrapService } from "../../src/project/bootstrap-service"
 import { InstanceStore } from "../../src/project/instance-store"
 import { Project } from "../../src/project/project"
+import { HttpApiApp } from "../../src/server/routes/instance/httpapi/server"
 import { GlobalBus, type GlobalEvent } from "../../src/bus/global"
 import { AgentAppTools } from "../../src/agents/app-tools"
 import { CommandMemory } from "../../src/agents/command-memory"
@@ -20,8 +24,14 @@ import { testEffect } from "../lib/effect"
 
 // P8 · Email, AC-8.4 (implementations/notes-command-centre/implementation.md)
 
+// The served routes install the app tools (AgentAppTools.layer), as in command-centre.acceptance.test.ts.
+const servedRoutes: Layer.Layer<never, Config.ConfigError, HttpServer.HttpServer> = HttpRouter.serve(HttpApiApp.routes, {
+  disableListenLog: true,
+  disableLogger: true,
+})
 const it = testEffect(
   Layer.mergeAll(
+    servedRoutes.pipe(Layer.provide(layerWebSocketConstructorGlobal), Layer.provideMerge(NodeHttpServer.layerTest), Layer.provideMerge(NodeServices.layer)),
     AppNodeBuilder.build(
       LayerNode.group([InstanceStore.node, Project.node, Session.node, Workspace.node, Database.node, Ripgrep.node]),
       [[InstanceStore.bootstrapNode, Layer.succeed(InstanceBootstrapService.Service, InstanceBootstrapService.Service.of({ run: Effect.void }))]],
