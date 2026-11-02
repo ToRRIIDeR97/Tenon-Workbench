@@ -612,9 +612,13 @@ const layer = Layer.effect(
           continuation: session.sessionId,
         })
       }
-      // Each opened session reports the agent's current models; the picker shows them on its next check.
+      // Each opened session reports the agent's current models; the picker shows them on its next check. A
+      // session knows only the active model's levels, so the others keep what discovery found.
       if (session.models.length > 0) {
-        yield* setCatalog(instanceKey(instance), session.models)
+        yield* setCatalog(
+          instanceKey(instance),
+          keepLevels(session.models, catalogs.get(instanceKey(instance))?.models ?? []),
+        )
         probes.delete(instanceKey(instance))
       }
       return {
@@ -1873,6 +1877,19 @@ function permissionSource(input: StreamInput, callID: string | undefined) {
 }
 
 type Catalog = { readonly models: ReadonlyArray<Harness.Model>; readonly checked: number }
+
+/** A fresh model list with the reasoning levels and speeds of `known` kept for models it reports none for. */
+export function keepLevels(fresh: ReadonlyArray<Harness.Model>, known: ReadonlyArray<Harness.Model>) {
+  const byID = new Map(known.map((model) => [model.id, model]))
+  return fresh.map((model) => {
+    const previous = byID.get(model.id)
+    if (!previous) return model
+    const reasoningEfforts = model.reasoningEfforts.length ? model.reasoningEfforts : previous.reasoningEfforts
+    const serviceTiers = model.serviceTiers.length ? model.serviceTiers : previous.serviceTiers
+    if (reasoningEfforts === model.reasoningEfforts && serviceTiers === model.serviceTiers) return model
+    return Harness.Model.make({ ...model, reasoningEfforts, serviceTiers })
+  })
+}
 type ProbeEntry = { readonly expires: number; readonly instance: Harness.Instance }
 type Probe = (
   known: ReadonlyArray<Harness.Model> | undefined,
