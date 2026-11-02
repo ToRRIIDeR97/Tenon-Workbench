@@ -33,6 +33,8 @@ import {
 } from "@/utils/server"
 import type { PromptInputHarnessController } from "@/components/prompt-input/harness-controls"
 import { PromptModelPill } from "@/components/prompt-input/model-pill"
+import { HomeModelPill } from "@/pages/home/home-model-pill"
+import type { PromptModel } from "@/context/prompt"
 import { PromptBranchPicker } from "@/components/prompt-workspace-selector"
 import { Greeting } from "@/pages/new-session/greeting"
 import { NEW_SESSION_CONTENT_WIDTH } from "@/pages/session/new-session-layout"
@@ -60,6 +62,8 @@ export default function BrainHomePage() {
     prompt: "",
     harnessInstanceID: Harness.OpenCode as Harness.InstanceID,
     harnessModel: undefined as Harness.ModelSelection | undefined,
+    // The built-in agent's model and reasoning, from the folder's model selection.
+    builtInModel: undefined as PromptModel | undefined,
     starting: false,
     // Set once the user picks a harness here, so a later settings load doesn't override it.
     picked: false,
@@ -201,6 +205,9 @@ export default function BrainHomePage() {
 
   // The built-in agent needs no check, so only another harness waits for the list. The thread page
   // sends once its own list has loaded, and keeps the prompt if the harness turns out unavailable.
+  const builtIn = () =>
+    (harnesses()?.find((item) => item.id === state.harnessInstanceID)?.driver ??
+      (state.harnessInstanceID === Harness.OpenCode ? Harness.OpenCodeDriver : undefined)) === Harness.OpenCodeDriver
   const waitingForHarness = () => harnessQuery.isPending && state.harnessInstanceID !== Harness.OpenCode
   const startSession = async () => {
     const prompt = state.prompt.trim()
@@ -208,7 +215,8 @@ export default function BrainHomePage() {
     setState("starting", true)
     try {
       // The draft page sends the prompt as soon as its composer is ready.
-      await drafts.create({ server: server.key, directory: directory() }, prompt, undefined, state.harnessInstanceID, {
+      const model = builtIn() ? state.builtInModel : undefined
+      await drafts.create({ server: server.key, directory: directory() }, prompt, model, state.harnessInstanceID, {
         send: true,
         harnessModel: state.harnessModel,
       })
@@ -310,14 +318,16 @@ export default function BrainHomePage() {
                     </span>
                   }
                 >
-                  <PromptModelPill
-                    harness={harness}
-                    builtIn={
-                      (harnesses()?.find((item) => item.id === state.harnessInstanceID)?.driver ??
-                        (state.harnessInstanceID === Harness.OpenCode ? Harness.OpenCodeDriver : undefined)) ===
-                      Harness.OpenCodeDriver
-                    }
-                  />
+                  <Show when={directory()} keyed fallback={<PromptModelPill harness={harness} builtIn={builtIn()} />}>
+                    {(folder) => (
+                      <HomeModelPill
+                        directory={folder}
+                        harness={harness}
+                        builtIn={builtIn()}
+                        onModel={(model) => setState("builtInModel", model)}
+                      />
+                    )}
+                  </Show>
                 </Suspense>
                 <span class="flex-1" />
                 <TooltipV2 placement="top" value={language.t("secondBrain.home.start")}>
