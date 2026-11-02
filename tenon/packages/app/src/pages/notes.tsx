@@ -480,20 +480,21 @@ export default function NotesPage() {
           when={state.directory}
           fallback={
             <PageEmpty
+              title={language.t("secondBrain.state.noWorkspace.title")}
               action={
                 <ButtonV2 variant="contrast" onClick={() => command.trigger("project.open")}>
                   {language.t("secondBrain.home.openWorkspace")}
                 </ButtonV2>
               }
             >
-              {language.t("secondBrain.empty.workspace")}
+              {language.t("secondBrain.state.noWorkspace.body")}
             </PageEmpty>
           }
         >
           <div class="flex min-h-0 min-w-0 flex-1 flex-col md:flex-row">
             <aside class="flex max-h-[240px] w-full shrink-0 flex-col overflow-hidden md:max-h-none md:w-[248px]">
               <div class="flex h-14 shrink-0 items-center gap-2 pl-5 pr-3 pt-1">
-                <h1 class="min-w-0 flex-1 truncate text-[17px] text-v2-text-text-base [font-weight:560]">
+                <h1 class="min-w-0 flex-1 truncate text-[17px] leading-6 text-v2-text-text-base [font-weight:600]">
                   {language.t("secondBrain.notes.title")}
                 </h1>
                 <TooltipV2 value={language.t("secondBrain.notes.new")}>
@@ -600,17 +601,19 @@ export default function NotesPage() {
                     fallback={
                       <PageEmpty
                         class="!px-3"
+                        error
+                        title={language.t("secondBrain.state.error.title")}
                         action={
                           <ButtonV2
                             size="small"
                             variant="outline"
                             onClick={() => void (query() ? matchActions.refetch() : noteActions.refetch())}
                           >
-                            {language.t("secondBrain.error.retry")}
+                            {language.t("secondBrain.state.retry")}
                           </ButtonV2>
                         }
                       >
-                        {language.t("secondBrain.error.request")}
+                        {language.t("secondBrain.state.error.body")}
                       </PageEmpty>
                     }
                   >
@@ -659,7 +662,7 @@ export default function NotesPage() {
               >
                 <header class="flex h-14 shrink-0 items-center gap-2 pl-4 pr-3 pt-1 sm:pl-6">
                   <input
-                    class="h-9 min-w-0 flex-1 truncate rounded-[12px] bg-transparent px-2 text-[17px] text-v2-text-text-base outline-none transition-colors duration-short ease-standard placeholder:text-v2-text-text-faint hover:bg-v2-overlay-simple-overlay-hover focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none [font-weight:560]"
+                    class="h-9 min-w-0 flex-1 truncate rounded-[12px] bg-transparent px-2 text-[17px] text-v2-text-text-base outline-none transition-colors duration-short ease-standard placeholder:text-v2-text-text-faint hover:bg-v2-overlay-simple-overlay-hover focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none [font-weight:600]"
                     aria-label={language.t("secondBrain.notes.name")}
                     value={state.title}
                     onInput={(event) => setState("title", event.currentTarget.value)}

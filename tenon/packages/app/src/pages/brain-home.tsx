@@ -18,7 +18,7 @@ import { useDrafts } from "@/context/drafts"
 import { useCommand } from "@/context/command"
 import { useDialog } from "@tenon/ui/context/dialog"
 import { DialogHarnessSetup } from "@/components/settings-v2/harness-setup"
-import { PageFrame, PageSection, pageRowClass } from "@/components/page"
+import { PageEmpty, PageFrame, PageSection, pageRowClass } from "@/components/page"
 import { localDateKey } from "@/features/second-brain/calendar-domain"
 import { readCalendar, type CalendarEvent, type PlannerTask } from "@/features/second-brain/client"
 import { useBrainProjects } from "@/components/sidebar/sidebar-controller"
@@ -247,14 +247,16 @@ export default function BrainHomePage() {
       <Show
         when={directory()}
         fallback={
-          <div class="flex flex-col items-center gap-4 px-6 pt-[15vh] text-center">
-            <h2 class="text-[17px] text-v2-text-text-base [font-weight:560]">
-              {language.t("secondBrain.home.empty.title")}
-            </h2>
-            <ButtonV2 variant="contrast" onClick={() => command.trigger("project.open")}>
-              {language.t("secondBrain.home.openWorkspace")}
-            </ButtonV2>
-          </div>
+          <PageEmpty
+            title={language.t("secondBrain.state.noWorkspace.title")}
+            action={
+              <ButtonV2 variant="contrast" onClick={() => command.trigger("project.open")}>
+                {language.t("secondBrain.home.openWorkspace")}
+              </ButtonV2>
+            }
+          >
+            {language.t("secondBrain.state.noWorkspace.body")}
+          </PageEmpty>
         }
       >
         {/* The same new-thread layout as a draft: the greeting, then a composer whose top row says where the
@@ -275,7 +277,7 @@ export default function BrainHomePage() {
                 <PathTooltip placement="top" class="min-w-0 shrink" name={getFilename(directory())} path={directory()}>
                   <span class="flex h-8 min-w-0 shrink items-center gap-1.5 px-2 text-[13px] leading-5 text-v2-text-text-muted">
                     <Icon name="folder" size="small" class="shrink-0 text-v2-icon-icon-muted" />
-                    <span class="min-w-0 truncate text-v2-text-text-base [font-weight:530]">
+                    <span class="min-w-0 truncate text-v2-text-text-base [font-weight:500]">
                       {getFilename(directory())}
                     </span>
                   </span>
@@ -352,7 +354,7 @@ export default function BrainHomePage() {
 
             <Show when={projects.list()?.length === 0}>
               <section class="flex flex-col items-center gap-3 text-center" aria-labelledby="brain-home-first-run">
-                <h2 id="brain-home-first-run" class="text-[15px] text-v2-text-text-base [font-weight:560]">
+                <h2 id="brain-home-first-run" class="text-[15px] text-v2-text-text-base [font-weight:600]">
                   {language.t("secondBrain.home.firstRun.title")}
                 </h2>
                 <div class="flex flex-wrap justify-center gap-2">
@@ -394,7 +396,7 @@ export default function BrainHomePage() {
                             onClick={() => tenonSessions.session.open(record.session)}
                           >
                             <span class="size-2 shrink-0 rounded-full bg-v2-icon-icon-accent running-pulse" />
-                            <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base [font-weight:470]">
+                            <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base [font-weight:400]">
                               {record.session.title}
                             </span>
                             <Show when={approvals() > 0}>
@@ -455,7 +457,7 @@ export default function BrainHomePage() {
                                 />
                               </Show>
                             </span>
-                            <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base [font-weight:470]">
+                            <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base [font-weight:400]">
                               {value.title}
                             </span>
                             <Show when={overdue}>
@@ -494,7 +496,7 @@ export default function BrainHomePage() {
                           class={pageRowClass}
                           onClick={() => navigate(`/projects?project=${encodeURIComponent(project.id)}`)}
                         >
-                          <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base [font-weight:470]">
+                          <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base [font-weight:400]">
                             {project.name}
                           </span>
                           <span class="h-1 w-16 shrink-0 overflow-hidden rounded-full bg-v2-background-bg-layer-03">

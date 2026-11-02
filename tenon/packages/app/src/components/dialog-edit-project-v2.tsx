@@ -38,7 +38,7 @@ export function DialogEditProjectV2(props: { project: LocalProject; server: Serv
           </Field>
 
           <div class="flex w-full flex-col gap-2">
-            <div class="select-none text-[13px] font-[530] leading-none tracking-[-0.04px] text-v2-text-text-base">
+            <div class="select-none text-[13px] font-[500] leading-5 tracking-[-0.04px] text-v2-text-text-base">
               {language.t("dialog.project.edit.icon")}
             </div>
             <div class="flex items-center gap-3">
@@ -85,7 +85,7 @@ export function DialogEditProjectV2(props: { project: LocalProject; server: Serv
                 class="hidden"
                 onChange={model.inputChange}
               />
-              <div class="flex select-none flex-col gap-[6px] text-[11px] font-[440] leading-none tracking-[0.05px] text-v2-text-text-muted">
+              <div class="flex select-none flex-col gap-[6px] text-[11px] font-[400] leading-4 tracking-[0.05px] text-v2-text-text-muted">
                 <span>{language.t("dialog.project.edit.icon.hint")}</span>
                 <span>{language.t("dialog.project.edit.icon.recommended")}</span>
               </div>
@@ -94,7 +94,7 @@ export function DialogEditProjectV2(props: { project: LocalProject; server: Serv
 
           <Show when={!model.store.iconOverride}>
             <div class="flex w-full flex-col gap-2">
-              <div class="select-none text-[13px] font-[530] leading-none tracking-[-0.04px] text-v2-text-text-base">
+              <div class="select-none text-[13px] font-[500] leading-5 tracking-[-0.04px] text-v2-text-text-base">
                 {language.t("dialog.project.edit.color")}
               </div>
               <div class="-ml-1 flex gap-1.5">

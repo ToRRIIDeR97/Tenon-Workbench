@@ -476,7 +476,7 @@ export function NoteEditor(props: NoteEditorProps) {
                   id="note-editor-slash-menu"
                   role="listbox"
                   aria-label={label("slashMenu")}
-                  class="max-h-64 w-64 overflow-y-auto rounded-[16px] bg-v2-background-bg-layer-02 p-1.5 shadow-[var(--v2-elevation-raised)]"
+                  class="max-h-64 w-64 overflow-y-auto rounded-[16px] bg-v2-background-bg-layer-01 p-1.5 shadow-[var(--v2-elevation-floating)]"
                 >
                   <Show
                     when={commands().length}

@@ -49,7 +49,7 @@ export function SessionFollowupDock(props: {
           toggle()
         }}
       >
-        <span class="shrink-0 cursor-default text-[13px] leading-5 text-v2-text-text-base [font-weight:530]">
+        <span class="shrink-0 cursor-default text-[13px] leading-5 text-v2-text-text-base [font-weight:500]">
           {label()}
         </span>
         <Show when={store.collapsed && preview()}>
@@ -92,7 +92,7 @@ export function SessionFollowupDock(props: {
       {/* The list folds through Reveal; the spacer below stays, so collapsed and open share the bottom edge
           the composer overlaps. Rows expand in and collapse out (createExitList). */}
       <Reveal open={!store.collapsed}>
-        <div class="px-5 pb-2 flex flex-col max-h-42 overflow-y-auto no-scrollbar">
+        <div class="px-5 pb-2 flex flex-col max-h-42 overflow-y-auto">
           <For each={entries()}>
             {(entry, index) => (
               <Reveal open={entry.open}>

@@ -149,7 +149,7 @@ function ProviderTip() {
         >
           <button
             type="button"
-            class="flex h-8 min-w-0 items-center rounded-full pl-3.5 pr-1.5 text-[13px] leading-none tracking-[-0.04px] text-v2-text-text-faint transition-[background-color,color] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none"
+            class="flex h-8 min-w-0 items-center rounded-full pl-3.5 pr-1.5 text-[13px] leading-5 tracking-[-0.04px] text-v2-text-text-faint transition-[background-color,color] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none"
             onClick={openProviders}
           >
             <span class="truncate">{language.t("home.providerTip")}</span>

@@ -90,7 +90,7 @@ export function SessionTodoDock(props: {
           }}
         >
           <span
-            class="cursor-default inline-flex items-baseline shrink-0 overflow-visible font-[440] text-[13px] leading-5 tracking-[-0.04px] text-v2-text-text-muted"
+            class="cursor-default inline-flex items-baseline shrink-0 overflow-visible font-[400] text-[13px] leading-5 tracking-[-0.04px] text-v2-text-text-muted"
             aria-label={label()}
             style={{
               "--tool-motion-odometer-ms": "var(--v2-duration-long)",
@@ -122,7 +122,7 @@ export function SessionTodoDock(props: {
             }}
           >
             <TextReveal
-              class="cursor-default text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-faint"
+              class="cursor-default text-[13px] font-[400] leading-5 tracking-[-0.04px] text-v2-text-text-faint"
               text={props.collapsed ? preview() : undefined}
               duration="var(--v2-duration-long)"
               travel={25}
@@ -182,7 +182,7 @@ function TodoList(props: { todos: Todo[] }) {
   return (
     <div class="relative">
       <div
-        class="px-5 pb-11 flex flex-col gap-1.5 max-h-42 overflow-y-auto no-scrollbar"
+        class="px-5 pb-11 flex flex-col gap-1.5 max-h-42 overflow-y-auto"
         style={{ "overflow-anchor": "none" }}
         onScroll={(e) => {
           setStore("stuck", e.currentTarget.scrollTop > 0)

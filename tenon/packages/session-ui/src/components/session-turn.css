@@ -13,11 +13,6 @@
     height: 100%;
     min-width: 0;
     overflow-y: auto;
-    scrollbar-width: none;
-  }
-
-  [data-slot="session-turn-content"]::-webkit-scrollbar {
-    display: none;
   }
 
   [data-slot="session-turn-message-container"] {
@@ -219,12 +214,6 @@
     min-width: 0;
     overflow-y: auto;
     overflow-x: hidden;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-
-  [data-slot="session-turn-diff-view"]::-webkit-scrollbar {
-    display: none;
   }
 }
 

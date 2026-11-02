@@ -176,7 +176,7 @@ function ServerStatusPopoverView(props: { state: ServerStatusState }) {
       aria-label={props.state.ariaLabel}
       class={`flex w-[360px] max-w-full flex-col gap-0.5 ${popoverSurfaceClass}`}
     >
-      <h2 class="px-3 pt-1.5 pb-1 text-[12px] text-v2-text-text-faint [font-weight:530]">
+      <h2 class="px-3 pt-1.5 pb-1 text-[12px] text-v2-text-text-faint [font-weight:500]">
         {props.state.servers().length > 0 ? `${props.state.servers().length} ` : ""}
         {props.state.serversLabel}
       </h2>
@@ -203,11 +203,11 @@ function ServerStatusPopoverView(props: { state: ServerStatusState }) {
               dimmed={item.blocked}
               status={item.health}
               class="flex w-full min-w-0 items-center gap-2"
-              nameClass="truncate [font-weight:530]"
+              nameClass="truncate [font-weight:500]"
               versionClass="truncate text-[12px] text-v2-text-text-faint"
               badge={
                 <Show when={item.key === props.state.defaultKey()}>
-                  <span class="inline-flex h-5 items-center rounded-full bg-v2-background-bg-layer-02 px-2 text-[11px] text-v2-text-text-muted [font-weight:560]">
+                  <span class="inline-flex h-5 items-center rounded-full bg-v2-background-bg-layer-02 px-2 text-[11px] text-v2-text-text-muted [font-weight:600]">
                     {props.state.defaultLabel}
                   </span>
                 </Show>
@@ -308,7 +308,7 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
                 >
                   <span class={`size-2 shrink-0 rounded-full ${statusDotClass(status())}`} />
                   <span class="flex min-w-0 flex-1 flex-col gap-px">
-                    <span class="truncate [font-weight:530]">{name}</span>
+                    <span class="truncate [font-weight:500]">{name}</span>
                     <Show when={status() === "needs_auth"}>
                       <span class="truncate text-[12px] text-v2-text-text-faint">
                         {language.t("mcp.auth.clickToAuthenticate")}
@@ -333,7 +333,7 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
             {(item) => (
               <div class={row}>
                 <span class={`size-2 shrink-0 rounded-full ${statusDotClass(item.status)}`} />
-                <span class="truncate [font-weight:530]">{item.name || item.id}</span>
+                <span class="truncate [font-weight:500]">{item.name || item.id}</span>
               </div>
             )}
           </For>
@@ -346,7 +346,7 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
             {(plugin) => (
               <div class={row}>
                 <span class={`size-2 shrink-0 rounded-full ${statusDotClass("connected")}`} />
-                <span class="truncate [font-weight:530]">{plugin}</span>
+                <span class="truncate [font-weight:500]">{plugin}</span>
               </div>
             )}
           </For>

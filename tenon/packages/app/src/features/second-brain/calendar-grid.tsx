@@ -74,7 +74,7 @@ export function CalendarGrid(props: {
               aria-current={day.today ? "date" : undefined}
               onClick={() => props.onOpenDay(day.date)}
             >
-              <span class="text-[11px] uppercase tracking-[0.04em] text-v2-text-text-muted [font-weight:560]">
+              <span class="text-[11px] uppercase tracking-[0.04em] text-v2-text-text-muted [font-weight:600]">
                 {day.weekday}
               </span>
               <span
@@ -99,7 +99,7 @@ export function CalendarGrid(props: {
                     <button
                       type="button"
                       classList={{
-                        "h-6 min-w-0 shrink-0 truncate rounded-[8px] px-2 text-left text-[11.5px] [font-weight:500] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus": true,
+                        "h-6 min-w-0 shrink-0 truncate rounded-[8px] px-2 text-left text-[12px] [font-weight:500] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus": true,
                         "bg-v2-icon-icon-accent text-v2-icon-icon-contrast": props.selected === event.id,
                         "bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container hover:brightness-95":
                           props.selected !== event.id,
@@ -176,7 +176,7 @@ export function CalendarGrid(props: {
                     title={block.event.title}
                     onClick={() => props.onOpenEvent(block.event)}
                   >
-                    <span class="truncate [font-weight:560]">{block.event.title}</span>
+                    <span class="truncate [font-weight:600]">{block.event.title}</span>
                     <span class="truncate opacity-85">{`${block.event.start} – ${block.event.end}`}</span>
                   </button>
                 )}

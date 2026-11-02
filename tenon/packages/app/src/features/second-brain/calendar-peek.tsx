@@ -21,7 +21,7 @@ export function CalendarPeek(props: {
   return (
     <div class="flex flex-col gap-4 p-4 pl-5">
       <div class="flex items-center gap-1">
-        <span class="min-w-0 truncate rounded-full bg-v2-background-bg-base px-2.5 py-1 text-[11px] text-v2-text-text-muted [font-weight:530]">
+        <span class="min-w-0 truncate rounded-full bg-v2-background-bg-base px-2.5 py-1 text-[11px] text-v2-text-text-muted [font-weight:500]">
           {props.tag}
         </span>
         <span class="flex-1" />
@@ -48,7 +48,7 @@ export function CalendarPeek(props: {
       </div>
       <div class="flex items-start gap-3">
         <Show when={props.task}>{(task) => <TaskCheck task={task()} onToggle={props.onToggle} />}</Show>
-        <h2 class="min-w-0 break-words text-[20px] leading-[26px] text-v2-text-text-base [font-weight:560]">
+        <h2 class="min-w-0 break-words text-[20px] leading-[26px] text-v2-text-text-base [font-weight:600]">
           {props.title}
         </h2>
       </div>

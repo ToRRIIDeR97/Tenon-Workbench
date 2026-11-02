@@ -418,3 +418,43 @@ input:where([type="button"], [type="reset"], [type="submit"]),
 :where([role="button"], [role="tab"], [role="menuitem"], [role="option"], [role="switch"])[aria-disabled="true"] {
   cursor: not-allowed; /* 2 */
 }
+
+/*
+  One overlay pill scrollbar for every native scroller, matching ScrollView:
+  12px gutter, 4px pill (transparent border + background-clip), no track or
+  arrow buttons, faint at rest and brighter while the scroller is hovered.
+  Do not set scrollbar-width or scrollbar-color on a scroller: in Chromium 121+
+  either one switches these ::-webkit-scrollbar rules off.
+*/
+
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+  background: transparent;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+::-webkit-scrollbar-thumb {
+  min-height: 32px;
+  min-width: 32px;
+  border: 4px solid transparent;
+  border-radius: 9999px;
+  background-color: var(--border-weak-base);
+  background-clip: padding-box;
+}
+
+:hover::-webkit-scrollbar-thumb,
+::-webkit-scrollbar-thumb:hover,
+::-webkit-scrollbar-thumb:active {
+  background-color: var(--border-strong-base);
+}

@@ -203,7 +203,7 @@ function BodyDesignClass() {
   createRenderEffect(() => {
     if (typeof document === "undefined") return
     document.body.toggleAttribute("data-new-layout", true)
-    document.body.classList.add("font-(family-name:--font-family-text)", "text-[13px]", "font-[440]")
+    document.body.classList.add("font-(family-name:--font-family-text)", "text-[13px]", "font-[400]")
   })
 
   return null
@@ -425,7 +425,7 @@ function ConnectionError(props: { onRetry?: () => void; onServerSelected?: (key:
           </svg>
         </span>
         <div class="flex flex-col gap-1.5">
-          <h1 class="text-[20px] text-v2-text-text-base [font-weight:560]">
+          <h1 class="text-[20px] text-v2-text-text-base [font-weight:600]">
             {unreachable()[0]}
             <span class="font-mono text-[18px]">{name()}</span>
             {unreachable()[1]}
@@ -439,7 +439,7 @@ function ConnectionError(props: { onRetry?: () => void; onServerSelected?: (key:
           <section aria-labelledby="connection-other-servers" class="flex w-full flex-col gap-1 text-left">
             <h2
               id="connection-other-servers"
-              class="flex h-8 items-center pl-3 text-[13px] text-v2-text-text-muted [font-weight:530]"
+              class="flex h-8 items-center pl-3 text-[13px] text-v2-text-text-muted [font-weight:500]"
             >
               {language.t("app.server.otherServers")}
             </h2>
@@ -453,7 +453,7 @@ function ConnectionError(props: { onRetry?: () => void; onServerSelected?: (key:
                       class="flex min-h-14 w-full items-center gap-3 bg-v2-background-bg-layer-01 px-5 py-2 text-left transition-[background-color,border-radius] duration-short ease-standard hover:bg-v2-background-bg-layer-02 active:rounded-[16px] focus-visible:outline-none focus-visible:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)] motion-reduce:transition-none"
                       onClick={() => props.onServerSelected?.(key)}
                     >
-                      <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base [font-weight:530]">
+                      <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base [font-weight:500]">
                         {serverName(conn)}
                       </span>
                       <svg

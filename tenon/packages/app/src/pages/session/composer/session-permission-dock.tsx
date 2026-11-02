@@ -29,7 +29,7 @@ export function SessionPermissionDock(props: {
         <span class="flex size-8 shrink-0 items-center justify-center rounded-full bg-v2-background-bg-base text-v2-state-fg-warning">
           <Icon name="warning" size="large" />
         </span>
-        <h2 id="permission-dock-title" class="min-w-0 text-[14px] leading-5 text-v2-state-fg-warning [font-weight:560]">
+        <h2 id="permission-dock-title" class="min-w-0 text-[14px] leading-5 text-v2-state-fg-warning [font-weight:600]">
           {language.t("notification.permission.title")}
         </h2>
       </div>
@@ -39,7 +39,7 @@ export function SessionPermissionDock(props: {
       </Show>
 
       <Show when={props.request.patterns.length > 0}>
-        <div class="mt-3 ml-[42px] flex max-h-40 flex-col gap-1 overflow-y-auto rounded-[16px] bg-v2-background-bg-base px-3 py-2 no-scrollbar">
+        <div class="mt-3 ml-[42px] flex max-h-40 flex-col gap-1 overflow-y-auto rounded-[16px] bg-v2-background-bg-base px-3 py-2">
           <For each={props.request.patterns}>
             {(pattern) => (
               <code class="font-mono text-[12px] leading-5 text-v2-text-text-muted break-all">{pattern}</code>
