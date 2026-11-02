@@ -3,6 +3,9 @@ import { KnowledgeNote } from "@/knowledge/note"
 import { KnowledgeVault } from "@/knowledge/vault"
 import { PlannerCalendar } from "@/planner/calendar"
 import { BrainProject } from "@/project/brain"
+import { CommandMemory } from "@/agents/command-memory"
+import { CommandThreads } from "@/agents/command-threads"
+import { Routines } from "@/agents/routines"
 import { HttpApi, HttpApiEndpoint, HttpApiError, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
 import { Authorization } from "../middleware/authorization"
 import { InstanceContextMiddleware } from "../middleware/instance-context"
@@ -75,6 +78,11 @@ export const SecondBrainPaths = {
   vaultConflicts: "/second-brain/vault/conflicts",
   vaultMigrate: "/second-brain/vault/migrate",
   undoWrite: "/second-brain/writes/:undo/undo",
+  routines: "/second-brain/routines",
+  routineRun: "/second-brain/routines/:id/run",
+  commandDirectory: "/command-centre/directory",
+  commandMemory: "/command-centre/memory",
+  commandMemoryCompact: "/command-centre/memory/compact",
 } as const
 
 export const SecondBrainApi = HttpApi.make("secondBrain").add(
@@ -250,6 +258,37 @@ export const SecondBrainApi = HttpApi.make("secondBrain").add(
           Schema.Struct({ undone: Schema.Literal(true) }),
           "The agent write was reverted; 409 when it was already undone or changed since",
         ),
+        error: errors,
+      }),
+      HttpApiEndpoint.get("listRoutines", SecondBrainPaths.routines, {
+        query: Schema.Struct(WorkspaceRoutingQueryFields),
+        success: described(Schema.Array(Routines.Info), "The workspace's routines with their next and last runs"),
+        error: errors,
+      }),
+      HttpApiEndpoint.post("runRoutine", SecondBrainPaths.routineRun, {
+        params: { id: Schema.String },
+        query: Schema.Struct(WorkspaceRoutingQueryFields),
+        payload: Schema.Struct({ model: Schema.optional(CommandThreads.ModelChoice) }),
+        success: described(Routines.RunResult, "The Command Centre thread the run started"),
+        error: errors,
+      }),
+      HttpApiEndpoint.post("commandDirectory", SecondBrainPaths.commandDirectory, {
+        query: Schema.Struct(WorkspaceRoutingQueryFields),
+        success: described(Schema.Struct({ directory: Schema.String }), "Where Command Centre threads run"),
+        error: errors,
+      }),
+      HttpApiEndpoint.get("searchCommandMemory", SecondBrainPaths.commandMemory, {
+        query: Schema.Struct({ ...WorkspaceRoutingQueryFields, search: Schema.optional(Schema.String) }),
+        success: described(Schema.Array(CommandMemory.Hit), "Command Centre threads and summaries that match"),
+        error: errors,
+      }),
+      HttpApiEndpoint.post("compactCommandMemory", SecondBrainPaths.commandMemoryCompact, {
+        query: Schema.Struct(WorkspaceRoutingQueryFields),
+        payload: Schema.Struct({
+          days: Schema.Number,
+          model: Schema.optional(CommandThreads.ModelChoice),
+        }),
+        success: described(CommandMemory.CompactResult, "Old Command Centre threads summarised and deleted"),
         error: errors,
       }),
     )
