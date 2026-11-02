@@ -11,6 +11,8 @@ import { SettingsModelsV2 } from "./models"
 import { SettingsHarnessesV2 } from "./harnesses"
 import { SettingsSkillsV2 } from "./skills"
 import { SettingsCalendarV2 } from "./calendar"
+import { SettingsDictationV2 } from "./dictation"
+import { MicIcon } from "../prompt-input/dictation-button"
 import "./settings-v2.css"
 import { SettingsServersV2 } from "./servers"
 import { useDialog } from "@tenon/ui/context/dialog"
@@ -72,6 +74,10 @@ export const DialogSettings: Component<{
                       <Icon name="calendar" />
                       {language.t("secondBrain.settings.tab.calendar")}
                     </TabsV2.Trigger>
+                    <TabsV2.Trigger value="dictation">
+                      <MicIcon />
+                      {language.t("dictation.settings.tab")}
+                    </TabsV2.Trigger>
                   </div>
                 </div>
 
@@ -116,6 +122,9 @@ export const DialogSettings: Component<{
         </TabsV2.Content>
         <TabsV2.Content value="calendar" class="settings-v2-panel">
           <SettingsCalendarV2 />
+        </TabsV2.Content>
+        <TabsV2.Content value="dictation" class="settings-v2-panel">
+          <SettingsDictationV2 />
         </TabsV2.Content>
         <TabsV2.Content value="servers" class="settings-v2-panel">
           <SettingsServersV2 />

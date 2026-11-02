@@ -18,6 +18,7 @@ import { createEffect, createMemo, createSignal, For, on, Show, type JSX } from 
 import { ModelSelectorPopoverV2 } from "@/components/dialog-select-model"
 import { DialogSelectModelUnpaidV2 } from "@/components/dialog-select-model-unpaid-v2"
 import { PromptModelPill } from "@/components/prompt-input/model-pill"
+import { PromptDictationButton } from "@/components/prompt-input/dictation-button"
 import type { PromptInputProps } from "@/components/prompt-input/contracts"
 import type { PromptInputHarnessController } from "@/components/prompt-input/harness-controls"
 import { normalizePromptHistoryEntry, promptLength, type PromptHistoryComment } from "@/components/prompt-input/history"
@@ -69,6 +70,7 @@ export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
   const dialog = useDialog()
   const command = useCommand()
   const language = useLanguage()
+  const platform = usePlatform()
   // The built-in loop is known by id, so its model and variant controls don't wait on the harness list.
   const builtInLoop = () => {
     if (!props.harness) return true
@@ -119,6 +121,11 @@ export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
         trailingControl={
           <>
             {props.trailing}
+            <Show when={platform.dictation}>
+              {(dictation) => (
+                <PromptDictationButton dictation={dictation()} restoreFocus={() => props.controller.restoreFocus()} />
+              )}
+            </Show>
             <PromptStashMenu stash={props.controller.stash} />
           </>
         }

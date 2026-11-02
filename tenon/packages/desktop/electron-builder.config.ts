@@ -1,4 +1,5 @@
 import { execFile, execFileSync } from "node:child_process"
+import { existsSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -44,6 +45,17 @@ async function signWindows(configuration: { path: string }) {
     { cwd: rootDir },
   )
 }
+
+// The local dictation engine (tenon/packages/dictation). Build it first with
+// `bun run build:dictation`; see docs/release-operations.md. CARGO_TARGET_DIR moves cargo's output.
+const dictationDir = path.join(
+  process.env.CARGO_TARGET_DIR ?? path.join(packageDir, "..", "dictation", "target"),
+  "release",
+)
+const dictationEngine = process.platform === "win32" ? "tenon-dictation.exe" : "tenon-dictation"
+const dictationResources = existsSync(path.join(dictationDir, dictationEngine))
+  ? [{ from: dictationDir, to: "dictation", filter: [dictationEngine] }]
+  : (console.warn(`tenon-dictation not found in ${dictationDir}; the package will have no dictation engine`), [])
 
 const channel = (() => {
   const raw = process.env.TENON_CHANNEL
@@ -97,6 +109,7 @@ const getBase = (appId: string): Configuration => ({
     grantFileProtocolExtraPrivileges: false,
   },
   extraResources: [
+    ...dictationResources,
     ...(channel === "dev"
       ? [
           {
@@ -114,6 +127,10 @@ const getBase = (appId: string): Configuration => ({
     gatekeeperAssess: false,
     entitlements: "resources/entitlements.plist",
     entitlementsInherit: "resources/entitlements.plist",
+    // Shown when dictation first asks for the microphone (systemPreferences.askForMediaAccess).
+    extendInfo: {
+      NSMicrophoneUsageDescription: "Tenon Workbench uses the microphone for dictation, transcribed on this Mac.",
+    },
     ...(hasMacIdentity ? { notarize: true } : { identity: "-", notarize: false }),
     target: ["dmg", "zip"],
   },

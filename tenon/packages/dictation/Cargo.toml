@@ -1,0 +1,32 @@
+[package]
+name = "tenon-dictation"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Local dictation engine for Tenon Workbench (JSON lines over stdio). Built on Handy's stack by CJ Pais."
+publish = false
+
+[[bin]]
+name = "tenon-dictation"
+path = "src/main.rs"
+
+[dependencies]
+serde_json = "1"
+# Same speech stack as Handy (https://github.com/cjpais/Handy, MIT).
+transcribe-cpp = { version = "0.4", default-features = false }
+handy-recorder = "0.1"
+earshot = "1.2"
+hound = "3.5"
+
+# Apple Silicon uses Metal like Handy; Intel Macs and Windows link the static CPU build, so no
+# backend DLLs ship next to the binary.
+[target.'cfg(all(target_os = "macos", target_arch = "aarch64"))'.dependencies]
+transcribe-cpp = { version = "0.4", default-features = false, features = ["metal"] }
+
+[dev-dependencies]
+serde_json = "1"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
