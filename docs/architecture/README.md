@@ -1001,6 +1001,32 @@ calendar and tasks, and the thread list.
   random, single use, kept in memory for 24 hours (at most 500), and lost on
   restart.
 
+#### Write previews
+
+`app/src/features/agent-writes/` shows those writes in the renderer.
+`AgentWritesProvider` (mounted in `pages/layout-new.tsx`) listens to the
+global event stream for `agent.write` and keeps the last 50 writes.
+
+- On the thread page of the writing session, `AgentWritesInline` (after the
+  last turn in `pages/session/timeline/message-timeline.tsx`) renders one
+  card per write (`[data-agent-write][data-variant="inline"]`, W5): it grows
+  with the preview while the agent writes (400 ms, emphasized-decelerate), then
+  folds to one line with Open, Undo and Show.
+- Anywhere else, including a thread page of another session, `AgentWritePill`
+  shows the latest write at the top (`data-variant="pill"`, W4): expanded while
+  writing, then "Saved" with Open and Undo, hidden after 6 s unless hovered or
+  focused.
+- `AgentWritePreview` draws the five kinds: note text, task rows, calendar
+  event blocks, timeline bars and an email draft with "Saved as a draft. Tenon
+  never sends email." Note and email text type in while writing; under
+  `prefers-reduced-motion` the final content shows at once and nothing grows.
+- `AgentWriteSteps` (`data-variant="steps"`) lists one turn's writes with the
+  active row's preview, for the Command Centre page.
+- Undo posts `/second-brain/writes/<undo>/undo` (folder in
+  `x-tenon-directory`) and shows "Undone", or "Already changed" on 409. Open
+  goes to the page (`/notes?page=`), the Project (`/notes?project=`) or
+  `/calendar`. Neutral v2 tokens throughout; the accent is only the active dot.
+
 ### Harness model lists
 
 The picker shows the models each harness reports, not a list saved when the

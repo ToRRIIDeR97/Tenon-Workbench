@@ -7,6 +7,8 @@ import { PageEmpty, PageFrame } from "@/components/page"
 import { DebugBar } from "@/components/debug-bar"
 import { Titlebar, type TitlebarUpdate } from "@/components/titlebar"
 import { SecondBrainSidebar } from "@/components/second-brain-sidebar"
+import { AgentWritePill } from "@/features/agent-writes/cards"
+import { AgentWritesProvider } from "@/features/agent-writes/store"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
 import { setV2Toast, ToastRegion } from "@/utils/toast"
@@ -35,37 +37,41 @@ export default function NewLayout(props: ParentProps) {
   }
 
   return (
-    <div
-      class="relative bg-v2-background-bg-deep flex-1 min-h-0 min-w-0 flex flex-col select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text"
-      style={{
-        "padding-top": "env(safe-area-inset-top, 0px)",
-        "padding-bottom": "env(safe-area-inset-bottom, 0px)",
-      }}
-    >
-      <Titlebar
-        update={update}
-        debugTools={
-          import.meta.env.DEV
-            ? { visible: state.debugTools, toggle: () => setState("debugTools", (value) => !value) }
-            : undefined
-        }
-      />
-      <div class="flex flex-1 min-h-0 min-w-0">
-        <SecondBrainSidebar />
-        <main class="flex-1 min-h-0 min-w-0 overflow-x-hidden flex flex-col items-start contain-strict">
-          {/* A failed page request shows a retryable message here and keeps the sidebar usable. */}
-          <ErrorBoundary fallback={(error, reset) => <PageError error={error} reset={reset} />}>
-            <Suspense>
-              <ViewSwitch key={pageKey().count} class="flex min-h-0 min-w-0 w-full flex-1 flex-col items-start">
-                {props.children}
-              </ViewSwitch>
-            </Suspense>
-          </ErrorBoundary>
-        </main>
+    <AgentWritesProvider>
+      <div
+        class="relative bg-v2-background-bg-deep flex-1 min-h-0 min-w-0 flex flex-col select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text"
+        style={{
+          "padding-top": "env(safe-area-inset-top, 0px)",
+          "padding-bottom": "env(safe-area-inset-bottom, 0px)",
+        }}
+      >
+        <Titlebar
+          update={update}
+          debugTools={
+            import.meta.env.DEV
+              ? { visible: state.debugTools, toggle: () => setState("debugTools", (value) => !value) }
+              : undefined
+          }
+        />
+        <div class="flex flex-1 min-h-0 min-w-0">
+          <SecondBrainSidebar />
+          <main class="flex-1 min-h-0 min-w-0 overflow-x-hidden flex flex-col items-start contain-strict">
+            {/* A failed page request shows a retryable message here and keeps the sidebar usable. */}
+            <ErrorBoundary fallback={(error, reset) => <PageError error={error} reset={reset} />}>
+              <Suspense>
+                <ViewSwitch key={pageKey().count} class="flex min-h-0 min-w-0 w-full flex-1 flex-col items-start">
+                  {props.children}
+                </ViewSwitch>
+              </Suspense>
+            </ErrorBoundary>
+          </main>
+        </div>
+        {import.meta.env.DEV && state.debugTools && <DebugBar inline />}
+        <ToastRegion v2 />
+        {/* Writes by agents in other threads (W4); the writing thread shows them inline instead. */}
+        <AgentWritePill />
       </div>
-      {import.meta.env.DEV && state.debugTools && <DebugBar inline />}
-      <ToastRegion v2 />
-    </div>
+    </AgentWritesProvider>
   )
 }
 

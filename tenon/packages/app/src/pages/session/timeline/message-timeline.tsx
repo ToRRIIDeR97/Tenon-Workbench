@@ -73,6 +73,7 @@ import { SelectionReply } from "./selection-reply"
 import { filterVirtualIndexes } from "./virtual-items"
 import { TurnStepsSummary, stepsSpan } from "@/components/session/turn-steps-summary"
 import { useData } from "@tenon/session-ui/context"
+import { AgentWritesInline } from "@/features/agent-writes/cards"
 
 const emptyMessages: MessageType[] = []
 const emptyParts: PartType[] = []
@@ -1523,6 +1524,10 @@ export function MessageTimeline(props: {
             />
           </Show>
         </div>
+        {/* Writes this thread's agent made through the Tenon app tools (W5), after the last turn. */}
+        <Show when={sessionID()} keyed>
+          {(id) => <AgentWritesInline sessionID={id} />}
+        </Show>
       </ScrollView>
       <SelectionReply
         root={listRoot}
