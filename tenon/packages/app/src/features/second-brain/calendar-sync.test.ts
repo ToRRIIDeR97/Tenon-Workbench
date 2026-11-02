@@ -77,4 +77,59 @@ describe("syncGoogleCalendar", () => {
     expect(await first).toBeDefined()
     expect(calendarSync.busy()).toBe(false)
   })
+
+  test("sends a task an agent queued for Google and keeps its Project", async () => {
+    const { writes, client } = setup()
+    const agentTask = {
+      id: "t1",
+      title: "Webhook retries",
+      dueDate: "2026-11-09",
+      projectId: "project_01ACME",
+      accountId: "a1",
+      providerId: "pending:t1",
+      taskListId: "@default",
+      taskListTitle: "Tasks",
+      outboxKind: "create" as const,
+      outboxKey: "agent:t1",
+      createdAt: "2026-11-02T00:00:00.000Z",
+      updatedAt: "2026-11-02T00:00:00.000Z",
+      source: "google" as const,
+      syncState: "pending" as const,
+    }
+    const created = {
+      accountId: "a1",
+      providerId: "g1",
+      taskListId: "@default",
+      taskListTitle: "Tasks",
+      title: "Webhook retries",
+      dueDate: "2026-11-09",
+      updatedAt: "2026-11-02T00:00:01.000Z",
+    }
+    const sent: unknown[] = []
+    const google = {
+      writeTask: async (input: unknown) => {
+        sent.push(input)
+        return { state: "synced" as const, task: created }
+      },
+      sync: async () => ({ events: [], tasks: [created], syncedAccounts: ["a1"], connection }),
+    } as unknown as GoogleCalendarPlatform
+
+    await syncGoogleCalendar({
+      google,
+      client,
+      current: { version: 2, revision: "r1", events: [], tasks: [agentTask] },
+    })
+
+    expect(sent).toMatchObject([
+      {
+        kind: "create",
+        idempotencyKey: "agent:t1",
+        task: { accountId: "a1", providerId: "pending:t1", title: "Webhook retries" },
+      },
+    ])
+    expect(writes).toMatchObject([
+      { tasks: [{ providerId: "g1", projectId: "project_01ACME", syncState: "synced", source: "google" }] },
+    ])
+    expect((writes[0] as { tasks: unknown[] }).tasks).toHaveLength(1)
+  })
 })

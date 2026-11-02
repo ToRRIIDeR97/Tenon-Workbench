@@ -11,6 +11,8 @@ export interface Tool {
   readonly name: string
   readonly description: string
   readonly inputSchema: Record<string, unknown>
+  /** MCP tool annotations; `readOnlyHint: true` marks a tool that changes nothing. */
+  readonly annotations?: { readonly readOnlyHint?: boolean }
 }
 
 export interface Caller {
@@ -18,6 +20,11 @@ export interface Caller {
 }
 
 export interface Provider {
+  /**
+   * Every tool the provider can offer any thread, for the in-process loop, which registers tools when
+   * a folder's services start rather than per call. Calls still go through `list(caller)`.
+   */
+  readonly catalog?: ReadonlyArray<Tool>
   readonly list: (caller: Caller) => ReadonlyArray<Tool> | Promise<ReadonlyArray<Tool>>
   /** Resolves with the tool's JSON result; a rejection becomes an `isError` result carrying its message. */
   readonly call: (name: string, args: Record<string, unknown>, caller: Caller) => Promise<unknown>
@@ -34,6 +41,9 @@ export function install(provider: Provider) {
 }
 
 export const installed = () => state.provider !== undefined
+
+/** The installed provider's full tool set; empty while nothing is installed. */
+export const catalog = (): ReadonlyArray<Tool> => state.provider?.catalog ?? []
 
 /** The tools `caller` may use; empty while nothing is installed or the provider fails. */
 export async function list(caller: Caller): Promise<ReadonlyArray<Tool>> {

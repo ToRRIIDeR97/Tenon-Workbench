@@ -3,6 +3,7 @@ export * as BuiltInTools from "./builtins"
 import { makeLocationNode } from "../effect/app-node"
 import { Layer } from "effect"
 import { BashTool } from "./bash"
+import { AppToolsTool } from "./app-tools"
 import { DelegateTool } from "./delegate"
 import { ApplyPatchTool } from "./apply-patch"
 import { EditTool } from "./edit"
@@ -36,6 +37,7 @@ export const node = makeLocationNode({
   deps: [
     ApplyPatchTool.node,
     BashTool.node,
+    AppToolsTool.node,
     DelegateTool.node,
     EditTool.node,
     GlobTool.node,

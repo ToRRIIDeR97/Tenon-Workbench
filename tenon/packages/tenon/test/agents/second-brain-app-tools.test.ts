@@ -111,6 +111,27 @@ describe("AgentAppTools undo", () => {
     }),
   )
 
+  it.instance("refuses to remove an event edited since the write", () =>
+    Effect.gen(function* () {
+      const { thread, call, undo, headers } = yield* setup
+      const event = (yield* call(thread.id, "calendar_apply", { events: [{ title: "Review", date: "2026-11-04" }] }))
+        .value as { undo: string }
+      const current = yield* request("/second-brain/calendar", { headers }).pipe(
+        Effect.flatMap(json<{ revision: string; events: { title: string }[]; tasks: unknown[] }>),
+      )
+      yield* request("/second-brain/calendar", {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({
+          expectedRevision: current.revision,
+          events: current.events.map((item) => ({ ...item, title: "Review (moved)" })),
+          tasks: current.tasks,
+        }),
+      }).pipe(Effect.flatMap(json))
+      expect(yield* undo(event.undo)).toBe(409)
+    }),
+  )
+
   it.instance("removes a created page and a log line, and refuses a page changed since", () =>
     Effect.gen(function* () {
       const { thread, call, undo } = yield* setup

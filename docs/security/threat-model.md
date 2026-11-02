@@ -796,17 +796,18 @@ apply unchanged: loopback only, a bearer token per runtime bound to its Run,
   capability: the route needs the server's usual auth but not the writing
   workspace's directory. An undo restores the state before the write only
   while the target still has the written revision (pages, timelines) or the
-  added items still exist (calendar, tasks); otherwise 409. Tokens live in
+  added items are still exactly as written (calendar, tasks); otherwise 409. Tokens live in
   server memory for 24 hours (at most 500) and are lost on restart.
-- There is no approval prompt for app tool writes inside Tenon; the harness's
-  own MCP tool policy applies, and the user sees each write with Undo.
+- In the built-in loop, write tools ask permission `tenon_write` (reads are
+  not asked), like any local tool. Codex and ACP agents apply their own MCP
+  tool policy. Either way the user sees each write with Undo.
 - Tasks with a Google `accountId` are stored as pending Google creates; they
   reach Google only through the desktop outbox and its write consent, not
-  from the server.
+  from the server: the renderer's Google sync sends them with their
+  `agent:` outbox key, and an account without write access keeps them queued.
 
 Known gaps: undo tokens are not tied to the thread or renderer that may
-redeem them; an agent can read its own tokens and undo its own writes. The
-built-in loop does not get the app tools natively yet.
+redeem them; an agent can read its own tokens and undo its own writes.
 
 ## Local dictation
 

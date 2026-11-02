@@ -945,6 +945,14 @@ calendar and tasks, and the thread list.
   runtime gets the endpoint, `tools/list` adds `list(caller)`, and a
   `tools/call` for one of those names goes to `call`; a rejection becomes
   `isError: true` with its message.
+- The built-in loop (the default OpenCode harness) gets the same tools
+  natively: `core/src/tool/app-tools.ts` registers the provider's `catalog`
+  when a folder's services start, with each tool's own input schema, and
+  routes calls through `HarnessAppTools.call` with the thread's session, so
+  the same per-thread list and Project scoping apply. Write tools (no
+  `readOnlyHint`) ask permission `tenon_write` (resource: the tool name)
+  first; reads are not asked. Codex and ACP agents reach the tools over MCP
+  and apply their own MCP tool policy.
 - `tenon/src/agents/app-tools.ts` (`AgentAppTools.layer`, mounted next to
   `HarnessDelegationTasks.layer` in `server.ts`) installs the provider for the
   server's lifetime. `AgentAppTools.TOOLS`, `list({ sessionID })` and
@@ -981,7 +989,13 @@ calendar and tasks, and the thread list.
   `planner/calendar-store.ts` (shared with `/second-brain/calendar`),
   compare-and-swap with one retry. A task with `accountId` is stored as a
   pending Google create (`providerId: pending:<id>`, `outboxKind: create`),
-  the shape the planner gives a task it queues for Google Tasks.
+  the shape the planner gives a task it queues for Google Tasks, with an
+  `agent:<id>` outbox key. The server cannot reach the desktop outbox, so the
+  renderer's Google sync (`syncGoogleCalendar`, run by the Calendar page and
+  `CalendarAutoSync`) hands each such task to `google.writeTask` as a create,
+  keyed by that outbox key so a repeat is idempotent, and stores the provider
+  task it gets back. A task whose account has no write access stays queued.
+  `calendar_apply` events are local events, so nothing is sent for them.
 - Every write publishes on `GlobalBus`, for the thread's directory,
   `{ payload: { type: "agent.write", properties: { id, sessionID, kind,
   phase, target, preview, undo?, open?, failed? } } }`: `started` before the
@@ -995,7 +1009,9 @@ calendar and tasks, and the thread list.
 - `POST /second-brain/writes/<undo>/undo` reverts one write: a page is
   restored (or removed when the write created it) with `expectedRevision` set
   to the written revision, a timeline gets its earlier items, a log line is
-  removed from this machine's file, and added events or tasks are removed.
+  removed from this machine's file, and added events or tasks are removed
+  only while each is still exactly as written (an edit, a removal or a Google
+  sync since then makes the undo stale).
   It answers 200 `{ undone: true }`, 409 when the token was used or what it
   wrote has changed since, and 404 for an unknown or expired token. Tokens are
   random, single use, kept in memory for 24 hours (at most 500), and lost on
@@ -1013,7 +1029,7 @@ global event stream for `agent.write` and keeps the last 50 writes.
   with the preview while the agent writes (400 ms, emphasized-decelerate), then
   folds to one line with Open, Undo and Show.
 - Anywhere else, including a thread page of another session, `AgentWritePill`
-  shows the latest write at the top (`data-variant="pill"`, W4): expanded while
+  shows the latest write at the top of the page area, below the titlebar (`data-variant="pill"`, W4): expanded while
   writing, then "Saved" with Open and Undo, hidden after 6 s unless hovered or
   focused.
 - `AgentWritePreview` draws the five kinds: note text, task rows, calendar
