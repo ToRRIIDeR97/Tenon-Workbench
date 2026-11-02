@@ -32,7 +32,8 @@ reading of the code, not a runtime trace, except where a step says it was run.
 | --- | --- | --- |
 | Solid renderer | Routes, server connection and capability detection, compat API, Second Brain pages | `app/src/app.tsx`, `app/src/context/server-sdk.tsx`, `app/src/utils/server-compat.ts`, `app/src/features/second-brain/client.ts` |
 | Preload bridge | Exposes `window.api` through an allowlist of IPC wrappers | `desktop/src/preload/index.ts` |
-| Electron main | App lifecycle, windows and URL policy, IPC handlers, server launch, Google service, drafts | `desktop/src/main/index.ts`, `ipc.ts`, `windows.ts`, `server.ts`, `google-calendar.ts`, `draft-store.ts` |
+| Electron main | App lifecycle, windows and URL policy, IPC handlers, server launch, Google service, drafts, dictation supervisor | `desktop/src/main/index.ts`, `ipc.ts`, `windows.ts`, `server.ts`, `google-calendar.ts`, `draft-store.ts`, `dictation.ts`, `dictation-service.ts` |
+| Dictation engine | Microphone capture, voice activity, local transcription; JSON lines on stdio | `dictation/src/main.rs`, `dictation/src/audio.rs` (Rust, `tenon-dictation`) |
 | HTTP API | Native `/api` routes plus legacy instance routes, with Basic auth and workspace routing | `server/src/handlers/`, `protocol/src/groups/`, `tenon/src/server/routes/instance/httpapi/` |
 | Second Brain domains | Notes, project cards and timelines, local calendar | `tenon/src/knowledge/note.ts`, `tenon/src/project/brain.ts`, `tenon/src/planner/calendar.ts` |
 | Location services | Path containment and compare-and-swap file writes | `core/src/location-mutation.ts`, `core/src/file-mutation.ts`, `core/src/location-services.ts` |
@@ -57,6 +58,10 @@ reading of the code, not a runtime trace, except where a step says it was run.
   `userData` no longer collides with upstream OpenCode Desktop. On the dev
   channel, `desktop/src/main/user-data-migration.ts` copies the old
   `ai.opencode.desktop.dev` `userData` once before startup sets the path.
+- `tenon-dictation` runs as a child process of the main process, spawned on the
+  first dictation and packaged under `resources/dictation/`. Speech models are
+  downloaded from Hugging Face by the main process into
+  `<userData>/dictation/models/`; audio and transcripts stay on the machine.
 - The `opencode-cli` daemon (`TENON_SIDECAR_V2=1`) ships only in the
   development channel. Packaging and update limits are covered in
   [release operations](../release-operations.md).
@@ -217,6 +222,7 @@ question dock; see [Questions from harnesses](README.md#questions-from-harnesses
 | Sidebar navigation (rail, workspace dropdown, Projects, General) and drafts | Subsystem | Component; text in [README](README.md#product-entry-points-and-persistence) and the [navigation map](../product/NAVIGATION-MAP-V1.md) | `app/src/components/second-brain-sidebar.tsx`, `app/src/components/sidebar/sidebar-controller.ts`, `app/src/features/second-brain/sidebar-threads.ts`, `app/src/context/global-sync/home-session-index.ts` (recent-session index shared with Home), `app/src/context/drafts.tsx`, `app/src/components/sidebar/dialog-archived-threads.tsx`, `app/src/components/sidebar/dialog-instructions.tsx` |
 | Page frame and visual system (Material 3 shape and motion tokens, motion helpers) | Subsystem | Text in [README](README.md#product-entry-points-and-persistence) | `app/src/components/page.tsx`, `ui/src/v2/styles/theme.css`, `ui/src/theme/v2/mapping.ts`, `ui/src/v2/components/*-v2.css`, `ui/src/styles/tailwind/` (motion utilities), `ui/src/v2/components/{reveal,presence,view-switch,motion}` (motion helpers), `ui/src/context/dialog.tsx` (dialog exit), `app/src/pages/page-motion.ts` (page fade-through key), `app/src/features/second-brain/side-panel.tsx`, `app/src/utils/{focus-when-connected,fresh-items,replay-animation}.ts` (shell motion) |
 | Preload and IPC | Subsystem | Component, Sequence: startup | `desktop/src/preload/index.ts`, `desktop/src/main/ipc.ts` |
+| Local dictation (engine, supervisor, model downloads, composer mic, Settings › Dictation) | Subsystem | Component, Deployment; text in [README](README.md#local-dictation) and the [threat model](../security/threat-model.md#local-dictation) | `dictation/src/`, `desktop/src/main/dictation.ts`, `desktop/src/main/dictation-service.ts`, `desktop/src/main/dictation-models.ts`, `app/src/components/prompt-input/dictation-button.tsx`, `app/src/components/settings-v2/dictation.tsx` |
 | Server launch and lifecycle | Subsystem | Deployment, State: sidecar, Sequence: startup | `desktop/src/main/server.ts`, `desktop/src/main/sidecar.ts`, `desktop/src/main/sidecar-supervisor.ts` |
 | Second Brain notes, projects, calendar | Subsystem | Component, Class, Activity: write, State: project status | `tenon/src/knowledge/`, `tenon/src/project/brain.ts`, `tenon/src/planner/calendar.ts` |
 | Workspace project scan and AGENTS.md defaults | Critical workflow | Class; text in [README](README.md#projects-and-thread-directories) | `tenon/src/project/brain.ts` (`scan`, `link`, `unlink`, instructions), `core/src/workspace-instructions.ts`, `core/src/instruction-context.ts`, `tenon/src/session/instruction.ts` |

@@ -11,6 +11,7 @@ export { useCommand } from "./context/command"
 export { loadLocaleDict, normalizeLocale, type Locale, useLanguage } from "./context/language"
 export { useWslServers } from "./wsl/context"
 export {
+  type DictationPlatform,
   type DisplayBackend,
   type FatalRendererErrorLog,
   type GoogleAccount,

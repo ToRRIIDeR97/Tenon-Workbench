@@ -32,6 +32,8 @@ and a coverage index are in [the UML architecture views](uml.md).
   read moves a file left at the old `.second-brain/calendar-v1.json` into `.tenon`
   (new file first, then the old one and its folder if empty); when both exist the
   `.tenon` file wins and the old one is left alone.
+- The Electron main process also supervises `tenon-dictation`, the local
+  speech-to-text engine (see [Local dictation](#local-dictation)).
 - Former Rust policy and release documents are historical requirements, not
   evidence of controls in the active desktop runtime.
 
@@ -39,6 +41,44 @@ The renderer must not gain direct Node or filesystem access. Keep new native
 operations behind the preload and main-process boundary, and resolve Second
 Brain files through the server's location services. See
 [`ADR-010`](../adr/ADR-010-opencode-electron-base.md) for the base-app decision.
+
+## Local dictation
+
+The composer's mic button (`app/src/components/prompt-input/dictation-button.tsx`)
+records speech and inserts the transcript at the caret. It renders only when the
+platform exposes `dictation` (desktop); the web build has no mic.
+
+- **Engine.** `tenon/packages/dictation` builds `tenon-dictation`, a Rust binary
+  on Handy's stack: `handy-recorder` captures the microphone as 16 kHz mono,
+  `earshot` trims silence (all-silence returns empty text instead of running
+  the model), and `transcribe-cpp` runs the GGUF Whisper or Parakeet model. It
+  opens the microphone on `start` and closes it on `stop` or `cancel`.
+- **Protocol.** JSON lines on stdio. Requests: `load` (`model` path), `start`,
+  `stop`, `cancel`, `transcribe_file` (`path`, a PCM WAV file), each with an
+  `id`. Events: `ready` (at launch and after a load), `level` (`rms`, about every
+  90 ms while recording), `final` (`id`, `text`), and `error` (`id` when it
+  answers a request, `code`, `message`). Malformed lines and unknown types get
+  `bad_request`; the engine keeps running. Stdout carries only events; native
+  logs go to stderr, which the supervisor drains without logging.
+- **Supervisor.** `desktop/src/main/dictation.ts` (`createDictation`) spawns the
+  engine on the first `start`, loads the active model, and maps events to
+  `start()`, `stop(): Promise<string>`, `cancel()`, `status()` and `onLevel`. If
+  the engine exits mid-recording, `stop()` rejects with `engine_exited` and the
+  next `start()` respawns it; after 5 crashes in 10 minutes it reports
+  `engine_unavailable`.
+- **Service and IPC.** `dictation-service.ts` resolves the binary
+  (`resources/dictation/` when packaged, `packages/dictation/target/release/` in
+  development, or `TENON_DICTATION_ENGINE`), checks microphone access, keeps the
+  active model in `<userData>/dictation/settings.json`, and downloads models
+  (`dictation-models.ts`) into `<userData>/dictation/models/`. `ipc.ts` exposes
+  thin `dictation-*` handlers; the renderer names models by ID only and never
+  passes a path or URL. Levels and download progress go back to the requesting
+  window (`dictation-level`, `dictation-download-progress`).
+- **Settings › Dictation** (`app/src/components/settings-v2/dictation.tsx`) lists
+  Whisper Small, Whisper Turbo and Parakeet V3, downloads with progress, picks
+  the active model, and credits Handy by CJ Pais. Licences are in
+  `THIRD_PARTY_NOTICES.md`; build steps in
+  [release operations](../release-operations.md#dictation-engine-rust).
 
 ## Product entry points and persistence
 

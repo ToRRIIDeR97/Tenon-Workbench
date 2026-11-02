@@ -27,6 +27,29 @@ export type DeviceInput =
   | { kind: "text"; text: string }
   | { kind: "key"; key: "home" | "back" | "enter" }
 
+/** Why dictation could not start or finish; `help` names the i18n key and settings URL for a denied microphone. */
+export type DictationFailure = { code: string; help?: { key: string; url: string } }
+export type DictationModelID = "whisper-small" | "whisper-turbo" | "parakeet-v3"
+export type DictationModelState = {
+  folder: string
+  active?: DictationModelID
+  models: { id: DictationModelID; name: string; size: number; downloaded: boolean }[]
+}
+export type DictationDownloadProgress = { id: DictationModelID; received: number; total: number }
+/** Local dictation through the bundled tenon-dictation engine (desktop). */
+export type DictationPlatform = {
+  start(): Promise<{ error?: DictationFailure }>
+  stop(): Promise<{ text?: string; error?: DictationFailure }>
+  cancel(): Promise<void>
+  onLevel(cb: (rms: number) => void): () => void
+  models(): Promise<DictationModelState>
+  setActive(id: DictationModelID): Promise<void>
+  remove(id: DictationModelID): Promise<void>
+  download(id: DictationModelID): Promise<void>
+  onDownloadProgress(cb: (progress: DictationDownloadProgress) => void): () => void
+  openPermissionSettings(): Promise<void>
+}
+
 export type GoogleAccount = {
   id: string
   /** The account's address, read from its primary calendar. */
@@ -225,6 +248,9 @@ type PlatformBase = {
 
   /** Google Calendar integration owned by the Electron main process */
   googleCalendar?: GoogleCalendarPlatform
+
+  /** Local dictation (desktop only); absent in the web build, which hides the composer mic. */
+  dictation?: DictationPlatform
 
   /** Get the configured default server URL (platform-specific) */
   getDefaultServer?(): Promise<ServerConnection.Key | null>

@@ -65,6 +65,45 @@ The product display name is Tenon Workbench (renamed from Second Brain OS on
 Core data paths moved to `tenon-workbench` folders; see
 [Storage migration](#storage-migration-opencode--tenon-workbench).
 
+## Dictation engine (Rust)
+
+The composer's mic runs `tenon-dictation`, a Rust binary in
+`tenon/packages/dictation` built on Handy's stack (`transcribe-cpp`,
+`handy-recorder`, `earshot`; credits in `THIRD_PARTY_NOTICES.md`). Build it
+before packaging; `electron-builder.config.ts` copies
+`target/release/tenon-dictation[.exe]` (or `$CARGO_TARGET_DIR/release/...`)
+into the app's `resources/dictation/` folder and warns when it is missing, in
+which case the packaged app's mic reports that the engine is unavailable.
+In development the app runs the same release build from
+`tenon/packages/dictation/target/release/`; `TENON_DICTATION_ENGINE` points it
+at another binary.
+
+Both platforms need Rust 1.88 or newer and CMake (transcribe-cpp compiles
+whisper/ggml from source). Run `bun run --cwd tenon/packages/desktop build:dictation`
+(`cargo build --release --manifest-path ../dictation/Cargo.toml`), and
+`cargo test` inside `tenon/packages/dictation` for the protocol tests.
+
+- **Windows (MSVC):** install Visual Studio 2022 Build Tools with the C++
+  workload, then build from a shell set up by
+  `VC\Auxiliary\Build\vcvars64.bat`. The Build Tools' CMake and Ninja live under
+  `Common7\IDE\CommonExtensions\Microsoft\CMake\{CMake\bin,Ninja}`; put both on
+  `PATH` and set `CMAKE_GENERATOR=Ninja`. Keep the cargo target directory on a
+  short path outside OneDrive (for example `CARGO_TARGET_DIR=C:\Users\<you>\.tdc`):
+  with long-path support off, the CMake try-compile fails in a deep
+  `OUT_DIR`, and it also failed through transcribe-cpp-sys's short
+  `%LOCALAPPDATA%\tcs` junction on the 2026-11-02 build machine. Setting
+  `LOCALAPPDATA` to an unusable path for the cargo process skips that junction.
+  The build links the static CPU backend, so no DLLs ship beside the `.exe`.
+- **macOS:** install the Xcode command-line tools and CMake (`brew install cmake`).
+  Apple Silicon builds with Metal; Intel Macs build the CPU backend. The binary
+  is signed with the app (hardened runtime, `entitlements.plist` grants
+  `com.apple.security.device.audio-input`), and `Info.plist` carries
+  `NSMicrophoneUsageDescription` for the first microphone prompt.
+
+Speech models are not bundled. Settings › Dictation downloads Whisper Small,
+Whisper Turbo or Parakeet V3 (the GGUF files Handy uses, from Hugging Face,
+checked against their SHA-256) into `<userData>/dictation/models/`.
+
 ## Desktop identity change
 
 Earlier builds used upstream OpenCode Desktop's identity. Current builds use
