@@ -113,7 +113,7 @@
           margin-inline-start: auto;
           border-radius: 4px;
           flex-shrink: 0;
-          cursor: pointer;
+          cursor: default;
           color: var(--v2-icon-icon-muted);
 
           &:hover {

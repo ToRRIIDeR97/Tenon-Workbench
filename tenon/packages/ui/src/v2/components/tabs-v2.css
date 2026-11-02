@@ -59,13 +59,19 @@
 
   font-size: 13px;
   font-weight: 440;
-  line-height: 100%;
+  line-height: 16px;
   letter-spacing: -0.04px;
 }
 
 [data-component="tabs-v2"] [data-slot="tabs-v2-trigger"]:is(:focus, :focus-visible) {
   outline: none;
   box-shadow: none;
+}
+
+/* Keyboard focus rings the whole tab, inset because the tab list clips. Never on pointer focus. */
+[data-component="tabs-v2"] [data-slot="tabs-v2-trigger-wrapper"]:has([data-slot="tabs-v2-trigger"]:focus-visible) {
+  outline: 2px solid var(--v2-border-border-focus);
+  outline-offset: -2px;
 }
 
 [data-component="tabs-v2"] [data-slot="tabs-v2-close-button"] {
@@ -87,9 +93,14 @@
   margin: 0;
 }
 
-[data-component="tabs-v2"] [data-slot="tabs-v2-trigger-wrapper"]:disabled {
-  pointer-events: none;
-  color: var(--v2-text-text-faint);
+[data-component="tabs-v2"]
+  [data-slot="tabs-v2-trigger-wrapper"]:has([data-slot="tabs-v2-trigger"]:is(:disabled, [data-disabled])) {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-component="tabs-v2"] [data-slot="tabs-v2-trigger"]:is(:disabled, [data-disabled]) {
+  cursor: not-allowed;
 }
 
 [data-component="tabs-v2"][data-variant="normal"][data-orientation="horizontal"] [data-slot="tabs-v2-list"],
@@ -130,7 +141,7 @@
 }
 
 [data-component="tabs-v2"][data-variant="normal"][data-orientation="horizontal"]
-  [data-slot="tabs-v2-trigger-wrapper"]:hover:not(:disabled):not([data-selected]) {
+  [data-slot="tabs-v2-trigger-wrapper"]:hover:not(:has([data-disabled], [data-selected])) {
   color: var(--v2-text-text-base);
 }
 
@@ -162,22 +173,8 @@
 }
 
 [data-component="tabs-v2"][data-variant="pill"][data-orientation="horizontal"]
-  [data-slot="tabs-v2-trigger-wrapper"]:hover:not(:disabled):not(:has([data-selected])) {
-  background-color: var(--v2-background-bg-layer-03);
+  [data-slot="tabs-v2-trigger-wrapper"]:hover:not(:has([data-disabled], [data-selected])) {
   color: var(--v2-text-text-base);
-  border: 0.5px solid var(--v2-border-border-muted);
-}
-
-[data-component="tabs-v2"][data-variant="pill"][data-orientation="horizontal"]
-  [data-slot="tabs-v2-trigger-wrapper"]:has([data-selected]) {
-  color: var(--v2-text-text-base);
-}
-
-[data-component="tabs-v2"][data-variant="pill"][data-orientation="horizontal"]
-  [data-slot="tabs-v2-list"]:not([data-indicator])
-  [data-slot="tabs-v2-trigger-wrapper"]:has([data-selected]) {
-  background-color: var(--v2-background-bg-layer-03);
-  border: 0.5px solid var(--v2-border-border-muted);
 }
 
 [data-component="tabs-v2"][data-variant="settings"][data-orientation="vertical"] [data-slot="tabs-v2-list"] {
@@ -218,20 +215,31 @@
 }
 
 [data-component="tabs-v2"][data-variant="settings"][data-orientation="vertical"]
-  [data-slot="tabs-v2-trigger-wrapper"]:hover:not(:disabled):not(:has([data-selected])) {
-  background-color: var(--v2-background-bg-layer-03);
+  [data-slot="tabs-v2-trigger-wrapper"]:hover:not(:has([data-disabled], [data-selected])) {
   color: var(--v2-text-text-base);
 }
 
-[data-component="tabs-v2"][data-variant="settings"][data-orientation="vertical"]
+/* Pill and settings tabs share the state system: overlay hover and press (over the selected fill too),
+   accent tonal fill with on-accent text when selected. */
+[data-component="tabs-v2"]:is([data-variant="pill"], [data-variant="settings"])
+  [data-slot="tabs-v2-trigger-wrapper"]:hover:not(:has([data-disabled])) {
+  background-color: var(--v2-overlay-simple-overlay-hover);
+}
+
+[data-component="tabs-v2"]:is([data-variant="pill"], [data-variant="settings"])
+  [data-slot="tabs-v2-trigger-wrapper"]:active:not(:has([data-disabled])) {
+  background-color: var(--v2-overlay-simple-overlay-pressed);
+}
+
+[data-component="tabs-v2"]:is([data-variant="pill"], [data-variant="settings"])
   [data-slot="tabs-v2-trigger-wrapper"]:has([data-selected]) {
-  color: var(--v2-text-text-base);
+  color: var(--v2-text-text-on-accent-container);
 }
 
-[data-component="tabs-v2"][data-variant="settings"][data-orientation="vertical"]
+[data-component="tabs-v2"]:is([data-variant="pill"], [data-variant="settings"])
   [data-slot="tabs-v2-list"]:not([data-indicator])
   [data-slot="tabs-v2-trigger-wrapper"]:has([data-selected]) {
-  background-color: var(--v2-background-bg-layer-03);
+  background-color: var(--v2-background-bg-accent-container);
 }
 
 /* Material 3 shape: pill tab triggers. */
@@ -265,7 +273,7 @@
   height: var(--tabs-v2-indicator-height);
   transform: translate(var(--tabs-v2-indicator-x), var(--tabs-v2-indicator-y));
   border-radius: var(--v2-radius-full);
-  background-color: var(--v2-background-bg-layer-03);
+  background-color: var(--v2-background-bg-accent-container);
   pointer-events: none;
   transition:
     transform var(--v2-duration-medium) var(--v2-ease-standard),
@@ -273,13 +281,9 @@
     height var(--v2-duration-medium) var(--v2-ease-standard);
 }
 
-[data-component="tabs-v2"][data-variant="pill"]
-  [data-slot="tabs-v2-list"][data-indicator]
-  [data-slot="tabs-v2-indicator"] {
-  box-shadow: inset 0 0 0 0.5px var(--v2-border-border-muted);
-}
-
 @media (prefers-reduced-motion: reduce) {
+  [data-component="tabs-v2"] [data-slot="tabs-v2-trigger-wrapper"],
+  [data-component="tabs-v2"] [data-slot="tabs-v2-trigger"],
   [data-component="tabs-v2"] [data-slot="tabs-v2-list"][data-indicator] [data-slot="tabs-v2-indicator"] {
     transition: none;
   }

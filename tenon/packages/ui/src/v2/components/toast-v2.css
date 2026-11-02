@@ -94,7 +94,7 @@
     transform: none;
     background: transparent;
     color: var(--v2-icon-icon-muted);
-    cursor: pointer;
+    cursor: default;
     display: inline-flex;
     align-items: center;
     justify-content: center;

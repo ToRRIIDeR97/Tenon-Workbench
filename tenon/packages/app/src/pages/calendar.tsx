@@ -1210,7 +1210,7 @@ export default function CalendarPage() {
                                   <button
                                     type="button"
                                     classList={{
-                                      "mx-auto mb-1 flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full text-[12px] transition-colors duration-short ease-standard focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none": true,
+                                      "mx-auto mb-1 flex size-7 shrink-0 items-center justify-center rounded-full text-[12px] transition-colors duration-short ease-standard focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none": true,
                                       "bg-v2-icon-icon-accent text-v2-icon-icon-contrast [font-weight:560]": day.today,
                                       "hover:bg-v2-overlay-simple-overlay-hover": !day.today,
                                       "text-v2-text-text-faint": !day.inMonth && !day.today,
@@ -1229,7 +1229,7 @@ export default function CalendarPage() {
                                       {(event) => (
                                         <button
                                           type="button"
-                                          class="min-h-6 shrink-0 cursor-pointer truncate rounded-[8px] bg-v2-background-bg-accent-container px-2 text-left text-[11px] text-v2-text-text-on-accent-container transition-[filter,border-radius] duration-short ease-standard hover:brightness-95 active:rounded-[4px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none"
+                                          class="min-h-6 shrink-0 truncate rounded-[8px] bg-v2-background-bg-accent-container px-2 text-left text-[11px] text-v2-text-text-on-accent-container transition-[filter,border-radius] duration-short ease-standard hover:brightness-95 active:rounded-[4px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none"
                                           title={event.title}
                                           onClick={() => peekEvent(event)}
                                         >
@@ -1244,7 +1244,7 @@ export default function CalendarPage() {
                                       {(task) => (
                                         <button
                                           type="button"
-                                          class="min-h-6 shrink-0 cursor-pointer truncate rounded-[8px] px-2 text-left text-[11px] text-v2-text-text-muted shadow-[inset_0_0_0_1px_var(--v2-border-border-base)] transition-[background-color,border-radius] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover active:rounded-[4px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none"
+                                          class="min-h-6 shrink-0 truncate rounded-[8px] px-2 text-left text-[11px] text-v2-text-text-muted shadow-[inset_0_0_0_1px_var(--v2-border-border-base)] transition-[background-color,border-radius] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover active:rounded-[4px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none"
                                           title={task.title}
                                           onClick={() => peekTask(task)}
                                         >
@@ -1845,7 +1845,7 @@ function ScheduleRow(props: {
       </span>
       <button
         type="button"
-        class="flex min-w-0 flex-1 cursor-pointer items-center gap-3.5 rounded-[12px] py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus"
+        class="flex min-w-0 flex-1 items-center gap-3.5 rounded-[12px] py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus"
         aria-pressed={props.selected}
         onClick={props.onOpen}
       >

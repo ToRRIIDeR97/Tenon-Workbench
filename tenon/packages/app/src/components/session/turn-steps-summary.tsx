@@ -466,7 +466,7 @@ export function TurnStepsSummary(props: {
                 role="button"
                 tabIndex={shown() ? 0 : -1}
                 aria-expanded={open()}
-                class="flex w-full min-w-0 cursor-pointer items-start gap-2 rounded-[12px] px-2.5 py-1 text-[13px] leading-5 text-v2-text-text-muted transition-colors select-text hover:bg-v2-background-bg-layer-02 focus-visible:outline focus-visible:outline-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
+                class="flex w-full min-w-0 items-start gap-2 rounded-[12px] px-2.5 py-1 text-[13px] leading-5 text-v2-text-text-muted transition-colors select-text hover:bg-v2-background-bg-layer-02 focus-visible:outline focus-visible:outline-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
                 onClick={(event) => {
                   // Selecting text to copy it shouldn't fold the note.
                   if (window.getSelection()?.toString()) return
@@ -751,7 +751,7 @@ export function TurnStepsSummary(props: {
                       data-slot="turn-steps-lane"
                       data-running={lane().running ? "" : undefined}
                       aria-label={language.t("secondBrain.agentTab.open", { agent: label(lane().part) })}
-                      class="-mx-1.5 flex w-[calc(100%+12px)] cursor-pointer flex-col gap-1 rounded-[8px] px-1.5 py-0.5 text-left transition-colors hover:bg-v2-background-bg-layer-02 motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-v2-border-border-focus"
+                      class="-mx-1.5 flex w-[calc(100%+12px)] flex-col gap-1 rounded-[8px] px-1.5 py-0.5 text-left transition-colors hover:bg-v2-background-bg-layer-02 motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-v2-border-border-focus"
                       onClick={() => open()(lane().part)}
                     >
                       {content()}

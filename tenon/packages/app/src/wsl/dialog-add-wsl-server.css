@@ -297,7 +297,7 @@
   border: 0;
   border-radius: var(--v2-radius-lg);
   background: var(--v2-background-bg-layer-01);
-  cursor: pointer;
+  cursor: default;
   text-align: left;
   transition: background-color var(--v2-duration-short) var(--v2-ease-standard);
 }

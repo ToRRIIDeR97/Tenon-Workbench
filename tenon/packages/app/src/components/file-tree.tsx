@@ -147,7 +147,7 @@ const FileTreeNode = (
     <Dynamic
       component={local.as ?? "div"}
       classList={{
-        "w-full min-w-0 h-8 flex items-center justify-start gap-x-2 rounded-full px-2.5 py-0 text-start cursor-pointer transition-[background-color,border-radius] duration-short ease-standard active:rounded-[12px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none": true,
+        "w-full min-w-0 h-8 flex items-center justify-start gap-x-2 rounded-full px-2.5 py-0 text-start transition-[background-color,border-radius] duration-short ease-standard active:rounded-[12px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none": true,
         "hover:bg-v2-overlay-simple-overlay-hover": !selected(),
         "bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container": selected(),
         ...local.classList,

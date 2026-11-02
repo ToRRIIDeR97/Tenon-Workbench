@@ -121,7 +121,7 @@
     font-size: var(--font-size-base);
     font-weight: var(--font-weight-regular);
     line-height: var(--line-height-large);
-    cursor: pointer;
+    cursor: default;
     opacity: 0;
     transition: opacity var(--v2-duration-short) var(--v2-ease-standard);
     margin-left: 4px;
@@ -142,7 +142,7 @@
     line-height: var(--line-height-large);
     margin-top: 12px;
     padding: 0 0 6px;
-    cursor: pointer;
+    cursor: default;
     transition: color var(--v2-duration-short) var(--v2-ease-standard);
 
     &:hover {

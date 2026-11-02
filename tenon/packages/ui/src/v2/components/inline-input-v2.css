@@ -175,7 +175,7 @@
   border-radius: 4px;
   background: transparent;
   color: var(--v2-icon-icon-muted);
-  cursor: pointer;
+  cursor: default;
   outline: none;
 }
 

@@ -262,7 +262,7 @@ function ChannelIndicator(props: { debugTools?: { visible: boolean; toggle: () =
     return (
       <button
         type="button"
-        class="bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container font-medium px-2 rounded-full uppercase font-mono cursor-pointer"
+        class="bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container font-medium px-2 rounded-full uppercase font-mono"
         onClick={props.debugTools.toggle}
         aria-label="Toggle debug tools"
         aria-pressed={props.debugTools.visible}

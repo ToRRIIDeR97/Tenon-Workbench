@@ -115,7 +115,7 @@ export function SessionDeviceTab() {
             {(os) => (
               <button
                 type="button"
-                class="h-7 rounded-full px-3 text-12-medium text-v2-text-text-weak aria-pressed:bg-v2-background-bg-base aria-pressed:text-v2-text-text-base"
+                class="h-7 rounded-full px-3 text-12-medium text-v2-text-text-weak transition-[background-color,color] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base active:bg-v2-overlay-simple-overlay-pressed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none aria-pressed:bg-v2-background-bg-accent-container aria-pressed:text-v2-text-text-on-accent-container"
                 aria-pressed={state.os === os}
                 data-action={`device-os-${os}`}
                 onClick={() => setState({ os, selected: "", frame: "", error: "" })}
@@ -185,7 +185,7 @@ export function SessionDeviceTab() {
                   ref={image}
                   src={state.frame}
                   alt={language.t("secondBrain.device.screen", { name: current()!.name })}
-                  class="h-full max-h-[620px] cursor-pointer rounded-[22px] object-contain"
+                  class="h-full max-h-[620px] rounded-[22px] object-contain"
                   onClick={tap}
                 />
               </Show>

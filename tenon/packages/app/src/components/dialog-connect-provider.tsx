@@ -630,10 +630,10 @@ function ProviderConnection(props: {
               <button
                 type="button"
                 aria-pressed={selected()}
-                class="flex h-8 items-center gap-1.5 rounded-full px-3.5 text-[13px] leading-5 tracking-[-0.04px] transition-[background-color,color,border-radius] duration-short ease-standard focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus active:rounded-[8px] motion-reduce:transition-none"
+                class="flex h-8 items-center gap-1.5 rounded-full px-3.5 text-[13px] leading-5 tracking-[-0.04px] transition-[background-color,color,border-radius] duration-short ease-standard hover:[background-image:linear-gradient(var(--v2-overlay-simple-overlay-hover),var(--v2-overlay-simple-overlay-hover))] active:rounded-[8px] active:[background-image:linear-gradient(var(--v2-overlay-simple-overlay-pressed),var(--v2-overlay-simple-overlay-pressed))] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
                 classList={{
                   "bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container": selected(),
-                  "bg-v2-background-bg-layer-02 text-v2-text-text-base hover:bg-v2-background-bg-layer-03": !selected(),
+                  "bg-v2-background-bg-layer-02 text-v2-text-text-base": !selected(),
                 }}
                 onClick={() => void selectMethod(index())}
               >

@@ -20,7 +20,7 @@
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.04px;
   user-select: none;
-  cursor: pointer;
+  cursor: default;
   outline: none;
 }
 

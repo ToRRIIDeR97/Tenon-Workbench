@@ -10,6 +10,7 @@ import {
   type ParentProps,
 } from "solid-js"
 import type { ComponentProps } from "solid-js"
+import { createSlidingIndicator } from "./sliding-indicator"
 import "./segmented-control-v2.css"
 
 type OnChange = (value: string | null) => void
@@ -94,7 +95,17 @@ export function SegmentedControlV2(props: SegmentedControlV2Props) {
     focusNext,
   }
 
+  const [root, setRoot] = createSignal<HTMLDivElement>()
+  // The selected fill slides between items; until it is placed, the selected item draws it.
+  const placed = createSlidingIndicator({
+    container: root,
+    target: (element) => element.querySelector<HTMLElement>(`[data-slot="segmented-control-v2-item"][data-pressed]`),
+    property: "--segmented-control-v2-indicator",
+    attributes: ["data-pressed"],
+  })
+
   const assignRef = (el: HTMLDivElement | undefined) => {
+    setRoot(el)
     const r = local.ref
     if (typeof r === "function") (r as (el: HTMLDivElement | undefined) => void)(el)
     else if (r != null && typeof r === "object" && "value" in r) (r as { value: HTMLDivElement | undefined }).value = el
@@ -108,11 +119,13 @@ export function SegmentedControlV2(props: SegmentedControlV2Props) {
         role="group"
         data-component="segmented-control-v2"
         data-slot="segmented-control-v2"
+        data-indicator={placed() ? "" : undefined}
         classList={{
           ...local.classList,
           [local.class ?? ""]: !!local.class,
         }}
       >
+        <span data-slot="segmented-control-v2-indicator" aria-hidden="true" />
         {local.children}
       </div>
     </SegmentedControlContext.Provider>

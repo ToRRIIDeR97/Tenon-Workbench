@@ -34,7 +34,7 @@ export const listV2Class =
 
 /** Turns a SwitchV2 into a hoverable row whose label (dot, name, sub-line) fills the space before the switch. */
 export const switchRowClass =
-  "!cursor-pointer transition-[background-color,border-radius] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover active:rounded-[12px] motion-reduce:transition-none [&_[data-slot=switch-label]]:flex [&_[data-slot=switch-label]]:min-w-0 [&_[data-slot=switch-label]]:flex-1 [&_[data-slot=switch-label]]:cursor-pointer [&_[data-slot=switch-label]]:items-center [&_[data-slot=switch-label]]:gap-2.5"
+  "transition-[background-color,border-radius] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover active:rounded-[12px] motion-reduce:transition-none [&_[data-slot=switch-label]]:flex [&_[data-slot=switch-label]]:min-w-0 [&_[data-slot=switch-label]]:flex-1 [&_[data-slot=switch-label]]:items-center [&_[data-slot=switch-label]]:gap-2.5"
 
 /** Status dot colour for MCP, LSP and plugin rows. */
 export function statusDotClass(status: string | undefined) {

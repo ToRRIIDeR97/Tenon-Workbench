@@ -28,7 +28,7 @@
   }
 
   &[data-clickable] {
-    cursor: pointer;
+    cursor: default;
   }
 
   [data-slot="attachment-card-v2-title"],
