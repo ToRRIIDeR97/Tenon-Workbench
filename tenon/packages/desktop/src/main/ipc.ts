@@ -40,6 +40,7 @@ import { createDesktopDraftStore, requireDraftBlob, requireDraftKey, requireDraf
 import { write as writeLog } from "./logging"
 import { saveSessionExport } from "./session-export"
 import { nativeT } from "./native-translations"
+import type { DictationService } from "./dictation-service"
 
 // Renderer-supplied IPC is only trusted from the main frame of an app window:
 // any other frame or webContents that reaches ipcRenderer must not reach the
@@ -107,6 +108,7 @@ type Deps = {
   exportDebugLogs: () => Promise<string>
   recordFatalRendererError: (error: FatalRendererError) => Promise<void> | void
   setNativeTranslations: (bundle: DesktopNativeBundle) => void
+  dictation: DictationService
 }
 
 export function registerIpcHandlers(deps: Deps) {
@@ -180,6 +182,22 @@ export function registerIpcHandlers(deps: Deps) {
   trustedHandle("google-calendar-disconnect", (_event, input: Parameters<GoogleCalendarPlatform["disconnect"]>[0]) =>
     deps.googleCalendar.disconnect(typeof input?.accountId === "string" ? { accountId: input.accountId } : undefined),
   )
+  // Dictation: the renderer starts and stops recordings and manages model files by id only.
+  trustedHandle("dictation-start", (event) =>
+    deps.dictation.start((rms) => !event.sender.isDestroyed() && event.sender.send("dictation-level", rms)),
+  )
+  trustedHandle("dictation-stop", () => deps.dictation.stop())
+  trustedHandle("dictation-cancel", () => deps.dictation.cancel())
+  trustedHandle("dictation-models", () => deps.dictation.models())
+  trustedHandle("dictation-set-active", (_event, id: unknown) => deps.dictation.setActive(id))
+  trustedHandle("dictation-remove", (_event, id: unknown) => deps.dictation.remove(id))
+  trustedHandle("dictation-download", (event, id: unknown) =>
+    deps.dictation.download(
+      id,
+      (progress) => !event.sender.isDestroyed() && event.sender.send("dictation-download-progress", progress),
+    ),
+  )
+  trustedHandle("dictation-open-permission-settings", () => deps.dictation.openPermissionSettings())
   trustedHandle("set-background-color", (_event: IpcMainInvokeEvent, color: string) => deps.setBackgroundColor(color))
   trustedHandle("export-debug-logs", () => deps.exportDebugLogs())
   trustedHandle("set-force-focus", (event: IpcMainInvokeEvent, enabled: boolean) =>

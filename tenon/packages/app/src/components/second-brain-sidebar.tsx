@@ -4,12 +4,11 @@ import { useNavigate } from "@solidjs/router"
 import { createSignal, For, Show } from "solid-js"
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
-import { KeybindV2 } from "@tenon/ui/v2/keybind-v2"
 import { MenuV2 } from "@tenon/ui/v2/menu-v2"
 import { createReveal, Reveal } from "@tenon/ui/v2/reveal"
 import { PathTooltip, TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { useDialog } from "@tenon/ui/context/dialog"
-import { formatKeybind, useCommand } from "@/context/command"
+import { formatKeybind } from "@/context/command"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { useSettingsDialog } from "@/components/settings-dialog"
@@ -39,7 +38,6 @@ export function SecondBrainSidebar() {
   const layout = useLayout()
   const navigate = useNavigate()
   const openSettings = useSettingsDialog()
-  const command = useCommand()
   const ctrl = createSidebarController()
   // The panel keeps its content while its width collapses, so it never closes as an empty column.
   const panel = createReveal(() => layout.sidebar.opened())
@@ -55,31 +53,27 @@ export function SecondBrainSidebar() {
     <div
       data-component="second-brain-sidebar"
       data-expanded={layout.sidebar.opened() ? "" : undefined}
-      class="flex min-h-0 shrink-0"
+      // One outlined container: its width grows from the rail (80px + border) into rail plus panel.
+      // Not overflow-hidden, so rail labels can still float past its edge; the panel clips itself.
+      classList={{
+        "mb-2 ml-2 mr-2 flex min-h-0 shrink-0 rounded-[20px] border border-v2-border-border-muted bg-v2-background-bg-base transition-[width] will-change-[width] motion-reduce:duration-0": true,
+        "w-[82px] duration-medium ease-emphasized-decelerate md:w-[338px]": layout.sidebar.opened(),
+        "w-[82px] duration-[200ms] ease-emphasized-accelerate": !layout.sidebar.opened(),
+      }}
+      onTransitionEnd={(event) => {
+        if (event.target === event.currentTarget && event.propertyName === "width") panel.settle()
+      }}
     >
       <nav
-        class="flex w-20 shrink-0 flex-col items-center gap-3 pb-4 pt-2"
+        // The rail keeps a grey gradient so it reads apart from the plain neutral panel. It follows the
+        // container's corners: all four when it fills the container, only the left ones beside the panel.
+        classList={{
+          "flex w-20 shrink-0 flex-col items-center gap-3 rounded-[19px] bg-[linear-gradient(to_bottom,var(--v2-background-bg-layer-01),var(--v2-background-bg-deep))] pb-4 pt-3 transition-[border-radius] motion-reduce:duration-0": true,
+          "duration-medium ease-emphasized-decelerate md:rounded-r-none": layout.sidebar.opened(),
+          "duration-[200ms] ease-emphasized-accelerate": !layout.sidebar.opened(),
+        }}
         aria-label={language.t("secondBrain.sidebar.title")}
       >
-        <TooltipV2
-          placement="right"
-          value={
-            <>
-              {language.t("secondBrain.sidebar.newThread")}
-              <KeybindV2 keys={command.keybindParts("session.new")} variant="neutral" />
-            </>
-          }
-        >
-          <button
-            type="button"
-            data-sidebar-item="new-thread"
-            class="mb-3 flex size-14 items-center justify-center rounded-[16px] bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container transition-[border-radius,background-color,transform] duration-medium ease-spring hover:rounded-[20px] active:scale-95 motion-reduce:transition-none"
-            aria-label={language.t("secondBrain.sidebar.newThread")}
-            onClick={() => ctrl.newThread()}
-          >
-            <Icon name="plus" size="large" />
-          </button>
-        </TooltipV2>
         <For each={items()}>
           {(item) => (
             <RailItem
@@ -91,18 +85,12 @@ export function SecondBrainSidebar() {
             />
           )}
         </For>
-        <div class="flex-1" />
-        <TooltipV2 placement="right" value={language.t("sidebar.settings")}>
-          <IconButtonV2
-            type="button"
-            data-sidebar-item="settings"
-            variant="ghost-muted"
-            class="!size-11"
-            icon={<Icon name="settings-gear" size="large" />}
-            aria-label={language.t("sidebar.settings")}
-            onClick={() => openSettings()}
-          />
-        </TooltipV2>
+        <RailItem
+          id="settings"
+          icon="settings-gear"
+          label={language.t("sidebar.settings")}
+          onClick={() => openSettings()}
+        />
       </nav>
 
       <aside
@@ -110,18 +98,16 @@ export function SecondBrainSidebar() {
         inert={layout.sidebar.opened() ? undefined : true}
         classList={{
           // The rail stays at every width; the Projects panel needs the room of a md window.
-          "hidden min-h-0 flex-col overflow-hidden transition-[width,opacity] will-change-[width] motion-reduce:transition-none md:flex": true,
-          "w-[248px] opacity-100 duration-medium ease-emphasized-decelerate": layout.sidebar.opened(),
-          "w-0 opacity-0 duration-short ease-emphasized-accelerate": !layout.sidebar.opened(),
-        }}
-        onTransitionEnd={(event) => {
-          if (event.target === event.currentTarget && event.propertyName === "width") panel.settle()
+          // It fills what the container leaves beside the rail and fades on the container's timing.
+          "hidden min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-r-[19px] transition-opacity motion-reduce:duration-0 md:flex": true,
+          "opacity-100 duration-medium ease-emphasized-decelerate": layout.sidebar.opened(),
+          "opacity-0 duration-[200ms] ease-emphasized-accelerate": !layout.sidebar.opened(),
         }}
       >
         <Show when={panel.mounted()}>
           <div
             data-sidebar-section="projects"
-            class="flex min-h-0 w-[248px] flex-1 flex-col overflow-y-auto pb-3 pr-2 pt-1"
+            class="flex min-h-0 w-[256px] flex-1 flex-col overflow-y-auto pb-3 pr-2 pt-1"
           >
             <WorkspaceHeader ctrl={ctrl} />
             <Show

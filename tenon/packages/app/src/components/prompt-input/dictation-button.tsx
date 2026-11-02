@@ -1,0 +1,127 @@
+import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
+import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
+import { createStore } from "solid-js/store"
+import { onCleanup, Show } from "solid-js"
+import type { DictationFailure, DictationPlatform } from "@/context/platform"
+import { useLanguage } from "@/context/language"
+import { showToast } from "@/utils/toast"
+
+/**
+ * The composer's mic: click to record through the desktop dictation engine, click again to stop
+ * and insert the transcript at the caret. Rendered only when the platform exposes dictation.
+ */
+export function PromptDictationButton(props: { dictation: DictationPlatform; restoreFocus: () => void }) {
+  const language = useLanguage()
+  const [state, setState] = createStore({
+    phase: "idle" as "idle" | "starting" | "recording" | "transcribing",
+    level: 0,
+  })
+  const offLevel = props.dictation.onLevel((rms) => setState("level", Math.min(1, rms * 4)))
+  onCleanup(() => {
+    offLevel()
+    if (state.phase === "recording") void props.dictation.cancel()
+  })
+
+  const report = (error: DictationFailure) => {
+    const known = ["no_model", "engine_unavailable", "engine_exited", "no_microphone", "microphone_busy"]
+    // A denied microphone names its platform's help text and offers the privacy settings.
+    const key =
+      error.help?.key ?? (known.includes(error.code) ? `dictation.error.${error.code}` : "dictation.error.generic")
+    showToast({
+      variant: "error",
+      title: language.t("dictation.error.title"),
+      description: language.t(key as Parameters<typeof language.t>[0]),
+      actions: error.help
+        ? [
+            {
+              label: language.t("dictation.permission.open"),
+              onClick: () => void props.dictation.openPermissionSettings(),
+            },
+          ]
+        : undefined,
+    })
+  }
+
+  const toggle = async () => {
+    if (state.phase === "starting" || state.phase === "transcribing") return
+    if (state.phase === "idle") {
+      setState("phase", "starting")
+      const result = await props.dictation.start()
+      if (result.error) {
+        setState({ phase: "idle", level: 0 })
+        return report(result.error)
+      }
+      return setState("phase", "recording")
+    }
+    setState({ phase: "transcribing", level: 0 })
+    const result = await props.dictation.stop()
+    setState("phase", "idle")
+    if (result.error) return report(result.error)
+    if (result.text) insertAtCaret(result.text, props.restoreFocus)
+  }
+
+  const label = () =>
+    state.phase === "transcribing" ? language.t("dictation.transcribing") : language.t("dictation.action.dictate")
+  return (
+    <TooltipV2 placement="top" value={label()}>
+      <IconButtonV2
+        type="button"
+        data-action="prompt-dictate"
+        data-phase={state.phase}
+        variant="ghost-muted"
+        size="large"
+        aria-label={language.t("dictation.action.dictate")}
+        aria-pressed={state.phase === "recording"}
+        aria-busy={state.phase === "starting" || state.phase === "transcribing"}
+        state={state.phase === "recording" ? "pressed" : undefined}
+        onClick={() => void toggle()}
+        icon={<MicIcon level={state.phase === "recording" ? state.level : undefined} />}
+      />
+    </TooltipV2>
+  )
+}
+
+/** A microphone glyph; `level` (0–1) fills it while recording. */
+export function MicIcon(props: { level?: number }) {
+  return (
+    <svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true">
+      <rect x="5.5" y="1.5" width="5" height="8.5" rx="2.5" stroke="currentColor" />
+      <path d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2" stroke="currentColor" stroke-linecap="round" />
+      <Show when={props.level !== undefined}>
+        <rect
+          x="6"
+          y={9.5 - 7.5 * (props.level ?? 0)}
+          width="4"
+          height={7.5 * (props.level ?? 0)}
+          rx="2"
+          fill="currentColor"
+          opacity="0.6"
+        />
+      </Show>
+    </svg>
+  )
+}
+
+/** Focuses the composer at its saved caret and types the transcript there, spaced from the text before it. */
+function insertAtCaret(text: string, restoreFocus: () => void) {
+  restoreFocus()
+  // restoreFocus places the caret on the next frame; insert after it.
+  requestAnimationFrame(() => {
+    const selection = window.getSelection()
+    const node = selection?.anchorNode
+    const before = node?.nodeType === Node.TEXT_NODE ? (node.textContent ?? "").slice(0, selection!.anchorOffset) : ""
+    const spaced = before && !/\s$/.test(before) ? ` ${text}` : text
+    if (typeof document.execCommand === "function" && document.execCommand("insertText", false, spaced)) return
+    const target = document.activeElement
+    if (!(target instanceof HTMLElement) || !target.isContentEditable || !selection?.rangeCount) return
+    const range = selection.getRangeAt(0)
+    range.deleteContents()
+    const inserted = document.createTextNode(spaced)
+    range.insertNode(inserted)
+    range.setStartAfter(inserted)
+    range.collapse(true)
+    selection.removeAllRanges()
+    selection.addRange(range)
+    target.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: spaced }))
+  })
+}

@@ -80,7 +80,11 @@ front matter over 64 KiB. Cards and the manifest over 1 MiB, notes over 5 MiB
 and the calendar over 16 MiB are refused after a `stat`, before they are read.
 The calendar lives at `.tenon/calendar-v1.json` inside the workspace, resolved
 through `LocationMutation` like the other Second Brain files; a file left at the
-old `.second-brain/calendar-v1.json` is moved there on the first read.
+old `.second-brain/calendar-v1.json` is moved there on the first read. The
+renderer keeps the last calendar snapshot per workspace in its own localStorage
+(`tenon.calendar-cache:<directory>`, `calendar-cache.ts`) so a launch paints at
+once; it holds event and task titles, is never sent anywhere, and is rebuilt
+from the server on the next read.
 
 Workspace notes, projects, calendar files, session data, provider tokens, and
 agent tool permissions are sensitive. Treat note contents, provider responses,
@@ -205,7 +209,8 @@ on its own. Removed in the T3 parity Phase 1 cleanup:
 
 Still outbound: the configured LLM providers (including the `opencode` Zen
 provider when the user selects it), the `models.dev` catalog, Google APIs,
-`api.anthropic.com/api/oauth/usage`, `api.commandcode.ai/alpha/*` and
+`huggingface.co` for dictation models the user downloads (see
+[Local dictation](#local-dictation)), `api.anthropic.com/api/oauth/usage`, `api.commandcode.ai/alpha/*` and
 `opencode.ai/zen/go/v1/usage` for Claude Code, Command Code and OpenCode Go
 usage limits (see
 [Harness usage limits](#harness-usage-limits)), and links the user opens. `$schema` URLs in config files are identifiers, not
@@ -691,6 +696,45 @@ rebuildable caches. Their keys are SHA-256 hashes of the instance configuration,
 which can carry API keys, so the files hold harness names, status and model
 names but no configuration or keys; a file that doesn't decode is ignored. The renderer keeps the last harness list
 per server and folder in its own storage (`harness.instances.v1`).
+
+## Local dictation
+
+The composer's mic records through `tenon-dictation`, a Rust child process of
+the Electron main process (see [architecture](../architecture/README.md#local-dictation)).
+
+- **Audio stays local.** The engine captures the microphone, detects speech and
+  transcribes on this machine. It opens no network connection; audio is held in
+  memory for one recording and dropped after transcription. Only the
+  transcript returns, and it lands in the composer like typed text: nothing is
+  sent until the user sends the prompt. Logs record event codes, never audio or
+  transcript text, and the engine's stderr is drained without logging.
+- **Microphone access per platform.** The microphone opens only between
+  `start` and `stop`/`cancel`, so the OS recording indicator shows only while
+  dictating. macOS asks once through `systemPreferences.askForMediaAccess`
+  (`NSMicrophoneUsageDescription` in `Info.plist`, the
+  `com.apple.security.device.audio-input` entitlement under the hardened
+  runtime); the engine inherits the app's grant. Windows checks
+  `getMediaAccessStatus("microphone")` and the engine reports
+  `permission_denied` when capture is refused. A denial shows help with a
+  button that opens `x-apple.systempreferences:...Privacy_Microphone` or
+  `ms-settings:privacy-microphone`; main picks that URL, the renderer can't
+  pass one.
+- **Engine process.** Main resolves the binary itself (packaged
+  `resources/dictation/`, the cargo output in development, or
+  `TENON_DICTATION_ENGINE` from the environment). The renderer can only call
+  `dictation-*` IPC handlers with no arguments or a model ID checked against a
+  fixed list; it can't name a binary, a model path or a URL. The engine runs as
+  the user without a shell and reads only the model file main passes it.
+- **Model downloads.** Whisper Small, Whisper Turbo and Parakeet V3 come from
+  pinned Hugging Face revisions (`dictation-models.ts`, the same GGUF files
+  Handy uses). Main streams each to a `.part` file, checks its size and
+  SHA-256 against the pinned values, and only then renames it into
+  `<userData>/dictation/models/`; a mismatch deletes the file. The active choice
+  is `<userData>/dictation/settings.json`. Models are rebuildable downloads,
+  not user data.
+- **Known gaps.** The packaged engine is signed with the app on macOS but is
+  not separately signed on Windows (unsigned candidates). Model files are
+  trusted once their checksum matches; transcribe-cpp parses them natively.
 
 ## Agent-authored SVG in chat
 

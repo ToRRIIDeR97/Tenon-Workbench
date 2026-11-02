@@ -23,6 +23,7 @@ import { redactURL } from "./external-url"
 import { registerIpcHandlers, sendDeepLinks, sendMenuCommand } from "./ipc"
 import { forwardInitializationFailure } from "./initialization"
 import { createGoogleCalendarService } from "./google-calendar"
+import { createDictationService } from "./dictation-service"
 import { exportDebugLogs, initCrashReporter, initLogging, write as writeLog } from "./logging"
 import { createMenu } from "./menu"
 import {
@@ -457,6 +458,7 @@ const main = Effect.gen(function* () {
     setNativeTranslations: (bundle) => {
       if (setNativeTranslations(bundle)) createMenu(menuDeps)
     },
+    dictation: createDictationService(),
   })
   registerWslIpcHandlers(wslServers)
   void updater.start()

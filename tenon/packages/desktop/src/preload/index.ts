@@ -169,6 +169,26 @@ const api: ElectronAPI = {
   setForceFocus: (enabled) => ipcRenderer.invoke("set-force-focus", enabled),
   recordFatalRendererError: (error) => ipcRenderer.invoke("record-fatal-renderer-error", error),
   setNativeTranslations: (bundle) => ipcRenderer.invoke("set-native-translations", bundle),
+  dictation: {
+    start: () => ipcRenderer.invoke("dictation-start"),
+    stop: () => ipcRenderer.invoke("dictation-stop"),
+    cancel: () => ipcRenderer.invoke("dictation-cancel"),
+    onLevel: (cb) => {
+      const handler = (_: unknown, rms: number) => cb(rms)
+      ipcRenderer.on("dictation-level", handler)
+      return () => ipcRenderer.removeListener("dictation-level", handler)
+    },
+    models: () => ipcRenderer.invoke("dictation-models"),
+    setActive: (id) => ipcRenderer.invoke("dictation-set-active", id),
+    remove: (id) => ipcRenderer.invoke("dictation-remove", id),
+    download: (id) => ipcRenderer.invoke("dictation-download", id),
+    onDownloadProgress: (cb) => {
+      const handler = (_: unknown, progress: Parameters<typeof cb>[0]) => cb(progress)
+      ipcRenderer.on("dictation-download-progress", handler)
+      return () => ipcRenderer.removeListener("dictation-download-progress", handler)
+    },
+    openPermissionSettings: () => ipcRenderer.invoke("dictation-open-permission-settings"),
+  },
 }
 
 contextBridge.exposeInMainWorld("api", api)

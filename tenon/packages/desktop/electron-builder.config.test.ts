@@ -35,3 +35,11 @@ for (const channel of channels) {
     expect(config.files).toContain("!out/**/*.map")
   })
 }
+
+test("macOS builds explain microphone use for dictation", async () => {
+  const module = await import("./electron-builder.config.ts?dictation")
+  const config = module.default as Configuration
+  expect(config.mac?.extendInfo).toEqual(
+    expect.objectContaining({ NSMicrophoneUsageDescription: expect.stringContaining("dictation") }),
+  )
+})
