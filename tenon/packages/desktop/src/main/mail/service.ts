@@ -36,6 +36,7 @@ const microsoftAuthorize = "https://login.microsoftonline.com/common/oauth2/v2.0
 const microsoftToken = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
 const oauthTimeoutMs = 5 * 60 * 1_000
 const bodyLimit = 256 * 1024
+const bodyTooLarge = "mail_body_too_large"
 
 const googleClient = builtInGoogleClient({
   clientId: import.meta.env.MAIN_VITE_GOOGLE_CLIENT_ID,
@@ -235,7 +236,10 @@ export function startMailEndpoint(service: MailService) {
           (cause: unknown) => {
             const message = cause instanceof Error ? cause.message : String(cause)
             writeLog("mail", "mail request failed", { route: request.url, message }, "warn")
-            answer(200, { error: message })
+            if (message !== bodyTooLarge) return answer(200, { error: message })
+            // The rest of the body is never read; close the connection after answering.
+            response.setHeader("connection", "close")
+            answer(413, { error: message })
           },
         )
     })
@@ -273,11 +277,17 @@ async function route(path: string, input: Record<string, unknown>, service: Mail
 function readJSON(request: IncomingMessage) {
   return new Promise<Record<string, unknown>>((resolve, reject) => {
     let body = ""
+    let tooLarge = false
     request.on("data", (chunk: Buffer) => {
+      if (tooLarge) return
       body += chunk.toString()
-      if (body.length > bodyLimit) request.destroy()
+      if (body.length <= bodyLimit) return
+      tooLarge = true
+      body = ""
+      reject(new Error(bodyTooLarge))
     })
     request.on("end", () => {
+      if (tooLarge) return
       try {
         const value: unknown = JSON.parse(body || "{}")
         resolve(value && typeof value === "object" ? (value as Record<string, unknown>) : {})

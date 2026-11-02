@@ -116,17 +116,25 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
       ),
     )
 
-    // Compaction runs at most once a day, with the memory age from Settings › Command Centre.
+    // Compaction runs at most once a day, with the memory age from Settings › Command Centre. The time is
+    // saved only after a run succeeds, so a failed run is tried again on the next workspace load.
+    let compacting = false
     createEffect(
       on(workspace, (target) => {
-        if (!target) return
+        if (!target || compacting) return
         const current = settings.commandCentre.current()
         const now = Date.now()
         if (!compactionDue(current.compactedAt, now)) return
-        settings.commandCentre.set({ compactedAt: now })
+        compacting = true
         void compactCommandMemory(client(target), { days: current.memoryDays, model: modelChoice(current.modelID) })
-          .then((result) => result.deleted > 0 && refetch())
+          .then((result) => {
+            settings.commandCentre.set({ compactedAt: now })
+            if (result.deleted > 0) void refetch()
+          })
           .catch(() => undefined)
+          .finally(() => {
+            compacting = false
+          })
       }),
     )
 
