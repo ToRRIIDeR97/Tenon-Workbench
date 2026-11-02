@@ -5,6 +5,7 @@ import { DropdownMenu } from "@tenon/ui/dropdown-menu"
 import { IconButton } from "@tenon/ui/icon-button"
 import { List } from "@tenon/ui/list"
 import { TextField } from "@tenon/ui/text-field"
+import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { useMutation } from "@tanstack/solid-query"
 import { showToast } from "@/utils/toast"
 import { useNavigate } from "@solidjs/router"
@@ -493,7 +494,9 @@ export function useServerManagementController(options: { onSelect?: () => void; 
     if (!isFormMode()) return language.t("dialog.server.title")
     return (
       <div class="flex items-center gap-2 -ml-2">
-        <IconButton icon="arrow-left" variant="ghost" onClick={resetForm} aria-label={language.t("common.goBack")} />
+        <TooltipV2 placement="bottom" value={language.t("common.goBack")}>
+          <IconButton icon="arrow-left" variant="ghost" onClick={resetForm} aria-label={language.t("common.goBack")} />
+        </TooltipV2>
         <span>{isAddMode() ? language.t("dialog.server.add.title") : language.t("dialog.server.edit.title")}</span>
       </div>
     )

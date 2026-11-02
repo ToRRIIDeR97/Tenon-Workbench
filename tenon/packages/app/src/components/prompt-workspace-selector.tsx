@@ -128,7 +128,7 @@ export function PromptBranchPicker(props: { directory: string; branch?: string; 
     )
   }
 
-  return (
+  const picker = (
     <Show when={!props.noGit} fallback={<PromptGitStatus noGit />}>
       <Popover
         open={state.open}
@@ -142,7 +142,6 @@ export function PromptBranchPicker(props: { directory: string; branch?: string; 
         triggerAs="button"
         triggerProps={{
           type: "button",
-          title: language.t("secondBrain.composer.branch.title"),
           class:
             "flex h-8 min-w-0 max-w-[220px] items-center gap-1.5 rounded-full px-2 text-[13px] font-[440] leading-5 text-v2-text-text-muted transition-colors hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base data-[expanded]:bg-v2-overlay-simple-overlay-hover data-[expanded]:text-v2-text-text-base",
         }}
@@ -195,5 +194,16 @@ export function PromptBranchPicker(props: { directory: string; branch?: string; 
         </div>
       </Popover>
     </Show>
+  )
+
+  return (
+    <TooltipV2
+      placement="top"
+      class="min-w-0"
+      inactive={props.noGit}
+      value={language.t("secondBrain.composer.branch.title")}
+    >
+      {picker}
+    </TooltipV2>
   )
 }

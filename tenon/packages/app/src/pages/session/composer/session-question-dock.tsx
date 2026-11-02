@@ -17,6 +17,7 @@ import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { DockPrompt } from "@tenon/session-ui/dock-prompt"
 import { useSpring } from "@tenon/ui/motion-spring"
 import { motionDuration, prefersReducedMotion } from "@tenon/ui/v2/motion"
+import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { showToast } from "@/utils/toast"
 import type { QuestionAnswer, QuestionRequest } from "@opencode-ai/sdk/v2"
 import { useLanguage } from "@/context/language"
@@ -588,15 +589,20 @@ export const SessionQuestionDock: Component<{ request: QuestionRequest; onSubmit
                   </For>
                 </div>
               </Show>
-              <IconButtonV2
-                type="button"
-                variant="ghost-muted"
-                icon={<IconV2 name="chevron-down" size="small" />}
-                disabled={sending()}
-                style={{ transform: `rotate(${hidden() * 180}deg)` }}
-                onClick={store.minimized ? restore : minimize}
-                aria-label={language.t(store.minimized ? "session.question.restore" : "session.question.minimize")}
-              />
+              <TooltipV2
+                placement="top"
+                value={language.t(store.minimized ? "session.question.restore" : "session.question.minimize")}
+              >
+                <IconButtonV2
+                  type="button"
+                  variant="ghost-muted"
+                  icon={<IconV2 name="chevron-down" size="small" />}
+                  disabled={sending()}
+                  style={{ transform: `rotate(${hidden() * 180}deg)` }}
+                  onClick={store.minimized ? restore : minimize}
+                  aria-label={language.t(store.minimized ? "session.question.restore" : "session.question.minimize")}
+                />
+              </TooltipV2>
             </div>
           </>
         }

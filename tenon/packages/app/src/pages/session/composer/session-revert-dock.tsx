@@ -4,6 +4,7 @@ import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Icon as IconV2 } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { Reveal } from "@tenon/ui/v2/reveal"
+import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { useLanguage } from "@/context/language"
 import { createExitList } from "./exit-list"
 import type { SessionComposerRevertDock } from "./session-composer-region-controller"
@@ -96,24 +97,31 @@ export function SessionRevertDock(props: {
           </span>
         </Show>
         <div class="ml-auto shrink-0">
-          <IconButtonV2
-            icon={<IconV2 name="outline-chevron-down" size="small" />}
-            size="large"
-            variant="ghost-muted"
-            class="transition-transform motion-reduce:transition-none"
-            style={{ transform: `rotate(${store.collapsed ? 180 : 0}deg)` }}
-            onMouseDown={(event) => {
-              event.preventDefault()
-              event.stopPropagation()
-            }}
-            onClick={(event) => {
-              event.stopPropagation()
-              toggle()
-            }}
-            aria-label={
+          <TooltipV2
+            placement="top"
+            value={
               store.collapsed ? language.t("session.revertDock.expand") : language.t("session.revertDock.collapse")
             }
-          />
+          >
+            <IconButtonV2
+              icon={<IconV2 name="outline-chevron-down" size="small" />}
+              size="large"
+              variant="ghost-muted"
+              class="transition-transform motion-reduce:transition-none"
+              style={{ transform: `rotate(${store.collapsed ? 180 : 0}deg)` }}
+              onMouseDown={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+              }}
+              onClick={(event) => {
+                event.stopPropagation()
+                toggle()
+              }}
+              aria-label={
+                store.collapsed ? language.t("session.revertDock.expand") : language.t("session.revertDock.collapse")
+              }
+            />
+          </TooltipV2>
         </div>
       </div>
 

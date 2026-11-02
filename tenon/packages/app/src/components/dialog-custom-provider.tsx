@@ -6,6 +6,7 @@ import { Field } from "@tenon/ui/v2/field-v2"
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { TextInputV2 } from "@tenon/ui/v2/text-input-v2"
+import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { useMutation } from "@tanstack/solid-query"
 import { showToast } from "@/utils/toast"
 import { batch, For, Show } from "solid-js"
@@ -26,15 +27,17 @@ export function DialogCustomProvider(props: Props) {
   return (
     <Dialog size="large">
       <DialogHeader closeLabel={language.t("common.close")}>
-        <IconButtonV2
-          tabIndex={-1}
-          variant="ghost-muted"
-          size="small"
-          class="-my-1"
-          icon={<Icon name="chevron-left" />}
-          onClick={props.onBack}
-          aria-label={language.t("common.goBack")}
-        />
+        <TooltipV2 placement="top" value={language.t("common.goBack")}>
+          <IconButtonV2
+            tabIndex={-1}
+            variant="ghost-muted"
+            size="small"
+            class="-my-1"
+            icon={<Icon name="chevron-left" />}
+            onClick={props.onBack}
+            aria-label={language.t("common.goBack")}
+          />
+        </TooltipV2>
       </DialogHeader>
       <DialogBody class="min-h-0 px-2 pb-2">
         <CustomProviderForm />
@@ -249,15 +252,17 @@ export function CustomProviderForm(props: { autofocus?: boolean } = {}) {
                     error={m.err.name}
                     onInput={(value) => setModel(i(), "name", value)}
                   />
-                  <IconButtonV2
-                    type="button"
-                    variant="ghost-muted"
-                    class="mt-0.5 shrink-0"
-                    icon={<Icon name="close" />}
-                    onClick={() => removeModel(i())}
-                    disabled={form.models.length <= 1}
-                    aria-label={language.t("provider.custom.models.remove")}
-                  />
+                  <TooltipV2 placement="top" value={language.t("provider.custom.models.remove")}>
+                    <IconButtonV2
+                      type="button"
+                      variant="ghost-muted"
+                      class="mt-0.5 shrink-0"
+                      icon={<Icon name="close" />}
+                      onClick={() => removeModel(i())}
+                      disabled={form.models.length <= 1}
+                      aria-label={language.t("provider.custom.models.remove")}
+                    />
+                  </TooltipV2>
                 </div>
               )}
             </For>
@@ -291,15 +296,17 @@ export function CustomProviderForm(props: { autofocus?: boolean } = {}) {
                     mono
                     onInput={(value) => setHeader(i(), "value", value)}
                   />
-                  <IconButtonV2
-                    type="button"
-                    variant="ghost-muted"
-                    class="mt-0.5 shrink-0"
-                    icon={<Icon name="close" />}
-                    onClick={() => removeHeader(i())}
-                    disabled={form.headers.length <= 1}
-                    aria-label={language.t("provider.custom.headers.remove")}
-                  />
+                  <TooltipV2 placement="top" value={language.t("provider.custom.headers.remove")}>
+                    <IconButtonV2
+                      type="button"
+                      variant="ghost-muted"
+                      class="mt-0.5 shrink-0"
+                      icon={<Icon name="close" />}
+                      onClick={() => removeHeader(i())}
+                      disabled={form.headers.length <= 1}
+                      aria-label={language.t("provider.custom.headers.remove")}
+                    />
+                  </TooltipV2>
                 </div>
               )}
             </For>

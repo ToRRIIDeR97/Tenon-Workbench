@@ -6,6 +6,7 @@ import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { useSpring } from "@tenon/ui/motion-spring"
 import { TextReveal } from "@tenon/ui/text-reveal"
 import { TextStrikethrough } from "@tenon/ui/text-strikethrough"
+import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { Index, createEffect, createMemo } from "solid-js"
 import { createStore } from "solid-js/store"
@@ -133,23 +134,25 @@ export function SessionTodoDock(props: {
             />
           </div>
           <div class="ml-auto">
-            <IconButtonV2
-              data-action="session-todo-toggle-button"
-              data-collapsed={props.collapsed ? "true" : "false"}
-              icon={<Icon name="outline-chevron-down" size="small" />}
-              size="large"
-              variant="ghost-muted"
-              style={{ transform: `rotate(${turn() * 180}deg)` }}
-              onMouseDown={(event) => {
-                event.preventDefault()
-                event.stopPropagation()
-              }}
-              onClick={(event) => {
-                event.stopPropagation()
-                props.onToggle()
-              }}
-              aria-label={props.collapsed ? props.expandLabel : props.collapseLabel}
-            />
+            <TooltipV2 placement="top" value={props.collapsed ? props.expandLabel : props.collapseLabel}>
+              <IconButtonV2
+                data-action="session-todo-toggle-button"
+                data-collapsed={props.collapsed ? "true" : "false"}
+                icon={<Icon name="outline-chevron-down" size="small" />}
+                size="large"
+                variant="ghost-muted"
+                style={{ transform: `rotate(${turn() * 180}deg)` }}
+                onMouseDown={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                }}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  props.onToggle()
+                }}
+                aria-label={props.collapsed ? props.expandLabel : props.collapseLabel}
+              />
+            </TooltipV2>
           </div>
         </div>
 

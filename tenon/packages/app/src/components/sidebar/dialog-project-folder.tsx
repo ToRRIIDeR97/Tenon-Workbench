@@ -2,6 +2,7 @@ import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Dialog, DialogBody, DialogFooter, DialogHeader, DialogTitle } from "@tenon/ui/v2/dialog-v2"
 import { Icon } from "@tenon/ui/v2/icon"
 import { TextInputV2 } from "@tenon/ui/v2/text-input-v2"
+import { PathTooltip } from "@tenon/ui/v2/tooltip-v2"
 import { useDialog } from "@tenon/ui/context/dialog"
 import { createResource, For, Show } from "solid-js"
 import { createStore } from "solid-js/store"
@@ -98,21 +99,20 @@ export function DialogAddProject(props: { server: ServerConnection.Any; onAdd: (
             <For each={suggestions.latest}>
               {(folder) => (
                 <li>
-                  <button
-                    type="button"
-                    class="flex h-8 w-full min-w-0 items-center gap-2 rounded-[10px] px-2 text-left text-[13px] text-v2-text-text-muted hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base focus-visible:bg-v2-overlay-simple-overlay-hover focus-visible:outline-none"
-                    onClick={() => setState({ path: folder, error: "" })}
-                  >
-                    <Icon name="folder" size="small" class="shrink-0 text-v2-icon-icon-muted" />
-                    <span class="shrink-0 text-v2-text-text-base">{getFilename(folder)}</span>
-                    {/* Long paths keep their end visible: the start is what the name already implies. */}
-                    <span
-                      class="min-w-0 flex-1 truncate text-right font-mono text-[11px] text-v2-text-text-faint [direction:rtl]"
-                      title={folder}
+                  <PathTooltip placement="top" name={getFilename(folder)} path={folder}>
+                    <button
+                      type="button"
+                      class="flex h-8 w-full min-w-0 items-center gap-2 rounded-[10px] px-2 text-left text-[13px] text-v2-text-text-muted hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base focus-visible:bg-v2-overlay-simple-overlay-hover focus-visible:outline-none"
+                      onClick={() => setState({ path: folder, error: "" })}
                     >
-                      <bdi>{folder}</bdi>
-                    </span>
-                  </button>
+                      <Icon name="folder" size="small" class="shrink-0 text-v2-icon-icon-muted" />
+                      <span class="shrink-0 text-v2-text-text-base">{getFilename(folder)}</span>
+                      {/* Long paths keep their end visible: the start is what the name already implies. */}
+                      <span class="min-w-0 flex-1 truncate text-right font-mono text-[11px] text-v2-text-text-faint [direction:rtl]">
+                        <bdi>{folder}</bdi>
+                      </span>
+                    </button>
+                  </PathTooltip>
                 </li>
               )}
             </For>

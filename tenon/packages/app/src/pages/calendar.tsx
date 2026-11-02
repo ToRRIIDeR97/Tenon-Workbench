@@ -1040,13 +1040,11 @@ export default function CalendarPage() {
             />
           </Show>
           <Show when={state.googleError}>
-            <span
-              role="alert"
-              title={state.googleError}
-              class="max-w-48 animate-enter truncate text-[11px] text-v2-text-text-critical"
-            >
-              {state.googleError}
-            </span>
+            <TooltipV2 placement="bottom" class="min-w-0" value={state.googleError}>
+              <span role="alert" class="max-w-48 animate-enter truncate text-[11px] text-v2-text-text-critical">
+                {state.googleError}
+              </span>
+            </TooltipV2>
           </Show>
           <ButtonV2
             variant="ghost"

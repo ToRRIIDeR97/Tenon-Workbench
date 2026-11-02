@@ -231,14 +231,16 @@ const SkillRow: Component<{
             <Show
               when={canOpen()}
               fallback={
-                <IconButtonV2
-                  type="button"
-                  variant="ghost-muted"
-                  size="normal"
-                  aria-label={language.t("secondBrain.skills.copyPath")}
-                  icon={<Icon name="outline-copy" />}
-                  onClick={() => copy(location())}
-                />
+                <TooltipV2 placement="top" value={language.t("secondBrain.skills.copyPath")}>
+                  <IconButtonV2
+                    type="button"
+                    variant="ghost-muted"
+                    size="normal"
+                    aria-label={language.t("secondBrain.skills.copyPath")}
+                    icon={<Icon name="outline-copy" />}
+                    onClick={() => copy(location())}
+                  />
+                </TooltipV2>
               }
             >
               <ButtonV2 size="normal" variant="ghost" onClick={() => open(location())}>

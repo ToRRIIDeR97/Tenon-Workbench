@@ -3,6 +3,7 @@ import { createStore } from "solid-js/store"
 import type { Part, ReasoningPart, ToolPart } from "@opencode-ai/sdk/v2"
 import { Icon } from "@tenon/ui/v2/icon"
 import { LoaderV2 } from "@tenon/ui/v2/loader-v2"
+import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { ScrollView } from "@tenon/ui/scroll-view"
 import { TextShimmer } from "@tenon/ui/text-shimmer"
 import { Icon as StepIcon } from "@tenon/ui/icon"
@@ -590,15 +591,16 @@ export function TurnStepsSummary(props: {
         <span data-slot="turn-steps-counts" class="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
           <For each={counts()}>
             {(item) => (
-              <span
-                data-slot="turn-steps-count"
-                title={stepCountPhrase(language, item.kind, item.count)}
-                class="flex h-5 shrink-0 items-center gap-1 rounded-full bg-v2-background-bg-base px-2 text-[12px] tabular-nums text-v2-text-text-muted"
-              >
-                <StepIcon name={stepIcon(item.kind)} size="small" aria-hidden="true" />
-                <span aria-hidden="true">{item.count.toLocaleString(language.intl())}</span>
-                <span class="sr-only">{stepCountPhrase(language, item.kind, item.count)}</span>
-              </span>
+              <TooltipV2 placement="top" class="shrink-0" value={stepCountPhrase(language, item.kind, item.count)}>
+                <span
+                  data-slot="turn-steps-count"
+                  class="flex h-5 shrink-0 items-center gap-1 rounded-full bg-v2-background-bg-base px-2 text-[12px] tabular-nums text-v2-text-text-muted"
+                >
+                  <StepIcon name={stepIcon(item.kind)} size="small" aria-hidden="true" />
+                  <span aria-hidden="true">{item.count.toLocaleString(language.intl())}</span>
+                  <span class="sr-only">{stepCountPhrase(language, item.kind, item.count)}</span>
+                </span>
+              </TooltipV2>
             )}
           </For>
         </span>

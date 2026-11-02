@@ -51,12 +51,11 @@ import { getDirectory as _getDirectory, getFilename } from "@tenon/core/util/pat
 import { AttachmentCardV2 } from "../v2/components/attachment-card-v2"
 import { CommentCardV2 } from "../v2/components/comment-card-v2"
 import { checksum } from "@tenon/core/util/encode"
-import { Tooltip } from "@tenon/ui/tooltip"
 import { IconButton } from "@tenon/ui/icon-button"
 import { Icon as IconV2 } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
-import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
+import { PathTooltip, TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { Spinner } from "@tenon/ui/spinner"
 import { TextShimmer } from "@tenon/ui/text-shimmer"
 import { AnimatedCountList } from "./tool-count-summary"
@@ -250,11 +249,11 @@ function MessageActionButton(
     <Show
       when={props.useV2}
       fallback={
-        <Tooltip value={props.label} placement="top" gutter={4}>
+        <TooltipV2 value={props.label} placement="top" gutter={4}>
           <Show when={props.menu} fallback={<IconButton {...v1()} />}>
             <DropdownMenu.Trigger as={IconButton} {...v1()} />
           </Show>
-        </Tooltip>
+        </TooltipV2>
       }
     >
       <TooltipV2 value={props.label} placement="top" gutter={4}>
@@ -1319,37 +1318,39 @@ export function UserMessageDisplay(props: {
               <Show
                 when={newLayout() && type === "file"}
                 fallback={
-                  <div
-                    data-slot="user-message-attachment"
-                    data-type={type}
-                    data-clickable={type === "image" ? "true" : undefined}
-                    title={type === "file" ? name : undefined}
-                    onClick={() => {
-                      if (type === "image") openImagePreview(file.url, name)
-                    }}
-                  >
-                    <Show
-                      when={type === "image"}
-                      fallback={
-                        <div data-slot="user-message-attachment-file">
-                          <FileIcon node={{ path: name, type: "file" }} />
-                          <span data-slot="user-message-attachment-name">{name}</span>
-                        </div>
-                      }
+                  <PathTooltip placement="top" inactive={type !== "file"} name={getFilename(name)} path={name}>
+                    <div
+                      data-slot="user-message-attachment"
+                      data-type={type}
+                      data-clickable={type === "image" ? "true" : undefined}
+                      onClick={() => {
+                        if (type === "image") openImagePreview(file.url, name)
+                      }}
                     >
-                      <img data-slot="user-message-attachment-image" src={file.url} alt={name} />
-                    </Show>
-                  </div>
+                      <Show
+                        when={type === "image"}
+                        fallback={
+                          <div data-slot="user-message-attachment-file">
+                            <FileIcon node={{ path: name, type: "file" }} />
+                            <span data-slot="user-message-attachment-name">{name}</span>
+                          </div>
+                        }
+                      >
+                        <img data-slot="user-message-attachment-image" src={file.url} alt={name} />
+                      </Show>
+                    </div>
+                  </PathTooltip>
                 }
               >
-                <AttachmentCardV2
-                  title={getFilename(name)}
-                  hover={name}
-                  clickable={!!props.actions?.openAttachment}
-                  onClick={() => props.actions?.openAttachment?.(file)}
-                >
-                  {typeLabel(name, file.mime, i18n.t("ui.common.file"), i18n.t("secondBrain.attachment.thread"))}
-                </AttachmentCardV2>
+                <PathTooltip placement="top" name={getFilename(name)} path={name}>
+                  <AttachmentCardV2
+                    title={getFilename(name)}
+                    clickable={!!props.actions?.openAttachment}
+                    onClick={() => props.actions?.openAttachment?.(file)}
+                  >
+                    {typeLabel(name, file.mime, i18n.t("ui.common.file"), i18n.t("secondBrain.attachment.thread"))}
+                  </AttachmentCardV2>
+                </PathTooltip>
               </Show>
             )
           }}
