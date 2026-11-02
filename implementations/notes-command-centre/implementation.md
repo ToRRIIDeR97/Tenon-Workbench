@@ -103,56 +103,57 @@ P3 → P4 and P5 → P6 run in sequence.
 - **AC-3.2** `PUT /second-brain/vault/page?path=<p>` with `{ body, title?, projectId?, properties?, expectedRevision?, create? }` writes a Markdown page inside the workspace's vault folder and returns `{ info, body, revision }`; `GET /second-brain/vault/page?path=` reads it; `GET /second-brain/vault/pages?project=&search=` lists `info` (`id, path, title, projectId, properties, updatedAt`). A page with `projectId` is stored under that Project's readable folder. Paths with `..`, absolute paths, backslashes or non-`.md` names return 400; a stale `expectedRevision` returns 409.
 - **AC-3.3** Nothing the vault writes contains the workspace's absolute directory string, and the Project's code folder receives no new files.
 - **AC-3.4** `GET/PUT /second-brain/vault/timeline?project=<id>` reads and writes `{ projectId, revision, items: [{ id, title, kind: "task"|"milestone", status: "todo"|"doing"|"done", start?, end? }], progress }` where `progress` is done ÷ tasks (milestones excluded), 0 when there are no tasks; stale revision → 409.
-- **AC-3.5** `POST /second-brain/vault/log?project=<id>` with `{ text, author }` appends an entry; `GET` returns entries newest first. Each machine appends only to its own log file (named after a stable machine id), and entries from other machines' files are merged in the response.
+- **AC-3.5** `POST /second-brain/vault/log?project=<id>` with `{ text, author }` appends an entry; `GET` returns `[{ at, author, text, machine }]` newest first. Each machine appends only to its own file `<Project folder>/log/<machine>.md`, one entry per line as `- <ISO-8601 time> · <author> · <text>`; entries from every `log/*.md` file are merged in the response.
 - **AC-3.6** `POST /second-brain/vault/migrate` copies notes from `<workspace>/notes/**` and `.tenon/projects/<id>/notes/**` into the vault, writes a backup under `<root>/.backups/<timestamp>/`, then removes the originals; returns `{ moved, backup }`. A second call returns `moved: 0`. Project notes keep their Project.
 - **AC-3.7** `GET /second-brain/vault/conflicts` lists vault files whose name contains `conflicted copy` or `(conflict` (any case) as `{ path, original }`.
-- **AC-3.8** Overwriting a page keeps the previous version: `GET /second-brain/vault/page/history?path=` lists earlier revisions (newest first, at most 20) and each can be read back.
+- **AC-3.8** Overwriting a page keeps the previous version: `GET /second-brain/vault/page/history?path=` lists earlier versions as `[{ revision, updatedAt }]` (newest first, at most 20), and `GET /second-brain/vault/page/history?path=&revision=` returns that version as `{ revision, body }`.
 - **AC-3.9** The desktop app sets `TENON_VAULT_DIR` to `app.getPath("documents")/Tenon` unless the user chose another folder.
 
 ### P4 · Notes F
-- **AC-4.1** `/notes` shows a page tree with a "Projects" group (one node per Project, its pages beneath) and a "Workspace pages" group, built from `/second-brain/vault/pages`. No Project checkboxes appear anywhere on the page.
+- **AC-4.1** `/notes` shows a page tree (`role="tree"`) with a "Projects" group (one node per Project, its pages beneath) and a "Workspace pages" group, built from `/second-brain/vault/pages`. No Project checkboxes appear anywhere on the page.
 - **AC-4.2** Opening a Project (`/notes?project=<id>`) shows tabs Timeline, Board, Table, Docs, Log; Timeline is selected first. `&tab=board` selects Board.
-- **AC-4.3** Timeline draws one bar per item with a start and end and a marker per milestone; Board groups items into To do, Doing, Done; Table lists items with title, status, start, end; Docs lists the Project's pages; Log lists log entries newest first.
-- **AC-4.4** Clicking an item or page opens it full width; Back returns to the same tab.
-- **AC-4.5** "New page" creates a page through `PUT /second-brain/vault/page` (with `create: true`) in the selected Project or workspace and opens it; edits save with the current revision; a 409 shows a conflict message instead of overwriting.
+- **AC-4.3** Timeline renders one element `[data-timeline-item="<id>"]` per item, milestones with `data-kind="milestone"`; Board shows three groups (`role="group"`) named To do, Doing and Done holding the item titles; Table is a `table` with one row per item showing title, status, start and end; Docs lists the Project's pages as links named by title; Log lists entry texts newest first.
+- **AC-4.4** Clicking a page opens it full width at `/notes?page=<path>` (heading = page title); browser Back returns to the Project and tab it came from.
+- **AC-4.5** "New page" (button) creates a page through `PUT /second-brain/vault/page` with `create: true` in the open Project (its `projectId`) or the workspace and opens it; the "Save" button (and Ctrl/Cmd+S) saves with `expectedRevision` set to the loaded revision; a 409 shows "This page changed somewhere else" instead of overwriting.
 - **AC-4.6** When `/second-brain/vault/conflicts` is not empty, a banner names each conflicting file.
 
 ### P5 · App tools
-- **AC-5.1** With app tools installed, `tools/list` on the `tenon` MCP server includes `notes_search`, `notes_read`, `notes_write`, `timeline_get`, `timeline_update`, `log_append`, `calendar_list`, `calendar_apply`, `tasks_create`, `threads_list`.
+- **AC-5.1** `core/src/harness/app-tools.ts` exports `HarnessAppTools.install({ list(caller), call(name, args, caller) })` → uninstall; while installed, `HarnessDelegation.handleMessage` lists those tools and routes `tools/call` to `call` (a thrown error becomes `isError: true` with its message). `tenon/src/agents/app-tools.ts` exports `AgentAppTools.TOOLS` (`notes_search`, `notes_read`, `notes_write`, `timeline_get`, `timeline_update`, `log_append`, `calendar_list`, `calendar_apply`, `tasks_create`, `threads_list`) and `AgentAppTools.call(name, args, { sessionID })` → `Effect<{ isError, value }>`, and the server installs them at startup. Arguments: `notes_write { path, body, title?, projectId?, expectedRevision?, create? }`, `notes_read { path, projectId? }`, `notes_search { query, projectId? }`, `timeline_get/update { projectId?, items?, expectedRevision? }`, `log_append { text, projectId? }`, `calendar_apply { events: [{ title, date, start?, end?, details? }] }`, `tasks_create { tasks: [{ title, dueDate?, notes?, accountId? }] }`. A tool `path` is relative to the target Project's vault folder (the session's Project unless `projectId` is given) or, with no Project, the workspace's vault folder.
 - **AC-5.2** A session whose directory is a Project's thread directory can write only that Project's pages, timeline and log; a write to another Project returns `isError: true` with "outside this Project". Reads of other Projects are allowed.
-- **AC-5.3** Every write tool returns `{ revision, undo }` and publishes a bus event `agent.write` with `{ sessionID, kind: "note"|"tasks"|"calendar"|"timeline"|"email", phase: "started"|"done", target, preview }`.
+- **AC-5.3** Every write tool returns `{ revision, undo }` and publishes, on `GlobalBus`, `{ payload: { type: "agent.write", properties: { id, sessionID, kind: "note"|"tasks"|"calendar"|"timeline"|"email", phase: "started"|"done", target, preview, undo? } } }` (`undo` on `done`). `preview` per kind: note `{ title, text }`; tasks `{ tasks: [{ title, dueDate? }] }`; calendar `{ events: [{ title, date, start?, end? }] }`; timeline `{ projectId, items: [{ id, title, kind, status, start?, end? }] }`; email `{ to, subject, body }`.
 - **AC-5.4** `POST /second-brain/writes/<undo>/undo` restores the state before that write and returns 200; a second undo returns 409.
 - **AC-5.5** `calendar_apply` adds events to the workspace calendar snapshot; `tasks_create` adds `PlannerTask`s (with an `accountId` when given, so the existing Google outbox syncs them). Neither touches files outside the workspace's `.tenon` and the vault.
 - **AC-5.6** Tool arguments and file content are passed as data; a page body containing "ignore previous instructions" is stored verbatim and does not change tool behaviour.
 
 ### P6 · Write previews
-- **AC-6.1** On a project thread page, an `agent.write` event for that session renders an inline card (`[data-agent-write][data-variant="inline"]`) with the kind's preview; on `done` it folds to one line with Open and Undo buttons.
-- **AC-6.2** On the Command Centre page, consecutive writes of one turn render one step list (`data-variant="steps"`) with a row per write and the active row's preview.
-- **AC-6.3** On any other page, a write renders the top pill (`data-variant="pill"`) that expands while writing and collapses to "Saved" with Open and Undo, then hides.
+- **AC-6.1** On a thread page, an `agent.write` event for that thread's session renders an inline card (`[data-agent-write][data-variant="inline"][data-kind=<kind>]`) with the kind's preview; on `done` it folds to one line with Open, Undo and Show buttons (Show expands the preview again).
+- **AC-6.2** (moved to AC-7.7: the step list is mounted by the Command Centre page.)
+- **AC-6.3** Anywhere else (another page, or a thread page for a different session), a write renders the top pill (`[data-agent-write][data-variant="pill"]`) that expands while writing and collapses to "Saved" with Open and Undo, then hides.
 - **AC-6.4** Each of the five kinds has a preview: note text, task rows, calendar event blocks, timeline bars, email draft (To, Subject, body, "Saved as a draft. Tenon never sends email.").
 - **AC-6.5** Undo calls the undo endpoint and shows "Undone"; a 409 shows "Already changed".
 - **AC-6.6** With reduced motion, previews render final content without typing or growth animations.
 
 ### P7 · Command Centre
-- **AC-7.1** The rail item Activity becomes "Command Centre" (`/command`); `/activity` redirects to `/command`.
-- **AC-7.2** Command Centre threads run in `<vault root>/.command-centre`; `/second-brain/project-threads` and the Projects sidebar never list them; the Command Centre page lists only them.
-- **AC-7.3** Ctrl+J (Cmd+J on macOS) toggles the K3 strip on every page except `/command`: an 18 px handle while hidden, a strip at most 90 px tall when open with the latest reply on one line, Undo when the last reply made a write, a composer and "Open full" (→ `/command?thread=<id>`). Esc hides it. Opening uses 300 ms emphasized-decelerate, closing 200 ms emphasized-accelerate; reduced motion snaps.
-- **AC-7.4** Settings › Command Centre sets the default harness, model and memory age in days (default 45, 1–365). Lowering the age shows "Threads older than this are summarised and deleted for good."
-- **AC-7.5** `GET /command-centre/memory?search=` searches Command Centre messages and summaries (FTS5). `POST /command-centre/memory/compact` summarises Command Centre threads older than the memory age into memory entries, then deletes those threads; project threads are never touched. A second compact is a no-op.
-- **AC-7.6** The Command Centre agent gets the app tools across all workspaces (not Project-scoped) plus `memory_search` and `project_setup`. `project_setup({ workspace, name, folder? })` creates the folder, runs `git init`, writes `AGENTS.md`, `docs/system.md`, `docs/security.md` from templates that reference tor-project-setup, tor-implementation, tor-feature-map-verification and tor-workflow, and creates the Project card and an empty timeline; an existing non-empty folder is refused.
+- **AC-7.1** The rail item Activity becomes "Command Centre" (`data-sidebar-item="command"`, `/command`); `/activity` redirects to `/command`. The rail order (AC-1.4) becomes overview, notes, calendar, command, settings; the plan author updates the P1 test accordingly in the PR4 base commit.
+- **AC-7.2** Command Centre threads run in `<vault root>/.command-centre` (`CommandMemory.directory()` in `tenon/src/agents/command-memory.ts`); `/second-brain/project-threads` and the Projects sidebar never list them; the Command Centre page lists only them.
+- **AC-7.3** Ctrl+J (Cmd+J on macOS) toggles the K3 strip (`[data-command-strip]`, `data-state="open"|"closed"`) on every page except `/command`, where it isn't rendered: a handle at most 24 px tall while hidden, a strip at most 90 px tall when open with the latest reply on one line, Undo when the last reply made a write, a composer and "Open full" (→ `/command?thread=<id>`). Esc hides it. Opening uses 300 ms emphasized-decelerate, closing 200 ms emphasized-accelerate; reduced motion snaps.
+- **AC-7.4** Settings › Command Centre sets the default harness, model and memory age in days (default 45, 1–365). The age field is a number input labelled "Delete threads after (days)"; lowering it shows "Threads older than this are summarised and deleted for good."
+- **AC-7.5** `CommandMemory.search(query)` → `[{ sessionID?, text, at }]` searches Command Centre thread titles, message text and summaries (SQLite FTS5); `CommandMemory.compact({ now?, days, summarize })` (where `summarize(thread: { sessionID, title, text })` returns an `Effect<string>`) summarises Command Centre threads older than `days` into memory entries, then deletes those threads, returning `{ summarised, deleted }`; project threads are never touched; a second compact is a no-op. Routes: `GET /command-centre/memory?search=` and `POST /command-centre/memory/compact { days }` (the production summariser uses the Command Centre's harness and model).
+- **AC-7.7** On the Command Centre page, the writes of one turn render one step list (`[data-agent-write][data-variant="steps"]`) with a row per write and the active row's preview.
+- **AC-7.6** `AgentAppTools.list({ sessionID })` gives a Command Centre session the app tools across all workspaces (not Project-scoped) plus `memory_search` and `project_setup`; project sessions don't get those two. `project_setup({ workspace, name, folder? })` creates the folder, runs `git init`, writes `AGENTS.md`, `docs/system.md`, `docs/security.md` from templates that reference tor-project-setup, tor-implementation, tor-feature-map-verification and tor-workflow, and creates the Project card and an empty timeline; an existing non-empty folder is refused.
 
 ### P8 · Email
-- **AC-8.1** `desktop/src/main/mail/` defines providers `gmail`, `graph` and `imap` with `search(query)`, `readThread(id)`, `createDraft({ to, subject, body, replyTo? })`. No provider calls a send endpoint (Gmail `messages/send`/`drafts/send`, Graph `/send`, SMTP).
-- **AC-8.2** Gmail requests `gmail.readonly` and `gmail.compose`; Graph requests `Mail.Read`, `Mail.ReadWrite`, `offline_access` through PKCE on a loopback redirect; IMAP stores the app password through `safeStorage` and refuses to save when encryption is unavailable.
-- **AC-8.3** Gmail and Graph responses are parsed into `{ id, subject, from, date, snippet }` for search and `{ id, messages: [{ from, to, date, text }] }` for threads; HTML bodies are reduced to text.
-- **AC-8.4** The server's mail tools `mail_search`, `mail_read`, `mail_draft` reach the desktop over a loopback URL and bearer token (`TENON_MAIL_URL`, `TENON_MAIL_TOKEN`); without them the tools are absent. `mail_draft` publishes an `agent.write` event of kind `email`.
+- **AC-8.1** `desktop/src/main/mail/index.ts` exports `createGmailProvider({ fetch, accessToken })`, `createGraphProvider({ fetch, accessToken })` and `createImapProvider({ client })` (client: `search`, `fetchThread`, `append(mailbox, raw, flags)`), each with `search(query)`, `readThread(id)`, `createDraft({ to, subject, body, replyTo? })` → `{ id }`; an IMAP draft is appended to the Drafts mailbox with `\Draft`. No provider calls a send endpoint (Gmail `messages/send`/`drafts/send`, Graph `/send`, SMTP).
+- **AC-8.2** `GMAIL_SCOPES` are `gmail.readonly` and `gmail.compose`; `GRAPH_SCOPES` are `Mail.Read`, `Mail.ReadWrite`, `offline_access` (Graph sign-in uses PKCE on a loopback redirect); `saveImapPassword({ safeStorage, write }, accountId, password)` stores only the encrypted password and rejects when `safeStorage.isEncryptionAvailable()` is false.
+- **AC-8.3** Gmail and Graph responses are parsed into `{ id, subject, from, date, snippet }` for search, where `id` is the thread id (Gmail `threadId`, Graph `conversationId`) that `readThread` takes, and `{ id, messages: [{ from, to, date, text }] }` for threads; HTML bodies are reduced to text.
+- **AC-8.4** Command Centre sessions get `mail_search { query, account? }`, `mail_read { id, account? }`, `mail_draft { to, subject, body, account? }`, which `POST` JSON to `${TENON_MAIL_URL}/search`, `/thread`, `/draft` with `Authorization: Bearer ${TENON_MAIL_TOKEN}` and return the JSON answer; without both variables the tools are absent; project sessions never get them. `mail_draft` publishes `agent.write` events of kind `email`. The desktop main process serves that loopback endpoint.
 - **AC-8.5** Settings › Accounts lists connected mail accounts with provider and address, and can add or remove each.
 
 ### P9 · Routines
 - **AC-9.1** A routine is a vault page under `Routines/` with front matter `schedule` (`daily HH:MM`, `weekdays HH:MM`, `weekly <mon..sun> HH:MM`, or 5-field cron), `harness?`, `model?`, `tools?`, `enabled`; the body is the prompt. `nextRun(schedule, after)` (exported from `tenon/src/agents/routines.ts`) returns the next local time.
-- **AC-9.2** `GET /second-brain/routines` lists routines with `nextRun`, `lastRun`, `lastStatus`; `POST /second-brain/routines/<id>/run` starts a Command Centre thread with the prompt and records a run.
-- **AC-9.3** On start, a routine whose scheduled time passed while the app was closed runs once, however many runs were missed.
-- **AC-9.4** A run's result is appended to the workspace's `Inbox` page and emits a `routine.finished` bus event.
+- **AC-9.2** A routine page is any vault page under the workspace's `Routines/` folder whose `properties` carry `schedule` (and optionally `enabled`, default true). `GET /second-brain/routines` lists `[{ id, name, path, schedule, enabled, nextRun, lastRun, lastStatus }]`; `POST /second-brain/routines/<id>/run` starts a Command Centre thread with the prompt and records a run.
+- **AC-9.3** `Routines.runDue({ now, run })` (with `run(routine)` → `Effect<{ threadId, text }>`) runs each enabled routine at most once when at least one scheduled time fell after its last run (or, if it never ran, after the first `runDue` that saw it) and at or before `now`, however many were missed; it returns `{ ran: [ids] }`. Disabled routines never run. The server calls it at start and every minute.
+- **AC-9.4** A run's `text` is appended to the workspace's `Inbox.md` vault page, and `GlobalBus` emits `{ payload: { type: "routine.finished", properties: { routineId, threadId } } }`.
 - **AC-9.5** The Routines page (`/routines`, linked from the Command Centre page) lists routines with schedule, last run, next run and Run now.
 
 ## Test sets
@@ -168,7 +169,7 @@ at the same relative paths.
 | P2 desktop | `cd tenon/packages/desktop && bun test src/main/dictation.acceptance.test.ts` |
 | P2 engine | `cd tenon/packages/dictation && cargo test` |
 | P3, P5, P7, P9 server | `cd tenon/packages/tenon && bun test test/acceptance/<file>` |
-| P5 MCP hook | `cd tenon/packages/core && bun test test/harness/app-tools.acceptance.test.ts` |
+| P5 MCP hook | `cd tenon/packages/core && bun test test/harness-app-tools.acceptance.test.ts` |
 | P8 desktop | `cd tenon/packages/desktop && bun test src/main/mail/mail.acceptance.test.ts` |
 
 Standard checks per PR: `bun run typecheck`, `bun run lint`, `bun run test`, plus
@@ -194,12 +195,14 @@ user's approval.
 
 ## Completion evidence
 
+PR1 integration (merge `0babf352` of P1 + P2 onto `fc3dda2e`): PASS — no conflicts; both items' suites, `bun run typecheck`, `lint`, `test` (11/11 tasks), `test:routes` (11) green. Install note: worktrees under `.claude/worktrees` hit the Windows path limit during `bun install`; a partial install shows as missing modules.
+
 Filled in as phases pass. Verifier results and implementor reports are kept apart.
 
 | Phase | Verified SHA | Rounds | Verifier result | Implementor report |
 | --- | --- | --- | --- | --- |
-| P1 | | | | |
-| P2 | | | | |
+| P1 | `4c909f26` | 1 (rail corners overlapped the outline when closed) | PASS: acceptance 4/4, verification 3/3, regressions 12/12, typecheck; screenshots light/dark open/closed | Implementor: same suites green; worktree first started from `main`, rebased onto `fc3dda2e` |
+| P2 | `6332bd3e` | 0 (docs added before verification) | PASS: cargo 5/5 (incl. verify), desktop dictation 9/9, desktop 150 pass, app unit 920, web spec 1/1, lint 0 errors. Desktop-only UI (AC-2.4 positive path, AC-2.5) code-reviewed only; macOS build not run | Implementor: Windows release binary builds with the documented env (Build Tools CMake+Ninja, short target dir) |
 | P3 | | | | |
 | P4 | | | | |
 | P5 | | | | |
