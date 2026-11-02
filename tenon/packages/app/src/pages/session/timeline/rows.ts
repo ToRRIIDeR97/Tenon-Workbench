@@ -218,13 +218,18 @@ export namespace Timeline {
             const part = partByID.get(ref.partID)
             return part?.type === "tool" && part.state.status === "error"
           })
+          // Text after the run settles it only once every step has finished: a shell still running stays open.
+          const running = steps.some((ref) => {
+            const part = partByID.get(ref.partID)
+            return part?.type === "tool" && (part.state.status === "pending" || part.state.status === "running")
+          })
           rows.push(
             new TimelineRow.TurnSteps({
               userMessageID: userMessage.id,
               segment: card++,
               steps,
               failed,
-              settled: end !== -1,
+              settled: end !== -1 && !running,
               previousAssistantPart: assistantGroupIndex > 0,
             }),
           )

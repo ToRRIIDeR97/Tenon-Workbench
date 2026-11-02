@@ -275,5 +275,10 @@ describe("current session timeline rows", () => {
       [true, true],
       [false, false],
     ])
+
+    // A step still running keeps its card open even after text follows it.
+    const running = parts.map((part) => (part.id === "t1" ? { ...part, state: { status: "running" } } : part)) as Part[]
+    const live = Timeline.constructMessageRows(user, () => running, [assistant], 0, true, "idle", true, true)
+    expect(live.flatMap((row) => (row._tag === "TurnSteps" ? [row.settled] : []))).toEqual([false, false])
   })
 })
