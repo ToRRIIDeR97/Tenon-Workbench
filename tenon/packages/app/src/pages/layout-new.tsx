@@ -53,7 +53,7 @@ export default function NewLayout(props: ParentProps) {
               : undefined
           }
         />
-        <div class="flex flex-1 min-h-0 min-w-0">
+        <div class="relative flex flex-1 min-h-0 min-w-0">
           <SecondBrainSidebar />
           <main class="flex-1 min-h-0 min-w-0 overflow-x-hidden flex flex-col items-start contain-strict">
             {/* A failed page request shows a retryable message here and keeps the sidebar usable. */}
@@ -65,11 +65,12 @@ export default function NewLayout(props: ParentProps) {
               </Suspense>
             </ErrorBoundary>
           </main>
+          {/* Writes by agents in other threads (W4), below the titlebar's drag strip; the writing
+              thread shows them inline instead. */}
+          <AgentWritePill />
         </div>
         {import.meta.env.DEV && state.debugTools && <DebugBar inline />}
         <ToastRegion v2 />
-        {/* Writes by agents in other threads (W4); the writing thread shows them inline instead. */}
-        <AgentWritePill />
       </div>
     </AgentWritesProvider>
   )

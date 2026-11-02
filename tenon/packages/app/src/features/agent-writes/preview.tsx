@@ -1,6 +1,14 @@
 import { createEffect, createSignal, For, Match, on, onCleanup, Show, Switch } from "solid-js"
 import { useLanguage } from "@/context/language"
-import type { CalendarPreview, EmailPreview, Kind, NotePreview, TasksPreview, TimelinePreview } from "./store"
+import {
+  prefersReducedMotion,
+  type CalendarPreview,
+  type EmailPreview,
+  type Kind,
+  type NotePreview,
+  type TasksPreview,
+  type TimelinePreview,
+} from "./store"
 
 /**
  * The shared preview of one agent write, used by the inline card, the pill and the step list. While
@@ -9,13 +17,16 @@ import type { CalendarPreview, EmailPreview, Kind, NotePreview, TasksPreview, Ti
  */
 export function AgentWritePreview(props: { kind: Kind; preview: unknown; typing?: boolean }) {
   const language = useLanguage()
+  // Reduced motion never types: the final text is there from the first render.
+  const reduced = prefersReducedMotion()
+  const typing = () => Boolean(props.typing) && !reduced
   const value = () =>
     (props.preview && typeof props.preview === "object" ? props.preview : {}) as Record<string, unknown>
   return (
     <div data-slot="agent-write-preview" class="min-w-0 text-[13px] leading-5 text-v2-text-text-base">
       <Switch>
         <Match when={props.kind === "note"}>
-          <NoteBody preview={value() as NotePreview} typing={props.typing} />
+          <NoteBody preview={value() as NotePreview} typing={typing()} />
         </Match>
         <Match when={props.kind === "tasks"}>
           <ul class="flex flex-col gap-1" aria-label={language.t("secondBrain.agentWrites.kind.tasks")}>
@@ -55,7 +66,7 @@ export function AgentWritePreview(props: { kind: Kind; preview: unknown; typing?
           <TimelineBars preview={value() as TimelinePreview} />
         </Match>
         <Match when={props.kind === "email"}>
-          <EmailDraft preview={value() as EmailPreview} typing={props.typing} />
+          <EmailDraft preview={value() as EmailPreview} typing={typing()} />
         </Match>
       </Switch>
     </div>
