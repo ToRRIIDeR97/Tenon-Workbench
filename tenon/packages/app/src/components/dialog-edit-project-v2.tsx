@@ -45,7 +45,7 @@ export function DialogEditProjectV2(props: { project: LocalProject; server: Serv
               <button
                 type="button"
                 aria-label={language.t("dialog.project.edit.icon.alt")}
-                class="relative size-16 shrink-0 cursor-pointer overflow-hidden rounded-[20px] outline outline-2 outline-offset-2 outline-transparent transition-[background-color,outline-color,border-radius] duration-short ease-standard active:rounded-[16px] focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
+                class="relative size-16 shrink-0 overflow-hidden rounded-[20px] outline outline-2 outline-offset-2 outline-transparent transition-[background-color,outline-color,border-radius] duration-short ease-standard active:rounded-[16px] focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
                 classList={{
                   "bg-v2-overlay-simple-overlay-hover outline-v2-border-border-focus": model.store.dragOver,
                 }}

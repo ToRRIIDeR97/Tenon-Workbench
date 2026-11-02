@@ -8,7 +8,7 @@
   justify-content: flex-start;
 
   &[data-clickable="true"] {
-    cursor: pointer;
+    cursor: default;
   }
 
   [data-slot="basic-tool-tool-trigger-content"] {
@@ -117,7 +117,7 @@
     color: var(--v2-text-text-muted);
 
     &.clickable {
-      cursor: pointer;
+      cursor: default;
       text-decoration: underline;
       transition: color var(--v2-duration-short) var(--v2-ease-standard);
 

@@ -144,7 +144,7 @@ export function PromptBranchPicker(props: { directory: string; branch?: string; 
           type: "button",
           title: language.t("secondBrain.composer.branch.title"),
           class:
-            "flex h-8 min-w-0 max-w-[220px] items-center gap-1.5 rounded-full px-2 text-[13px] font-[440] leading-5 text-v2-text-text-muted transition-colors hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base data-[expanded]:bg-v2-overlay-simple-overlay-hover data-[expanded]:text-v2-text-text-base",
+            "flex h-8 min-w-0 max-w-[220px] items-center gap-1.5 rounded-full px-2 text-[13px] font-[440] leading-5 text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base active:bg-v2-overlay-simple-overlay-pressed data-[expanded]:bg-v2-overlay-simple-overlay-hover data-[expanded]:text-v2-text-text-base focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none",
         }}
         trigger={
           <>
@@ -176,7 +176,7 @@ export function PromptBranchPicker(props: { directory: string; branch?: string; 
                       type="button"
                       role="menuitemradio"
                       aria-checked={branch === props.branch}
-                      class="flex min-h-8 w-full min-w-0 items-center gap-2 rounded-[10px] px-2.5 py-1.5 text-left text-v2-text-text-base transition-colors hover:bg-v2-overlay-simple-overlay-hover"
+                      class="flex min-h-8 w-full min-w-0 items-center gap-2 rounded-[10px] px-2.5 py-1.5 text-left text-v2-text-text-base transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover active:bg-v2-overlay-simple-overlay-pressed outline-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
                       onClick={() => choose(branch)}
                     >
                       <span class="min-w-0 flex-1 truncate font-mono text-[12px]">{branch}</span>

@@ -52,7 +52,7 @@
     }
 
     &[data-clickable] {
-      cursor: pointer;
+      cursor: default;
     }
 
     &[data-type="image"] {
@@ -642,7 +642,7 @@
 
   [data-slot="collapsible-arrow"] {
     color: var(--v2-icon-icon-muted);
-    cursor: pointer;
+    cursor: default;
   }
 }
 
@@ -891,7 +891,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    cursor: pointer;
+    cursor: default;
     touch-action: manipulation;
 
     &::after {
@@ -975,7 +975,7 @@
     box-shadow: none;
     text-align: left;
     width: 100%;
-    cursor: pointer;
+    cursor: default;
     transition: background-color var(--v2-duration-short) var(--v2-ease-standard);
 
     &:hover:not([data-picked="true"]) {
@@ -1157,7 +1157,7 @@
     background: transparent;
     color: var(--v2-text-text-base);
     text-align: left;
-    cursor: pointer;
+    cursor: default;
     touch-action: manipulation;
 
     &:disabled {

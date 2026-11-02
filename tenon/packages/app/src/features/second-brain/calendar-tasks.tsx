@@ -296,7 +296,7 @@ export function CalendarTasks(props: {
                   <TaskCheck task={task} onToggle={props.onToggle} />
                   <button
                     type="button"
-                    class="min-w-0 flex-1 cursor-pointer rounded-[8px] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus"
+                    class="min-w-0 flex-1 rounded-[8px] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus"
                     aria-pressed={state.peek === task.id}
                     onClick={() => setState({ peek: task.id, editing: false })}
                   >

@@ -328,7 +328,7 @@ function TranscriptEntry(props: { entry: SubagentTranscriptEntry }) {
 
 // The summary is the row itself, so the disclosure marker sits on the same line as its content.
 const SUMMARY =
-  "flex min-w-0 cursor-pointer list-none items-center gap-2 select-none rounded-[6px] [&::-webkit-details-marker]:hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-v2-border-border-focus"
+  "flex min-w-0 list-none items-center gap-2 select-none rounded-[6px] [&::-webkit-details-marker]:hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-v2-border-border-focus"
 
 function Disclosure() {
   return (

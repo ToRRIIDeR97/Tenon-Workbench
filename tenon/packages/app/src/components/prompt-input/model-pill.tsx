@@ -170,7 +170,7 @@ export function PromptModelPill(props: {
         title: language.t("secondBrain.composer.modelPill.title"),
         disabled: props.harness.disabled?.(),
         class:
-          "flex h-7 min-w-0 max-w-[280px] items-center gap-1.5 rounded-full px-2.5 text-[13px] font-[440] leading-5 text-v2-text-text-muted transition-colors hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base data-[expanded]:bg-v2-overlay-simple-overlay-hover data-[expanded]:text-v2-text-text-base disabled:opacity-50",
+          "flex h-7 min-w-0 max-w-[280px] items-center gap-1.5 rounded-full px-2.5 text-[13px] font-[440] leading-5 text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base active:bg-v2-overlay-simple-overlay-pressed data-[expanded]:bg-v2-overlay-simple-overlay-hover data-[expanded]:text-v2-text-text-base focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus disabled:opacity-50 disabled:hover:bg-transparent motion-reduce:transition-none",
       }}
       trigger={
         <>
@@ -329,7 +329,7 @@ export function PromptModelPill(props: {
 
 // Rows show a ring only for keyboard focus; a pointer opening the panel never draws one.
 const ROW_CLASS =
-  "flex w-full min-w-0 items-center gap-2.5 rounded-[10px] px-2.5 py-1.5 text-left outline-none transition-colors hover:bg-v2-overlay-simple-overlay-hover focus-visible:shadow-[inset_0_0_0_1.5px_var(--v2-border-border-focus)] disabled:cursor-default disabled:opacity-45 disabled:hover:bg-transparent"
+  "flex w-full min-w-0 items-center gap-2.5 rounded-[10px] px-2.5 py-1.5 text-left transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover active:bg-v2-overlay-simple-overlay-pressed outline-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus disabled:opacity-50 disabled:hover:bg-transparent disabled:active:bg-transparent motion-reduce:transition-none"
 
 function Choice(props: {
   label: string

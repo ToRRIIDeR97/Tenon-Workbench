@@ -94,7 +94,7 @@ export function TaskCheck(props: {
         checked={Boolean(props.task.completedAt)}
         aria-label={language.t("secondBrain.tasks.toggle", { title: props.task.title })}
         classList={{
-          "peer cursor-pointer appearance-none rounded-full border-[1.5px] border-v2-border-border-base transition-colors duration-short ease-standard checked:border-transparent checked:bg-v2-icon-icon-accent hover:border-v2-icon-icon-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none": true,
+          "peer appearance-none rounded-full border-[1.5px] border-v2-border-border-base transition-colors duration-short ease-standard checked:border-transparent checked:bg-v2-icon-icon-accent hover:border-v2-icon-icon-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none": true,
           "size-5": !props.small,
           "size-4": props.small,
         }}

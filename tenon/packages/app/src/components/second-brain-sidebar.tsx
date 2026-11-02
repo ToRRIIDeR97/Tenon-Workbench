@@ -29,8 +29,10 @@ import { createFreshItems } from "@/utils/fresh-items"
 import { sessionPinnedAt } from "@/utils/session"
 import { sessionTitle } from "@/utils/session-title"
 
+// Rows clip, so keyboard focus draws an inset ring on the row: when the row is the button, or while its
+// main button (a direct child) has focus.
 const rowClass =
-  "group/row relative grid h-9 w-full min-w-0 shrink-0 cursor-default items-center overflow-hidden rounded-full bg-transparent text-left text-[13px] text-v2-text-text-muted [font-weight:440] transition-[background-color,color,border-radius] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base active:rounded-[12px] data-[selected]:bg-v2-background-bg-accent-container data-[selected]:text-v2-text-text-on-accent-container data-[selected]:[font-weight:530] focus-visible:bg-v2-overlay-simple-overlay-hover focus-visible:text-v2-text-text-base focus-visible:outline-none focus-visible:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)] motion-reduce:transition-none"
+  "group/row relative grid h-9 w-full min-w-0 shrink-0 cursor-default items-center overflow-hidden rounded-full bg-transparent text-left text-[13px] text-v2-text-text-muted [font-weight:440] transition-[background-color,color,border-radius] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base active:rounded-[12px] data-[selected]:bg-v2-background-bg-accent-container data-[selected]:text-v2-text-text-on-accent-container data-[selected]:[font-weight:530] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus has-[>button:focus-visible]:outline has-[>button:focus-visible]:outline-2 has-[>button:focus-visible]:-outline-offset-2 has-[>button:focus-visible]:outline-v2-border-border-focus motion-reduce:transition-none"
 
 export function SecondBrainSidebar() {
   const language = useLanguage()
@@ -187,7 +189,7 @@ function RailItem(props: { id: string; icon: string; label: string; active?: boo
       aria-current={props.active ? "page" : undefined}
       onClick={props.onClick}
     >
-      <span class="relative flex h-8 w-14 items-center justify-center">
+      <span class="relative flex h-8 w-14 items-center justify-center rounded-full group-focus-visible/rail:outline group-focus-visible/rail:outline-2 group-focus-visible/rail:outline-offset-2 group-focus-visible/rail:outline-v2-border-border-focus">
         <span
           classList={{
             "absolute inset-y-0 left-1/2 -translate-x-1/2 rounded-full transition-[width,background-color] ease-standard motion-reduce:transition-none": true,
@@ -197,7 +199,7 @@ function RailItem(props: { id: string; icon: string; label: string; active?: boo
               !props.active,
           }}
         />
-        <span class="relative flex text-v2-icon-icon-muted group-data-[selected]/rail:text-v2-text-text-on-accent-container group-focus-visible/rail:rounded-full group-focus-visible/rail:ring-2 group-focus-visible/rail:ring-v2-border-border-focus">
+        <span class="relative flex text-v2-icon-icon-muted group-data-[selected]/rail:text-v2-text-text-on-accent-container">
           <Icon name={props.icon} size="large" />
         </span>
       </span>

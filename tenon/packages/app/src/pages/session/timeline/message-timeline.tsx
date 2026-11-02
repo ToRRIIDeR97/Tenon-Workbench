@@ -1318,7 +1318,7 @@ export function MessageTimeline(props: {
         <button
           type="button"
           aria-label={language.t("session.messages.jumpToLatest")}
-          class="pointer-events-auto flex items-center justify-center size-9 rounded-full border-none cursor-pointer text-v2-text-text-base backdrop-blur-[2px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus"
+          class="pointer-events-auto flex items-center justify-center size-9 rounded-full border-none text-v2-text-text-base backdrop-blur-[2px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus"
           style={{
             background: "color-mix(in srgb, var(--v2-background-bg-base) 92%, transparent)",
             "box-shadow": "0 0 0 0.5px var(--v2-border-border-muted), 0 6px 16px -8px rgb(0 0 0 / 0.2)",

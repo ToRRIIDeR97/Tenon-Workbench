@@ -228,12 +228,6 @@
   height: 32px;
 }
 
-.settings-v2-panel [data-slot="segmented-control-v2-item"][data-pressed] {
-  background: var(--v2-background-bg-accent-container);
-  color: var(--v2-text-text-on-accent-container);
-  box-shadow: none;
-}
-
 [data-component="tabs-v2"][data-variant="settings"][data-orientation="vertical"] [data-slot="tabs-v2-list"] {
   background-color: var(--v2-background-bg-layer-01);
 }
@@ -883,7 +877,7 @@
   border: 0;
   border-radius: var(--v2-radius-full);
   background: var(--v2-background-bg-base);
-  cursor: pointer;
+  cursor: default;
   font-family: var(--font-family-mono);
   font-weight: 440;
   font-size: 12px;

@@ -14,7 +14,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  cursor: pointer;
+  cursor: default;
 
   [data-slot="switch-input"] {
     position: absolute;

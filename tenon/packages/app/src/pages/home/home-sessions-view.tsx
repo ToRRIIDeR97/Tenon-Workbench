@@ -423,7 +423,7 @@ function HomeSessionSearchResultRow(
       class={`
         flex h-10 w-full shrink-0 cursor-default items-center gap-2 border-0 py-3 pl-[18px] pr-6 text-left
         transition-[background-color] duration-short ease-standard motion-reduce:transition-none
-        hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover focus-visible:outline-none
+        hover:bg-v2-overlay-simple-overlay-hover outline-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus
       `}
       classList={{
         "bg-v2-overlay-simple-overlay-hover": props.selected,
@@ -509,7 +509,7 @@ function HomeSessionRow(
           flex h-10 min-w-0 w-full flex-1 shrink-0 cursor-default items-center gap-2 rounded-[16px] border-0
           bg-transparent py-3 pl-0 pr-2 text-left text-v2-text-text-muted [font-weight:530]
           transition-[background-color,color,box-shadow] duration-short ease-standard motion-reduce:transition-none
-          hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover focus-visible:outline-none
+          hover:bg-v2-overlay-simple-overlay-hover outline-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus
         `}
         onMouseDown={(event) => {
           if (event.button === 1) event.preventDefault()

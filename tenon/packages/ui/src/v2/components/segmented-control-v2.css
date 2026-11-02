@@ -3,6 +3,8 @@
 }
 
 [data-slot="segmented-control-v2"] {
+  position: relative;
+  isolation: isolate;
   box-sizing: border-box;
   display: flex;
   flex-direction: row;
@@ -33,11 +35,11 @@
   border-radius: 6px;
   background: transparent;
   box-shadow: none;
-  cursor: pointer;
+  cursor: default;
   font-style: normal;
   font-weight: 440;
   font-size: 13px;
-  line-height: 100%;
+  line-height: 16px;
   letter-spacing: -0.04px;
   font-variant-numeric: tabular-nums;
   font-variation-settings: "slnt" 0;
@@ -46,20 +48,61 @@
 
 [data-slot="segmented-control-v2-item"]:where(:disabled) {
   cursor: not-allowed;
-  opacity: 0.45;
+  opacity: 0.5;
+}
+
+/* Hover and press lay an overlay over the item, the selected one included (over the sliding fill). */
+[data-slot="segmented-control-v2-item"]:where(:not(:disabled):hover) {
+  background-color: var(--v2-overlay-simple-overlay-hover);
+  color: var(--v2-text-text-base);
+}
+
+[data-slot="segmented-control-v2-item"]:where(:not(:disabled):active) {
+  background-color: var(--v2-overlay-simple-overlay-pressed);
 }
 
 [data-slot="segmented-control-v2-item"]:where(:focus-visible) {
   outline: 2px solid var(--v2-border-border-focus);
-  outline-offset: 1px;
+  outline-offset: 2px;
   z-index: 2;
 }
 
+/* Selected: accent tonal fill with on-accent text, as in the sidebar. */
 [data-slot="segmented-control-v2-item"]:where([data-pressed]) {
-  background: var(--v2-background-bg-base);
-  color: var(--v2-text-text-base);
-  box-shadow: 0 0 0 0.5px var(--v2-border-border-strong);
+  color: var(--v2-text-text-on-accent-container);
   z-index: 1;
+}
+
+[data-slot="segmented-control-v2"]:not([data-indicator]) [data-slot="segmented-control-v2-item"]:where([data-pressed]) {
+  background-color: var(--v2-background-bg-accent-container);
+}
+
+[data-slot="segmented-control-v2"]:not([data-indicator])
+  [data-slot="segmented-control-v2-item"]:where([data-pressed]:not(:disabled):hover) {
+  background-image: linear-gradient(var(--v2-overlay-simple-overlay-hover), var(--v2-overlay-simple-overlay-hover));
+}
+
+/* The selected fill, placed by segmented-control-v2.tsx, slides between items: medium + standard. */
+[data-slot="segmented-control-v2-indicator"] {
+  display: none;
+}
+
+[data-slot="segmented-control-v2"][data-indicator] [data-slot="segmented-control-v2-indicator"] {
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  width: var(--segmented-control-v2-indicator-width);
+  height: var(--segmented-control-v2-indicator-height);
+  transform: translate(var(--segmented-control-v2-indicator-x), var(--segmented-control-v2-indicator-y));
+  border-radius: var(--v2-radius-full);
+  background-color: var(--v2-background-bg-accent-container);
+  pointer-events: none;
+  transition:
+    transform var(--v2-duration-medium) var(--v2-ease-standard),
+    width var(--v2-duration-medium) var(--v2-ease-standard),
+    height var(--v2-duration-medium) var(--v2-ease-standard);
 }
 
 [data-slot="segmented-control-v2-item-label"] {
@@ -82,10 +125,17 @@
 }
 
 [data-slot="segmented-control-v2-item"] {
+  position: relative;
   transition:
     background-color var(--v2-duration-short) var(--v2-ease-standard),
-    color var(--v2-duration-short) var(--v2-ease-standard),
-    box-shadow var(--v2-duration-short) var(--v2-ease-standard);
+    color var(--v2-duration-short) var(--v2-ease-standard);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="segmented-control-v2-item"],
+  [data-slot="segmented-control-v2"][data-indicator] [data-slot="segmented-control-v2-indicator"] {
+    transition: none;
+  }
 }
 
 /* Size to content so pill segments fit any label count; full-width stays opt-in. */
