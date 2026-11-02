@@ -5,9 +5,17 @@ import { encodeFilePath } from "@/context/file/path"
 import type { AgentPart, FileAttachmentPart, ImageAttachmentPart, Prompt } from "@/context/prompt"
 import { Identifier } from "@/utils/id"
 import { createCommentMetadata, formatCommentNote } from "@/utils/comment-note"
+import { createQuoteMetadata, formatQuoteNote } from "@tenon/session-ui/quote-note"
 import { SKILL_REFERENCE_MIME, promptSkills, skillInstruction } from "@/utils/skill-reference"
 
 type PromptRequestPart = (TextPartInput | FilePartInput | AgentPartInput) & { id: string }
+
+type ContextQuote = {
+  key: string
+  type: "quote"
+  text: string
+  messageID?: string
+}
 
 type ContextFile = {
   key: string
@@ -22,7 +30,7 @@ type ContextFile = {
 
 type BuildRequestPartsInput = {
   prompt: Prompt
-  context: ContextFile[]
+  context: (ContextFile | ContextQuote)[]
   images: (Omit<ImageAttachmentPart, "blob"> & { dataUrl: string })[]
   text: string
   messageID: string
@@ -158,7 +166,17 @@ export function buildRequestParts(input: BuildRequestPartsInput) {
   })
 
   const used = new Set(files.map((part) => part.url))
-  const context = input.context.flatMap((item) => {
+  const context = input.context.flatMap((item): PromptRequestPart[] => {
+    if (item.type === "quote")
+      return [
+        {
+          id: Identifier.ascending("part"),
+          type: "text",
+          text: formatQuoteNote(item.text),
+          synthetic: true,
+          metadata: createQuoteMetadata(item.text),
+        } satisfies PromptRequestPart,
+      ]
     const path = absolute(input.sessionDirectory, item.path)
     const url = `file://${encodeFilePath(path)}${fileQuery(item.selection)}`
     const comment = item.comment?.trim()

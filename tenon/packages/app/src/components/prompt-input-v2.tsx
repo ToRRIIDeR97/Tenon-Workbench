@@ -91,6 +91,7 @@ export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
       <PromptInputV2
         controller={props.controller}
         headerControl={props.boxHeader}
+        quoteRemoveLabel={language.t("secondBrain.quote.remove")}
         runtimeControl={
           props.harness ? (
             <PromptModelPill
@@ -210,7 +211,7 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
   )
   const commentCount = createMemo(() => {
     if (mode() === "shell") return 0
-    return prompt.context.items().filter((item) => !!item.comment?.trim()).length
+    return prompt.context.items().filter((item) => item.type === "quote" || !!item.comment?.trim()).length
   })
   const blank = createMemo(() => {
     const text = prompt
@@ -237,6 +238,7 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
   const historyComments = () => {
     const byID = new Map(comments.all().map((item) => [`${item.file}\n${item.id}`, item] as const))
     return prompt.context.items().flatMap((item) => {
+      if (item.type !== "file") return []
       const comment = item.comment?.trim()
       if (!comment) return []
       const selection = item.commentID ? byID.get(`${item.path}\n${item.commentID}`)?.selection : undefined
@@ -513,13 +515,13 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
         mention: { type: "file", path, content: `@${path}`, start: 0, end: 0 },
       })),
     onContextRemove(item) {
-      if (item?.commentID) comments.remove(item.path, item.commentID)
+      if (item?.type === "file" && item.commentID) comments.remove(item.path, item.commentID)
     },
     openAttachment: (attachment) =>
       dialog.show(() => <AttachmentPreview src={attachment.blob.url} name={attachment.filename} />),
     openContext(key) {
       const item = controller.contextItem(key)
-      if (item) openComment(item, props, sync, layout, files, comments)
+      if (item?.type === "file") openComment(item, props, sync, layout, files, comments)
     },
     onEditor(element) {
       editor = element as HTMLDivElement

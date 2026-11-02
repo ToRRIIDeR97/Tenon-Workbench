@@ -320,17 +320,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
     target: ReturnType<ReturnType<typeof usePrompt>["capture"]>,
     items: (ContextItem & { key: string })[],
   ) => {
-    for (const item of items) {
-      target.context.add({
-        type: "file",
-        path: item.path,
-        selection: item.selection,
-        comment: item.comment,
-        commentID: item.commentID,
-        commentOrigin: item.commentOrigin,
-        preview: item.preview,
-      })
-    }
+    for (const { key: _key, ...item } of items) target.context.add(item)
   }
 
   const seed = (dir: string, info: Session) => {
@@ -607,7 +597,8 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       }
     }
 
-    const commentItems = context.filter((item) => item.type === "file" && !!item.comment?.trim())
+    // Comments and quotes go out with this message; they come back if sending fails.
+    const commentItems = context.filter((item) => item.type === "quote" || !!item.comment?.trim())
     const messageID = Identifier.ascending("message")
 
     const removeOptimisticMessage = () => {

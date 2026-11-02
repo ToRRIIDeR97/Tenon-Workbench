@@ -1370,6 +1370,19 @@ CLIs refresh tokens themselves.
   unsupported.
 - Other ACP agents: unsupported.
 
+### Quote replies
+
+Selecting text in an assistant reply shows a Reply pill over the selection
+(`app/src/pages/session/timeline/selection-reply.tsx`). Reply adds a `quote`
+context item (`QuoteContextItem` in `app/src/context/prompt-state.ts`) beside
+the file comments, so it persists with the draft and shows as a chip in the
+composer's attachment strip. On send, `buildRequestParts` turns it into a
+synthetic text part: the passage as a Markdown quote for the model, plus
+`tenonQuote` metadata (`session-ui/src/components/quote-note.ts`). The user
+message reads that metadata and shows the quote above the text. A quote, like a
+comment, comes back to the composer if sending fails. Passages over 2,000
+characters are cut.
+
 ### Composer delivery, background send and stash
 
 While a thread is working, the composer sends each message with a `delivery`

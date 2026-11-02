@@ -21,6 +21,7 @@ import type {
   PromptInputV2Option,
   PromptInputV2PersistedState,
   PromptInputV2Prompt,
+  PromptInputV2Quote,
   PromptInputV2Suggestion,
 } from "./types"
 import type { PromptInputV2Interaction, PromptInputV2SelectControl } from "./interaction"
@@ -47,6 +48,8 @@ export type PromptInputV2Props = {
   runtimeControl?: JSX.Element
   /** A row inside the top of the box, above the text, for where the prompt runs (folder, worktree). */
   headerControl?: JSX.Element
+  /** Accessible label of a quote chip's remove button. */
+  quoteRemoveLabel?: string
   /** Trailing toolbar slot next to the submit button (e.g. the prompt stash menu). */
   trailingControl?: JSX.Element
   modelControl?: JSX.Element
@@ -184,12 +187,15 @@ export function PromptInputV2(props: PromptInputV2Props) {
           <PromptInputV2Attachments
             attachments={props.controller.attachments()}
             comments={props.controller.comments()}
+            quotes={props.controller.quotes()}
+            quoteRemoveLabel={props.quoteRemoveLabel}
             activeCommentID={state.activeContextID}
             removeLabel={i18n.t("ui.promptInput.removeAttachment")}
             onAttachmentClick={props.controller.openAttachment}
             onAttachmentRemove={(attachment) => props.controller.removeAttachment(attachment.id)}
             onCommentClick={(comment) => props.controller.toggleContext(comment.key)}
             onCommentRemove={(comment) => props.controller.removeContext(comment.key)}
+            onQuoteRemove={(quote) => props.controller.removeContext(quote.key)}
           />
         </Show>
 
@@ -455,19 +461,28 @@ function promptInputV2Cursor(editor: HTMLDivElement) {
 export function PromptInputV2Attachments(props: {
   attachments: PromptInputV2Attachment[]
   comments?: PromptInputV2Comment[]
+  quotes?: PromptInputV2Quote[]
+  quoteRemoveLabel?: string
   activeCommentID?: string
   removeLabel: string
   onAttachmentClick?: (attachment: PromptInputV2Attachment) => void
   onAttachmentRemove: (attachment: PromptInputV2Attachment) => void
   onCommentClick?: (comment: PromptInputV2Comment) => void
   onCommentRemove?: (comment: PromptInputV2Comment) => void
+  onQuoteRemove?: (quote: PromptInputV2Quote) => void
 }) {
   const i18n = useI18n()
-  const filled = () => props.attachments.length > 0 || (props.comments?.length ?? 0) > 0
+  const filled = () =>
+    props.attachments.length > 0 || (props.comments?.length ?? 0) > 0 || (props.quotes?.length ?? 0) > 0
   // The strip folds through Reveal once the last card goes, and keeps showing the last cards while it does.
-  const shown = createMemo<{ attachments: PromptInputV2Attachment[]; comments: PromptInputV2Comment[] }>(
-    (last) => (filled() ? { attachments: props.attachments, comments: props.comments ?? [] } : last),
-    { attachments: [], comments: [] },
+  const shown = createMemo<{
+    attachments: PromptInputV2Attachment[]
+    comments: PromptInputV2Comment[]
+    quotes: PromptInputV2Quote[]
+  }>(
+    (last) =>
+      filled() ? { attachments: props.attachments, comments: props.comments ?? [], quotes: props.quotes ?? [] } : last,
+    { attachments: [], comments: [], quotes: [] },
   )
   return (
     <Reveal open={filled()}>
@@ -476,6 +491,27 @@ export function PromptInputV2Attachments(props: {
           data-slot="prompt-attachments-scroll"
           class="flex flex-nowrap gap-2 overflow-x-auto no-scrollbar px-3.5 pt-3 pb-1"
         >
+          <For each={shown().quotes}>
+            {(quote) => (
+              <TooltipV2 value={quote.text} placement="top" contentClass="max-w-[360px] break-words" class="shrink-0">
+                <div
+                  data-slot="prompt-quote"
+                  class="flex h-8 max-w-[360px] items-center gap-2 rounded-full bg-v2-background-bg-accent-container pl-3 pr-1 text-[13px] text-v2-text-text-on-accent-container animate-enter"
+                >
+                  <IconV2 name="reply" class="shrink-0" />
+                  <span class="min-w-0 truncate">{`“${quote.text}”`}</span>
+                  <button
+                    type="button"
+                    onClick={() => props.onQuoteRemove?.(quote)}
+                    class="flex size-6 shrink-0 items-center justify-center rounded-full transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none"
+                    aria-label={props.quoteRemoveLabel ?? props.removeLabel}
+                  >
+                    <IconV2 name="outline-xmark" />
+                  </button>
+                </div>
+              </TooltipV2>
+            )}
+          </For>
           <For each={shown().comments}>
             {(comment) => (
               <div class="relative group shrink-0">

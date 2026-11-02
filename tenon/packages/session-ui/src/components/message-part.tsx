@@ -54,6 +54,7 @@ import { checksum } from "@tenon/core/util/encode"
 import { IconButton } from "@tenon/ui/icon-button"
 import { Icon as IconV2 } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
+import { readQuoteMetadata } from "./quote-note"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { PathTooltip, TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { Spinner } from "@tenon/ui/spinner"
@@ -1253,6 +1254,12 @@ export function UserMessageDisplay(props: {
 
   const messageComments = createMemo(() => (newLayout() ? (props.comments ?? []) : []))
 
+  const quotes = createMemo(() =>
+    (props.parts ?? []).flatMap((part) =>
+      part.type === "text" && (part as TextPart).synthetic ? (readQuoteMetadata(part.metadata) ?? []) : [],
+    ),
+  )
+
   const inlineFiles = createMemo(() => files().filter(inline))
 
   const agents = createMemo(() => (props.parts?.filter((p) => p.type === "agent") as AgentPart[]) ?? [])
@@ -1362,6 +1369,18 @@ export function UserMessageDisplay(props: {
   return (
     <div data-component="user-message" data-timeline-part-id={textPart()?.id}>
       <Show when={!props.useV2Actions}>{renderAttachments()}</Show>
+      <Show when={quotes().length > 0}>
+        <div data-slot="user-message-quotes" class="flex flex-col items-end gap-1 pb-1.5">
+          <For each={quotes()}>
+            {(quote) => (
+              <div class="flex max-w-[min(100%,480px)] items-start gap-1.5 text-[12px] leading-[18px] text-v2-text-text-muted">
+                <IconV2 name="reply" class="mt-px shrink-0" />
+                <span class="line-clamp-2 min-w-0">{quote}</span>
+              </div>
+            )}
+          </For>
+        </div>
+      </Show>
       <Show
         when={text()}
         fallback={

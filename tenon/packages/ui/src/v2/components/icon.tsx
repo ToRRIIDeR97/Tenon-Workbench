@@ -173,6 +173,10 @@ const icons = {
     viewBox: "0 0 16 16",
     body: `<path d="M8 13.5V2.5M3.5 7L8 2.5L12.5 7" stroke="currentColor"/>`,
   },
+  reply: {
+    viewBox: "0 0 16 16",
+    body: `<path d="M6 4L2.5 7.5L6 11M2.5 7.5H9C11.4853 7.5 13.5 9.51472 13.5 12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>`,
+  },
   "arrow-left": {
     viewBox: "0 0 16 16",
     body: `<path d="M13.5 8H2.5M7 3.5L2.5 8L7 12.5" stroke="currentColor"/>`,

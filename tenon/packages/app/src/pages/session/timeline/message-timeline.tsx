@@ -55,6 +55,7 @@ import { useFileComponent } from "@tenon/ui/context/file"
 import { shouldMarkBoundaryGesture, normalizeWheelDelta } from "@/pages/session/message-gesture"
 import { useDialog } from "@tenon/ui/context/dialog"
 import { useLanguage } from "@/context/language"
+import { usePrompt } from "@/context/prompt"
 import { useSessionKey, useSessionLayout } from "@/pages/session/session-layout"
 import { useSessionArchive } from "@/pages/session/session-archive"
 import { useSettings } from "@/context/settings"
@@ -68,6 +69,7 @@ import { scheduleConnectedMeasure } from "./measure"
 import { observeElementOffsetReconnectAware } from "./observe-element-offset"
 import { createTimelineProjection } from "./projection"
 import { MessageComment, SummaryDiff, TimelineRow, TimelineRowMap } from "./rows"
+import { SelectionReply } from "./selection-reply"
 import { filterVirtualIndexes } from "./virtual-items"
 import { TurnStepsSummary, stepsSpan } from "@/components/session/turn-steps-summary"
 import { useData } from "@tenon/session-ui/context"
@@ -277,6 +279,7 @@ export function MessageTimeline(props: {
   const coldBottomMount = !initialMeasurements?.length && props.shouldAnchorBottom()
 
   const [listRoot, setListRoot] = createSignal<HTMLDivElement>()
+  const prompt = usePrompt()
   const sessionID = createMemo(() => params.id)
   const sessionStatus = createMemo(() => {
     const id = sessionID()
@@ -1521,6 +1524,13 @@ export function MessageTimeline(props: {
           </Show>
         </div>
       </ScrollView>
+      <SelectionReply
+        root={listRoot}
+        onReply={(text) => {
+          prompt.context.add({ type: "quote", text })
+          document.querySelector<HTMLElement>('[data-component="prompt-input"]')?.focus()
+        }}
+      />
     </div>
   )
 }
