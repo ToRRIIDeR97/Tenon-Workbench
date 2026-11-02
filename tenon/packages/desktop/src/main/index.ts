@@ -24,6 +24,7 @@ import { registerIpcHandlers, sendDeepLinks, sendMenuCommand } from "./ipc"
 import { forwardInitializationFailure } from "./initialization"
 import { createGoogleCalendarService } from "./google-calendar"
 import { createDictationService } from "./dictation-service"
+import { createMailService, startMailEndpoint } from "./mail/service"
 import { exportDebugLogs, initCrashReporter, initLogging, write as writeLog } from "./logging"
 import { createMenu } from "./menu"
 import {
@@ -419,6 +420,7 @@ const main = Effect.gen(function* () {
   setDockIcon()
   const updater = setupAutoUpdater(stopSidecars)
   const googleCalendar = createGoogleCalendarService()
+  const mail = createMailService()
   const menuDeps = {
     trigger: (id: string) => {
       const win = getLastFocusedWindow()
@@ -459,6 +461,7 @@ const main = Effect.gen(function* () {
       if (setNativeTranslations(bundle)) createMenu(menuDeps)
     },
     dictation: createDictationService(),
+    mail,
   })
   registerWslIpcHandlers(wslServers)
   void updater.start()
@@ -505,6 +508,15 @@ const main = Effect.gen(function* () {
       }),
     )
     if (bridge) Object.assign(process.env, { TENON_BROWSER_URL: bridge.url, TENON_BROWSER_TOKEN: bridge.token })
+    // The server's mail tools (Command Centre only) reach the accounts through this endpoint.
+    const mailEndpoint = yield* Effect.promise(() =>
+      startMailEndpoint(mail).catch((error: unknown) => {
+        logger.error("mail endpoint failed", String(error))
+        return undefined
+      }),
+    )
+    if (mailEndpoint)
+      Object.assign(process.env, { TENON_MAIL_URL: mailEndpoint.url, TENON_MAIL_TOKEN: mailEndpoint.token })
     const startSidecar = (port: number) =>
       superviseSidecar({
         spawn: () => {

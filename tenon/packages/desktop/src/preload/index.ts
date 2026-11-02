@@ -191,6 +191,13 @@ const api: ElectronAPI = {
     },
     openPermissionSettings: () => ipcRenderer.invoke("dictation-open-permission-settings"),
   },
+  mail: {
+    available: () => ipcRenderer.invoke("mail-available"),
+    accounts: () => ipcRenderer.invoke("mail-accounts"),
+    connect: (provider) => ipcRenderer.invoke("mail-connect", provider),
+    addImap: (input) => ipcRenderer.invoke("mail-add-imap", input),
+    remove: (id) => ipcRenderer.invoke("mail-remove", id),
+  },
 }
 
 contextBridge.exposeInMainWorld("api", api)

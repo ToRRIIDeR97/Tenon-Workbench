@@ -3,7 +3,7 @@ import type { GoogleCalendarPlatform } from "@tenon/app"
 import type { WslServersPlatform } from "@tenon/app/wsl/types"
 import type { UpdaterState } from "@tenon/app/updater"
 import type { DesktopNativeBundle } from "@tenon/app/i18n/desktop-native"
-import type { DictationPlatform } from "@tenon/app"
+import type { DictationPlatform, MailPlatform } from "@tenon/app"
 export type {
   WslDistroProbe,
   WslInstalledDistro,
@@ -129,6 +129,7 @@ export type ElectronAPI = {
   recordFatalRendererError: (error: FatalRendererError) => Promise<void>
   setNativeTranslations: (bundle: DesktopNativeBundle) => Promise<void>
   dictation: DictationPlatform
+  mail: MailPlatform
 }
 
 export type BrowserBounds = { x: number; y: number; width: number; height: number }

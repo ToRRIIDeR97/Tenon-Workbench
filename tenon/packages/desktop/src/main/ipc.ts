@@ -43,6 +43,7 @@ import { write as writeLog } from "./logging"
 import { saveSessionExport } from "./session-export"
 import { nativeT } from "./native-translations"
 import type { DictationService } from "./dictation-service"
+import type { MailService } from "./mail/service"
 
 // Renderer-supplied IPC is only trusted from the main frame of an app window:
 // any other frame or webContents that reaches ipcRenderer must not reach the
@@ -111,6 +112,7 @@ type Deps = {
   recordFatalRendererError: (error: FatalRendererError) => Promise<void> | void
   setNativeTranslations: (bundle: DesktopNativeBundle) => void
   dictation: DictationService
+  mail: MailService
 }
 
 export function registerIpcHandlers(deps: Deps) {
@@ -200,6 +202,24 @@ export function registerIpcHandlers(deps: Deps) {
     ),
   )
   trustedHandle("dictation-open-permission-settings", () => deps.dictation.openPermissionSettings())
+  trustedHandle("mail-available", () => deps.mail.available())
+  trustedHandle("mail-accounts", () => deps.mail.accounts())
+  trustedHandle("mail-connect", (_event, provider: unknown) => {
+    if (provider !== "gmail" && provider !== "outlook") throw new Error("mail_provider_invalid")
+    return deps.mail.connect(provider)
+  })
+  trustedHandle("mail-add-imap", (_event, input: unknown) => {
+    const value = (input ?? {}) as Record<string, unknown>
+    return deps.mail.addImap({
+      host: String(value.host ?? ""),
+      port: Number(value.port),
+      secure: value.secure !== false,
+      user: String(value.user ?? ""),
+      password: String(value.password ?? ""),
+      ...(typeof value.address === "string" ? { address: value.address } : {}),
+    })
+  })
+  trustedHandle("mail-remove", (_event, id: unknown) => deps.mail.remove(String(id ?? "")))
   trustedHandle("set-background-color", (_event: IpcMainInvokeEvent, color: string) => deps.setBackgroundColor(color))
   trustedHandle("export-debug-logs", () => deps.exportDebugLogs())
   trustedHandle("set-force-focus", (event: IpcMainInvokeEvent, enabled: boolean) =>
