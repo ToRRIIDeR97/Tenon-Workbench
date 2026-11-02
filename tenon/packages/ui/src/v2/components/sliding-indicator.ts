@@ -28,12 +28,21 @@ export function createSlidingIndicator(options: SlidingIndicatorOptions): Access
 
     const measure = () => {
       const target = options.target(element)
-      if (!target || target.offsetParent !== element) {
+      // Sum offsets up to the container: an item may sit in a positioned wrapper, such as a tooltip trigger.
+      let x = 0
+      let y = 0
+      let node: HTMLElement | null = target ?? null
+      while (node && node !== element) {
+        x += node.offsetLeft
+        y += node.offsetTop
+        node = node.offsetParent as HTMLElement | null
+      }
+      if (!target || node !== element) {
         setPlaced(false)
         return
       }
-      element.style.setProperty(`${options.property}-x`, `${target.offsetLeft}px`)
-      element.style.setProperty(`${options.property}-y`, `${target.offsetTop}px`)
+      element.style.setProperty(`${options.property}-x`, `${x}px`)
+      element.style.setProperty(`${options.property}-y`, `${y}px`)
       element.style.setProperty(`${options.property}-width`, `${target.offsetWidth}px`)
       element.style.setProperty(`${options.property}-height`, `${target.offsetHeight}px`)
       setPlaced(true)

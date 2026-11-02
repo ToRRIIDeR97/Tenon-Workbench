@@ -409,7 +409,7 @@ export function NoteEditor(props: NoteEditorProps) {
                 <button
                   type="button"
                   role="menuitem"
-                  class="flex h-9 w-full items-center justify-between rounded-[12px] px-3 text-left text-[12px] text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none"
+                  class="flex h-9 w-full items-center justify-between rounded-[12px] px-3 text-left text-[12px] text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base focus-visible:outline-offset-[-2px] motion-reduce:transition-none"
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => run(command.id)}
                 >
@@ -489,7 +489,7 @@ export function NoteEditor(props: NoteEditorProps) {
                           type="button"
                           role="option"
                           aria-selected={activeCommand() === index()}
-                          class="flex h-9 w-full items-center justify-between rounded-[12px] px-3 text-left text-[12px] text-v2-text-text-muted hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base aria-selected:bg-v2-background-bg-accent-container aria-selected:text-v2-text-text-on-accent-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus"
+                          class="flex h-9 w-full items-center justify-between rounded-[12px] px-3 text-left text-[12px] text-v2-text-text-muted hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base aria-selected:bg-v2-background-bg-accent-container aria-selected:text-v2-text-text-on-accent-container focus-visible:outline-offset-[-2px]"
                           onMouseEnter={() => setActiveCommand(index())}
                           onMouseDown={(event) => event.preventDefault()}
                           onClick={() => {

@@ -610,7 +610,7 @@ const labelClass = "flex flex-col gap-1.5 text-[12px] text-v2-text-text-muted"
 const sliderClass =
   "h-4 w-full appearance-none rounded-full outline-none [&::-webkit-slider-thumb]:h-10 [&::-webkit-slider-thumb]:w-1 [&::-webkit-slider-thumb]:cursor-grab [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-v2-background-bg-accent [&::-webkit-slider-thumb]:[box-shadow:0_0_0_5px_var(--v2-background-bg-base)] focus-visible:[&::-webkit-slider-thumb]:[box-shadow:0_0_0_5px_var(--v2-background-bg-base),0_0_0_7px_var(--v2-border-border-focus)] [&::-moz-range-thumb]:h-10 [&::-moz-range-thumb]:w-1 [&::-moz-range-thumb]:cursor-grab [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-v2-background-bg-accent [&::-moz-range-thumb]:[box-shadow:0_0_0_5px_var(--v2-background-bg-base)] focus-visible:[&::-moz-range-thumb]:[box-shadow:0_0_0_5px_var(--v2-background-bg-base),0_0_0_7px_var(--v2-border-border-focus)]"
 const summaryClass =
-  "-ml-3 w-fit rounded-full px-3 py-1.5 text-[13px] text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none"
+  "-ml-3 w-fit rounded-full px-3 py-1.5 text-[13px] text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base motion-reduce:transition-none"
 
 function ProjectList(props: {
   projects: ProjectRecord[]

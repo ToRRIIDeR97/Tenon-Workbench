@@ -247,7 +247,7 @@ export function SessionBrowserTab() {
           </label>
           <input
             id="browser-address"
-            class="h-8 min-w-0 flex-1 rounded-full bg-v2-background-bg-layer-01 px-3 font-mono text-12-regular outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus"
+            class="h-8 min-w-0 flex-1 rounded-full bg-v2-background-bg-layer-01 px-3 font-mono text-12-regular "
             placeholder={language.t("secondBrain.browser.address.placeholder")}
             value={address()}
             onInput={(event) => setAddress(event.currentTarget.value)}

@@ -1,3 +1,4 @@
+import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import {
   createEffect,
   createSignal,
@@ -345,15 +346,17 @@ export function PromptProjectSelector(props: {
               }}
             />
             <Show when={props.controller.search().trim()}>
-              <button
-                type="button"
-                class="absolute right-2 flex size-6 items-center justify-center rounded-full text-v2-icon-icon-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover"
-                onPointerDown={(event) => event.preventDefault()}
-                onClick={() => props.controller.clearSearch()}
-                aria-label={props.controller.labels.clear()}
-              >
-                <Icon name="close" size="small" />
-              </button>
+              <TooltipV2 class="absolute right-2" value={props.controller.labels.clear()}>
+                <button
+                  type="button"
+                  class="flex size-6 items-center justify-center rounded-full text-v2-icon-icon-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover"
+                  onPointerDown={(event) => event.preventDefault()}
+                  onClick={() => props.controller.clearSearch()}
+                  aria-label={props.controller.labels.clear()}
+                >
+                  <Icon name="close" size="small" />
+                </button>
+              </TooltipV2>
             </Show>
           </div>
           <div class="flex max-h-[240px] flex-col gap-0.5 overflow-y-auto">
@@ -448,7 +451,7 @@ export function PromptProjectAddButton(props: { controller: PromptProjectControl
 
 /** Composer chip: a pill that tightens its corners while pressed. */
 const chipClass =
-  "flex h-8 min-w-0 items-center gap-1.5 rounded-full px-2.5 text-[13px] font-[400] leading-5 tracking-[-0.04px] transition-[background-color,border-radius] duration-short ease-standard active:rounded-[12px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none"
+  "flex h-8 min-w-0 items-center gap-1.5 rounded-full px-2.5 text-[13px] font-[400] leading-5 tracking-[-0.04px] transition-[background-color,border-radius] duration-short ease-standard active:rounded-[12px] motion-reduce:transition-none"
 
 function ProjectTrigger(props: ComponentProps<"button"> & { controller: PromptProjectController }) {
   const [local, rest] = splitProps(props, ["controller", "class", "classList", "onClick", "onKeyDown"])

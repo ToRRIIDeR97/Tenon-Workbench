@@ -267,7 +267,7 @@ export default function BrainHomePage() {
           >
             <Greeting />
             <form
-              class="flex flex-col overflow-hidden rounded-[24px] bg-v2-background-bg-base shadow-[0_0_0_1px_var(--v2-border-border-base),0_8px_28px_-12px_rgb(0_0_0/0.18)] transition-shadow duration-short ease-standard focus-within:shadow-[0_0_0_1px_var(--v2-border-border-focus),0_8px_28px_-12px_rgb(0_0_0/0.18)] motion-reduce:transition-none"
+              class="flex flex-col overflow-hidden rounded-[28px] bg-v2-background-bg-base shadow-[0_0_0_1px_var(--v2-border-border-base),0_8px_24px_-12px_rgb(0_0_0/0.18)] transition-shadow duration-short ease-standard focus-within:shadow-[0_0_0_1px_var(--v2-border-border-focus),0_8px_24px_-12px_rgb(0_0_0/0.18)] motion-reduce:transition-none"
               onSubmit={(event) => {
                 event.preventDefault()
                 void startSession()
@@ -337,7 +337,7 @@ export default function BrainHomePage() {
             <RevealShow when={!!(projects.failed() || calendar.error)}>
               {() => (
                 <div class="flex flex-wrap items-center justify-center gap-2">
-                  <p role="alert" class="text-[13px] text-v2-text-text-critical">
+                  <p role="alert" class="text-[12px] text-v2-text-text-critical">
                     {language.t("secondBrain.error.request")}
                   </p>
                   <ButtonV2

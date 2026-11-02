@@ -1670,7 +1670,8 @@ follows them instead of local choices.
   dialogs and panels), `--v2-duration-exit-small` (120ms, menus shrink to .96),
   and `--v2-duration-swap-out`/`-in` (100/200ms fade-through between tab
   panels). Lines that come and go (errors, notices) use `RevealShow`
-  (`ui/src/v2/reveal`), which collapses them instead of cutting.
+  (`ui/src/v2/reveal`), which collapses them instead of cutting; items inside a
+  row (the unsaved dot, Discard) use Reveal's `inline` variant, which narrows.
 - **Interaction states.** Segmented tabs show a hover overlay and a sliding
   tonal pill (`ui/src/v2/components/sliding-indicator.ts`). Selected items use
   the accent tonal fill everywhere. The cursor stays the default arrow; disabled

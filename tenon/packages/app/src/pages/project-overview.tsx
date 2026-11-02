@@ -129,7 +129,7 @@ export default function ProjectOverviewPage() {
               <Icon name="magnifying-glass" size="small" />
             </span>
             <input
-              class="h-9 w-full rounded-full bg-v2-background-bg-layer-01 pl-9 pr-3 text-[13px] text-v2-text-text-base outline-none transition-[background-color,box-shadow] duration-short ease-standard placeholder:text-v2-text-text-faint hover:bg-v2-background-bg-layer-02 focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none"
+              class="h-9 w-full rounded-full bg-v2-background-bg-layer-01 pl-9 pr-3 text-[13px] text-v2-text-text-base transition-[background-color,box-shadow] duration-short ease-standard placeholder:text-v2-text-text-faint hover:bg-v2-background-bg-layer-02 motion-reduce:transition-none"
               aria-label={language.t("secondBrain.projects.overview.filter")}
               placeholder={language.t("secondBrain.projects.overview.filter")}
               value={state.filter}

@@ -1214,7 +1214,7 @@ export default function CalendarPage() {
                                   <button
                                     type="button"
                                     classList={{
-                                      "mx-auto mb-1 flex size-7 shrink-0 items-center justify-center rounded-full text-[12px] transition-colors duration-short ease-standard focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none": true,
+                                      "mx-auto mb-1 flex size-7 shrink-0 items-center justify-center rounded-full text-[12px] transition-colors duration-short ease-standard motion-reduce:transition-none": true,
                                       "bg-v2-icon-icon-accent text-v2-icon-icon-contrast [font-weight:600]": day.today,
                                       "hover:bg-v2-overlay-simple-overlay-hover": !day.today,
                                       "text-v2-text-text-faint": !day.inMonth && !day.today,
@@ -1231,32 +1231,34 @@ export default function CalendarPage() {
                                   <div class="flex min-h-0 flex-col gap-0.5 overflow-hidden">
                                     <For each={eventsFor(day.date)}>
                                       {(event) => (
-                                        <button
-                                          type="button"
-                                          class="min-h-6 shrink-0 truncate rounded-[8px] bg-v2-background-bg-accent-container px-2 text-left text-[11px] text-v2-text-text-on-accent-container transition-[filter,border-radius] duration-short ease-standard hover:brightness-95 active:rounded-[4px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none"
-                                          title={event.title}
-                                          onClick={() => peekEvent(event)}
-                                        >
-                                          <Show when={event.start && event.date === day.date}>
-                                            <span class="mr-1 opacity-70">{event.start}</span>
-                                          </Show>
-                                          {event.title}
-                                        </button>
+                                        <TooltipV2 class="min-w-0 shrink-0" value={event.title}>
+                                          <button
+                                            type="button"
+                                            class="min-h-6 w-full truncate rounded-[8px] bg-v2-background-bg-accent-container px-2 text-left text-[11px] text-v2-text-text-on-accent-container transition-[filter,border-radius] duration-short ease-standard hover:brightness-95 active:rounded-[4px] focus-visible:outline-offset-[-2px] motion-reduce:transition-none"
+                                            onClick={() => peekEvent(event)}
+                                          >
+                                            <Show when={event.start && event.date === day.date}>
+                                              <span class="mr-1 opacity-70">{event.start}</span>
+                                            </Show>
+                                            {event.title}
+                                          </button>
+                                        </TooltipV2>
                                       )}
                                     </For>
                                     <For each={tasksFor(day.date)}>
                                       {(task) => (
-                                        <button
-                                          type="button"
-                                          class="min-h-6 shrink-0 truncate rounded-[8px] px-2 text-left text-[11px] text-v2-text-text-muted shadow-[inset_0_0_0_1px_var(--v2-border-border-base)] transition-[background-color,border-radius] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover active:rounded-[4px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none"
-                                          title={task.title}
-                                          onClick={() => peekTask(task)}
-                                        >
-                                          <Show when={task.start}>
-                                            <span class="mr-1 text-v2-text-text-faint">{task.start}</span>
-                                          </Show>
-                                          {task.title}
-                                        </button>
+                                        <TooltipV2 class="min-w-0 shrink-0" value={task.title}>
+                                          <button
+                                            type="button"
+                                            class="min-h-6 w-full truncate rounded-[8px] px-2 text-left text-[11px] text-v2-text-text-muted shadow-[inset_0_0_0_1px_var(--v2-border-border-base)] transition-[background-color,border-radius] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover active:rounded-[4px] focus-visible:outline-offset-[-2px] motion-reduce:transition-none"
+                                            onClick={() => peekTask(task)}
+                                          >
+                                            <Show when={task.start}>
+                                              <span class="mr-1 text-v2-text-text-faint">{task.start}</span>
+                                            </Show>
+                                            {task.title}
+                                          </button>
+                                        </TooltipV2>
                                       )}
                                     </For>
                                   </div>
@@ -1849,7 +1851,7 @@ function ScheduleRow(props: {
       </span>
       <button
         type="button"
-        class="flex min-w-0 flex-1 items-center gap-3.5 rounded-[12px] py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus"
+        class="flex min-w-0 flex-1 items-center gap-3.5 rounded-[12px] py-2 text-left focus-visible:outline-offset-[-2px]"
         aria-pressed={props.selected}
         onClick={props.onOpen}
       >

@@ -51,7 +51,7 @@ export function SessionCanvasTab() {
                     <div class="flex min-w-0 flex-col gap-1.5 rounded-[12px] border border-v2-border-border-muted bg-v2-background-bg-layer-01 p-1.5">
                       <button
                         type="button"
-                        class="relative block aspect-[16/10] w-full overflow-hidden rounded-[8px] bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus"
+                        class="relative block aspect-[16/10] w-full overflow-hidden rounded-[8px] bg-white"
                         aria-label={language.t("secondBrain.canvas.view", { title: title(design) })}
                         onClick={() => canvas.select(design.id)}
                       >

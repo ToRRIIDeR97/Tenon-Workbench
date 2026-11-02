@@ -73,7 +73,7 @@ export function SecondBrainSidebar() {
           <button
             type="button"
             data-sidebar-item="new-thread"
-            class="mb-3 flex size-14 items-center justify-center rounded-[16px] bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container transition-[border-radius,background-color,transform] duration-medium ease-spring hover:rounded-[20px] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none"
+            class="mb-3 flex size-14 items-center justify-center rounded-[16px] bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container transition-[border-radius,background-color,transform] duration-medium ease-spring hover:rounded-[20px] active:scale-95 motion-reduce:transition-none"
             aria-label={language.t("secondBrain.sidebar.newThread")}
             onClick={() => ctrl.newThread()}
           >
@@ -149,7 +149,7 @@ export function SecondBrainSidebar() {
                     </p>
                     <button
                       type="button"
-                      class="shrink-0 rounded-full px-2 py-0.5 text-[12px] text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none"
+                      class="shrink-0 rounded-full px-2 py-0.5 text-[12px] text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base motion-reduce:transition-none"
                       onClick={ctrl.retryProjects}
                     >
                       {language.t("secondBrain.error.retry")}
@@ -218,7 +218,7 @@ function RailItem(props: { id: string; icon: string; label: string; active?: boo
 function MissingFolder(props: { ctrl: SidebarController; directory: string }) {
   const language = useLanguage()
   const action =
-    "rounded-full px-2 py-0.5 text-[12px] text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none"
+    "rounded-full px-2 py-0.5 text-[12px] text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base motion-reduce:transition-none"
   return (
     <div role="alert" data-sidebar-item="folder-missing" class="flex flex-col gap-1 px-3 py-1">
       <p class="text-[12px] text-v2-text-text-critical [font-weight:600]">
@@ -266,7 +266,7 @@ function WorkspaceHeader(props: { ctrl: SidebarController }) {
           as="button"
           type="button"
           data-sidebar-item="workspace"
-          class="flex min-w-0 items-center gap-1 rounded-full px-3 py-1 text-left text-[13px] text-v2-text-text-base [font-weight:600] transition-colors hover:bg-v2-overlay-simple-overlay-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none"
+          class="flex min-w-0 items-center gap-1 rounded-full px-3 py-1 text-left text-[13px] text-v2-text-text-base [font-weight:600] transition-colors hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none"
           aria-label={language.t("secondBrain.sidebar.switchWorkspace")}
         >
           <span class="min-w-0 truncate">

@@ -16,8 +16,9 @@ import "./reveal-v2.css"
 export interface RevealProps extends ParentProps {
   open: boolean
   /** `line`: a conditional line (form error, notice, dock label) that opens over swap-in and closes over
-   * short + ease-exit, so the content below slides back instead of jumping. */
-  variant?: "line"
+   * short + ease-exit, so the content below slides back instead of jumping. `inline`: the same timing, but
+   * it widens and narrows for an item in a row (unsaved dot, Discard button). */
+  variant?: "line" | "inline"
   class?: string
   onTransitionEnd?: (event: TransitionEvent) => void
   /** Runs when an open or a close has finished, from `transitionend` or the fallback timer (once per phase). */

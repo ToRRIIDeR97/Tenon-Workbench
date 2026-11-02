@@ -3,6 +3,7 @@ import { ProviderIcon } from "@tenon/ui/provider-icon"
 import { Switch } from "@tenon/ui/v2/switch-v2"
 import { Icon as IconV2 } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
+import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { TextInputV2 } from "@tenon/ui/v2/text-input-v2"
 import { Reveal } from "@tenon/ui/v2/reveal"
 import { type Component, For, Show } from "solid-js"
@@ -69,15 +70,16 @@ export const SettingsModelsV2: Component = () => {
             aria-label={language.t("dialog.model.search.placeholder")}
           />
           <Show when={list.filter()}>
-            <IconButtonV2
-              type="button"
-              variant="ghost-muted"
-              size="small"
-              class="settings-v2-tab-search-clear"
-              aria-label={language.t("common.clear")}
-              icon={<IconV2 name="close" size="large" class="text-v2-icon-icon-muted" />}
-              onClick={() => list.clear()}
-            />
+            <TooltipV2 class="settings-v2-tab-search-clear" value={language.t("common.clear")}>
+              <IconButtonV2
+                type="button"
+                variant="ghost-muted"
+                size="small"
+                aria-label={language.t("common.clear")}
+                icon={<IconV2 name="close" size="large" class="text-v2-icon-icon-muted" />}
+                onClick={() => list.clear()}
+              />
+            </TooltipV2>
           </Show>
         </div>
       </div>

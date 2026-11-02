@@ -3,6 +3,7 @@ import { createStore } from "solid-js/store"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
+import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { TextInputV2 } from "@tenon/ui/v2/text-input-v2"
 import { showToast } from "@/utils/toast"
 import fuzzysort from "fuzzysort"
@@ -428,15 +429,16 @@ function SettingsKeybindsV2View(props: {
             aria-label={language.t("settings.shortcuts.search.placeholder")}
           />
           <Show when={store.filter}>
-            <IconButtonV2
-              type="button"
-              variant="ghost-muted"
-              size="small"
-              class="settings-v2-tab-search-clear"
-              aria-label={language.t("common.clear")}
-              icon={<IconV2 name="close" size="large" class="text-v2-icon-icon-muted" />}
-              onClick={() => setStore("filter", "")}
-            />
+            <TooltipV2 class="settings-v2-tab-search-clear" value={language.t("common.clear")}>
+              <IconButtonV2
+                type="button"
+                variant="ghost-muted"
+                size="small"
+                aria-label={language.t("common.clear")}
+                icon={<IconV2 name="close" size="large" class="text-v2-icon-icon-muted" />}
+                onClick={() => setStore("filter", "")}
+              />
+            </TooltipV2>
           </Show>
         </div>
       </div>

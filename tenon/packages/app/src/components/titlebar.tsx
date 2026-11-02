@@ -254,7 +254,7 @@ function TitlebarUpdateIconButton(props: { state: TitlebarUpdatePillState }) {
       <div class="group relative mr-3 h-5 w-5 shrink-0 animate-menu-enter rounded-full bg-v2-background-bg-deep transition-[width] duration-short ease-standard hover:z-30 hover:w-[68px] focus-within:z-30 focus-within:w-[68px] motion-reduce:transition-none">
         <button
           type="button"
-          class="absolute right-0 top-0 z-10 flex h-5 w-5 items-center justify-end overflow-hidden rounded-full bg-v2-icon-icon-accent/20 text-v2-icon-icon-accent transition-[width,background-color] duration-short ease-standard group-hover:w-[68px] group-hover:bg-[color-mix(in_srgb,var(--v2-icon-icon-accent)_20%,var(--v2-background-bg-deep))] group-focus-within:w-[68px] group-focus-within:bg-[color-mix(in_srgb,var(--v2-icon-icon-accent)_20%,var(--v2-background-bg-deep))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus disabled:opacity-60 motion-reduce:transition-none"
+          class="absolute right-0 top-0 z-10 flex h-5 w-5 items-center justify-end overflow-hidden rounded-full bg-v2-icon-icon-accent/20 text-v2-icon-icon-accent transition-[width,background-color] duration-short ease-standard group-hover:w-[68px] group-hover:bg-[color-mix(in_srgb,var(--v2-icon-icon-accent)_20%,var(--v2-background-bg-deep))] group-focus-within:w-[68px] group-focus-within:bg-[color-mix(in_srgb,var(--v2-icon-icon-accent)_20%,var(--v2-background-bg-deep))] disabled:opacity-60 motion-reduce:transition-none"
           onClick={props.state.onInstall}
           disabled={props.state.installing}
           aria-busy={props.state.installing}
