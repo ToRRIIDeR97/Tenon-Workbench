@@ -74,6 +74,7 @@ export const SecondBrainPaths = {
   vaultLog: "/second-brain/vault/log",
   vaultConflicts: "/second-brain/vault/conflicts",
   vaultMigrate: "/second-brain/vault/migrate",
+  undoWrite: "/second-brain/writes/:undo/undo",
 } as const
 
 export const SecondBrainApi = HttpApi.make("secondBrain").add(
@@ -240,6 +241,15 @@ export const SecondBrainApi = HttpApi.make("secondBrain").add(
       HttpApiEndpoint.post("migrateVault", SecondBrainPaths.vaultMigrate, {
         query: Schema.Struct(WorkspaceRoutingQueryFields),
         success: described(KnowledgeVault.MigrateResult, "Workspace notes moved into the vault"),
+        error: errors,
+      }),
+      HttpApiEndpoint.post("undoWrite", SecondBrainPaths.undoWrite, {
+        params: { undo: Schema.String },
+        query: Schema.Struct(WorkspaceRoutingQueryFields),
+        success: described(
+          Schema.Struct({ undone: Schema.Literal(true) }),
+          "The agent write was reverted; 409 when it was already undone or changed since",
+        ),
         error: errors,
       }),
     )

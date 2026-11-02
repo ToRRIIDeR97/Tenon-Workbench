@@ -344,6 +344,16 @@ export const listVaultConflicts = (client: Client) => request<VaultConflict[]>(c
 export const migrateVault = (client: Client) =>
   request<{ moved: number; backup: string }>(client, "/second-brain/vault/migrate", { method: "POST" })
 
+/**
+ * Reverts one agent write by its undo token; a 409 means it was already undone or has changed since.
+ * The folder travels in a header so the route's URL stays `/second-brain/writes/<token>/undo`.
+ */
+export const undoAgentWrite = (client: Client, token: string) =>
+  request<{ undone: true }>({ ...client, target: {} }, `/second-brain/writes/${encodeURIComponent(token)}/undo`, {
+    method: "POST",
+    headers: client.target.directory ? { "x-tenon-directory": encodeURIComponent(client.target.directory) } : {},
+  })
+
 /** A vault page in the shape the Projects map and overview list notes in. The vault keeps no link index. */
 export const vaultPageSummary = (info: VaultPageInfo): NoteSummary => ({
   path: info.path,

@@ -139,7 +139,9 @@ Some details of the write path:
   - notes and vault pages and timelines: a SHA-256 hash of the file;
   - projects: `updatedAt`;
   - calendar: a ULID.
-- No delete endpoints exist for notes, projects or tasks.
+- No delete endpoints exist for notes, projects or tasks. Undoing an agent
+  write removes the page, log line, events or tasks that write created
+  (`POST /second-brain/writes/<undo>/undo`).
 - One handler mapper turns failures into HTTP errors: a domain or path
   rejection is a 400 `SecondBrainInvalidError` whose `data.message` is the
   reason, a missing record is 404, a stale write is 409, and IO or permission
@@ -227,6 +229,15 @@ task handler directly. The same endpoint serves `ask_user` (not drawn): the call
 becomes a `QuestionV2` request in the caller's session, answered in the
 question dock; see [Questions from harnesses](README.md#questions-from-harnesses). See [Cross-harness delegation](README.md#cross-harness-delegation).
 
+### Sequence: agent app tool write and undo
+
+![Sequence: an agent calls notes_write over the tenon MCP endpoint, AgentAppTools resolves the thread's workspace and Project, refuses a write to another Project, publishes agent.write started and done on the global bus, and the renderer's Undo posts the single-use token back](../diagrams/sequence-app-tools.svg)
+
+Timeline, log, calendar and task writes follow the same steps with their own
+store (`KnowledgeVault.writeTimeline`, `appendLog`,
+`PlannerCalendarStore.save`). Undo tokens live in the server process only. See
+[App tools and agent writes](README.md#app-tools-and-agent-writes).
+
 ## Coverage index
 
 | Subject | Kind | Views | Source |
@@ -265,6 +276,7 @@ question dock; see [Questions from harnesses](README.md#questions-from-harnesses
 | LLM providers | External integration | Component, Deployment | `core/src/harness.ts` (`opencode` driver) |
 | Codex app-server, ACP agents (including upstream OpenCode via `opencode acp`) | External integration | Component, Deployment, Sequence: ACP turn | `core/src/harness.ts`, `core/src/harness/acp.ts` |
 | Cross-harness delegation and `ask_user` (loopback `tenon` MCP endpoint, per-runtime tokens, child Runs, questions to the dock) | Critical workflow | Component, Trust boundaries, Sequence: delegation; text in [README](README.md#questions-from-harnesses) | `core/src/harness/ask-user.ts`, `core/src/question.ts`, `app/src/pages/session/composer/session-question-dock.tsx`, `core/src/harness/delegation.ts`, `core/src/harness/delegation-tasks.ts`, `core/src/tool/delegate.ts`, `core/src/harness.ts` (`openCodex`, `makeAcpRuntime`, `acpStream`, `codexStream`), `core/src/harness/acp.ts` (`open`) |
+| Agent app tools, `agent.write` events and undo (Project-scoped writes, single-use tokens) | Critical workflow | Sequence: app tool write and undo; trust boundaries in the [threat model](../security/threat-model.md#agent-app-tools); text in [README](README.md#app-tools-and-agent-writes) | `core/src/harness/app-tools.ts`, `core/src/harness/delegation.ts`, `core/src/tool/app-tools.ts` (in-process tools, `tenon_write`), `tenon/src/agents/app-tools.ts`, `app/src/features/second-brain/calendar-sync.ts` (`dispatchQueuedTasks`), `tenon/src/planner/calendar-store.ts`, `tenon/src/knowledge/vault.ts` (`projectPagePath`, `removePage`, `removeLogEntry`), `tenon/src/server/routes/instance/httpapi/handlers/second-brain.ts` (`undoWrite`), `app/src/features/agent-writes/` (inline card, pill, step list, previews), `app/src/pages/layout-new.tsx`, `app/src/pages/session/timeline/message-timeline.tsx` |
 | Built-in harness setup (install, sign-in, API keys, first-run dialog) | Critical workflow | Trust boundaries; text in [README](README.md#built-in-harness-setup) | `core/src/harness/setup.ts`, `core/src/harness.ts` (`setup`, `install`, `signIn`, `setApiKey`, `withSetupKeys`), `server/src/handlers/harness.ts`, `app/src/components/settings-v2/harness-setup.tsx`, `app/src/pages/brain-home.tsx` |
 | Harness usage limits (Codex `account/rateLimits/read`, Claude Code OAuth usage with `.claude.json` fallback, Command Code `/alpha` usage, OpenCode Go `/zen/go/v1/usage` for the OpenCode harness and built-in agent, context menu Plan limits group, Settings → Harnesses) | External integration | Trust boundaries; text in [README](README.md#composer-context-ring-and-menu) | `core/src/harness/usage.ts`, `core/src/harness.ts` (`usage`), `server/src/handlers/harness.ts` (`harness.usage`), `app/src/utils/server.ts` (`listHarnessUsage`), `app/src/components/prompt-input/context-strip.tsx` (`PlanLimits`), `app/src/components/harness-usage.tsx`, `app/src/components/settings-v2/harnesses.tsx` |
 | Prompt run | Critical workflow | Activity: prompt run, Sequence: ACP turn | `core/src/session/runner/llm.ts` |

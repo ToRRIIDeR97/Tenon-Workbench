@@ -7,6 +7,7 @@ import { Frontmatter } from "@tenon/core/frontmatter"
 import { Global } from "@tenon/core/global"
 import { Location } from "@tenon/core/location"
 import { LocationMutation } from "@tenon/core/location-mutation"
+import { ProjectV2 } from "@tenon/core/project"
 import { Effect, Option, Schema } from "effect"
 import matter from "gray-matter"
 import { createHash, randomBytes } from "node:crypto"
@@ -211,6 +212,15 @@ export const open = Effect.fn("KnowledgeVault.open")(function* (workspace: Works
   )
 })
 
+/** The vault's view of an opened instance: its directory, a display name and, for a repository, its id. */
+export function workspaceFor(context: { directory: string; project: { id: string; name?: string } }): Workspace {
+  return {
+    directory: context.directory,
+    name: path.basename(context.directory) || context.project.name || "Workspace",
+    ...(context.project.id !== ProjectV2.ID.global ? { repository: context.project.id } : {}),
+  }
+}
+
 export function info(vault: Vault): Info {
   return { root: vault.root, workspace: { id: vault.id, name: vault.name, folder: vault.folder } }
 }
@@ -313,6 +323,36 @@ export const writePage = Effect.fn("KnowledgeVault.writePage")(function* (
     .writeIfUnchanged({ target, content: source, expected: current.bytes })
     .pipe(Effect.catchTag("FileMutation.StaleContentError", () => Effect.fail(new ConflictError({ reason: "stale" }))))
   return decode(full, source, projects)
+})
+
+/**
+ * A page path inside a Project's folder, relative to the workspace folder (a path already inside it is
+ * kept). A Project without a vault folder yet has no pages, so its paths read as missing.
+ */
+export const projectPagePath = Effect.fn("KnowledgeVault.projectPagePath")(function* (
+  vault: Vault,
+  projectId: string,
+  input: string,
+) {
+  const relative = yield* pagePath(input)
+  const folder = yield* existingProjectFolder(vault, projectId)
+  if (folder === undefined) return yield* new NotFoundError({ path: relative })
+  if (relative.toLowerCase().startsWith(`${folder.toLowerCase()}/`)) return relative
+  return yield* pagePath(`${folder}/${relative}`)
+})
+
+/** Remove a page while it still has `expectedRevision`, keeping the removed version in its history. */
+export const removePage = Effect.fn("KnowledgeVault.removePage")(function* (
+  vault: Vault,
+  input: string,
+  expectedRevision: string,
+) {
+  const files = yield* FileMutation.Service
+  const relative = yield* pagePath(input)
+  const current = yield* readPageFile(vault, relative, yield* projectFolders(vault))
+  if (current.revision !== expectedRevision) return yield* new ConflictError({ reason: "stale" })
+  yield* keepVersion(vault, relative, current)
+  yield* files.remove({ target: yield* resolveInside(vault, relative) })
 })
 
 /** Earlier versions of a page, newest first. */
@@ -432,6 +472,32 @@ export const appendLog = Effect.fn("KnowledgeVault.appendLog")(function* (
     }),
   )
   return entry
+})
+
+/** Remove one entry this machine appended (the last identical line); stale when it is no longer there. */
+export const removeLogEntry = Effect.fn("KnowledgeVault.removeLogEntry")(function* (
+  vault: Vault,
+  projectId: string,
+  entry: LogEntry,
+) {
+  const files = yield* FileMutation.Service
+  if (entry.machine !== vault.machine) return yield* new ConflictError({ reason: "stale" })
+  const folder = yield* existingProjectFolder(vault, projectId)
+  if (folder === undefined) return yield* new ConflictError({ reason: "stale" })
+  const target = yield* resolveInside(vault, `${folder}/log/${vault.machine}.md`)
+  yield* locks.withLock(`file:${target.canonical}`)(
+    Effect.gen(function* () {
+      const bytes = yield* readSmall(target.canonical, maxBytes)
+      const lines = bytes === undefined ? [] : utf8.decode(bytes).split("\n")
+      const index = lines.lastIndexOf(`- ${entry.at} · ${entry.author} · ${entry.text}`)
+      if (bytes === undefined || index < 0) return yield* new ConflictError({ reason: "stale" })
+      yield* files
+        .writeIfUnchanged({ target, content: lines.filter((_, line) => line !== index).join("\n"), expected: bytes })
+        .pipe(
+          Effect.catchTag("FileMutation.StaleContentError", () => Effect.fail(new ConflictError({ reason: "stale" }))),
+        )
+    }),
+  )
 })
 
 /** Sync conflict copies (Dropbox, OneDrive, Syncthing style names) in the workspace's vault folder. */

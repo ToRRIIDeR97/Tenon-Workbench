@@ -34,6 +34,57 @@ export const providerTask = (task: GoogleTaskProviderTask, local?: PlannerTask):
 })
 
 /**
+ * A Google task an agent created through the Tenon app tools (`tasks_create` with an `accountId`): a
+ * pending create the server saved with an `agent:` outbox key. The planner queues its own creates in
+ * the desktop outbox when it saves them; these were saved by the server, so no outbox has them yet.
+ */
+export const isQueuedAgentTask = (task: PlannerTask) =>
+  task.source === "google" &&
+  task.outboxKind === "create" &&
+  Boolean(task.outboxKey?.startsWith("agent:")) &&
+  Boolean(task.providerId?.startsWith("pending:")) &&
+  Boolean(task.accountId)
+
+/**
+ * Hands queued agent tasks to the desktop outbox, keyed by their outbox key so a repeat is idempotent,
+ * and returns the calendar with each sent task in its provider form. A task the outbox refuses (no
+ * write access for its account) stays queued for a later sync.
+ */
+export async function dispatchQueuedTasks(google: GoogleCalendarPlatform, current: CalendarSnapshot) {
+  const queued = current.tasks.filter(isQueuedAgentTask)
+  const sent = new Map<string, PlannerTask>()
+  const created: GoogleTaskProviderTask[] = []
+  for (const task of queued) {
+    const result = await google
+      .writeTask({
+        kind: "create",
+        idempotencyKey: task.outboxKey!,
+        task: {
+          accountId: task.accountId!,
+          providerId: task.providerId!,
+          taskListId: task.taskListId ?? "@default",
+          taskListTitle: task.taskListTitle ?? "Tasks",
+          title: task.title,
+          ...(task.notes ? { notes: task.notes } : {}),
+          ...(task.dueDate ? { dueDate: task.dueDate } : {}),
+          ...(task.completedAt ? { completedAt: task.completedAt } : {}),
+          updatedAt: task.updatedAt,
+        },
+      })
+      .catch(() => undefined)
+    if (!result?.task) continue
+    if (result.state === "synced") created.push(result.task)
+    sent.set(task.id, {
+      ...providerTask(result.task, task),
+      syncState: result.state === "synced" ? "synced" : result.state,
+      ...(result.state === "synced" ? {} : { outboxKind: "create" as const, outboxKey: task.outboxKey }),
+    })
+  }
+  if (sent.size === 0) return { current, created }
+  return { current: { ...current, tasks: current.tasks.map((task) => sent.get(task.id) ?? task) }, created }
+}
+
+/**
  * Pulls every connected Google account and merges the result into the folder's calendar.
  * `current` is the calendar the caller shows; when omitted it is read from the server first.
  * Returns undefined when another Google call is already running.
@@ -46,8 +97,20 @@ export async function syncGoogleCalendar(input: {
   if (busy()) return
   setBusy(true)
   try {
-    const result = await input.google.sync()
-    const current = input.current ?? (await readCalendar(input.client))
+    const pulled = await input.google.sync()
+    const dispatched = await dispatchQueuedTasks(input.google, input.current ?? (await readCalendar(input.client)))
+    const current = dispatched.current
+    // Tasks sent just now count as pulled, so the merge below keeps them in their provider form.
+    const pulledKeys = new Set(pulled.tasks.map((task) => `${task.accountId}:${task.taskListId}:${task.providerId}`))
+    const result = {
+      ...pulled,
+      tasks: [
+        ...pulled.tasks,
+        ...dispatched.created.filter(
+          (task) => !pulledKeys.has(`${task.accountId}:${task.taskListId}:${task.providerId}`),
+        ),
+      ],
+    }
     // Items saved before multiple accounts carry no account. They came from the one account then
     // connected, which the desktop migration keeps first in the list.
     const accountOf = (accountId: string | undefined) => accountId ?? result.connection.accounts[0]?.id

@@ -760,6 +760,55 @@ Known gaps: deleting `vault-machine.json` gives the machine a new id (a new
 log file) and, for a workspace without git, a new vault folder; nothing in the
 vault is encrypted at rest.
 
+## Agent app tools
+
+Agents in Codex and ACP harnesses can read and write Tenon data through app
+tools on the `tenon` MCP endpoint (`core/src/harness/app-tools.ts`,
+`tenon/src/agents/app-tools.ts`; see
+[App tools and agent writes](../architecture/README.md#app-tools-and-agent-writes)).
+The endpoint's controls ([Cross-harness delegation](#cross-harness-delegation))
+apply unchanged: loopback only, a bearer token per runtime bound to its Run,
+`Origin` refused, 1 MB bodies. Controls of the tools themselves:
+
+- The caller is the token's Run. The server derives the workspace and Project
+  from that Run's directory; no tool takes a workspace directory or an
+  absolute path. Writes reach only the workspace's vault folder (with every
+  vault check above), its `.tenon/calendar-v1.json`, and nothing in a Project
+  code folder.
+- Project scoping: a Project thread (its directory is a Project's thread
+  directory) writes only its own Project's pages, timeline and log; a
+  `projectId` naming another Project is refused ("outside this Project").
+  Reads across the workspace are allowed, so an agent in one Project can read
+  another Project's pages. A path that names another Project's folder from a
+  Project thread is placed inside the caller's own folder, not the other one.
+  Workspace threads are not limited to one Project.
+- Tool arguments and page text are data. Arguments are decoded against a
+  schema per tool and passed to the same vault and calendar validation as the
+  HTTP routes; page bodies are stored verbatim and never interpreted. Content a
+  read returns is untrusted text that may carry instructions from whoever
+  wrote it; the endpoint's instructions say so. Errors name a reason, never
+  content, and logs carry the tool name and error tag only.
+- Every write publishes `agent.write` events (a preview of at most 4,000
+  characters of the written text) on the global event stream, which reaches
+  every renderer connected to the server; the preview is shown as text.
+- Undo: each write returns a token (24 random bytes, base64url) that
+  `POST /second-brain/writes/<token>/undo` redeems once. The token is the
+  capability: the route needs the server's usual auth but not the writing
+  workspace's directory. An undo restores the state before the write only
+  while the target still has the written revision (pages, timelines) or the
+  added items are still exactly as written (calendar, tasks); otherwise 409. Tokens live in
+  server memory for 24 hours (at most 500) and are lost on restart.
+- In the built-in loop, write tools ask permission `tenon_write` (reads are
+  not asked), like any local tool. Codex and ACP agents apply their own MCP
+  tool policy. Either way the user sees each write with Undo.
+- Tasks with a Google `accountId` are stored as pending Google creates; they
+  reach Google only through the desktop outbox and its write consent, not
+  from the server: the renderer's Google sync sends them with their
+  `agent:` outbox key, and an account without write access keeps them queued.
+
+Known gaps: undo tokens are not tied to the thread or renderer that may
+redeem them; an agent can read its own tokens and undo its own writes.
+
 ## Local dictation
 
 The composer's mic records through `tenon-dictation`, a Rust child process of
