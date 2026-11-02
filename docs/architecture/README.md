@@ -184,7 +184,7 @@ The active Project is derived from the route's thread or draft directory. The
 header is the workspace dropdown (`layout.home.selection`, resolved by
 `layout.home.workspace` to the selected or first open folder). Home, Notes,
 Calendar and Projects read `layout.home.workspace` and have no picker of their
-own; Notes keeps an open note with unsaved edits in its workspace until it is
+own; Notes keeps an open page with unsaved edits in its workspace until it is
 saved or discarded. Home, Notes and the Projects page's thread folders read the
 same cached project-threads query as the sidebar (`useProjectThreads` and
 `useBrainProjects` in `sidebar-controller.ts`, 30 seconds of freshness); the
@@ -357,7 +357,39 @@ or workspace (`{ error: "inside_workspace" }`).
 | `POST /second-brain/vault/migrate` | `{ moved, backup }` (`backup` relative to the root, null when nothing moved) |
 
 The older `/second-brain/notes` and `/second-brain/note` routes still read and
-write `<workspace>/notes` until the Notes page moves to the vault.
+write `<workspace>/notes`; no page of the app uses them any more.
+
+#### Notes page
+
+`app/src/pages/notes.tsx` shows the vault of the sidebar's workspace. URLs:
+`/notes`, `/notes?project=<id>&tab=timeline|board|table|docs|log` (Timeline
+first) and `/notes?page=<path>` (`?note=` is read as `page`). A page opened from
+a Project is pushed onto history, so Back returns to that Project and tab.
+
+- The left column (`features/second-brain/notes-tree.tsx`) is an ARIA tree: a
+  Projects group (each Project from `useBrainProjects`, its pages beneath) and
+  a Workspace pages group (pages with no known Project), plus "Search pages"
+  (`GET …/vault/pages?search=`) and "New page", which creates `Untitled.md`
+  (or the next free name) with `create: true` in the open Project or the
+  workspace and opens it.
+- A Project (`notes-project.tsx`) shows its progress and the tabs: a week
+  grid with one bar per item and ◆ for milestones, a board by status, a table,
+  the Project's pages and its log. Layout helpers are in `notes-timeline.ts`.
+- A page (`notes-page.tsx`) opens full width in the shared `NoteEditor`. Save
+  and Ctrl/Cmd+S send the loaded revision; a 409 shows "This page changed
+  somewhere else" with a reload instead of overwriting. While a page has
+  unsaved edits it keeps its workspace (a sidebar switch waits) and leaving is
+  refused until they are saved or discarded.
+- The first visit to a workspace calls `POST …/vault/migrate` once (remembered
+  in `localStorage` per workspace directory) before listing pages, and shows
+  "Moved N notes into the Tenon vault" when anything moved. A
+  `vault_inside_workspace` 400 replaces the page with a message that names the
+  problem. Conflict copies are listed in a banner and open like pages.
+- Settings › General › Tenon vault (desktop only, through the platform's
+  `getVaultFolder` and `chooseVaultFolder`) shows the folder and picks another;
+  a folder inside a workspace is refused, and a new one asks for a restart.
+- The Projects page Map and `/projects/overview` list vault pages (as note
+  summaries without links) and open them at `/notes?page=`.
 
 ### Workspace instructions
 
