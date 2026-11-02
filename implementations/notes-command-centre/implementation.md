@@ -197,6 +197,7 @@ user's approval.
 
 PR3: TOR-2 pair; P5+P6 PASS at `4191d7ce` after one round. PR4: TOR-2 pair; stage 1 (no PR3 dependency) PASS at `b1e53450`, stage 2 rebased onto `4191d7ce`, PASS at `961f6079` after one round; PR3's tests re-run green on the rebased branch. Not run on `961f6079`: full core suite (Windows baseline failures known: git trees, file mode, symlinked AGENTS.md), `bun run build`. Manual checks still open: real Gmail/Outlook/IMAP accounts, a real Google Tasks round trip, real dictation on Windows and macOS, macOS engine build, desktop-only Settings rows, motion feel in the packaged app.
 
+PR2 integration (merge `68dd9428` of P3 `9a21438c` + P4 `341915d6` onto `864e51e9`): PASS — no conflicts; P3+P4 suites, `typecheck` 18/18, `lint`, `check:generated`, `test` 11/11, `test:routes` 11. Engine suite (orchestrator, on `68dd9428`): core 3 fail (Git 5 s timeouts, symlink permission; core untouched by these PRs), tenon 2907 pass / 1 fail (`session.list` path filter, session code untouched).
 
 PR1 integration (merge `0babf352` of P1 + P2 onto `fc3dda2e`): PASS — no conflicts; both items' suites, `bun run typecheck`, `lint`, `test` (11/11 tasks), `test:routes` (11) green. Install note: worktrees under `.claude/worktrees` hit the Windows path limit during `bun install`; a partial install shows as missing modules.
 
@@ -206,8 +207,8 @@ Filled in as phases pass. Verifier results and implementor reports are kept apar
 | --- | --- | --- | --- | --- |
 | P1 | `4c909f26` | 1 (rail corners overlapped the outline when closed) | PASS: acceptance 4/4, verification 3/3, regressions 12/12, typecheck; screenshots light/dark open/closed | Implementor: same suites green; worktree first started from `main`, rebased onto `fc3dda2e` |
 | P2 | `6332bd3e` | 0 (docs added before verification) | PASS: cargo 5/5 (incl. verify), desktop dictation 9/9, desktop 150 pass, app unit 920, web spec 1/1, lint 0 errors. Desktop-only UI (AC-2.4 positive path, AC-2.5) code-reviewed only; macOS build not run | Implementor: Windows release binary builds with the documented env (Build Tools CMake+Ninja, short target dir) |
-| P3 | | | | |
-| P4 | | | | |
+| P3 | `9a21438c` | 1 (four hardening findings: symlinked log append, backup containment, vault root inside a code folder, threat-model text) | PASS: acceptance 9/9, verification 4/4, test/knowledge 31, second-brain 72, desktop 151, typecheck, lint, check:generated | Implementor: layout `<root>/<Workspace>/<Project>/…`, machine map in the server data folder |
+| P4 | `341915d6` | 2 (regression rewrites, workspace hold, migration on first visit, error copy; then vault-folder Settings row and bar contrast) | PASS: acceptance 7 + verification 4, functional-audit-fixes + notes-vault-errors, test:routes 11, unit 924 (one unidentified flake once), lint. Settings row reviewed in code only (web build has no desktop platform) | Implementor: screenshots light/dark match artboard F |
 | P5 | `ef14fee4` (+ PR4 stage-2 changes in `961f6079`) | 1 (Google task dispatch, default in-process agent without tools, lenient calendar undo) | PASS: core app-tools 9, tenon app-tools + agents 14, typecheck, test, test:routes, lint | Implementor: built-in loop registers tools per folder; writes ask `tenon_write` |
 | P6 | `4191d7ce` | 1 (typing under reduced motion; pill over titlebar) | PASS: Playwright 27 incl. reduced-motion regression | Implementor: step list exported for P7 |
 | P7 | `961f6079` | 2 (stage 2: pill duplicating the step list; Command Centre-only tools shown to project threads in the built-in loop) | PASS: tenon acceptance+verification 46, Playwright 41 incl. AC-7.7, typecheck all, test, test:routes | Implementor: two stages (before/after PR3), rebased onto `4191d7ce` |
