@@ -94,6 +94,13 @@ describe("formatServerError", () => {
     )
   })
 
+  test("replaces a bare transport error tag with a sentence", () => {
+    expect(formatServerError(new Error("UnexpectedStatus"))).toBe(
+      "The request could not be completed. Check the connection and try again.",
+    )
+    expect(formatServerError(new Error("UnexpectedStatus"), undefined, "Fallback")).toBe("Fallback")
+  })
+
   test("returns provided string errors", () => {
     expect(formatServerError("Failed to connect to server", language.t)).toBe("Failed to connect to server")
   })

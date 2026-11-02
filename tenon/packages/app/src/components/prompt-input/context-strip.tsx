@@ -71,7 +71,7 @@ export function ComposerContextRing(props: { context: ComposerContext; harness?:
           onOpenChange={(open) => setState("open", open)}
           placement="top-end"
           gutter={8}
-          class="w-[clamp(320px,24vw,380px)] max-w-[calc(100vw-32px)] rounded-[20px] [&_[data-slot=popover-body]]:p-1.5"
+          class="w-[clamp(320px,24vw,380px)] max-w-[calc(100vw-32px)] [&_[data-slot=popover-body]]:p-1.5"
           triggerAs={IconButtonV2}
           triggerProps={{
             type: "button",
@@ -127,7 +127,7 @@ export function ComposerWhereRow() {
             <Show when={value().linked}>
               <span class="shrink-0">{language.t("secondBrain.contextStrip.worktree")}</span>
             </Show>
-            <span class="min-w-0 truncate text-v2-text-text-base [font-weight:530]">{value().name}</span>
+            <span class="min-w-0 truncate text-v2-text-text-base [font-weight:500]">{value().name}</span>
           </span>
         )}
       </Show>
@@ -163,7 +163,7 @@ function ContextMenu(props: {
     <div
       data-component="context-menu"
       aria-label={language.t("secondBrain.contextStrip.sheet")}
-      class="flex flex-col text-[12.5px] leading-[18px] tabular-nums text-v2-text-text-base"
+      class="flex flex-col text-[13px] leading-[18px] tabular-nums text-v2-text-text-base"
     >
       <Group title={language.t("secondBrain.contextMenu.window")}>
         <Show
@@ -220,7 +220,7 @@ function ContextMenu(props: {
 
       <button
         type="button"
-        class="mt-1.5 flex h-9 w-full items-center rounded-[14px] px-3 text-left text-[12.5px] font-[500] text-v2-text-text-base outline-none transition-colors hover:bg-v2-overlay-simple-overlay-hover focus-visible:shadow-[inset_0_0_0_1.5px_var(--v2-border-border-focus)]"
+        class="mt-1.5 flex h-9 w-full items-center rounded-[12px] px-3 text-left text-[13px] font-[500] text-v2-text-text-base outline-none transition-colors hover:bg-v2-overlay-simple-overlay-hover focus-visible:shadow-[inset_0_0_0_1.5px_var(--v2-border-border-focus)]"
         onClick={() => {
           props.onView()
           openSessionContext({ view: view(), layout, tabs: tabs() })

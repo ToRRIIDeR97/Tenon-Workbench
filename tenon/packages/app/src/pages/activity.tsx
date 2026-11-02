@@ -103,7 +103,7 @@ export default function ActivityPage() {
                           onClick={() => sessions.session.open(record.session)}
                         >
                           <span class="size-2 shrink-0 rounded-full bg-v2-icon-icon-accent running-pulse" />
-                          <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base [font-weight:470]">
+                          <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base [font-weight:400]">
                             {record.session.title}
                           </span>
                           <Show
@@ -132,7 +132,9 @@ export default function ActivityPage() {
                   !(googleStatus()?.pendingWrites || googleStatus()?.failedWrites)
                 }
               >
-                <PageEmpty>{language.t("secondBrain.activity.attentionEmpty")}</PageEmpty>
+                <PageEmpty title={language.t("secondBrain.activity.attentionEmpty.title")}>
+                  {language.t("secondBrain.activity.attentionEmpty.body")}
+                </PageEmpty>
               </Show>
             </div>
           </Show>
@@ -142,7 +144,9 @@ export default function ActivityPage() {
                 when={changes().length > 0}
                 fallback={
                   <Show when={!sessions.data.loading()}>
-                    <PageEmpty>{language.t("secondBrain.activity.changesEmpty")}</PageEmpty>
+                    <PageEmpty title={language.t("secondBrain.activity.changesEmpty.title")}>
+                      {language.t("secondBrain.activity.changesEmpty.body")}
+                    </PageEmpty>
                   </Show>
                 }
               >
@@ -155,7 +159,7 @@ export default function ActivityPage() {
                           class={pageRowClass}
                           onClick={() => sessions.session.open(record.session)}
                         >
-                          <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base [font-weight:470]">
+                          <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base [font-weight:400]">
                             {record.session.title}
                           </span>
                           <span class="max-w-40 shrink-0 truncate text-[12px] text-v2-text-text-faint">
@@ -182,7 +186,9 @@ export default function ActivityPage() {
                 when={runs().length > 0}
                 fallback={
                   <Show when={!sessions.data.loading()}>
-                    <PageEmpty>{language.t("secondBrain.activity.runsEmpty")}</PageEmpty>
+                    <PageEmpty title={language.t("secondBrain.activity.runsEmpty.title")}>
+                      {language.t("secondBrain.activity.runsEmpty.body")}
+                    </PageEmpty>
                   </Show>
                 }
               >
@@ -206,7 +212,7 @@ export default function ActivityPage() {
                             }}
                           />
                           <span class="min-w-0 flex-1">
-                            <span class="block truncate text-[13px] text-v2-text-text-base [font-weight:470]">
+                            <span class="block truncate text-[13px] text-v2-text-text-base [font-weight:400]">
                               {run.record.session.title}
                             </span>
                             <span class="block truncate text-[12px] text-v2-text-text-faint">
@@ -279,7 +285,7 @@ function AttentionRow(props: { title: string; detail: string; tone?: "critical";
           <span class="min-w-0 flex-1">
             <span
               classList={{
-                "block truncate text-[13px] [font-weight:530]": true,
+                "block truncate text-[13px] [font-weight:500]": true,
                 "text-v2-state-fg-danger": props.tone === "critical",
                 "text-v2-text-text-base": props.tone !== "critical",
               }}

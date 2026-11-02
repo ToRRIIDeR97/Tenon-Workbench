@@ -182,7 +182,7 @@ export function CustomProviderForm(props: { autofocus?: boolean } = {}) {
     <div class="flex max-h-[60vh] flex-col gap-5 overflow-y-auto px-2.5 pb-3">
       <div class="flex items-center gap-3 px-2.5">
         <ProviderIcon id="synthetic" class="size-5 shrink-0 text-v2-icon-icon-base" />
-        <h2 class="text-[15px] font-[530] tracking-[-0.13px] text-v2-text-text-base">
+        <h2 class="text-[15px] font-[500] tracking-[-0.13px] text-v2-text-text-base">
           {language.t("provider.custom.title")}
         </h2>
       </div>
@@ -227,7 +227,7 @@ export function CustomProviderForm(props: { autofocus?: boolean } = {}) {
         />
 
         <div class="flex flex-col gap-2">
-          <span class="ms-1 text-[12px] font-[530] text-v2-text-text-muted">
+          <span class="ms-1 text-[12px] font-[500] text-v2-text-text-muted">
             {language.t("provider.custom.models.label")}
           </span>
           <div class="flex flex-col gap-0.5 overflow-hidden rounded-[16px]">
@@ -268,7 +268,7 @@ export function CustomProviderForm(props: { autofocus?: boolean } = {}) {
         </div>
 
         <div class="flex flex-col gap-2">
-          <span class="ms-1 text-[12px] font-[530] text-v2-text-text-muted">
+          <span class="ms-1 text-[12px] font-[500] text-v2-text-text-muted">
             {language.t("provider.custom.headers.label")}
           </span>
           <div class="flex flex-col gap-0.5 overflow-hidden rounded-[16px]">

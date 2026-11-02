@@ -83,7 +83,7 @@ export function SessionRevertDock(props: {
         <IconV2 name="outline-reset" size="normal" class="text-v2-icon-icon-muted" />
         <span
           classList={{
-            "font-[440] shrink-0 cursor-default text-[13px] leading-5 tracking-[-0.04px]": true,
+            "font-[400] shrink-0 cursor-default text-[13px] leading-5 tracking-[-0.04px]": true,
             "text-v2-text-text-base": !store.collapsed,
             "text-v2-text-text-muted": store.collapsed,
           }}
@@ -91,7 +91,7 @@ export function SessionRevertDock(props: {
           {label()}
         </span>
         <Show when={store.collapsed && preview()}>
-          <span class="min-w-0 flex-1 truncate cursor-default text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-faint animate-enter">
+          <span class="min-w-0 flex-1 truncate cursor-default text-[13px] font-[400] leading-5 tracking-[-0.04px] text-v2-text-text-faint animate-enter">
             {preview()}
           </span>
         </Show>
@@ -120,7 +120,7 @@ export function SessionRevertDock(props: {
       {/* The list folds through Reveal and rows expand in and collapse out (createExitList). */}
       <Reveal open={!store.collapsed}>
         {/* Scroll viewport ends above the composer */}
-        <div class="flex max-h-42 flex-col overflow-y-auto px-5 pt-px pb-3 no-scrollbar">
+        <div class="flex max-h-42 flex-col overflow-y-auto px-5 pt-px pb-3">
           <For each={entries()}>
             {(entry, index) => (
               <Reveal open={entry.open}>

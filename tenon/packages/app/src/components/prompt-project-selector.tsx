@@ -448,7 +448,7 @@ export function PromptProjectAddButton(props: { controller: PromptProjectControl
 
 /** Composer chip: a pill that tightens its corners while pressed. */
 const chipClass =
-  "flex h-8 min-w-0 items-center gap-1.5 rounded-full px-2.5 text-[13px] font-[440] leading-5 tracking-[-0.04px] transition-[background-color,border-radius] duration-short ease-standard active:rounded-[12px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none"
+  "flex h-8 min-w-0 items-center gap-1.5 rounded-full px-2.5 text-[13px] font-[400] leading-5 tracking-[-0.04px] transition-[background-color,border-radius] duration-short ease-standard active:rounded-[12px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none"
 
 function ProjectTrigger(props: ComponentProps<"button"> & { controller: PromptProjectController }) {
   const [local, rest] = splitProps(props, ["controller", "class", "classList", "onClick", "onKeyDown"])

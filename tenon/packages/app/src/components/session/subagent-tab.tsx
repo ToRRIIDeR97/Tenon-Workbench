@@ -120,7 +120,7 @@ export function SubagentTab(props: {
                 <Show when={running(item().status)}>
                   <LoaderV2 width={12} height={12} style={{ color: "var(--v2-icon-icon-accent)" }} />
                 </Show>
-                <span class="truncate text-v2-text-text-base [font-weight:530]">
+                <span class="truncate text-v2-text-text-base [font-weight:500]">
                   {item().agent ?? language.t("secondBrain.agentTab.agentFallback")}
                 </span>
                 <span aria-hidden="true" class="text-v2-text-text-muted">
@@ -204,7 +204,7 @@ export function SubagentTab(props: {
                         <span>{formatter().percent(item().context?.percent)}</span>
                       </Show>
                     </div>
-                    <div class="text-[15px] leading-5 text-v2-text-text-base [font-weight:560]">
+                    <div class="text-[15px] leading-5 text-v2-text-text-base [font-weight:600]">
                       <Show when={item().context} fallback={notReported()}>
                         {(context) =>
                           context().size === undefined
@@ -352,7 +352,7 @@ function Stat(props: { label: string; value: JSX.Element }) {
   return (
     <div class="flex min-w-0 flex-col gap-0.5 rounded-[16px] bg-v2-background-bg-layer-01 px-3 py-2.5">
       <div class="truncate text-[11px] leading-4 text-v2-text-text-muted">{props.label}</div>
-      <div class="break-words text-[15px] leading-5 text-v2-text-text-base [font-weight:560]">{props.value}</div>
+      <div class="break-words text-[15px] leading-5 text-v2-text-text-base [font-weight:600]">{props.value}</div>
     </div>
   )
 }

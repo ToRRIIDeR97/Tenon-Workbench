@@ -183,7 +183,7 @@
     min-height: 26px;
     padding-block: 3px;
     background: transparent;
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--v2-text-text-muted);
     transition:
       background-color var(--v2-duration-short) var(--v2-ease-standard),

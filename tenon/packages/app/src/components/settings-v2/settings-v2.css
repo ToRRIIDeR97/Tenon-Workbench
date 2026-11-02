@@ -19,16 +19,11 @@
   flex-direction: column;
   height: 100%;
   overflow-y: auto;
-  scrollbar-width: none;
   user-select: none;
 }
 
 .settings-v2-panel :is(input, textarea, [contenteditable="true"]) {
   user-select: text;
-}
-
-.settings-v2-panel::-webkit-scrollbar {
-  display: none;
 }
 
 .settings-v2-tab-header {
@@ -40,9 +35,9 @@
 }
 
 .settings-v2-tab-title {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 600;
-  line-height: 1;
+  line-height: 24px;
   color: var(--v2-text-text-base);
 }
 
@@ -62,9 +57,9 @@
 
 .settings-v2-section-title {
   padding-inline-start: 8px;
-  font-size: 13px;
-  font-weight: 530;
-  line-height: 1;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
   color: var(--v2-text-text-muted);
 }
 
@@ -114,8 +109,8 @@
 [data-slot="settings-v2-row-title"] {
   font-style: normal;
   font-size: 13px;
-  font-weight: 530;
-  line-height: 1;
+  font-weight: 500;
+  line-height: 20px;
   letter-spacing: -0.04px;
   color: var(--v2-text-text-base);
   font-variation-settings: "slnt" 0;
@@ -123,7 +118,7 @@
 
 [data-slot="settings-v2-row-description"] {
   font-size: 12px;
-  font-weight: 440;
+  font-weight: 400;
   line-height: 17px;
   color: var(--v2-text-text-muted);
 }
@@ -316,8 +311,8 @@
 
 .settings-v2-nav-footer > span {
   font-size: 11px;
-  font-weight: 440;
-  line-height: 1;
+  font-weight: 400;
+  line-height: 16px;
   color: var(--v2-text-text-faint);
 }
 
@@ -376,14 +371,14 @@
 
 .settings-v2-provider-name {
   font-size: 13px;
-  font-weight: 530;
+  font-weight: 500;
   line-height: 16px;
   color: var(--v2-text-text-base);
 }
 
 .settings-v2-provider-description {
   font-size: 12px;
-  font-weight: 440;
+  font-weight: 400;
   line-height: 17px;
   color: var(--v2-text-text-muted);
 }
@@ -391,16 +386,16 @@
 .settings-v2-provider-empty {
   padding: 20px;
   font-size: 13px;
-  font-weight: 440;
-  line-height: 1;
+  font-weight: 400;
+  line-height: 20px;
   color: var(--v2-text-text-muted);
 }
 
 .settings-v2-provider-env-hint {
   padding-inline-end: 8px;
   font-size: 12px;
-  font-weight: 440;
-  line-height: 1;
+  font-weight: 400;
+  line-height: 16px;
   color: var(--v2-text-text-faint);
   cursor: default;
 }
@@ -538,7 +533,7 @@
 
 .settings-v2-harness-nav-item[aria-current="true"] {
   background: var(--v2-background-bg-layer-02);
-  font-weight: 530;
+  font-weight: 500;
 }
 
 .settings-v2-harness-dot,
@@ -590,7 +585,7 @@
 
 .settings-v2-harness-name {
   font-size: 15px;
-  font-weight: 530;
+  font-weight: 500;
   line-height: 20px;
   color: var(--v2-text-text-base);
 }
@@ -832,7 +827,7 @@
   min-width: 0;
   overflow: hidden;
   font-size: 13px;
-  font-weight: 440;
+  font-weight: 400;
   line-height: 16px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -846,8 +841,8 @@
   gap: 4px;
   padding-block: 48px;
   font-size: 13px;
-  font-weight: 440;
-  line-height: 1;
+  font-weight: 400;
+  line-height: 20px;
   color: var(--v2-text-text-muted);
   text-align: center;
 }
@@ -863,9 +858,9 @@
   gap: 16px;
   min-height: 52px;
   padding: 8px 12px 8px 20px;
-  font-weight: 440;
+  font-weight: 400;
   font-size: 13px;
-  line-height: 1;
+  line-height: 20px;
   letter-spacing: -0.04px;
   color: var(--v2-text-text-base);
   font-variation-settings: "slnt" 0;
@@ -885,9 +880,9 @@
   background: var(--v2-background-bg-base);
   cursor: pointer;
   font-family: var(--font-family-mono);
-  font-weight: 440;
+  font-weight: 400;
   font-size: 12px;
-  line-height: 1;
+  line-height: 16px;
   color: var(--v2-text-text-muted);
   white-space: nowrap;
   transition:
@@ -918,7 +913,7 @@
   border-radius: var(--v2-radius-md);
   font-family: inherit;
   font-style: normal;
-  font-weight: 530;
+  font-weight: 500;
   color: var(--v2-text-text-on-accent-container);
   background-color: var(--v2-background-bg-accent-container);
 }
@@ -936,8 +931,8 @@
   gap: 4px;
   padding-block: 48px;
   font-size: 13px;
-  font-weight: 440;
-  line-height: 1;
+  font-weight: 400;
+  line-height: 20px;
   color: var(--v2-text-text-muted);
   text-align: center;
 }
@@ -1009,7 +1004,7 @@
 .settings-v2-servers-name {
   overflow: hidden;
   font-size: 13px;
-  font-weight: 530;
+  font-weight: 500;
   line-height: 16px;
   color: var(--v2-text-text-base);
   text-overflow: ellipsis;
@@ -1018,7 +1013,7 @@
 
 .settings-v2-servers-meta {
   font-size: 12px;
-  font-weight: 440;
+  font-weight: 400;
   line-height: 16px;
   color: var(--v2-text-text-faint);
 }
@@ -1031,8 +1026,8 @@
   gap: 4px;
   padding-block: 48px;
   font-size: 13px;
-  font-weight: 440;
-  line-height: 1;
+  font-weight: 400;
+  line-height: 20px;
   color: var(--v2-text-text-muted);
   text-align: center;
 }
@@ -1072,14 +1067,14 @@
 
 .settings-v2-server-dialog-label {
   font-size: 13px;
-  font-weight: 530;
-  line-height: 1;
+  font-weight: 500;
+  line-height: 20px;
   color: var(--v2-text-text-base);
 }
 
 .settings-v2-server-dialog-error {
   font-size: 12px;
-  font-weight: 440;
+  font-weight: 400;
   line-height: 16px;
   color: var(--v2-state-fg-danger);
 }
@@ -1112,7 +1107,7 @@
   align-items: center;
   gap: 8px;
   font-size: 15px;
-  font-weight: 530;
+  font-weight: 500;
   letter-spacing: -0.13px;
   color: var(--v2-text-text-base);
 }
@@ -1120,7 +1115,7 @@
 .settings-v2-harness-setup-connect-copy {
   margin: 0;
   font-size: 13px;
-  font-weight: 440;
+  font-weight: 400;
   line-height: 20px;
   letter-spacing: -0.04px;
   color: var(--v2-text-text-muted);
@@ -1139,7 +1134,7 @@
   border-radius: 9999px;
   padding: 0 14px;
   font-size: 13px;
-  font-weight: 530;
+  font-weight: 500;
   letter-spacing: -0.04px;
   color: var(--v2-text-text-base);
   background: var(--v2-background-bg-layer-02);
@@ -1169,7 +1164,7 @@
 .settings-v2-harness-setup-chip[data-size="small"] {
   height: 28px;
   padding: 0 12px;
-  font-weight: 440;
+  font-weight: 400;
 }
 
 .settings-v2-harness-setup-key {
@@ -1186,7 +1181,7 @@
   flex-direction: column;
   gap: 6px;
   font-size: 13px;
-  font-weight: 530;
+  font-weight: 500;
   line-height: 16px;
   color: var(--v2-text-text-base);
 }

@@ -58,7 +58,7 @@ export function PromptGitStatus(props: { branch?: string; noGit?: boolean }) {
           class="min-w-0 max-w-[220px]"
           contentClass="max-w-[calc(100vw-32px)] break-all"
         >
-          <div class="flex h-8 min-w-0 max-w-[220px] items-center gap-1.5 px-2 text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-muted">
+          <div class="flex h-8 min-w-0 max-w-[220px] items-center gap-1.5 px-2 text-[13px] font-[400] leading-5 tracking-[-0.04px] text-v2-text-text-muted">
             <Icon name="branch" size="small" class="shrink-0 text-v2-icon-icon-muted" />
             <span class="min-w-0 truncate">{value()}</span>
           </div>
@@ -138,13 +138,13 @@ export function PromptBranchPicker(props: { directory: string; branch?: string; 
         }}
         placement="bottom-start"
         gutter={6}
-        class="w-[min(280px,calc(100vw-32px))] rounded-[16px] [&_[data-slot=popover-body]]:p-1.5"
+        class="w-[min(280px,calc(100vw-32px))] [&_[data-slot=popover-body]]:p-1.5"
         triggerAs="button"
         triggerProps={{
           type: "button",
           title: language.t("secondBrain.composer.branch.title"),
           class:
-            "flex h-8 min-w-0 max-w-[220px] items-center gap-1.5 rounded-full px-2 text-[13px] font-[440] leading-5 text-v2-text-text-muted transition-colors hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base data-[expanded]:bg-v2-overlay-simple-overlay-hover data-[expanded]:text-v2-text-text-base",
+            "flex h-8 min-w-0 max-w-[220px] items-center gap-1.5 rounded-full px-2 text-[13px] font-[400] leading-5 text-v2-text-text-muted transition-colors hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base data-[expanded]:bg-v2-overlay-simple-overlay-hover data-[expanded]:text-v2-text-text-base",
         }}
         trigger={
           <>
@@ -155,7 +155,7 @@ export function PromptBranchPicker(props: { directory: string; branch?: string; 
         }
       >
         <div data-component="prompt-branch-picker" class="flex flex-col text-[13px]">
-          <div class="px-2.5 pb-1 pt-2 text-[12px] font-[500] text-v2-text-text-faint">
+          <div class="px-2.5 pb-1 pt-2 text-[12px] leading-4 font-[500] text-v2-text-text-muted">
             {language.t("secondBrain.composer.branch.title")}
           </div>
           <Show when={state.branches}>
@@ -176,7 +176,7 @@ export function PromptBranchPicker(props: { directory: string; branch?: string; 
                       type="button"
                       role="menuitemradio"
                       aria-checked={branch === props.branch}
-                      class="flex min-h-8 w-full min-w-0 items-center gap-2 rounded-[10px] px-2.5 py-1.5 text-left text-v2-text-text-base transition-colors hover:bg-v2-overlay-simple-overlay-hover"
+                      class="flex min-h-8 w-full min-w-0 items-center gap-2 rounded-[12px] px-2.5 py-1.5 text-left text-v2-text-text-base transition-colors hover:bg-v2-overlay-simple-overlay-hover"
                       onClick={() => choose(branch)}
                     >
                       <span class="min-w-0 flex-1 truncate font-mono text-[12px]">{branch}</span>

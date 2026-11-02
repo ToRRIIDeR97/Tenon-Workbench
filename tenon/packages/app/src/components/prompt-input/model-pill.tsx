@@ -163,14 +163,14 @@ export function PromptModelPill(props: {
       }}
       placement="top-start"
       gutter={6}
-      class="w-[clamp(300px,22vw,360px)] max-w-[calc(100vw-32px)] rounded-[16px] [&_[data-slot=popover-body]]:p-1.5"
+      class="w-[clamp(300px,22vw,360px)] max-w-[calc(100vw-32px)] [&_[data-slot=popover-body]]:p-1.5"
       triggerAs="button"
       triggerProps={{
         type: "button",
         title: language.t("secondBrain.composer.modelPill.title"),
         disabled: props.harness.disabled?.(),
         class:
-          "flex h-7 min-w-0 max-w-[280px] items-center gap-1.5 rounded-full px-2.5 text-[13px] font-[440] leading-5 text-v2-text-text-muted transition-colors hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base data-[expanded]:bg-v2-overlay-simple-overlay-hover data-[expanded]:text-v2-text-text-base disabled:opacity-50",
+          "flex h-7 min-w-0 max-w-[280px] items-center gap-1.5 rounded-full px-2.5 text-[13px] font-[400] leading-5 text-v2-text-text-muted transition-colors hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base data-[expanded]:bg-v2-overlay-simple-overlay-hover data-[expanded]:text-v2-text-text-base disabled:opacity-50",
       }}
       trigger={
         <>
@@ -201,7 +201,7 @@ export function PromptModelPill(props: {
                   >
                     <span class="flex min-w-0 flex-1 flex-col leading-[18px]">
                       <span class="text-[12px] text-v2-text-text-faint">{row.title}</span>
-                      <span class="break-words text-[13.5px] text-v2-text-text-base">{row.value}</span>
+                      <span class="break-words text-[13px] text-v2-text-text-base">{row.value}</span>
                     </span>
                     <Icon name="chevron-down" size="small" class="shrink-0 -rotate-90 text-v2-icon-icon-muted" />
                   </button>
@@ -329,7 +329,7 @@ export function PromptModelPill(props: {
 
 // Rows show a ring only for keyboard focus; a pointer opening the panel never draws one.
 const ROW_CLASS =
-  "flex w-full min-w-0 items-center gap-2.5 rounded-[10px] px-2.5 py-1.5 text-left outline-none transition-colors hover:bg-v2-overlay-simple-overlay-hover focus-visible:shadow-[inset_0_0_0_1.5px_var(--v2-border-border-focus)] disabled:cursor-default disabled:opacity-45 disabled:hover:bg-transparent"
+  "flex w-full min-w-0 items-center gap-2.5 rounded-[12px] px-2.5 py-1.5 text-left outline-none transition-colors hover:bg-v2-overlay-simple-overlay-hover focus-visible:shadow-[inset_0_0_0_1.5px_var(--v2-border-border-focus)] disabled:cursor-default disabled:opacity-45 disabled:hover:bg-transparent"
 
 function Choice(props: {
   label: string

@@ -736,7 +736,7 @@ function PromptInputV2ModelControl(props: {
       </span>
     </>
   )
-  const buttonClass = "prompt-input-responsive-select min-w-0 max-w-[220px] justify-start ![font-weight:440] group"
+  const buttonClass = "prompt-input-responsive-select min-w-0 max-w-[220px] justify-start ![font-weight:400] group"
   return (
     <TooltipV2
       placement="top"

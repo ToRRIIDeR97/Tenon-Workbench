@@ -24,7 +24,7 @@
     height: 368px;
     background: var(--v2-background-bg-layer-01);
     box-shadow: var(--v2-elevation-overlay);
-    border-radius: 6px;
+    border-radius: var(--v2-radius-xl);
     overflow: hidden;
     pointer-events: auto;
 
@@ -38,12 +38,6 @@
       flex: 1;
       overflow: auto;
       background: transparent;
-
-      scrollbar-width: none;
-      -ms-overflow-style: none;
-      &::-webkit-scrollbar {
-        display: none;
-      }
 
       [data-slot="dialog-header"] {
         display: flex;
@@ -60,7 +54,7 @@
           flex: 1;
           min-width: 0;
           user-select: none;
-          font-weight: 530;
+          font-weight: 500;
           font-size: 13px;
           line-height: 16px;
           letter-spacing: -0.04px;
@@ -82,7 +76,7 @@
           flex: none;
           flex-grow: 0;
           user-select: none;
-          font-weight: 530;
+          font-weight: 500;
           font-size: 15px;
           line-height: 20px;
           letter-spacing: -0.13px;
@@ -94,7 +88,7 @@
           flex: none;
           flex-grow: 0;
           user-select: none;
-          font-weight: 440;
+          font-weight: 400;
           font-size: 13px;
           line-height: 20px;
           letter-spacing: -0.04px;
@@ -179,7 +173,7 @@
 /* Material 3 shape and motion: large-radius dialog that rises in (medium + emphasized-decelerate)
    and fades out (short + emphasized-accelerate). */
 [data-component="dialog-v2"] [data-slot="dialog-container"] {
-  border-radius: var(--v2-radius-xxl);
+  border-radius: var(--v2-radius-xl);
   animation: dialog-v2-enter var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate);
 }
 

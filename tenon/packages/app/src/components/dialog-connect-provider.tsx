@@ -206,7 +206,7 @@ function ProviderPickerV2(props: {
         />
       </div>
       <div class="relative min-h-0 flex-1">
-        <div class="flex size-full min-h-0 flex-col gap-4 overflow-y-auto pb-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div class="flex size-full min-h-0 flex-col gap-4 overflow-y-auto pb-8">
           <For
             each={[
               { title: language.t("dialog.provider.group.popular"), items: popular },
@@ -216,7 +216,7 @@ function ProviderPickerV2(props: {
             {(group) => (
               <Show when={group.items().length > 0}>
                 <section class="flex flex-col">
-                  <div class="px-3 pb-2 text-[13px] font-[440] leading-none tracking-[-0.04px] text-v2-text-text-muted">
+                  <div class="px-3 pb-2 text-[12px] font-[500] leading-4 tracking-[-0.04px] text-v2-text-text-muted">
                     {group.title}
                   </div>
                   <For each={group.items()}>
@@ -224,7 +224,7 @@ function ProviderPickerV2(props: {
                       <button
                         type="button"
                         data-provider-id={provider.id}
-                        class="flex min-h-10 w-full items-center gap-2 rounded-[16px] px-4 py-2.5 text-left text-[13px] leading-none tracking-[-0.04px] transition-[background-color,border-radius] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover focus:bg-v2-overlay-simple-overlay-hover focus:outline-none active:rounded-[12px] motion-reduce:transition-none"
+                        class="flex min-h-10 w-full items-center gap-2 rounded-[16px] px-4 py-2.5 text-left text-[13px] leading-5 tracking-[-0.04px] transition-[background-color,border-radius] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover focus:bg-v2-overlay-simple-overlay-hover focus:outline-none active:rounded-[12px] motion-reduce:transition-none"
                         classList={{ "bg-v2-overlay-simple-overlay-hover": store.active === provider.id }}
                         onMouseEnter={() => setStore("active", provider.id)}
                         disabled={store.connecting !== undefined}
@@ -232,7 +232,7 @@ function ProviderPickerV2(props: {
                         onClick={() => connect(provider.id)}
                       >
                         <ProviderIcon id={provider.id} class="size-4 shrink-0 text-v2-icon-icon-base" />
-                        <span class="min-w-0 truncate font-[530] text-v2-text-text-base">{provider.name}</span>
+                        <span class="min-w-0 truncate font-[500] text-v2-text-text-base">{provider.name}</span>
                         <Show when={provider.id === CUSTOM_ID}>
                           <Tag class="shrink-0">{language.t("settings.providers.tag.custom")}</Tag>
                         </Show>
@@ -247,7 +247,7 @@ function ProviderPickerV2(props: {
             )}
           </For>
           <Show when={rows().length === 0}>
-            <div class="flex h-24 items-center justify-center text-[13px] font-[440] text-v2-text-text-muted">
+            <div class="flex h-24 items-center justify-center text-[13px] font-[400] text-v2-text-text-muted">
               {language.t("dialog.provider.empty")}
             </div>
           </Show>
@@ -527,7 +527,7 @@ function ProviderConnection(props: {
       <form onSubmit={handleSubmit} class="flex flex-col items-start gap-4">
         <Switch>
           <Match when={item()?.prompt.type === "text"}>
-            <label class="flex w-full flex-col gap-1.5 px-3 text-[13px] font-[530] leading-4 text-v2-text-text-base">
+            <label class="flex w-full flex-col gap-1.5 px-3 text-[13px] font-[500] leading-4 text-v2-text-text-base">
               {text()?.message ?? ""}
               <TextInputV2
                 appearance="large"
@@ -568,7 +568,7 @@ function ProviderConnection(props: {
                 >
                   {(option) => (
                     <div class="flex w-full items-center gap-x-2">
-                      <span class="[font-weight:530]">{option.label}</span>
+                      <span class="[font-weight:500]">{option.label}</span>
                       <span class="opacity-80">{option.hint}</span>
                     </div>
                   )}
@@ -637,8 +637,8 @@ function ProviderConnection(props: {
                 }}
                 onClick={() => void selectMethod(index())}
               >
-                <span class="font-[530]">{details().label}</span>
-                <Show when={details().hint}>{(hint) => <span class="font-[440] opacity-80">{hint()}</span>}</Show>
+                <span class="font-[500]">{details().label}</span>
+                <Show when={details().hint}>{(hint) => <span class="font-[400] opacity-80">{hint()}</span>}</Show>
               </button>
             )
           }}
@@ -649,7 +649,7 @@ function ProviderConnection(props: {
 
   function MethodSelection() {
     return (
-      <div class="px-3 text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-muted">
+      <div class="px-3 text-[13px] font-[400] leading-5 tracking-[-0.04px] text-v2-text-text-muted">
         {language.t("provider.connect.selectMethod", { provider: provider().name })}
       </div>
     )
@@ -689,10 +689,10 @@ function ProviderConnection(props: {
     }
 
     return (
-      <div class="flex flex-col gap-5 px-3 text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-muted">
+      <div class="flex flex-col gap-5 px-3 text-[13px] font-[400] leading-5 tracking-[-0.04px] text-v2-text-text-muted">
         {language.t("provider.connect.apiKey.description", { provider: provider().name })}
         <form onSubmit={handleSubmit} class="flex flex-col items-start gap-5 self-stretch">
-          <label class="flex w-full flex-col gap-1.5 font-[530] leading-4 text-v2-text-text-base">
+          <label class="flex w-full flex-col gap-1.5 font-[500] leading-4 text-v2-text-text-base">
             {language.t("provider.connect.apiKey.label", { provider: provider().name })}
             <TextInputV2
               ref={apiKey}
@@ -765,7 +765,7 @@ function ProviderConnection(props: {
     }
 
     return (
-      <div class="flex flex-col gap-5 px-3 text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-muted">
+      <div class="flex flex-col gap-5 px-3 text-[13px] font-[400] leading-5 tracking-[-0.04px] text-v2-text-text-muted">
         <div>
           {language.t("provider.connect.oauth.code.visit.prefix")}
           <ExternalLink href={store.authorization!.url} class="text-v2-text-text-base">
@@ -774,7 +774,7 @@ function ProviderConnection(props: {
           {language.t("provider.connect.oauth.code.visit.suffix", { provider: provider().name })}
         </div>
         <form onSubmit={handleSubmit} class="flex flex-col items-start gap-5 self-stretch">
-          <label class="flex w-full flex-col gap-1.5 font-[530] leading-4 text-v2-text-text-base">
+          <label class="flex w-full flex-col gap-1.5 font-[500] leading-4 text-v2-text-text-base">
             {language.t("provider.connect.oauth.code.label", { method: method()?.label ?? "" })}
             <TextInputV2
               ref={codeInput}
@@ -856,7 +856,7 @@ function ProviderConnection(props: {
           </ExternalLink>
           {language.t("provider.connect.oauth.auto.visit.suffix", { provider: provider().name })}
         </div>
-        <label class="flex w-full flex-col gap-1.5 font-[530] leading-4">
+        <label class="flex w-full flex-col gap-1.5 font-[500] leading-4">
           {language.t("provider.connect.oauth.auto.confirmationCode")}
           <TextInputV2
             appearance="large"
@@ -879,7 +879,7 @@ function ProviderConnection(props: {
     <div class="flex min-h-0 flex-1 flex-col">
       <div class="flex h-10 shrink-0 items-start gap-2 px-3">
         <ProviderIcon id={props.provider} class="mt-0.5 size-4 shrink-0 text-v2-icon-icon-base" />
-        <div class="text-[15px] font-[530] leading-5 tracking-[-0.13px] text-v2-text-text-base">
+        <div class="text-[15px] font-[500] leading-5 tracking-[-0.13px] text-v2-text-text-base">
           <Switch>
             <Match when={props.provider === "anthropic" && method()?.label?.toLowerCase().includes("max")}>
               {language.t("provider.connect.title.anthropicProMax")}

@@ -1043,7 +1043,7 @@ export function MessageTimeline(props: {
                   <Index each={comments()}>
                     {(comment) => (
                       <div class="shrink-0 max-w-[260px] rounded-[16px] bg-v2-background-bg-layer-01 px-3 py-2">
-                        <div class="flex items-center gap-1.5 min-w-0 text-[11px] text-v2-text-text-base [font-weight:530]">
+                        <div class="flex items-center gap-1.5 min-w-0 text-[11px] text-v2-text-text-base [font-weight:500]">
                           <FileIcon node={{ path: comment().path, type: "file" }} class="size-3.5 shrink-0" />
                           <span class="truncate">{getFilename(comment().path)}</span>
                           <Show when={comment().selection}>
@@ -1056,7 +1056,7 @@ export function MessageTimeline(props: {
                             )}
                           </Show>
                         </div>
-                        <div class="pt-1 text-[12.5px] leading-5 text-v2-text-text-base whitespace-pre-wrap break-words">
+                        <div class="pt-1 text-[13px] leading-5 text-v2-text-text-base whitespace-pre-wrap break-words">
                           {comment().comment}
                         </div>
                       </div>
@@ -1367,7 +1367,7 @@ export function MessageTimeline(props: {
                     <button
                       type="button"
                       data-slot="session-title-parent"
-                      class="min-w-0 max-w-[40%] truncate pl-3 text-[14px] font-[530] leading-5 tracking-[-0.04px] text-v2-text-text-faint transition-colors duration-150 ease-standard hover:text-v2-text-text-muted motion-reduce:transition-none"
+                      class="min-w-0 max-w-[40%] truncate pl-3 text-[14px] font-[500] leading-5 tracking-[-0.04px] text-v2-text-text-faint transition-colors duration-150 ease-standard hover:text-v2-text-text-muted motion-reduce:transition-none"
                       onClick={navigateParent}
                     >
                       {parentTitle()}
@@ -1386,7 +1386,7 @@ export function MessageTimeline(props: {
                       fallback={
                         <h1
                           data-slot="session-title-child"
-                          class="truncate text-[14px] font-[530] leading-5 tracking-[-0.04px] text-v2-text-text-base w-fit rounded-full px-3 py-1 transition-colors duration-150 ease-standard hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none"
+                          class="truncate text-[14px] font-[500] leading-5 tracking-[-0.04px] text-v2-text-text-base w-fit rounded-full px-3 py-1 transition-colors duration-150 ease-standard hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none"
                           onClick={openTitleEditor}
                         >
                           {childTitle()}
@@ -1400,7 +1400,7 @@ export function MessageTimeline(props: {
                         data-slot="session-title-child"
                         value={title.draft}
                         disabled={titleMutation.isPending}
-                        class="block text-[14px] font-[530] leading-5 tracking-[-0.04px] text-v2-text-text-base field-sizing-content self-start rounded-full px-3 py-1"
+                        class="block text-[14px] font-[500] leading-5 tracking-[-0.04px] text-v2-text-text-base field-sizing-content self-start rounded-full px-3 py-1"
                         style={{
                           "--inline-input-shadow": "none",
                         }}

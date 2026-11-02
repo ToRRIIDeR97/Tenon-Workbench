@@ -298,7 +298,7 @@ export const ErrorPage: Component<ErrorPageProps> = (props) => {
         </div>
         <div class="relative w-full rounded-[16px] bg-v2-background-bg-layer-01 shadow-[0_0_0_0.5px_var(--v2-border-border-muted)]">
           <pre
-            class="no-scrollbar max-h-96 overflow-auto whitespace-pre-wrap break-words p-4 pr-12 font-mono text-[12px] leading-5 text-v2-text-text-base select-text"
+            class="max-h-96 overflow-auto whitespace-pre-wrap break-words p-4 pr-12 font-mono text-[12px] leading-5 text-v2-text-text-base select-text"
             aria-label={language.t("error.page.details.label")}
             tabIndex={0}
           >

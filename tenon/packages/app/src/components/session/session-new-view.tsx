@@ -51,7 +51,9 @@ export function NewSessionView(props: NewSessionViewProps) {
       <div class="h-12 shrink-0" aria-hidden />
       <div class="flex-1 px-6 pb-30 flex items-center justify-center text-center">
         <div class="w-full max-w-200 flex flex-col items-center text-center gap-4">
-          <div class="text-[17px] text-v2-text-text-base [font-weight:560]">{language.t("session.new.title")}</div>
+          <div class="text-[17px] leading-6 text-v2-text-text-base [font-weight:600]">
+            {language.t("session.new.title")}
+          </div>
           <div class="w-full flex flex-col gap-4 items-center">
             <div class="flex items-start justify-center gap-3 min-h-5">
               <div class="text-[12px] [font-weight:500] text-v2-text-text-muted select-text leading-5 min-w-0 max-w-160 break-words text-center">

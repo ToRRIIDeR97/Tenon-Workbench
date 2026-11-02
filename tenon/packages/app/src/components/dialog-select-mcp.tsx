@@ -72,7 +72,7 @@ export const DialogSelectMcp: Component = () => {
               <div class="flex w-full items-center gap-2.5">
                 <span class={`size-2 shrink-0 rounded-full ${statusDotClass(status())}`} />
                 <div class="flex min-w-0 flex-1 flex-col gap-px">
-                  <span class="truncate [font-weight:530]">{i.name}</span>
+                  <span class="truncate [font-weight:500]">{i.name}</span>
                   <Show when={error() ?? statusLabel()}>
                     {(line) => (
                       <span

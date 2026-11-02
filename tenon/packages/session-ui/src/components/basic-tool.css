@@ -283,7 +283,7 @@ body[data-new-layout] {
       height: 20px;
       font-family: var(--v2-font-family-sans, "Inter", sans-serif);
       font-style: normal;
-      font-weight: 530;
+      font-weight: 500;
       font-size: 13px;
       line-height: 20px;
       letter-spacing: -0.04px;
@@ -295,7 +295,7 @@ body[data-new-layout] {
     [data-slot="basic-tool-tool-subtitle"] {
       font-family: var(--v2-font-family-sans, "Inter", sans-serif);
       font-style: normal;
-      font-weight: 440;
+      font-weight: 400;
       font-size: 13px;
       line-height: 20px;
       letter-spacing: -0.04px;

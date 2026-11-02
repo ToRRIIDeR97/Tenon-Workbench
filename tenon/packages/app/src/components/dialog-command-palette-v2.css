@@ -14,9 +14,9 @@
   min-height: 280px;
   max-height: min(calc(100vh - 96px), 480px);
   margin-top: max(48px, calc((100vh - 480px) / 2));
-  border-radius: var(--v2-radius-xxl);
+  border-radius: var(--v2-radius-xl);
   background: var(--v2-background-bg-base);
-  box-shadow: var(--v2-elevation-floating);
+  box-shadow: var(--v2-elevation-overlay);
 }
 
 .command-palette-v2-body {
@@ -94,7 +94,7 @@
   padding: 10px 12px 4px;
   color: var(--v2-text-text-faint);
   font-size: 12px;
-  font-weight: 530;
+  font-weight: 500;
   line-height: 16px;
   letter-spacing: -0.04px;
   user-select: none;
@@ -162,7 +162,7 @@
   overflow: hidden;
   color: var(--v2-text-text-base);
   font-size: 13px;
-  font-weight: 530;
+  font-weight: 500;
   line-height: 16px;
   letter-spacing: -0.04px;
   text-overflow: ellipsis;
@@ -175,7 +175,7 @@
   overflow: hidden;
   color: var(--v2-text-text-muted);
   font-size: 13px;
-  font-weight: 440;
+  font-weight: 400;
   line-height: 16px;
   letter-spacing: -0.04px;
   text-overflow: ellipsis;
@@ -199,7 +199,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--v2-text-text-muted);
-  font-weight: 440;
+  font-weight: 400;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -207,7 +207,7 @@
 .command-palette-v2-file-name {
   flex-shrink: 0;
   color: var(--v2-text-text-base);
-  font-weight: 530;
+  font-weight: 500;
   white-space: nowrap;
 }
 
@@ -217,7 +217,7 @@
   place-items: center;
   color: var(--v2-text-text-muted);
   font-size: 13px;
-  font-weight: 440;
+  font-weight: 400;
   line-height: 16px;
   letter-spacing: -0.04px;
 }

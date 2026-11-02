@@ -89,13 +89,14 @@ export default function ProjectOverviewPage() {
           <>
             <PageHeader id="project-overview-title" title={language.t("secondBrain.projects.overview.title")} />
             <PageEmpty
+              title={language.t("secondBrain.state.noWorkspace.title")}
               action={
                 <ButtonV2 variant="contrast" onClick={() => command.trigger("project.open")}>
                   {language.t("secondBrain.home.openWorkspace")}
                 </ButtonV2>
               }
             >
-              {language.t("secondBrain.empty.workspace")}
+              {language.t("secondBrain.state.noWorkspace.body")}
             </PageEmpty>
           </>
         }
@@ -117,7 +118,7 @@ export default function ProjectOverviewPage() {
           </TooltipV2>
           <h1
             id="project-overview-title"
-            class="min-w-0 flex-1 truncate text-[17px] text-v2-text-text-base [font-weight:560]"
+            class="min-w-0 flex-1 truncate text-[17px] leading-6 text-v2-text-text-base [font-weight:600]"
           >
             {language.t("secondBrain.projects.overview.title")}
           </h1>
@@ -143,13 +144,15 @@ export default function ProjectOverviewPage() {
               when={!failed()}
               fallback={
                 <PageEmpty
+                  error
+                  title={language.t("secondBrain.state.error.title")}
                   action={
                     <ButtonV2 variant="outline" onClick={retry}>
-                      {language.t("secondBrain.error.retry")}
+                      {language.t("secondBrain.state.retry")}
                     </ButtonV2>
                   }
                 >
-                  {language.t("secondBrain.error.request")}
+                  {language.t("secondBrain.state.error.body")}
                 </PageEmpty>
               }
             >
@@ -173,7 +176,7 @@ export default function ProjectOverviewPage() {
                         <div class="flex min-w-0 items-baseline gap-2 px-3">
                           <h2
                             id={heading()}
-                            class="min-w-0 flex-1 truncate text-[15px] text-v2-text-text-base [font-weight:560]"
+                            class="min-w-0 flex-1 truncate text-[15px] text-v2-text-text-base [font-weight:600]"
                           >
                             {group.name || language.t("secondBrain.projects.overview.workspace")}
                           </h2>
@@ -210,7 +213,7 @@ export default function ProjectOverviewPage() {
                         <Show when={group.items.length > 0}>
                           <div class="flex flex-col gap-1">
                             <div class="flex h-8 items-center gap-1 pl-3">
-                              <h3 class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-muted [font-weight:530]">
+                              <h3 class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-muted [font-weight:500]">
                                 {language.t("secondBrain.projects.overview.upcoming")}
                               </h3>
                               <Show when={group.items.length > preview}>
@@ -236,7 +239,7 @@ export default function ProjectOverviewPage() {
                         <Show when={group.notes.length > 0}>
                           <div class="flex flex-col gap-1">
                             <div class="flex h-8 items-center gap-1 pl-3">
-                              <h3 class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-muted [font-weight:530]">
+                              <h3 class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-muted [font-weight:500]">
                                 {language.t("secondBrain.projects.overview.notes")}
                               </h3>
                               <Show when={group.notes.length > preview}>

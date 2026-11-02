@@ -953,13 +953,14 @@ export default function CalendarPage() {
         when={directory()}
         fallback={
           <PageEmpty
+            title={language.t("secondBrain.state.noWorkspace.title")}
             action={
               <ButtonV2 variant="contrast" onClick={() => command.trigger("project.open")}>
                 {language.t("secondBrain.calendar.openFolder")}
               </ButtonV2>
             }
           >
-            {language.t("secondBrain.empty.workspace")}
+            {language.t("secondBrain.state.noWorkspace.body")}
           </PageEmpty>
         }
       >
@@ -1022,7 +1023,7 @@ export default function CalendarPage() {
               />
             </TooltipV2>
           </Show>
-          <h2 class="ml-1 min-w-0 flex-1 truncate text-[15px] text-v2-text-text-base [font-weight:560]">
+          <h2 class="ml-1 min-w-0 flex-1 truncate text-[15px] text-v2-text-text-base [font-weight:600]">
             <Show when={!taskView()}>{viewTitle()}</Show>
           </h2>
           <Show when={!taskView()}>
@@ -1093,13 +1094,15 @@ export default function CalendarPage() {
                   when={!events.error}
                   fallback={
                     <PageEmpty
+                      error
+                      title={language.t("secondBrain.state.error.title")}
                       action={
                         <ButtonV2 variant="outline" onClick={() => void eventActions.refetch()}>
-                          {language.t("secondBrain.calendar.retry")}
+                          {language.t("secondBrain.state.retry")}
                         </ButtonV2>
                       }
                     >
-                      <span role="alert">{language.t("secondBrain.calendar.loadFailed")}</span>
+                      {language.t("secondBrain.calendar.loadFailed")}
                     </PageEmpty>
                   }
                 >
@@ -1136,7 +1139,7 @@ export default function CalendarPage() {
                                     {(day) => (
                                       <section class="flex gap-2 py-2 shadow-[inset_0_0.5px_0_var(--v2-border-border-muted)] first:shadow-none [content-visibility:auto] [contain-intrinsic-size:auto_96px]">
                                         <div class="flex w-16 shrink-0 flex-col items-center pt-1.5">
-                                          <span class="text-[11px] uppercase tracking-[0.04em] text-v2-text-text-muted [font-weight:560]">
+                                          <span class="text-[11px] uppercase tracking-[0.04em] text-v2-text-text-muted [font-weight:600]">
                                             {day.weekday}
                                           </span>
                                           <span
@@ -1192,7 +1195,7 @@ export default function CalendarPage() {
                           <div class="grid h-8 shrink-0 grid-cols-7 bg-v2-background-bg-layer-01">
                             <For each={weekdays()}>
                               {(weekday) => (
-                                <div class="flex items-center justify-center text-[12px] text-v2-text-text-muted [font-weight:530]">
+                                <div class="flex items-center justify-center text-[12px] text-v2-text-text-muted [font-weight:500]">
                                   {weekday}
                                 </div>
                               )}
@@ -1211,7 +1214,7 @@ export default function CalendarPage() {
                                     type="button"
                                     classList={{
                                       "mx-auto mb-1 flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full text-[12px] transition-colors duration-short ease-standard focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus motion-reduce:transition-none": true,
-                                      "bg-v2-icon-icon-accent text-v2-icon-icon-contrast [font-weight:560]": day.today,
+                                      "bg-v2-icon-icon-accent text-v2-icon-icon-contrast [font-weight:600]": day.today,
                                       "hover:bg-v2-overlay-simple-overlay-hover": !day.today,
                                       "text-v2-text-text-faint": !day.inMonth && !day.today,
                                       "text-v2-text-text-muted": day.inMonth && !day.today,
@@ -1293,7 +1296,7 @@ export default function CalendarPage() {
                   <div class="flex flex-col gap-3 p-4">
                     <div class="flex items-start gap-2">
                       <div class="min-w-0 flex-1">
-                        <h2 class="text-[14px] text-v2-text-text-base [font-weight:530]">
+                        <h2 class="text-[14px] text-v2-text-text-base [font-weight:500]">
                           {language.t("secondBrain.calendar.google.title")}
                         </h2>
                         <p class="mt-1 text-[11px] leading-4 text-v2-text-text-faint">
@@ -1424,7 +1427,7 @@ export default function CalendarPage() {
                                 {(account) => (
                                   <li class="flex flex-col gap-2 rounded-[12px] bg-v2-background-bg-base p-3">
                                     <div class="flex items-center gap-2">
-                                      <span class="min-w-0 flex-1 truncate text-[12px] text-v2-text-text-base [font-weight:530]">
+                                      <span class="min-w-0 flex-1 truncate text-[12px] text-v2-text-text-base [font-weight:500]">
                                         {account.label || language.t("secondBrain.calendar.google.accountFallback")}
                                       </span>
                                       <ButtonV2
@@ -1528,7 +1531,7 @@ export default function CalendarPage() {
                     }}
                   >
                     <div class="flex items-center gap-2">
-                      <h2 class="min-w-0 flex-1 text-[14px] text-v2-text-text-base [font-weight:530]">
+                      <h2 class="min-w-0 flex-1 text-[14px] text-v2-text-text-base [font-weight:500]">
                         {state.draft.id
                           ? language.t("secondBrain.calendar.edit")
                           : language.t("secondBrain.calendar.new")}
@@ -1690,7 +1693,7 @@ export default function CalendarPage() {
                         aria-label={language.t("secondBrain.calendar.google.confirm.title")}
                         class="rounded-[16px] bg-v2-background-bg-base p-3 shadow-[0_0_0_0.5px_var(--v2-border-border-muted)]"
                       >
-                        <p class="text-[12px] leading-5 text-v2-text-text-base [font-weight:530]">
+                        <p class="text-[12px] leading-5 text-v2-text-text-base [font-weight:500]">
                           {state.googleConfirm === "delete"
                             ? language.t("secondBrain.calendar.google.confirm.delete")
                             : language.t("secondBrain.calendar.google.confirm.save")}
@@ -1853,9 +1856,9 @@ function ScheduleRow(props: {
         <span class="min-w-0 flex-1">
           <span
             classList={{
-              "block truncate text-[13.5px]": true,
-              "text-v2-text-on-accent-container [font-weight:560]": props.selected,
-              "text-v2-text-text-base [font-weight:480]": !props.selected,
+              "block truncate text-[13px]": true,
+              "text-v2-text-on-accent-container [font-weight:600]": props.selected,
+              "text-v2-text-text-base [font-weight:400]": !props.selected,
             }}
           >
             {props.item.title}

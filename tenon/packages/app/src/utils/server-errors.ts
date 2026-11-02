@@ -29,10 +29,24 @@ export function formatServerError(error: unknown, translate?: Translator, fallba
   const unwrapped = unwrapNamedError(error)
   if (isConfigInvalidErrorLike(unwrapped)) return parseReadableConfigInvalidError(unwrapped, translate)
   if (isProviderModelNotFoundErrorLike(unwrapped)) return parseReadableProviderModelNotFoundError(unwrapped, translate)
+  // Transport errors carry only their tag ("UnexpectedStatus", "RequestError") as the message: show a sentence.
+  if (error instanceof Error && isErrorTag(error.message)) return fallback ?? readableRequestError(translate)
   if (error instanceof Error && error.message) return error.message
   if (typeof error === "string" && error) return error
   if (fallback) return fallback
   return tr(translate, "error.chain.unknown", "Unknown error")
+}
+
+function isErrorTag(message: string) {
+  return /^[A-Z][a-z]+(?:[A-Z][a-z]+)+$/.test(message)
+}
+
+function readableRequestError(translate?: Translator) {
+  return tr(
+    translate,
+    "secondBrain.state.error.body",
+    "The request could not be completed. Check the connection and try again.",
+  )
 }
 
 const ERROR_TOAST_WINDOW_MS = 10_000

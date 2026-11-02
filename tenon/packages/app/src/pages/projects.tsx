@@ -375,13 +375,14 @@ export default function ProjectsPage() {
           <>
             <PageHeader id="projects-title" title={language.t("secondBrain.projects.title")} />
             <PageEmpty
+              title={language.t("secondBrain.state.noWorkspace.title")}
               action={
                 <ButtonV2 variant="contrast" onClick={() => command.trigger("project.open")}>
                   {language.t("secondBrain.home.openWorkspace")}
                 </ButtonV2>
               }
             >
-              {language.t("secondBrain.empty.workspace")}
+              {language.t("secondBrain.state.noWorkspace.body")}
             </PageEmpty>
           </>
         }
@@ -497,7 +498,10 @@ export default function ProjectsPage() {
                       />
                     </TooltipV2>
                     <div class="flex min-w-0 flex-1 items-baseline gap-2">
-                      <h1 id="projects-title" class="truncate text-[17px] text-v2-text-text-base [font-weight:560]">
+                      <h1
+                        id="projects-title"
+                        class="truncate text-[17px] leading-6 text-v2-text-text-base [font-weight:600]"
+                      >
                         {project.name}
                       </h1>
                       <span class="shrink-0 text-[12px] text-v2-text-text-faint">
@@ -629,13 +633,15 @@ function ProjectList(props: {
           when={!props.failed}
           fallback={
             <PageEmpty
+              error
+              title={props.language.t("secondBrain.state.error.title")}
               action={
                 <ButtonV2 variant="outline" onClick={props.retry}>
-                  {props.language.t("secondBrain.error.retry")}
+                  {props.language.t("secondBrain.state.retry")}
                 </ButtonV2>
               }
             >
-              {props.language.t("secondBrain.error.request")}
+              {props.language.t("secondBrain.state.error.body")}
             </PageEmpty>
           }
         >
@@ -647,7 +653,7 @@ function ProjectList(props: {
               <Icon name="workspace" size="small" />
             </span>
             <span class="min-w-0 flex-1">
-              <span class="block truncate text-[13px] text-v2-text-text-base [font-weight:530]">
+              <span class="block truncate text-[13px] text-v2-text-text-base [font-weight:500]">
                 {props.language.t("secondBrain.projects.overview.title")}
               </span>
               <span class="block truncate text-[12px] text-v2-text-text-faint">
@@ -684,7 +690,7 @@ function ProjectList(props: {
                     class="!size-8 [&_[data-slot=project-avatar-surface]]:!rounded-full [&_[data-slot=project-avatar-surface]]:!text-[13px]"
                   />
                   <span class="min-w-0 flex-1">
-                    <span class="block truncate text-[13px] text-v2-text-text-base [font-weight:530]">
+                    <span class="block truncate text-[13px] text-v2-text-text-base [font-weight:500]">
                       {project.name}
                     </span>
                     <span class="block truncate text-[12px] text-v2-text-text-faint">{project.outcome}</span>
@@ -936,7 +942,7 @@ function ProjectWork(props: {
       <Show when={props.project.instructions}>
         {(instructions) => (
           <section class="flex max-w-3xl flex-col gap-1">
-            <h2 class="text-[13px] text-v2-text-text-muted [font-weight:530]">
+            <h2 class="text-[13px] text-v2-text-text-muted [font-weight:500]">
               {props.language.t("secondBrain.projects.instructions")}
             </h2>
             <p class="whitespace-pre-wrap text-[13px] leading-5 text-v2-text-text-base">{instructions()}</p>

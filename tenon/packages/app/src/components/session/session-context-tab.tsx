@@ -42,13 +42,13 @@ function Stat(props: { label: string; value: JSX.Element }) {
   return (
     <div class="flex min-w-0 flex-col gap-0.5 rounded-[16px] bg-v2-background-bg-layer-01 px-3 py-2.5">
       <div class="truncate text-[11px] leading-4 text-v2-text-text-muted">{props.label}</div>
-      <div class="truncate text-[15px] leading-5 text-v2-text-text-base [font-weight:560]">{props.value}</div>
+      <div class="truncate text-[15px] leading-5 text-v2-text-text-base [font-weight:600]">{props.value}</div>
     </div>
   )
 }
 
 function SectionLabel(props: { children: JSX.Element }) {
-  return <div class="pl-1 text-[12px] text-v2-text-text-muted [font-weight:530]">{props.children}</div>
+  return <div class="pl-1 text-[12px] text-v2-text-text-muted [font-weight:500]">{props.children}</div>
 }
 
 function RawMessageContent(props: { message: Message; getParts: (id: string) => Part[]; onRendered: () => void }) {
@@ -84,7 +84,7 @@ function RawMessage(props: {
       <AccordionV2.Header>
         <AccordionV2.Trigger>
           <div class="flex w-full min-w-0 items-center justify-between gap-2">
-            <div class="min-w-0 truncate [font-weight:530]">
+            <div class="min-w-0 truncate [font-weight:500]">
               {props.message.role} <span class="text-v2-text-text-muted [font-weight:400]">• {props.message.id}</span>
             </div>
             <div class="shrink-0 text-[12px] text-v2-text-text-muted">{props.time(props.message.time.created)}</div>
@@ -455,7 +455,7 @@ export function SessionContextTab() {
             <div class="flex flex-wrap gap-x-3.5 gap-y-1 pl-1">
               <For each={breakdownGroups()}>
                 {(segment) => (
-                  <div class="flex items-center gap-1.5 text-[11.5px] text-v2-text-text-muted">
+                  <div class="flex items-center gap-1.5 text-[12px] text-v2-text-text-muted">
                     <div class="size-2 rounded-full" style={{ "background-color": BREAKDOWN_COLOR[segment.key] }} />
                     <div>{breakdownLabel(segment.key)}</div>
                     <div class="text-v2-text-text-faint">

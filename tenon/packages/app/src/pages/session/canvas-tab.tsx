@@ -84,7 +84,7 @@ export function SessionCanvasTab() {
                 aria-label={language.t("secondBrain.canvas.back")}
                 onClick={() => canvas.select(undefined)}
               />
-              <span class="min-w-0 truncate text-[13px] text-v2-text-text-base [font-weight:530]">{title(design)}</span>
+              <span class="min-w-0 truncate text-[13px] text-v2-text-text-base [font-weight:500]">{title(design)}</span>
               <ButtonV2 size="small" variant="neutral" class="ml-auto shrink-0" onClick={() => canvas.use(design)}>
                 {language.t("secondBrain.canvas.use")}
               </ButtonV2>

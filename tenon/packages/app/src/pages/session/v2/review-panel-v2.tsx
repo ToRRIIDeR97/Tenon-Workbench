@@ -19,6 +19,7 @@ import type {
   SessionReviewLineComment,
 } from "@tenon/session-ui/session-review"
 import FileTreeV2 from "@/components/file-tree-v2"
+import { PageEmpty } from "@/components/page"
 import { useLanguage } from "@/context/language"
 import { useSDK } from "@/context/sdk"
 import {
@@ -214,12 +215,7 @@ function ReviewPanelV2Sidebar(props: {
     >
       <Show
         when={props.diffsReady()}
-        fallback={
-          <div role="status" class="px-3 py-2 text-[13px] text-v2-text-text-muted">
-            {language.t("common.loading")}
-            {language.t("common.loading.ellipsis")}
-          </div>
-        }
+        fallback={<PageEmpty loading title={language.t("session.review.loadingChanges")} />}
       >
         <Show
           when={props.searching()}
