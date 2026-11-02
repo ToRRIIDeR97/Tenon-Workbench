@@ -53,6 +53,10 @@ export type ElectronAPI = {
   consumeInitialDeepLinks: () => Promise<string[]>
   getDefaultServerUrl: () => Promise<string | null>
   setDefaultServerUrl: (url: string | null) => Promise<void>
+  /** The Tenon vault folder and whether the user chose it (otherwise `<Documents>/Tenon`). */
+  getVaultFolder: () => Promise<{ folder: string; chosen: boolean }>
+  /** Pick another vault folder in a native dialog; null when cancelled. Takes effect after a relaunch. */
+  chooseVaultFolder: () => Promise<{ folder: string; restartRequired: boolean } | null>
   isFirstLaunchOnboardingPending: () => Promise<boolean>
   finishFirstLaunchOnboarding: (createDefaultProject: boolean) => Promise<string | null>
   isOldLayoutEligible: () => Promise<boolean>

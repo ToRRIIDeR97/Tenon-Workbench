@@ -22,7 +22,9 @@ import { resolveAppPath } from "./apps"
 import { runDesktopMenuAction } from "./desktop-menu-actions"
 import { setForceFocus } from "./debug"
 import { assertAttachmentBudget, createPickedFileAuthorizations } from "./attachment-picker"
-import { rendererStore, removeStoreFileIfEmpty } from "./store"
+import { getStore, rendererStore, removeStoreFileIfEmpty } from "./store"
+import { VAULT_FOLDER_KEY } from "./store-keys"
+import { vaultFolder } from "./vault-folder"
 import { assertStoreName } from "./store-name"
 import {
   getPinchZoomEnabled,
@@ -266,6 +268,27 @@ export function registerIpcHandlers(deps: Deps) {
       return opts?.multiple ? result.filePaths : result.filePaths[0]
     },
   )
+
+  trustedHandle("get-vault-folder", () => ({
+    folder: vaultFolder(getStore().get(VAULT_FOLDER_KEY), app.getPath("documents")),
+    chosen: typeof getStore().get(VAULT_FOLDER_KEY) === "string",
+  }))
+
+  // The folder comes from the native dialog, never from the renderer. The running server keeps its vault
+  // until it restarts, so the caller offers a relaunch.
+  trustedHandle("choose-vault-folder", async (event: IpcMainInvokeEvent) => {
+    const current = vaultFolder(getStore().get(VAULT_FOLDER_KEY), app.getPath("documents"))
+    const result = await showOpenDialog(event, {
+      properties: ["openDirectory", "createDirectory"],
+      title: nativeT("desktop.dialog.chooseFolder"),
+      defaultPath: current,
+    })
+    if (result.canceled || !result.filePaths[0]) return null
+    const folder = vaultFolder(result.filePaths[0], app.getPath("documents"))
+    getStore().set(VAULT_FOLDER_KEY, folder)
+    process.env.TENON_VAULT_DIR = folder
+    return { folder, restartRequired: folder !== current }
+  })
 
   trustedHandle(
     "open-file-picker",

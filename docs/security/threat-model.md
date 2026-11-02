@@ -16,6 +16,7 @@ Detailed permission and request flows are in
 | Renderer to native process | The main window uses `contextIsolation`, `sandbox`, and disabled `nodeIntegration`. `tenon/packages/desktop/src/preload/index.ts` exposes specific IPC methods implemented in `tenon/packages/desktop/src/main/ipc.ts`. Packaged builds ignore `ELECTRON_RENDERER_URL`; see Renderer content policy for remote media.                                     |
 | Renderer to managed server | Electron starts the Tenon server on `127.0.0.1` with a generated password. Server authorization checks credentials for protected routes. See `tenon/packages/desktop/src/main/index.ts` and `tenon/packages/tenon/src/server/routes/instance/httpapi/middleware/authorization.ts`.                                                                         |
 | Server to workspace files  | Second Brain handlers run in an instance location context. Note and project code resolves targets through `LocationMutation` before reading or writing files. See `tenon/packages/tenon/src/server/routes/instance/httpapi/handlers/second-brain.ts`, `tenon/packages/tenon/src/knowledge/note.ts`, and `tenon/packages/tenon/src/project/brain.ts`. |
+| Server to the Tenon vault  | Vault pages, timelines and logs live outside the workspace, under `TENON_VAULT_DIR` (default `<Documents>/Tenon`). Every vault path is a validated relative path resolved inside the workspace's vault folder, with its real path checked; see [Tenon vault](#tenon-vault) and `tenon/packages/tenon/src/knowledge/vault.ts`. |
 | Desktop to Google          | Calendar and Tasks integration uses OAuth in the Electron main process. The service keeps any number of accounts, encrypts each account's client secret and refresh token with Electron `safeStorage`, and disables connection when secure storage is unavailable. Access tokens are cached per account, writes are routed to the account named by the item, and the loopback callback ignores requests without the expected state. See `tenon/packages/desktop/src/main/google-calendar.ts`. |
 
 `POST /second-brain/projects/workspace` takes only a Tenon project id. The
@@ -89,7 +90,7 @@ from the server on the next read.
 Workspace notes, projects, calendar files, session data, provider tokens, and
 agent tool permissions are sensitive. Treat note contents, provider responses,
 workspace files, URL input, and IPC arguments as untrusted. Keep file access
-within the selected workspace and use the existing mutation services. Never
+within the selected workspace (or its Tenon vault folder) and use the existing mutation services. Never
 log credentials or full private content.
 
 ## Credentials, extensions, and recovery
@@ -696,6 +697,55 @@ rebuildable caches. Their keys are SHA-256 hashes of the instance configuration,
 which can carry API keys, so the files hold harness names, status and model
 names but no configuration or keys; a file that doesn't decode is ignored. The renderer keeps the last harness list
 per server and folder in its own storage (`harness.instances.v1`).
+
+## Tenon vault
+
+Notes, Project timelines and Project logs are stored in the Tenon vault
+(`tenon/packages/tenon/src/knowledge/vault.ts`), a folder outside every
+workspace. This is the first Second Brain store outside the request's
+location, so it has its own containment instead of `LocationMutation`:
+
+- The root comes only from `TENON_VAULT_DIR` (set by the desktop main process:
+  the folder the user picked in a native dialog through `choose-vault-folder`,
+  else `app.getPath("documents")/Tenon`) or `<home>/Documents/Tenon`. No route
+  takes a vault root or an absolute path from the renderer.
+- A request reaches only its own workspace's vault folder, chosen by the
+  server from the request's workspace directory. Page paths must be relative,
+  `/`-separated `.md` names: absolute and drive paths, backslashes, `..`, empty
+  or hidden segments (so `.history` and `.backups` are unreachable as pages),
+  characters Windows refuses, reserved device names and a Project's `log/`
+  folder are refused with 400. History revisions must match
+  `<13 digits>-<16 hex>`; Project ids must match `project_<id>` and exist.
+- Each target's nearest existing ancestor is resolved with `realpath` and must
+  stay inside the workspace's vault folder, so a symlink or junction placed in
+  the vault (by a sync client or by hand) cannot lead a read or write outside
+  it. Writes go through `FileMutation` (staged temp file, create without
+  replace, compare-and-swap on the bytes read); pages over 5 MiB and id files
+  over 64 KiB are refused before reading. Front matter goes through
+  `Frontmatter.parse`.
+- The vault never stores an absolute machine path. The workspace directory to
+  vault folder map and the machine id are kept in `vault-machine.json` in the
+  server data folder. `workspace.json` holds a workspace id, a display name
+  and the git root commit; log files are named by the machine id, which
+  includes the host name.
+- The vault may be synced by OneDrive, iCloud, Dropbox or Syncthing; anyone
+  with access to that sync account can read the notes. Each machine appends
+  only to its own log file, so log lines are never lost to a merge. Pages are
+  compare-and-swap per machine only: two machines editing one page offline
+  produce a sync client's conflict copy, which `GET /second-brain/vault/conflicts`
+  reports and never deletes. Pages edited elsewhere still win if they sync
+  before a local save; the stale save then returns 409.
+- `POST /second-brain/vault/migrate` reads only `<workspace>/notes/**` and
+  `.tenon/projects/<id>/notes/**` through `LocationMutation`, copies them in,
+  writes a full backup under `<root>/.backups/<timestamp>/`, and only then
+  removes the originals. Backups and `.history` are plain copies of note text
+  and are not pruned except history beyond 20 versions per page.
+- Vault content is workspace data, never agent instructions. Logs carry the
+  operation, the relative path and the error tag, never page content.
+
+Known gaps: deleting `vault-machine.json` gives the machine a new id (a new
+log file) and, for a workspace without git, a new vault folder; nothing in the
+vault is encrypted at rest.
 
 ## Local dictation
 
