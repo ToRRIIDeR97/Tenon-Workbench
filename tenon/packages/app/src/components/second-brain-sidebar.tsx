@@ -65,8 +65,13 @@ export function SecondBrainSidebar() {
       }}
     >
       <nav
-        // The rail keeps a grey gradient so it reads apart from the plain neutral panel.
-        class="flex w-20 shrink-0 flex-col items-center gap-3 rounded-l-[19px] bg-[linear-gradient(to_bottom,var(--v2-background-bg-layer-01),var(--v2-background-bg-deep))] pb-4 pt-3"
+        // The rail keeps a grey gradient so it reads apart from the plain neutral panel. It follows the
+        // container's corners: all four when it fills the container, only the left ones beside the panel.
+        classList={{
+          "flex w-20 shrink-0 flex-col items-center gap-3 rounded-[19px] bg-[linear-gradient(to_bottom,var(--v2-background-bg-layer-01),var(--v2-background-bg-deep))] pb-4 pt-3 transition-[border-radius] motion-reduce:duration-0": true,
+          "duration-medium ease-emphasized-decelerate md:rounded-r-none": layout.sidebar.opened(),
+          "duration-[200ms] ease-emphasized-accelerate": !layout.sidebar.opened(),
+        }}
         aria-label={language.t("secondBrain.sidebar.title")}
       >
         <For each={items()}>
