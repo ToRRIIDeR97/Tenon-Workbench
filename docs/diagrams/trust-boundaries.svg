@@ -80,8 +80,8 @@
 <text x="50" y="410" text-anchor="start" class="s">export ≤32 MiB, dialog</text>
 <text x="50" y="426" text-anchor="start" class="s">deep links: confirmed</text>
 <rect class="sub" x="40" y="456" width="190" height="66" rx="6"/>
-<text x="50" y="474" text-anchor="start" class="t">Google service</text>
-<text x="50" y="490" text-anchor="start" class="s">PKCE loopback OAuth, N accounts</text>
+<text x="50" y="474" text-anchor="start" class="t">Google + mail accounts</text>
+<text x="50" y="490" text-anchor="start" class="s">PKCE loopback OAuth, IMAP app pw</text>
 <text x="50" y="506" text-anchor="start" class="s">state-checked, safeStorage</text>
 <rect class="store" x="40" y="534" width="190" height="70" rx="6"/>
 <text x="50" y="552" text-anchor="start" class="t">Profile data</text>
@@ -158,9 +158,9 @@
 <text x="50" y="698" text-anchor="start" class="s">WebContentsView, persist:tenon-browser</text>
 <text x="50" y="714" text-anchor="start" class="s">permissions denied, app server blocked</text>
 <rect class="sub" x="275" y="664" width="220" height="66" rx="6"/>
-<text x="285" y="682" text-anchor="start" class="t">Agent bridge</text>
+<text x="285" y="682" text-anchor="start" class="t">Agent + mail bridges</text>
 <text x="285" y="698" text-anchor="start" class="s">127.0.0.1:0, bearer token in server env</text>
-<text x="285" y="714" text-anchor="start" class="s">requests with an Origin refused</text>
+<text x="285" y="714" text-anchor="start" class="s">Origin refused; mail has no send route</text>
 <rect class="sub" x="510" y="664" width="220" height="66" rx="6"/>
 <text x="520" y="682" text-anchor="start" class="t">Device tools</text>
 <text x="520" y="698" text-anchor="start" class="s">adb, emulator, simctl, idb</text>

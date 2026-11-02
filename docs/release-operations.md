@@ -347,7 +347,13 @@ or recovery archives. The one exception is the Google Desktop OAuth client: when
 `tenon/packages/desktop/.env.local` sets `MAIN_VITE_GOOGLE_CLIENT_ID` and
 `MAIN_VITE_GOOGLE_CLIENT_SECRET` (see `.env.example`), the build compiles both
 values into the main process so the Calendar page offers one-click Google
-sign-in. Without them the page asks for the user's own client. Build from
+sign-in. Without them the page asks for the user's own client. The same
+Google client signs in Gmail accounts (Settings › Accounts). For Outlook mail,
+`MAIN_VITE_MICROSOFT_CLIENT_ID` names a public Microsoft identity client
+(no secret; platform "Mobile and desktop applications" with the redirect
+`http://localhost`); without it the Outlook button is disabled and IMAP
+still works. The desktop main bundle now includes `imapflow` and its
+dependencies for IMAP. Build from
 `tenon/packages/desktop` (as the scripts do): electron-vite reads the env
 file from the working directory.
 

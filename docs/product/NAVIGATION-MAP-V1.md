@@ -26,7 +26,7 @@ flowchart LR
     Sidebar[Sidebar] --> Home[Home]
     Sidebar --> Notes[Notes]
     Sidebar --> Calendar[Calendar]
-    Sidebar --> Activity[Activity]
+    Sidebar --> Command[Command Centre]
     Sidebar --> Workspace[Workspace dropdown]
     Sidebar --> Settings[Settings dialog]
 
@@ -48,7 +48,7 @@ window width, and a Projects panel beside it. Below 768 px the Projects panel
 is hidden and the rail remains.
 
 1. **Rail**, a gradient column distinct from the Projects panel's: **Home**,
-   **Notes**, **Calendar**, **Activity** and **Settings** as icons whose label
+   **Notes**, **Calendar**, **Command Centre** and **Settings** as icons whose label
    slides out on hover (the current page gets a pill highlight; Settings opens
    the Settings dialog). A new thread starts from `mod+n`, a Project's **+**,
    or Home's composer.
@@ -122,7 +122,10 @@ The titlebar is window chrome only: the sidebar toggle, back and forward
 | Route | Shows | Sidebar highlight |
 |---|---|---|
 | `/` | Home | Home |
-| `/notes`, `/calendar`, `/activity` | That page | That item |
+| `/notes`, `/calendar`, `/command` | That page | That item |
+| `/command?thread=<id>` | Command Centre with that thread open | Command Centre |
+| `/routines` | Routines (linked from the Command Centre) | None |
+| `/activity` | Redirects to `/command` | Command Centre |
 | `/projects`, `/projects?project=<id>` | Project cards; a selected card | None |
 | `/projects/overview` | All projects: every Project's notes and milestones | None |
 | `/new-thread?project=<id>&draftId=<id>` | Draft composer in the Project's thread directory | The Project |
@@ -153,10 +156,11 @@ deleted.
 | `mod+shift+y` | Toggle auto-accept of permission requests in the open thread |
 | `mod+shift+n` | Open a folder as a workspace |
 | `mod+b` | Toggle the sidebar |
+| `mod+j` | Toggle the Command Centre strip (not on the Command Centre page) |
 | `alt+up` / `alt+down` | Previous / next visible thread in the sidebar |
 | `mod+shift+[` / `mod+shift+]` | Previous / next Project |
 | `mod+[` / `mod+]` | Back / forward |
-| `mod+k` | Command palette (also lists Go to Home, Notes, Calendar and Activity) |
+| `mod+k` | Command palette (also lists Go to Home, Notes, Calendar and Command Centre) |
 | `mod+z` | Undo the last sidebar action while its undo toast is open (not in text fields) |
 
 On the Notes page `mod+s` saves the open note from anywhere on the page,
@@ -223,12 +227,11 @@ folder as a workspace and selects it) and `tenon://new-session?directory=<path>&
 - **Notes** holds global notes and Project notes. A note's file name keeps
   the title's letters and digits in any script. If a save finds the note
   changed on disk, **Reload from disk** replaces the edits with the saved copy.
-- **Activity** lists threads needing attention (waiting for an approval or
-  an answer; plain running threads are under Agent runs), agent runs, changes
-  and history. Agent runs shows recent threads with active runs first and a
-  Running, Waiting for approval or Retrying status; finished and failed runs
-  both read as idle, so they carry no status. History is the full searchable
-  thread list.
+- **Command Centre** replaced Activity. It lists only its own threads (never
+  Project threads), shows the open thread with a composer, searches memory and
+  links to **Routines**. On every other page a handle above the bottom edge
+  opens the K3 strip (also `mod+j`; Esc closes it) with the latest reply, a
+  composer and **Open full**.
 - **Settings** contains General, Shortcuts, Servers, Providers, Models and
   Harnesses. Harnesses has **Set up built-in agents**. It opens the agent
   setup dialog. The dialog lists Codex, Claude Code and OpenCode under
