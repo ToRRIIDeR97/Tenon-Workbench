@@ -29,19 +29,20 @@ export function AgentWritePreview(props: { kind: Kind; preview: unknown; typing?
           <NoteBody preview={value() as NotePreview} typing={typing()} />
         </Match>
         <Match when={props.kind === "tasks"}>
-          <ul class="flex flex-col gap-1" aria-label={language.t("secondBrain.agentWrites.kind.tasks")}>
+          {/* A group of rows, not a list: the Command Centre's step list owns the list items around it. */}
+          <div role="group" class="flex flex-col gap-1" aria-label={language.t("secondBrain.agentWrites.kind.tasks")}>
             <For each={(value() as TasksPreview).tasks ?? []}>
               {(task) => (
-                <li data-slot="agent-write-task" class="flex items-center gap-2 min-w-0">
+                <div data-slot="agent-write-task" class="flex items-center gap-2 min-w-0">
                   <span aria-hidden="true" class="size-3 shrink-0 rounded-[4px] border border-v2-border-border-muted" />
                   <span class="truncate">{task.title}</span>
                   <Show when={task.dueDate}>
                     {(due) => <span class="ml-auto shrink-0 text-v2-text-text-muted">{due()}</span>}
                   </Show>
-                </li>
+                </div>
               )}
             </For>
-          </ul>
+          </div>
         </Match>
         <Match when={props.kind === "calendar"}>
           <div class="flex flex-col gap-1.5">

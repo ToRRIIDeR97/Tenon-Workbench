@@ -65,7 +65,7 @@
 <text x="30" y="104" text-anchor="start" class="t">Solid renderer</text>
 <text x="30" y="120" text-anchor="start" class="s">app/src</text>
 <text x="30" y="136" text-anchor="start" class="s">sidebar: Home, Notes, Calendar,</text>
-<text x="30" y="152" text-anchor="start" class="s">Activity, Projects + threads</text>
+<text x="30" y="152" text-anchor="start" class="s">Command Centre (+ K3 strip, Routines)</text>
 <text x="30" y="168" text-anchor="start" class="s">ServerSDK + compat API (v1/v2)</text>
 <text x="30" y="184" text-anchor="start" class="s">Second Brain client, drafts</text>
 <rect class="box" x="20" y="280" width="250" height="64" rx="6"/>
@@ -80,7 +80,8 @@
 <text x="30" y="472" text-anchor="start" class="s">windows + URL policy</text>
 <text x="30" y="488" text-anchor="start" class="s">server launcher (server.ts)</text>
 <text x="30" y="504" text-anchor="start" class="s">Google Calendar/Tasks service</text>
-<text x="30" y="520" text-anchor="start" class="s">drafts, export, dictation.ts</text>
+<text x="30" y="520" text-anchor="start" class="s">mail accounts + loopback endpoint</text>
+<text x="30" y="536" text-anchor="start" class="s">drafts, export, dictation.ts</text>
 <rect class="store" x="20" y="590" width="200" height="60" rx="6"/>
 <text x="30" y="608" text-anchor="start" class="t">userData stores</text>
 <text x="30" y="624" text-anchor="start" class="s">drafts.sqlite, electron-store</text>
@@ -96,9 +97,9 @@
 <rect class="sub" x="360" y="215" width="290" height="104" rx="6"/>
 <text x="370" y="233" text-anchor="start" class="t">Second Brain domains</text>
 <text x="370" y="249" text-anchor="start" class="s">tenon/src/knowledge/note.ts, vault.ts</text>
-<text x="370" y="265" text-anchor="start" class="s">tenon/src/project/brain.ts</text>
-<text x="370" y="281" text-anchor="start" class="s">tenon/src/planner/calendar.ts</text>
-<text x="370" y="297" text-anchor="start" class="s">SecondBrainApi handlers</text>
+<text x="370" y="265" text-anchor="start" class="s">tenon/src/project/brain.ts,</text>
+<text x="370" y="281" text-anchor="start" class="s">planner/calendar.ts, agents/ (Command</text>
+<text x="370" y="297" text-anchor="start" class="s">Centre memory, routines), SecondBrainApi</text>
 <rect class="sub" x="360" y="340" width="290" height="80" rx="6"/>
 <text x="370" y="358" text-anchor="start" class="t">Location services</text>
 <text x="370" y="374" text-anchor="start" class="s">core: LocationMutation, FileMutation</text>
@@ -164,6 +165,11 @@
 <text x="350" y="813" text-anchor="start" class="t">Hugging Face</text>
 <text x="350" y="829" text-anchor="start" class="s">speech models (GGUF),</text>
 <text x="350" y="845" text-anchor="start" class="s">SHA-256 checked</text>
+<rect class="ext" x="600" y="795" width="260" height="64" rx="6"/>
+<text x="610" y="813" text-anchor="start" class="t">Mail providers</text>
+<text x="610" y="829" text-anchor="start" class="s">Gmail API, Microsoft Graph, IMAP</text>
+<text x="610" y="845" text-anchor="start" class="s">search, read, save drafts (no send)</text>
+<path class="e " d="M270,450 L325,450 L325,778 L730,778 L730,795" marker-end="url(#a)"/>
 <path class="e " d="M20,545 L10,545 L10,827 L20,827" marker-end="url(#a)"/>
 <path class="e " d="M270,505 L310,505 L310,827 L340,827" marker-end="url(#a)"/>
 <rect class="lblbg" x="154.6" y="248.0" width="70.9" height="13" rx="2"/>
@@ -202,6 +208,8 @@
 <text class="lbl" x="590" y="681" text-anchor="middle">+ tenon MCP</text>
 <rect class="lblbg" x="704.2" y="680.0" width="35.5" height="13" rx="2"/>
 <text class="lbl" x="722" y="690" text-anchor="middle">HTTPS</text>
+<rect class="lblbg" x="586.9" y="762.0" width="106.3" height="13" rx="2"/>
+<text class="lbl" x="640" y="772" text-anchor="middle">OAuth PKCE / IMAP</text>
 <rect class="lblbg" x="96.8" y="774.0" width="106.3" height="13" rx="2"/>
 <text class="lbl" x="150" y="784" text-anchor="middle">spawn, JSON lines</text>
 <rect class="lblbg" x="123.4" y="787.0" width="53.2" height="13" rx="2"/>

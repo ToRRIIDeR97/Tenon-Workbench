@@ -11,18 +11,19 @@ def component():
             "with HTTP API, Second Brain domains, location services and agent runtime, the dictation engine, plus stores and external services.")
     s.heading("Component view", "UML 2.5.1 component diagram · paths relative to tenon/packages/")
     # left column
-    s.box(20, 70, 250, 160, "Solid renderer", ["app/src", "sidebar: Home, Notes, Calendar,", "Activity, Projects + threads",
+    s.box(20, 70, 250, 160, "Solid renderer", ["app/src", "sidebar: Home, Notes, Calendar,", "Command Centre (+ K3 strip, Routines)",
           "ServerSDK + compat API (v1/v2)", "Second Brain client, drafts"], stereo="component")
     s.box(20, 280, 250, 64, "window.api", ["desktop/src/preload (contextBridge)"], stereo="interface")
     s.box(20, 390, 250, 170, "Electron main", ["desktop/src/main", "IPC registry (ipc.ts)", "windows + URL policy",
-          "server launcher (server.ts)", "Google Calendar/Tasks service", "drafts, export, dictation.ts"], stereo="component")
+          "server launcher (server.ts)", "Google Calendar/Tasks service", "mail accounts + loopback endpoint",
+          "drafts, export, dictation.ts"], stereo="component")
     s.box(20, 590, 200, 60, "userData stores", ["drafts.sqlite, electron-store", "(second-brain.google)"], cls="store")
     # server container
     s.zone(340, 60, 360, 570, "Tenon server «subsystem» · 127.0.0.1")
     s.box(360, 90, 290, 104, "HTTP API", ["native /api: server + protocol pkgs", "legacy: tenon/src/server",
           "Basic auth, workspace routing", "→ domains and SessionV2"], cls="sub")
-    s.box(360, 215, 290, 104, "Second Brain domains", ["tenon/src/knowledge/note.ts, vault.ts", "tenon/src/project/brain.ts",
-          "tenon/src/planner/calendar.ts", "SecondBrainApi handlers"], cls="sub")
+    s.box(360, 215, 290, 104, "Second Brain domains", ["tenon/src/knowledge/note.ts, vault.ts", "tenon/src/project/brain.ts,",
+          "planner/calendar.ts, agents/ (Command", "Centre memory, routines), SecondBrainApi"], cls="sub")
     s.box(360, 340, 290, 80, "Location services", ["core: LocationMutation, FileMutation", "path containment, CAS writes"], cls="sub")
     s.box(360, 440, 290, 170, "Agent runtime", ["core/src/session: SessionV2,", "SessionInput, SessionRunner",
           "core/src/harness.ts: HarnessRuntime", "drivers: opencode, codex, acp", "core/src/permission.ts: PermissionV2",
@@ -58,6 +59,9 @@ def component():
     # dictation engine (child of Electron main) and its model source
     s.box(20, 795, 270, 64, "tenon-dictation", ["packages/dictation (Rust): handy-recorder,", "earshot VAD, transcribe-cpp"], cls="proc")
     s.box(340, 795, 200, 64, "Hugging Face", ["speech models (GGUF),", "SHA-256 checked"], cls="ext")
+    # mail providers (Electron main); drafts only, no send call
+    s.box(600, 795, 260, 64, "Mail providers", ["Gmail API, Microsoft Graph, IMAP", "search, read, save drafts (no send)"], cls="ext")
+    s.edge([(270, 450), (325, 450), (325, 778), (730, 778), (730, 795)], "OAuth PKCE / IMAP", at=(640, 772))
     s.edge([(20, 545), (10, 545), (10, 827), (20, 827)], "spawn, JSON lines\non stdio", at=(150, 784))
     s.edge([(270, 505), (310, 505), (310, 827), (340, 827)], "model download", at=(400, 784))
     s.save(f"{OUT}/component-overview.svg")
@@ -74,7 +78,7 @@ def trust():
     s.box(40, 198, 190, 90, "Untrusted inputs", ["note bodies, URLs, IPC args,", "provider + agent output,", "workspace content"], cls="sub")
     s.zone(20, 330, 230, 290, "Electron main (privileged)")
     s.box(40, 360, 190, 84, "IPC handlers", ["allowlisted channels", "export ≤32 MiB, dialog", "deep links: confirmed"], cls="sub")
-    s.box(40, 456, 190, 66, "Google service", ["PKCE loopback OAuth, N accounts", "state-checked, safeStorage"], cls="sub")
+    s.box(40, 456, 190, 66, "Google + mail accounts", ["PKCE loopback OAuth, IMAP app pw", "state-checked, safeStorage"], cls="sub")
     s.box(40, 534, 190, 70, "Profile data", ["drafts.sqlite (plaintext)", "electron-store files"], cls="store")
     s.zone(300, 70, 330, 380, "Loopback server process")
     s.box(320, 100, 290, 74, "Authorization", ["Basic auth opencode:<uuid>", "header or auth_token query"], cls="sub")
@@ -103,7 +107,7 @@ def trust():
     s.edge([(230, 425), (282, 425), (282, 608), (897, 608), (897, 596)], "open-external", at=(560, 612))
     s.zone(20, 636, 960, 108, "Workbench panel tools (Electron main)")
     s.box(40, 664, 220, 66, "Workbench browser", ["WebContentsView, persist:tenon-browser", "permissions denied, app server blocked"], cls="sub")
-    s.box(275, 664, 220, 66, "Agent bridge", ["127.0.0.1:0, bearer token in server env", "requests with an Origin refused"], cls="sub")
+    s.box(275, 664, 220, 66, "Agent + mail bridges", ["127.0.0.1:0, bearer token in server env", "Origin refused; mail has no send route"], cls="sub")
     s.box(510, 664, 220, 66, "Device tools", ["adb, emulator, simctl, idb", "fixed argument lists, no shell"], cls="sub")
     s.box(745, 664, 215, 66, "tenon-file://", ["read-only, issued URLs only", "path checked inside the folder"], cls="sub")
     s.box(20, 756, 960, 72, "Known gaps (threat model)", ["auth_token accepted in URLs · open-path/reveal-path take absolute paths until the workspace-ID contract · drafts unencrypted", "per-harness env visible to that harness · html design frames: WebRTC TURN over TCP from nested frames"], cls="gapz")

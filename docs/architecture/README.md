@@ -3,7 +3,7 @@
 Tenon Workbench (formerly Second Brain OS) is a fork of OpenCode, which supplied the runtime base: the
 Electron host, the managed local Tenon server and the session runtime. The
 app shell and navigation are Tenon Workbench's own: a navigation rail of Home,
-Notes, Calendar and Activity beside a Projects panel with their threads. New product domains are
+Notes, Calendar and Command Centre beside a Projects panel with their threads. New product domains are
 added inside that application (`tenon/`) rather than beside it. Owned names use
 "Tenon"; the [upstream notes](../opencode-upstream.md) list the `opencode` names
 that remain and the pre-rename names that are still read.
@@ -84,7 +84,7 @@ platform exposes `dictation` (desktop); the web build has no mic.
 ## Product entry points and persistence
 
 `tenon/packages/app/src/app.tsx` owns routing: `/`, `/notes`,
-`/calendar`, `/activity`, `/projects`, `/projects/overview` (every Project's
+`/calendar`, `/command` (Command Centre; `/activity` redirects there), `/routines`, `/projects`, `/projects/overview` (every Project's
 notes and milestones, grouped by `features/second-brain/project-overview.ts`), the draft route
 `/new-thread?project=<id>&draftId=<id>` and server-scoped threads at
 `/server/<server>/session/<id>`. Old `/workspaces`, `/brain`, `/new-session`
@@ -142,7 +142,7 @@ normal variant keeps a static underline because its tabs can be dragged.
 In the app shell, `pages/layout-new.tsx` fades pages through a `ViewSwitch`
 keyed by section (`pages/page-motion.ts`): query-string changes do not fade,
 and moving into the thread view (draft or session) swaps at once so its
-composer can focus on mount. Project detail, Activity, Calendar views and the
+composer can focus on mount. Project detail, Calendar views and the
 connect-provider steps use `ViewSwitch` too, so a field that focuses on mount
 uses `utils/focus-when-connected.ts`, which waits for the view to be attached.
 Sidebar groups, child threads, settings model groups and Home's "Running now"
@@ -200,11 +200,11 @@ loaded directory list and to the recent-session index at once, then offer a
 that has not run when the app closes is dropped). The renderer has one
 QueryClient (from `AppBaseProviders`); the router shell does not create its
 own. `serverSync().homeSessions` applies every session event to the
-recent-session index in that client, and the sidebar, Home and Activity read it
+recent-session index in that client, and the sidebar and Home read it
 through one set of query options (`homeSessionIndexQueryOptions`, never stale),
 so a thread created, archived, unarchived or pinned anywhere, including in a
 Project that is not open, updates every list without a reload, and revisiting
-Home or Activity does not re-read the session table. The index is fetched again
+Home does not re-read the session table. The index is fetched again
 only on a reconnect, `global.disposed` or `session.next.moved`. A directory
 list contributes only threads that run in that directory, because events
 reach only their own directory's list. The global event stream reconnects with
@@ -447,6 +447,143 @@ Settings → Calendar (`settings.v3` `calendar`). It skips while offline or when
 Google asks for a reconnect, and doubles its interval after failures, up to
 four times.
 
+### Command Centre
+
+The rail's fourth destination is the Command Centre (`/command`,
+`app/src/pages/command-centre.tsx`); `/activity` redirects there. It is an
+assistant that spans workspaces, with its own threads, memory and routines.
+
+- **Threads.** Command Centre threads run in `<vault root>/.command-centre`
+  (`CommandMemory.directory()` in `tenon/src/agents/command-memory.ts`, created
+  on first use; the renderer derives the same folder from `GET
+  /second-brain/vault` and asks `POST /command-centre/directory` before its
+  first thread). No Project card points at that folder, so
+  `/second-brain/project-threads` and the sidebar never list these threads, and
+  the page lists only sessions whose directory is that folder.
+  `features/command-centre/command-centre.tsx` (`CommandCentreProvider`,
+  mounted in `pages/layout-new.tsx`) holds the thread list, the latest reply
+  and `send`, which prompts the open thread, else the latest one, else creates
+  one with the harness and model from Settings › Command Centre.
+- **K3 strip.** `features/command-centre/command-strip.tsx`
+  (`[data-command-strip]`) sits inside `<main>` on every page except
+  `/command`: a 20 px handle while closed, an 84 px strip when open with the
+  latest reply on one line, a composer and "Open full"
+  (`/command?thread=<id>`). Ctrl+J / Cmd+J (`commandCentre.strip.toggle`,
+  `mod+j`) or a click opens it; Esc closes it. Height moves over 300 ms
+  emphasized-decelerate when opening and 200 ms emphasized-accelerate when
+  closing, with no motion under reduced motion. When the latest reply made
+  a write, Undo redeems that write's token (`useAgentWrites().undo`) and then
+  shows Undone, Already changed or Couldn't undo.
+- **Step list.** On `/command` the open thread's writes since its latest user
+  message render as one `AgentWriteSteps` list (`[data-agent-write]
+  [data-variant="steps"]`, a row per write and the active row's preview).
+- **Memory.** `CommandMemory.compact({ now?, days, summarize })` summarises
+  Command Centre root threads last updated more than `days` ago (1–365) into
+  `.command-centre/memory/<thread>.md` (readable, synced with the vault), then
+  deletes those threads. A thread whose summary fails is kept. Project threads
+  are never read. `CommandMemory.search(query)` builds a temporary SQLite FTS5
+  table on the profile database's connection from thread titles, message text
+  and the memory files, so the index is never stored. The renderer calls
+  `POST /command-centre/memory/compact` at most once a day with the age from
+  Settings (`settings.v3` `commandCentre.memoryDays`, default 45); the server's
+  summariser (`CommandThreads.summarizer`) makes one model call per thread with
+  the Settings model, else the default model.
+- **Project setup.** `CommandSetup.run({ workspace, name, folder?, outcome? })`
+  (`tenon/src/agents/command-setup.ts`) refuses a non-empty folder, creates
+  it (default `<workspace>/projects/<name>`), runs `git init`, writes
+  `AGENTS.md`, `docs/system.md` and `docs/security.md` from templates that
+  point at `tor-project-setup`, `tor-implementation`,
+  `tor-feature-map-verification` and `tor-workflow`, then creates the Project
+  card (a folder outside the workspace is also linked) and an empty vault
+  timeline. A failed setup removes a folder it created. Command Centre
+  sessions call it as the `project_setup` app tool.
+- **Tools.** `AgentAppTools.list({ sessionID })` (synchronous) gives a
+  Command Centre thread the app tools plus `memory_search`, `project_setup`
+  and, when `TENON_MAIL_URL` and `TENON_MAIL_TOKEN` are set, `mail_search`,
+  `mail_read` and `mail_draft` (`tenon/src/agents/mail-tools.ts`, which posts
+  JSON to the desktop's `/search`, `/thread` and `/draft` with the bearer
+  token). A thread counts as a Command Centre thread once `session.created`
+  names the `.command-centre` folder, or when a call looks its folder up in
+  the session table; the answer is then cached for the process, since a
+  session's folder never changes.
+  Command Centre threads are not Project-scoped: each app-tool call takes an
+  optional `workspace` (absolute folder with `.tenon`), else the workspace
+  holding `projectId`, else the only known workspace (Tenon projects, vault
+  workspaces, and workspaces above recent threads). `mail_draft` publishes
+  `agent.write` of kind `email` with preview `{ to, subject, body }` and no
+  undo token (delete an unwanted draft in the mail client). The in-process
+  loop registers tools per folder (`HarnessAppTools.catalog(directory)`,
+  `AgentAppTools.catalogFor`): the `.command-centre` folder gets the Command
+  Centre tools, every other folder only the app tools. A call outside the
+  thread's list still fails with "… is only available in the Command Centre."
+- **Pill.** The Command Centre page marks its open thread as focused
+  (`useAgentWrites().focus`), so the top pill leaves that thread's writes to
+  the step list.
+
+| Route (workspace from `x-opencode-directory` or `?directory=`) | Behaviour |
+| --- | --- |
+| `POST /command-centre/directory` | `{ directory }`; creates `<vault root>/.command-centre` |
+| `GET /command-centre/memory?search=` | `[{ sessionID?, text, at }]`, at most 20; summaries have no `sessionID` |
+| `POST /command-centre/memory/compact` | `{ days, model?: { providerID, modelID } }` → `{ summarised, deleted }` |
+
+### Routines
+
+A routine is a vault page under the workspace's `Routines/` folder whose
+properties carry `schedule` (`daily HH:MM`, `weekdays HH:MM`,
+`weekly <mon..sun> HH:MM` or a five-field cron) and optionally `enabled`
+(default true), `harness`, `model` (`provider/model`) and `tools`; the body is
+the prompt (`tenon/src/agents/routines.ts`). `Routines.nextRun(schedule, after)`
+gives the next local time. `Routines.runDue({ now, run })` runs each enabled
+routine at most once when a scheduled time fell after its last run (or, never
+run, after the first `runDue` that saw it) and at or before `now`, however many
+were missed. A run's reply is appended to the workspace's `Inbox.md` vault page
+under `## <routine> · <time>` and `GlobalBus` emits `routine.finished
+{ routineId, threadId }`. When each routine last ran is machine-local state in
+`routines-state.json` in the server data folder, never in the vault.
+
+A listening server (`Server.listen` → `createRoutes(..., { background: true })`)
+starts `RoutinesScheduler.layer` (`agents/routines-scheduler.ts`): at start and
+every minute it checks each workspace that has a vault folder on this machine
+(`vault-machine.json`) and runs due routines as Command Centre threads
+(`CommandThreads.start`). The in-process routes that tests use don't start it.
+The Routines page (`/routines`, `app/src/pages/routines.tsx`, linked from the
+Command Centre) lists schedule, last run and next run with Run now.
+
+| Route | Behaviour |
+| --- | --- |
+| `GET /second-brain/routines` | `[{ id, name, path, schedule, enabled, nextRun, lastRun, lastStatus }]` (`id` is the page id) |
+| `POST /second-brain/routines/<id>/run` | `{ model? }` → `{ threadId }` once the thread exists; the reply is filed in the background |
+
+### Mail accounts
+
+Settings › Accounts (desktop only, `app/src/components/settings-v2/accounts.tsx`)
+lists, adds and removes the mail accounts the Command Centre may read and draft
+in. `desktop/src/main/mail/` owns them:
+
+- `index.ts` (no Electron imports): `createGmailProvider`,
+  `createGraphProvider` and `createImapProvider`, each with `search`,
+  `readThread` and `createDraft`; results are `{ id, subject, from, date,
+  snippet }` with the thread id (Gmail `threadId`, Graph `conversationId`,
+  IMAP `INBOX:<uid>`), threads are `{ id, messages: [{ from, to, date, text }] }`
+  with HTML reduced to text. Drafts go to Gmail `POST /drafts`, Graph
+  `POST /me/messages` (or `createReply`), or an IMAP `APPEND` to the `\Drafts`
+  mailbox with `\Draft`. Nothing calls a send endpoint.
+- `service.ts`: accounts in the `tenon.mail` electron-store with refresh
+  tokens and IMAP passwords encrypted by `safeStorage`. Gmail signs in with the
+  app's Google OAuth client (as Calendar does) and `GMAIL_SCOPES`
+  (`gmail.readonly`, `gmail.compose`); Outlook signs in through Microsoft
+  identity with PKCE on a `http://localhost:<port>/` redirect and `GRAPH_SCOPES`
+  (`Mail.Read`, `Mail.ReadWrite`, `offline_access`) using the public client
+  `MAIN_VITE_MICROSOFT_CLIENT_ID` set at build time; IMAP (`imap-client.ts`,
+  imapflow) checks the login before storing an app password.
+  `startMailEndpoint` serves `POST /search`, `/thread` and `/draft` on
+  `127.0.0.1:<random port>` with a bearer token, and the main process passes
+  `TENON_MAIL_URL` and `TENON_MAIL_TOKEN` to the server process for the
+  Command Centre's mail tools.
+- IPC: `mail-available`, `mail-accounts`, `mail-connect` (`gmail` or
+  `outlook`), `mail-add-imap`, `mail-remove`; preload `window.api.mail`,
+  `Platform.mail` in the renderer.
+
 ## Home navigation
 
 Home is the sidebar's first item and the fallback for unknown routes. Its
@@ -461,7 +598,7 @@ calendar only when its Map or Plan view first opens.
 Page content renders inside an error boundary in `pages/layout-new.tsx`: a page
 that throws shows a retryable message in the page area while the sidebar stays
 usable, and the boundary resets when the route changes. Notes, Projects, Home,
-Activity and the instructions dialog show request failures inline with
+the Command Centre and the instructions dialog show request failures inline with
 **Retry** instead of throwing.
 
 Home's composer starts a Run in one step. It uses the new-thread layout: the

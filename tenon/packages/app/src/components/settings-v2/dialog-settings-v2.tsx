@@ -1,4 +1,4 @@
-import { Component, createMemo, createSignal, startTransition } from "solid-js"
+import { Component, createMemo, createSignal, Show, startTransition } from "solid-js"
 import { Dialog } from "@tenon/ui/v2/dialog-v2"
 import { TabsV2 } from "@tenon/ui/v2/tabs-v2"
 import { Icon } from "@tenon/ui/v2/icon"
@@ -12,6 +12,8 @@ import { SettingsHarnessesV2 } from "./harnesses"
 import { SettingsSkillsV2 } from "./skills"
 import { SettingsCalendarV2 } from "./calendar"
 import { SettingsDictationV2 } from "./dictation"
+import { SettingsCommandCentreV2 } from "./command-centre"
+import { SettingsAccountsV2 } from "./accounts"
 import { MicIcon } from "../prompt-input/dictation-button"
 import "./settings-v2.css"
 import { SettingsServersV2 } from "./servers"
@@ -78,6 +80,16 @@ export const DialogSettings: Component<{
                       <MicIcon />
                       {language.t("dictation.settings.tab")}
                     </TabsV2.Trigger>
+                    <TabsV2.Trigger value="command-centre">
+                      <Icon name="console" />
+                      {language.t("secondBrain.commandCentre.settings.tab")}
+                    </TabsV2.Trigger>
+                    <Show when={platform.mail}>
+                      <TabsV2.Trigger value="accounts">
+                        <Icon name="server" />
+                        {language.t("secondBrain.mail.settings.tab")}
+                      </TabsV2.Trigger>
+                    </Show>
                   </div>
                 </div>
 
@@ -125,6 +137,12 @@ export const DialogSettings: Component<{
         </TabsV2.Content>
         <TabsV2.Content value="dictation" class="settings-v2-panel">
           <SettingsDictationV2 />
+        </TabsV2.Content>
+        <TabsV2.Content value="command-centre" class="settings-v2-panel">
+          <SettingsCommandCentreV2 />
+        </TabsV2.Content>
+        <TabsV2.Content value="accounts" class="settings-v2-panel">
+          <SettingsAccountsV2 />
         </TabsV2.Content>
         <TabsV2.Content value="servers" class="settings-v2-panel">
           <SettingsServersV2 />

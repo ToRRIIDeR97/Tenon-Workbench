@@ -468,7 +468,7 @@ export default function ProjectsPage() {
               const openActivity = () => {
                 const location = selectedLocation()
                 if (location) layout.home.setSelection({ server: server.key, directory: location.worktree })
-                navigate("/activity")
+                navigate("/command")
               }
               const openWorkspace = () => {
                 const directory = selectedThreadDirectory()

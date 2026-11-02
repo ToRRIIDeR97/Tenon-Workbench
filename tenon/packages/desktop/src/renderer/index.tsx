@@ -245,6 +245,7 @@ const createPlatform = (windowState: DesktopWindowState): Platform => {
 
     googleCalendar: window.api.googleCalendar,
     dictation: window.api.dictation,
+    mail: window.api.mail,
     getVaultFolder: () => window.api.getVaultFolder(),
     chooseVaultFolder: () => window.api.chooseVaultFolder(),
 

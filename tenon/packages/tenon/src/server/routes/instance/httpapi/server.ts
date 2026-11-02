@@ -66,6 +66,7 @@ import { SessionProjector } from "@tenon/core/session/projector"
 import { SessionV2 } from "@tenon/core/session"
 import { HarnessDelegationTasks } from "@tenon/core/harness/delegation-tasks"
 import { AgentAppTools } from "@/agents/app-tools"
+import { RoutinesScheduler } from "@/agents/routines-scheduler"
 import { SessionExecution } from "@tenon/core/session/execution"
 import * as SessionExecutionLocal from "@tenon/core/session/execution/local"
 import { lazy } from "@/util/lazy"
@@ -274,10 +275,13 @@ const app = LayerNode.group([
 
 export function createRoutes(
   corsOptions?: CorsOptions,
+  // A listening server also runs background schedules (routines); the in-process routes tests use do not.
+  options: { background?: boolean } = {},
 ): Layer.Layer<never, EffectConfig.ConfigError, RouteRequirements> {
   const locationServiceMapV2 = buildLocationServiceMap()
 
   return Layer.mergeAll(
+    options.background ? RoutinesScheduler.layer : Layer.empty,
     rootApiRoutes,
     eventApiRoutes,
     ptyConnectApiRoutes,

@@ -211,7 +211,9 @@ on its own. Removed in the T3 parity Phase 1 cleanup:
 Still outbound: the configured LLM providers (including the `opencode` Zen
 provider when the user selects it), the `models.dev` catalog, Google APIs,
 `huggingface.co` for dictation models the user downloads (see
-[Local dictation](#local-dictation)), `api.anthropic.com/api/oauth/usage`, `api.commandcode.ai/alpha/*` and
+[Local dictation](#local-dictation)), the Gmail API, Microsoft identity and
+Graph, and the IMAP servers of connected mail accounts (see
+[Email accounts](#email-accounts)), `api.anthropic.com/api/oauth/usage`, `api.commandcode.ai/alpha/*` and
 `opencode.ai/zen/go/v1/usage` for Claude Code, Command Code and OpenCode Go
 usage limits (see
 [Harness usage limits](#harness-usage-limits)), and links the user opens. `$schema` URLs in config files are identifiers, not
@@ -781,7 +783,16 @@ apply unchanged: loopback only, a bearer token per runtime bound to its Run,
   Reads across the workspace are allowed, so an agent in one Project can read
   another Project's pages. A path that names another Project's folder from a
   Project thread is placed inside the caller's own folder, not the other one.
-  Workspace threads are not limited to one Project.
+  Workspace threads are not limited to one Project. Command Centre threads
+  (directory `<vault root>/.command-centre`) may write in any workspace with
+  Project cards, named by `workspace` or found from `projectId`, and also get
+  `memory_search`, `project_setup` and the draft-only mail tools (see
+  [Command Centre memory and routines](#command-centre-memory-and-routines)
+  and [Email accounts](#email-accounts)). A call checks the thread's folder
+  in the session table once and caches the answer for the process (a
+  session's folder never changes), so other threads can't reach them; the
+  in-process loop registers those tools only in the `.command-centre`
+  folder.
 - Tool arguments and page text are data. Arguments are decoded against a
   schema per tool and passed to the same vault and calendar validation as the
   HTTP routes; page bodies are stored verbatim and never interpreted. Content a
@@ -808,6 +819,80 @@ apply unchanged: loopback only, a bearer token per runtime bound to its Run,
 
 Known gaps: undo tokens are not tied to the thread or renderer that may
 redeem them; an agent can read its own tokens and undo its own writes.
+
+## Command Centre memory and routines
+
+The Command Centre (see [architecture](../architecture/README.md#command-centre))
+is an assistant whose threads span workspaces.
+
+- **Thread location.** Its threads run in `<vault root>/.command-centre`, a
+  folder the server derives from `TENON_VAULT_DIR`; no route takes that path
+  from the renderer (`POST /command-centre/directory` only creates and returns
+  it). No Project card points there, so Project thread lists never include
+  these threads.
+- **Retention and deletion.** Threads last updated more than the chosen age
+  (Settings › Command Centre, 1–365 days, default 45) are summarised by one
+  model call each and then deleted from the profile database for good;
+  lowering the age warns first. Each summary is written to
+  `.command-centre/memory/<thread>.md` in the vault, so it is synced with the
+  vault and readable by anyone with access to it. A thread whose summary fails
+  is kept. The model call sends that thread's text to the Command Centre's
+  model provider, which is the same exposure the thread already had. The
+  renderer triggers compaction at most once a day; the server clamps `days`
+  to 1–365. Project threads are never read or deleted.
+- **Search.** Memory search builds a temporary FTS5 table on the profile
+  database connection and empties it after each query; nothing is indexed at
+  rest. Hits carry at most 600 characters of text.
+- **Project setup.** `CommandSetup.run` writes only into a folder that does
+  not exist or is empty (a non-empty folder is refused untouched), runs
+  `git init` from PATH without a shell, and removes a folder it created when
+  setup fails. It writes fixed templates; no tool argument is interpolated
+  except the Project name.
+- **Routines.** A routine is a vault page under `Routines/`; its body is sent
+  as a prompt to a new Command Centre thread on its schedule, so anyone who can
+  write the vault (including a sync account) can schedule prompts. Routine
+  pages are shown on the Routines page with their schedule and can be turned
+  off with `enabled: false`. Replies are appended to the workspace's
+  `Inbox.md` page. Last-run state is machine-local (`routines-state.json` in
+  the server data folder); two machines sharing a synced vault each run the
+  routine. The scheduler runs only in a listening server.
+
+## Email accounts
+
+Mail lives in the desktop main process (`desktop/src/main/mail/`; see
+[architecture](../architecture/README.md#mail-accounts)).
+
+- **Draft only.** No provider calls a send endpoint (Gmail `messages/send`
+  or `drafts/send`, Graph `/send` or `/sendMail`, SMTP); drafts are saved to
+  the account's Drafts and the user sends them from their own mail client.
+  The acceptance tests check the request URLs for send calls. Gmail's
+  `gmail.compose` scope would technically allow sending; the app never uses
+  it for that, and Graph's `Mail.Send` is not requested.
+- **Scopes.** Gmail asks for `gmail.readonly` and `gmail.compose` through the
+  app's Google OAuth client; Outlook asks for `Mail.Read`, `Mail.ReadWrite`
+  and `offline_access` through a public Microsoft identity client
+  (`MAIN_VITE_MICROSOFT_CLIENT_ID`, no secret) with PKCE. Both sign-ins use a
+  one-shot loopback redirect that checks `state` and refuses other requests.
+- **Credentials.** Refresh tokens and IMAP app passwords are encrypted with
+  `safeStorage` (DPAPI on Windows, Keychain on macOS) in the main-owned
+  `tenon.mail` store; adding an account is refused when encryption is not
+  available. The renderer sees only account IDs, providers and addresses.
+  Removing an account deletes its stored secret; refresh tokens are not
+  revoked at the provider (revoke them in the Google or Microsoft account
+  page).
+- **Loopback endpoint.** `startMailEndpoint` listens on `127.0.0.1` at a random
+  port and needs `Authorization: Bearer <32 random bytes>` (compared in
+  constant time); requests with an `Origin` header are refused. Only the
+  server process receives the URL and token (`TENON_MAIL_URL`,
+  `TENON_MAIL_TOKEN`). Routes are `/search`, `/thread` and `/draft`; bodies
+  are capped at 256 KiB. Logs record the route and error message, never mail
+  content.
+- **Mail is data.** Message text reaches the model only as tool results in
+  Command Centre sessions; it is never treated as instructions, and Project
+  sessions don't get the mail tools.
+- **Dependency.** IMAP uses `imapflow` (MIT, Postal Systems), pinned in
+  `desktop/package.json`, with one short-lived TLS connection per call
+  (STARTTLS when TLS is off).
 
 ## Local dictation
 

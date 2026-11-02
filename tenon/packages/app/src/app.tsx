@@ -85,7 +85,8 @@ const CalendarPage = lazy(() => import("@/pages/calendar"))
 const ProjectsPage = lazy(() => import("@/pages/projects"))
 const ProjectOverviewPage = lazy(() => import("@/pages/project-overview"))
 const BrainHomePage = lazy(() => import("@/pages/brain-home"))
-const ActivityPage = lazy(() => import("@/pages/activity"))
+const CommandCentrePage = lazy(() => import("@/pages/command-centre"))
+const RoutinesPage = lazy(() => import("@/pages/routines"))
 
 function TargetServerRoute(props: ParentProps) {
   const params = useParams<{ serverKey: string; id: string }>()
@@ -556,7 +557,9 @@ function Routes() {
       <Route path="/calendar" component={CalendarPage} />
       <Route path="/projects" component={ProjectsPage} />
       <Route path="/projects/overview" component={ProjectOverviewPage} />
-      <Route path="/activity" component={ActivityPage} />
+      <Route path="/command" component={CommandCentrePage} />
+      <Route path="/routines" component={RoutinesPage} />
+      <Route path="/activity" component={() => <Navigate href="/command" />} />
       <Route path="/server/:serverKey/session/:id" component={TargetSessionRoute} />
       <Route path={NEW_THREAD_PATH} component={DraftRoute} />
       <Route path="/new-session" component={LegacyDraftRedirect} />

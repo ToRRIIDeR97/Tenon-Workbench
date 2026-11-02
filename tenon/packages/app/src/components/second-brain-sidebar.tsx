@@ -46,7 +46,12 @@ export function SecondBrainSidebar() {
     { id: "overview", icon: "home" as const, label: language.t("secondBrain.sidebar.overview"), href: "/" },
     { id: "notes", icon: "book" as const, label: language.t("secondBrain.sidebar.notes"), href: "/notes" },
     { id: "calendar", icon: "calendar" as const, label: language.t("secondBrain.sidebar.calendar"), href: "/calendar" },
-    { id: "activity", icon: "activity" as const, label: language.t("secondBrain.sidebar.activity"), href: "/activity" },
+    {
+      id: "command",
+      icon: "console" as const,
+      label: language.t("secondBrain.sidebar.command"),
+      href: "/command",
+    },
   ]
 
   return (

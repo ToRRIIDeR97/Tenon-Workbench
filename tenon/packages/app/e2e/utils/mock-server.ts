@@ -58,6 +58,8 @@ export async function mockTenonServer(page: Page, config: MockServerConfig) {
       process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? "3000"}`,
     ).port
     if (url.port !== targetPort && url.port !== appPort) return route.fallback()
+    // Page loads are the app's own routes (`/command` is also a server API path); only API calls are mocked.
+    if (route.request().isNavigationRequest()) return route.fallback()
 
     const path = url.pathname
     if (path === "/global/event" || path === "/event" || path === "/api/event") {

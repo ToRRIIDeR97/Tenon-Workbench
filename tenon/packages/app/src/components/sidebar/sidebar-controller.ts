@@ -711,7 +711,7 @@ export function createSidebarController() {
         ["home", "/", "secondBrain.sidebar.goHome"],
         ["notes", "/notes", "secondBrain.sidebar.goNotes"],
         ["calendar", "/calendar", "secondBrain.sidebar.goCalendar"],
-        ["activity", "/activity", "secondBrain.sidebar.goActivity"],
+        ["command", "/command", "secondBrain.sidebar.goCommand"],
       ] as const
     ).map(([id, href, title]) => ({
       id: `navigate.${id}`,

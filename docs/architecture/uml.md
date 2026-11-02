@@ -32,10 +32,10 @@ reading of the code, not a runtime trace, except where a step says it was run.
 | --- | --- | --- |
 | Solid renderer | Routes, server connection and capability detection, compat API, Second Brain pages | `app/src/app.tsx`, `app/src/context/server-sdk.tsx`, `app/src/utils/server-compat.ts`, `app/src/features/second-brain/client.ts` |
 | Preload bridge | Exposes `window.api` through an allowlist of IPC wrappers | `desktop/src/preload/index.ts` |
-| Electron main | App lifecycle, windows and URL policy, IPC handlers, server launch, Google service, drafts, dictation supervisor | `desktop/src/main/index.ts`, `ipc.ts`, `windows.ts`, `server.ts`, `google-calendar.ts`, `draft-store.ts`, `dictation.ts`, `dictation-service.ts` |
+| Electron main | App lifecycle, windows and URL policy, IPC handlers, server launch, Google service, mail accounts and the mail loopback endpoint, drafts, dictation supervisor | `desktop/src/main/index.ts`, `ipc.ts`, `windows.ts`, `server.ts`, `google-calendar.ts`, `mail/`, `draft-store.ts`, `dictation.ts`, `dictation-service.ts` |
 | Dictation engine | Microphone capture, voice activity, local transcription; JSON lines on stdio | `dictation/src/main.rs`, `dictation/src/audio.rs` (Rust, `tenon-dictation`) |
 | HTTP API | Native `/api` routes plus legacy instance routes, with Basic auth and workspace routing | `server/src/handlers/`, `protocol/src/groups/`, `tenon/src/server/routes/instance/httpapi/` |
-| Second Brain domains | Notes and the Tenon vault (pages, Project timelines and logs, history, migration), project cards, local calendar | `tenon/src/knowledge/note.ts`, `tenon/src/knowledge/vault.ts`, `tenon/src/project/brain.ts`, `tenon/src/planner/calendar.ts` |
+| Second Brain domains | Notes and the Tenon vault (pages, Project timelines and logs, history, migration), project cards, local calendar, Command Centre memory and project setup, routines and their scheduler | `tenon/src/knowledge/note.ts`, `tenon/src/knowledge/vault.ts`, `tenon/src/project/brain.ts`, `tenon/src/planner/calendar.ts`, `tenon/src/agents/` |
 | Location services | Path containment and compare-and-swap file writes | `core/src/location-mutation.ts`, `core/src/file-mutation.ts`, `core/src/location-services.ts` |
 | Agent runtime | Prompt admission, run draining, harness dispatch, permissions, durable events, snapshots | `core/src/session.ts`, `core/src/session/`, `core/src/harness.ts`, `core/src/harness/`, `core/src/permission.ts`, `core/src/event.ts`, `core/src/snapshot.ts` |
 
@@ -62,6 +62,11 @@ reading of the code, not a runtime trace, except where a step says it was run.
   first dictation and packaged under `resources/dictation/`. Speech models are
   downloaded from Hugging Face by the main process into
   `<userData>/dictation/models/`; audio and transcripts stay on the machine.
+- The main process also serves the mail loopback endpoint on `127.0.0.1` at
+  a random port and passes its URL and bearer token to the server process
+  (`TENON_MAIL_URL`, `TENON_MAIL_TOKEN`); it reaches Gmail, Microsoft Graph
+  and IMAP servers for connected mail accounts
+  ([README](README.md#mail-accounts)).
 - The Tenon vault is a folder outside every workspace: `TENON_VAULT_DIR`, which
   the desktop sets to the folder the user chose or `<Documents>/Tenon`
   (`desktop/src/main/vault-folder.ts`). It may sit in OneDrive or iCloud and be
@@ -272,6 +277,11 @@ store (`KnowledgeVault.writeTimeline`, `appendLog`,
 | `harnesses.json` | Shared store | Component, Deployment | `core/src/harness/registry.ts` (written only from Settings → Harnesses through `/api/harness/registry`) |
 | `harness-preferences.json` (title agent) | Shared store | Text in [README](README.md#thread-titles) | `core/src/harness/registry.ts` (`titleAgent`, `setTitleAgent`; written only from Settings → Harnesses through `/api/harness/title-agent`) |
 | `drafts.sqlite`, electron-store files | Shared store | Component, Deployment | `desktop/src/main/draft-store.ts`, `desktop/src/main/store.ts` (renderer `*.dat` stores are cached in memory and written behind by `write-behind-store.ts`, flushed on quit); per-window `drafts` and `sidebar` keys from `app/src/context/drafts.tsx` and the sidebar controller |
+| Command Centre (own threads in `<vault>/.command-centre`, K3 strip with Undo, per-turn step list, memory search and daily compaction, project setup and mail tools) | Subsystem | Component; text in [README](README.md#command-centre) and the [threat model](../security/threat-model.md#command-centre-memory-and-routines) | `tenon/src/agents/command-memory.ts`, `command-threads.ts`, `command-setup.ts`, `command-vault.ts`, `app-tools.ts` (`COMMAND_TOOLS`, `commandScope`), `mail-tools.ts`, `tenon/src/server/routes/instance/httpapi/handlers/second-brain.ts`, `app/src/pages/command-centre.tsx`, `app/src/features/command-centre/`, `app/src/components/settings-v2/command-centre.tsx`, `app/src/context/settings.tsx` (`commandCentre`) |
+| Command Centre memory files (`.command-centre/memory/<thread>.md`) and the per-search FTS5 table | Shared store | Text in [README](README.md#command-centre) | `tenon/src/agents/command-memory.ts` (`compact`, `search`) |
+| Routines (vault pages under `Routines/`, `runDue` catch-up, Inbox append, `routine.finished`, minute scheduler, Routines page) | Critical workflow | Text in [README](README.md#routines) | `tenon/src/agents/routines.ts`, `tenon/src/agents/routines-scheduler.ts`, `tenon/src/server/routes/instance/httpapi/server.ts` (`background`), `app/src/pages/routines.tsx` |
+| `routines-state.json` (last run per routine, machine-local) | Shared store | Text in [README](README.md#routines) | `tenon/src/agents/routines.ts` |
+| Mail accounts (Gmail, Microsoft Graph, IMAP; drafts only) and the mail loopback endpoint | External integration | Component, Trust boundaries; text in [README](README.md#mail-accounts) | `desktop/src/main/mail/index.ts`, `mail/service.ts`, `mail/imap-client.ts`, `desktop/src/main/ipc.ts` (`mail-*`), `app/src/components/settings-v2/accounts.tsx` |
 | Google Calendar and Tasks (multiple accounts, sync, outbox) | External integration | Component, Deployment, State: outbox, Class: CalendarEvent; text in [README](README.md#google-accounts) | `desktop/src/main/google-calendar.ts`, `desktop/src/main/google-calendar-domain.ts`, `app/src/features/second-brain/calendar-domain.ts` (`mergeProviderEvents`) |
 | LLM providers | External integration | Component, Deployment | `core/src/harness.ts` (`opencode` driver) |
 | Codex app-server, ACP agents (including upstream OpenCode via `opencode acp`) | External integration | Component, Deployment, Sequence: ACP turn | `core/src/harness.ts`, `core/src/harness/acp.ts` |

@@ -50,6 +50,26 @@ export type DictationPlatform = {
   openPermissionSettings(): Promise<void>
 }
 
+/** A mail account the Command Centre can search and draft in (desktop). */
+export type MailAccount = { id: string; provider: "gmail" | "outlook" | "imap"; address: string }
+export type MailImapInput = {
+  host: string
+  port: number
+  secure: boolean
+  user: string
+  password: string
+  address?: string
+}
+/** Mail accounts owned by the Electron main process. Reading and drafts only; Tenon never sends email. */
+export type MailPlatform = {
+  /** Which sign-ins this build offers, and whether credentials can be stored encrypted. */
+  available(): Promise<{ secureStorage: boolean; gmail: boolean; outlook: boolean; imap: boolean }>
+  accounts(): Promise<MailAccount[]>
+  connect(provider: "gmail" | "outlook"): Promise<MailAccount[]>
+  addImap(input: MailImapInput): Promise<MailAccount[]>
+  remove(id: string): Promise<MailAccount[]>
+}
+
 export type GoogleAccount = {
   id: string
   /** The account's address, read from its primary calendar. */
@@ -251,6 +271,9 @@ type PlatformBase = {
 
   /** Local dictation (desktop only); absent in the web build, which hides the composer mic. */
   dictation?: DictationPlatform
+
+  /** Mail accounts for the Command Centre (desktop only); absent in the web build, which hides Settings › Accounts. */
+  mail?: MailPlatform
 
   /** The Tenon vault folder and whether the user chose it (desktop only). */
   getVaultFolder?(): Promise<{ folder: string; chosen: boolean }>

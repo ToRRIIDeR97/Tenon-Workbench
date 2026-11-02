@@ -1,4 +1,13 @@
+import { CommandMemory } from "@/agents/command-memory"
+import { CommandThreads } from "@/agents/command-threads"
+import { Routines } from "@/agents/routines"
+import { RoutinesScheduler } from "@/agents/routines-scheduler"
 import { InstanceState } from "@/effect/instance-state"
+import { InstanceStore } from "@/project/instance-store"
+import { Provider } from "@/provider/provider"
+import { LLM } from "@/session/llm"
+import { SessionPrompt } from "@/session/prompt"
+import { Session } from "@/session/session"
 import { KnowledgeNote } from "@/knowledge/note"
 import { KnowledgeVault } from "@/knowledge/vault"
 import { AgentAppTools } from "@/agents/app-tools"
@@ -35,6 +44,11 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
     const locations = yield* LocationServiceMap.Service
     const projectService = yield* Project.Service
     const database = yield* Database.Service
+    const sessions = yield* Session.Service
+    const prompts = yield* SessionPrompt.Service
+    const instances = yield* InstanceStore.Service
+    const llm = yield* LLM.Service
+    const provider = yield* Provider.Service
     // One lock per Brain directory serializes calendar saves (with their timeline sync),
     // Project mutations and project folder scans, so none of them interleave.
     const brainLocks = KeyedMutex.makeUnsafe<string>()
@@ -223,8 +237,60 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
       return { undone: true as const }
     })
 
+    // Command Centre work reads threads machine-wide and starts threads in the vault's .command-centre folder.
+    const commandServices = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+      effect.pipe(
+        Effect.provideService(Session.Service, sessions),
+        Effect.provideService(Database.Service, database),
+        Effect.provideService(SessionPrompt.Service, prompts),
+        Effect.provideService(InstanceStore.Service, instances),
+        Effect.provideService(LLM.Service, llm),
+        Effect.provideService(Provider.Service, provider),
+        Effect.provideService(LocationServiceMap.Service, locations),
+      )
+
+    const startRoutine = (model?: CommandThreads.ModelChoice) => (routine: Routines.Routine) =>
+      commandServices(
+        CommandThreads.start({
+          prompt: routine.prompt,
+          title: routine.name,
+          model: model ?? RoutinesScheduler.modelChoice(routine.model),
+        }),
+      ).pipe(Effect.map((started) => ({ threadId: started.threadId, reply: commandServices(started.reply) })))
+
     return handlers
       .handle("undoWrite", undoWrite)
+      .handle("listRoutines", () => commandServices(Routines.list()).pipe(failure("listRoutines")))
+      .handle("runRoutine", (ctx) =>
+        commandServices(Routines.runNow({ id: ctx.params.id, start: startRoutine(ctx.payload.model) })).pipe(
+          failure("runRoutine", ctx.params.id),
+        ),
+      )
+      .handle("commandDirectory", () =>
+        CommandMemory.directory().pipe(
+          Effect.map((directory) => ({ directory })),
+          failure("commandDirectory"),
+        ),
+      )
+      .handle("searchCommandMemory", (ctx) =>
+        commandServices(CommandMemory.search(ctx.query.search ?? "")).pipe(failure("searchCommandMemory")),
+      )
+      .handle("compactCommandMemory", (ctx) =>
+        commandServices(
+          Effect.gen(function* () {
+            // The summariser is only built when a thread is old enough, so an idle compaction needs no model.
+            let summarize: ((thread: CommandMemory.Thread) => Effect.Effect<string, unknown>) | undefined
+            return yield* CommandMemory.compact({
+              days: ctx.payload.days,
+              summarize: (thread) =>
+                Effect.gen(function* () {
+                  summarize ??= yield* commandServices(CommandThreads.summarizer(ctx.payload.model))
+                  return yield* summarize(thread)
+                }),
+            })
+          }),
+        ).pipe(failure("compactCommandMemory")),
+      )
       .handle("readVault", () => vault("readVault", (opened) => Effect.succeed(KnowledgeVault.info(opened))))
       .handle("listVaultPages", (ctx) =>
         vault("listVaultPages", (opened) =>
@@ -304,6 +370,7 @@ function toApiFailure(operation: string, path: string | undefined, error: unknow
     return Effect.fail(error)
   }
   if (
+    error instanceof Routines.NotFoundError ||
     error instanceof KnowledgeNote.NotFoundError ||
     error instanceof KnowledgeVault.NotFoundError ||
     error instanceof BrainProject.NotFoundError

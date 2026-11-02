@@ -119,7 +119,8 @@ export type ProjectThreads = {
   lastActivityAt: number | null
 }
 
-type Target = { directory?: string; workspace?: string }
+/** `header` sends the directory as `x-opencode-directory` instead of a query parameter. */
+type Target = { directory?: string; workspace?: string; header?: boolean }
 type Client = {
   server: ServerConnection.Any
   fetch?: typeof globalThis.fetch
@@ -148,7 +149,7 @@ export function requestErrorReason(body: unknown) {
 async function request<T>(client: Client, path: string, init?: RequestInit): Promise<T> {
   const url = new URL(path, client.server.http.url)
   if (client.target.workspace) url.searchParams.set("workspace", client.target.workspace)
-  else if (client.target.directory) url.searchParams.set("directory", client.target.directory)
+  else if (client.target.directory && !client.target.header) url.searchParams.set("directory", client.target.directory)
   const auth = client.server.http.password
     ? `Basic ${authTokenFromCredentials({
         username: client.server.http.username,
@@ -159,6 +160,8 @@ async function request<T>(client: Client, path: string, init?: RequestInit): Pro
   headers.set("Accept", "application/json")
   if (init?.body) headers.set("Content-Type", "application/json")
   if (auth) headers.set("Authorization", auth)
+  if (client.target.header && client.target.directory && !client.target.workspace)
+    headers.set("x-opencode-directory", encodeURIComponent(client.target.directory))
   const response = await (client.fetch ?? globalThis.fetch)(url, {
     ...init,
     headers,
@@ -352,6 +355,40 @@ export const undoAgentWrite = (client: Client, token: string) =>
   request<{ undone: true }>({ ...client, target: {} }, `/second-brain/writes/${encodeURIComponent(token)}/undo`, {
     method: "POST",
     headers: client.target.directory ? { "x-tenon-directory": encodeURIComponent(client.target.directory) } : {},
+  })
+
+export type Routine = {
+  id: string
+  name: string
+  path: string
+  schedule: string
+  enabled: boolean
+  nextRun: string | null
+  lastRun: string | null
+  lastStatus: "running" | "done" | "failed" | null
+}
+export type ModelChoice = { providerID: string; modelID: string }
+export type MemoryHit = { sessionID?: string; text: string; at: number }
+
+export const listRoutines = (client: Client) => request<Routine[]>(client, "/second-brain/routines")
+
+export const runRoutine = (client: Client, id: string, model?: ModelChoice) =>
+  request<{ threadId: string }>(client, `/second-brain/routines/${encodeURIComponent(id)}/run`, {
+    method: "POST",
+    body: JSON.stringify(model ? { model } : {}),
+  })
+
+/** Creates the vault's `.command-centre` folder when missing and returns it. */
+export const commandDirectory = (client: Client) =>
+  request<{ directory: string }>(client, "/command-centre/directory", { method: "POST" })
+
+export const searchCommandMemory = (client: Client, search: string) =>
+  request<MemoryHit[]>(client, `/command-centre/memory?search=${encodeURIComponent(search)}`)
+
+export const compactCommandMemory = (client: Client, input: { days: number; model?: ModelChoice }) =>
+  request<{ summarised: number; deleted: number }>(client, "/command-centre/memory/compact", {
+    method: "POST",
+    body: JSON.stringify(input),
   })
 
 /** A vault page in the shape the Projects map and overview list notes in. The vault keeps no link index. */

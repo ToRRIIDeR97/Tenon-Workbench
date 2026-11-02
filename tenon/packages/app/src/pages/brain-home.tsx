@@ -391,7 +391,7 @@ export default function BrainHomePage() {
                 class="pt-8"
                 id="brain-home-running"
                 title={language.t("secondBrain.home.running")}
-                onTitle={() => navigate("/activity")}
+                onTitle={() => navigate("/command")}
               >
                 <ul class="flex flex-col">
                   <For each={runningSessions()}>

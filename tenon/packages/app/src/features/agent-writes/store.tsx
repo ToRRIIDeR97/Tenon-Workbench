@@ -91,7 +91,8 @@ const LIMIT = 50
 function createAgentWrites() {
   const platform = usePlatform()
   const serverSDK = useServerSDK()
-  const [state, setState] = createStore<{ writes: AgentWrite[] }>({ writes: [] })
+  // `focused`: a thread a page shows outside the thread route (the Command Centre's open thread).
+  const [state, setState] = createStore<{ writes: AgentWrite[]; focused?: string }>({ writes: [] })
 
   const unsubscribe = serverSDK().event.listen((event) => {
     const write = parseAgentWrite(event.name, event.details as { type?: unknown; properties?: unknown })
@@ -119,6 +120,9 @@ function createAgentWrites() {
     writes: () => state.writes,
     forSession: (sessionID: string) => state.writes.filter((write) => write.sessionID === sessionID),
     hide: (id: string) => update(id, { hidden: true }),
+    /** The thread a page shows inline outside `/…/session/<id>`; its writes get no pill. */
+    focused: () => state.focused,
+    focus: (sessionID: string | undefined) => setState("focused", sessionID),
     async undo(id: string) {
       const write = state.writes.find((item) => item.id === id)
       if (!write?.undo || write.undoState === "pending" || write.undoState === "undone") return
