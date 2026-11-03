@@ -24,7 +24,10 @@ test("relative time uses the largest whole unit, without weeks", () => {
 })
 
 test("medium date-time format and invalid input", () => {
-  expect(formatDateTimeMedium(new Date(2026, 7, 31, 16, 18).getTime(), "en-US")).toBe("Aug 31, 2026, 4:18 PM")
+  // ICU versions differ in the date-time joiner (", " or " at ") and the space before PM (U+0020 or U+202F).
+  expect(formatDateTimeMedium(new Date(2026, 7, 31, 16, 18).getTime(), "en-US")).toMatch(
+    /^Aug 31, 2026(,| at) 4:18\sPM$/,
+  )
   expect(formatDateTimeMedium("not a date", "en-US")).toBeUndefined()
 })
 

@@ -56,20 +56,24 @@ test("Home starts a thread with the model and reasoning picked for its harness",
   )
 
   await page.goto("/")
-  await page.getByRole("button", { name: "Harness", exact: true }).click()
+  // One pill holds the harness, model and reasoning; each summary row opens its list.
+  const pill = page.locator('[data-action="prompt-model-pill"]')
+  const row = (step: string) => page.locator(`[data-component="prompt-model-pill-panel"] [data-step="${step}"]`)
+  await pill.click()
+  await row("harness").click()
   await page.getByRole("menuitemradio", { name: "Codex", exact: true }).click()
 
-  const modelPicker = page.getByRole("button", { name: "Model", exact: true })
-  await expect(modelPicker).toHaveText("GPT-5.6 Sol")
-  await modelPicker.click()
+  await expect(row("model")).toContainText("GPT-5.6 Sol")
+  await row("model").click()
   await page.getByRole("menuitemradio", { name: "GPT-5.6 Luna", exact: true }).click()
-  await expect(modelPicker).toHaveText("GPT-5.6 Luna")
+  await expect(row("model")).toContainText("GPT-5.6 Luna")
 
-  const effort = page.getByRole("button", { name: "Effort", exact: true })
-  await expect(effort).toHaveText("low")
-  await effort.click()
+  await expect(row("effort")).toContainText("low")
+  await row("effort").click()
   await page.getByRole("menuitemradio", { name: "high", exact: true }).click()
-  await expect(effort).toHaveText("high")
+  await expect(row("effort")).toContainText("high")
+  await page.keyboard.press("Escape")
+  await expect(pill).toHaveText("GPT-5.6 Luna · high")
 
   await page.getByRole("textbox", { name: "Start a Run", exact: true }).fill("Check the routes.")
   await page.getByRole("button", { name: "Start", exact: true }).click()
