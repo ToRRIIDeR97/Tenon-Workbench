@@ -133,9 +133,9 @@ Some details of the write path:
 
 - A calendar write replaces the whole `{events, tasks}` document; there is no
   per-task endpoint.
-- The Notes page writes a page with the revision it loaded; a 409 is shown as
+- The Projects page writes a page with the revision it loaded; a 409 is shown as
   "This page changed somewhere else" and nothing is overwritten
-  ([README](README.md#notes-page)).
+  ([README](README.md#projects-page)).
 - Vault writes follow the same path, but resolve targets inside the
   workspace's vault folder (real path checked through symlinks) instead of
   through `LocationMutation`, then use the same `FileMutation` create or
@@ -268,8 +268,8 @@ store (`KnowledgeVault.writeTimeline`, `appendLog`,
 | Workspace files | Shared store | Component, Deployment, Activity: write | `notes/` (legacy, migrated), `projects/`, `.tenon/` (cards, `calendar-v1.json`) |
 | Tenon vault (pages, `timeline.json`, `log/<machine>.md`, `.history`, `.backups`) | Shared store | Component, Deployment, Trust boundaries, Activity: write; text in [README](README.md#tenon-vault) | `tenon/src/knowledge/vault.ts`, `tenon/src/server/routes/instance/httpapi/handlers/second-brain.ts` |
 | `vault-machine.json` (machine id, workspace → vault folder) | Shared store | Deployment; text in [README](README.md#tenon-vault) | `tenon/src/knowledge/vault.ts` (`open`) |
-| Vault migration (copy, backup, remove originals) | Critical workflow | Text in [README](README.md#tenon-vault) | `tenon/src/knowledge/vault.ts` (`migrate`); triggered once per workspace by the Notes page (`app/src/pages/notes.tsx`, `migrateOnce`) |
-| Notes page over the vault (page tree, Project Timeline/Board/Table/Docs/Log, page editing with revision checks, conflict-copy banner) | Subsystem | Text in [README](README.md#notes-page) | `app/src/pages/notes.tsx`, `app/src/features/second-brain/notes-tree.tsx`, `notes-project.tsx`, `notes-page.tsx`, `notes-timeline.ts`, `note-editor.tsx`, `client.ts` (vault functions) |
+| Vault migration (copy, backup, remove originals) | Critical workflow | Text in [README](README.md#tenon-vault) | `tenon/src/knowledge/vault.ts` (`migrate`); triggered once per workspace by the Projects page (`app/src/pages/projects.tsx`, `migrateOnce`) |
+| Projects page over the vault (page tree, Project Timeline/Board/Table/Calendar/Docs/Log/Details, New Project, page editing with revision checks, conflict-copy banner) | Subsystem | Text in [README](README.md#projects-page) | `app/src/pages/projects.tsx`, `app/src/features/second-brain/notes-tree.tsx`, `notes-project.tsx`, `project-details.tsx`, `notes-page.tsx`, `notes-timeline.ts`, `note-editor.tsx`, `client.ts` (vault functions) |
 | Vault folder choice (`TENON_VAULT_DIR`, `choose-vault-folder` IPC) | Subsystem | Deployment; text in [README](README.md#tenon-vault) | `desktop/src/main/vault-folder.ts`, `desktop/src/main/server.ts` (`preferAppEnv`), `desktop/src/main/ipc.ts` |
 | Profile SQLite (`tenon.db`) | Shared store | Component, Deployment, Class | `core/src/database/`, `core/src/event.ts` |
 | Snapshot repository | Shared store | Component, Class, Activity: prompt run | `core/src/snapshot.ts` |

@@ -37,11 +37,11 @@ describe("agent writes", () => {
   })
 
   test("opens the written page, Project or calendar", () => {
-    expect(openHref({ kind: "note", open: { page: "Acme/Plan.md" }, preview: {} })).toBe("/notes?page=Acme%2FPlan.md")
-    expect(openHref({ kind: "timeline", preview: { projectId: "project_1" } })).toBe("/notes?project=project_1")
+    expect(openHref({ kind: "note", open: { page: "Acme/Plan.md" }, preview: {} })).toBe("/projects?page=Acme%2FPlan.md")
+    expect(openHref({ kind: "timeline", preview: { projectId: "project_1" } })).toBe("/projects?project=project_1")
     expect(openHref({ kind: "tasks", preview: {} })).toBe("/calendar")
     expect(openHref({ kind: "note", open: { projectId: "project_1" }, preview: {} })).toBe(
-      "/notes?project=project_1&tab=log",
+      "/projects?project=project_1&tab=log",
     )
     expect(openHref({ kind: "calendar", preview: { events: [{ title: "x", date: "2026-11-03" }] } })).toBe(
       "/calendar?date=2026-11-03",

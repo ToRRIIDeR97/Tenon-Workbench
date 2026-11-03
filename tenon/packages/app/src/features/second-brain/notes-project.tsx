@@ -10,7 +10,7 @@ import { PageEmpty } from "@/components/page"
 import type { LogEntry, ProjectRecord, Timeline, TimelineItem, VaultPageInfo } from "./client"
 import { monthGrid, shiftMonth, timelineCounts, timelineLayout } from "./notes-timeline"
 
-export const projectTabs = ["timeline", "board", "table", "calendar", "docs", "log"] as const
+export const projectTabs = ["timeline", "board", "table", "calendar", "docs", "log", "details"] as const
 export type ProjectTab = (typeof projectTabs)[number]
 
 const statuses = ["todo", "doing", "done"] as const
@@ -31,7 +31,7 @@ const emptyDraft = () => ({
   end: "",
 })
 
-/** A Project in Notes: title, progress line and the Timeline, Board, Table, Calendar, Docs and Log views. */
+/** A Project on the Projects page: title, progress line and the Timeline, Board, Table, Calendar, Docs, Log and Details views. */
 export function NotesProject(props: {
   project: ProjectRecord
   tab: ProjectTab
@@ -44,6 +44,8 @@ export function NotesProject(props: {
   /** Saves the whole item list over the loaded revision; resolves to an error message, or "" when saved. */
   onSaveItems: (items: ReadonlyArray<TimelineItem>) => Promise<string>
   calendarHref: string
+  /** The Details tab: the Project's card (outcome, progress, status, Start work). */
+  details: JSX.Element
 }) {
   const language = useLanguage()
   // The user's own calendar day (grid dates are plain YYYY-MM-DD days), not the UTC one.
@@ -234,6 +236,9 @@ export function NotesProject(props: {
       <h1 class="break-words text-[28px] leading-[38px] text-v2-text-text-base [font-weight:700]">
         {props.project.name}
       </h1>
+      <Show when={props.project.outcome}>
+        <p class="max-w-3xl text-[15px] leading-6 text-v2-text-text-base">{props.project.outcome}</p>
+      </Show>
       <Show when={props.timeline.value}>
         <p class="text-[13px] leading-5 text-v2-text-text-muted">{progress()}</p>
       </Show>
@@ -539,6 +544,7 @@ export function NotesProject(props: {
             </Show>
           ))}
         </TabsV2.Content>
+        <TabsV2.Content value="details">{props.details}</TabsV2.Content>
       </TabsV2>
     </div>
   )

@@ -77,7 +77,7 @@ test("AC-1.4 rail destinations keep their order and Settings opens the dialog", 
     .locator("nav [data-sidebar-item]")
     .evaluateAll((items) => items.map((item) => item.getAttribute("data-sidebar-item")))
   // AC-7.1 replaces Activity with Command Centre in PR4 (plan author update).
-  expect(ids).toEqual(["overview", "notes", "calendar", "command", "settings"])
+  expect(ids).toEqual(["overview", "projects", "calendar", "command", "settings"])
   await sidebar(page).locator('[data-sidebar-item="settings"]').click()
   await expect(page.locator('[data-component="dialog-v2"][data-variant="settings"]')).toBeVisible()
 })

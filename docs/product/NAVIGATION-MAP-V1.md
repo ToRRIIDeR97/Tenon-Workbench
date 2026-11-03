@@ -24,7 +24,7 @@ the old path, so a relocated workspace starts without them.
 ```mermaid
 flowchart LR
     Sidebar[Sidebar] --> Home[Home]
-    Sidebar --> Notes[Notes]
+    Sidebar --> Projects[Projects: tree, Project tabs, pages]
     Sidebar --> Calendar[Calendar]
     Sidebar --> Command[Command Centre]
     Sidebar --> Workspace[Workspace dropdown]
@@ -36,9 +36,9 @@ flowchart LR
     Thread --> Child[Child threads, shown while their lineage is open]
     Workspace --> General[General group]
     Workspace --> Menu[Switch, open folder, scan, link, instructions]
-    Menu --> Cards[Projects page: cards and management]
+    Menu --> Projects
     Menu --> Overview[All projects: every Project's notes and milestones]
-    Cards --> Overview
+    Projects --> Overview
 ```
 
 ## Sidebar
@@ -48,13 +48,13 @@ window width, and a Projects panel beside it. Below 768 px the Projects panel
 is hidden and the rail remains.
 
 1. **Rail**, a gradient column distinct from the Projects panel's: **Home**,
-   **Notes**, **Calendar**, **Command Centre** and **Settings** as icons whose label
+   **Projects**, **Calendar**, **Command Centre** and **Settings** as icons whose label
    slides out on hover (the current page gets a pill highlight; Settings opens
    the Settings dialog). A new thread starts from `mod+n`, a Project's **+**,
    or Home's composer.
 2. **Workspace** panel. The heading is a dropdown: the opened folders (the
    current one checked), **Open folder as workspace**, **New Project** (opens the
-   Projects page's create form, `/projects?new=1`, to create a card), **Scan for projects**,
+   Projects page's New Project form, `/projects?new=1`), **Scan for projects**,
    **Add project…**, **Workspace instructions** (the workspace's
    default `AGENTS.md`), **All projects** (`/projects/overview`) and **Manage projects** (`/projects`). Next to it, the
    folder button also opens **Add project…** and the other button scans again.
@@ -122,12 +122,14 @@ The titlebar is window chrome only: the sidebar toggle, back and forward
 | Route | Shows | Sidebar highlight |
 |---|---|---|
 | `/` | Home | Home |
-| `/notes`, `/calendar`, `/command` | That page | That item |
+| `/projects`, `/calendar`, `/command` | That page | That item |
 | `/command?thread=<id>` | Command Centre with that thread open | Command Centre |
 | `/routines` | Routines (linked from the Command Centre) | None |
 | `/activity` | Redirects to `/command` | Command Centre |
-| `/projects`, `/projects?project=<id>` | Project cards; a selected card | None |
-| `/projects/overview` | All projects: every Project's notes and milestones | None |
+| `/projects?project=<id>&tab=<view>` | A Project: Timeline, Board, Table, Calendar, Docs, Log or Details | Projects |
+| `/projects?page=<path>`, `/projects?new=1` | A page full width; the New Project form | Projects |
+| `/notes…` | Redirects to the same view under `/projects` (Notes merged into Projects) | Projects |
+| `/projects/overview` | All projects: every Project's notes and milestones | Projects |
 | `/new-thread?project=<id>&draftId=<id>` | Draft composer in the Project's thread directory | The Project |
 | `/server/<server>/session/<id>` | A thread | The Project whose folder holds the thread's directory, else General |
 
@@ -160,10 +162,10 @@ deleted.
 | `alt+up` / `alt+down` | Previous / next visible thread in the sidebar |
 | `mod+shift+[` / `mod+shift+]` | Previous / next Project |
 | `mod+[` / `mod+]` | Back / forward |
-| `mod+k` | Command palette (also lists Go to Home, Notes, Calendar and Command Centre) |
+| `mod+k` | Command palette (also lists Go to Home, Projects, Calendar and Command Centre) |
 | `mod+z` | Undo the last sidebar action while its undo toast is open (not in text fields) |
 
-On the Notes page `mod+s` saves the open note from anywhere on the page,
+On the Projects page `mod+s` saves the open page from anywhere on the page,
 including the preview and fullscreen. In the note editor `mod+b` and `mod+i`
 format bold and italic instead of their global meaning.
 
@@ -198,15 +200,20 @@ folder as a workspace and selects it) and `tenon://new-session?directory=<path>&
   Projects, resume and running threads. With no Projects, **Create Project**
   opens the Projects page's create form (`/projects?new=1`). Sending from Home's composer opens
   the new thread and sends the message in one step.
-- **Projects** lists Project cards by status and opens a card with Overview,
-  Plan, Work, Files, Activity and Map views. **All projects**, the first row of
-  its list, opens the cross-project page.
+- **Projects** (Notes and the old Projects page, merged 2026-11-03) is a page
+  tree beside what is open. The tree has **Projects** (each Project with its
+  pages), **Archived** (folded) and **General** (pages tied to no Project);
+  its header has **New Project** and **New page**, and search. A Project opens
+  on Timeline, with Board, Table, Calendar, Docs, Log and **Details** (Start
+  work, progress, next milestone, blocker, settings, Pause/Resume, Archive with
+  Undo). A page opens full width; Back returns to the view it came from. With
+  nothing open, the page shows **All projects** and recent pages.
 - **All projects** (`/projects/overview`) shows every Project of the workspace
   on one page, in the Projects order, then a **Workspace** group for notes and
   calendar items linked to no Project. Each group shows the status, progress,
   next milestone, up to five upcoming events and open tasks, and up to five
   recent notes; **Show all** opens the Project's calendar or notes, and a note
-  opens in Notes. A filter narrows notes and items by title; a Project whose
+  opens on the Projects page. A filter narrows notes and items by title; a Project whose
   name matches keeps everything.
 - **Calendar** shows events and tasks. Today and Week are hour grids
   (07:00–22:00, widened to fit events) with all-day events and open tasks in a
@@ -224,7 +231,7 @@ folder as a workspace and selects it) and `tenon://new-session?directory=<path>&
   again, and Google lets the user pick a different account. **Sync now** syncs
   every account. A new event or task's **Save to** offers Local and each
   account with read and write access.
-- **Notes** holds global notes and Project notes. A note's file name keeps
+- Pages (on the Projects page) hold global notes and Project notes. A page's file name keeps
   the title's letters and digits in any script. If a save finds the note
   changed on disk, **Reload from disk** replaces the edits with the saved copy.
 - **Command Centre** replaced Activity. It lists only its own threads (never

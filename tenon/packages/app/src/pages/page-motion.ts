@@ -1,6 +1,6 @@
 import { NEW_THREAD_PATH } from "@/context/drafts"
 
-const pages = new Set(["/", "/notes", "/calendar", "/projects", "/projects/overview", "/command", "/routines"])
+const pages = new Set(["/", "/calendar", "/projects", "/projects/overview", "/command", "/routines"])
 
 /**
  * The shell section a pathname belongs to. Draft and session routes share one section, the thread view,

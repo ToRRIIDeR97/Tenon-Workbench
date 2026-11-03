@@ -15,7 +15,8 @@ type Node = {
 }
 
 /**
- * The Notes page tree: a "Projects" group (each Project with its pages beneath) and a "Workspace pages" group.
+ * The Projects page tree: a "Projects" group (each Project with its pages beneath), an "Archived" group (folded)
+ * when any Project is archived, and "General" for pages without a Project.
  * Follows the ARIA tree pattern: one tab stop, arrows move and expand, Enter opens.
  */
 export function NotesTree(props: {
@@ -27,7 +28,7 @@ export function NotesTree(props: {
   onPage: (path: string) => void
 }) {
   const language = useLanguage()
-  const [state, setState] = createStore({ collapsed: {} as Record<string, boolean>, focused: "" })
+  const [state, setState] = createStore({ collapsed: { "group:archived": true } as Record<string, boolean>, focused: "" })
   const nodes = createMemo((): Node[] => {
     const known = new Set(props.projects.map((project) => project.id))
     const page = (info: VaultPageInfo): Node => ({
@@ -39,23 +40,36 @@ export function NotesTree(props: {
     })
     // Sorted by title so the tree holds still while pages are edited (the list itself is newest first).
     const byTitle = (items: VaultPageInfo[]) => items.sort((left, right) => left.title.localeCompare(right.title))
+    const project = (record: ProjectRecord): Node => ({
+      key: `project:${record.id}`,
+      label: record.name,
+      kind: "project",
+      target: record.id,
+      children: byTitle(props.pages.filter((info) => info.projectId === record.id)).map(page),
+    })
+    const archived = props.projects.filter((record) => record.status === "archived")
     return [
       {
         key: "group:projects",
         label: language.t("secondBrain.vault.projects"),
         kind: "group",
         target: "",
-        children: props.projects.map((project) => ({
-          key: `project:${project.id}`,
-          label: project.name,
-          kind: "project",
-          target: project.id,
-          children: byTitle(props.pages.filter((info) => info.projectId === project.id)).map(page),
-        })),
+        children: props.projects.filter((record) => record.status !== "archived").map(project),
       },
+      ...(archived.length > 0
+        ? [
+            {
+              key: "group:archived",
+              label: language.t("secondBrain.projects.filter.archived"),
+              kind: "group" as const,
+              target: "",
+              children: archived.map(project),
+            },
+          ]
+        : []),
       {
         key: "group:workspace",
-        label: language.t("secondBrain.vault.workspacePages"),
+        label: language.t("secondBrain.vault.general"),
         kind: "group",
         target: "",
         // Pages of a Project this workspace no longer lists stay reachable here.

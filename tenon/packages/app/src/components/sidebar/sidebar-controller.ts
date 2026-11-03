@@ -709,7 +709,7 @@ export function createSidebarController() {
     ...(
       [
         ["home", "/", "secondBrain.sidebar.goHome"],
-        ["notes", "/notes", "secondBrain.sidebar.goNotes"],
+        ["projects", "/projects", "secondBrain.sidebar.goProjects"],
         ["calendar", "/calendar", "secondBrain.sidebar.goCalendar"],
         ["command", "/command", "secondBrain.sidebar.goCommand"],
       ] as const
