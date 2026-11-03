@@ -5,9 +5,7 @@ import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { KeybindV2 } from "@tenon/ui/v2/keybind-v2"
 import { Reveal, RevealShow } from "@tenon/ui/v2/reveal"
 import { PathTooltip, TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
-import { createEffect, createMemo, For, Show, Suspense } from "solid-js"
-import { useQuery } from "@tanstack/solid-query"
-import { createStore } from "solid-js/store"
+import { createEffect, createMemo, For, Show } from "solid-js"
 import { useLanguage } from "@/context/language"
 import { createFreshItems } from "@/utils/fresh-items"
 import { useLayout } from "@/context/layout"
@@ -30,22 +28,16 @@ import { Harness } from "@tenon/schema/harness"
 import {
   harnessAssistantDirectory,
   listHarnessSetup,
-  listHarnessesRemembered,
-  rememberedHarnesses,
 } from "@/utils/server"
-import type { PromptInputHarnessController } from "@/components/prompt-input/harness-controls"
-import { PromptModelPill } from "@/components/prompt-input/model-pill"
 import { ComposerBox } from "@/components/prompt-input/composer-box"
 import { createComposerController } from "@/components/prompt-input/composer-controller"
-import { HomeModelPill } from "@/pages/home/home-model-pill"
-import type { PromptModel } from "@/context/prompt"
+import { ComposerModelPill, createComposerHarness } from "@/components/prompt-input/composer-harness"
 import { PromptBranchPicker } from "@/components/prompt-workspace-selector"
 import { Greeting } from "@/pages/new-session/greeting"
 import { NEW_SESSION_CONTENT_WIDTH } from "@/pages/session/new-session-layout"
 import { useServerSync } from "@/context/server-sync"
 import { getFilename } from "@tenon/core/util/path"
-import { MODEL_RETRIES, MODEL_RETRY_MS, defaultModel } from "@/components/prompt-input/harness-controller"
-import { useSettings, withVisibleModels } from "@/context/settings"
+import { useSettings } from "@/context/settings"
 
 type TodayItem = { kind: "event"; value: CalendarEvent } | { kind: "task"; value: PlannerTask; overdue: boolean }
 
@@ -62,23 +54,6 @@ export default function BrainHomePage() {
   const command = useCommand()
   const tenonHome = createHomeController()
   const tenonSessions = createHomeSessionsController(tenonHome)
-  const [state, setState] = createStore({
-    harnessInstanceID: Harness.OpenCode as Harness.InstanceID,
-    harnessModel: undefined as Harness.ModelSelection | undefined,
-    // The built-in agent's model and reasoning, from the folder's model selection.
-    builtInModel: undefined as PromptModel | undefined,
-    // Set once the user picks a harness here, so a later settings load doesn't override it.
-    picked: false,
-  })
-  // Home starts on the harness chosen in Settings › Harnesses. Settings load asynchronously on desktop.
-  createEffect(() => {
-    const choice = settings.harnesses.newThreadChoice()
-    if (!choice || state.picked) return
-    setState({
-      harnessInstanceID: choice.harnessID as Harness.InstanceID,
-      harnessModel: choice.model as Harness.ModelSelection | undefined,
-    })
-  })
   const client = (directory: string) => ({
     server: serverSDK().server,
     fetch: platform.fetch,
@@ -87,6 +62,15 @@ export default function BrainHomePage() {
 
   // The sidebar workspace switcher owns this choice; the page only follows it.
   const directory = () => layout.home.workspace() ?? ""
+  // Home starts on the harness chosen in Settings › Harnesses.
+  const harness = createComposerHarness({
+    scope: "home",
+    directory,
+    initial: () => {
+      const choice = settings.harnesses.newThreadChoice()
+      return choice && { harnessID: choice.harnessID, model: choice.model as Harness.ModelSelection | undefined }
+    },
+  })
 
   // First run: offer the built-in agent setup once, unless every built-in agent is already installed and signed in.
   // It runs in the server's non-project assistant folder, so a new user needs no workspace for it.
@@ -107,64 +91,6 @@ export default function BrainHomePage() {
   const projects = useBrainProjects()
   // Cached per workspace, so Today paints at launch and a background sync updates it in place.
   const calendar = createCalendarResource(() => directory() || undefined, client)
-  const harnessQuery = useQuery(() => ({
-    queryKey: ["home", "harnesses", server.key, directory()],
-    enabled: !!directory(),
-    queryFn: () => listHarnessesRemembered({ server: serverSDK().server.http, fetch: platform.fetch }, directory()),
-    // After the cached query is collected, the last good list keeps the picker usable while it reloads.
-    placeholderData: () => rememberedHarnesses(serverSDK().server.http.url, directory()),
-    staleTime: 30_000,
-    refetchOnMount: true,
-    // A check that fails before anything is remembered (the server still starting) is retried soon.
-    retry: MODEL_RETRIES,
-    retryDelay: MODEL_RETRY_MS,
-    // The selected agent can answer before its models are listed; ask again until they arrive, as threads do.
-    refetchInterval: (query) => {
-      const selected = query.state.data?.find((item) => item.id === state.harnessInstanceID)
-      const waiting =
-        selected?.driver !== Harness.OpenCodeDriver && selected?.status === "available" && selected.models.length === 0
-      return waiting && query.state.dataUpdateCount <= MODEL_RETRIES ? MODEL_RETRY_MS : false
-    },
-  }))
-  // Models hidden in Settings never reach the picker or the default-model choice, as in the thread composer.
-  // Reading `data` suspends, so callers outside the controls' Suspense boundary check `isPending` first.
-  const harnesses = () =>
-    harnessQuery.data?.map((item) =>
-      withVisibleModels(item, settings.harnesses.hiddenModels(item.id), settings.harnesses.hiddenProviders(item.id)),
-    )
-  const selectHarness = (instanceID: Harness.InstanceID) => {
-    const next = harnesses()?.find((instance) => instance.id === instanceID)
-    setState({ harnessInstanceID: instanceID, harnessModel: next ? defaultModel(next) : undefined, picked: true })
-  }
-  // Fall back to an available harness, and keep the model valid for the selected one.
-  createEffect(() => {
-    if (harnessQuery.isPending) return
-    const available = harnesses()
-    if (!available) return
-    const current = available.find((instance) => instance.id === state.harnessInstanceID)
-    if (current?.status !== "available") {
-      // Only a confirmed check moves Home off its harness; a remembered list may be out of date.
-      if (harnessQuery.isPlaceholderData) return
-      const fallback = available.find((instance) => instance.status === "available")
-      if (fallback) setState({ harnessInstanceID: fallback.id, harnessModel: defaultModel(fallback) })
-      return
-    }
-    if (current.models.some((model) => model.id === state.harnessModel?.id)) return
-    setState("harnessModel", defaultModel(current))
-  })
-  const harness: PromptInputHarnessController = {
-    instances: harnesses,
-    // Only the first load blocks the picker; a stale list stays usable while it refreshes.
-    loading: () => harnessQuery.isPending,
-    // Opening the picker refetches once stale; the app's queries don't refetch on window focus.
-    revalidate: () => void (harnessQuery.isStale && harnessQuery.refetch()),
-    current: () => state.harnessInstanceID,
-    select: selectHarness,
-    model: {
-      current: () => state.harnessModel,
-      set: (model) => setState("harnessModel", model),
-    },
-  }
   const today = localDateKey(new Date())
   const activeProjects = createMemo(() =>
     (projects.list() ?? [])
@@ -205,23 +131,20 @@ export default function BrainHomePage() {
       )
   })
 
-  // The built-in agent needs no check, so only another harness waits for the list. The thread page
-  // sends once its own list has loaded, and keeps the prompt if the harness turns out unavailable.
-  const builtIn = () =>
-    (harnesses()?.find((item) => item.id === state.harnessInstanceID)?.driver ??
-      (state.harnessInstanceID === Harness.OpenCode ? Harness.OpenCodeDriver : undefined)) === Harness.OpenCodeDriver
   const composer = createComposerController({
     // The draft page sends the prompt as soon as its composer is ready.
     send: async (prompt) => {
-      const model = builtIn() ? state.builtInModel : undefined
-      await drafts.create({ server: server.key, directory: directory() }, prompt, model, state.harnessInstanceID, {
-        send: true,
-        harnessModel: state.harnessModel,
-      })
+      await drafts.create(
+        { server: server.key, directory: directory() },
+        prompt,
+        harness.builtInModel(),
+        harness.harnessID(),
+        { send: true, harnessModel: harness.harnessModel() },
+      )
       return true
     },
     disabled: () => !directory(),
-    blocked: () => harnessQuery.isPending && state.harnessInstanceID !== Harness.OpenCode,
+    blocked: harness.waiting,
   })
 
   return (
@@ -298,27 +221,7 @@ export default function BrainHomePage() {
                   <PromptBranchPicker directory={directory()} branch={serverSync().child(directory())[0].vcs?.branch} />
                 </div>
               }
-              controls={
-                // The harness query suspends while it loads; this boundary keeps the rest of Home on screen.
-                <Suspense
-                  fallback={
-                    <span class="flex h-8 items-center px-2 text-[12px] text-v2-text-text-faint">
-                      {language.t("harness.checking")}
-                    </span>
-                  }
-                >
-                  <Show when={directory()} keyed fallback={<PromptModelPill harness={harness} builtIn={builtIn()} />}>
-                    {(folder) => (
-                      <HomeModelPill
-                        directory={folder}
-                        harness={harness}
-                        builtIn={builtIn()}
-                        onModel={(model) => setState("builtInModel", model)}
-                      />
-                    )}
-                  </Show>
-                </Suspense>
-              }
+              controls={<ComposerModelPill harness={harness} />}
             />
 
             <RevealShow when={!!(projects.failed() || calendar.error())}>

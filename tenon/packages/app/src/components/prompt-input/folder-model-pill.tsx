@@ -11,11 +11,11 @@ import { SDKProvider, useSDK } from "@/context/sdk"
 import { useProviders } from "@/hooks/use-providers"
 
 /**
- * Home's model pill. Home sits outside a folder's providers, so for the built-in agent it mounts the folder's own
- * model selection here: the same one a new thread in that folder starts from. It reports the model and
- * reasoning so Home can start the thread with them.
+ * The model pill for a composer outside a folder's providers (Home, the Command Centre). For the built-in agent it
+ * mounts the folder's own model selection here: the same one a new thread in that folder starts from. It reports
+ * the model and reasoning so the page can start the thread with them.
  */
-export function HomeModelPill(props: {
+export function FolderModelPill(props: {
   directory: string
   harness: PromptInputHarnessController
   builtIn: boolean
@@ -32,7 +32,7 @@ export function HomeModelPill(props: {
   )
 }
 
-function BuiltInPill(props: Parameters<typeof HomeModelPill>[0]) {
+function BuiltInPill(props: Parameters<typeof FolderModelPill>[0]) {
   const local = useLocal()
   const sdk = useSDK()
   const dialog = useDialog()

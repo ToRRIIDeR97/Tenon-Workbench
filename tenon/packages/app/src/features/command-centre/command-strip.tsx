@@ -7,6 +7,8 @@ import { ComposerBox } from "@/components/prompt-input/composer-box"
 import { createComposerController } from "@/components/prompt-input/composer-controller"
 import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
+import { useServer } from "@/context/server"
+import { sessionHref } from "@/utils/session-route"
 import { useCommandCentre } from "./command-centre"
 
 /**
@@ -21,6 +23,7 @@ export function CommandStrip() {
   const navigate = useNavigate()
   const command = useCommand()
   const centre = useCommandCentre()
+  const server = useServer()
   const [state, setState] = createStore({ open: false })
   let input: HTMLTextAreaElement | undefined
   let card: HTMLDivElement | undefined
@@ -67,7 +70,7 @@ export function CommandStrip() {
   const openFull = () => {
     const id = centre.latest()?.id
     setState("open", false)
-    navigate(id ? `/command?thread=${encodeURIComponent(id)}` : "/command")
+    navigate(id ? sessionHref(server.key, id) : "/command")
   }
 
   return (

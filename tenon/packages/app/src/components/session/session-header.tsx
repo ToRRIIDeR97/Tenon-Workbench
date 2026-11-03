@@ -3,7 +3,9 @@ import { createMediaQuery } from "@solid-primitives/media"
 import { Portal } from "solid-js/web"
 import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
+import { useSDK } from "@/context/sdk"
 import { useSettings } from "@/context/settings"
+import { isCommandThread } from "@/features/command-centre/command-centre"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { StatusPopoverV2 } from "../status-popover"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
@@ -18,6 +20,9 @@ export function SessionHeader() {
   const language = useLanguage()
   const settings = useSettings()
   const { view } = useSessionLayout()
+  const sdk = useSDK()
+  // A Command Centre thread has no code folder, so no review or terminal.
+  const codeThread = () => !isCommandThread(sdk().directory)
 
   const status = settings.visibility.status
   const isDesktop = createMediaQuery("(min-width: 768px)")
@@ -27,9 +32,10 @@ export function SessionHeader() {
     statusLabel: language.t("status.popover.trigger"),
     reviewLabel: language.t("command.review.toggle"),
     reviewKeybind: reviewTooltipKeybind(command),
-    reviewVisible: isDesktop(),
+    reviewVisible: isDesktop() && codeThread(),
     reviewOpened: view().reviewPanel.opened(),
     onReviewToggle: () => view().reviewPanel.toggle(),
+    terminalVisible: codeThread(),
     terminalLabel: language.t("command.terminal.toggle"),
     terminalKeybind: command.keybindParts("terminal.toggle"),
     terminalOpened: view().terminal.opened(),
@@ -57,6 +63,7 @@ type SessionHeaderV2ActionsState = {
   reviewVisible: boolean
   reviewOpened: boolean
   onReviewToggle: () => void
+  terminalVisible: boolean
   terminalLabel: string
   terminalKeybind: string[]
   terminalOpened: boolean
@@ -71,31 +78,33 @@ function SessionHeaderV2Actions(props: { state: SessionHeaderV2ActionsState }) {
           <StatusPopoverV2 />
         </TooltipV2>
       </Show>
-      <TooltipV2
-        class="shrink-0"
-        placement="bottom"
-        value={
-          <>
-            {props.state.terminalLabel}
-            <Show when={props.state.terminalKeybind.length > 0}>
-              <KeybindV2 keys={props.state.terminalKeybind} variant="neutral" />
-            </Show>
-          </>
-        }
-      >
-        <IconButtonV2
-          type="button"
-          variant="ghost-muted"
-          size="large"
+      <Show when={props.state.terminalVisible}>
+        <TooltipV2
           class="shrink-0"
-          state={props.state.terminalOpened ? "pressed" : undefined}
-          onClick={props.state.onTerminalToggle}
-          aria-label={props.state.terminalLabel}
-          aria-expanded={props.state.terminalOpened}
-          aria-controls="terminal-panel"
-          icon={<IconV2 name="terminal" />}
-        />
-      </TooltipV2>
+          placement="bottom"
+          value={
+            <>
+              {props.state.terminalLabel}
+              <Show when={props.state.terminalKeybind.length > 0}>
+                <KeybindV2 keys={props.state.terminalKeybind} variant="neutral" />
+              </Show>
+            </>
+          }
+        >
+          <IconButtonV2
+            type="button"
+            variant="ghost-muted"
+            size="large"
+            class="shrink-0"
+            state={props.state.terminalOpened ? "pressed" : undefined}
+            onClick={props.state.onTerminalToggle}
+            aria-label={props.state.terminalLabel}
+            aria-expanded={props.state.terminalOpened}
+            aria-controls="terminal-panel"
+            icon={<IconV2 name="terminal" />}
+          />
+        </TooltipV2>
+      </Show>
       <Show when={props.state.reviewVisible}>
         <TooltipV2
           class="shrink-0"

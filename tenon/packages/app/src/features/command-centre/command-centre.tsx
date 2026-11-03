@@ -14,6 +14,12 @@ import { Identifier } from "@/utils/id"
 
 export type CommandThread = { id: string; title: string; directory: string; updated: number }
 export type CommandMessage = { id: string; role: "user" | "assistant"; text: string; done: boolean }
+/** What a new thread runs on, from the composer's model pill; without it the Settings default applies. */
+export type CommandChoice = {
+  harnessID: Harness.InstanceID
+  harnessModel?: Harness.ModelSelection
+  model?: { providerID: string; modelID: string; variant?: string | null }
+}
 
 const DAY = 24 * 60 * 60 * 1000
 const HOUR = 60 * 60 * 1000
@@ -22,6 +28,11 @@ const HOUR = 60 * 60 * 1000
 export function commandDirectoryFor(root: string) {
   const separator = root.includes("\\") && !root.includes("/") ? "\\" : "/"
   return `${root.replace(/[\\/]+$/, "")}${separator}.command-centre`
+}
+
+/** Whether a thread's folder is the Command Centre's (`<vault root>/.command-centre`). */
+export function isCommandThread(directory: string | undefined) {
+  return !!directory && /(^|[\\/])\.command-centre[\\/]*$/.test(directory)
 }
 
 /** Directory equality across separators, trailing slashes and (Windows) letter case. */
@@ -189,29 +200,30 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
      * Send to `sessionID`, else the latest Command Centre thread, else a new one; `null` always starts a new
      * thread. Resolves with the thread id.
      */
-    const send = async (text: string, sessionID?: string | null) => {
+    const send = async (text: string, sessionID?: string | null, choice?: CommandChoice) => {
       const folder = directory()
       const target = workspace()
       if (!folder || !target || !text.trim()) return undefined
       setState({ sending: true, error: "" })
       try {
         const current = settings.commandCentre.current()
-        const harnessID = Harness.InstanceID.make(current.harnessID ?? Harness.OpenCode)
+        const harnessID = choice?.harnessID ?? Harness.InstanceID.make(current.harnessID ?? Harness.OpenCode)
         const harness = harnessID !== Harness.OpenCode
+        const harnessModel = choice ? choice.harnessModel : current.modelID ? { id: current.modelID } : undefined
         const existing = sessionID === null ? undefined : (sessionID ?? latest()?.id)
         const create = async () => {
           // The server creates the vault's .command-centre folder; an older server without the route is fine.
           await commandDirectory(client(target)).catch(() => undefined)
           const info = await serverSDK().api.session.create({
             harnessInstanceID: harnessID,
-            harnessModel: harness && current.modelID ? { id: current.modelID } : undefined,
+            harnessModel: harness ? harnessModel : undefined,
             location: { directory: folder },
           })
           if (!info?.id) throw new Error("command_centre_thread_failed")
           return info.id
         }
         const id = existing ?? (await create())
-        const model = harness ? undefined : modelChoice(current.modelID)
+        const model = harness ? undefined : choice ? choice.model : modelChoice(current.modelID)
         await serverSDK()
           .ensureDirSdkContext(folder)
           .api.session.prompt({
@@ -220,6 +232,7 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
             text,
             harness,
             ...(model ? { model: { providerID: model.providerID, modelID: model.modelID } } : {}),
+            ...(!harness && choice?.model?.variant ? { variant: choice.model.variant } : {}),
           })
         sync(id)
         if (!existing) void refetch()
@@ -234,8 +247,6 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
 
     return {
       directory,
-      /** The open thread's writes in its current turn, for the step list (AC-7.7). */
-      writes,
       /** The latest thread's last write in its current turn that can be undone, for the K3 strip. */
       lastWrite: () =>
         writes(latest()?.id).findLast((write) => write.phase === "done" && !!write.undo && !write.failed),

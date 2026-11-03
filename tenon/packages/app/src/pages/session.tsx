@@ -39,6 +39,7 @@ import { showToast } from "@/utils/toast"
 import { base64Encode, checksum } from "@tenon/core/util/encode"
 import { useLocation, useNavigate, useParams, useSearchParams } from "@solidjs/router"
 import { SessionHeader } from "@/components/session"
+import { isCommandThread } from "@/features/command-centre/command-centre"
 import { ErrorPage } from "@/pages/error"
 import { CommentsProvider, useComments } from "@/context/comments"
 import { useCommand } from "@/context/command"
@@ -423,13 +424,16 @@ export default function Page() {
 
   const isDesktop = createMediaQuery("(min-width: 768px)")
   const size = createSizing()
-  const desktopReviewOpen = createMemo(() => isDesktop() && view().reviewPanel.opened())
+  // A Command Centre thread has no code folder: no review, files or terminal, only the timeline and composer.
+  const commandThread = createMemo(() => isCommandThread(sdk().directory))
+  const desktopReviewOpen = createMemo(() => isDesktop() && !commandThread() && view().reviewPanel.opened())
   const desktopV2ReviewOpen = createMemo(() => desktopReviewOpen() && !!params.id)
-  const terminalOpen = createMemo(() => view().terminal.opened())
+  const terminalOpen = createMemo(() => !commandThread() && view().terminal.opened())
   const desktopTerminalOpen = createMemo(() => isDesktop() && terminalOpen())
   const desktopFileTreeOpen = createMemo(
     () =>
       isDesktop() &&
+      !commandThread() &&
       shouldShowFileTree({
         visible: settings.visibility.fileTree(),
         opened: layout.fileTree.opened(),
@@ -485,7 +489,9 @@ export default function Page() {
   )
   // A closed review panel leaves a slim rail at the right edge to reopen it. A closing panel shrinks into
   // the rail's place first.
-  const desktopRailOpen = createMemo(() => isDesktop() && !!params.id && !desktopV2ReviewOpen() && !panelClosing())
+  const desktopRailOpen = createMemo(
+    () => isDesktop() && !!params.id && !commandThread() && !desktopV2ReviewOpen() && !panelClosing(),
+  )
   const railSpace = createMemo(() => (desktopRailOpen() ? SESSION_SIDE_RAIL_SPACE : 0))
   // The observer reports the row width; subtract the flex gap between the
   // panels and the rail.
@@ -2026,7 +2032,7 @@ export default function Page() {
   const sessionPanelContent = () => (
     <>
       {sessionSync() ?? ""}
-      <Show when={!isDesktop() && !!params.id && !mobileTabsBottom()}>{mobileTabs()}</Show>
+      <Show when={!isDesktop() && !!params.id && !commandThread() && !mobileTabsBottom()}>{mobileTabs()}</Show>
       <div class="flex-1 min-h-0 overflow-hidden">
         <Switch>
           <Match when={params.id && mobileChanges()}>
@@ -2180,7 +2186,7 @@ export default function Page() {
           )
         }}
       </Show>
-      <Show when={!!params.id && mobileTabsBottom()}>{mobileTabs()}</Show>
+      <Show when={!!params.id && !commandThread() && mobileTabsBottom()}>{mobileTabs()}</Show>
     </>
   )
 

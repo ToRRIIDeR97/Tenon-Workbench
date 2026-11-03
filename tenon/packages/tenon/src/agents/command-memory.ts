@@ -9,6 +9,7 @@ import { Effect, Schema, Semaphore } from "effect"
 import { realpathSync } from "node:fs"
 import { mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises"
 import path from "node:path"
+import COMMAND_AGENT from "./command-agent.md" with { type: "text" }
 
 /**
  * Command Centre memory. Command Centre threads run in `<vault root>/.command-centre`, a folder no
@@ -44,12 +45,28 @@ const lock = Semaphore.makeUnsafe(1)
 /** The machine's vault root (`TENON_VAULT_DIR`, else `<home>/Documents/Tenon`). */
 export const root = () => KnowledgeVault.rootFor(process.env, Global.make().home)
 
-/** Where Command Centre threads run. Created on first use. */
+/**
+ * Where Command Centre threads run. Created on first use, with the agent's AGENTS.md, which every
+ * thread there loads as its instructions.
+ */
 export const directory = Effect.fn("CommandMemory.directory")(function* () {
   const folder = path.join(root(), ".command-centre")
   yield* Effect.promise(() => mkdir(folder, { recursive: true }))
+  yield* Effect.promise(() => writeInstructions(folder))
   return folder
 })
+
+// The first line of command-agent.md. A file without it is the user's own and is left alone.
+const managed = "<!-- Managed by Tenon Workbench"
+
+/** Writes the Command Centre agent's AGENTS.md, refreshing an older managed copy. */
+export async function writeInstructions(folder: string) {
+  const file = path.join(folder, "AGENTS.md")
+  const current = await readFile(file, "utf8").catch(() => undefined)
+  if (current === COMMAND_AGENT) return
+  if (current !== undefined && !current.startsWith(managed)) return
+  await writeFile(file, COMMAND_AGENT)
+}
 
 const fold = (value: string) => {
   const resolved = path.resolve(value)

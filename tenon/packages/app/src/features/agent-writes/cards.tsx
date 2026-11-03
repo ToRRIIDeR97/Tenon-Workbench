@@ -82,7 +82,7 @@ export function AgentWritePill() {
   const current = createMemo(() => {
     const store = writes
     if (!store) return undefined
-    return pillWrite(store.writes(), sessionFromPath(location.pathname) ?? store.focused(), Date.now())
+    return pillWrite(store.writes(), sessionFromPath(location.pathname), Date.now())
   })
   // The last pill stays mounted while it animates out.
   const shown = createMemo<AgentWrite | undefined>((previous) => current() ?? previous)
@@ -145,54 +145,6 @@ function Pill(props: { write: AgentWrite; store: AgentWrites }) {
           <AgentWritePreview kind={props.write.kind} preview={props.write.preview} typing={writing()} />
         </div>
       </Grow>
-    </section>
-  )
-}
-
-/**
- * The writes of one turn as a step list (`data-variant="steps"`): a row per write and the active
- * (latest) row's preview. Mounted by the Command Centre page.
- */
-export function AgentWriteSteps(props: { writes: ReadonlyArray<AgentWrite>; store?: AgentWrites }) {
-  const language = useLanguage()
-  const store = props.store ?? useAgentWrites()
-  const active = () => props.writes.at(-1)
-  return (
-    <section
-      data-agent-write
-      data-variant="steps"
-      aria-label={language.t("secondBrain.agentWrites.steps")}
-      class="animate-enter w-full rounded-[12px] border border-v2-border-border-muted bg-v2-background-bg-layer-01"
-    >
-      <ol class="flex flex-col">
-        <For each={props.writes}>
-          {(write) => {
-            if (store) seenWhenSaved(() => write, store)
-            return (
-              <li data-agent-write-step data-kind={write.kind} data-phase={write.phase} class="flex flex-col">
-                <div class="flex min-h-9 items-center gap-2 px-3 py-1">
-                  <StatusDot active={write.phase === "started" && !write.failed} />
-                  <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base">
-                    <Headline write={write} />
-                  </span>
-                  <Show when={store && write.phase === "done"}>
-                    <Actions write={write} store={store!} />
-                  </Show>
-                </div>
-                <Grow open={active()?.id === write.id}>
-                  <div class="px-3 pb-3">
-                    <AgentWritePreview
-                      kind={write.kind}
-                      preview={write.preview}
-                      typing={write.phase === "started" && !write.failed}
-                    />
-                  </div>
-                </Grow>
-              </li>
-            )
-          }}
-        </For>
-      </ol>
     </section>
   )
 }

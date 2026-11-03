@@ -8,6 +8,7 @@ import { useLayout } from "@/context/layout"
 import { usePermission } from "@/context/permission"
 import { usePrompt } from "@/context/prompt"
 import { useSDK } from "@/context/sdk"
+import { isCommandThread } from "@/features/command-centre/command-centre"
 import { useSettings } from "@/context/settings"
 import { useSync } from "@/context/sync"
 import { useTerminal } from "@/context/terminal"
@@ -529,12 +530,16 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     }),
   ]
 
+  // A Command Centre thread has no code folder: no file, review, file tree or terminal commands.
+  const codeThread = () => !isCommandThread(sdk().directory)
+  const panelIds = new Set(["terminal.toggle", "review.toggle", "fileTree.toggle"])
+
   command.register("session", () => [
     ...sessionCmds(),
-    ...fileCmds(),
+    ...(codeThread() ? fileCmds() : []),
     ...contextCmds(),
-    ...viewCmds(),
-    ...terminalCmds(),
+    ...viewCmds().filter((option) => codeThread() || !panelIds.has(option.id)),
+    ...(codeThread() ? terminalCmds() : []),
     ...messageCmds(),
     ...mcpCmds(),
     ...permissionsCmds(),

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test"
+import { base64Encode } from "@tenon/core/util/encode"
 import { brain, openApp, sidebar } from "./open-app"
 
 // P7 · Command Centre (implementations/notes-command-centre/implementation.md, AC-7.1, AC-7.2, AC-7.3, AC-7.4, AC-7.7)
@@ -64,6 +65,42 @@ test("AC-7.2 the Command Centre lists only its own threads", async ({ page }) =>
   await expect(sidebar(page).getByText("Plan the billing webhook work")).toHaveCount(0)
 })
 
+// implementations/command-centre-thread/implementation.md, AC-2 and AC-3
+const threadURL = new RegExp(`/session/${commandThread.id}$`)
+
+test("AC-3 a Command Centre thread opens in the thread view, as do older ?thread= links", async ({ page }) => {
+  await start(page)
+  await page.goto("/command")
+  await page.getByRole("link", { name: /Plan the billing webhook work/ }).click()
+  await expect(page).toHaveURL(threadURL)
+  await page.goto(`/command?thread=${commandThread.id}`)
+  await expect(page).toHaveURL(threadURL)
+})
+
+test("AC-3 the Command Centre composer has the model pill", async ({ page }) => {
+  await start(page)
+  await page.route("**/api/harness?**", (route) =>
+    route.fulfill({
+      json: {
+        location: { directory: commandDirectory, project: { id: "global", directory: commandDirectory } },
+        data: [{ id: "opencode", driver: "opencode", name: "Default agent", status: "available", models: [] }],
+      },
+    }),
+  )
+  await page.goto("/command")
+  await expect(page.getByRole("textbox", { name: "Message the Command Centre", exact: true })).toBeVisible()
+  await expect(page.locator('[data-action="prompt-model-pill"]')).toBeVisible()
+})
+
+test("AC-2 a Command Centre thread has no review or terminal controls", async ({ page }) => {
+  await start(page)
+  await page.goto(`/command?thread=${commandThread.id}`)
+  await expect(page).toHaveURL(threadURL)
+  await expect(page.locator('[data-component="prompt-input-v2"]')).toBeVisible()
+  await expect(page.getByRole("button", { name: "Toggle review", exact: true })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Toggle terminal", exact: true })).toHaveCount(0)
+})
+
 test("AC-7.3 Ctrl/Cmd+J toggles the slim strip; Esc hides it; Open full goes to the thread", async ({ page }) => {
   await start(page)
   await page.goto("/calendar")
@@ -78,7 +115,7 @@ test("AC-7.3 Ctrl/Cmd+J toggles the slim strip; Esc hides it; Open full goes to 
   await expect(strip(page)).toHaveAttribute("data-state", "closed")
   await toggleStrip(page)
   await strip(page).getByRole("button", { name: "Open full" }).click()
-  await expect(page).toHaveURL(/\/command(\?thread=.*)?$/)
+  await expect(page).toHaveURL(threadURL)
 })
 
 test("AC-7.3 the strip is not offered on the Command Centre page itself", async ({ page }) => {
@@ -109,7 +146,7 @@ test("AC-7.4 memory age defaults to 45 days and lowering it warns", async ({ pag
   await expect(page.getByText("Threads older than this are summarised and deleted for good.")).toBeVisible()
 })
 
-test("AC-7.7 writes in a Command Centre turn show one step list", async ({ page }) => {
+test("AC-7.7 a Command Centre thread shows its writes as inline cards in the thread view", async ({ page }) => {
   const write = (id: string, kind: string, phase: string) => ({
     directory: commandDirectory,
     payload: {
@@ -127,12 +164,11 @@ test("AC-7.7 writes in a Command Centre turn show one step list", async ({ page 
     },
   })
   await start(page, [write("a", "note", "started"), write("a", "note", "done"), write("b", "tasks", "started"), write("b", "tasks", "done")])
-  await page.goto(`/command?thread=${commandThread.id}`)
-  const steps = page.locator('[data-agent-write][data-variant="steps"]')
-  await expect(steps).toHaveCount(1)
-  await expect(steps.getByRole("listitem")).toHaveCount(2)
-  // The open thread's writes show only in the step list, never as the top pill as well. Counted once, right
-  // after the steps render: a pill would render from the same writes and hides itself after 6 s, so a
-  // retrying assertion could pass by waiting it out.
+  // Open the thread view first: on any other page these writes would rightly show the top pill.
+  await page.goto(`/${base64Encode(commandDirectory)}/session/${commandThread.id}`)
+  await expect(page).toHaveURL(threadURL)
+  // The thread view shows each write in its turn, as for a Project thread; never also as the top pill.
+  const cards = page.locator('[data-agent-write][data-variant="inline"]')
+  await expect(cards).toHaveCount(2)
   expect(await page.locator('[data-agent-write][data-variant="pill"]').count()).toBe(0)
 })
