@@ -1,7 +1,8 @@
 import { A, useSearchParams } from "@solidjs/router"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Markdown } from "@tenon/session-ui/markdown"
-import { createEffect, createMemo, createResource, For, onCleanup, Show } from "solid-js"
+import { TextShimmer } from "@tenon/ui/text-shimmer"
+import { createEffect, createMemo, createResource, For, on, onCleanup, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { PageEmpty, PageHeader, pagePanelClass, pageRowClass } from "@/components/page"
 import { useLanguage } from "@/context/language"
@@ -16,7 +17,8 @@ import { getRelativeTime } from "@/utils/time"
 
 /**
  * The Command Centre: its own threads (never Project threads), the open thread with a composer, memory
- * search and the link to Routines. URL contract: `/command`, `/command?thread=<session id>`.
+ * search and the link to Routines. URL contract: `/command`, `/command?thread=<session id>`. A message sent
+ * with no thread open starts a new thread; only an open thread is continued.
  */
 export default function CommandCentrePage() {
   const language = useLanguage()
@@ -25,12 +27,21 @@ export default function CommandCentrePage() {
   const serverSDK = useServerSDK()
   const centre = useCommandCentre()
   const [search, setSearch] = useSearchParams<{ thread?: string }>()
-  const [state, setState] = createStore({ input: "", fresh: false, memory: "", query: "" })
-  const selected = createMemo(() => (state.fresh ? undefined : (search.thread ?? centre.latest()?.id)))
+  const [state, setState] = createStore({ input: "", fresh: false, memory: "", query: "", hit: -1 })
+  const selected = createMemo(() => (state.fresh ? undefined : search.thread))
   createEffect(() => {
     const id = selected()
     if (id) centre.sync(id)
   })
+  // The server titles a thread after its first reply; reload the list when the reply finishes.
+  createEffect(
+    on(
+      () => centre.working(selected()),
+      (working, before) => {
+        if (before && !working) void centre.refetch()
+      },
+    ),
+  )
   // The open thread's writes show in its step list here, so the top pill leaves them out.
   const agentWrites = useAgentWrites()
   createEffect(() => agentWrites?.focus(selected()))
@@ -50,10 +61,10 @@ export default function CommandCentrePage() {
   const submit = async () => {
     const text = state.input.trim()
     if (!text || centre.sending()) return
-    setState("input", "")
-    const id = await centre.send(text, state.fresh ? null : selected())
+    const id = await centre.send(text, selected() ?? null)
+    // A failed send keeps the text so it can be sent again.
     if (!id) return
-    setState("fresh", false)
+    setState({ input: "", fresh: false })
     setSearch({ thread: id })
   }
 
@@ -82,7 +93,7 @@ export default function CommandCentrePage() {
             <form
               onSubmit={(event) => {
                 event.preventDefault()
-                setState("query", state.memory.trim())
+                setState({ query: state.memory.trim(), hit: -1 })
               }}
             >
               <input
@@ -95,60 +106,109 @@ export default function CommandCentrePage() {
               />
             </form>
             <Show when={state.query}>
-              <ul class="flex flex-col gap-1" aria-label={language.t("secondBrain.commandCentre.memory.results")}>
-                <For
-                  each={hits() ?? []}
-                  fallback={
-                    <li class="px-3 text-[12px] text-v2-text-text-faint">
-                      {language.t("secondBrain.commandCentre.memory.empty")}
-                    </li>
-                  }
-                >
-                  {(hit) => (
+              <Show
+                when={!hits.loading}
+                fallback={
+                  <p role="status" class="px-3 text-[12px] text-v2-text-text-faint">
+                    {language.t("secondBrain.commandCentre.memory.searching")}
+                  </p>
+                }
+              >
+                <ul class="flex flex-col gap-1" aria-label={language.t("secondBrain.commandCentre.memory.results")}>
+                  <For
+                    each={hits() ?? []}
+                    fallback={
+                      <li class="px-3 text-[12px] text-v2-text-text-faint">
+                        {language.t("secondBrain.commandCentre.memory.empty")}
+                      </li>
+                    }
+                  >
+                    {(hit, index) => (
+                      <li>
+                        {/* A hit from a live thread opens it; a summary (its thread was compacted) expands in place. */}
+                        <button
+                          type="button"
+                          class={`${pageRowClass} !py-1.5`}
+                          aria-expanded={hit.sessionID ? undefined : state.hit === index()}
+                          onClick={() => {
+                            if (hit.sessionID) {
+                              setState("fresh", false)
+                              setSearch({ thread: hit.sessionID })
+                              return
+                            }
+                            setState("hit", state.hit === index() ? -1 : index())
+                          }}
+                        >
+                          <span
+                            class="min-w-0 flex-1 whitespace-pre-wrap text-[12px] text-v2-text-text-muted"
+                            classList={{ "line-clamp-2": state.hit !== index() }}
+                          >
+                            {hit.text}
+                          </span>
+                        </button>
+                      </li>
+                    )}
+                  </For>
+                </ul>
+              </Show>
+            </Show>
+            <Show
+              when={centre.threads().length > 0}
+              fallback={
+                <p role={centre.loading() ? "status" : undefined} class="px-3 py-2 text-[12px] text-v2-text-text-faint">
+                  {centre.loading()
+                    ? language.t("common.loading")
+                    : language.t("secondBrain.commandCentre.threads.empty")}
+                </p>
+              }
+            >
+              <ul class="flex flex-col gap-0.5" aria-label={language.t("secondBrain.commandCentre.threads")}>
+                <For each={centre.threads()}>
+                  {(thread) => (
                     <li>
                       <button
                         type="button"
-                        class={`${pageRowClass} !py-1.5`}
-                        disabled={!hit.sessionID}
-                        onClick={() => hit.sessionID && setSearch({ thread: hit.sessionID })}
+                        class={pageRowClass}
+                        aria-current={thread.id === selected() ? "true" : undefined}
+                        classList={{ "bg-v2-background-bg-accent-container": thread.id === selected() }}
+                        onClick={() => {
+                          setState("fresh", false)
+                          setSearch({ thread: thread.id })
+                        }}
                       >
-                        <span class="line-clamp-2 min-w-0 flex-1 text-[12px] text-v2-text-text-muted">{hit.text}</span>
+                        <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base">
+                          {centre.label(thread) || language.t("secondBrain.commandCentre.threads.untitled")}
+                        </span>
+                        <Show
+                          when={centre.working(thread.id)}
+                          fallback={
+                            <span class="shrink-0 text-[11px] text-v2-text-text-faint">
+                              {getRelativeTime(new Date(thread.updated).toISOString(), language.t)}
+                            </span>
+                          }
+                        >
+                          <span
+                            class="size-2 shrink-0 rounded-full bg-v2-icon-icon-accent running-pulse"
+                            role="img"
+                            aria-label={language.t("secondBrain.commandCentre.working")}
+                          />
+                        </Show>
                       </button>
                     </li>
                   )}
                 </For>
               </ul>
             </Show>
-            <ul class="flex flex-col gap-0.5" aria-label={language.t("secondBrain.commandCentre.threads")}>
-              <For each={centre.threads()}>
-                {(thread) => (
-                  <li>
-                    <button
-                      type="button"
-                      class={pageRowClass}
-                      aria-current={thread.id === selected() ? "true" : undefined}
-                      classList={{ "bg-v2-background-bg-accent-container": thread.id === selected() }}
-                      onClick={() => {
-                        setState("fresh", false)
-                        setSearch({ thread: thread.id })
-                      }}
-                    >
-                      <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base">{thread.title}</span>
-                      <span class="shrink-0 text-[11px] text-v2-text-text-faint">
-                        {getRelativeTime(new Date(thread.updated).toISOString(), language.t)}
-                      </span>
-                    </button>
-                  </li>
-                )}
-              </For>
-            </ul>
           </aside>
           <div class="flex min-h-0 min-w-0 flex-1 flex-col rounded-[20px] bg-v2-background-bg-deep">
             <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
               <Show
                 when={selected() && centre.messages(selected()).length > 0}
                 fallback={
-                  <Show when={!centre.loading()}>
+                  <Show
+                    when={!selected() && !centre.loading()}
+                    fallback={<PageEmpty loading title={language.t("secondBrain.commandCentre.thread.loading")} />}
+                  >
                     <PageEmpty title={language.t("secondBrain.commandCentre.empty.title")}>
                       {language.t("secondBrain.commandCentre.empty.body")}
                     </PageEmpty>
@@ -171,6 +231,12 @@ export default function CommandCentrePage() {
                       </li>
                     )}
                   </For>
+                  {/* The agent's in-progress state until its reply completes; streamed text shows above. */}
+                  <Show when={centre.working(selected())}>
+                    <li role="status" class="animate-enter text-[13px]">
+                      <TextShimmer text={language.t("secondBrain.commandCentre.working")} />
+                    </li>
+                  </Show>
                 </ol>
               </Show>
               {/* AC-7.7: the writes of the open thread's current turn as one step list. */}

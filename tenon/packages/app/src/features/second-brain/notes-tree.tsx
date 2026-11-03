@@ -1,4 +1,5 @@
 import { Icon } from "@tenon/ui/v2/icon"
+import { Reveal } from "@tenon/ui/v2/reveal"
 import { createMemo, For, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLanguage } from "@/context/language"
@@ -78,7 +79,10 @@ export function NotesTree(props: {
   let tree: HTMLUListElement | undefined
 
   const onKeyDown = (event: KeyboardEvent) => {
-    const items = [...(tree?.querySelectorAll<HTMLElement>('[role="treeitem"]') ?? [])]
+    // A group still collapsing is inert; its rows are no longer stops.
+    const items = [...(tree?.querySelectorAll<HTMLElement>('[role="treeitem"]') ?? [])].filter(
+      (element) => !element.closest("[inert]"),
+    )
     const current = event.target instanceof HTMLElement ? event.target.closest<HTMLElement>('[role="treeitem"]') : null
     const index = current ? items.indexOf(current) : -1
     if (!current || index < 0) return
@@ -151,10 +155,15 @@ export function NotesTree(props: {
         </span>
         <span class="min-w-0 flex-1 truncate">{item.node.label}</span>
       </div>
-      <Show when={expanded(item.node)}>
+      <Reveal open={expanded(item.node)}>
         <ul role="group" class="flex flex-col gap-px">
           <For each={item.node.children}>{(child) => <Item node={child} level={item.level + 1} />}</For>
         </ul>
+      </Reveal>
+      <Show when={item.node.key === "group:projects" && item.node.children.length === 0}>
+        <p class="pb-1 pr-3 text-[12px] text-v2-text-text-faint" style={{ "padding-left": "28px" }}>
+          {language.t("secondBrain.vault.projectsEmpty")}
+        </p>
       </Show>
     </li>
   )

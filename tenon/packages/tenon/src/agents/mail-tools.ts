@@ -105,10 +105,31 @@ export const request = (route: "/search" | "/thread" | "/draft", body: Record<st
     })
     if (!response.ok) return yield* new MailError({ message: `The mail endpoint answered ${response.status}.` })
     const value = yield* Effect.try({
-      try: () => JSON.parse(text.slice(0, answerLimit)) as unknown,
+      try: () => JSON.parse(text) as unknown,
       catch: () => new MailError({ message: "The mail endpoint's answer wasn't JSON." }),
     })
     if (value && typeof value === "object" && "error" in value && typeof value.error === "string")
       return yield* new MailError({ message: value.error })
-    return value
+    return capText(value, { left: answerLimit })
   })
+
+/**
+ * Cap the answer's text at `answerLimit` characters in all, after parsing: a long thread keeps its
+ * structure, ids and subjects (strings of 200 characters or fewer stay whole) and its first messages whole;
+ * later message text is cut short.
+ */
+function capText(value: unknown, budget: { left: number }): unknown {
+  if (typeof value === "string") {
+    if (value.length <= Math.max(budget.left, 200)) {
+      budget.left = Math.max(0, budget.left - value.length)
+      return value
+    }
+    const kept = value.slice(0, budget.left)
+    budget.left = 0
+    return `${kept}… [truncated]`
+  }
+  if (Array.isArray(value)) return value.map((item) => capText(item, budget))
+  if (value && typeof value === "object")
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, capText(item, budget)]))
+  return value
+}

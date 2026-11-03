@@ -1134,10 +1134,15 @@ calendar and tasks, and the thread list.
   task it gets back. A task whose account has no write access stays queued.
   `calendar_apply` events are local events, so nothing is sent for them.
 - Every write publishes on `GlobalBus`, for the thread's directory,
-  `{ payload: { type: "agent.write", properties: { id, sessionID, kind,
-  phase, target, preview, undo?, open?, failed? } } }`: `started` before the
-  write and `done` after it with `undo` and `open` (`{ page?, projectId? }`).
-  A failed write ends with `done` and `failed: true`. `kind` is `note`
+  `{ payload: { type: "agent.write", properties: { id, sessionID, messageID?,
+  callID?, kind, phase, target, preview, undo?, open?, failed? } } }`:
+  `started` before the write and `done` after it with `undo` and `open`
+  (`{ page?, projectId? }`). `messageID`/`callID` name the assistant message
+  and tool call when the harness passes them (`HarnessAppTools.Caller`; the
+  in-process loop does, the MCP endpoint does not). A write that fails, dies
+  or is interrupted always ends with `done` and `failed: true` (`Effect.onExit`).
+  Tasks name their target "Google Tasks" when every task has an `accountId`,
+  else "Planner". `kind` is `note`
   (pages and log lines), `timeline`, `calendar`, `tasks` or `email` (P8).
   `preview`: note `{ title, text }` (text capped at 4,000 characters), tasks
   `{ tasks: [{ title, dueDate? }] }`, calendar `{ events: [{ title, date,
@@ -1160,15 +1165,21 @@ calendar and tasks, and the thread list.
 `AgentWritesProvider` (mounted in `pages/layout-new.tsx`) listens to the
 global event stream for `agent.write` and keeps the last 50 writes.
 
-- On the thread page of the writing session, `AgentWritesInline` (after the
-  last turn in `pages/session/timeline/message-timeline.tsx`) renders one
-  card per write (`[data-agent-write][data-variant="inline"]`, W5): it grows
-  with the preview while the agent writes (400 ms, emphasized-decelerate), then
-  folds to one line with Open, Undo and Show.
+- On the thread page of the writing session, `AgentWritesInline` renders one
+  card per write (`[data-agent-write][data-variant="inline"]`, W5) below the
+  last row of the turn that made it (the user message its assistant
+  `messageID` answers, in `pages/session/timeline/message-timeline.tsx`);
+  writes without a known turn go after the last turn. A card grows with the
+  preview while the agent writes (medium, emphasized-decelerate; folding uses
+  the exit duration, emphasized-accelerate), then folds to one line with Open,
+  Undo and Show. A `done` that arrives within 1.4 s of `started` is held so the
+  preview can type (not under reduced motion). A write shown saved inline or
+  in the step list counts as seen and never gets a pill.
 - Anywhere else, including a thread page of another session, `AgentWritePill`
-  shows the latest write at the top of the page area, below the titlebar (`data-variant="pill"`, W4): expanded while
-  writing, then "Saved" with Open and Undo, hidden after 6 s unless hovered or
-  focused.
+  shows the newest unseen write that is still writing or was saved in the last
+  6 s, centred at the top of `<main>` (`data-variant="pill"`, W4): expanded
+  while writing, then "Saved" with Open and Undo, hidden after 6 s unless
+  hovered or focused, with enter and exit animations.
 - `AgentWritePreview` draws the five kinds: note text, task rows, calendar
   event blocks, timeline bars and an email draft with "Saved as a draft. Tenon
   never sends email." Note and email text type in while writing; under
@@ -1176,9 +1187,10 @@ global event stream for `agent.write` and keeps the last 50 writes.
 - `AgentWriteSteps` (`data-variant="steps"`) lists one turn's writes with the
   active row's preview, for the Command Centre page.
 - Undo posts `/second-brain/writes/<undo>/undo` (folder in
-  `x-tenon-directory`) and shows "Undone", or "Already changed" on 409. Open
-  goes to the page (`/notes?page=`), the Project (`/notes?project=`) or
-  `/calendar`. Neutral v2 tokens throughout; the accent is only the active dot.
+  `x-tenon-directory`) and shows "Undone", or "Already changed" on 409;
+  "Couldn't undo" keeps Undo for a retry. Open goes to the page
+  (`/notes?page=`), the Project log (`/notes?project=…&tab=log`), the Project
+  (`/notes?project=`) or the item's day (`/calendar?date=YYYY-MM-DD`). Neutral v2 tokens throughout; the accent is only the active dot.
 
 ### Harness model lists
 

@@ -71,13 +71,40 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
       return yield* filesystem(KnowledgeNote.read(ctx.query.path)).pipe(failure("readNote", ctx.query.path))
     })
 
+    // The pre-vault write route. Project folders are never written to, so a `notes/<page>.md` or Project card
+    // note path is saved as the matching vault page instead (the vault opens with the notes moved in first).
     const writeNote = Effect.fn("SecondBrain.writeNote")(function* (ctx: {
       query: { path: string }
       payload: KnowledgeNote.WriteInput
     }) {
-      return yield* filesystem(KnowledgeNote.write(ctx.query.path, ctx.payload)).pipe(
-        failure("writeNote", ctx.query.path),
+      const relative = ctx.query.path.replaceAll("\\", "/").replace(/^\.\//, "")
+      const card = /^(?:\.tenon\/)?projects\/(project_[0-9A-Z]+)\/notes\/(.+\.md)$/i.exec(relative)
+      const page = card?.[2] ?? (/^notes\/.+\.md$/i.test(relative) ? relative.slice("notes/".length) : undefined)
+      if (page === undefined) return yield* invalid("invalid_path")
+      const written = yield* vault(
+        "writeNote",
+        (opened) =>
+          KnowledgeVault.writePage(opened, page, {
+            body: ctx.payload.body,
+            title: ctx.payload.title,
+            projectId: card?.[1],
+            expectedRevision: ctx.payload.expectedRevision,
+            create: ctx.payload.create,
+          }),
+        ctx.query.path,
       )
+      return {
+        info: {
+          path: written.info.path,
+          title: written.info.title,
+          projectIds: written.info.projectId ? [written.info.projectId] : [],
+          tags: [],
+          links: [],
+          updatedAt: written.info.updatedAt,
+        },
+        body: written.body,
+        revision: written.revision,
+      }
     })
 
     const deleteNote = Effect.fn("SecondBrain.deleteNote")(function* (ctx: {
@@ -217,15 +244,37 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
       )
     })
 
-    // Vault work runs with the workspace's filesystem services (Project names come from its cards).
+    // Workspace folders whose pre-vault notes this process has moved into the vault (see `vault`).
+    const migrated = new Set<string>()
+    const migrateFirst = (directory: string) => (opened: KnowledgeVault.Vault) => {
+      const key = `${opened.directory}\n${directory}`
+      if (migrated.has(key)) return Effect.void
+      return KnowledgeVault.migrate(opened).pipe(
+        Effect.tap(() => Effect.sync(() => migrated.add(key))),
+        Effect.catch((error) =>
+          Effect.logWarning("Moving workspace notes into the vault failed", { error: String(error) }),
+        ),
+        Effect.asVoid,
+      )
+    }
+
+    // Vault work runs with the workspace's filesystem services (Project names come from its cards). The first
+    // vault request of each workspace in this process moves its pre-vault notes in, so the move does not rely on
+    // the app having called the migrate route; that route itself (`moveNotes: false`) reports what it moved.
     const vault = Effect.fnUntraced(function* <A, E, R>(
       operation: string,
       run: (vault: KnowledgeVault.Vault) => Effect.Effect<A, E, R>,
       relative?: string,
+      moveNotes = true,
     ) {
-      const workspace = KnowledgeVault.workspaceFor(yield* InstanceState.context)
+      const context = yield* InstanceState.context
+      const workspace = KnowledgeVault.workspaceFor(context)
       return yield* filesystem(
-        KnowledgeVault.open(workspace).pipe(Effect.flatMap(run), Effect.provideService(Global.Service, Global.make())),
+        KnowledgeVault.open(workspace).pipe(
+          Effect.tap(moveNotes ? migrateFirst(context.directory) : () => Effect.void),
+          Effect.flatMap(run),
+          Effect.provideService(Global.Service, Global.make()),
+        ),
       ).pipe(failure(operation, relative))
     })
 
@@ -249,14 +298,21 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
         Effect.provideService(LocationServiceMap.Service, locations),
       )
 
+    // Run now and scheduled runs agree: the routine's own model first, then the Command Centre default the
+    // renderer sends (remembered for the scheduler, which has no renderer to ask).
     const startRoutine = (model?: CommandThreads.ModelChoice) => (routine: Routines.Routine) =>
-      commandServices(
-        CommandThreads.start({
-          prompt: routine.prompt,
-          title: routine.name,
-          model: model ?? RoutinesScheduler.modelChoice(routine.model),
-        }),
-      ).pipe(Effect.map((started) => ({ threadId: started.threadId, reply: commandServices(started.reply) })))
+      Routines.rememberDefaultModel(model).pipe(
+        Effect.andThen(
+          commandServices(
+            CommandThreads.start({
+              prompt: routine.prompt,
+              title: routine.name,
+              model: RoutinesScheduler.modelChoice(routine.model) ?? model,
+            }),
+          ),
+        ),
+        Effect.map((started) => ({ threadId: started.threadId, reply: commandServices(started.reply) })),
+      )
 
     return handlers
       .handle("undoWrite", undoWrite)
@@ -280,6 +336,8 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
           Effect.gen(function* () {
             // The summariser is only built when a thread is old enough, so an idle compaction needs no model.
             let summarize: ((thread: CommandMemory.Thread) => Effect.Effect<string, unknown>) | undefined
+            // The renderer sends the Command Centre default here hourly; scheduled routines fall back to it.
+            yield* Routines.rememberDefaultModel(ctx.payload.model)
             return yield* CommandMemory.compact({
               days: ctx.payload.days,
               summarize: (thread) =>
@@ -327,7 +385,22 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
         vault("appendVaultLog", (opened) => KnowledgeVault.appendLog(opened, ctx.query.project, ctx.payload)),
       )
       .handle("listVaultConflicts", () => vault("listVaultConflicts", KnowledgeVault.conflicts))
-      .handle("migrateVault", () => serialized(vault("migrateVault", KnowledgeVault.migrate)))
+      .handle("migrateVault", () =>
+        serialized(
+          Effect.gen(function* () {
+            const directory = (yield* InstanceState.context).directory
+            return yield* vault(
+              "migrateVault",
+              (opened) =>
+                KnowledgeVault.migrate(opened).pipe(
+                  Effect.tap(() => Effect.sync(() => migrated.add(`${opened.directory}\n${directory}`))),
+                ),
+              undefined,
+              false,
+            )
+          }),
+        ),
+      )
       .handle("listNotes", listNotes)
       .handle("readNote", readNote)
       .handle("writeNote", writeNote)

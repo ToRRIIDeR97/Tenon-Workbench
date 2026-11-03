@@ -69,6 +69,10 @@ test("AC-6.1 a write by the open thread shows inline and folds to Open and Undo"
   await expect(card).toBeVisible()
   await expect(card.getByRole("button", { name: "Open" })).toBeVisible()
   await expect(card.getByRole("button", { name: "Undo" })).toBeVisible()
+  // The card sits in the thread's centred column, over the composer, not at the page's left edge.
+  const centre = (box: { x: number; width: number } | null) => (box ? box.x + box.width / 2 : NaN)
+  const composer = await page.locator('[data-component="prompt-input"]').boundingBox()
+  expect(Math.abs(centre(await card.boundingBox()) - centre(composer))).toBeLessThan(24)
 })
 
 test("AC-6.3 a write elsewhere shows the pill, which ends on Saved", async ({ page }) => {

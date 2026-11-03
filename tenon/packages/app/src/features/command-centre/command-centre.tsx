@@ -1,7 +1,7 @@
 import { createSimpleContext } from "@tenon/ui/context"
 import { readPartText } from "@tenon/session-ui/message-part-text"
 import { Harness } from "@tenon/schema/harness"
-import { createEffect, createMemo, createResource, on } from "solid-js"
+import { createEffect, createMemo, createResource, on, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
@@ -16,6 +16,7 @@ export type CommandThread = { id: string; title: string; directory: string; upda
 export type CommandMessage = { id: string; role: "user" | "assistant"; text: string; done: boolean }
 
 const DAY = 24 * 60 * 60 * 1000
+const HOUR = 60 * 60 * 1000
 
 /** `<vault root>/.command-centre`, in the root's own separator style. */
 export function commandDirectoryFor(root: string) {
@@ -46,6 +47,30 @@ export function modelChoice(modelID: string | undefined): ModelChoice | undefine
  */
 export function turnWrites(writes: ReadonlyArray<AgentWrite>, turnStart: number | undefined) {
   return writes.filter((write) => turnStart === undefined || write.at >= turnStart)
+}
+
+/**
+ * A thread's label: its title once the server has named it, else its first message (one line, cut at 80
+ * characters), else nothing so the caller shows its own placeholder. New threads are titled "New session -
+ * <ISO time>" until the title model answers.
+ */
+export function threadLabel(title: string, firstMessage: string | undefined) {
+  if (title && !/^New session - \d{4}-\d{2}-\d{2}T/.test(title)) return title
+  const line = firstMessage?.trim().replace(/\s+/g, " ") ?? ""
+  return line.length > 80 ? `${line.slice(0, 79)}…` : line
+}
+
+/**
+ * Whether a thread's agent is still working: the server says it is busy, its last reply isn't complete, or
+ * the last message is the user's and no reply has started yet.
+ */
+export function threadWorking(
+  status: string | undefined,
+  messages: ReadonlyArray<Pick<CommandMessage, "role" | "done">>,
+) {
+  if (status !== undefined && status !== "idle") return true
+  const last = messages.at(-1)
+  return last !== undefined && (!last.done || (last.role === "user" && status === undefined))
 }
 
 /** Whether the daily compaction is due: never ran, or last ran a day or more ago. */
@@ -96,7 +121,12 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
         )
         .sort((left, right) => right.updated - left.updated)
     })
-    const list = () => threads.latest ?? []
+    // The synced session info carries the title the server sets after the first reply.
+    const list = () =>
+      (threads.latest ?? []).map((thread) => ({
+        ...thread,
+        title: serverSync().session.get(thread.id)?.title ?? thread.title,
+      }))
     const latest = () => list()[0]
 
     const messages = (sessionID: string | undefined): CommandMessage[] => {
@@ -131,27 +161,29 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
       ),
     )
 
-    // Compaction runs at most once a day, with the memory age from Settings › Command Centre. The time is
-    // saved only after a run succeeds, so a failed run is tried again on the next workspace load.
+    // Compaction runs at most once a day, with the memory age from Settings › Command Centre. It is checked
+    // on each workspace load and hourly while the app is open. The time is saved only after a run succeeds,
+    // so a failed run is tried again on the next check.
     let compacting = false
-    createEffect(
-      on(workspace, (target) => {
-        if (!target || compacting) return
-        const current = settings.commandCentre.current()
-        const now = Date.now()
-        if (!compactionDue(current.compactedAt, now)) return
-        compacting = true
-        void compactCommandMemory(client(target), { days: current.memoryDays, model: modelChoice(current.modelID) })
-          .then((result) => {
-            settings.commandCentre.set({ compactedAt: now })
-            if (result.deleted > 0) void refetch()
-          })
-          .catch(() => undefined)
-          .finally(() => {
-            compacting = false
-          })
-      }),
-    )
+    const compact = (target: string | undefined) => {
+      if (!target || compacting) return
+      const current = settings.commandCentre.current()
+      const now = Date.now()
+      if (!compactionDue(current.compactedAt, now)) return
+      compacting = true
+      void compactCommandMemory(client(target), { days: current.memoryDays, model: modelChoice(current.modelID) })
+        .then((result) => {
+          settings.commandCentre.set({ compactedAt: now })
+          if (result.deleted > 0) void refetch()
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          compacting = false
+        })
+    }
+    createEffect(on(workspace, compact))
+    const timer = setInterval(() => compact(workspace()), HOUR)
+    onCleanup(() => clearInterval(timer))
 
     /**
      * Send to `sessionID`, else the latest Command Centre thread, else a new one; `null` always starts a new
@@ -212,6 +244,12 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
       loading: () => threads.loading || vault.loading,
       latest,
       messages,
+      /** Whether the thread's agent is working on a reply. */
+      working: (sessionID: string | undefined) =>
+        !!sessionID && threadWorking(serverSync().session.data.session_status[sessionID]?.type, messages(sessionID)),
+      /** The thread's label, or "" when it has neither a title nor a known first message. */
+      label: (thread: CommandThread) =>
+        threadLabel(thread.title, messages(thread.id).find((message) => message.role === "user")?.text),
       sync,
       lastReply: () =>
         messages(latest()?.id)

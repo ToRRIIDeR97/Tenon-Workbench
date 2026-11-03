@@ -755,6 +755,18 @@ location, so it has its own containment instead of `LocationMutation`:
   removes the originals. If a backup fails, the originals stay and the copies
   already made stay in the vault (a rerun reuses identical copies). Backups and `.history` are plain copies of note text
   and are not pruned except history beyond 20 versions per page.
+- Migration also runs on the server on a workspace's first vault request, under
+  a per-vault lock, so two callers never move the same notes twice. The legacy
+  `/second-brain/note` write route now writes into the vault, never into
+  `<workspace>/notes`.
+- Changing the vault folder (`choose-vault-folder`) copies the current vault to
+  the new folder, compares every file, and only then switches; the old folder
+  is left untouched. A non-empty folder that is not a vault, or one inside or
+  around the current vault, is refused.
+- Agent app tools find a Project thread's workspace from its parent folders,
+  the server's known repositories, and the workspace folders listed in
+  `vault-machine.json` (workspaces that are not git repositories). Only
+  folders holding Project cards are opened.
 - Vault content is workspace data, never agent instructions. Logs carry the
   operation, the relative path and the error tag, never page content.
 

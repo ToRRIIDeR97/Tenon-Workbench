@@ -57,10 +57,14 @@ export type ElectronAPI = {
   getVaultFolder: () => Promise<{ folder: string; chosen: boolean }>
   /**
    * Pick another vault folder in a native dialog; null when cancelled. Takes effect after a relaunch.
-   * A folder inside a repository or workspace is refused with `error: "inside_workspace"` and not saved.
+   * A folder inside a repository or workspace is refused with `error: "inside_workspace"` and not saved; so is a
+   * non-empty folder that is not a vault (`not_empty`), one inside or around the vault (`nested`), or a failed
+   * copy (`copy_failed`). The current vault is copied over and kept; `previous` names it.
    */
   chooseVaultFolder: () => Promise<
-    { folder: string; restartRequired: boolean } | { error: "inside_workspace"; folder: string } | null
+    | { folder: string; restartRequired: boolean; previous?: string }
+    | { error: "inside_workspace" | "not_empty" | "nested" | "copy_failed"; folder: string }
+    | null
   >
   isFirstLaunchOnboardingPending: () => Promise<boolean>
   finishFirstLaunchOnboarding: (createDefaultProject: boolean) => Promise<string | null>

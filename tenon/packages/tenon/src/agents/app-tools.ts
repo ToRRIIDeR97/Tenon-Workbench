@@ -17,7 +17,7 @@ import { Location } from "@tenon/core/location"
 import { LocationServiceMap, locationServiceMapLayer } from "@tenon/core/location-services"
 import { AbsolutePath } from "@tenon/core/schema"
 import { canonicalDirectory } from "@tenon/core/util/directory"
-import { Cause, Context, Effect, Layer, Option, Schema } from "effect"
+import { Cause, Context, Effect, Exit, Layer, Option, Schema } from "effect"
 import { randomBytes } from "node:crypto"
 import { readFile, stat } from "node:fs/promises"
 import path from "node:path"
@@ -198,7 +198,7 @@ export const TOOLS: ReadonlyArray<HarnessAppTools.Tool> = [
   {
     name: "tasks_create",
     description:
-      "Add tasks to the workspace planner. With a Google accountId the task is queued for Google Tasks and syncs when the app's Google connection runs.",
+      "Add tasks to the workspace planner. With a Google accountId the task is queued for Google Tasks and syncs when the app's Google connection runs. Due dates are dates only (YYYY-MM-DD, no time); for anything at a set time use calendar_apply.",
     inputSchema: {
       type: "object",
       properties: {
@@ -406,11 +406,11 @@ const known = (caller: { sessionID: string }) =>
   })
 
 /** Runs one app tool for the thread `sessionID`; failures are `{ isError: true, value: <message> }`. */
-export const call = (name: string, args: Record<string, unknown>, caller: { sessionID: string }) =>
+export const call = (name: string, args: Record<string, unknown>, caller: HarnessAppTools.Caller) =>
   Effect.suspend((): Effect.Effect<Result> => {
     const context = state.context
     if (!context) return Effect.succeed({ isError: true, value: "Tenon app tools are not available in this process." })
-    return execute(name, args, caller.sessionID).pipe(
+    return execute(name, args, caller).pipe(
       Effect.map((value): Result => ({ isError: false, value })),
       Effect.catch((error) => Effect.succeed({ isError: true, value: errorText(error) })),
       Effect.catchCause((cause) =>
@@ -472,20 +472,34 @@ export const layer = Layer.effectDiscard(
 
 type Scope = {
   readonly session: Session.Info
+  /** The assistant message and tool call that made the write, when the harness knows them. */
+  readonly origin?: { readonly messageID?: string; readonly callID?: string }
   /** The workspace (Brain) directory whose vault and calendar the thread uses. */
   readonly workspace: string
   readonly project?: BrainProject.Info
 }
 
-const execute = Effect.fnUntraced(function* (name: string, input: Record<string, unknown>, sessionID: string) {
+const execute = Effect.fnUntraced(function* (
+  name: string,
+  input: Record<string, unknown>,
+  caller: HarnessAppTools.Caller,
+) {
+  const sessionID = caller.sessionID
+  const origin = {
+    ...(caller.messageID ? { messageID: caller.messageID } : {}),
+    ...(caller.callID ? { callID: caller.callID } : {}),
+  }
   const command = yield* isCommandSession(sessionID)
   const commandOnly = COMMAND_TOOLS.some((tool) => tool.name === name) || MailTools.isMailTool(name)
   if (!TOOLS.some((tool) => tool.name === name) && !commandOnly)
     return yield* new ToolError({ message: `Unknown tool: ${name}` })
   if (commandOnly && (!command || (MailTools.isMailTool(name) && !MailTools.available())))
     return yield* new ToolError({ message: `${name} is only available in the Command Centre.` })
-  if (commandOnly) return yield* commandTool(name, input, sessionID)
-  const scope = command ? yield* commandScope(sessionID, input) : yield* scopeOf(sessionID)
+  if (commandOnly) return yield* commandTool(name, input, sessionID, origin)
+  const scope: Scope = {
+    ...(command ? yield* commandScope(sessionID, input) : yield* scopeOf(sessionID)),
+    origin,
+  }
   const parse = <S extends Schema.Decoder<unknown>>(schema: S) => {
     const decoded = Schema.decodeUnknownOption(schema)(input)
     if (Option.isNone(decoded))
@@ -553,7 +567,7 @@ const notesWrite = Effect.fnUntraced(function* (scope: Scope, args: typeof Args.
       })
       return { page, before }
     }),
-  ).pipe(Effect.tapError(() => write.fail()))
+  ).pipe(write.guard)
   const revision = result.page.revision
   const written = result.page.info.path
   const before = result.before
@@ -594,7 +608,7 @@ const timelineUpdate = Effect.fnUntraced(function* (scope: Scope, args: typeof A
       })
       return { before, after }
     }),
-  ).pipe(Effect.tapError(() => write.fail()))
+  ).pipe(write.guard)
   const token = write.done(
     { projectId, items: result.after.items },
     inVault(scope, (vault) =>
@@ -614,7 +628,7 @@ const logAppend = Effect.fnUntraced(function* (scope: Scope, args: typeof Args.l
   const write = begin(scope, "note", targetName(scope), { title: "Log", text: preview(args.text) })
   const entry = yield* inVault(scope, (vault) =>
     KnowledgeVault.appendLog(vault, projectId, { text: args.text, author: LOG_AUTHOR }),
-  ).pipe(Effect.tapError(() => write.fail()))
+  ).pipe(write.guard)
   const token = write.done(
     { title: "Log", text: entry.text },
     inVault(scope, (vault) => KnowledgeVault.removeLogEntry(vault, projectId, entry)),
@@ -655,7 +669,7 @@ const calendarApply = Effect.fnUntraced(function* (scope: Scope, args: typeof Ar
   const saved = yield* changeCalendar(scope, (current) => ({
     events: [...current.events, ...events],
     tasks: current.tasks,
-  })).pipe(Effect.tapError(() => write.fail()))
+  })).pipe(write.guard)
   const ids = new Set(events.map((event) => event.id))
   const token = write.done(
     {
@@ -700,13 +714,15 @@ const tasksCreate = Effect.fnUntraced(function* (scope: Scope, args: typeof Args
         : { source: "local" as const, syncState: "local" as const }),
     }
   })
-  const write = begin(scope, "tasks", targetName(scope), {
+  // Tasks land in the planner, or in Google Tasks when every one names a Google account.
+  const target = args.tasks.every((task) => task.accountId) ? "Google Tasks" : "Planner"
+  const write = begin(scope, "tasks", target, {
     tasks: args.tasks.map((task) => ({ title: task.title, dueDate: task.dueDate })),
   })
   const saved = yield* changeCalendar(scope, (current) => ({
     events: current.events,
     tasks: [...current.tasks, ...tasks],
-  })).pipe(Effect.tapError(() => write.fail()))
+  })).pipe(write.guard)
   const ids = new Set(tasks.map((task) => task.id))
   const token = write.done(
     { tasks: args.tasks.map((task) => ({ title: task.title, dueDate: task.dueDate })) },
@@ -735,7 +751,12 @@ const decode = <S extends Schema.Decoder<unknown>>(name: string, schema: S, inpu
   return Effect.succeed(decoded.value)
 }
 
-const commandTool = Effect.fnUntraced(function* (name: string, input: Record<string, unknown>, sessionID: string) {
+const commandTool = Effect.fnUntraced(function* (
+  name: string,
+  input: Record<string, unknown>,
+  sessionID: string,
+  origin: Scope["origin"],
+) {
   if (name === "memory_search") {
     const args = yield* decode(name, commandArgs.memory_search, input)
     return { hits: yield* CommandMemory.search(args.query) }
@@ -770,8 +791,8 @@ const commandTool = Effect.fnUntraced(function* (name: string, input: Record<str
   const sessions = yield* Session.Service
   const session = yield* sessions.get(SessionID.make(sessionID))
   const preview = { to: args.to, subject: args.subject, body: args.body }
-  const write = begin({ session }, "email", args.to, preview)
-  const saved = yield* mail("/draft", args).pipe(Effect.tapError(() => write.fail()))
+  const write = begin({ session, origin }, "email", args.to, preview)
+  const saved = yield* mail("/draft", args).pipe(write.guard)
   // A saved draft has no undo here; the user deletes it in their mail client if unwanted.
   write.done(preview, undefined, {})
   return saved
@@ -845,15 +866,20 @@ async function vaultWorkspaces() {
 
 // ---- writes: events and undo ----
 
-/** Publishes `started` now; `done` registers the undo and publishes it, `fail` closes the preview. */
-function begin(scope: Pick<Scope, "session">, kind: Kind, target: string, preview: unknown) {
+/**
+ * Publishes `started` now; `done` registers the undo and publishes it. `guard` wraps the write so any
+ * failure, defect or interruption before `done` publishes a failed `done` and never leaves the
+ * preview open.
+ */
+function begin(scope: Pick<Scope, "session" | "origin">, kind: Kind, target: string, preview: unknown) {
   const id = `write_${ulid()}`
+  const status = { closed: false }
   const publish = (properties: Record<string, unknown>) =>
     GlobalBus.emit("event", {
       directory: scope.session.directory,
       payload: {
         type: "agent.write",
-        properties: { id, sessionID: scope.session.id, kind, target, ...properties },
+        properties: { id, sessionID: scope.session.id, ...scope.origin, kind, target, ...properties },
       },
     })
   publish({ phase: "started", preview })
@@ -863,6 +889,7 @@ function begin(scope: Pick<Scope, "session">, kind: Kind, target: string, previe
       revert: Effect.Effect<unknown, unknown, Requirements> | undefined,
       open: { page?: string; projectId?: string },
     ) => {
+      status.closed = true
       if (!revert) {
         publish({ phase: "done", preview: finalPreview, open })
         return undefined
@@ -872,7 +899,16 @@ function begin(scope: Pick<Scope, "session">, kind: Kind, target: string, previe
       publish({ phase: "done", preview: finalPreview, undo: token, open })
       return token
     },
-    fail: () => Effect.sync(() => publish({ phase: "done", preview, failed: true })),
+    guard: <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+      effect.pipe(
+        Effect.onExit((exit) =>
+          Effect.sync(() => {
+            if (Exit.isSuccess(exit) || status.closed) return
+            status.closed = true
+            publish({ phase: "done", preview, failed: true })
+          }),
+        ),
+      ),
   }
 }
 
@@ -964,7 +1000,16 @@ const scopeOf = Effect.fnUntraced(function* (sessionID: string) {
   const known = (yield* projects.list()).filter((project) => project.worktree !== "/")
   const ancestors = parents(canonicalDirectory(session.directory))
   // Folders keep the spelling they arrived in (the vault keys a workspace by it); `key` only compares.
-  const candidates = [...ancestors, ...known.map((project) => canonicalDirectory(project.worktree))].filter(
+  // Workspaces that aren't git repositories have no project record; the vault's machine map knows them.
+  const opened = yield* KnowledgeVault.knownWorkspaces().pipe(
+    Effect.provideService(Global.Service, Global.make()),
+    Effect.orElseSucceed((): string[] => []),
+  )
+  const candidates = [
+    ...ancestors,
+    ...known.map((project) => canonicalDirectory(project.worktree)),
+    ...opened.map((directory) => canonicalDirectory(directory)),
+  ].filter(
     (directory, index, all) => all.findIndex((other) => key(other) === key(directory)) === index,
   )
   const brains = yield* Effect.filter(candidates, (directory) =>

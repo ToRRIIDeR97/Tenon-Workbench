@@ -51,4 +51,40 @@ describe("createCalendarResource", () => {
     expect(cold.loading()).toBe(true)
     expect(cold.snapshot()).toBeUndefined()
   })
+
+  test("shows a local write mid-read and an older read never overwrites it", async () => {
+    const directory = `C:\\write-${crypto.randomUUID()}`
+    const reply = { send: (_: Response) => {} }
+    const calendar = createRoot(() =>
+      createCalendarResource(
+        () => directory,
+        client(() => new Promise<Response>((resolve) => (reply.send = resolve))),
+      ),
+    )
+    expect(calendar.loading()).toBe(true)
+    calendar.mutate(snapshot("r2", "Saved here"))
+    expect(calendar.loading()).toBe(false)
+    expect(calendar.snapshot()?.revision).toBe("r2")
+    reply.send(Response.json(snapshot("r1", "Older read")))
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(calendar.snapshot()?.revision).toBe("r2")
+  })
+
+  test("a failed refresh keeps the last snapshot and reports the error", async () => {
+    const directory = `C:\\refresh-${crypto.randomUUID()}`
+    const replies = [() => Response.json(snapshot("r1", "Standup")), () => new Response("down", { status: 500 })]
+    const calendar = createRoot(() =>
+      createCalendarResource(
+        () => directory,
+        client(async () => replies.shift()!()),
+      ),
+    )
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(calendar.snapshot()?.revision).toBe("r1")
+    await Promise.resolve(calendar.refetch()).catch(() => undefined)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(calendar.error()).toBeDefined()
+    expect(calendar.snapshot()?.revision).toBe("r1")
+    expect(calendar.loading()).toBe(false)
+  })
 })

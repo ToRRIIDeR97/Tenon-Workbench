@@ -55,7 +55,12 @@ export const layer = Layer.effectDiscard(
                       source: { type: "tool", messageID: context.assistantMessageID, callID: context.toolCallID },
                     })
                   const result = yield* Effect.tryPromise({
-                    try: () => HarnessAppTools.call(tool.name, input, { sessionID: context.sessionID }),
+                    try: () =>
+                      HarnessAppTools.call(tool.name, input, {
+                        sessionID: context.sessionID,
+                        messageID: context.assistantMessageID,
+                        callID: context.toolCallID,
+                      }),
                     catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
                   })
                   if (!result) return yield* Effect.fail(new Error(`${tool.name} is not available for this thread.`))

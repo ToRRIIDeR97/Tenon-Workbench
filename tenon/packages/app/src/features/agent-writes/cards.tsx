@@ -1,5 +1,6 @@
 import { useLocation, useNavigate } from "@solidjs/router"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
+import { Presence } from "@tenon/ui/v2/presence"
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { useLanguage } from "@/context/language"
 import { AgentWritePreview } from "./preview"
@@ -7,25 +8,31 @@ import {
   type AgentWrite,
   type AgentWrites,
   openHref,
+  PILL_HIDE_MS,
+  pillWrite,
   prefersReducedMotion,
   sessionFromPath,
   useAgentWrites,
 } from "./store"
 
-const PILL_HIDE_MS = 6_000
-
-/** The writes `sessionID` made, as inline cards at the end of its thread (W5). */
-export function AgentWritesInline(props: { sessionID: string }) {
+/**
+ * Inline cards (W5) for `writes`: inside the turn that made them, or after the last turn for writes
+ * without a turn. `centered` puts them in the timeline's centred column when no turn row frames them.
+ */
+export function AgentWritesInline(props: { writes: ReadonlyArray<AgentWrite>; centered?: boolean }) {
   const writes = useAgentWrites()
   return (
-    <Show when={writes}>
-      {(store) => (
-        <div data-slot="agent-writes-inline" class="flex w-full flex-col gap-2 px-4 md:px-5 pb-4">
-          <For each={store().forSession(props.sessionID)}>
-            {(write) => <AgentWriteCard write={write} store={store()} />}
-          </For>
-        </div>
-      )}
+    <Show when={writes && props.writes.length > 0}>
+      {/* The same column and padding as the timeline's turns, so a card lines up under the reply that made it. */}
+      <div
+        data-slot="agent-writes-inline"
+        classList={{
+          "flex w-full min-w-0 max-w-full flex-col gap-2 px-4 pb-4 md:px-5": true,
+          "md:mx-auto md:max-w-200 2xl:max-w-[1000px]": props.centered,
+        }}
+      >
+        <For each={props.writes}>{(write) => <AgentWriteCard write={write} store={writes!} />}</For>
+      </div>
     </Show>
   )
 }
@@ -36,6 +43,7 @@ export function AgentWriteCard(props: { write: AgentWrite; store: AgentWrites })
   const [shown, setShown] = createSignal(false)
   const writing = () => props.write.phase === "started" && !props.write.failed
   const expanded = () => writing() || shown()
+  seenWhenSaved(() => props.write, props.store)
   return (
     <section
       data-agent-write
@@ -43,7 +51,7 @@ export function AgentWriteCard(props: { write: AgentWrite; store: AgentWrites })
       data-kind={props.write.kind}
       data-phase={props.write.phase}
       aria-label={language.t(`secondBrain.agentWrites.kind.${props.write.kind}`)}
-      class="w-full max-w-[720px] rounded-[12px] border border-v2-border-border-muted bg-v2-background-bg-layer-01"
+      class="animate-enter w-full rounded-[12px] border border-v2-border-border-muted bg-v2-background-bg-layer-01"
     >
       <div class="flex min-h-10 items-center gap-2 px-3 py-1.5">
         <StatusDot active={writing()} />
@@ -67,23 +75,30 @@ export function AgentWriteCard(props: { write: AgentWrite; store: AgentWrites })
   )
 }
 
-/** W4: the top pill for writes made by any thread other than the open one. */
+/** W4: the top pill for recent writes made by any thread other than the open one. */
 export function AgentWritePill() {
   const writes = useAgentWrites()
   const location = useLocation()
   const current = createMemo(() => {
     const store = writes
     if (!store) return undefined
-    const open = sessionFromPath(location.pathname) ?? store.focused()
-    return store
-      .writes()
-      .filter((write) => !write.hidden && write.sessionID !== open)
-      .at(-1)
+    return pillWrite(store.writes(), sessionFromPath(location.pathname) ?? store.focused(), Date.now())
   })
+  // The last pill stays mounted while it animates out.
+  const shown = createMemo<AgentWrite | undefined>((previous) => current() ?? previous)
   return (
-    <Show when={writes && current()} keyed>
-      {(write) => <Pill write={write} store={writes!} />}
-    </Show>
+    <div class="pointer-events-none absolute inset-x-0 top-2 z-50 flex justify-center px-4">
+      <Presence
+        when={!!current()}
+        class="flex min-w-0 max-w-full justify-center"
+        enterClass="animate-enter"
+        exitClass="animate-[v2-motion-exit_var(--v2-duration-exit)_var(--v2-ease-emphasized-accelerate)_forwards] motion-reduce:animate-none"
+      >
+        <Show when={writes && shown()} keyed>
+          {(write) => <Pill write={write} store={writes!} />}
+        </Show>
+      </Presence>
+    </div>
   )
 }
 
@@ -97,41 +112,40 @@ function Pill(props: { write: AgentWrite; store: AgentWrites }) {
     onCleanup(() => clearTimeout(timer))
   })
   return (
-    <div class="pointer-events-none absolute inset-x-0 top-2 z-50 flex justify-center px-4">
-      <section
-        data-agent-write
-        data-variant="pill"
-        data-kind={props.write.kind}
-        data-phase={props.write.phase}
-        role="status"
-        aria-label={language.t(`secondBrain.agentWrites.kind.${props.write.kind}`)}
-        class="pointer-events-auto w-fit max-w-[min(560px,100%)] rounded-[20px] border border-v2-border-border-muted bg-v2-background-bg-layer-01 shadow-[0_4px_16px_rgb(0_0_0/0.12)]"
-        onMouseEnter={() => setHeld(true)}
-        onMouseLeave={() => setHeld(false)}
-        onFocusIn={() => setHeld(true)}
-        onFocusOut={() => setHeld(false)}
-      >
-        <div class="flex min-h-9 items-center gap-2 px-3 py-1">
-          <StatusDot active={writing()} />
-          <span class="min-w-0 truncate text-[13px] text-v2-text-text-base">
-            <Show when={writing() || props.write.failed} fallback={language.t("secondBrain.agentWrites.saved")}>
-              <Headline write={props.write} />
-            </Show>
-          </span>
-          <Show when={!writing() && props.write.target}>
-            <span class="min-w-0 truncate text-[13px] text-v2-text-text-muted">{props.write.target}</span>
+    <section
+      data-agent-write
+      data-variant="pill"
+      data-kind={props.write.kind}
+      data-phase={props.write.phase}
+      role="status"
+      aria-label={language.t(`secondBrain.agentWrites.kind.${props.write.kind}`)}
+      class="pointer-events-auto w-fit max-w-[min(560px,100%)] rounded-[20px] border border-v2-border-border-muted bg-v2-background-bg-layer-01 shadow-[0_4px_16px_rgb(0_0_0/0.12)]"
+      onMouseEnter={() => setHeld(true)}
+      onMouseLeave={() => setHeld(false)}
+      onFocusIn={() => setHeld(true)}
+      onFocusOut={() => setHeld(false)}
+    >
+      <div class="flex min-h-9 items-center gap-2 px-3 py-1">
+        <StatusDot active={writing()} />
+        <span class="min-w-0 truncate text-[13px] text-v2-text-text-base">
+          <Show when={writing() || props.write.failed} fallback={language.t("secondBrain.agentWrites.saved")}>
+            <Headline write={props.write} />
           </Show>
-          <Show when={!writing()}>
-            <Actions write={props.write} store={props.store} />
-          </Show>
+        </span>
+        <Show when={!writing() && props.write.target}>
+          <span class="min-w-0 truncate text-[13px] text-v2-text-text-muted">{props.write.target}</span>
+        </Show>
+        <Show when={!writing()}>
+          <Actions write={props.write} store={props.store} />
+        </Show>
+      </div>
+      <Grow open={writing()}>
+        {/* Only the open preview sets the pill's width; folded, the pill hugs its one line. */}
+        <div class="px-3 pb-3" classList={{ "w-[min(480px,calc(100vw-64px))]": writing() }}>
+          <AgentWritePreview kind={props.write.kind} preview={props.write.preview} typing={writing()} />
         </div>
-        <Grow open={writing()}>
-          <div class="w-[min(480px,calc(100vw-64px))] px-3 pb-3">
-            <AgentWritePreview kind={props.write.kind} preview={props.write.preview} typing={writing()} />
-          </div>
-        </Grow>
-      </section>
-    </div>
+      </Grow>
+    </section>
   )
 }
 
@@ -148,36 +162,46 @@ export function AgentWriteSteps(props: { writes: ReadonlyArray<AgentWrite>; stor
       data-agent-write
       data-variant="steps"
       aria-label={language.t("secondBrain.agentWrites.steps")}
-      class="w-full rounded-[12px] border border-v2-border-border-muted bg-v2-background-bg-layer-01"
+      class="animate-enter w-full rounded-[12px] border border-v2-border-border-muted bg-v2-background-bg-layer-01"
     >
       <ol class="flex flex-col">
         <For each={props.writes}>
-          {(write) => (
-            <li data-agent-write-step data-kind={write.kind} data-phase={write.phase} class="flex flex-col">
-              <div class="flex min-h-9 items-center gap-2 px-3 py-1">
-                <StatusDot active={write.phase === "started" && !write.failed} />
-                <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base">
-                  <Headline write={write} />
-                </span>
-                <Show when={store && write.phase === "done"}>
-                  <Actions write={write} store={store!} />
-                </Show>
-              </div>
-              <Show when={active()?.id === write.id}>
-                <div class="px-3 pb-3">
-                  <AgentWritePreview
-                    kind={write.kind}
-                    preview={write.preview}
-                    typing={write.phase === "started" && !write.failed}
-                  />
+          {(write) => {
+            if (store) seenWhenSaved(() => write, store)
+            return (
+              <li data-agent-write-step data-kind={write.kind} data-phase={write.phase} class="flex flex-col">
+                <div class="flex min-h-9 items-center gap-2 px-3 py-1">
+                  <StatusDot active={write.phase === "started" && !write.failed} />
+                  <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base">
+                    <Headline write={write} />
+                  </span>
+                  <Show when={store && write.phase === "done"}>
+                    <Actions write={write} store={store!} />
+                  </Show>
                 </div>
-              </Show>
-            </li>
-          )}
+                <Grow open={active()?.id === write.id}>
+                  <div class="px-3 pb-3">
+                    <AgentWritePreview
+                      kind={write.kind}
+                      preview={write.preview}
+                      typing={write.phase === "started" && !write.failed}
+                    />
+                  </div>
+                </Grow>
+              </li>
+            )
+          }}
         </For>
       </ol>
     </section>
   )
+}
+
+/** A write shown inline once it is saved counts as seen, so it never pops a pill later. */
+function seenWhenSaved(write: () => AgentWrite, store: AgentWrites) {
+  createEffect(() => {
+    if (write().phase === "done" && !write().hidden) store.hide(write().id)
+  })
 }
 
 function Headline(props: { write: AgentWrite }) {
@@ -199,6 +223,8 @@ function Actions(props: { write: AgentWrite; store: AgentWrites; children?: JSX.
   const language = useLanguage()
   const navigate = useNavigate()
   const href = () => openHref(props.write)
+  // A failed undo keeps Undo so it can be retried; its status shows beside it.
+  const undoable = () => ["idle", "pending", "failed"].includes(props.write.undoState)
   return (
     <div class="flex shrink-0 items-center gap-1">
       <Show when={href()}>
@@ -209,20 +235,18 @@ function Actions(props: { write: AgentWrite; store: AgentWrites; children?: JSX.
         )}
       </Show>
       <Show when={props.write.undo && !props.write.failed}>
-        <Show
-          when={props.write.undoState === "idle" || props.write.undoState === "pending"}
-          fallback={
-            <span class="px-1 text-[13px] text-v2-text-text-muted" role="status">
-              {language.t(
-                props.write.undoState === "undone"
-                  ? "secondBrain.agentWrites.undone"
-                  : props.write.undoState === "changed"
-                    ? "secondBrain.agentWrites.changed"
-                    : "secondBrain.agentWrites.undoFailed",
-              )}
-            </span>
-          }
-        >
+        <Show when={props.write.undoState !== "idle" && props.write.undoState !== "pending"}>
+          <span class="px-1 text-[13px] text-v2-text-text-muted" role="status">
+            {language.t(
+              props.write.undoState === "undone"
+                ? "secondBrain.agentWrites.undone"
+                : props.write.undoState === "changed"
+                  ? "secondBrain.agentWrites.changed"
+                  : "secondBrain.agentWrites.undoFailed",
+            )}
+          </span>
+        </Show>
+        <Show when={undoable()}>
           <ButtonV2
             size="small"
             variant="ghost"
@@ -254,8 +278,9 @@ function StatusDot(props: { active: boolean }) {
 }
 
 /**
- * Height growth over 400 ms with emphasized-decelerate (grid rows 0fr → 1fr). It starts closed for one
- * frame so a card that mounts open still grows; with reduced motion it opens at once.
+ * Height growth (grid rows 0fr → 1fr): opens over medium with emphasized-decelerate, closes over the
+ * exit duration with emphasized-accelerate. It starts closed for one frame so a card that mounts open
+ * still grows; with reduced motion it opens and closes at once.
  */
 function Grow(props: { open: boolean; children: JSX.Element }) {
   const reduced = prefersReducedMotion()
@@ -265,12 +290,17 @@ function Grow(props: { open: boolean; children: JSX.Element }) {
     const frame = requestAnimationFrame(() => setMounted(true))
     onCleanup(() => cancelAnimationFrame(frame))
   })
+  const open = () => props.open && mounted()
   return (
     <div
       data-slot="agent-write-grow"
       data-open={props.open}
-      class="grid transition-[grid-template-rows] duration-[400ms] ease-[var(--v2-ease-emphasized-decelerate)] motion-reduce:transition-none"
-      style={{ "grid-template-rows": props.open && mounted() ? "1fr" : "0fr" }}
+      class="grid transition-[grid-template-rows] motion-reduce:transition-none"
+      classList={{
+        "duration-medium ease-emphasized-decelerate": open(),
+        "duration-[var(--v2-duration-exit)] ease-emphasized-accelerate": !open(),
+      }}
+      style={{ "grid-template-rows": open() ? "1fr" : "0fr" }}
       aria-hidden={!props.open}
     >
       <div class="min-h-0 overflow-hidden">{props.children}</div>

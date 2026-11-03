@@ -40,6 +40,26 @@ describe("createDictation", () => {
     await dictation.start()
     expect(await dictation.stop()).toBe("hello from the fake engine")
   })
+
+  test("a model load that never answers times out, and the next start spawns a fresh engine", async () => {
+    process.env.FAKE_DICTATION_HANG_LOAD = "1"
+    const dictation = createDictation({
+      command: process.execPath,
+      args: [engine],
+      log,
+      model: () => "model.bin",
+      loadTimeout: 200,
+    })
+    try {
+      await expect(dictation.start()).rejects.toMatchObject({ code: "engine_unavailable" })
+      expect(dictation.status()).toBe("idle")
+    } finally {
+      delete process.env.FAKE_DICTATION_HANG_LOAD
+    }
+    await dictation.start()
+    expect(await dictation.stop()).toBe("hello from the fake engine")
+    dictation.dispose()
+  })
 })
 
 describe("dictationPermissionHelp", () => {

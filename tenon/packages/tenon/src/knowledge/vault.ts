@@ -46,6 +46,12 @@ const projectPattern = /^project_[0-9A-Z]+$/i
 const revisionPattern = /^\d{13}-[0-9a-f]{16}$/
 const reservedKeys = new Set(["id", "title", "updated_at"])
 const conflictPattern = /conflicted copy|\(conflict|\.sync-conflict-/i
+/**
+ * OneDrive keeps both copies of a clash by adding the machine name, `Plan-DESKTOP-ABC123.md` or
+ * `Plan-LAPTOP-9F2K1.md` (Windows default names are upper case), sometimes with a counter (`-2`).
+ */
+const oneDriveConflict = /-(?:DESKTOP|LAPTOP)-[A-Z0-9]{4,}(?:-\d+)?(?=\.[^.]+$|$)/
+const isConflictCopy = (name: string) => conflictPattern.test(name) || oneDriveConflict.test(name)
 const utf8 = new TextDecoder("utf-8", { ignoreBOM: true })
 const locks = KeyedMutex.makeUnsafe<string>()
 
@@ -195,13 +201,20 @@ export const open = Effect.fn("KnowledgeVault.open")(function* (workspace: Works
     Effect.gen(function* () {
       yield* fs.ensureDir(root)
       const machine = yield* readMachine()
-      const known = machine.roots[root]?.[workspace.directory]
+      const mapped = machine.roots[root]?.[workspace.directory]
       const folders = yield* workspaceFolders(root)
+      // A vault moved to a new root (Settings copies it) keeps its workspace ids, so the id this
+      // directory had under an earlier root still finds its folder.
+      const known =
+        mapped ??
+        Object.values(machine.roots)
+          .map((directories) => directories[workspace.directory])
+          .find((id) => id !== undefined && folders.some((item) => item.id === id))
       const found =
         folders.find((item) => known !== undefined && item.id === known) ??
         (workspace.repository ? folders.find((item) => item.repository === workspace.repository) : undefined)
       const entry = found ?? (yield* createWorkspaceFolder(root, workspace, known, folders))
-      if (known !== entry.id)
+      if (mapped !== entry.id)
         yield* writeMachine({
           ...machine,
           roots: { ...machine.roots, [root]: { ...machine.roots[root], [workspace.directory]: entry.id } },
@@ -210,6 +223,15 @@ export const open = Effect.fn("KnowledgeVault.open")(function* (workspace: Works
       return { root, folder: entry.folder, directory, id: entry.id, name: entry.name, machine: machine.machine }
     }),
   )
+})
+
+/**
+ * The workspace folders this machine has opened a vault for, under any root. A workspace that is not a git
+ * repository has no project record of its own, so this is how the server finds it again.
+ */
+export const knownWorkspaces = Effect.fn("KnowledgeVault.knownWorkspaces")(function* () {
+  const machine = yield* readMachine()
+  return [...new Set(Object.values(machine.roots).flatMap((directories) => Object.keys(directories)))]
 })
 
 /** The vault's view of an opened instance: its directory, a display name and, for a repository, its id. */
@@ -506,17 +528,21 @@ export const conflicts = Effect.fn("KnowledgeVault.conflicts")(function* (vault:
   const files = yield* fs.glob("**/*", { cwd: vault.directory, absolute: false, include: "file", dot: false })
   return files
     .map((file) => file.replaceAll("\\", "/"))
-    .filter((file) => conflictPattern.test(path.posix.basename(file)))
+    .filter((file) => isConflictCopy(path.posix.basename(file)))
     .sort()
     .map((file) => ({ path: file, original: conflictOriginal(file) }))
 })
 
-/** The file a conflict copy was made from: `Plan (conflicted copy 2026-11-02).md` → `Plan.md`. */
+/**
+ * The file a conflict copy was made from: `Plan (conflicted copy 2026-11-02).md` → `Plan.md`, and
+ * `Plan-DESKTOP-ABC123.md` → `Plan.md`.
+ */
 export function conflictOriginal(file: string) {
   const name = path.posix.basename(file)
   const original = name
     .replace(/\s*\([^()]*conflict[^()]*\)/i, "")
     .replace(/\.sync-conflict-[^.]*/i, "")
+    .replace(oneDriveConflict, "")
     .trim()
   const directory = path.posix.dirname(file)
   return directory === "." ? original : `${directory}/${original}`
@@ -525,9 +551,14 @@ export function conflictOriginal(file: string) {
 /**
  * Move notes written next to code into the vault: copy every note from `<workspace>/notes/**` and the
  * Project card folders, then back them up under `<root>/.backups/<timestamp>/`, then remove the
- * originals. Nothing is removed unless every copy and backup succeeded.
+ * originals. Nothing is removed unless every copy and backup succeeded. Migrations of one workspace folder
+ * run one at a time, so a caller that waited finds the notes already moved and moves nothing.
  */
 export const migrate = Effect.fn("KnowledgeVault.migrate")(function* (vault: Vault) {
+  return yield* locks.withLock(`migrate:${vault.directory}`)(migrateNotes(vault))
+})
+
+const migrateNotes = Effect.fnUntraced(function* (vault: Vault) {
   const fs = yield* FSUtil.Service
   const files = yield* FileMutation.Service
   const location = yield* Location.Service
@@ -556,7 +587,7 @@ export const migrate = Effect.fn("KnowledgeVault.migrate")(function* (vault: Vau
     ),
   )
   const notes = read.filter((note) => note !== undefined)
-  if (notes.length === 0) return { moved: 0, backup: null }
+  if (notes.length === 0) return { moved: 0, backup: null as string | null }
 
   yield* Effect.forEach(notes, (note) => copyInto(vault, note.destination, note.bytes), { discard: true })
   const backup = `.backups/${new Date().toISOString().replace(/[:.]/g, "-")}`
@@ -768,7 +799,7 @@ const pagePath = (value: string) =>
 
 /** Listed pages skip machine logs and sync conflict copies (shown by `conflicts`). */
 function isListedPage(file: string, projects: ReadonlyMap<string, string>) {
-  return isPagePath(file) && isWritablePage(file, projects) && !conflictPattern.test(path.posix.basename(file))
+  return isPagePath(file) && isWritablePage(file, projects) && !isConflictCopy(path.posix.basename(file))
 }
 
 function isWritablePage(file: string, projects: ReadonlyMap<string, string>) {
@@ -818,10 +849,11 @@ function decode(relative: string, raw: string, projects: ReadonlyMap<string, str
           .filter(([key]) => !reservedKeys.has(key))
           .map(([key, value]) => [key, value instanceof Date ? value.toISOString() : value]),
       ),
+      // Front matter is hand-editable; a date that does not parse reads as "" (unknown) rather than as text.
       updatedAt:
-        typeof data.updated_at === "string"
+        typeof data.updated_at === "string" && Number.isFinite(Date.parse(data.updated_at))
           ? data.updated_at
-          : data.updated_at instanceof Date
+          : data.updated_at instanceof Date && Number.isFinite(data.updated_at.getTime())
             ? data.updated_at.toISOString()
             : "",
     },

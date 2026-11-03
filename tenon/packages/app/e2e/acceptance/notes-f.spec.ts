@@ -130,7 +130,7 @@ test("AC-4.3 each view shows the Project's items", async ({ page }) => {
 
   await page.getByRole("tab", { name: "Table", exact: true }).click()
   const table = page.getByRole("table")
-  await expect(table.getByRole("row").filter({ hasText: "Billing webhooks" })).toContainText("2026-11-10")
+  await expect(table.getByRole("row").filter({ hasText: "Billing webhooks" })).toContainText("Nov 10")
 
   await page.getByRole("tab", { name: "Docs", exact: true }).click()
   await expect(page.getByRole("link", { name: "Auth redesign" })).toBeVisible()
@@ -159,7 +159,7 @@ test("AC-4.5 New page creates in the open Project and Save sends the loaded revi
   expect(writes[0].body).toMatchObject({ create: true, projectId: project.project.id })
 
   await page.goto(`/notes?page=${encodeURIComponent("Ideas.md")}`)
-  await page.getByRole("textbox").first().click()
+  await page.getByRole("article").getByRole("textbox").first().click()
   await page.keyboard.type(" more")
   await page.getByRole("button", { name: "Save" }).click()
   await expect.poll(() => writes.filter((write) => write.path === "Ideas.md").length).toBe(1)
@@ -169,7 +169,7 @@ test("AC-4.5 New page creates in the open Project and Save sends the loaded revi
 test("AC-4.5 a conflicting save shows a message instead of overwriting", async ({ page }) => {
   await open(page, { conflictOnSave: true })
   await page.goto(`/notes?page=${encodeURIComponent("Ideas.md")}`)
-  await page.getByRole("textbox").first().click()
+  await page.getByRole("article").getByRole("textbox").first().click()
   await page.keyboard.type(" edit")
   await page.getByRole("button", { name: "Save" }).click()
   await expect(page.getByText("This page changed somewhere else")).toBeVisible()

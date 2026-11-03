@@ -26,6 +26,9 @@ export type EmailPreview = { to?: string; subject?: string; body?: string }
 export type AgentWrite = {
   id: string
   sessionID: string
+  /** The assistant message and tool call that made the write; absent for external harnesses. */
+  messageID?: string
+  callID?: string
   directory: string
   kind: Kind
   phase: "started" | "done"
@@ -34,8 +37,12 @@ export type AgentWrite = {
   undo?: string
   open?: { page?: string; projectId?: string }
   failed: boolean
+  /** When the write started (or first arrived). */
   at: number
+  /** When its `done` was shown; undefined while it is still writing. */
+  doneAt?: number
   undoState: UndoState
+  /** Seen inline or dismissed: it gets no pill. */
   hidden: boolean
 }
 
@@ -50,6 +57,8 @@ export function parseAgentWrite(directory: string, event: { type?: unknown; prop
   return {
     id: value.id,
     sessionID: value.sessionID,
+    ...(typeof value.messageID === "string" ? { messageID: value.messageID } : {}),
+    ...(typeof value.callID === "string" ? { callID: value.callID } : {}),
     directory,
     kind: value.kind as Kind,
     phase: value.phase,
@@ -65,18 +74,27 @@ export function parseAgentWrite(directory: string, event: { type?: unknown; prop
         }
       : {}),
     failed: value.failed === true,
-  } satisfies Omit<AgentWrite, "at" | "undoState" | "hidden">
+  } satisfies Omit<AgentWrite, "at" | "doneAt" | "undoState" | "hidden">
 }
 
 /** Where Open goes for a write, or undefined when it has no page to open (email drafts). */
 export function openHref(write: Pick<AgentWrite, "kind" | "open" | "preview">) {
   if (write.kind === "note" && write.open?.page) return `/notes?page=${encodeURIComponent(write.open.page)}`
+  // A note with a Project and no page is a log entry (log_append).
+  if (write.kind === "note" && write.open?.projectId)
+    return `/notes?project=${encodeURIComponent(write.open.projectId)}&tab=log`
   if (write.open?.projectId) return `/notes?project=${encodeURIComponent(write.open.projectId)}`
   if (write.kind === "timeline") {
     const projectId = (write.preview as TimelinePreview | undefined)?.projectId
     return projectId ? `/notes?project=${encodeURIComponent(projectId)}` : undefined
   }
-  if (write.kind === "calendar" || write.kind === "tasks") return "/calendar"
+  if (write.kind === "calendar" || write.kind === "tasks") {
+    const date =
+      write.kind === "calendar"
+        ? (write.preview as CalendarPreview | undefined)?.events?.[0]?.date
+        : (write.preview as TasksPreview | undefined)?.tasks?.find((task) => task.dueDate)?.dueDate
+    return date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? `/calendar?date=${date}` : "/calendar"
+  }
   if (write.kind === "note") return "/notes"
   return undefined
 }
@@ -87,6 +105,32 @@ export function sessionFromPath(pathname: string) {
 }
 
 const LIMIT = 50
+/** The least time a write stays in its writing presentation, so the preview can grow and type. */
+export const MIN_WRITING_MS = 1_400
+
+/** How long a saved write's pill stays up. */
+export const PILL_HIDE_MS = 6_000
+
+/**
+ * The write the pill shows: the newest unseen write of another thread that is still writing or saved
+ * within the pill's time, so leaving a thread never pops a pill for an old write.
+ */
+export function pillWrite(writes: ReadonlyArray<AgentWrite>, open: string | undefined, now: number) {
+  return writes
+    .filter(
+      (write) =>
+        !write.hidden &&
+        write.sessionID !== open &&
+        (write.phase === "started" || (write.doneAt !== undefined && now - write.doneAt < PILL_HIDE_MS)),
+    )
+    .at(-1)
+}
+
+/** How much longer the `done` of a write that started at `startedAt` waits before it shows. */
+export function writingHold(startedAt: number, now: number, reduced: boolean) {
+  if (reduced) return 0
+  return Math.max(0, startedAt + MIN_WRITING_MS - now)
+}
 
 function createAgentWrites() {
   const platform = usePlatform()
@@ -94,25 +138,51 @@ function createAgentWrites() {
   // `focused`: a thread a page shows outside the thread route (the Command Centre's open thread).
   const [state, setState] = createStore<{ writes: AgentWrite[]; focused?: string }>({ writes: [] })
 
-  const unsubscribe = serverSDK().event.listen((event) => {
-    const write = parseAgentWrite(event.name, event.details as { type?: unknown; properties?: unknown })
-    if (!write) return
+  const apply = (write: NonNullable<ReturnType<typeof parseAgentWrite>>) =>
     setState(
       "writes",
       produce((writes) => {
+        const now = Date.now()
         const existing = writes.find((item) => item.id === write.id)
         if (existing) {
           // A late `started` never undoes a `done` that arrived first.
           if (existing.phase === "done" && write.phase === "started") return
-          Object.assign(existing, write)
+          Object.assign(existing, write, write.phase === "done" ? { doneAt: now } : {})
           return
         }
-        writes.push({ ...write, at: Date.now(), undoState: "idle", hidden: false })
+        writes.push({
+          ...write,
+          at: now,
+          ...(write.phase === "done" ? { doneAt: now } : {}),
+          undoState: "idle",
+          hidden: false,
+        })
         if (writes.length > LIMIT) writes.splice(0, writes.length - LIMIT)
       }),
     )
+  const timers = new Set<ReturnType<typeof setTimeout>>()
+
+  const unsubscribe = serverSDK().event.listen((event) => {
+    const write = parseAgentWrite(event.name, event.details as { type?: unknown; properties?: unknown })
+    if (!write) return
+    const existing = state.writes.find((item) => item.id === write.id)
+    // The server often finishes a write milliseconds after starting it: hold the writing state so the
+    // preview's typing and growth are visible. Failures show at once.
+    const hold =
+      write.phase === "done" && !write.failed && existing?.phase === "started"
+        ? writingHold(existing.at, Date.now(), prefersReducedMotion())
+        : 0
+    if (hold === 0) return apply(write)
+    const timer = setTimeout(() => {
+      timers.delete(timer)
+      apply(write)
+    }, hold)
+    timers.add(timer)
   })
-  onCleanup(unsubscribe)
+  onCleanup(() => {
+    unsubscribe()
+    for (const timer of timers) clearTimeout(timer)
+  })
 
   const update = (id: string, change: Partial<AgentWrite>) => setState("writes", (write) => write.id === id, change)
 

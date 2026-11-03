@@ -40,6 +40,7 @@ type Engine = {
 type Pending = { resolve: (text: string) => void; reject: (error: DictationError) => void }
 
 const READY_TIMEOUT = 20_000
+const LOAD_TIMEOUT = 60_000
 const MAX_RESTARTS = 5
 const RESTART_WINDOW = 10 * 60_000
 
@@ -49,6 +50,8 @@ export function createDictation(input: {
   log: (message: string, meta?: Record<string, unknown>) => void
   /** The model file to load after each spawn; undefined starts the engine without one. */
   model?: () => string | undefined
+  /** How long a model load may take before the engine is treated as hung; tests shorten it. */
+  loadTimeout?: number
 }) {
   const levels = new Set<(rms: number) => void>()
   const failures = new Set<(error: DictationError) => void>()
@@ -163,17 +166,39 @@ export function createDictation(input: {
       throw new DictationError("engine_unavailable", "The dictation engine keeps stopping")
     const current = spawnEngine()
     engine = current
-    await current.ready
-    const model = input.model?.()
-    if (model) await load(current, model)
+    try {
+      await current.ready
+      const model = input.model?.()
+      if (model) await load(current, model)
+    } catch (error) {
+      if (error instanceof DictationError && error.code === "engine_unavailable") discard(current)
+      throw error
+    }
     return current
   }
 
-  // `ready` answers a load; an error carrying the request id rejects it.
+  // An engine that never got ready or never finished a load is killed and forgotten, so the next start
+  // spawns a fresh one instead of reusing it (or answering already_recording) forever. It counts as a crash.
+  const discard = (current: Engine) => {
+    if (current.exited) return
+    current.exited = true
+    if (engine === current) engine = undefined
+    readyWaiter = undefined
+    crashes = [...crashes.filter((at) => Date.now() - at < RESTART_WINDOW), Date.now()]
+    input.log("dictation engine timed out")
+    current.child.kill()
+  }
+
+  // `ready` answers a load; an error carrying the request id rejects it. No answer in time rejects it too.
   const load = (current: Engine, model: string) =>
     new Promise<void>((resolve, reject) => {
       const request = id()
+      const timer = setTimeout(
+        () => settle(new DictationError("engine_unavailable", "The dictation model did not load")),
+        input.loadTimeout ?? LOAD_TIMEOUT,
+      )
       const settle = (error?: DictationError) => {
+        clearTimeout(timer)
         pending.delete(request)
         readyWaiter = undefined
         if (error) return reject(error)
@@ -226,8 +251,12 @@ export function createDictation(input: {
     /** Loads `model` into a running engine now; a stopped engine loads it on its next spawn. */
     async reload() {
       const model = input.model?.()
-      if (!engine || engine.exited || !model || status !== "idle") return
-      await load(engine, model)
+      const current = engine
+      if (!current || current.exited || !model || status !== "idle") return
+      await load(current, model).catch((error: unknown) => {
+        if (error instanceof DictationError && error.code === "engine_unavailable") discard(current)
+        throw error
+      })
     },
     status: () => status,
     onLevel(listener: (rms: number) => void) {

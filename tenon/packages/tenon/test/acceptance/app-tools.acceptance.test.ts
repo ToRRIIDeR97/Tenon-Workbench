@@ -73,8 +73,8 @@ const setup = Effect.gen(function* () {
   const folder = path.join(test.directory, a.location?.path ?? "projects/Alpha")
   yield* Effect.promise(() => mkdir(folder, { recursive: true }))
   const session = yield* Session.use.create({ title: "alpha work" }).pipe(provideInstanceEffect(folder))
-  const call = (name: string, args: Record<string, unknown>) =>
-    AgentAppTools.call(name, args, { sessionID: session.id }) as Effect.Effect<Result, never, never>
+  const call = (name: string, args: Record<string, unknown>, origin?: { messageID?: string; callID?: string }) =>
+    AgentAppTools.call(name, args, { sessionID: session.id, ...origin }) as Effect.Effect<Result, never, never>
   return { test, headers, a, b, session, call }
 })
 
@@ -126,6 +126,23 @@ describe("AgentAppTools", () => {
     }),
   )
 
+  it.instance("AC-5.2 a thread in a linked folder of a non-git workspace finds its Project", () =>
+    Effect.gen(function* () {
+      process.env.TENON_VAULT_DIR = yield* tmpdirScoped()
+      // The workspace is a plain folder (no repository record) and the Project's code lives elsewhere.
+      const workspace = yield* tmpdirScoped()
+      const code = yield* tmpdirScoped()
+      const headers = { "x-opencode-directory": workspace, "content-type": "application/json" }
+      yield* request("/second-brain/projects/link", { method: "POST", headers, body: JSON.stringify({ folder: code }) }).pipe(
+        Effect.flatMap(json<unknown>),
+      )
+      yield* request("/second-brain/vault", { headers }).pipe(Effect.flatMap(json<unknown>))
+      const session = yield* Session.use.create({ title: "linked work" }).pipe(provideInstanceEffect(code))
+      const result = (yield* AgentAppTools.call("log_append", { text: "Linked progress" }, { sessionID: session.id })) as Result
+      expect(result.isError).toBe(false)
+    }),
+  )
+
   it.instance("AC-5.3 writes return revision and undo, and publish agent.write started and done", () =>
     Effect.gen(function* () {
       const { session, call } = yield* setup
@@ -143,6 +160,33 @@ describe("AgentAppTools", () => {
       expect(phases.map((item) => item.phase)).toEqual(["started", "done"])
       for (const item of phases) expect(item).toMatchObject({ sessionID: session.id, kind: "note" })
       expect(phases[1].preview).toBeDefined()
+    }),
+  )
+
+  it.instance("AC-5.3 agent.write carries the turn that made it and always closes, even on failure", () =>
+    Effect.gen(function* () {
+      const { call } = yield* setup
+      const events: GlobalEvent[] = []
+      const listen = (event: GlobalEvent) => {
+        if (event.payload?.type === "agent.write") events.push(event)
+      }
+      GlobalBus.on("event", listen)
+      const origin = { messageID: "msg_1", callID: "call_1" }
+      const failed = yield* call("notes_write", { path: "Missing.md", body: "x", create: false }, origin)
+      const tasks = yield* call("tasks_create", { tasks: [{ title: "Sync", accountId: "acct_1" }] }, origin).pipe(
+        Effect.ensuring(Effect.sync(() => GlobalBus.off("event", listen))),
+      )
+      expect(failed.isError).toBe(true)
+      expect(tasks.isError).toBe(false)
+      const phases = events.map((event) => event.payload.properties)
+      expect(phases.map((item) => [item.kind, item.phase, item.failed === true])).toEqual([
+        ["note", "started", false],
+        ["note", "done", true],
+        ["tasks", "started", false],
+        ["tasks", "done", false],
+      ])
+      for (const item of phases) expect(item).toMatchObject(origin)
+      expect(phases[3].target).toBe("Google Tasks")
     }),
   )
 
