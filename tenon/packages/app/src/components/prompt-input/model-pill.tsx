@@ -168,6 +168,7 @@ export function PromptModelPill(props: {
       triggerAs="button"
       triggerProps={{
         type: "button",
+        ...PILL_ACTION,
         disabled: props.harness.disabled?.(),
         class:
           "flex h-7 min-w-0 max-w-[280px] items-center gap-1.5 rounded-full px-2.5 text-[13px] font-[400] leading-5 text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base active:bg-v2-overlay-simple-overlay-pressed data-[expanded]:bg-v2-overlay-simple-overlay-hover data-[expanded]:text-v2-text-text-base focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus disabled:opacity-50 disabled:hover:bg-transparent motion-reduce:transition-none",
@@ -332,6 +333,9 @@ export function PromptModelPill(props: {
     </TooltipV2>
   )
 }
+
+// The trigger's test hook. Spread in, because a "button" trigger's props type has no data-* keys.
+const PILL_ACTION = { "data-action": "prompt-model-pill" }
 
 // Rows show a ring only for keyboard focus; a pointer opening the panel never draws one.
 const ROW_CLASS =
