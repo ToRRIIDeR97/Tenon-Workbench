@@ -38,8 +38,8 @@ export const SettingsSkillsV2: Component<{ directory: Accessor<string | undefine
   const directory = createMemo(
     () =>
       props.directory() ||
-      layout.home.selection().directory ||
-      layout.projects.list()[0]?.worktree ||
+      // The open workspace, never the raw selection: a removed workspace's folder may be gone (404).
+      layout.home.workspace() ||
       serverSync().data.path.home ||
       undefined,
   )

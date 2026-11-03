@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test"
 import { fixture } from "../smoke/session-timeline.fixture"
 import { mockTenonServer } from "../utils/mock-server"
 
-test("Harness picker puts external agents in one group with an add action", async ({ page }, testInfo) => {
+test("Harness picker lists the built-in loop first, then external agents, with an add action", async ({ page }, testInfo) => {
   await mockTenonServer(page, {
     sessions: [],
     provider: fixture.provider,
@@ -37,20 +37,23 @@ test("Harness picker puts external agents in one group with an add action", asyn
   )
 
   await page.goto("/")
-  const selector = page.getByRole("button", { name: "Harness", exact: true })
-  await expect(selector).toBeEnabled()
-  await selector.click()
+  // Home's model pill holds the harness list: its Harness row opens it.
+  const pill = page.locator('[data-action="prompt-model-pill"]')
+  await expect(pill).toBeEnabled()
+  await pill.click()
+  await page.locator('[data-component="prompt-model-pill-panel"] [data-step="harness"]').click()
 
-  const list = page.getByRole("menu")
+  // The built-in loop comes first, then the external agents in server order, then "Add harness".
+  const list = page.locator('[data-component="prompt-model-pill-panel"]')
   await expect(list.getByRole("menuitemradio")).toHaveText([
     "Default agent",
     "Codex",
     "OpenCode",
     "Claude Code",
     "Custom Agent",
+    "Add harness",
   ])
-  await expect(list.getByText("External agents", { exact: true })).toBeVisible()
-  const add = list.getByRole("menuitem", { name: "Add harness", exact: true })
+  const add = list.getByRole("menuitemradio", { name: "Add harness", exact: true })
   await page.screenshot({ path: testInfo.outputPath("harness-picker-groups.png") })
 
   await add.click()

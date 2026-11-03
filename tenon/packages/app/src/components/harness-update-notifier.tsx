@@ -26,7 +26,8 @@ export function HarnessUpdateNotifier() {
   const server = () => ({ server: serverSDK().server.http, fetch: platform.fetch })
   // Harness routes are global; they only need some valid location.
   const directory = createMemo(
-    () => layout.home.selection().directory || layout.projects.list()[0]?.worktree || serverSync().data.path.home,
+    // The open workspace (never a removed one, whose folder may be gone), else the home folder.
+    () => layout.home.workspace() || serverSync().data.path.home,
   )
 
   // Harnesses that run the same CLI report the same update; one toast covers them all.
