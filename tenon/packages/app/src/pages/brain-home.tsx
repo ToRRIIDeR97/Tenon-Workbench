@@ -34,7 +34,8 @@ import {
 } from "@/utils/server"
 import type { PromptInputHarnessController } from "@/components/prompt-input/harness-controls"
 import { PromptModelPill } from "@/components/prompt-input/model-pill"
-import { PromptDictationButton } from "@/components/prompt-input/dictation-button"
+import { ComposerBox } from "@/components/prompt-input/composer-box"
+import { createComposerController } from "@/components/prompt-input/composer-controller"
 import { HomeModelPill } from "@/pages/home/home-model-pill"
 import type { PromptModel } from "@/context/prompt"
 import { PromptBranchPicker } from "@/components/prompt-workspace-selector"
@@ -61,12 +62,10 @@ export default function BrainHomePage() {
   const tenonHome = createHomeController()
   const tenonSessions = createHomeSessionsController(tenonHome)
   const [state, setState] = createStore({
-    prompt: "",
     harnessInstanceID: Harness.OpenCode as Harness.InstanceID,
     harnessModel: undefined as Harness.ModelSelection | undefined,
     // The built-in agent's model and reasoning, from the folder's model selection.
     builtInModel: undefined as PromptModel | undefined,
-    starting: false,
     // Set once the user picks a harness here, so a later settings load doesn't override it.
     picked: false,
   })
@@ -208,22 +207,19 @@ export default function BrainHomePage() {
   const builtIn = () =>
     (harnesses()?.find((item) => item.id === state.harnessInstanceID)?.driver ??
       (state.harnessInstanceID === Harness.OpenCode ? Harness.OpenCodeDriver : undefined)) === Harness.OpenCodeDriver
-  const waitingForHarness = () => harnessQuery.isPending && state.harnessInstanceID !== Harness.OpenCode
-  const startSession = async () => {
-    const prompt = state.prompt.trim()
-    if (!prompt || !directory() || state.starting || waitingForHarness()) return
-    setState("starting", true)
-    try {
-      // The draft page sends the prompt as soon as its composer is ready.
+  const composer = createComposerController({
+    // The draft page sends the prompt as soon as its composer is ready.
+    send: async (prompt) => {
       const model = builtIn() ? state.builtInModel : undefined
       await drafts.create({ server: server.key, directory: directory() }, prompt, model, state.harnessInstanceID, {
         send: true,
         harnessModel: state.harnessModel,
       })
-    } finally {
-      setState("starting", false)
-    }
-  }
+      return true
+    },
+    disabled: () => !directory(),
+    blocked: () => harnessQuery.isPending && state.harnessInstanceID !== Harness.OpenCode,
+  })
 
   return (
     <PageFrame labelledBy="brain-home-title">
@@ -274,43 +270,33 @@ export default function BrainHomePage() {
             class={`mx-auto flex ${NEW_SESSION_CONTENT_WIDTH} flex-col gap-[clamp(24px,4vh,48px)] px-6 pb-12 pt-[12vh]`}
           >
             <Greeting />
-            <form
-              class="flex flex-col overflow-hidden rounded-[28px] bg-v2-background-bg-base shadow-[0_0_0_1px_var(--v2-border-border-base),0_8px_24px_-12px_rgb(0_0_0/0.18)] transition-shadow duration-short ease-standard focus-within:shadow-[0_0_0_1px_var(--v2-border-border-focus),0_8px_24px_-12px_rgb(0_0_0/0.18)] motion-reduce:transition-none"
-              onSubmit={(event) => {
-                event.preventDefault()
-                void startSession()
-              }}
-            >
-              <div class="flex h-10 min-w-0 items-center gap-0.5 border-b border-v2-border-border-muted pl-2.5 pr-2">
-                <PathTooltip placement="top" class="min-w-0 shrink" name={getFilename(directory())} path={directory()}>
-                  <span class="flex h-8 min-w-0 shrink items-center gap-1.5 px-2 text-[13px] leading-5 text-v2-text-text-muted">
-                    <Icon name="folder" size="small" class="shrink-0 text-v2-icon-icon-muted" />
-                    <span class="min-w-0 truncate text-v2-text-text-base [font-weight:500]">
-                      {getFilename(directory())}
+            <ComposerBox
+              size="large"
+              controller={composer}
+              label={language.t("secondBrain.home.ask")}
+              placeholder={language.t("secondBrain.home.askPlaceholder")}
+              sendLabel={language.t("secondBrain.home.start")}
+              header={
+                <div class="flex h-10 min-w-0 items-center gap-0.5 border-b border-v2-border-border-muted pl-2.5 pr-2">
+                  <PathTooltip
+                    placement="top"
+                    class="min-w-0 shrink"
+                    name={getFilename(directory())}
+                    path={directory()}
+                  >
+                    <span class="flex h-8 min-w-0 shrink items-center gap-1.5 px-2 text-[13px] leading-5 text-v2-text-text-muted">
+                      <Icon name="folder" size="small" class="shrink-0 text-v2-icon-icon-muted" />
+                      <span class="min-w-0 truncate text-v2-text-text-base [font-weight:500]">
+                        {getFilename(directory())}
+                      </span>
                     </span>
-                  </span>
-                </PathTooltip>
-                <Icon name="chevron-down" size="small" class="shrink-0 -rotate-90 text-v2-icon-icon-muted" />
-                <PromptBranchPicker directory={directory()} branch={serverSync().child(directory())[0].vcs?.branch} />
-              </div>
-              <label class="sr-only" for="brain-home-prompt">
-                {language.t("secondBrain.home.ask")}
-              </label>
-              <textarea
-                id="brain-home-prompt"
-                rows={2}
-                class="max-h-60 min-h-[clamp(60px,9vh,112px)] w-full resize-none bg-transparent px-5 pt-4 text-[15px] leading-6 text-v2-text-text-base outline-none [field-sizing:content] placeholder:text-v2-text-text-faint"
-                value={state.prompt}
-                placeholder={language.t("secondBrain.home.askPlaceholder")}
-                onInput={(event) => setState("prompt", event.currentTarget.value)}
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter" || event.shiftKey || event.isComposing) return
-                  event.preventDefault()
-                  void startSession()
-                }}
-              />
-              <div class="flex min-w-0 items-center gap-1 pb-2 pl-2.5 pr-2">
-                {/* The harness query suspends while it loads; this boundary keeps the rest of Home on screen. */}
+                  </PathTooltip>
+                  <Icon name="chevron-down" size="small" class="shrink-0 -rotate-90 text-v2-icon-icon-muted" />
+                  <PromptBranchPicker directory={directory()} branch={serverSync().child(directory())[0].vcs?.branch} />
+                </div>
+              }
+              controls={
+                // The harness query suspends while it loads; this boundary keeps the rest of Home on screen.
                 <Suspense
                   fallback={
                     <span class="flex h-8 items-center px-2 text-[12px] text-v2-text-text-faint">
@@ -329,29 +315,8 @@ export default function BrainHomePage() {
                     )}
                   </Show>
                 </Suspense>
-                <span class="flex-1" />
-                {/* Dictation, as in thread composers; the transcript lands in this textarea. */}
-                <Show when={platform.dictation}>
-                  {(dictation) => (
-                    <PromptDictationButton
-                      dictation={dictation()}
-                      restoreFocus={() => document.getElementById("brain-home-prompt")?.focus()}
-                    />
-                  )}
-                </Show>
-                <TooltipV2 placement="top" value={language.t("secondBrain.home.start")}>
-                  <IconButtonV2
-                    type="submit"
-                    variant="contrast"
-                    size="large"
-                    class="!size-9"
-                    aria-label={language.t("secondBrain.home.start")}
-                    icon={<Icon name="arrow-up" />}
-                    disabled={!state.prompt.trim() || state.starting || waitingForHarness()}
-                  />
-                </TooltipV2>
-              </div>
-            </form>
+              }
+            />
 
             <RevealShow when={!!(projects.failed() || calendar.error())}>
               {() => (

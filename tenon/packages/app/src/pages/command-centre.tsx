@@ -4,6 +4,8 @@ import { Markdown } from "@tenon/session-ui/markdown"
 import { TextShimmer } from "@tenon/ui/text-shimmer"
 import { createEffect, createMemo, createResource, For, on, onCleanup, Show } from "solid-js"
 import { createStore } from "solid-js/store"
+import { ComposerBox } from "@/components/prompt-input/composer-box"
+import { createComposerController } from "@/components/prompt-input/composer-controller"
 import { PageEmpty, PageHeader, pagePanelClass, pageRowClass } from "@/components/page"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
@@ -27,7 +29,7 @@ export default function CommandCentrePage() {
   const serverSDK = useServerSDK()
   const centre = useCommandCentre()
   const [search, setSearch] = useSearchParams<{ thread?: string }>()
-  const [state, setState] = createStore({ input: "", fresh: false, memory: "", query: "", hit: -1 })
+  const [state, setState] = createStore({ fresh: false, memory: "", query: "", hit: -1 })
   const selected = createMemo(() => (state.fresh ? undefined : search.thread))
   createEffect(() => {
     const id = selected()
@@ -58,15 +60,17 @@ export default function CommandCentrePage() {
       ).catch(() => []),
   )
 
-  const submit = async () => {
-    const text = state.input.trim()
-    if (!text || centre.sending()) return
-    const id = await centre.send(text, selected() ?? null)
-    // A failed send keeps the text so it can be sent again.
-    if (!id) return
-    setState({ input: "", fresh: false })
-    setSearch({ thread: id })
-  }
+  const composer = createComposerController({
+    send: async (text) => {
+      const id = await centre.send(text, selected() ?? null)
+      if (!id) return false
+      setState("fresh", false)
+      setSearch({ thread: id })
+      return true
+    },
+    disabled: () => !centre.directory(),
+    blocked: centre.sending,
+  })
 
   return (
     <section class="flex size-full min-h-0 flex-col p-2 pl-0" aria-labelledby="command-centre-title">
@@ -246,30 +250,13 @@ export default function CommandCentrePage() {
                 </div>
               </Show>
             </div>
-            <form
-              class="flex shrink-0 items-center gap-2 px-4 pb-4"
-              onSubmit={(event) => {
-                event.preventDefault()
-                void submit()
-              }}
-            >
-              <input
-                type="text"
-                class="h-10 min-w-0 flex-1 rounded-full border border-v2-border-border-muted bg-v2-background-bg-base px-4 text-[13px] text-v2-text-text-base outline-none placeholder:text-v2-text-text-faint focus:border-v2-border-border-focus"
-                placeholder={language.t("secondBrain.commandCentre.composer.placeholder")}
-                aria-label={language.t("secondBrain.commandCentre.composer.label")}
-                value={state.input}
-                disabled={!centre.directory()}
-                onInput={(event) => setState("input", event.currentTarget.value)}
-              />
-              <ButtonV2
-                variant="contrast"
-                type="submit"
-                disabled={!state.input.trim() || centre.sending() || !centre.directory()}
-              >
-                {language.t("secondBrain.commandCentre.composer.send")}
-              </ButtonV2>
-            </form>
+            <ComposerBox
+              class="mx-4 mb-4 shrink-0"
+              controller={composer}
+              label={language.t("secondBrain.commandCentre.composer.label")}
+              placeholder={language.t("secondBrain.commandCentre.composer.placeholder")}
+              sendLabel={language.t("secondBrain.commandCentre.composer.send")}
+            />
             <Show when={centre.error()}>
               <p role="alert" class="px-5 pb-3 text-[12px] text-v2-text-text-critical">
                 {language.t("common.requestFailed")}

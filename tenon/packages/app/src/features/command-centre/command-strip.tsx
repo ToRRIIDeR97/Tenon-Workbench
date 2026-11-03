@@ -3,6 +3,8 @@ import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { createEffect, Show } from "solid-js"
 import { createStore } from "solid-js/store"
+import { ComposerBox } from "@/components/prompt-input/composer-box"
+import { createComposerController } from "@/components/prompt-input/composer-controller"
 import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
 import { useCommandCentre } from "./command-centre"
@@ -19,8 +21,8 @@ export function CommandStrip() {
   const navigate = useNavigate()
   const command = useCommand()
   const centre = useCommandCentre()
-  const [state, setState] = createStore({ open: false, input: "" })
-  let input: HTMLInputElement | undefined
+  const [state, setState] = createStore({ open: false })
+  let input: HTMLTextAreaElement | undefined
   let card: HTMLDivElement | undefined
   let full: HTMLButtonElement | undefined
   // Focus goes back where it was when the strip closes, so keyboard users are not dropped on <body>.
@@ -56,12 +58,12 @@ export function CommandStrip() {
     setState("open", false)
   })
 
-  const submit = async () => {
-    const text = state.input.trim()
-    if (!text || centre.sending()) return
-    // Each request from the strip is a fresh Command Centre thread. The text stays if sending fails.
-    if (await centre.send(text, null)) setState("input", (current) => (current.trim() === text ? "" : current))
-  }
+  // Each request from the strip is a fresh Command Centre thread. The text stays if sending fails.
+  const composer = createComposerController({
+    send: async (text) => !!(await centre.send(text, null)),
+    disabled: () => !centre.directory(),
+    blocked: centre.sending,
+  })
   const openFull = () => {
     const id = centre.latest()?.id
     setState("open", false)
@@ -96,12 +98,14 @@ export function CommandStrip() {
         ref={card}
         inert={state.open ? undefined : true}
         classList={{
-          "absolute inset-x-0 bottom-1.5 origin-bottom transition-[opacity,translate,scale,visibility] motion-reduce:duration-0": true,
-          "pointer-events-auto translate-y-0 scale-100 opacity-100 duration-medium ease-emphasized-decelerate":
+          "absolute inset-x-0 bottom-1.5 origin-bottom motion-reduce:duration-0": true,
+          // Visibility isn't transitioned on open: at the transition's first frame it still reads hidden, and the
+          // field couldn't take focus.
+          "pointer-events-auto translate-y-0 scale-100 opacity-100 transition-[opacity,translate,scale] duration-medium ease-emphasized-decelerate":
             state.open,
           // Hidden once the exit finishes (visibility flips at the end), so the closed card's input is not
           // reachable by role queries, assistive tech or clicks.
-          "invisible translate-y-3 scale-[0.97] opacity-0 duration-[200ms] ease-emphasized-accelerate":
+          "invisible translate-y-3 scale-[0.97] opacity-0 transition-[opacity,translate,scale,visibility] duration-[200ms] ease-emphasized-accelerate":
             !state.open,
         }}
       >
@@ -148,32 +152,14 @@ export function CommandStrip() {
               {language.t("secondBrain.commandCentre.strip.openFull")}
             </ButtonV2>
           </div>
-          <form
-            class="flex min-w-0 items-center gap-2"
-            onSubmit={(event) => {
-              event.preventDefault()
-              void submit()
-            }}
-          >
-            <input
-              ref={input}
-              type="text"
-              class="h-8 min-w-0 flex-1 rounded-full border border-v2-border-border-muted bg-v2-background-bg-deep px-4 text-[13px] text-v2-text-text-base outline-none placeholder:text-v2-text-text-faint focus:border-v2-border-border-focus"
-              placeholder={language.t("secondBrain.commandCentre.composer.placeholder")}
-              aria-label={language.t("secondBrain.commandCentre.composer.label")}
-              value={state.input}
-              disabled={!centre.directory()}
-              onInput={(event) => setState("input", event.currentTarget.value)}
-            />
-            <ButtonV2
-              size="small"
-              variant="tonal"
-              type="submit"
-              disabled={!state.input.trim() || centre.sending() || !centre.directory()}
-            >
-              {language.t("secondBrain.commandCentre.composer.send")}
-            </ButtonV2>
-          </form>
+          <ComposerBox
+            size="compact"
+            ref={(element) => (input = element)}
+            controller={composer}
+            label={language.t("secondBrain.commandCentre.composer.label")}
+            placeholder={language.t("secondBrain.commandCentre.composer.placeholder")}
+            sendLabel={language.t("secondBrain.commandCentre.composer.send")}
+          />
         </div>
       </div>
     </div>
