@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test"
 import { existsSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { Glob } from "bun"
-import { projectTabs } from "../../../../tenon/packages/app/src/features/second-brain/notes-project"
 
 const src = path.resolve(import.meta.dir, "../../../../tenon/packages/app/src")
 const read = (file: string) => readFileSync(path.join(src, file), "utf8")
@@ -18,23 +17,14 @@ describe("AC-1 one rail item", () => {
   })
 })
 
-describe("AC-2 and AC-3 one page", () => {
+// AC-2 (the tree) and AC-3 (the tabs) were superseded by Implementations/projects-one-page/ (workshop variant B):
+// the page has no tree, and a Project is one page with sections. Its own checks cover them.
+describe("AC-2 one page", () => {
   test("AC-2 the old Notes page is gone and /projects is the merged page", () => {
     expect(existsSync(path.join(src, "pages/notes.tsx"))).toBe(false)
     const page = read("pages/projects.tsx")
-    expect(page).toContain("<NotesTree")
     expect(page).toContain("<ProjectDetails")
     expect(page).toContain("<ProjectCreate")
-  })
-
-  test("AC-2 the tree has Projects, a folded Archived group and General", () => {
-    const tree = read("features/second-brain/notes-tree.tsx")
-    expect(tree).toContain('"group:archived": true')
-    expect(tree).toContain('language.t("secondBrain.vault.general")')
-  })
-
-  test("AC-3 a Project has a Details tab after its other views", () => {
-    expect([...projectTabs]).toEqual(["timeline", "board", "table", "calendar", "docs", "log", "details"])
   })
 })
 

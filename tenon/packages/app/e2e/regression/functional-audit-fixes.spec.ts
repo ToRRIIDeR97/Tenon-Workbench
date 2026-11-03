@@ -160,9 +160,10 @@ test("notes preserve edits across navigation, search bodies, render headings and
   await expect(page.getByRole("status").filter({ hasText: "Moved 2 notes into the Tenon vault" })).toBeVisible()
   await page.getByRole("textbox", { name: "Search pages" }).fill("Unique-body-needle")
   const results = page.getByRole("list", { name: "Search results" })
-  await expect(results.getByRole("button", { name: "Alpha", exact: true })).toBeVisible()
-  await expect(results.getByRole("button", { name: "Beta Updated", exact: true })).toHaveCount(0)
-  await results.getByRole("button", { name: "Alpha", exact: true }).click()
+  // A result names its Project after the title.
+  await expect(results.getByRole("button", { name: /^Alpha/ })).toBeVisible()
+  await expect(results.getByRole("button", { name: /^Beta Updated/ })).toHaveCount(0)
+  await results.getByRole("button", { name: /^Alpha/ }).click()
   await expect(page).toHaveURL(/\/projects\?page=Audit%20Project%2FAlpha\.md$/)
   await expect(page.getByRole("heading", { name: "First heading" })).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath("note-preview.png"), fullPage: true })
@@ -192,23 +193,18 @@ test("notes preserve edits across navigation, search bodies, render headings and
   await expect(page).toHaveURL(/\/calendar$/)
 })
 
-test("new page errors stay inside the narrow page tree, and New page in a Project opens there", async ({
+test("a New page error shows on the Projects page, and New page in a Project opens there", async ({
   page,
 }, testInfo) => {
   const writes = await setup(page)
   await page.goto("/projects")
-  const column = page.getByRole("region", { name: "Projects", exact: true }).getByRole("complementary")
-  await column.getByRole("button", { name: "New page", exact: true }).click()
-  const alert = column.getByRole("alert")
-  await expect(alert).toContainText("A page with this name already exists")
-  const bounds = await alert.boundingBox()
-  const tree = await column.boundingBox()
-  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(tree!.x + tree!.width)
+  await page.getByRole("button", { name: "New page", exact: true }).click()
+  await expect(page.getByRole("alert")).toContainText("A page with this name already exists")
   await page.screenshot({ path: testInfo.outputPath("new-page.png"), fullPage: true })
 
-  await column.getByRole("treeitem", { name: "Audit Project" }).getByText("Audit Project", { exact: true }).click()
+  await page.locator('[data-project-row="project_audit"]').click()
   await expect(page).toHaveURL(/\/projects\?project=project_audit$/)
-  await column.getByRole("button", { name: "New page", exact: true }).click()
+  await page.locator('[data-action="project-new-page"]').click()
   await expect(page).toHaveURL(/\/projects\?page=Audit%20Project%2FUntitled\.md$/)
   await expect(page.getByRole("textbox", { name: "Page title" })).toHaveValue("Untitled")
   expect(writes.map((write) => [write.path, write.body.create, write.body.projectId])).toEqual([
@@ -248,21 +244,19 @@ test("Home opens the selected event, task and project; Today resets the displaye
   await page.screenshot({ path: testInfo.outputPath("calendar.png"), fullPage: true })
 })
 
-test("an archived Project restores from the Archived group and its Docs open its pages", async ({ page }, testInfo) => {
+test("an archived Project restores from the Archived fold and its Pages open", async ({ page }, testInfo) => {
   await setup(page)
-  await page.goto("/projects?project=project_audit&tab=details")
+  await page.goto("/projects?project=project_audit&section=settings")
   await page.getByRole("button", { name: "Archive Project", exact: true }).click()
   await expect(page).toHaveURL(/\/projects$/)
-  const tree = page.getByRole("tree")
-  await tree.getByText("Archived", { exact: true }).click()
-  await tree.getByText("Audit Project", { exact: true }).click()
+  await page.getByRole("button", { name: /^Archived/ }).click()
+  await page.locator('[data-project-row="project_audit"]').click()
   await expect(page).toHaveURL(/\/projects\?project=project_audit$/)
-  await page.getByRole("tab", { name: "Details", exact: true }).click()
+  await page.locator('[data-section-link="settings"]').click()
   await page.getByRole("button", { name: "Restore Project", exact: true }).click()
   await expect(page.getByRole("button", { name: "Pause Project", exact: true })).toBeVisible()
-  await page.getByRole("tab", { name: "Docs", exact: true }).click()
-  await page.screenshot({ path: testInfo.outputPath("project-docs.png"), fullPage: true })
-  await page.getByRole("link", { name: /Beta Updated/ }).click()
+  await page.screenshot({ path: testInfo.outputPath("project-pages.png"), fullPage: true })
+  await page.getByRole("region", { name: "Pages" }).getByRole("link", { name: /Beta Updated/ }).click()
   await expect(page.getByRole("heading", { name: "Beta body" })).toBeVisible()
 })
 

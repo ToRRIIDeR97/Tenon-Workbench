@@ -3,15 +3,17 @@ import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { RevealShow } from "@tenon/ui/v2/reveal"
-import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { debounce } from "@solid-primitives/scheduled"
 import { createEffect, createMemo, createResource, For, on, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useCommand } from "@/context/command"
+import { useDrafts } from "@/context/drafts"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
+import { useServer } from "@/context/server"
 import { useServerSDK } from "@/context/server-sdk"
+import { useServerSync } from "@/context/server-sync"
 import {
   listVaultConflicts,
   listVaultPages,
@@ -21,22 +23,24 @@ import {
   SecondBrainRequestError,
   writeTimeline,
   writeVaultPage,
+  type ProjectRecord,
   type TimelineItem,
   type VaultPageInfo,
 } from "@/features/second-brain/client"
 import { NotesPageView } from "@/features/second-brain/notes-page"
-import { NotesProject, projectTabs, type ProjectTab } from "@/features/second-brain/notes-project"
 import { newPagePath } from "@/features/second-brain/notes-timeline"
-import { NotesTree } from "@/features/second-brain/notes-tree"
-import { ProjectCreate, ProjectDetails } from "@/features/second-brain/project-details"
+import { ProjectCreate, ProjectDetails, projectWorkPrompt } from "@/features/second-brain/project-details"
+import { ProjectView, sectionFromTab } from "@/features/second-brain/project-view"
 import { PageEmpty, pagePanelClass, pageRowClass } from "@/components/page"
 import { useBrainProjects } from "@/components/sidebar/sidebar-controller"
+import { sessionHref } from "@/utils/session-route"
 
 /**
- * Projects: every Project and page in the Tenon vault, in one tree. URL contract: `/projects`,
- * `/projects?project=<id>&tab=<view>`, `/projects?page=<path>`, `/projects?new=1` (the New Project form).
+ * Projects: every Project and page in the Tenon vault. URL contract: `/projects` (the landing: Projects, Archived,
+ * General pages), `/projects?project=<id>&section=<tasks|pages|threads|log|settings>` (a Project as one page; an
+ * older `&tab=` maps to its section), `/projects?page=<path>` and `/projects?new=1` (the New Project form).
  * `/notes` links redirect here. A page opened from a Project keeps that Project's URL in history, so Back returns to
- * the same view.
+ * it.
  */
 export default function ProjectsPage() {
   const language = useLanguage()
@@ -44,11 +48,21 @@ export default function ProjectsPage() {
   const location = useLocation<{ fromNotes?: boolean }>()
   const layout = useLayout()
   const platform = usePlatform()
+  const server = useServer()
   const serverSDK = useServerSDK()
+  const serverSync = useServerSync()
+  const drafts = useDrafts()
   const command = useCommand()
   const brainProjects = useBrainProjects()
   // `note` is the pre-vault link form (wiki links in page previews still use it).
-  const [search] = useSearchParams<{ project?: string; tab?: string; page?: string; note?: string; new?: string }>()
+  const [search] = useSearchParams<{
+    project?: string
+    tab?: string
+    section?: string
+    page?: string
+    note?: string
+    new?: string
+  }>()
   const [state, setState] = createStore({
     directory: "",
     /** The open page has unsaved edits. */
@@ -60,6 +74,7 @@ export default function ProjectsPage() {
     search: "",
     /** The debounced search the server runs. */
     query: "",
+    archivedOpen: false,
   })
   const directory = () => state.directory
   const client = (target: string) => ({
@@ -112,15 +127,17 @@ export default function ProjectsPage() {
   )
   const pageList = () => (pages.error ? [] : (pages.latest ?? []))
   const projects = () => (held() ? [] : (brainProjects.list() ?? []))
+  const known = createMemo(() => new Set(projects().map((item) => item.id)))
+  // Pages tied to no Project this workspace lists.
+  const generalPages = () => pageList().filter((page) => !page.projectId || !known().has(page.projectId))
   // The vault refuses to live inside a workspace or Project folder; say so instead of a generic failure.
   const misplaced = () =>
     pages.error instanceof SecondBrainRequestError && pages.error.reason === "vault_inside_workspace"
 
   const pagePath = () => search.page ?? search.note ?? ""
   const projectId = () => (pagePath() ? "" : (search.project ?? ""))
-  const tab = (): ProjectTab => projectTabs.find((item) => item === search.tab) ?? "timeline"
+  const section = () => sectionFromTab(search.section ?? search.tab)
   const project = createMemo(() => projects().find((item) => item.id === projectId()))
-  const activeProject = () => projectId() || pageList().find((page) => page.path === pagePath())?.projectId || undefined
 
   const projectKey = () => (directory() && projectId() ? ([directory(), projectId()] as const) : undefined)
   const [timeline, timelineActions] = createResource(projectKey, ([target, id]) => readTimeline(client(target), id))
@@ -150,21 +167,45 @@ export default function ProjectsPage() {
   const back = () => {
     if (location.state?.fromNotes) return navigate(-1)
     const owner = pageList().find((page) => page.path === pagePath())?.projectId
-    navigate(owner ? `/projects?project=${encodeURIComponent(owner)}&tab=docs` : "/projects")
+    navigate(owner ? `/projects?project=${encodeURIComponent(owner)}&section=pages` : "/projects")
   }
   // Folder Projects run their threads in the folder the server resolves; a legacy card in its linked workspace.
-  const threadDirectory = (id: string) =>
-    brainProjects.entries()?.find((entry) => entry.project.id === id)?.threadDirectory ??
-    layout.projects.list().find((location) => location.id === project()?.location?.workspaceId)?.worktree
+  const threadDirectory = (record: ProjectRecord) =>
+    brainProjects.entries()?.find((entry) => entry.project.id === record.id)?.threadDirectory ??
+    layout.projects.list().find((location) => location.id === record.location?.workspaceId)?.worktree
+
+  // The open Project's recent root threads, from the same per-folder lists the sidebar reads.
+  const projectFolder = () => {
+    const record = project()
+    return record ? threadDirectory(record) : undefined
+  }
+  createEffect(() => {
+    const folder = projectFolder()
+    if (folder) void serverSync().project.loadSessions(folder)
+  })
+  const threads = createMemo(() => {
+    const folder = projectFolder()
+    if (!folder) return []
+    return serverSync()
+      .child(folder, { bootstrap: false })[0]
+      .session.filter((session) => !session.parentID && !session.time.archived)
+      .sort((left, right) => right.time.updated - left.time.updated)
+      .slice(0, 6)
+      .map((session) => ({
+        id: session.id,
+        title: session.title || language.t("secondBrain.project.untitledThread"),
+        updated: session.time.updated,
+        running: serverSync().session.data.session_working(session.id),
+      }))
+  })
 
   const storePage = (info: VaultPageInfo) =>
     pagesActions.mutate((items) => (items ? [info, ...items.filter((item) => item.path !== info.path)] : items))
 
-  // New page goes into the open Project (or the open page's Project), else the workspace; it opens right away.
-  const createPage = async () => {
+  // A new page goes into `owner` (a Project), else the workspace's General pages; it opens right away.
+  const createPage = async (owner?: string) => {
     const target = directory()
     if (!target || state.creating) return
-    const owner = activeProject()
     const folder = owner
       ? pageList()
           .find((page) => page.projectId === owner)
@@ -193,118 +234,6 @@ export default function ProjectsPage() {
   }
 
   const conflictName = (path: string) => path.split("/").pop() ?? path
-
-  const tree = () => (
-    <aside class="flex max-h-[240px] w-full shrink-0 flex-col overflow-hidden md:max-h-none md:w-[256px]">
-      {/* Same height and top inset as PageHeader and the open page's header beside it; the title lines up with the
-          tree rows. An h2: a Project or page view holds the one h1. */}
-      <div class="flex min-h-14 shrink-0 items-center gap-2 pl-4 pr-3 pt-3">
-        <h2 class="min-w-0 flex-1 truncate text-[17px] leading-6 text-v2-text-text-base [font-weight:600]">
-          {language.t("secondBrain.projects.title")}
-        </h2>
-        <TooltipV2 value={language.t("secondBrain.projects.new")}>
-          <IconButtonV2
-            type="button"
-            variant="ghost-muted"
-            class="!size-8"
-            data-action="new-project"
-            aria-label={language.t("secondBrain.projects.new")}
-            icon={<Icon name="folder-add-left" size="small" />}
-            onClick={() => navigate("/projects?new=1")}
-          />
-        </TooltipV2>
-        <TooltipV2 value={language.t("secondBrain.vault.newPage")}>
-          <IconButtonV2
-            type="button"
-            variant="ghost-muted"
-            class="!size-8"
-            aria-label={language.t("secondBrain.vault.newPage")}
-            icon={<Icon name="plus" size="small" />}
-            disabled={state.creating}
-            onClick={() => void createPage()}
-          />
-        </TooltipV2>
-      </div>
-      <RevealShow when={state.error}>
-        {(error) => (
-          <p role="alert" class="px-4 pb-2 text-[12px] text-v2-text-text-critical">
-            {error()}
-          </p>
-        )}
-      </RevealShow>
-      <label class="relative mx-2 mb-2 block shrink-0">
-        <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-v2-icon-icon-muted">
-          <Icon name="magnifying-glass" size="small" />
-        </span>
-        <input
-          class="h-9 w-full rounded-full bg-v2-background-bg-layer-01 pl-9 pr-3 text-[13px] text-v2-text-text-base transition-[background-color,box-shadow] duration-short ease-standard placeholder:text-v2-text-text-faint hover:bg-v2-background-bg-layer-02 motion-reduce:transition-none"
-          aria-label={language.t("secondBrain.vault.search")}
-          placeholder={language.t("secondBrain.vault.search")}
-          value={state.search}
-          onInput={(event) => setState("search", event.currentTarget.value)}
-        />
-      </label>
-      <nav class="min-h-0 flex-1 overflow-y-auto px-2 pb-3" aria-label={language.t("secondBrain.vault.tree")}>
-        <Show
-          when={!pages.error}
-          fallback={
-            <PageEmpty
-              class="!px-3"
-              error
-              title={language.t("secondBrain.state.error.title")}
-              action={
-                <ButtonV2 size="small" variant="outline" onClick={() => void pagesActions.refetch()}>
-                  {language.t("secondBrain.state.retry")}
-                </ButtonV2>
-              }
-            >
-              {language.t("secondBrain.state.error.body")}
-            </PageEmpty>
-          }
-        >
-          <Show
-            when={state.search.trim()}
-            fallback={
-              <NotesTree
-                projects={projects()}
-                pages={pageList()}
-                activeProject={activeProject()}
-                activePage={pagePath() || undefined}
-                onProject={openProject}
-                onPage={openPage}
-              />
-            }
-          >
-            <Show
-              when={!matches.loading && state.query}
-              fallback={<p class="px-3 py-2 text-[12px] text-v2-text-text-faint">{language.t("common.loading")}</p>}
-            >
-              <Show
-                when={(matches.error ? [] : (matches.latest ?? [])).length > 0}
-                fallback={<PageEmpty class="!px-3">{language.t("secondBrain.vault.noMatches")}</PageEmpty>}
-              >
-                <ul class="flex flex-col gap-px" aria-label={language.t("secondBrain.vault.results")}>
-                  <For each={matches.error ? [] : matches.latest}>
-                    {(page) => (
-                      <li>
-                        <button
-                          type="button"
-                          class={`${pageRowClass} !py-2 text-[13px] text-v2-text-text-base`}
-                          onClick={() => openPage(page.path)}
-                        >
-                          <span class="min-w-0 flex-1 truncate">{page.title}</span>
-                        </button>
-                      </li>
-                    )}
-                  </For>
-                </ul>
-              </Show>
-            </Show>
-          </Show>
-        </Show>
-      </nav>
-    </aside>
-  )
 
   const conflictBanner = () => (
     <>
@@ -380,60 +309,210 @@ export default function ProjectsPage() {
     </RevealShow>
   )
 
-  const overview = () => (
-    <div class="mx-auto flex w-full max-w-[860px] flex-col gap-2 px-6 pb-8 pt-8 sm:px-10">
-      {/* Every Project's next milestone, upcoming items and recent pages, across the workspace. */}
-      <button type="button" class={pageRowClass} onClick={() => navigate("/projects/overview")}>
-        <span
-          aria-hidden="true"
-          class="flex size-8 shrink-0 items-center justify-center rounded-full bg-v2-background-bg-layer-02 text-v2-icon-icon-muted"
-        >
-          <Icon name="workspace" size="small" />
-        </span>
+  const projectRow = (record: ProjectRecord) => (
+    <li>
+      <button type="button" class={pageRowClass} data-project-row={record.id} onClick={() => openProject(record.id)}>
         <span class="min-w-0 flex-1">
-          <span class="block truncate text-[13px] text-v2-text-text-base [font-weight:500]">
-            {language.t("secondBrain.projects.overview.title")}
+          <span class="block truncate text-[14px] text-v2-text-text-base [font-weight:500]">{record.name}</span>
+          <span class="block truncate text-[12px] text-v2-text-text-faint">{record.outcome}</span>
+        </span>
+        <Show when={record.status === "paused"}>
+          <span class="shrink-0 text-[12px] text-v2-text-text-muted">
+            {language.t("secondBrain.projects.filter.paused")}
           </span>
-          <span class="block truncate text-[12px] text-v2-text-text-faint">
-            {language.t("secondBrain.projects.overview.description")}
-          </span>
+        </Show>
+        <span class="h-1 w-16 shrink-0 overflow-hidden rounded-full bg-v2-background-bg-layer-03" aria-hidden="true">
+          <span
+            class="block h-full rounded-full bg-v2-background-bg-accent"
+            style={{ width: `${record.progressPercent}%` }}
+          />
+        </span>
+        <span class="w-9 shrink-0 text-right text-[12px] tabular-nums text-v2-text-text-faint">
+          {record.progressPercent}%
         </span>
       </button>
-      <Show
-        when={pageList().length > 0}
-        fallback={
-          <PageEmpty
-            loading={pages.loading}
-            title={pages.loading ? language.t("common.loading") : language.t("secondBrain.vault.noPages")}
+    </li>
+  )
+  const pageRow = (page: VaultPageInfo) => (
+    <li>
+      <button type="button" class={`${pageRowClass} text-[13px]`} onClick={() => openPage(page.path)}>
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 16 16"
+          fill="none"
+          aria-hidden="true"
+          class="shrink-0 text-v2-icon-icon-muted"
+        >
+          <path d="M4 1.5h5.5L12.5 4.5v10H4z" stroke="currentColor" />
+        </svg>
+        <span class="min-w-0 flex-1 truncate text-v2-text-text-base">{page.title}</span>
+        <Show when={page.projectId && known().has(page.projectId) ? page.projectId : undefined}>
+          {(id) => (
+            <span class="shrink-0 truncate text-[12px] text-v2-text-text-faint">
+              {projects().find((item) => item.id === id())?.name}
+            </span>
+          )}
+        </Show>
+      </button>
+    </li>
+  )
+  const sectionTitle = (id: string, text: string) => (
+    <h2 id={id} class="px-3 text-[12px] text-v2-text-text-muted [font-weight:500]">
+      {text}
+    </h2>
+  )
+
+  const landing = () => {
+    const active = () => projects().filter((record) => record.status !== "archived")
+    const archived = () => projects().filter((record) => record.status === "archived")
+    return (
+      <div class="mx-auto flex w-full max-w-[860px] flex-col gap-6 px-6 pb-10 pt-8 sm:px-10">
+        <header class="flex flex-wrap items-center gap-2">
+          <h1
+            id="projects-title"
+            class="min-w-0 flex-1 text-[28px] leading-[38px] text-v2-text-text-base [font-weight:700]"
           >
-            {pages.loading ? undefined : language.t("secondBrain.vault.select")}
-          </PageEmpty>
-        }
-      >
-        <h2 class="px-3 text-[12px] text-v2-text-text-muted [font-weight:500]">
-          {language.t("secondBrain.vault.recent")}
-        </h2>
-        <ul class="flex flex-col gap-px">
-          <For each={pageList().slice(0, 12)}>
-            {(page) => (
+            {language.t("secondBrain.projects.title")}
+          </h1>
+          <ButtonV2 variant="ghost" icon="plus" disabled={state.creating} onClick={() => void createPage()}>
+            {language.t("secondBrain.vault.newPage")}
+          </ButtonV2>
+          <ButtonV2
+            variant="contrast"
+            icon="plus"
+            data-action="new-project"
+            onClick={() => navigate("/projects?new=1")}
+          >
+            {language.t("secondBrain.projects.new")}
+          </ButtonV2>
+        </header>
+        <RevealShow when={state.error}>
+          {(error) => (
+            <p role="alert" class="px-1 text-[12px] text-v2-text-text-critical">
+              {error()}
+            </p>
+          )}
+        </RevealShow>
+        <label class="relative block">
+          <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-v2-icon-icon-muted">
+            <Icon name="magnifying-glass" size="small" />
+          </span>
+          <input
+            class="h-9 w-full rounded-full bg-v2-background-bg-layer-01 pl-9 pr-3 text-[13px] text-v2-text-text-base transition-[background-color,box-shadow] duration-short ease-standard placeholder:text-v2-text-text-faint hover:bg-v2-background-bg-layer-02 motion-reduce:transition-none"
+            aria-label={language.t("secondBrain.vault.search")}
+            placeholder={language.t("secondBrain.vault.search")}
+            value={state.search}
+            onInput={(event) => setState("search", event.currentTarget.value)}
+          />
+        </label>
+        <Show
+          when={!state.search.trim()}
+          fallback={
+            <Show
+              when={!matches.loading && state.query}
+              fallback={<p class="px-3 text-[12px] text-v2-text-text-faint">{language.t("common.loading")}</p>}
+            >
+              <Show
+                when={(matches.error ? [] : (matches.latest ?? [])).length > 0}
+                fallback={<PageEmpty>{language.t("secondBrain.vault.noMatches")}</PageEmpty>}
+              >
+                <ul class="flex flex-col gap-px" aria-label={language.t("secondBrain.vault.results")}>
+                  <For each={matches.error ? [] : matches.latest}>{(page) => pageRow(page)}</For>
+                </ul>
+              </Show>
+            </Show>
+          }
+        >
+          <section aria-labelledby="projects-list-title" class="flex flex-col gap-1">
+            {sectionTitle("projects-list-title", language.t("secondBrain.vault.projects"))}
+            <ul class="flex flex-col gap-px">
+              {/* Every Project's next milestone, upcoming items and recent pages, across the workspace. */}
               <li>
-                <button type="button" class={`${pageRowClass} text-[14px]`} onClick={() => openPage(page.path)}>
-                  <span class="min-w-0 flex-1 truncate text-v2-text-text-base">{page.title}</span>
-                  <Show when={page.projectId}>
-                    {(id) => (
-                      <span class="shrink-0 truncate text-[12px] text-v2-text-text-faint">
-                        {projects().find((item) => item.id === id())?.name}
-                      </span>
-                    )}
-                  </Show>
+                <button type="button" class={pageRowClass} onClick={() => navigate("/projects/overview")}>
+                  <span
+                    aria-hidden="true"
+                    class="flex size-8 shrink-0 items-center justify-center rounded-full bg-v2-background-bg-layer-02 text-v2-icon-icon-muted"
+                  >
+                    <Icon name="workspace" size="small" />
+                  </span>
+                  <span class="min-w-0 flex-1">
+                    <span class="block truncate text-[13px] text-v2-text-text-base [font-weight:500]">
+                      {language.t("secondBrain.projects.overview.title")}
+                    </span>
+                    <span class="block truncate text-[12px] text-v2-text-text-faint">
+                      {language.t("secondBrain.projects.overview.description")}
+                    </span>
+                  </span>
                 </button>
               </li>
-            )}
-          </For>
-        </ul>
-      </Show>
-    </div>
-  )
+              <For each={active()}>{(record) => projectRow(record)}</For>
+            </ul>
+            <Show when={!brainProjects.loading() && active().length === 0}>
+              <p class="px-3 py-2 text-[13px] text-v2-text-text-faint">
+                {language.t("secondBrain.projects.emptyActive")}
+              </p>
+            </Show>
+            <Show when={archived().length > 0}>
+              <button
+                type="button"
+                aria-expanded={state.archivedOpen}
+                class="mt-1 flex w-fit items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base motion-reduce:transition-none"
+                onClick={() => setState("archivedOpen", (open) => !open)}
+              >
+                <Icon
+                  name="chevron-down"
+                  size="small"
+                  classList={{
+                    "transition-transform duration-short motion-reduce:transition-none": true,
+                    "-rotate-90": !state.archivedOpen,
+                  }}
+                />
+                {language.t("secondBrain.projects.filter.archived")} · {archived().length}
+              </button>
+              <Show when={state.archivedOpen}>
+                <ul class="flex flex-col gap-px" aria-label={language.t("secondBrain.projects.filter.archived")}>
+                  <For each={archived()}>{(record) => projectRow(record)}</For>
+                </ul>
+              </Show>
+            </Show>
+          </section>
+          <section aria-labelledby="projects-general-title" class="flex flex-col gap-1">
+            {sectionTitle("projects-general-title", language.t("secondBrain.vault.general"))}
+            <Show
+              when={!pages.error}
+              fallback={
+                <PageEmpty
+                  error
+                  title={language.t("secondBrain.state.error.title")}
+                  action={
+                    <ButtonV2 size="small" variant="outline" onClick={() => void pagesActions.refetch()}>
+                      {language.t("secondBrain.state.retry")}
+                    </ButtonV2>
+                  }
+                >
+                  {language.t("secondBrain.state.error.body")}
+                </PageEmpty>
+              }
+            >
+              <Show
+                when={generalPages().length > 0}
+                fallback={
+                  <p class="px-3 py-2 text-[13px] text-v2-text-text-faint">
+                    {pages.loading ? language.t("common.loading") : language.t("secondBrain.project.generalEmpty")}
+                  </p>
+                }
+              >
+                <ul class="flex flex-col gap-px">
+                  <For each={generalPages()}>{(page) => pageRow(page)}</For>
+                </ul>
+              </Show>
+            </Show>
+          </section>
+        </Show>
+      </div>
+    )
+  }
 
   return (
     <section class="flex size-full min-h-0 flex-col p-2 pl-0" aria-label={language.t("secondBrain.projects.title")}>
@@ -461,26 +540,23 @@ export default function ProjectsPage() {
               </PageEmpty>
             }
           >
-            {/* F: the page tree stays beside whatever is open, a Project's views or a page. */}
-            <div class="flex min-h-0 min-w-0 flex-1 flex-col md:flex-row">
-              {tree()}
-              <Show
-                when={pagePath() ? { path: pagePath(), directory: directory() } : undefined}
-                keyed
-                fallback={
-                  <main class="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
-                    {conflictBanner()}
-                    <Show
-                      when={search.new !== "1"}
-                      fallback={
-                        <ProjectCreate
-                          directory={directory()}
-                          onCreated={(created) => openProject(created.id)}
-                          onCancel={() => navigate("/projects")}
-                        />
-                      }
-                    >
-                    <Show when={projectId()} fallback={overview()}>
+            <Show
+              when={pagePath() ? { path: pagePath(), directory: directory() } : undefined}
+              keyed
+              fallback={
+                <main class="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+                  {conflictBanner()}
+                  <Show
+                    when={search.new !== "1"}
+                    fallback={
+                      <ProjectCreate
+                        directory={directory()}
+                        onCreated={(created) => openProject(created.id)}
+                        onCancel={() => navigate("/projects")}
+                      />
+                    }
+                  >
+                    <Show when={projectId()} fallback={landing()}>
                       <Show
                         when={project()}
                         fallback={
@@ -494,64 +570,72 @@ export default function ProjectsPage() {
                           />
                         }
                       >
-                        {(item) => (
-                          <NotesProject
-                            project={item()}
-                            tab={tab()}
-                            onTab={(next) =>
-                              navigate(`/projects?project=${encodeURIComponent(item().id)}&tab=${next}`, { replace: true })
-                            }
-                            timeline={{
-                              value: timeline.error ? undefined : timeline.latest,
-                              loading: timeline.loading,
-                              failed: !!timeline.error,
-                              retry: () => void timelineActions.refetch(),
-                            }}
-                            log={{
-                              value: log.error ? undefined : log.latest,
-                              loading: log.loading,
-                              failed: !!log.error,
-                              retry: () => void logActions.refetch(),
-                            }}
-                            pages={pageList().filter((page) => page.projectId === item().id)}
-                            pageHref={pageHref}
-                            onPage={openPage}
-                            onSaveItems={saveItems}
-                            calendarHref={`/calendar?project=${encodeURIComponent(item().id)}`}
-                            details={
-                              <ProjectDetails
-                                project={item()}
-                                directory={directory()}
-                                threadDirectory={threadDirectory(item().id)}
-                                onArchived={() => navigate("/projects")}
-                              />
-                            }
-                          />
-                        )}
+                        {(item) => {
+                          const folder = () => threadDirectory(item())
+                          const startDraft = (prompt?: string) => {
+                            const target = folder()
+                            if (!target) return
+                            void drafts.create({ server: server.key, directory: target, projectID: item().id }, prompt)
+                          }
+                          return (
+                            <ProjectView
+                              project={item()}
+                              section={section()}
+                              timeline={{
+                                value: timeline.error ? undefined : timeline.latest,
+                                loading: timeline.loading,
+                                failed: !!timeline.error,
+                                retry: () => void timelineActions.refetch(),
+                              }}
+                              log={{
+                                value: log.error ? undefined : log.latest,
+                                loading: log.loading,
+                                failed: !!log.error,
+                                retry: () => void logActions.refetch(),
+                              }}
+                              pages={pageList().filter((page) => page.projectId === item().id)}
+                              pageHref={pageHref}
+                              onPage={openPage}
+                              onNewPage={() => void createPage(item().id)}
+                              creatingPage={state.creating}
+                              onSaveItems={saveItems}
+                              threads={threads()}
+                              threadHref={(id) => sessionHref(server.key, id)}
+                              onNewThread={folder() ? () => startDraft() : undefined}
+                              onStartWork={folder() ? () => startDraft(projectWorkPrompt(item())) : undefined}
+                              settings={
+                                <ProjectDetails
+                                  project={item()}
+                                  directory={directory()}
+                                  onArchived={() => navigate("/projects")}
+                                />
+                              }
+                            />
+                          )
+                        }}
                       </Show>
                     </Show>
-                    </Show>
-                  </main>
-                }
-              >
-                {(open) => (
-                  <div class="flex min-h-0 min-w-0 flex-1 flex-col">
-                    {conflictBanner()}
-                    <NotesPageView
-                      client={client(open.directory)}
-                      path={open.path}
-                      pages={pageList()}
-                      projects={projects()}
-                      onBack={back}
-                      onOpen={openPage}
-                      onSaved={storePage}
-                      onDirty={(dirty) => setState("dirty", dirty)}
-                      held={held()}
-                    />
-                  </div>
-                )}
-              </Show>
-            </div>
+                  </Show>
+                </main>
+              }
+            >
+              {(open) => (
+                <div class="flex min-h-0 min-w-0 flex-1 flex-col">
+                  {conflictBanner()}
+                  <NotesPageView
+                    client={client(open.directory)}
+                    path={open.path}
+                    pages={pageList()}
+                    projects={projects()}
+                    onBack={back}
+                    onOpen={openPage}
+                    onSaved={storePage}
+                    onDirty={(dirty) => setState("dirty", dirty)}
+                    held={held()}
+                  />
+                </div>
+              )}
+            </Show>
           </Show>
         </Show>
       </div>

@@ -362,24 +362,27 @@ write `<workspace>/notes`; no page of the app uses them any more.
 
 #### Projects page
 
-Notes and the former Projects page are one page since 2026-11-03
-(`Implementations/merge-notes-projects/`). `app/src/pages/projects.tsx` shows the vault of the sidebar's
-workspace. URLs: `/projects`, `/projects?project=<id>&tab=timeline|board|table|calendar|docs|log|details`
-(Timeline first), `/projects?page=<path>` (`?note=` is read as `page`) and `/projects?new=1` (the New Project
-form); `/notes…` redirects here with the same query. A page opened from a Project is pushed onto history, so
-Back returns to that Project and tab.
+Notes and the former Projects page are one page since 2026-11-03 (`Implementations/merge-notes-projects/`), and a
+Project is one scrolling page since workshop variant B (`Implementations/projects-one-page/`).
+`app/src/pages/projects.tsx` shows the vault of the sidebar's workspace. URLs: `/projects` (the landing),
+`/projects?project=<id>&section=tasks|pages|threads|log|settings` (an older `&tab=` maps to its section through
+`sectionFromTab`), `/projects?page=<path>` (`?note=` is read as `page`) and `/projects?new=1` (the New Project form);
+`/notes…` redirects here with the same query. A page opened from a Project is pushed onto history, so Back returns
+to it.
 
-- The left column (`features/second-brain/notes-tree.tsx`) is an ARIA tree: a
-  Projects group (each non-archived Project from `useBrainProjects`, its pages beneath), an Archived group
-  (folded) and General (pages with no known Project), plus "New Project", "Search pages"
-  (`GET …/vault/pages?search=`) and "New page", which creates `Untitled.md`
-  (or the next free name) with `create: true` in the open Project or the
-  workspace and opens it.
-- A Project (`notes-project.tsx`) shows its outcome, progress and the tabs: a week
-  grid with one bar per item and ◆ for milestones, a board by status, a table, a calendar,
-  the Project's pages, its log and Details (`project-details.tsx`: Start work, progress, next milestone,
-  blocker, settings, Pause/Resume and Archive with Undo; leaving with unsaved edits is blocked).
-  `project-details.tsx` also holds the New Project form. Layout helpers are in `notes-timeline.ts`.
+- The landing lists the Projects from `useBrainProjects` (non-archived, then a folded Archived group) and General
+  (pages with no known Project), with search (`GET …/vault/pages?search=`), New page and New Project.
+- A Project (`features/second-brain/project-view.tsx`) is one page:
+  - a sticky section bar with Start work;
+  - Tasks: the timeline items as a list with Open/All, a checkbox and a status menu per task, an "Add a task" line,
+    and the week grid. Every change saves the whole list through `PUT …/vault/timeline` with the loaded revision;
+  - Pages with a New page card (`create: true` in this Project);
+  - Threads: the Project folder's recent root threads, from the same `serverSync().child(folder)` lists the sidebar
+    reads, and New thread;
+  - Log;
+  - Settings, which is `project-details.tsx`'s `ProjectDetails` (also home of the New Project form).
+- `project-controls.tsx` holds the app-styled controls that replace native ones: `DateChip` (`Popover`, quick picks
+  and a Monday-first month grid), `StatusMenu` (`MenuV2` radio items) and `KindSwitch` (`SegmentedControlV2`).
 - A page (`notes-page.tsx`) opens full width in the shared `NoteEditor`. Save
   and Ctrl/Cmd+S send the loaded revision; a 409 shows "This page changed
   somewhere else" with a reload instead of overwriting. While a page has

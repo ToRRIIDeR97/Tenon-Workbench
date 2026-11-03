@@ -82,7 +82,7 @@ export function openHref(write: Pick<AgentWrite, "kind" | "open" | "preview">) {
   if (write.kind === "note" && write.open?.page) return `/projects?page=${encodeURIComponent(write.open.page)}`
   // A note with a Project and no page is a log entry (log_append).
   if (write.kind === "note" && write.open?.projectId)
-    return `/projects?project=${encodeURIComponent(write.open.projectId)}&tab=log`
+    return `/projects?project=${encodeURIComponent(write.open.projectId)}&section=log`
   if (write.open?.projectId) return `/projects?project=${encodeURIComponent(write.open.projectId)}`
   if (write.kind === "timeline") {
     const projectId = (write.preview as TimelinePreview | undefined)?.projectId
