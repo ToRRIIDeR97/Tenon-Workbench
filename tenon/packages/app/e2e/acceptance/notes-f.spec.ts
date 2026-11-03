@@ -1,7 +1,8 @@
 import { expect, test, type Page } from "@playwright/test"
 import { openApp } from "./open-app"
 
-// P4 · Notes F (implementations/notes-command-centre/implementation.md, AC-4.1 … AC-4.6)
+// P4 · Notes F (implementations/notes-command-centre/implementation.md, AC-4.1 … AC-4.6), as rebuilt by
+// implementations/projects-one-page/implementation.md: no page tree, a Project is one page with sections.
 
 const project = {
   project: {
@@ -80,6 +81,11 @@ async function mockVault(page: Page, options: { conflicts?: unknown[]; conflictO
       const path = url.searchParams.get("path")!
       return json({ info: info(path, body.title ?? "Untitled", body.projectId ?? null), body: body.body, revision: "r2" })
     }
+    if (url.pathname === "/second-brain/vault/timeline" && request.method() === "PUT") {
+      const body = request.postDataJSON()
+      writes.push({ method: "PUT", path: "timeline", body })
+      return json({ ...timeline, revision: "t2", items: body.items })
+    }
     if (url.pathname === "/second-brain/vault/timeline") return json(timeline)
     if (url.pathname === "/second-brain/vault/log") return json(log)
     if (url.pathname === "/second-brain/vault/conflicts") return json(options.conflicts ?? [])
@@ -96,66 +102,82 @@ const open = async (page: Page, options?: Parameters<typeof mockVault>[1]) => {
 
 test.use({ viewport: { width: 1360, height: 860 } })
 
-test("AC-4.1 the page tree groups Project pages and workspace pages, with no Project checkboxes", async ({ page }) => {
+test("AC-4.1 the landing lists Projects and General pages, with no page tree", async ({ page }) => {
   await open(page)
   await page.goto("/projects")
-  const tree = page.getByRole("tree")
-  await expect(tree.getByText("Projects", { exact: true })).toBeVisible()
-  await expect(tree.getByText("General", { exact: true })).toBeVisible()
-  await expect(tree.getByText("Acme API", { exact: true })).toBeVisible()
-  await expect(tree.getByText("Ideas", { exact: true })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Projects", level: 1 })).toBeVisible()
+  await expect(page.locator('[data-project-row="project_01ACME"]')).toContainText("Acme API")
+  await expect(page.getByRole("region", { name: "General" }).getByRole("button", { name: /Ideas/ })).toBeVisible()
+  await expect(page.getByRole("tree")).toHaveCount(0)
   await expect(page.getByRole("checkbox")).toHaveCount(0)
 })
 
-test("AC-4.2 a Project opens on Timeline and tab= selects another view", async ({ page }) => {
+test("AC-4.2 a Project is one page: a section bar and no tabs; an older tab= link scrolls to its section", async ({
+  page,
+}) => {
   await open(page)
   await page.goto(`/projects?project=${project.project.id}`)
-  for (const name of ["Timeline", "Board", "Table", "Docs", "Log", "Details"])
-    await expect(page.getByRole("tab", { name, exact: true })).toBeVisible()
-  await expect(page.getByRole("tab", { name: "Timeline", exact: true })).toHaveAttribute("aria-selected", "true")
-  await page.goto(`/projects?project=${project.project.id}&tab=board`)
-  await expect(page.getByRole("tab", { name: "Board", exact: true })).toHaveAttribute("aria-selected", "true")
+  const bar = page.getByRole("navigation", { name: "Project sections" })
+  for (const name of ["Tasks", "Pages", "Threads", "Log", "Settings"])
+    await expect(bar.getByRole("button", { name, exact: true })).toBeVisible()
+  await expect(bar.getByRole("button", { name: "Start work", exact: true })).toBeVisible()
+  await expect(page.getByRole("tab")).toHaveCount(0)
+  await page.goto(`/projects?project=${project.project.id}&tab=log`)
+  await expect(page.getByRole("region", { name: "Log" })).toBeInViewport()
 })
 
-test("AC-4.3 each view shows the Project's items", async ({ page }) => {
+test("AC-4.3 the sections show the Project's tasks, timeline, pages and log", async ({ page }) => {
   await open(page)
   await page.goto(`/projects?project=${project.project.id}`)
+  // Open shows what is not done; All adds the done task.
+  await expect(page.locator("[data-task]")).toHaveCount(3)
+  await page.getByRole("button", { name: "All", exact: true }).click()
+  await expect(page.locator("[data-task]")).toHaveCount(4)
+  await expect(page.locator('[data-task="launch"]')).toHaveAttribute("data-kind", "milestone")
   await expect(page.locator("[data-timeline-item]")).toHaveCount(4)
-  await expect(page.locator('[data-timeline-item="launch"]')).toHaveAttribute("data-kind", "milestone")
-
-  await page.getByRole("tab", { name: "Board", exact: true }).click()
-  await expect(page.getByRole("group", { name: "To do" })).toContainText("Billing webhooks")
-  await expect(page.getByRole("group", { name: "Doing" })).toContainText("Auth redesign")
-  await expect(page.getByRole("group", { name: "Done" })).toContainText("Rate limiting")
-
-  await page.getByRole("tab", { name: "Table", exact: true }).click()
-  const table = page.getByRole("table")
-  await expect(table.getByRole("row").filter({ hasText: "Billing webhooks" })).toContainText("Nov 10")
-
-  await page.getByRole("tab", { name: "Docs", exact: true }).click()
-  await expect(page.getByRole("link", { name: "Auth redesign" })).toBeVisible()
-  await expect(page.getByRole("link", { name: "Billing notes" })).toBeVisible()
-
-  await page.getByRole("tab", { name: "Log", exact: true }).click()
-  const texts = await page.getByText(/Token rotation finished|Moved Billing webhooks/).allTextContents()
+  const pagesSection = page.getByRole("region", { name: "Pages" })
+  await expect(pagesSection.getByRole("link", { name: /Auth redesign/ })).toBeVisible()
+  await expect(pagesSection.getByRole("link", { name: /Billing notes/ })).toBeVisible()
+  const texts = await page.getByRole("region", { name: "Log" }).getByText(/Token rotation finished|Moved Billing webhooks/).allTextContents()
   expect(texts[0]).toContain("Token rotation finished")
 })
 
-test("AC-4.4 a page opens full width and Back returns to the tab", async ({ page }) => {
+test("AC-4.3 a task is added from the task line with a date, and its status changes from its pill", async ({ page }) => {
+  const writes = await open(page)
+  await page.goto(`/projects?project=${project.project.id}`)
+  await page.getByRole("button", { name: "Due date", exact: true }).click()
+  await page.locator("[data-component=date-picker]").getByRole("button", { name: "Tomorrow", exact: true }).click()
+  await page.getByRole("textbox", { name: "Add a task", exact: true }).fill("Signed cookies")
+  await page.keyboard.press("Enter")
+  await expect.poll(() => writes.filter((write) => write.path === "timeline").length).toBe(1)
+  const added = (writes[0].body as { items: { title: string; end?: string; status: string }[] }).items.at(-1)!
+  expect(added).toMatchObject({ title: "Signed cookies", status: "todo" })
+  expect(added.end).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  await expect(page.locator("[data-task]").filter({ hasText: "Signed cookies" })).toBeVisible()
+
+  await page.getByRole("button", { name: "Status of Billing webhooks", exact: true }).click()
+  await page.getByRole("menuitemradio", { name: "Doing" }).click()
+  await expect.poll(() => writes.filter((write) => write.path === "timeline").length).toBe(2)
+  const changed = (writes[1].body as { items: { id: string; status: string }[] }).items.find((item) => item.id === "hooks")
+  expect(changed?.status).toBe("doing")
+  await expect(page.locator("main select, main input[type=date]")).toHaveCount(0)
+})
+
+test("AC-4.4 a page opens full width and Back returns to the Project", async ({ page }) => {
   await open(page)
-  await page.goto(`/projects?project=${project.project.id}&tab=docs`)
-  await page.getByRole("link", { name: "Billing notes" }).click()
+  await page.goto(`/projects?project=${project.project.id}`)
+  await page.getByRole("region", { name: "Pages" }).getByRole("link", { name: /Billing notes/ }).click()
   await expect(page).toHaveURL(/page=/)
   await expect(page.getByRole("heading", { name: "Billing notes" }).first()).toBeVisible()
   await page.goBack()
-  await expect(page.getByRole("tab", { name: "Docs", exact: true })).toHaveAttribute("aria-selected", "true")
+  await expect(page.getByRole("region", { name: "Pages" })).toBeVisible()
 })
 
 test("AC-4.5 New page creates in the open Project and Save sends the loaded revision", async ({ page }) => {
   const writes = await open(page)
   await page.goto(`/projects?project=${project.project.id}`)
-  await page.getByRole("button", { name: "New page" }).click()
-  await expect.poll(() => writes.length).toBeGreaterThan(0)
+  await page.locator('[data-action="project-new-page"]').click()
+  await expect.poll(() => writes.filter((write) => write.path !== "timeline").length).toBeGreaterThan(0)
   expect(writes[0].body).toMatchObject({ create: true, projectId: project.project.id })
 
   await page.goto(`/projects?page=${encodeURIComponent("Ideas.md")}`)
@@ -184,18 +206,16 @@ test("AC-4.6 conflict copies are named in a banner", async ({ page }) => {
 })
 
 // implementations/merge-notes-projects/implementation.md (Notes and Projects are one Projects page)
-test("merge AC-5 /notes links open the same view under /projects", async ({ page }) => {
+test("merge AC-5 /notes links open the same Project under /projects", async ({ page }) => {
   await open(page)
   await page.goto(`/notes?project=${project.project.id}&tab=board`)
   await expect(page).toHaveURL(new RegExp(`/projects\\?project=${project.project.id}&tab=board$`))
-  await expect(page.getByRole("tab", { name: "Board", exact: true })).toHaveAttribute("aria-selected", "true")
+  await expect(page.getByRole("region", { name: "Tasks" })).toBeVisible()
 })
 
-test("merge AC-3 the Details tab holds the Project's card", async ({ page }) => {
+test("merge AC-3 Settings holds the Project's card", async ({ page }) => {
   await open(page)
-  await page.goto(`/projects?project=${project.project.id}&tab=details`)
-  await expect(page.getByRole("tab", { name: "Details", exact: true })).toHaveAttribute("aria-selected", "true")
-  await expect(page.getByRole("button", { name: "Start work", exact: true })).toBeVisible()
+  await page.goto(`/projects?project=${project.project.id}&section=settings`)
   await expect(page.getByRole("button", { name: "Archive Project", exact: true })).toBeVisible()
 })
 

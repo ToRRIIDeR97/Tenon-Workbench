@@ -126,7 +126,7 @@ The titlebar is window chrome only: the sidebar toggle, back and forward
 | `/command?thread=<id>` | Command Centre with that thread open | Command Centre |
 | `/routines` | Routines (linked from the Command Centre) | None |
 | `/activity` | Redirects to `/command` | Command Centre |
-| `/projects?project=<id>&tab=<view>` | A Project: Timeline, Board, Table, Calendar, Docs, Log or Details | Projects |
+| `/projects?project=<id>&section=<tasks\|pages\|threads\|log\|settings>` | A Project as one page, scrolled to that section (an older `&tab=` maps to its section) | Projects |
 | `/projects?page=<path>`, `/projects?new=1` | A page full width; the New Project form | Projects |
 | `/notes…` | Redirects to the same view under `/projects` (Notes merged into Projects) | Projects |
 | `/projects/overview` | All projects: every Project's notes and milestones | Projects |
@@ -200,14 +200,22 @@ folder as a workspace and selects it) and `tenon://new-session?directory=<path>&
   Projects, resume and running threads. With no Projects, **Create Project**
   opens the Projects page's create form (`/projects?new=1`). Sending from Home's composer opens
   the new thread and sends the message in one step.
-- **Projects** (Notes and the old Projects page, merged 2026-11-03) is a page
-  tree beside what is open. The tree has **Projects** (each Project with its
-  pages), **Archived** (folded) and **General** (pages tied to no Project);
-  its header has **New Project** and **New page**, and search. A Project opens
-  on Timeline, with Board, Table, Calendar, Docs, Log and **Details** (Start
-  work, progress, next milestone, blocker, settings, Pause/Resume, Archive with
-  Undo). A page opens full width; Back returns to the view it came from. With
-  nothing open, the page shows **All projects** and recent pages.
+- **Projects** (Notes and the old Projects page, merged 2026-11-03; one page
+  per Project since the workshop's variant B). With nothing open it lists
+  **Projects** (name, outcome, progress; **All projects** first), **Archived**
+  (folded) and **General** (pages tied to no Project), with search, **New page**
+  and **New Project**. A Project is one scrolling page:
+  - a sticky bar jumps to **Tasks**, **Pages**, **Threads**, **Log** and
+    **Settings**, and holds **Start work**;
+  - **Tasks** has an Open/All switch, a checkbox and a status pill (a menu)
+    per task, an "Add a task" line with a date chip and a Task/Milestone
+    switch, and the timeline;
+  - **Pages** has a **New page** card, and **Threads** has **New thread**;
+  - **Settings** (folded) holds progress, next milestone, blocker, settings,
+    Pause/Resume and Archive with Undo.
+
+  Dates, status and kind use the app's own popover, menu and switch, never
+  native controls. A page opens full width, and Back returns to the Project.
 - **All projects** (`/projects/overview`) shows every Project of the workspace
   on one page, in the Projects order, then a **Workspace** group for notes and
   calendar items linked to no Project. Each group shows the status, progress,

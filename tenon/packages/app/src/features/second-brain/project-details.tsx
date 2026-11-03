@@ -7,7 +7,6 @@ import { TextInputV2 } from "@tenon/ui/v2/text-input-v2"
 import { createEffect, createMemo, on, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { invalidateProjectThreads } from "@/components/sidebar/sidebar-controller"
-import { useDrafts } from "@/context/drafts"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
@@ -16,31 +15,21 @@ import { useServerSDK } from "@/context/server-sdk"
 import { focusWhenConnected } from "@/utils/focus-when-connected"
 import { pathKey } from "@/utils/path-key"
 import { showToast } from "@/utils/toast"
-import {
-  createProject,
-  SecondBrainRequestError,
-  updateProject,
-  type ProjectRecord,
-  type ProjectStatus,
-} from "./client"
+import { createProject, SecondBrainRequestError, updateProject, type ProjectRecord, type ProjectStatus } from "./client"
 
 /**
- * A Project's Details tab on the Projects page: Start work, progress, next milestone, blocker and
- * settings (outcome, instructions, tags), with Save/Discard, Pause/Resume and Archive (with Undo). Edits survive
- * a newer record of the same Project, and leaving the page with unsaved edits is blocked.
+ * A Project's Settings section on the Projects page: progress, next milestone, blocker and settings (outcome,
+ * instructions, tags), with Save/Discard, Pause/Resume and Archive (with Undo). Edits survive a newer record of the
+ * same Project, and leaving the page with unsaved edits is blocked. Start work sits in the page's sticky bar.
  */
 export function ProjectDetails(props: {
   project: ProjectRecord
   directory: string
-  /** The folder the Project's threads run in; without one, Start work is unavailable. */
-  threadDirectory?: string
   /** After archiving, the page leaves the Project. */
   onArchived: () => void
 }) {
   const language = useLanguage()
   const project = useProjectActions(() => props.directory)
-  const drafts = useDrafts()
-  const server = useServer()
   const [state, setState] = createStore({ ...formFields(props.project), saving: false, error: "" })
   const current = (): FormFields => ({
     progress: state.progress,
@@ -120,34 +109,16 @@ export function ProjectDetails(props: {
         {
           label: language.t("secondBrain.sidebar.undo"),
           onClick: () =>
-            void project.update(updated, { status: before.status }, directory).catch(() =>
-              showToast({ variant: "error", title: language.t("secondBrain.error.request") }),
-            ),
+            void project
+              .update(updated, { status: before.status }, directory)
+              .catch(() => showToast({ variant: "error", title: language.t("secondBrain.error.request") })),
         },
       ],
     })
   }
 
-  const startWork = () => {
-    if (!props.threadDirectory) return
-    void drafts.create(
-      { server: server.key, directory: props.threadDirectory, projectID: props.project.id },
-      projectWorkPrompt(props.project),
-    )
-  }
-
   return (
     <div class="flex max-w-4xl flex-col gap-6 pb-4">
-      <div class="flex flex-wrap items-center gap-2">
-        <ButtonV2 variant="contrast" disabled={!props.threadDirectory || dirty()} onClick={startWork}>
-          {language.t("secondBrain.projects.startWork")}
-        </ButtonV2>
-        <Show when={!props.threadDirectory}>
-          <span class="text-[12px] text-v2-text-text-faint">
-            {language.t("secondBrain.projects.startWorkUnavailable")}
-          </span>
-        </Show>
-      </div>
       <section class="flex flex-col gap-2" aria-labelledby="project-progress-label">
         <div class="flex items-center justify-between text-[12px] text-v2-text-text-muted">
           <label id="project-progress-label" for="project-progress">
@@ -298,7 +269,10 @@ export function ProjectCreate(props: {
     const name = state.draft.name.trim()
     const outcome = state.draft.outcome.trim()
     if (!name || !outcome) {
-      return setState({ error: language.t("secondBrain.projects.error.required"), errorField: name ? "outcome" : "name" })
+      return setState({
+        error: language.t("secondBrain.projects.error.required"),
+        errorField: name ? "outcome" : "name",
+      })
     }
     const linked = locations().find((location) => location.id === state.draft.locationId)
     setState({ saving: true, error: "", errorField: "" })
@@ -386,7 +360,9 @@ export function ProjectCreate(props: {
             const location = locations().find((item) => item.id === locationID)
             return location?.name ?? location?.worktree ?? locationID
           }}
-          onSelect={(locationID) => setState("draft", "locationId", locationID === "__none__" ? "" : (locationID ?? ""))}
+          onSelect={(locationID) =>
+            setState("draft", "locationId", locationID === "__none__" ? "" : (locationID ?? ""))
+          }
         />
       </label>
       <details>
@@ -435,7 +411,11 @@ function useProjectActions(directory: () => string) {
   const server = useServer()
   const serverSDK = useServerSDK()
   const queryClient = useQueryClient()
-  const client = (target: string) => ({ server: serverSDK().server, fetch: platform.fetch, target: { directory: target } })
+  const client = (target: string) => ({
+    server: serverSDK().server,
+    fetch: platform.fetch,
+    target: { directory: target },
+  })
   const refresh = <T,>(value: T) => {
     void invalidateProjectThreads(queryClient, server.key)
     return value

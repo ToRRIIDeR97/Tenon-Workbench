@@ -41,7 +41,7 @@ describe("agent writes", () => {
     expect(openHref({ kind: "timeline", preview: { projectId: "project_1" } })).toBe("/projects?project=project_1")
     expect(openHref({ kind: "tasks", preview: {} })).toBe("/calendar")
     expect(openHref({ kind: "note", open: { projectId: "project_1" }, preview: {} })).toBe(
-      "/projects?project=project_1&tab=log",
+      "/projects?project=project_1&section=log",
     )
     expect(openHref({ kind: "calendar", preview: { events: [{ title: "x", date: "2026-11-03" }] } })).toBe(
       "/calendar?date=2026-11-03",
