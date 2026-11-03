@@ -44,7 +44,7 @@ export function SecondBrainSidebar() {
   const path = () => ctrl.location.pathname
   const items = () => [
     { id: "overview", icon: "home" as const, label: language.t("secondBrain.sidebar.overview"), href: "/" },
-    { id: "notes", icon: "book" as const, label: language.t("secondBrain.sidebar.notes"), href: "/notes" },
+    { id: "projects", icon: "book" as const, label: language.t("secondBrain.sidebar.projects"), href: "/projects" },
     { id: "calendar", icon: "calendar" as const, label: language.t("secondBrain.sidebar.calendar"), href: "/calendar" },
     {
       id: "command",

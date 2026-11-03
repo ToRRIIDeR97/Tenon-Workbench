@@ -79,14 +79,14 @@ export function parseAgentWrite(directory: string, event: { type?: unknown; prop
 
 /** Where Open goes for a write, or undefined when it has no page to open (email drafts). */
 export function openHref(write: Pick<AgentWrite, "kind" | "open" | "preview">) {
-  if (write.kind === "note" && write.open?.page) return `/notes?page=${encodeURIComponent(write.open.page)}`
+  if (write.kind === "note" && write.open?.page) return `/projects?page=${encodeURIComponent(write.open.page)}`
   // A note with a Project and no page is a log entry (log_append).
   if (write.kind === "note" && write.open?.projectId)
-    return `/notes?project=${encodeURIComponent(write.open.projectId)}&tab=log`
-  if (write.open?.projectId) return `/notes?project=${encodeURIComponent(write.open.projectId)}`
+    return `/projects?project=${encodeURIComponent(write.open.projectId)}&tab=log`
+  if (write.open?.projectId) return `/projects?project=${encodeURIComponent(write.open.projectId)}`
   if (write.kind === "timeline") {
     const projectId = (write.preview as TimelinePreview | undefined)?.projectId
-    return projectId ? `/notes?project=${encodeURIComponent(projectId)}` : undefined
+    return projectId ? `/projects?project=${encodeURIComponent(projectId)}` : undefined
   }
   if (write.kind === "calendar" || write.kind === "tasks") {
     const date =
@@ -95,7 +95,7 @@ export function openHref(write: Pick<AgentWrite, "kind" | "open" | "preview">) {
         : (write.preview as TasksPreview | undefined)?.tasks?.find((task) => task.dueDate)?.dueDate
     return date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? `/calendar?date=${date}` : "/calendar"
   }
-  if (write.kind === "note") return "/notes"
+  if (write.kind === "note") return "/projects"
   return undefined
 }
 

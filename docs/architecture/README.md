@@ -83,8 +83,9 @@ platform exposes `dictation` (desktop); the web build has no mic.
 
 ## Product entry points and persistence
 
-`tenon/packages/app/src/app.tsx` owns routing: `/`, `/notes`,
-`/calendar`, `/command` (Command Centre; `/activity` redirects there), `/routines`, `/projects`, `/projects/overview` (every Project's
+`tenon/packages/app/src/app.tsx` owns routing: `/`, `/projects` (Projects: the vault's page tree and every
+Project; `/notes…` redirects there with its query),
+`/calendar`, `/command` (Command Centre; `/activity` redirects there), `/routines`, `/projects/overview` (every Project's
 notes and milestones, grouped by `features/second-brain/project-overview.ts`), the draft route
 `/new-thread?project=<id>&draftId=<id>` and server-scoped threads at
 `/server/<server>/session/<id>`. Old `/workspaces`, `/brain`, `/new-session`
@@ -359,22 +360,26 @@ or workspace (`{ error: "inside_workspace" }`).
 The older `/second-brain/notes` and `/second-brain/note` routes still read and
 write `<workspace>/notes`; no page of the app uses them any more.
 
-#### Notes page
+#### Projects page
 
-`app/src/pages/notes.tsx` shows the vault of the sidebar's workspace. URLs:
-`/notes`, `/notes?project=<id>&tab=timeline|board|table|docs|log` (Timeline
-first) and `/notes?page=<path>` (`?note=` is read as `page`). A page opened from
-a Project is pushed onto history, so Back returns to that Project and tab.
+Notes and the former Projects page are one page since 2026-11-03
+(`Implementations/merge-notes-projects/`). `app/src/pages/projects.tsx` shows the vault of the sidebar's
+workspace. URLs: `/projects`, `/projects?project=<id>&tab=timeline|board|table|calendar|docs|log|details`
+(Timeline first), `/projects?page=<path>` (`?note=` is read as `page`) and `/projects?new=1` (the New Project
+form); `/notes…` redirects here with the same query. A page opened from a Project is pushed onto history, so
+Back returns to that Project and tab.
 
 - The left column (`features/second-brain/notes-tree.tsx`) is an ARIA tree: a
-  Projects group (each Project from `useBrainProjects`, its pages beneath) and
-  a Workspace pages group (pages with no known Project), plus "Search pages"
+  Projects group (each non-archived Project from `useBrainProjects`, its pages beneath), an Archived group
+  (folded) and General (pages with no known Project), plus "New Project", "Search pages"
   (`GET …/vault/pages?search=`) and "New page", which creates `Untitled.md`
   (or the next free name) with `create: true` in the open Project or the
   workspace and opens it.
-- A Project (`notes-project.tsx`) shows its progress and the tabs: a week
-  grid with one bar per item and ◆ for milestones, a board by status, a table,
-  the Project's pages and its log. Layout helpers are in `notes-timeline.ts`.
+- A Project (`notes-project.tsx`) shows its outcome, progress and the tabs: a week
+  grid with one bar per item and ◆ for milestones, a board by status, a table, a calendar,
+  the Project's pages, its log and Details (`project-details.tsx`: Start work, progress, next milestone,
+  blocker, settings, Pause/Resume and Archive with Undo; leaving with unsaved edits is blocked).
+  `project-details.tsx` also holds the New Project form. Layout helpers are in `notes-timeline.ts`.
 - A page (`notes-page.tsx`) opens full width in the shared `NoteEditor`. Save
   and Ctrl/Cmd+S send the loaded revision; a 409 shows "This page changed
   somewhere else" with a reload instead of overwriting. While a page has

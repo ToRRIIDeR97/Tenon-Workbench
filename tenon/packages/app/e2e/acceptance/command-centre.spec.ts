@@ -49,7 +49,7 @@ test("AC-7.1 the rail's fourth destination is Command Centre and /activity redir
   const ids = await sidebar(page)
     .locator("nav [data-sidebar-item]")
     .evaluateAll((items) => items.map((item) => item.getAttribute("data-sidebar-item")))
-  expect(ids).toEqual(["overview", "notes", "calendar", "command", "settings"])
+  expect(ids).toEqual(["overview", "projects", "calendar", "command", "settings"])
   await sidebar(page).locator('[data-sidebar-item="command"]').click()
   await expect(page).toHaveURL(/\/command$/)
   await page.goto("/activity")
@@ -127,7 +127,7 @@ test("AC-7.3 the strip is not offered on the Command Centre page itself", async 
 
 test("AC-7.3 the strip animates with the motion tokens", async ({ page }) => {
   await start(page)
-  await page.goto("/notes")
+  await page.goto("/projects")
   await toggleStrip(page)
   const opening = await strip(page)
     .locator("[data-command-strip-card]")

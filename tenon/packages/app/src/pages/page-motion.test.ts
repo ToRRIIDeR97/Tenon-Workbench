@@ -5,7 +5,7 @@ describe("page motion key", () => {
   test("groups draft and session routes into the thread section", () => {
     expect(routeSection("/new-thread")).toBe("thread")
     expect(routeSection("/server/abc/session/ses_1")).toBe("thread")
-    expect(routeSection("/notes")).toBe("/notes")
+    expect(routeSection("/calendar")).toBe("/calendar")
   })
 
   test("gives the cross-project overview its own section", () => {
@@ -17,20 +17,20 @@ describe("page motion key", () => {
 
   test("changes between pages and out of a thread, but not into one", () => {
     const home = { section: "/", count: 0 }
-    const notes = nextPageMotionKey(home, "/notes")
+    const notes = nextPageMotionKey(home, "/calendar")
     expect(notes.count).toBe(1)
-    expect(nextPageMotionKey(notes, "/notes")).toBe(notes)
+    expect(nextPageMotionKey(notes, "/calendar")).toBe(notes)
     const thread = nextPageMotionKey(notes, "/new-thread")
     expect(thread.count).toBe(1)
     expect(nextPageMotionKey(thread, "/server/abc/session/ses_1")).toBe(thread)
-    expect(nextPageMotionKey(thread, "/notes").count).toBe(2)
+    expect(nextPageMotionKey(thread, "/calendar").count).toBe(2)
   })
 
   test("counts redirect paths as the section they lead to", () => {
     expect(routeSection("/brain")).toBe("/")
     expect(routeSection("/workspaces")).toBe("/")
     expect(routeSection("/somewhere/unknown")).toBe("/")
-    expect(routeSection("/notes/")).toBe("/notes")
+    expect(routeSection("/calendar/")).toBe("/calendar")
     expect(routeSection("/new-session")).toBe("thread")
     expect(routeSection("/L3Byb2plY3Q/session")).toBe("thread")
     expect(routeSection("/L3Byb2plY3Q/session/ses_1")).toBe("thread")

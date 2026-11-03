@@ -81,7 +81,7 @@ test("the sidebar is the only navigation", async ({ page }) => {
   await expect(page.locator('[data-slot="titlebar-tab-item"]')).toHaveCount(0)
 
   for (const [item, path] of [
-    ["notes", /\/notes$/],
+    ["projects", /\/projects$/],
     ["calendar", /\/calendar$/],
     // AC-7.1: Command Centre took Activity's place on the rail.
     ["command", /\/command$/],
@@ -98,6 +98,12 @@ test("the sidebar is the only navigation", async ({ page }) => {
 
 test("the cross-project overview opens from the workspace menu and the Projects page", async ({ page }) => {
   await openApp(page, { projects: [], sessions: [] })
+  // The Projects page lists the vault's pages; an empty vault is enough here.
+  await page.route("**/second-brain/vault/**", (route) => {
+    const path = new URL(route.request().url()).pathname
+    if (path.endsWith("/migrate")) return route.fulfill({ json: { moved: 0 } })
+    return route.fulfill({ json: [] })
+  })
   await page.goto("/")
   await sidebar(page).getByRole("button", { name: "Switch workspace" }).click()
   await page.getByRole("menuitem", { name: "All projects" }).click()

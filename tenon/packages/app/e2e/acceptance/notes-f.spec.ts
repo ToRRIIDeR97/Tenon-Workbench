@@ -98,10 +98,10 @@ test.use({ viewport: { width: 1360, height: 860 } })
 
 test("AC-4.1 the page tree groups Project pages and workspace pages, with no Project checkboxes", async ({ page }) => {
   await open(page)
-  await page.goto("/notes")
+  await page.goto("/projects")
   const tree = page.getByRole("tree")
   await expect(tree.getByText("Projects", { exact: true })).toBeVisible()
-  await expect(tree.getByText("Workspace pages", { exact: true })).toBeVisible()
+  await expect(tree.getByText("General", { exact: true })).toBeVisible()
   await expect(tree.getByText("Acme API", { exact: true })).toBeVisible()
   await expect(tree.getByText("Ideas", { exact: true })).toBeVisible()
   await expect(page.getByRole("checkbox")).toHaveCount(0)
@@ -109,17 +109,17 @@ test("AC-4.1 the page tree groups Project pages and workspace pages, with no Pro
 
 test("AC-4.2 a Project opens on Timeline and tab= selects another view", async ({ page }) => {
   await open(page)
-  await page.goto(`/notes?project=${project.project.id}`)
-  for (const name of ["Timeline", "Board", "Table", "Docs", "Log"])
+  await page.goto(`/projects?project=${project.project.id}`)
+  for (const name of ["Timeline", "Board", "Table", "Docs", "Log", "Details"])
     await expect(page.getByRole("tab", { name, exact: true })).toBeVisible()
   await expect(page.getByRole("tab", { name: "Timeline", exact: true })).toHaveAttribute("aria-selected", "true")
-  await page.goto(`/notes?project=${project.project.id}&tab=board`)
+  await page.goto(`/projects?project=${project.project.id}&tab=board`)
   await expect(page.getByRole("tab", { name: "Board", exact: true })).toHaveAttribute("aria-selected", "true")
 })
 
 test("AC-4.3 each view shows the Project's items", async ({ page }) => {
   await open(page)
-  await page.goto(`/notes?project=${project.project.id}`)
+  await page.goto(`/projects?project=${project.project.id}`)
   await expect(page.locator("[data-timeline-item]")).toHaveCount(4)
   await expect(page.locator('[data-timeline-item="launch"]')).toHaveAttribute("data-kind", "milestone")
 
@@ -143,7 +143,7 @@ test("AC-4.3 each view shows the Project's items", async ({ page }) => {
 
 test("AC-4.4 a page opens full width and Back returns to the tab", async ({ page }) => {
   await open(page)
-  await page.goto(`/notes?project=${project.project.id}&tab=docs`)
+  await page.goto(`/projects?project=${project.project.id}&tab=docs`)
   await page.getByRole("link", { name: "Billing notes" }).click()
   await expect(page).toHaveURL(/page=/)
   await expect(page.getByRole("heading", { name: "Billing notes" }).first()).toBeVisible()
@@ -153,12 +153,12 @@ test("AC-4.4 a page opens full width and Back returns to the tab", async ({ page
 
 test("AC-4.5 New page creates in the open Project and Save sends the loaded revision", async ({ page }) => {
   const writes = await open(page)
-  await page.goto(`/notes?project=${project.project.id}`)
+  await page.goto(`/projects?project=${project.project.id}`)
   await page.getByRole("button", { name: "New page" }).click()
   await expect.poll(() => writes.length).toBeGreaterThan(0)
   expect(writes[0].body).toMatchObject({ create: true, projectId: project.project.id })
 
-  await page.goto(`/notes?page=${encodeURIComponent("Ideas.md")}`)
+  await page.goto(`/projects?page=${encodeURIComponent("Ideas.md")}`)
   await page.getByRole("article").getByRole("textbox").first().click()
   await page.keyboard.type(" more")
   await page.getByRole("button", { name: "Save" }).click()
@@ -168,7 +168,7 @@ test("AC-4.5 New page creates in the open Project and Save sends the loaded revi
 
 test("AC-4.5 a conflicting save shows a message instead of overwriting", async ({ page }) => {
   await open(page, { conflictOnSave: true })
-  await page.goto(`/notes?page=${encodeURIComponent("Ideas.md")}`)
+  await page.goto(`/projects?page=${encodeURIComponent("Ideas.md")}`)
   await page.getByRole("article").getByRole("textbox").first().click()
   await page.keyboard.type(" edit")
   await page.getByRole("button", { name: "Save" }).click()
@@ -179,6 +179,31 @@ test("AC-4.6 conflict copies are named in a banner", async ({ page }) => {
   await open(page, {
     conflicts: [{ path: "Acme API/Plan (conflicted copy 2026-11-02).md", original: "Acme API/Plan.md" }],
   })
-  await page.goto("/notes")
+  await page.goto("/projects")
   await expect(page.getByText("Plan (conflicted copy 2026-11-02).md")).toBeVisible()
+})
+
+// implementations/merge-notes-projects/implementation.md (Notes and Projects are one Projects page)
+test("merge AC-5 /notes links open the same view under /projects", async ({ page }) => {
+  await open(page)
+  await page.goto(`/notes?project=${project.project.id}&tab=board`)
+  await expect(page).toHaveURL(new RegExp(`/projects\\?project=${project.project.id}&tab=board$`))
+  await expect(page.getByRole("tab", { name: "Board", exact: true })).toHaveAttribute("aria-selected", "true")
+})
+
+test("merge AC-3 the Details tab holds the Project's card", async ({ page }) => {
+  await open(page)
+  await page.goto(`/projects?project=${project.project.id}&tab=details`)
+  await expect(page.getByRole("tab", { name: "Details", exact: true })).toHaveAttribute("aria-selected", "true")
+  await expect(page.getByRole("button", { name: "Start work", exact: true })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Archive Project", exact: true })).toBeVisible()
+})
+
+test("merge AC-4 New Project opens the create form", async ({ page }) => {
+  await open(page)
+  await page.goto("/projects")
+  await page.locator('[data-action="new-project"]').click()
+  await expect(page).toHaveURL(/\/projects\?new=1$/)
+  await expect(page.getByRole("heading", { name: "Create a Project" })).toBeVisible()
+  await expect(page.getByRole("textbox", { name: "Project name" })).toBeFocused()
 })

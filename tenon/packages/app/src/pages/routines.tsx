@@ -85,7 +85,7 @@ export default function RoutinesPage() {
     const path = await write(1)
     setState("creating", false)
     if (!path) return setState("failed", true)
-    navigate(`/notes?page=${encodeURIComponent(path)}`)
+    navigate(`/projects?page=${encodeURIComponent(path)}`)
   }
 
   return (

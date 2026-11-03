@@ -902,6 +902,7 @@ export const dict = {
   "secondBrain.sidebar.activity": "Activity",
   "secondBrain.sidebar.goHome": "Go to Home",
   "secondBrain.sidebar.goNotes": "Go to Notes",
+  "secondBrain.sidebar.goProjects": "Go to Projects",
   "secondBrain.sidebar.goCalendar": "Go to Calendar",
   "secondBrain.sidebar.goActivity": "Go to Activity",
   "secondBrain.sidebar.command": "Command Centre",
@@ -1392,6 +1393,7 @@ export const dict = {
   "secondBrain.vault.tree": "Pages",
   "secondBrain.vault.projects": "Projects",
   "secondBrain.vault.workspacePages": "Workspace pages",
+  "secondBrain.vault.general": "General",
   "secondBrain.vault.newPage": "New page",
   "secondBrain.vault.untitled": "Untitled",
   "secondBrain.vault.pageTitle": "Page title",
@@ -1405,6 +1407,7 @@ export const dict = {
   "secondBrain.vault.tab.table": "Table",
   "secondBrain.vault.tab.docs": "Docs",
   "secondBrain.vault.tab.log": "Log",
+  "secondBrain.vault.tab.details": "Details",
   "secondBrain.vault.progress": "Progress {{percent}}% · {{done}} of {{total}} tasks done",
   "secondBrain.vault.progressNext": "Progress {{percent}}% · {{done}} of {{total}} tasks done · next: {{title}}",
   "secondBrain.vault.progressNextDate":

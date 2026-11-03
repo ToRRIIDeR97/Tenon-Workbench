@@ -31,7 +31,7 @@ export function previewNoteLinks(body: string, lookup: ReadonlyMap<string, strin
       const path = lookup.get(wikiTargetKey(target))
       if (!path) return source
       const label = (alias || target).replace(/[\\\[\]<>]/g, "\\$&")
-      return `[${label}](/notes?note=${encodeURIComponent(path)})`
+      return `[${label}](/projects?note=${encodeURIComponent(path)})`
     },
   )
 }

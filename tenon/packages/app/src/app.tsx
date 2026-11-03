@@ -8,7 +8,16 @@ import { Splash } from "@tenon/ui/logo"
 import { ThemeProvider } from "@tenon/ui/theme/context"
 import { LoaderV2 } from "@tenon/ui/v2/loader-v2"
 import { MetaProvider } from "@solidjs/meta"
-import { type BaseRouterProps, Navigate, Route, Router, useNavigate, useParams, useSearchParams } from "@solidjs/router"
+import {
+  type BaseRouterProps,
+  Navigate,
+  Route,
+  Router,
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "@solidjs/router"
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query"
 import { Effect } from "effect"
 import {
@@ -80,7 +89,6 @@ function prefetchSessionPage() {
 }
 
 const NewSession = lazy(() => import("@/pages/new-session"))
-const NotesPage = lazy(() => import("@/pages/notes"))
 const CalendarPage = lazy(() => import("@/pages/calendar"))
 const ProjectsPage = lazy(() => import("@/pages/projects"))
 const ProjectOverviewPage = lazy(() => import("@/pages/project-overview"))
@@ -553,7 +561,7 @@ function Routes() {
       <Route path="/" component={BrainHomePage} />
       <Route path="/brain" component={() => <Navigate href="/" />} />
       <Route path="/workspaces" component={() => <Navigate href="/" />} />
-      <Route path="/notes" component={NotesPage} />
+      <Route path="/notes" component={NotesRedirect} />
       <Route path="/calendar" component={CalendarPage} />
       <Route path="/projects" component={ProjectsPage} />
       <Route path="/projects/overview" component={ProjectOverviewPage} />
@@ -568,6 +576,12 @@ function Routes() {
       <Route path="*" component={() => <Navigate href="/" />} />
     </>
   )
+}
+
+// Notes became the Projects page; older links (and wiki links inside pages) keep their view.
+function NotesRedirect() {
+  const location = useLocation()
+  return <Navigate href={`/projects${location.search}`} />
 }
 
 // Old draft URLs (/new-session?draftId=…) from before the sidebar shell.

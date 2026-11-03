@@ -155,7 +155,7 @@ test("notes preserve edits across navigation, search bodies, render headings and
   page,
 }, testInfo) => {
   const writes = await setup(page)
-  await page.goto("/notes")
+  await page.goto("/projects")
   // The first visit moves the workspace's pre-vault notes into the vault and says how many.
   await expect(page.getByRole("status").filter({ hasText: "Moved 2 notes into the Tenon vault" })).toBeVisible()
   await page.getByRole("textbox", { name: "Search pages" }).fill("Unique-body-needle")
@@ -163,17 +163,17 @@ test("notes preserve edits across navigation, search bodies, render headings and
   await expect(results.getByRole("button", { name: "Alpha", exact: true })).toBeVisible()
   await expect(results.getByRole("button", { name: "Beta Updated", exact: true })).toHaveCount(0)
   await results.getByRole("button", { name: "Alpha", exact: true }).click()
-  await expect(page).toHaveURL(/\/notes\?page=Audit%20Project%2FAlpha\.md$/)
+  await expect(page).toHaveURL(/\/projects\?page=Audit%20Project%2FAlpha\.md$/)
   await expect(page.getByRole("heading", { name: "First heading" })).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath("note-preview.png"), fullPage: true })
   await page.getByRole("link", { name: "Beta", exact: true }).click()
-  await expect(page).toHaveURL(/\/notes\?page=Audit%20Project%2FBeta\.md$/)
+  await expect(page).toHaveURL(/\/projects\?page=Audit%20Project%2FBeta\.md$/)
   await expect(page.getByRole("heading", { name: "Beta body" })).toBeVisible()
   await page.getByRole("button", { name: "Write", exact: true }).click()
   const editor = page.getByRole("textbox", { name: "Markdown note editor" })
   await editor.fill("Edited, unsaved body")
   await page.getByRole("button", { name: "Calendar", exact: true }).click()
-  await expect(page).toHaveURL(/\/notes\?page=/)
+  await expect(page).toHaveURL(/\/projects\?page=/)
   await expect(editor).toHaveValue("Edited, unsaved body")
   await expect(page.getByRole("alert")).toContainText("Save or discard")
   await page.screenshot({ path: testInfo.outputPath("notes.png"), fullPage: true })
@@ -196,8 +196,8 @@ test("new page errors stay inside the narrow page tree, and New page in a Projec
   page,
 }, testInfo) => {
   const writes = await setup(page)
-  await page.goto("/notes")
-  const column = page.getByRole("region", { name: "Notes", exact: true }).getByRole("complementary")
+  await page.goto("/projects")
+  const column = page.getByRole("region", { name: "Projects", exact: true }).getByRole("complementary")
   await column.getByRole("button", { name: "New page", exact: true }).click()
   const alert = column.getByRole("alert")
   await expect(alert).toContainText("A page with this name already exists")
@@ -207,9 +207,9 @@ test("new page errors stay inside the narrow page tree, and New page in a Projec
   await page.screenshot({ path: testInfo.outputPath("new-page.png"), fullPage: true })
 
   await column.getByRole("treeitem", { name: "Audit Project" }).getByText("Audit Project", { exact: true }).click()
-  await expect(page).toHaveURL(/\/notes\?project=project_audit$/)
+  await expect(page).toHaveURL(/\/projects\?project=project_audit$/)
   await column.getByRole("button", { name: "New page", exact: true }).click()
-  await expect(page).toHaveURL(/\/notes\?page=Audit%20Project%2FUntitled\.md$/)
+  await expect(page).toHaveURL(/\/projects\?page=Audit%20Project%2FUntitled\.md$/)
   await expect(page.getByRole("textbox", { name: "Page title" })).toHaveValue("Untitled")
   expect(writes.map((write) => [write.path, write.body.create, write.body.projectId])).toEqual([
     ["Untitled.md", true, undefined],
@@ -248,16 +248,21 @@ test("Home opens the selected event, task and project; Today resets the displaye
   await page.screenshot({ path: testInfo.outputPath("calendar.png"), fullPage: true })
 })
 
-test("an archived Project restores directly and map cards open its notes", async ({ page }, testInfo) => {
+test("an archived Project restores from the Archived group and its Docs open its pages", async ({ page }, testInfo) => {
   await setup(page)
-  await page.goto("/projects?project=project_audit")
+  await page.goto("/projects?project=project_audit&tab=details")
   await page.getByRole("button", { name: "Archive Project", exact: true }).click()
-  await page.getByRole("button", { name: /^Audit Project/ }).click()
+  await expect(page).toHaveURL(/\/projects$/)
+  const tree = page.getByRole("tree")
+  await tree.getByText("Archived", { exact: true }).click()
+  await tree.getByText("Audit Project", { exact: true }).click()
+  await expect(page).toHaveURL(/\/projects\?project=project_audit$/)
+  await page.getByRole("tab", { name: "Details", exact: true }).click()
   await page.getByRole("button", { name: "Restore Project", exact: true }).click()
   await expect(page.getByRole("button", { name: "Pause Project", exact: true })).toBeVisible()
-  await page.getByRole("button", { name: "Map", exact: true }).click()
-  await page.screenshot({ path: testInfo.outputPath("project-map.png"), fullPage: true })
-  await page.getByRole("button", { name: /Beta Updated/ }).click()
+  await page.getByRole("tab", { name: "Docs", exact: true }).click()
+  await page.screenshot({ path: testInfo.outputPath("project-docs.png"), fullPage: true })
+  await page.getByRole("link", { name: /Beta Updated/ }).click()
   await expect(page.getByRole("heading", { name: "Beta body" })).toBeVisible()
 })
 
@@ -265,7 +270,7 @@ test("Spanish Brain navigation and harness names are localized", async ({ page }
   await setup(page, true)
   await page.goto("/")
   await expect(page.getByRole("heading", { name: "Inicio", exact: true })).toBeVisible()
-  await expect(page.getByRole("button", { name: "Notas", exact: true })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Proyectos", exact: true })).toBeVisible()
   // The harness is chosen in the composer's model pill since the composer redesign.
   await page.getByRole("button", { name: "Claude Opus 4.6", exact: true }).click()
   await expect(page.getByText("Motor de agente", { exact: true })).toBeVisible()

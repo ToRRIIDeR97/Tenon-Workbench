@@ -548,7 +548,8 @@ export function NoteEditor(props: NoteEditorProps) {
                 const link = event.target instanceof Element ? event.target.closest("a") : null
                 if (!props.onOpenNote || !link) return
                 const url = new URL(link.href)
-                if (url.origin !== window.location.origin || url.pathname !== "/notes") return
+                // `/notes` is the pre-merge form of the same link.
+                if (url.origin !== window.location.origin || (url.pathname !== "/projects" && url.pathname !== "/notes")) return
                 const path = url.searchParams.get("note")
                 if (!path) return
                 event.preventDefault()

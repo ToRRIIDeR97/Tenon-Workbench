@@ -78,7 +78,7 @@ export default function ProjectOverviewPage() {
   }
   const projectQuery = (group: OverviewGroup) =>
     group.projectId ? `project=${encodeURIComponent(group.projectId)}` : ""
-  const openNote = (path: string) => navigate(`/notes?page=${encodeURIComponent(path)}`)
+  const openNote = (path: string) => navigate(`/projects?page=${encodeURIComponent(path)}`)
   const openAll = (page: "notes" | "calendar", group: OverviewGroup) =>
     navigate(group.projectId ? `/${page}?${projectQuery(group)}` : `/${page}`)
 
