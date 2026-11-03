@@ -309,37 +309,58 @@ const LanguageSetting = () => {
 function VaultFolderSetting() {
   const language = useLanguage()
   const platform = usePlatform()
-  const [state, setState] = createStore({ choosing: false, message: "" as "" | "inside" | "restart" | "failed" })
+  const [state, setState] = createStore({
+    choosing: false,
+    message: "" as "" | "inside" | "not_empty" | "nested" | "copy_failed" | "restart" | "copied" | "failed",
+    /** The old vault folder, kept after its pages were copied to the new one. */
+    previous: "",
+  })
   const [folder, { mutate }] = createResource(() => Promise.resolve(platform.getVaultFolder?.()).catch(() => undefined))
   const choose = async () => {
-    setState({ choosing: true, message: "" })
+    setState({ choosing: true, message: "", previous: "" })
     const result = await Promise.resolve(platform.chooseVaultFolder?.()).catch(() => "failed" as const)
     setState("choosing", false)
     if (result === "failed") return setState("message", "failed")
     if (!result) return
-    if ("error" in result) return setState("message", "inside")
+    if ("error" in result) return setState("message", result.error === "inside_workspace" ? "inside" : result.error)
     mutate({ folder: result.folder, chosen: true })
+    if (result.previous) return setState({ message: "copied", previous: result.previous })
     if (result.restartRequired) setState("message", "restart")
   }
   const message = () =>
     ({
       "": "",
       inside: language.t("secondBrain.vault.settings.inside"),
+      not_empty: language.t("secondBrain.vault.settings.notEmpty"),
+      nested: language.t("secondBrain.vault.settings.nested"),
+      copy_failed: language.t("secondBrain.vault.settings.copyFailed"),
       restart: language.t("secondBrain.vault.settings.restart"),
+      copied: language.t("secondBrain.vault.settings.copied", { folder: state.previous }),
       failed: language.t("secondBrain.error.request"),
     })[state.message]
+  const critical = () => !["", "restart", "copied"].includes(state.message)
+  // Documents may be redirected into a synced folder, which then syncs the default vault too.
+  const syncNotice = () =>
+    platform.os === "windows"
+      ? language.t("secondBrain.vault.settings.syncWindows")
+      : platform.os === "macos"
+        ? language.t("secondBrain.vault.settings.syncMac")
+        : ""
   return (
     <SettingsRowV2
       title={language.t("secondBrain.vault.settings.title")}
       description={
         <>
           <span class="block break-all">{folder.latest?.folder ?? ""}</span>
+          <Show when={syncNotice()}>
+            <span class="mt-1 block">{syncNotice()}</span>
+          </Show>
           <Show when={message()}>
             <span
-              role={state.message === "restart" ? "status" : "alert"}
+              role={critical() ? "alert" : "status"}
               classList={{
-                "mt-1 block": true,
-                "text-v2-text-text-critical": state.message === "inside" || state.message === "failed",
+                "mt-1 block break-words": true,
+                "text-v2-text-text-critical": critical(),
               }}
             >
               {message()}

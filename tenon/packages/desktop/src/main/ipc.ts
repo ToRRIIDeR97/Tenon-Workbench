@@ -24,7 +24,7 @@ import { setForceFocus } from "./debug"
 import { assertAttachmentBudget, createPickedFileAuthorizations } from "./attachment-picker"
 import { getStore, rendererStore, removeStoreFileIfEmpty } from "./store"
 import { VAULT_FOLDER_KEY } from "./store-keys"
-import { insideCodeFolder, vaultFolder } from "./vault-folder"
+import { insideCodeFolder, moveVault, vaultFolder } from "./vault-folder"
 import { assertStoreName } from "./store-name"
 import {
   getPinchZoomEnabled,
@@ -295,7 +295,8 @@ export function registerIpcHandlers(deps: Deps) {
   }))
 
   // The folder comes from the native dialog, never from the renderer. The running server keeps its vault
-  // until it restarts, so the caller offers a relaunch.
+  // until it restarts, so the caller offers a relaunch. The current vault's pages are copied over first (the
+  // old folder stays as it was, `previous` names it); a non-empty folder that is not a vault is refused.
   trustedHandle("choose-vault-folder", async (event: IpcMainInvokeEvent) => {
     const current = vaultFolder(getStore().get(VAULT_FOLDER_KEY), app.getPath("documents"))
     const result = await showOpenDialog(event, {
@@ -307,9 +308,11 @@ export function registerIpcHandlers(deps: Deps) {
     const folder = vaultFolder(result.filePaths[0], app.getPath("documents"))
     // A vault inside a repository or workspace would write notes next to code; the server refuses it too.
     if (insideCodeFolder(folder, app.getPath("home"))) return { error: "inside_workspace" as const, folder }
+    const moved = await moveVault(current, folder)
+    if ("error" in moved) return { error: moved.error, folder }
     getStore().set(VAULT_FOLDER_KEY, folder)
     process.env.TENON_VAULT_DIR = folder
-    return { folder, restartRequired: folder !== current }
+    return { folder, restartRequired: folder !== current, ...(moved.previous ? { previous: moved.previous } : {}) }
   })
 
   trustedHandle(

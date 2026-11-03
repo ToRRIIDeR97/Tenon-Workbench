@@ -34,6 +34,7 @@ import {
 } from "@/utils/server"
 import type { PromptInputHarnessController } from "@/components/prompt-input/harness-controls"
 import { PromptModelPill } from "@/components/prompt-input/model-pill"
+import { PromptDictationButton } from "@/components/prompt-input/dictation-button"
 import { HomeModelPill } from "@/pages/home/home-model-pill"
 import type { PromptModel } from "@/context/prompt"
 import { PromptBranchPicker } from "@/components/prompt-workspace-selector"
@@ -329,6 +330,15 @@ export default function BrainHomePage() {
                   </Show>
                 </Suspense>
                 <span class="flex-1" />
+                {/* Dictation, as in thread composers; the transcript lands in this textarea. */}
+                <Show when={platform.dictation}>
+                  {(dictation) => (
+                    <PromptDictationButton
+                      dictation={dictation()}
+                      restoreFocus={() => document.getElementById("brain-home-prompt")?.focus()}
+                    />
+                  )}
+                </Show>
                 <TooltipV2 placement="top" value={language.t("secondBrain.home.start")}>
                   <IconButtonV2
                     type="submit"

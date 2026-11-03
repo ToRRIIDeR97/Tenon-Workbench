@@ -61,7 +61,8 @@ export function SecondBrainSidebar() {
       // One outlined container: its width grows from the rail (80px + border) into rail plus panel.
       // Not overflow-hidden, so rail labels can still float past its edge; the panel clips itself.
       classList={{
-        "mb-2 ml-2 mr-2 flex min-h-0 shrink-0 rounded-[20px] border border-v2-border-border-muted bg-v2-background-bg-base transition-[width] will-change-[width] motion-reduce:duration-0": true,
+        // Same 8px inset as the page panel beside it, so the two share a top and bottom edge.
+        "m-2 flex min-h-0 shrink-0 rounded-[20px] border border-v2-border-border-muted bg-v2-background-bg-base transition-[width] motion-reduce:duration-0": true,
         "w-[82px] duration-medium ease-emphasized-decelerate md:w-[338px]": layout.sidebar.opened(),
         "w-[82px] duration-[200ms] ease-emphasized-accelerate": !layout.sidebar.opened(),
       }}
@@ -197,7 +198,7 @@ function RailItem(props: { id: string; icon: string; label: string; active?: boo
       {/* The name slides out to the right on hover or keyboard focus; the button's aria-label carries it. */}
       <span
         aria-hidden="true"
-        class="pointer-events-none absolute left-[calc(50%+32px)] top-1/2 z-50 -translate-x-2 -translate-y-1/2 scale-90 whitespace-nowrap rounded-full bg-v2-background-bg-layer-01 px-2.5 py-1 text-[12px] text-v2-text-text-base opacity-0 shadow-[var(--v2-elevation-floating)] [font-weight:500] transition-[opacity,transform] duration-short ease-standard group-hover/rail:translate-x-0 group-hover/rail:scale-100 group-hover/rail:opacity-100 group-focus-visible/rail:translate-x-0 group-focus-visible/rail:scale-100 group-focus-visible/rail:opacity-100 motion-reduce:transition-none"
+        class="pointer-events-none absolute left-[calc(50%+32px)] top-1/2 z-50 -translate-x-2 -translate-y-1/2 scale-90 whitespace-nowrap rounded-full bg-v2-background-bg-layer-01 px-2.5 py-1 text-[12px] text-v2-text-text-base opacity-0 shadow-[var(--v2-elevation-floating)] [font-weight:500] transition-[opacity,translate,scale] duration-short ease-standard group-hover/rail:translate-x-0 group-hover/rail:scale-100 group-hover/rail:opacity-100 group-focus-visible/rail:translate-x-0 group-focus-visible/rail:scale-100 group-focus-visible/rail:opacity-100 motion-reduce:transition-none"
       >
         {props.label}
       </span>

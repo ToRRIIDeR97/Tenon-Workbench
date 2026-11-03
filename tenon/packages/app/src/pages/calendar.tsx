@@ -146,9 +146,18 @@ export default function CalendarPage() {
     google?: string
     event?: string
     task?: string
+    /** YYYY-MM-DD to show, e.g. from an agent write's Open. */
+    date?: string
   }>()
+  // Noon of `?date=`, so a time-zone shift never moves it to another day; undefined when absent or invalid.
+  const linkedDay = () => {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(search.date ?? "")
+    if (!match) return undefined
+    const day = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12)
+    return Number.isNaN(day.getTime()) ? undefined : day
+  }
   const [state, setState] = createStore<CalendarState>({
-    cursor: new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate(), 12),
+    cursor: linkedDay() ?? new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate(), 12),
     view: calendarView(search.view),
     projectFilter: search.project ?? "",
     editing: false,
@@ -181,6 +190,17 @@ export default function CalendarPage() {
   const directory = () => layout.home.workspace() ?? ""
   createEffect(
     on(directory, () => setState({ editing: false, peek: "", selectedTask: "", draft: emptyDraft() }), { defer: true }),
+  )
+  // Open on an agent write while this page is up only changes `?date=`.
+  createEffect(
+    on(
+      () => search.date,
+      () => {
+        const day = linkedDay()
+        if (day) setState("cursor", day)
+      },
+      { defer: true },
+    ),
   )
 
   // Cached per workspace: a launch or background sync updates the shown items in place. A failed load is
@@ -1089,8 +1109,17 @@ export default function CalendarPage() {
           <Show when={!taskView()}>
             <div class={sidePanelGridClass(panelOpen())}>
               <div class="flex min-h-[560px] min-w-0 flex-col">
+                {/* A failed refresh keeps the last snapshot on screen with an inline retry. */}
+                <Show when={events.error() && events.snapshot()}>
+                  <div role="alert" class="flex items-center gap-2 pb-2 text-[12px] text-v2-text-text-critical">
+                    <span class="min-w-0 flex-1">{language.t("secondBrain.calendar.loadFailed")}</span>
+                    <ButtonV2 size="small" variant="outline" onClick={() => void events.refetch()}>
+                      {language.t("secondBrain.state.retry")}
+                    </ButtonV2>
+                  </div>
+                </Show>
                 <Show
-                  when={!events.error()}
+                  when={!events.error() || events.snapshot()}
                   fallback={
                     <PageEmpty
                       error

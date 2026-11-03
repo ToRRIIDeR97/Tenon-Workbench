@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { NodeHttpServer, NodeServices } from "@effect/platform-node"
-import { Config, Effect, Layer } from "effect"
+import { Config, Deferred, Effect, Fiber, Layer } from "effect"
 import { HttpClient, HttpClientRequest, HttpClientResponse, HttpRouter, HttpServer } from "effect/unstable/http"
 import { layerWebSocketConstructorGlobal } from "effect/unstable/socket/Socket"
 import { AppNodeBuilder } from "@tenon/core/effect/app-node-builder"
@@ -68,11 +68,11 @@ const setup = Effect.gen(function* () {
   const test = yield* TestInstance
   process.env.TENON_VAULT_DIR = yield* tmpdirScoped()
   const headers = { "x-opencode-directory": test.directory, "content-type": "application/json" }
-  const write = (name: string, properties: Record<string, unknown>) =>
+  const write = (name: string, properties: Record<string, unknown>, create = true) =>
     request(`/second-brain/vault/page?path=${encodeURIComponent(`Routines/${name}.md`)}`, {
       method: "PUT",
       headers,
-      body: JSON.stringify({ body: `Prompt for ${name}`, properties, create: true }),
+      body: JSON.stringify({ body: `Prompt for ${name}`, properties, ...(create ? { create: true } : {}) }),
     }).pipe(Effect.flatMap(json<unknown>))
   return { test, headers, write }
 })
@@ -141,6 +141,87 @@ describe("Routines", () => {
       expect(events[0].payload.properties).toMatchObject({ threadId: "ses_brief" })
       const inbox = yield* request("/second-brain/vault/page?path=Inbox.md", { headers }).pipe(Effect.flatMap(json<{ body: string }>))
       expect(inbox.body).toContain("Two meetings today; one invoice to pay.")
+    }),
+  )
+
+  it.instance("an interrupted run is marked failed at scheduler start and runs again", () =>
+    Effect.gen(function* () {
+      const { headers, write } = yield* setup
+      yield* write("Slow", { schedule: "daily 08:00" })
+      yield* Routines.runDue({ now: local(2026, 11, 2, 7, 0), run: () => Effect.die("not due") })
+      const started = yield* Deferred.make<void>()
+      // The process "stops" mid-run: the run never answers and its fiber is interrupted.
+      const fiber = yield* Routines.runDue({
+        now: local(2026, 11, 2, 8, 5),
+        run: () => Deferred.succeed(started, undefined).pipe(Effect.andThen(Effect.never)),
+      }).pipe(Effect.forkChild)
+      yield* Deferred.await(started)
+      const list = () =>
+        request("/second-brain/routines", { headers }).pipe(
+          Effect.flatMap(json<{ lastRun: string | null; lastStatus: string | null }[]>),
+        )
+      expect((yield* list())[0]).toMatchObject({ lastRun: null, lastStatus: "running" })
+      yield* Fiber.interrupt(fiber)
+      yield* Routines.recoverInterrupted
+      expect((yield* list())[0]).toMatchObject({ lastRun: null, lastStatus: "failed" })
+      const retry = yield* Routines.runDue({
+        now: local(2026, 11, 2, 8, 6),
+        run: () => Effect.succeed({ threadId: "ses_retry", text: "Done" }),
+      })
+      expect(retry.ran).toHaveLength(1)
+      expect((yield* list())[0].lastStatus).toBe("done")
+    }),
+  )
+
+  it.instance("due routines run concurrently, and a routine in flight is not started twice", () =>
+    Effect.gen(function* () {
+      const { write } = yield* setup
+      yield* write("A", { schedule: "daily 08:00" })
+      yield* write("B", { schedule: "daily 08:00" })
+      yield* Routines.runDue({ now: local(2026, 11, 2, 7, 0), run: () => Effect.die("not due") })
+      const bDone = yield* Deferred.make<void>()
+      const release = yield* Deferred.make<void>()
+      const aStarted = yield* Deferred.make<void>()
+      // A finishes only after B has run, so a serial loop over A then B would never finish.
+      const run = (routine: { name: string }) =>
+        routine.name === "A"
+          ? Deferred.succeed(aStarted, undefined).pipe(
+              Effect.andThen(Deferred.await(bDone)),
+              Effect.andThen(Deferred.await(release)),
+              Effect.as({ threadId: "ses_a", text: "A" }),
+            )
+          : Deferred.succeed(bDone, undefined).pipe(Effect.as({ threadId: "ses_b", text: "B" }))
+      const fiber = yield* Routines.runDue({ now: local(2026, 11, 2, 8, 5), run }).pipe(Effect.forkChild)
+      yield* Deferred.await(aStarted)
+      yield* Deferred.await(bDone)
+      // A later tick while A is still running starts nothing.
+      const again = yield* Routines.runDue({ now: local(2026, 11, 2, 8, 6), run: () => Effect.die("double start") })
+      expect(again.ran).toEqual([])
+      yield* Deferred.succeed(release, undefined)
+      const first = yield* Fiber.join(fiber)
+      expect(first.ran).toHaveLength(2)
+    }),
+  )
+
+  it.instance("re-enabling a routine moves its baseline, so it doesn't catch up at once", () =>
+    Effect.gen(function* () {
+      const { write } = yield* setup
+      yield* write("Toggle", { schedule: "daily 08:00" })
+      const ran: string[] = []
+      const run = (routine: { name: string }) =>
+        Effect.sync(() => {
+          ran.push(routine.name)
+          return { threadId: "ses_t", text: "ok" }
+        })
+      yield* Routines.runDue({ now: local(2026, 11, 2, 7, 0), run })
+      yield* write("Toggle", { schedule: "daily 08:00", enabled: false }, false)
+      yield* Routines.runDue({ now: local(2026, 11, 3, 9, 0), run })
+      yield* write("Toggle", { schedule: "daily 08:00", enabled: true }, false)
+      const enabled = yield* Routines.runDue({ now: local(2026, 11, 5, 9, 0), run })
+      expect(enabled.ran).toEqual([])
+      const next = yield* Routines.runDue({ now: local(2026, 11, 6, 8, 1), run })
+      expect(next.ran).toHaveLength(1)
+      expect(ran).toEqual(["Toggle"])
     }),
   )
 })

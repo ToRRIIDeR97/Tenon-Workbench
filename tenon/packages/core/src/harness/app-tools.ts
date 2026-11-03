@@ -17,6 +17,9 @@ export interface Tool {
 
 export interface Caller {
   readonly sessionID: string
+  /** The assistant message and tool call making the call, when the harness knows them (the in-process loop). */
+  readonly messageID?: string
+  readonly callID?: string
 }
 
 export interface Provider {

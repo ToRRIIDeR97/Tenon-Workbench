@@ -111,10 +111,14 @@ export function SettingsCommandCentreV2() {
                 class="h-8 w-20 rounded-[10px] border border-v2-border-border-muted bg-v2-background-bg-base px-2 text-right text-[13px] text-v2-text-text-base outline-none focus:border-v2-border-border-focus"
                 aria-label={language.t("secondBrain.commandCentre.settings.memoryDays")}
                 value={draft()}
-                onInput={(event) => {
-                  setDraft(event.currentTarget.value)
-                  if (event.currentTarget.value.trim() !== "")
-                    settings.commandCentre.set({ memoryDays: memoryDays(event.currentTarget.value) })
+                // Typing only updates the draft (and the lowering warning); the value saves, clamped to 1–365,
+                // when the field commits (Enter, the stepper or leaving it), so "3" on the way to "30" never saves.
+                onInput={(event) => setDraft(event.currentTarget.value)}
+                onChange={(event) => {
+                  if (event.currentTarget.value.trim() === "") return setDraft(String(current().memoryDays))
+                  const days = memoryDays(event.currentTarget.value)
+                  settings.commandCentre.set({ memoryDays: days })
+                  setDraft(String(days))
                 }}
                 onBlur={() => setDraft(String(current().memoryDays))}
               />

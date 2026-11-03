@@ -1,4 +1,4 @@
-import { afterEach, describe, expect } from "bun:test"
+import { afterEach, describe, expect, test } from "bun:test"
 import { NodeHttpServer, NodeServices } from "@effect/platform-node"
 import { mkdir } from "node:fs/promises"
 import { Config, Effect, Layer } from "effect"
@@ -17,6 +17,7 @@ import { HttpApiApp } from "../../src/server/routes/instance/httpapi/server"
 import { GlobalBus, type GlobalEvent } from "../../src/bus/global"
 import { AgentAppTools } from "../../src/agents/app-tools"
 import { CommandMemory } from "../../src/agents/command-memory"
+import { MailTools } from "../../src/agents/mail-tools"
 import { Session } from "@/session/session"
 import { resetDatabase } from "../fixture/db"
 import { disposeAllInstances, provideInstanceEffect, TestInstance, tmpdirScoped } from "../fixture/fixture"
@@ -118,4 +119,36 @@ describe("mail tools", () => {
       expect(names).not.toContain("mail_draft")
     }),
   )
+
+  test("a long thread is parsed whole and its message text capped afterwards", async () => {
+    const long = "x".repeat(150_000)
+    const server = Bun.serve({
+      port: 0,
+      hostname: "127.0.0.1",
+      fetch: () =>
+        Response.json({
+          id: "t1",
+          subject: "Long",
+          messages: [
+            { from: "a@b.c", text: long },
+            { from: "d@e.f", text: long },
+          ],
+        }),
+    })
+    process.env.TENON_MAIL_URL = `http://127.0.0.1:${server.port}/mail`
+    process.env.TENON_MAIL_TOKEN = "t"
+    try {
+      const value = (await Effect.runPromise(MailTools.request("/thread", { id: "t1" }))) as {
+        subject: string
+        messages: { from: string; text: string }[]
+      }
+      expect(value.subject).toBe("Long")
+      expect(value.messages[0].text).toBe(long)
+      expect(value.messages[1].from).toBe("d@e.f")
+      expect(value.messages[1].text.length).toBeLessThan(long.length)
+      expect(value.messages[1].text.endsWith("[truncated]")).toBe(true)
+    } finally {
+      server.stop(true)
+    }
+  })
 })

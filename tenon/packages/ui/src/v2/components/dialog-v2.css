@@ -194,7 +194,7 @@
 }
 
 [data-component="dialog-overlay"][data-closed] {
-  animation: dialog-v2-overlay-out var(--v2-duration-exit) var(--v2-ease-exit) forwards;
+  animation: dialog-v2-overlay-out var(--v2-duration-exit) var(--v2-ease-emphasized-accelerate) forwards;
 }
 
 [data-component="dialog-v2"] [data-slot="dialog-close-button"] {

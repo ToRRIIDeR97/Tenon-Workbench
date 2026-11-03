@@ -158,7 +158,9 @@ export function CalendarGrid(props: {
             <div
               classList={{
                 "relative shadow-[inset_0.5px_0_0_var(--v2-border-border-muted)]": true,
-                "bg-[color-mix(in_srgb,var(--v2-background-bg-accent-container)_35%,transparent)]": day.today,
+                // Today stands out among several days; alone (the Today view) a tint would just fill the grid.
+                "bg-[color-mix(in_srgb,var(--v2-background-bg-accent-container)_35%,transparent)]":
+                  day.today && props.days.length > 1,
               }}
               style={{
                 height: `${hours().length * HOUR}px`,

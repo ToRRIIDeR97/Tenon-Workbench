@@ -88,7 +88,9 @@ test("AC-7.3 the strip animates with the motion tokens", async ({ page }) => {
   await start(page)
   await page.goto("/notes")
   await page.keyboard.press(toggleKey)
-  const opening = await strip(page).evaluate((element) => getComputedStyle(element).transitionDuration)
+  const opening = await strip(page)
+    .locator("[data-command-strip-card]")
+    .evaluate((element) => getComputedStyle(element).transitionDuration)
   expect(opening).toContain("0.3s")
 })
 

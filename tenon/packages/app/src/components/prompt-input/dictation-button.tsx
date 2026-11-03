@@ -17,7 +17,10 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
     level: 0,
   })
   const offLevel = props.dictation.onLevel((rms) => setState("level", Math.min(1, rms * 4)))
+  // A start still in flight at unmount is cancelled once it resolves, so the mic doesn't keep recording.
+  let disposed = false
   onCleanup(() => {
+    disposed = true
     offLevel()
     if (state.phase === "recording") void props.dictation.cancel()
   })
@@ -47,6 +50,10 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
     if (state.phase === "idle") {
       setState("phase", "starting")
       const result = await props.dictation.start()
+      if (disposed) {
+        if (!result.error) void props.dictation.cancel()
+        return
+      }
       if (result.error) {
         setState({ phase: "idle", level: 0 })
         return report(result.error)

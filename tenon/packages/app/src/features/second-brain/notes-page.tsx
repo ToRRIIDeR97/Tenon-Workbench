@@ -5,7 +5,7 @@ import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { KeybindV2 } from "@tenon/ui/v2/keybind-v2"
 import { Reveal, RevealShow } from "@tenon/ui/v2/reveal"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
-import { createEffect, createMemo, createResource, on, onCleanup, Show } from "solid-js"
+import { createEffect, createMemo, createResource, For, Match, on, onCleanup, Show, Switch } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
@@ -21,6 +21,10 @@ import { NoteEditor } from "./note-editor"
 import { noteLinkLookup, previewNoteLinks } from "./note-links"
 
 type VaultClient = Parameters<typeof readVaultPage>[0]
+
+const pageStatuses = ["todo", "doing", "done"] as const
+const propertyField =
+  "h-7 min-w-0 rounded-full bg-transparent px-2 text-[13px] text-v2-text-text-base transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none"
 
 /**
  * One vault page, full width: title, Project, Markdown body and Save. Saving sends the revision it loaded, so a
@@ -49,13 +53,19 @@ export function NotesPageView(props: {
     revision: "",
     projectId: null as string | null,
     updatedAt: "",
+    /** Front matter properties as edited, and as loaded (JSON, to compare). */
+    properties: {} as Record<string, unknown>,
+    baseProperties: "{}",
     saving: false,
     error: "",
     /** The last save met a newer revision; offer to reload. */
     conflict: false,
   })
+  const propertiesChanged = () => JSON.stringify(state.properties) !== state.baseProperties
   const dirty = createMemo(
-    () => state.revision !== "" && (state.body !== state.baseBody || state.title !== state.baseTitle),
+    () =>
+      state.revision !== "" &&
+      (state.body !== state.baseBody || state.title !== state.baseTitle || propertiesChanged()),
   )
   createEffect(() => props.onDirty(dirty()))
   onCleanup(() => props.onDirty(false))
@@ -72,6 +82,9 @@ export function NotesPageView(props: {
       revision: document.revision,
       projectId: document.info.projectId,
       updatedAt: document.info.updatedAt,
+      // A copy: edits must not write into the loaded document.
+      properties: { ...document.info.properties },
+      baseProperties: JSON.stringify(document.info.properties),
       error: "",
       conflict: false,
     })
@@ -87,13 +100,15 @@ export function NotesPageView(props: {
 
   const save = async () => {
     if (!dirty() || state.saving) return
-    const sent = { body: state.body, title: state.title }
+    const sent = { body: state.body, title: state.title, properties: JSON.stringify(state.properties) }
     const path = props.path
     setState({ saving: true, error: "" })
     const result = await writeVaultPage(props.client, {
       path,
       body: sent.body,
       title: sent.title.trim() || undefined,
+      // Only an edited set is sent: the server replaces all properties and refuses ones it cannot write back.
+      properties: propertiesChanged() ? { ...state.properties } : undefined,
       expectedRevision: state.revision,
     }).then(
       (page) => ({ page, error: undefined }),
@@ -113,8 +128,10 @@ export function NotesPageView(props: {
     setState({
       ...(state.body === sent.body ? { body: saved.body } : {}),
       ...(state.title === sent.title ? { title: saved.info.title } : {}),
+      ...(JSON.stringify(state.properties) === sent.properties ? { properties: { ...saved.info.properties } } : {}),
       baseBody: saved.body,
       baseTitle: saved.info.title,
+      baseProperties: JSON.stringify(saved.info.properties),
       revision: saved.revision,
       updatedAt: saved.info.updatedAt,
       error: "",
@@ -129,7 +146,7 @@ export function NotesPageView(props: {
   }
   const discard = () => {
     if (state.conflict) return reload()
-    setState({ body: state.baseBody, title: state.baseTitle, error: "" })
+    setState({ body: state.baseBody, title: state.baseTitle, properties: JSON.parse(state.baseProperties), error: "" })
   }
 
   command.register("notes", () => [
@@ -179,9 +196,81 @@ export function NotesPageView(props: {
     </span>
   )
 
+  // Front matter properties: text and dates edit in place, `status` picks a timeline status; lists, numbers and
+  // other values show as read-only text. Edits save with the page.
+  const properties = () => (
+    <Show when={Object.keys(state.properties).length > 0}>
+      <dl
+        aria-label={language.t("secondBrain.vault.properties")}
+        class="grid grid-cols-[minmax(0,160px)_minmax(0,1fr)] items-center gap-x-3 gap-y-1 rounded-[16px] bg-v2-background-bg-layer-01 px-3 py-2 text-[13px]"
+      >
+        <For each={Object.keys(state.properties)}>
+          {(key) => {
+            const value = () => state.properties[key]
+            const set = (next: string) => setState("properties", key, next)
+            return (
+              <>
+                <dt class="min-w-0 truncate text-[12px] text-v2-text-text-muted" title={key}>
+                  {key}
+                </dt>
+                <dd class="min-w-0">
+                  <Switch
+                    fallback={
+                      <span class="block truncate px-2 text-v2-text-text-base">
+                        {(() => {
+                          const current = value()
+                          return Array.isArray(current) ? current.join(", ") : String(current ?? "")
+                        })()}
+                      </span>
+                    }
+                  >
+                    <Match when={key === "status" && typeof value() === "string"}>
+                      <select
+                        class={propertyField}
+                        aria-label={key}
+                        value={String(value())}
+                        onChange={(event) => set(event.currentTarget.value)}
+                      >
+                        <Show when={!pageStatuses.some((status) => status === value())}>
+                          <option value={String(value())}>{String(value())}</option>
+                        </Show>
+                        <For each={pageStatuses}>
+                          {(status) => (
+                            <option value={status}>{language.t(`secondBrain.vault.status.${status}`)}</option>
+                          )}
+                        </For>
+                      </select>
+                    </Match>
+                    <Match when={typeof value() === "string" && /^\d{4}-\d{2}-\d{2}(T|$)/.test(String(value()))}>
+                      <input
+                        type="date"
+                        class={`${propertyField} tabular-nums`}
+                        aria-label={key}
+                        value={String(value()).slice(0, 10)}
+                        onInput={(event) => set(event.currentTarget.value)}
+                      />
+                    </Match>
+                    <Match when={typeof value() === "string"}>
+                      <input
+                        class={`${propertyField} w-full`}
+                        aria-label={key}
+                        value={String(value())}
+                        onInput={(event) => set(event.currentTarget.value)}
+                      />
+                    </Match>
+                  </Switch>
+                </dd>
+              </>
+            )
+          }}
+        </For>
+      </dl>
+    </Show>
+  )
+
   return (
     <article class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <header class="flex h-14 shrink-0 items-center gap-2 pl-3 pr-3 pt-1">
+      <header class="flex min-h-14 shrink-0 items-center gap-2 pl-3 pr-3 pt-3">
         <TooltipV2 value={language.t("secondBrain.vault.back")}>
           <IconButtonV2
             type="button"
@@ -230,7 +319,8 @@ export function NotesPageView(props: {
                 </span>
               )}
             </Show>
-            <Show when={state.updatedAt}>
+            {/* A hand-edited `updated_at` may not parse; the server then sends "". */}
+            <Show when={Number.isFinite(Date.parse(state.updatedAt))}>
               <span class="tabular-nums">
                 {language.t("secondBrain.vault.edited", {
                   time: new Date(state.updatedAt).toLocaleString(language.intl(), {
@@ -243,6 +333,7 @@ export function NotesPageView(props: {
               </span>
             </Show>
           </div>
+          {properties()}
 
           <RevealShow when={!!page.error}>
             {() => (

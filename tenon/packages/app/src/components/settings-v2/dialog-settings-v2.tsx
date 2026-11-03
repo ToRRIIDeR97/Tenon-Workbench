@@ -141,9 +141,11 @@ export const DialogSettings: Component<{
         <TabsV2.Content value="command-centre" class="settings-v2-panel">
           <SettingsCommandCentreV2 />
         </TabsV2.Content>
-        <TabsV2.Content value="accounts" class="settings-v2-panel">
-          <SettingsAccountsV2 />
-        </TabsV2.Content>
+        <Show when={platform.mail}>
+          <TabsV2.Content value="accounts" class="settings-v2-panel">
+            <SettingsAccountsV2 />
+          </TabsV2.Content>
+        </Show>
         <TabsV2.Content value="servers" class="settings-v2-panel">
           <SettingsServersV2 />
         </TabsV2.Content>

@@ -2,6 +2,7 @@ import { useLocation, useNavigate, useSearchParams } from "@solidjs/router"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
+import { RevealShow } from "@tenon/ui/v2/reveal"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { debounce } from "@solid-primitives/scheduled"
 import { createEffect, createMemo, createResource, For, on, Show } from "solid-js"
@@ -18,7 +19,9 @@ import {
   readProjectLog,
   readTimeline,
   SecondBrainRequestError,
+  writeTimeline,
   writeVaultPage,
+  type TimelineItem,
   type VaultPageInfo,
 } from "@/features/second-brain/client"
 import { NotesPageView } from "@/features/second-brain/notes-page"
@@ -81,9 +84,13 @@ export default function NotesPage() {
       return listVaultPages(client(target))
     },
   )
+  // Waits for the move above, which the server would otherwise make (and report) on this first vault read.
   const [conflicts] = createResource(
     () => directory() || undefined,
-    (target) => listVaultConflicts(client(target)).catch(() => []),
+    async (target) => {
+      await migrating.get(target)
+      return listVaultConflicts(client(target)).catch(() => [])
+    },
   )
   const scheduleQuery = debounce((value: string) => setState("query", value), 250)
   createEffect(
@@ -115,6 +122,24 @@ export default function NotesPage() {
   const projectKey = () => (directory() && projectId() ? ([directory(), projectId()] as const) : undefined)
   const [timeline, timelineActions] = createResource(projectKey, ([target, id]) => readTimeline(client(target), id))
   const [log, logActions] = createResource(projectKey, ([target, id]) => readProjectLog(client(target), id))
+
+  // Saves the Project's items over the revision on screen; a stale save reloads the timeline instead.
+  const saveItems = async (items: ReadonlyArray<TimelineItem>) => {
+    const key = projectKey()
+    const current = timeline.error ? undefined : timeline.latest
+    if (!key || !current) return language.t("secondBrain.error.request")
+    const result = await writeTimeline(client(key[0]), key[1], { items, expectedRevision: current.revision }).then(
+      (saved) => ({ saved, error: undefined }),
+      (error: unknown) => ({ saved: undefined, error }),
+    )
+    if (result.saved) {
+      if (projectKey()?.[1] === key[1] && projectKey()?.[0] === key[0]) timelineActions.mutate(result.saved)
+      return ""
+    }
+    const stale = result.error instanceof SecondBrainRequestError && result.error.status === 409
+    if (stale) void timelineActions.refetch()
+    return language.t(stale ? "secondBrain.vault.timeline.stale" : "secondBrain.error.request")
+  }
 
   const pageHref = (path: string) => `/notes?page=${encodeURIComponent(path)}`
   const openPage = (path: string) => navigate(pageHref(path), { state: { fromNotes: true } })
@@ -164,10 +189,12 @@ export default function NotesPage() {
 
   const tree = () => (
     <aside class="flex max-h-[240px] w-full shrink-0 flex-col overflow-hidden md:max-h-none md:w-[256px]">
-      <div class="flex h-14 shrink-0 items-center gap-2 pl-5 pr-3 pt-1">
-        <h1 class="min-w-0 flex-1 truncate text-[17px] leading-6 text-v2-text-text-base [font-weight:600]">
+      {/* Same height and top inset as PageHeader and the open page's header beside it; the title lines up with the
+          tree rows. An h2: a Project or page view holds the one h1. */}
+      <div class="flex min-h-14 shrink-0 items-center gap-2 pl-4 pr-3 pt-3">
+        <h2 class="min-w-0 flex-1 truncate text-[17px] leading-6 text-v2-text-text-base [font-weight:600]">
           {language.t("secondBrain.notes.title")}
-        </h1>
+        </h2>
         <TooltipV2 value={language.t("secondBrain.vault.newPage")}>
           <IconButtonV2
             type="button"
@@ -180,12 +207,14 @@ export default function NotesPage() {
           />
         </TooltipV2>
       </div>
-      <Show when={state.error}>
-        <p role="alert" class="px-5 pb-2 text-[12px] text-v2-text-text-critical">
-          {state.error}
-        </p>
-      </Show>
-      <label class="relative mx-3 mb-2 block shrink-0">
+      <RevealShow when={state.error}>
+        {(error) => (
+          <p role="alert" class="px-4 pb-2 text-[12px] text-v2-text-text-critical">
+            {error()}
+          </p>
+        )}
+      </RevealShow>
+      <label class="relative mx-2 mb-2 block shrink-0">
         <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-v2-icon-icon-muted">
           <Icon name="magnifying-glass" size="small" />
         </span>
@@ -261,59 +290,76 @@ export default function NotesPage() {
 
   const conflictBanner = () => (
     <>
-      <Show when={state.moved > 0}>
-        <div
-          role="status"
-          class="mx-4 mt-3 flex shrink-0 items-center gap-2 rounded-[16px] bg-v2-background-bg-layer-01 py-1.5 pl-4 pr-1.5 text-[13px] text-v2-text-text-base sm:mx-6"
-        >
-          <span class="min-w-0 flex-1">
-            {language.plural("secondBrain.vault.moved", state.moved, {
-              count: state.moved.toLocaleString(language.intl()),
-            })}
-          </span>
-          <IconButtonV2
-            type="button"
-            variant="ghost-muted"
-            class="!size-8"
-            aria-label={language.t("common.dismiss")}
-            icon={<Icon name="xmark-small" size="small" />}
-            onClick={() => setState("moved", 0)}
-          />
-        </div>
-      </Show>
+      <RevealShow when={state.moved > 0 && state.moved} class="shrink-0">
+        {(moved) => (
+          <div
+            role="status"
+            class="mx-4 mt-3 flex items-center gap-2 rounded-[16px] bg-v2-background-bg-layer-01 py-1.5 pl-4 pr-1.5 text-[13px] text-v2-text-text-base sm:mx-6"
+          >
+            <span class="min-w-0 flex-1">
+              {language.plural("secondBrain.vault.moved", moved(), {
+                count: moved().toLocaleString(language.intl()),
+              })}
+            </span>
+            <IconButtonV2
+              type="button"
+              variant="ghost-muted"
+              class="!size-8"
+              aria-label={language.t("common.dismiss")}
+              icon={<Icon name="xmark-small" size="small" />}
+              onClick={() => setState("moved", 0)}
+            />
+          </div>
+        )}
+      </RevealShow>
       {conflictCopies()}
     </>
   )
 
+  // Only Markdown copies open as pages; others (a sync copy of `project.json`, an image) are named only.
   const conflictCopies = () => (
-    <Show when={(conflicts.latest ?? []).length > 0}>
-      <div
-        role="status"
-        class="mx-4 mt-3 flex shrink-0 flex-col gap-1.5 rounded-[16px] bg-v2-background-bg-layer-01 px-4 py-3 text-[13px] sm:mx-6"
-      >
-        <p class="flex items-center gap-2 text-v2-text-text-base [font-weight:500]">
-          <Icon name="warning" size="small" class="text-v2-icon-icon-muted" />
-          {language.t("secondBrain.vault.conflicts.title")}
-        </p>
-        <p class="text-[12px] text-v2-text-text-muted">{language.t("secondBrain.vault.conflicts.body")}</p>
-        <ul class="flex flex-wrap gap-1.5">
-          <For each={conflicts.latest}>
-            {(conflict) => (
-              <li>
-                <button
-                  type="button"
-                  title={conflict.path}
-                  class="max-w-80 truncate rounded-full bg-v2-background-bg-layer-02 px-2.5 py-1 text-[12px] text-v2-text-text-base transition-colors duration-short ease-standard hover:bg-v2-background-bg-layer-03 motion-reduce:transition-none"
-                  onClick={() => openPage(conflict.path)}
-                >
-                  {conflictName(conflict.path)}
-                </button>
-              </li>
-            )}
-          </For>
-        </ul>
-      </div>
-    </Show>
+    <RevealShow when={(conflicts.latest ?? []).length > 0 && conflicts.latest} class="shrink-0">
+      {(list) => (
+        <div
+          role="status"
+          class="mx-4 mt-3 flex flex-col gap-1.5 rounded-[16px] bg-v2-background-bg-layer-01 px-4 py-3 text-[13px] sm:mx-6"
+        >
+          <p class="flex items-center gap-2 text-v2-text-text-base [font-weight:500]">
+            <Icon name="warning" size="small" class="text-v2-icon-icon-muted" />
+            {language.t("secondBrain.vault.conflicts.title")}
+          </p>
+          <p class="text-[12px] text-v2-text-text-muted">{language.t("secondBrain.vault.conflicts.body")}</p>
+          <ul class="flex flex-wrap gap-1.5">
+            <For each={list()}>
+              {(conflict) => (
+                <li>
+                  <Show
+                    when={conflict.path.toLowerCase().endsWith(".md")}
+                    fallback={
+                      <span
+                        title={conflict.path}
+                        class="block max-w-80 truncate rounded-full px-2.5 py-1 text-[12px] text-v2-text-text-muted"
+                      >
+                        {conflictName(conflict.path)}
+                      </span>
+                    }
+                  >
+                    <button
+                      type="button"
+                      title={conflict.path}
+                      class="max-w-80 truncate rounded-full bg-v2-background-bg-layer-02 px-2.5 py-1 text-[12px] text-v2-text-text-base transition-colors duration-short ease-standard hover:bg-v2-background-bg-layer-03 motion-reduce:transition-none"
+                      onClick={() => openPage(conflict.path)}
+                    >
+                      {conflictName(conflict.path)}
+                    </button>
+                  </Show>
+                </li>
+              )}
+            </For>
+          </ul>
+        </div>
+      )}
+    </RevealShow>
   )
 
   const overview = () => (
@@ -380,12 +426,13 @@ export default function NotesPage() {
               </PageEmpty>
             }
           >
-            <Show
-              when={pagePath() ? { path: pagePath(), directory: directory() } : undefined}
-              keyed
-              fallback={
-                <div class="flex min-h-0 min-w-0 flex-1 flex-col md:flex-row">
-                  {tree()}
+            {/* F: the page tree stays beside whatever is open, a Project's views or a page. */}
+            <div class="flex min-h-0 min-w-0 flex-1 flex-col md:flex-row">
+              {tree()}
+              <Show
+                when={pagePath() ? { path: pagePath(), directory: directory() } : undefined}
+                keyed
+                fallback={
                   <main class="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
                     {conflictBanner()}
                     <Show when={projectId()} fallback={overview()}>
@@ -424,31 +471,33 @@ export default function NotesPage() {
                             pages={pageList().filter((page) => page.projectId === item().id)}
                             pageHref={pageHref}
                             onPage={openPage}
+                            onSaveItems={saveItems}
+                            calendarHref={`/calendar?project=${encodeURIComponent(item().id)}`}
                           />
                         )}
                       </Show>
                     </Show>
                   </main>
-                </div>
-              }
-            >
-              {(open) => (
-                <div class="flex min-h-0 min-w-0 flex-1 flex-col">
-                  {conflictBanner()}
-                  <NotesPageView
-                    client={client(open.directory)}
-                    path={open.path}
-                    pages={pageList()}
-                    projects={projects()}
-                    onBack={back}
-                    onOpen={openPage}
-                    onSaved={storePage}
-                    onDirty={(dirty) => setState("dirty", dirty)}
-                    held={held()}
-                  />
-                </div>
-              )}
-            </Show>
+                }
+              >
+                {(open) => (
+                  <div class="flex min-h-0 min-w-0 flex-1 flex-col">
+                    {conflictBanner()}
+                    <NotesPageView
+                      client={client(open.directory)}
+                      path={open.path}
+                      pages={pageList()}
+                      projects={projects()}
+                      onBack={back}
+                      onOpen={openPage}
+                      onSaved={storePage}
+                      onDirty={(dirty) => setState("dirty", dirty)}
+                      held={held()}
+                    />
+                  </div>
+                )}
+              </Show>
+            </div>
           </Show>
         </Show>
       </div>
@@ -458,22 +507,32 @@ export default function NotesPage() {
 
 const migratedKey = "tenon.notes.migrated:"
 const migrated = new Set<string>()
+/** The migration request in flight per workspace, so other vault reads can wait for it. */
+const migrating = new Map<string, Promise<number>>()
 
 /**
  * Ask the server once per workspace to move pre-vault notes in (it backs them up and a repeat moves nothing).
- * A failed call is retried on the next visit; the page list then reports any lasting failure.
+ * A failed call is retried on the next visit; the page list then reports any lasting failure. The server also
+ * moves them on its first vault request, so this call mainly reports how many moved.
  */
-async function migrateOnce(client: Parameters<typeof migrateVault>[0], directory: string) {
-  if (migrated.has(directory) || storedFlag(directory)) return 0
-  const result = await migrateVault(client).catch(() => undefined)
-  if (!result) return 0
-  migrated.add(directory)
-  try {
-    localStorage.setItem(migratedKey + directory, "1")
-  } catch {
-    // Blocked storage only costs one repeat request next launch, which moves nothing.
-  }
-  return result.moved
+function migrateOnce(client: Parameters<typeof migrateVault>[0], directory: string) {
+  if (migrated.has(directory) || storedFlag(directory)) return Promise.resolve(0)
+  const running = migrating.get(directory)
+  if (running) return running.then(() => 0)
+  const request = migrateVault(client)
+    .then((result) => {
+      migrated.add(directory)
+      try {
+        localStorage.setItem(migratedKey + directory, "1")
+      } catch {
+        // Blocked storage only costs one repeat request next launch, which moves nothing.
+      }
+      return result.moved
+    })
+    .catch(() => 0)
+    .finally(() => migrating.delete(directory))
+  migrating.set(directory, request)
+  return request
 }
 
 function storedFlag(directory: string) {

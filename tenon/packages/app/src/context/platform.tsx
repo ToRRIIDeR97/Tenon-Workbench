@@ -279,10 +279,14 @@ type PlatformBase = {
   getVaultFolder?(): Promise<{ folder: string; chosen: boolean }>
   /**
    * Pick another vault folder in a native dialog; null when cancelled. It takes effect after a restart; a folder
-   * inside a repository or workspace is refused with `error: "inside_workspace"` (desktop only).
+   * inside a repository or workspace is refused with `error: "inside_workspace"`; a non-empty non-vault folder
+   * (`not_empty`), one inside or around the vault (`nested`) or a failed copy (`copy_failed`) too. The current
+   * vault is copied over and kept; `previous` names it (desktop only).
    */
   chooseVaultFolder?(): Promise<
-    { folder: string; restartRequired: boolean } | { error: "inside_workspace"; folder: string } | null
+    | { folder: string; restartRequired: boolean; previous?: string }
+    | { error: "inside_workspace" | "not_empty" | "nested" | "copy_failed"; folder: string }
+    | null
   >
 
   /** Get the configured default server URL (platform-specific) */

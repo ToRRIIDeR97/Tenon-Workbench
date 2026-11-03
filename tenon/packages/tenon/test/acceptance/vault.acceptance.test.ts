@@ -1,6 +1,6 @@
 import { afterEach, describe, expect } from "bun:test"
 import { NodeHttpServer, NodeServices } from "@effect/platform-node"
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises"
+import { cp, mkdir, readdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { Config, Effect, Layer } from "effect"
 import { HttpClient, HttpClientRequest, HttpClientResponse, HttpRouter, HttpServer } from "effect/unstable/http"
@@ -306,6 +306,118 @@ describe("vault", () => {
       expect(conflicts).toHaveLength(1)
       expect(conflicts[0].path).toContain("conflicted copy")
       expect(conflicts[0].original).toMatch(/Plan\.md$/)
+    }),
+  )
+
+  it.instance("AC-3.7 reports OneDrive machine-name copies and their original", () =>
+    Effect.gen(function* () {
+      const { root, headers } = yield* withVault
+      const vault = yield* request("/second-brain/vault", { headers }).pipe(
+        Effect.flatMap(json<{ workspace: { folder: string } }>),
+      )
+      yield* Effect.promise(async () => {
+        const folder = path.join(root, vault.workspace.folder)
+        await writeFile(path.join(folder, "Plan.md"), "# Plan")
+        await writeFile(path.join(folder, "Plan-DESKTOP-ABC123.md"), "# Plan v2")
+        await writeFile(path.join(folder, "Plan-LAPTOP-9F2K1-2.md"), "# Plan v3")
+        // An ordinary hyphenated name is not a conflict copy.
+        await writeFile(path.join(folder, "Desktop-setup.md"), "# Setup")
+      })
+      const conflicts = yield* request("/second-brain/vault/conflicts", { headers }).pipe(
+        Effect.flatMap(json<{ path: string; original: string }[]>),
+      )
+      expect(conflicts.map((item) => path.posix.basename(item.path)).sort()).toEqual([
+        "Plan-DESKTOP-ABC123.md",
+        "Plan-LAPTOP-9F2K1-2.md",
+      ])
+      for (const item of conflicts) expect(path.posix.basename(item.original)).toBe("Plan.md")
+      const pages = yield* request("/second-brain/vault/pages", { headers }).pipe(
+        Effect.flatMap(json<Page["info"][]>),
+      )
+      expect(pages.map((page) => page.path).sort()).toEqual(["Desktop-setup.md", "Plan.md"])
+    }),
+  )
+
+  it.instance("AC-3.6 runs one migration at a time, so a concurrent caller moves nothing", () =>
+    Effect.gen(function* () {
+      const { test, root, headers } = yield* withVault
+      yield* Effect.promise(async () => {
+        await mkdir(path.join(test.directory, "notes"), { recursive: true })
+        await writeFile(path.join(test.directory, "notes", "a.md"), "# A")
+        await writeFile(path.join(test.directory, "notes", "b.md"), "# B")
+      })
+      // The migrate route and the move a first vault request makes start together.
+      const [migrated, listed] = yield* Effect.all(
+        [
+          request("/second-brain/vault/migrate", { method: "POST", headers }).pipe(
+            Effect.flatMap(json<{ moved: number }>),
+          ),
+          request("/second-brain/vault/pages", { headers }).pipe(Effect.flatMap(json<Page["info"][]>)),
+        ],
+        { concurrency: "unbounded" },
+      )
+      expect([0, 2]).toContain(migrated.moved)
+      expect(listed.length === 0 || listed.length === 2).toBe(true)
+      const pages = yield* request("/second-brain/vault/pages", { headers }).pipe(Effect.flatMap(json<Page["info"][]>))
+      expect(pages.map((page) => page.path).sort()).toEqual(["a.md", "b.md"])
+      const backups = yield* Effect.promise(() => readdir(path.join(root, ".backups")))
+      expect(backups).toHaveLength(1)
+      expect(yield* Effect.promise(() => walk(path.join(test.directory, "notes")))).toEqual([])
+    }),
+  )
+
+  it.instance("AC-3.6 the pre-vault note route writes into the vault, never the workspace", () =>
+    Effect.gen(function* () {
+      const { test, root, headers } = yield* withVault
+      const saved = yield* request("/second-brain/note?path=notes%2FLegacy.md", {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({ body: "# Legacy\n\nfrom an old client", create: true }),
+      }).pipe(Effect.flatMap(json<{ info: { path: string; title: string }; revision: string }>))
+      expect(saved.info.path).toBe("Legacy.md")
+      expect(yield* Effect.promise(() => walk(path.join(test.directory, "notes")))).toEqual([])
+      const page = yield* request("/second-brain/vault/page?path=Legacy.md", { headers }).pipe(
+        Effect.flatMap(json<Page>),
+      )
+      expect(page.body).toContain("from an old client")
+      expect((yield* Effect.promise(() => walk(root))).some((file) => file.endsWith("Legacy.md"))).toBe(true)
+    }),
+  )
+
+  it.instance("AC-3.2 reads an unparsable updated_at as unknown", () =>
+    Effect.gen(function* () {
+      const { root, headers } = yield* withVault
+      const vault = yield* request("/second-brain/vault", { headers }).pipe(
+        Effect.flatMap(json<{ workspace: { folder: string } }>),
+      )
+      yield* Effect.promise(() =>
+        writeFile(path.join(root, vault.workspace.folder, "Odd.md"), "---\nupdated_at: last tuesday\n---\n# Odd\n"),
+      )
+      const page = yield* request("/second-brain/vault/page?path=Odd.md", { headers }).pipe(Effect.flatMap(json<Page>))
+      expect(page.info.updatedAt).toBe("")
+    }),
+  )
+
+  it.instance("AC-3.1 finds the workspace folder again after the vault is copied to a new root", () =>
+    Effect.gen(function* () {
+      const { root, headers } = yield* withVault
+      const first = yield* request("/second-brain/vault", { headers }).pipe(
+        Effect.flatMap(json<{ workspace: { id: string; folder: string } }>),
+      )
+      yield* request("/second-brain/vault/page?path=Kept.md", {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({ body: "# Kept", create: true }),
+      }).pipe(Effect.flatMap(json<Page>))
+      const moved = yield* tmpdirScoped()
+      yield* Effect.promise(() => cp(root, moved, { recursive: true }))
+      process.env.TENON_VAULT_DIR = moved
+      const second = yield* request("/second-brain/vault", { headers }).pipe(
+        Effect.flatMap(json<{ workspace: { id: string; folder: string } }>),
+      )
+      expect(second.workspace).toEqual(first.workspace)
+      const pages = yield* request("/second-brain/vault/pages", { headers }).pipe(Effect.flatMap(json<Page["info"][]>))
+      expect(pages.map((page) => page.path)).toEqual(["Kept.md"])
     }),
   )
 

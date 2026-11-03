@@ -49,9 +49,47 @@ export function timelineCounts(items: ReadonlyArray<TimelineItem>) {
   return { done: tasks.filter((item) => item.status === "done").length, total: tasks.length, next }
 }
 
-/** A free file name for a new page among the existing paths, e.g. `Untitled 2.md`. Strips characters paths refuse. */
+/**
+ * A month (`YYYY-MM`) as whole weeks from Monday, each day with the items on it: a task on every day from its
+ * start to its end, a milestone on its date. UTC calendar days, like `timelineLayout`.
+ */
+export function monthGrid(month: string, items: ReadonlyArray<TimelineItem>) {
+  const first = calendarDay(`${month}-01`) ?? calendarDay(new Date().toISOString())!
+  const start = first - ((new Date(first).getUTCDay() + 6) % 7) * day
+  const next = new Date(first)
+  next.setUTCMonth(next.getUTCMonth() + 1)
+  const count = Math.ceil((next.getTime() - start) / week)
+  const spans = items.flatMap((item) => {
+    const from = calendarDay(item.start) ?? calendarDay(item.end)
+    if (from === undefined) return []
+    const to = item.kind === "milestone" ? from : Math.max(from, calendarDay(item.end) ?? from)
+    return [{ item, from, to }]
+  })
+  return Array.from({ length: count }, (_, row) =>
+    Array.from({ length: 7 }, (_, column) => {
+      const time = start + (row * 7 + column) * day
+      return {
+        date: new Date(time).toISOString().slice(0, 10),
+        inMonth: time >= first && time < next.getTime(),
+        items: spans.filter((span) => span.from <= time && time <= span.to).map((span) => span.item),
+      }
+    }),
+  )
+}
+
+/** `YYYY-MM` moved by `offset` months. */
+export function shiftMonth(month: string, offset: number) {
+  const date = new Date(`${month}-01T00:00:00Z`)
+  date.setUTCMonth(date.getUTCMonth() + offset)
+  return date.toISOString().slice(0, 7)
+}
+
+/**
+ * A free file name for a new page among the existing paths, e.g. `Untitled 2.md`. Strips characters paths refuse;
+ * a title with nothing left falls back to `page`, a plain slug that needs no translation.
+ */
 export function newPagePath(title: string, folder: string, pages: ReadonlyArray<Pick<VaultPageInfo, "path">>) {
-  const base = title.replace(/[\u0000-\u001f<>:"/\\|?*]/g, "").trim() || "Untitled"
+  const base = title.replace(/[\u0000-\u001f<>:"/\\|?*]/g, "").trim() || "page"
   const taken = new Set(pages.map((page) => page.path.toLowerCase()))
   const prefix = folder ? `${folder}/` : ""
   const name = (index: number) => (index === 1 ? `${base}.md` : `${base} ${index}.md`)

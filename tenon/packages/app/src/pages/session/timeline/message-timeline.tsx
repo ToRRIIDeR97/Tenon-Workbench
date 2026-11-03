@@ -74,6 +74,7 @@ import { filterVirtualIndexes } from "./virtual-items"
 import { TurnStepsSummary, stepsSpan } from "@/components/session/turn-steps-summary"
 import { useData } from "@tenon/session-ui/context"
 import { AgentWritesInline } from "@/features/agent-writes/cards"
+import { type AgentWrite, useAgentWrites } from "@/features/agent-writes/store"
 
 const emptyMessages: MessageType[] = []
 const emptyParts: PartType[] = []
@@ -366,6 +367,33 @@ export function MessageTimeline(props: {
   const messageRowIndex = projection.messageRowIndex
   const timelineRowByKey = projection.rowByKey
   const timelineRows = projection.rows
+
+  // Agent writes (W5) by turn: a write's assistant message answers the user message whose turn shows it.
+  // Writes without a known turn (external harnesses, or a turn not loaded) go after the last turn.
+  const agentWrites = useAgentWrites()
+  const writesByTurn = createMemo(() => {
+    const id = sessionID()
+    const turns = new Map<string, AgentWrite[]>()
+    const loose: AgentWrite[] = []
+    if (!id || !agentWrites) return { turns, loose }
+    for (const write of agentWrites.forSession(id)) {
+      const message = write.messageID ? messageByID().get(write.messageID) : undefined
+      const turn = message?.role === "assistant" ? message.parentID : undefined
+      if (!turn || !messageLastRowIndex().has(turn)) {
+        loose.push(write)
+        continue
+      }
+      turns.set(turn, [...(turns.get(turn) ?? []), write])
+    }
+    return { turns, loose }
+  })
+  /** The writes a row shows below itself: its turn's, when it is the turn's last row. */
+  const rowWrites = (row: FramedTimelineRow) => {
+    const writes = writesByTurn().turns.get(row.userMessageID)
+    if (!writes) return undefined
+    const last = timelineRows()[messageLastRowIndex().get(row.userMessageID) ?? -1]
+    return last && TimelineRow.key(last) === TimelineRow.key(row) ? writes : undefined
+  }
 
   let prependAnchor: { key: string; offset: number } | undefined
   let prependAnchorFrame: number | undefined
@@ -1026,6 +1054,8 @@ export function MessageTimeline(props: {
         <div data-component="session-turn" class="min-w-0 w-full relative" style={{ height: "auto" }}>
           {input.children}
         </div>
+        {/* The turn's agent writes, after its last row; the virtual row's measurement observer picks up their growth. */}
+        <Show when={rowWrites(input.row())}>{(writes) => <AgentWritesInline writes={writes()} />}</Show>
       </div>
     )
   }
@@ -1524,10 +1554,8 @@ export function MessageTimeline(props: {
             />
           </Show>
         </div>
-        {/* Writes this thread's agent made through the Tenon app tools (W5), after the last turn. */}
-        <Show when={sessionID()} keyed>
-          {(id) => <AgentWritesInline sessionID={id} />}
-        </Show>
+        {/* Writes (W5) this thread's agent made without a known turn, after the last turn. */}
+        <AgentWritesInline writes={writesByTurn().loose} centered={props.centered} />
       </ScrollView>
       <SelectionReply
         root={listRoot}

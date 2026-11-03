@@ -14,7 +14,11 @@ import { CommandVault } from "./command-vault"
  * `enabled`, `harness`, `model` and `tools`. The page body is the prompt a Command Centre thread runs.
  *
  * When each routine last ran lives in this machine's app data (`routines-state.json`), never in the
- * vault: it is a cache, and a lost file only means the next scheduled time is the new baseline.
+ * vault: it is a cache, and a lost file only means the next scheduled time is the new baseline. The same
+ * file keeps the Command Centre's default model as the renderer last sent it, for scheduled runs.
+ *
+ * `harness` and `tools` are read but not honoured yet: every run uses the Tenon harness and its tools, and
+ * the Routines page says so on the row.
  */
 
 export const Info = Schema.Struct({
@@ -26,6 +30,8 @@ export const Info = Schema.Struct({
   nextRun: Schema.NullOr(Schema.String),
   lastRun: Schema.NullOr(Schema.String),
   lastStatus: Schema.NullOr(Schema.Literals(["running", "done", "failed"])),
+  /** Front-matter properties the page sets that runs don't honour yet (`harness`, `tools`). */
+  unsupported: Schema.Array(Schema.String),
 })
 export type Info = typeof Info.Type
 
@@ -170,8 +176,19 @@ function safeNextRun(schedule: string, after: Date) {
 // ---------------------------------------------------------------------------------------------
 // Run state (app data, machine-local)
 
-type State = { firstSeen?: number; lastRun?: number; lastStatus?: "running" | "done" | "failed" }
-type StateFile = { version: 1; routines: Record<string, State> }
+type State = {
+  /** Schedule baseline: when the routine was first seen, or last enabled or disabled. */
+  firstSeen?: number
+  /** The start of the last finished run (done or failed). */
+  lastRun?: number
+  lastStatus?: "running" | "done" | "failed"
+  /** The start of the run in flight. */
+  startedAt?: number
+  /** `enabled` as the last check saw it, so a change moves the baseline. */
+  enabled?: boolean
+}
+type ModelChoice = { providerID: string; modelID: string }
+type StateFile = { version: 1; routines: Record<string, State>; defaultModel?: ModelChoice }
 
 const stateLock = Semaphore.makeUnsafe(1)
 const stateFile = () => path.join(Global.make().data, "routines-state.json")
@@ -203,6 +220,48 @@ const updateState = (key: string, change: (current: State) => State) =>
       state.routines[key] = change(state.routines[key] ?? {})
       yield* writeState(state)
       return state.routines[key]
+    }),
+  )
+
+/** Mark a run started when `due` holds on the current state; false when it doesn't or one is in flight. */
+const claim = (key: string, now: Date, due: (current: State) => boolean) =>
+  stateLock.withPermits(1)(
+    Effect.gen(function* () {
+      const state = yield* readState
+      const current = state.routines[key] ?? {}
+      if (current.lastStatus === "running" || !due(current)) return false
+      state.routines[key] = { ...current, startedAt: now.getTime(), lastStatus: "running" }
+      yield* writeState(state)
+      return true
+    }),
+  )
+
+/**
+ * Mark runs no process finished (the app quit or crashed mid-run) as failed. Their `lastRun` is unchanged,
+ * so the missed time runs again on the next check. The scheduler calls it once when it starts.
+ */
+export const recoverInterrupted = stateLock.withPermits(1)(
+  Effect.gen(function* () {
+    const state = yield* readState
+    const stale = Object.keys(state.routines).filter((key) => state.routines[key].lastStatus === "running")
+    if (stale.length === 0) return 0
+    for (const key of stale)
+      state.routines[key] = { ...state.routines[key], lastStatus: "failed", startedAt: undefined }
+    yield* writeState(state)
+    return stale.length
+  }),
+)
+
+/** The Command Centre's default model as the renderer last sent it; scheduled runs fall back to it. */
+export const defaultModel = readState.pipe(Effect.map((state) => state.defaultModel))
+
+/** Remember the Command Centre's default model; none clears it. */
+export const rememberDefaultModel = (model: ModelChoice | undefined) =>
+  stateLock.withPermits(1)(
+    Effect.gen(function* () {
+      const state = yield* readState
+      if (state.defaultModel?.providerID === model?.providerID && state.defaultModel?.modelID === model?.modelID) return
+      yield* writeState({ ...state, defaultModel: model })
     }),
   )
 
@@ -258,6 +317,10 @@ const describe = (routine: Routine, state: State, now: Date): Info => {
     nextRun: next ? next.toISOString() : null,
     lastRun: state.lastRun === undefined ? null : new Date(state.lastRun).toISOString(),
     lastStatus: state.lastStatus ?? null,
+    unsupported: [
+      routine.harness && routine.harness !== "opencode" ? "harness" : undefined,
+      routine.tools ? "tools" : undefined,
+    ].filter((item): item is string => item !== undefined),
   }
 }
 
@@ -300,7 +363,10 @@ const appendInbox = Effect.fnUntraced(function* (
   yield* Effect.logWarning("Routine result was not added to the Inbox after three attempts", { routine: routine.id })
 })
 
-/** Run one routine now, record the run, file its reply in the Inbox and announce it. */
+/**
+ * Run one routine whose start is already recorded (`claim` or `runNow`), then record the run, file its reply
+ * in the Inbox and announce it. `lastRun` is written only once the run ends, done or failed.
+ */
 const runOne = Effect.fnUntraced(function* <E, R>(
   vault: KnowledgeVault.Vault,
   routine: Routine,
@@ -308,20 +374,21 @@ const runOne = Effect.fnUntraced(function* <E, R>(
   now: Date,
 ) {
   const key = stateKey(vault, routine.id)
-  yield* updateState(key, (current) => ({ ...current, lastRun: now.getTime(), lastStatus: "running" }))
+  const finish = (status: "done" | "failed") =>
+    updateState(key, (current) => ({ ...current, lastRun: now.getTime(), lastStatus: status, startedAt: undefined }))
   const result = yield* run(routine).pipe(
     Effect.catchCause((cause) =>
       Effect.logWarning("Routine run failed", { routine: routine.id, cause }).pipe(Effect.as(undefined)),
     ),
   )
   if (!result) {
-    yield* updateState(key, (current) => ({ ...current, lastStatus: "failed" }))
+    yield* finish("failed")
     return undefined
   }
   yield* appendInbox(vault, routine, result.text, now).pipe(
     Effect.catchCause((cause) => Effect.logWarning("Routine Inbox append failed", { routine: routine.id, cause })),
   )
-  yield* updateState(key, (current) => ({ ...current, lastStatus: "done" }))
+  yield* finish("done")
   GlobalBus.emit("event", {
     payload: { type: "routine.finished", properties: { routineId: routine.id, threadId: result.threadId } },
   })
@@ -330,29 +397,41 @@ const runOne = Effect.fnUntraced(function* <E, R>(
 
 /**
  * Run every enabled routine whose schedule had a time after its last run (or, never run, after the first
- * `runDue` that saw it) and at or before `now`. Each runs at most once however many times were missed.
+ * `runDue` that saw it, or after it was last enabled or disabled) and at or before `now`. Each runs at most
+ * once however many times were missed, and at most one run of a routine is in flight. Due routines run
+ * concurrently; the state is re-read under the lock before each starts, so a Run now is seen.
  */
 export const runDue = Effect.fn("Routines.runDue")(function* <E, R>(input: { now: Date; run: Run<E, R> }) {
   return yield* CommandVault.withVault((vault) =>
     Effect.gen(function* () {
       const routines = yield* routinesIn(vault)
-      const state = yield* readState
-      const ran: string[] = []
-      for (const routine of routines) {
-        const key = stateKey(vault, routine.id)
-        const current = state.routines[key] ?? {}
-        const since = current.lastRun ?? current.firstSeen
-        if (since === undefined) {
-          yield* updateState(key, (value) => ({ ...value, firstSeen: input.now.getTime() }))
-          continue
-        }
-        if (!routine.enabled) continue
-        const next = safeNextRun(routine.schedule, new Date(since))
-        if (!next || next.getTime() > input.now.getTime()) continue
-        yield* runOne(vault, routine, input.run, input.now)
-        ran.push(routine.id)
-      }
-      return { ran }
+      const at = input.now.getTime()
+      const ran = yield* Effect.forEach(
+        routines,
+        (routine) =>
+          Effect.gen(function* () {
+            const key = stateKey(vault, routine.id)
+            // A routine never seen, or enabled or disabled since the last check, takes now as its baseline.
+            let baseline = false
+            yield* updateState(key, (current) => {
+              baseline =
+                (current.firstSeen === undefined && current.lastRun === undefined) ||
+                (current.enabled !== undefined && current.enabled !== routine.enabled)
+              return { ...current, enabled: routine.enabled, ...(baseline ? { firstSeen: at } : {}) }
+            })
+            if (baseline || !routine.enabled) return undefined
+            const claimed = yield* claim(key, input.now, (current) => {
+              const since = Math.max(current.lastRun ?? -Infinity, current.firstSeen ?? -Infinity)
+              const next = Number.isFinite(since) ? safeNextRun(routine.schedule, new Date(since)) : undefined
+              return next !== undefined && next.getTime() <= at
+            })
+            if (!claimed) return undefined
+            yield* runOne(vault, routine, input.run, input.now)
+            return routine.id
+          }),
+        { concurrency: "unbounded" },
+      )
+      return { ran: ran.filter((id): id is string => id !== undefined) }
     }),
   )
 })
@@ -369,12 +448,24 @@ export const runNow = Effect.fn("Routines.runNow")(function* <E, R, E2, R2>(inpu
     Effect.gen(function* () {
       const routine = (yield* routinesIn(vault)).find((item) => item.id === input.id)
       if (!routine) return yield* new NotFoundError({ id: input.id })
-      const started = yield* input.start(routine)
+      const key = stateKey(vault, routine.id)
+      const now = new Date()
+      yield* updateState(key, (current) => ({ ...current, startedAt: now.getTime(), lastStatus: "running" }))
+      const started = yield* input.start(routine).pipe(
+        Effect.tapCause(() =>
+          updateState(key, (current) => ({
+            ...current,
+            lastRun: now.getTime(),
+            lastStatus: "failed",
+            startedAt: undefined,
+          })),
+        ),
+      )
       yield* runOne(
         vault,
         routine,
         () => started.reply.pipe(Effect.map((text) => ({ threadId: started.threadId, text }))),
-        new Date(),
+        now,
       ).pipe(Effect.forkDetach)
       return { threadId: started.threadId }
     }),

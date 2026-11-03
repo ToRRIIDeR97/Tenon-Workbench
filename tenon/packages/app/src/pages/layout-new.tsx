@@ -71,10 +71,10 @@ export default function NewLayout(props: ParentProps) {
               <Show when={location.pathname !== "/command"}>
                 <CommandStrip />
               </Show>
+              {/* Writes by agents in other threads (W4), centred on the page like K3; the writing thread
+                shows them inline instead. */}
+              <AgentWritePill />
             </main>
-            {/* Writes by agents in other threads (W4), below the titlebar's drag strip; the writing
-              thread shows them inline instead. */}
-            <AgentWritePill />
           </div>
         </CommandCentreProvider>
         {import.meta.env.DEV && state.debugTools && <DebugBar inline />}

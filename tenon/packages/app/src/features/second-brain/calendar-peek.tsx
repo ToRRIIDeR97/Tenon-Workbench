@@ -103,7 +103,7 @@ export function TaskCheck(props: {
       <Icon
         name="check"
         size="small"
-        class="pointer-events-none absolute scale-50 text-v2-icon-icon-contrast opacity-0 transition-[opacity,transform] peer-checked:scale-100 peer-checked:opacity-100 motion-reduce:transition-none"
+        class="pointer-events-none absolute scale-50 text-v2-icon-icon-contrast opacity-0 transition-[opacity,translate,scale] peer-checked:scale-100 peer-checked:opacity-100 motion-reduce:transition-none"
       />
     </span>
   )

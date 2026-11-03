@@ -124,8 +124,17 @@ export function SettingsAccountsV2() {
                 {language.t("secondBrain.mail.settings.addImap")}
               </ButtonV2>
             </div>
-            <Show when={available.latest && (!available.latest.gmail || !available.latest.outlook)}>
+            {/* Name only the providers this build has no sign-in for; the others' buttons work. */}
+            <Show when={available.latest && !available.latest.gmail && !available.latest.outlook}>
               <p class="text-12-regular text-text-weak">{language.t("secondBrain.mail.settings.unconfigured")}</p>
+            </Show>
+            <Show when={available.latest && !available.latest.gmail && available.latest.outlook}>
+              <p class="text-12-regular text-text-weak">{language.t("secondBrain.mail.settings.unconfigured.gmail")}</p>
+            </Show>
+            <Show when={available.latest && available.latest.gmail && !available.latest.outlook}>
+              <p class="text-12-regular text-text-weak">
+                {language.t("secondBrain.mail.settings.unconfigured.outlook")}
+              </p>
             </Show>
             <Show when={state.imap}>
               <form

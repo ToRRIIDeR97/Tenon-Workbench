@@ -6,7 +6,7 @@ import { SessionPrompt } from "@/session/prompt"
 import { Session } from "@/session/session"
 import { Global } from "@tenon/core/global"
 import { LocationServiceMap } from "@tenon/core/location-services"
-import { Effect, Layer, Schedule } from "effect"
+import { Effect, Layer, Schedule, Scope } from "effect"
 import { readFile, stat } from "node:fs/promises"
 import path from "node:path"
 import { CommandThreads } from "./command-threads"
@@ -15,7 +15,9 @@ import { Routines } from "./routines"
 /**
  * Runs due routines at server start and then every minute, for each workspace that has a vault folder
  * on this machine (the vault's machine map in app data). Missed times catch up once (Routines.runDue).
- * Only a listening server starts it, never the in-process test routes.
+ * Each workspace's check runs in the background, so a long routine never holds up the next minute; runs
+ * left "running" by a previous process are marked failed at start and retried. Only a listening server
+ * starts it, never the in-process test routes.
  */
 
 /** Workspace directories with a vault folder under the current root, from `vault-machine.json`. */
@@ -51,6 +53,7 @@ export const layer = Layer.effectDiscard(
     const sessions = yield* Session.Service
     const prompts = yield* SessionPrompt.Service
     const locations = yield* LocationServiceMap.Service
+    const scope = yield* Scope.Scope
     const provide = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
       effect.pipe(
         Effect.provideService(InstanceStore.Service, store),
@@ -58,17 +61,24 @@ export const layer = Layer.effectDiscard(
         Effect.provideService(SessionPrompt.Service, prompts),
         Effect.provideService(LocationServiceMap.Service, locations),
       )
+    // The routine's own model first, then the Command Centre's default model.
     const run: Routines.Run<unknown> = (routine) =>
-      provide(
-        CommandThreads.start({ prompt: routine.prompt, title: routine.name, model: modelChoice(routine.model) }).pipe(
-          Effect.flatMap((started) => started.reply.pipe(Effect.map((text) => ({ threadId: started.threadId, text })))),
-        ),
-      )
+      Effect.gen(function* () {
+        const model = modelChoice(routine.model) ?? (yield* Routines.defaultModel)
+        const started = yield* provide(CommandThreads.start({ prompt: routine.prompt, title: routine.name, model }))
+        const text = yield* provide(started.reply)
+        return { threadId: started.threadId, text }
+      })
+    yield* Routines.recoverInterrupted.pipe(
+      Effect.catchCause((cause) => Effect.logWarning("Routines recovery failed", { cause })),
+    )
     const tick = Effect.gen(function* () {
+      const now = new Date()
       for (const directory of yield* workspaces) {
-        yield* store
-          .provide({ directory }, provide(Routines.runDue({ now: new Date(), run })))
-          .pipe(Effect.catchCause((cause) => Effect.logWarning("Routines check failed", { cause })))
+        yield* store.provide({ directory }, provide(Routines.runDue({ now, run }))).pipe(
+          Effect.catchCause((cause) => Effect.logWarning("Routines check failed", { cause })),
+          Effect.forkIn(scope),
+        )
       }
     })
     yield* tick.pipe(
