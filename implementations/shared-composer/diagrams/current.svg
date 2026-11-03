@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="300" viewBox="0 0 680 300" role="img">
+  <title>Current: four composers</title>
+  <desc>Home, the Command Centre page and the command strip each build their own text box and submit logic; only threads use PromptInputV2Composer.</desc>
+  <style>
+    .b{fill:#F1EFE8;stroke:#888780;stroke-width:.5}.d{fill:#FAECE7;stroke:#D85A30;stroke-width:.5}
+    .t{font:500 14px sans-serif;fill:#2C2C2A}.s{font:400 12px sans-serif;fill:#5F5E5A}.a{stroke:#888780;stroke-width:1}
+    @media (prefers-color-scheme:dark){.b{fill:#2C2C2A;stroke:#B4B2A9}.d{fill:#4A1B0C;stroke:#F0997B}.t{fill:#F1EFE8}.s{fill:#D3D1C7}}
+  </style>
+  <defs><marker id="h" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M2 1L8 5L2 9" fill="none" stroke="#888780" stroke-width="1.5"/></marker></defs>
+  <rect class="b" x="40" y="30" width="135" height="56" rx="8"/><text class="t" x="107" y="52" text-anchor="middle">Home</text><text class="s" x="107" y="70" text-anchor="middle">brain-home.tsx</text>
+  <rect class="b" x="195" y="30" width="135" height="56" rx="8"/><text class="t" x="262" y="52" text-anchor="middle">Command page</text><text class="s" x="262" y="70" text-anchor="middle">command-centre.tsx</text>
+  <rect class="b" x="350" y="30" width="135" height="56" rx="8"/><text class="t" x="417" y="52" text-anchor="middle">Command strip</text><text class="s" x="417" y="70" text-anchor="middle">command-strip.tsx</text>
+  <rect class="b" x="505" y="30" width="135" height="56" rx="8"/><text class="t" x="572" y="52" text-anchor="middle">Threads</text><text class="s" x="572" y="70" text-anchor="middle">session, new-session</text>
+  <rect class="d" x="40" y="120" width="135" height="56" rx="8"/><text class="t" x="107" y="142" text-anchor="middle">Own textarea</text><text class="s" x="107" y="160" text-anchor="middle">own Enter + guards</text>
+  <rect class="d" x="195" y="120" width="135" height="56" rx="8"/><text class="t" x="262" y="142" text-anchor="middle">Own input</text><text class="s" x="262" y="160" text-anchor="middle">no dictation</text>
+  <rect class="d" x="350" y="120" width="135" height="56" rx="8"/><text class="t" x="417" y="142" text-anchor="middle">Own input</text><text class="s" x="417" y="160" text-anchor="middle">copy of page form</text>
+  <rect class="b" x="505" y="120" width="135" height="56" rx="8"/><text class="t" x="572" y="142" text-anchor="middle">PromptInputV2</text><text class="s" x="572" y="160" text-anchor="middle">rich composer</text>
+  <rect class="b" x="40" y="210" width="135" height="56" rx="8"/><text class="t" x="107" y="232" text-anchor="middle">drafts.create</text><text class="s" x="107" y="250" text-anchor="middle">starts a thread</text>
+  <rect class="b" x="195" y="210" width="290" height="56" rx="8"/><text class="t" x="340" y="232" text-anchor="middle">centre.send</text><text class="s" x="340" y="250" text-anchor="middle">features/command-centre</text>
+  <rect class="b" x="505" y="210" width="135" height="56" rx="8"/><text class="t" x="572" y="232" text-anchor="middle">createPromptSubmit</text><text class="s" x="572" y="250" text-anchor="middle">prompt-input/submit</text>
+  <line class="a" x1="107" y1="86" x2="107" y2="116" marker-end="url(#h)"/><line class="a" x1="262" y1="86" x2="262" y2="116" marker-end="url(#h)"/>
+  <line class="a" x1="417" y1="86" x2="417" y2="116" marker-end="url(#h)"/><line class="a" x1="572" y1="86" x2="572" y2="116" marker-end="url(#h)"/>
+  <line class="a" x1="107" y1="176" x2="107" y2="206" marker-end="url(#h)"/><line class="a" x1="262" y1="176" x2="262" y2="206" marker-end="url(#h)"/>
+  <line class="a" x1="417" y1="176" x2="417" y2="206" marker-end="url(#h)"/><line class="a" x1="572" y1="176" x2="572" y2="206" marker-end="url(#h)"/>
+</svg>
