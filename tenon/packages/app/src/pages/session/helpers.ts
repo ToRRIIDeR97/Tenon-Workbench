@@ -184,13 +184,6 @@ export const createOpenSessionFileTab = (input: {
   }
 }
 
-export const getTabReorderIndex = (tabs: readonly string[], from: string, to: string) => {
-  const fromIndex = tabs.indexOf(from)
-  const toIndex = tabs.indexOf(to)
-  if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return undefined
-  return toIndex
-}
-
 export const createSizing = () => {
   const [state, setState] = createStore({ active: false })
   let t: number | undefined

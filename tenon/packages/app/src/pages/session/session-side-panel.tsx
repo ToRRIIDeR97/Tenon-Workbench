@@ -1,20 +1,11 @@
 import { For, Match, Show, Switch, createEffect, createMemo, on, onCleanup, onMount, type JSX } from "solid-js"
 import { usePlatform } from "@/context/platform"
-import { createStore } from "solid-js/store"
 import { createMediaQuery } from "@solid-primitives/media"
 import { DragDropProvider as DndKitProvider, PointerSensor } from "@dnd-kit/solid"
 import { isSortable } from "@dnd-kit/solid/sortable"
 import { Accessibility, AutoScroller, Feedback, PointerActivationConstraints } from "@dnd-kit/dom"
 import { RestrictToHorizontalAxis } from "@dnd-kit/abstract/modifiers"
 import { RestrictToElement } from "@dnd-kit/dom/modifiers"
-import {
-  DragDropProvider,
-  DragDropSensors,
-  DragOverlay,
-  SortableProvider,
-  closestCenter,
-  type DragEvent,
-} from "@thisbeyond/solid-dnd"
 import { ResizeHandle } from "@tenon/ui/resize-handle"
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
@@ -24,7 +15,6 @@ import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { ViewSwitch } from "@tenon/ui/v2/view-switch"
 import type { SnapshotFileDiff, VcsFileDiff } from "@opencode-ai/sdk/v2"
 import type { FileDiffInfo } from "@opencode-ai/client/promise"
-import { ConstrainDragYAxis, getDraggableId } from "@/utils/solid-dnd"
 import { useDialog } from "@tenon/ui/context/dialog"
 
 import FileTree from "@/components/file-tree"
@@ -34,7 +24,7 @@ import { SessionContextUsage } from "@/components/session-context-usage"
 const reviewTabID = "session-side-panel-review-tab"
 const reviewTabPanelID = "session-side-panel-review-tabpanel"
 const fileBrowserTabPanelID = "session-side-panel-file-browser-tabpanel"
-import { SessionContextTab, SortableTab, SortableTabV2, FileVisual } from "@/components/session"
+import { SessionContextTab, SortableTabV2 } from "@/components/session"
 import { OpenInAppV2 } from "@/components/session/open-in-app-v2"
 import { SessionTabClose } from "@/components/session/session-tab-close"
 import { SubagentTab, SubagentTabLabel, useSubagentParts } from "@/components/session/subagent-tab"
@@ -54,7 +44,6 @@ import {
   agentTabPartID,
   createOpenSessionFileTab,
   createSessionTabs,
-  getTabReorderIndex,
   shouldShowFileTree,
   type Sizing,
 } from "@/pages/session/helpers"
@@ -268,30 +257,6 @@ export function SessionSidePanel(props: {
   const openFileKeybind = createMemo(() => command.keybindParts("file.open"))
   const reviewToggleKeybind = createMemo(() => command.keybindParts("review.toggle"))
   const closeTabKeybind = createMemo(() => command.keybindParts("tab.close"))
-  const [store, setStore] = createStore({
-    activeDraggable: undefined as string | undefined,
-  })
-
-  const handleDragStart = (event: unknown) => {
-    const id = getDraggableId(event)
-    if (!id) return
-    setStore("activeDraggable", id)
-  }
-
-  const handleDragOver = (event: DragEvent) => {
-    const { draggable, droppable } = event
-    if (!draggable || !droppable) return
-
-    const currentTabs = tabs().all()
-    const toIndex = getTabReorderIndex(currentTabs, draggable.id.toString(), droppable.id.toString())
-    if (toIndex === undefined) return
-    tabs().move(draggable.id.toString(), toIndex)
-  }
-
-  const handleDragEnd = () => {
-    setStore("activeDraggable", undefined)
-  }
-
   createEffect(() => {
     if (!file.ready()) return
 
@@ -616,100 +581,7 @@ export function SessionSidePanel(props: {
             <Show when={reviewOpen()}>
               <div class="relative min-w-0 h-full flex-1 overflow-hidden bg-v2-background-bg-base">
                 <div class="size-full min-w-0 h-full bg-v2-background-bg-base">
-                  <Show
-                    when={props.fileBrowserState}
-                    fallback={
-                      <DragDropProvider
-                        onDragStart={handleDragStart}
-                        onDragEnd={handleDragEnd}
-                        onDragOver={handleDragOver}
-                        collisionDetector={closestCenter}
-                      >
-                        <DragDropSensors />
-                        <ConstrainDragYAxis />
-                        <TabsV2 class="thread-tabs" value={activeTab()} onChange={activateTab}>
-                          <div class="sticky top-0 shrink-0 flex bg-v2-background-bg-base px-2.5 pt-2.5 pb-1.5">
-                            <TabsV2.List
-                              ref={(el: HTMLDivElement) => {
-                                const stop = createFileTabListSync({ el, contextOpen })
-                                onCleanup(stop)
-                              }}
-                            >
-                              <Show when={reviewTab() && props.canReview()}>
-                                <TabsV2.Trigger
-                                  value="review"
-                                  id={reviewTabID}
-                                  aria-controls={activeTab() === "review" ? reviewTabPanelID : undefined}
-                                >
-                                  <span>{language.t("session.tab.review")}</span>
-                                  <Show when={props.hasReview()}>
-                                    <span class="tabular-nums opacity-80">{props.reviewCount()}</span>
-                                  </Show>
-                                </TabsV2.Trigger>
-                              </Show>
-                              {contextTrigger()}
-                              {canvasTrigger()}
-                              {browserTrigger()}
-                              {deviceTrigger()}
-                              {agentTriggers()}
-                              <SortableProvider ids={openedTabs()}>
-                                <For each={panelTabs()}>
-                                  {(tab) => (
-                                    <Show
-                                      when={tab === SESSION_OPEN_FILE_TAB}
-                                      fallback={
-                                        <SortableTab
-                                          tab={tab}
-                                          temporary={temporaryTab() === tab}
-                                          onTabClose={tabs().close}
-                                          onTabDoubleClick={temporaryTab() === tab ? openTab : undefined}
-                                        />
-                                      }
-                                    >
-                                      {openFileTrigger()}
-                                    </Show>
-                                  )}
-                                </For>
-                              </SortableProvider>
-                              {openBrowserButton()}
-                              {openFileButton(() => {
-                                void import("@/components/dialog-select-file").then((x) => {
-                                  dialog.show(() => <x.DialogSelectFile mode="files" onOpenFile={showAllFiles} />)
-                                })
-                              })}
-                            </TabsV2.List>
-                            {hideButton()}
-                          </div>
-
-                          {reviewContent()}
-                          {selectToOpen()}
-                          {contextContent()}
-                          {canvasContent()}
-                          {browserContent()}
-                          {deviceContent()}
-                          {agentContent()}
-
-                          <Show when={activeFileTab()} keyed>
-                            {(tab) => <FileTabContent tab={tab} />}
-                          </Show>
-                        </TabsV2>
-                        <DragOverlay>
-                          <Show when={store.activeDraggable} keyed>
-                            {(tab) => {
-                              const path = file.pathFromTab(tab)
-                              return (
-                                <div data-component="tabs-drag-preview">
-                                  <Show when={path}>
-                                    {(p) => <FileVisual active path={p()} temporary={temporaryTab() === tab} />}
-                                  </Show>
-                                </div>
-                              )
-                            }}
-                          </Show>
-                        </DragOverlay>
-                      </DragDropProvider>
-                    }
-                  >
+                  <Show when={props.fileBrowserState}>
                     <DndKitProvider
                       sensors={[
                         PointerSensor.configure({
