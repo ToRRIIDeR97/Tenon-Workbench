@@ -58,12 +58,12 @@ export const SettingsHarnessesV2: Component<{
   const queryClient = useQueryClient()
   const layout = useLayout()
   // Harness settings are global; the routes only need some valid location, so fall back from the
-  // current tab to the home selection, any known project, then the home directory.
+  // current tab to the open workspace, then the home directory.
   const directory = createMemo(
     () =>
       props.directory() ||
-      layout.home.selection().directory ||
-      layout.projects.list()[0]?.worktree ||
+      // The open workspace, never the raw selection: a removed workspace's folder may be gone (404).
+      layout.home.workspace() ||
       serverSync().data.path.home ||
       undefined,
   )
