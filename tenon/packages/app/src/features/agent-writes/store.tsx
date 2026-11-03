@@ -135,8 +135,7 @@ export function writingHold(startedAt: number, now: number, reduced: boolean) {
 function createAgentWrites() {
   const platform = usePlatform()
   const serverSDK = useServerSDK()
-  // `focused`: a thread a page shows outside the thread route (the Command Centre's open thread).
-  const [state, setState] = createStore<{ writes: AgentWrite[]; focused?: string }>({ writes: [] })
+  const [state, setState] = createStore<{ writes: AgentWrite[] }>({ writes: [] })
 
   const apply = (write: NonNullable<ReturnType<typeof parseAgentWrite>>) =>
     setState(
@@ -191,8 +190,6 @@ function createAgentWrites() {
     forSession: (sessionID: string) => state.writes.filter((write) => write.sessionID === sessionID),
     hide: (id: string) => update(id, { hidden: true }),
     /** The thread a page shows inline outside `/…/session/<id>`; its writes get no pill. */
-    focused: () => state.focused,
-    focus: (sessionID: string | undefined) => setState("focused", sessionID),
     async undo(id: string) {
       const write = state.writes.find((item) => item.id === id)
       if (!write?.undo || write.undoState === "pending" || write.undoState === "undone") return
