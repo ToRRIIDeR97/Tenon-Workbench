@@ -34,7 +34,11 @@ async function start(page: Page, events: unknown[] = []) {
   )
 }
 const strip = (page: Page) => page.locator("[data-command-strip]")
-const toggleKey = process.platform === "darwin" ? "Meta+j" : "Control+j"
+// The app picks Ctrl or Cmd from navigator.platform, which the "Desktop Chrome" device reports as Win32 on any host.
+const toggleStrip = async (page: Page) => {
+  const mac = await page.evaluate(() => /(Mac|iPod|iPhone|iPad)/.test(navigator.platform))
+  await page.keyboard.press(mac ? "Meta+j" : "Control+j")
+}
 
 test.use({ viewport: { width: 1360, height: 860 } })
 
@@ -66,13 +70,13 @@ test("AC-7.3 Ctrl/Cmd+J toggles the slim strip; Esc hides it; Open full goes to 
   await expect(strip(page)).toHaveAttribute("data-state", "closed")
   const closed = await strip(page).evaluate((element) => element.getBoundingClientRect().height)
   expect(closed).toBeLessThanOrEqual(24)
-  await page.keyboard.press(toggleKey)
+  await toggleStrip(page)
   await expect(strip(page)).toHaveAttribute("data-state", "open")
   await expect.poll(() => strip(page).evaluate((element) => element.getBoundingClientRect().height)).toBeLessThanOrEqual(90)
   await expect(strip(page).getByRole("textbox")).toBeVisible()
   await page.keyboard.press("Escape")
   await expect(strip(page)).toHaveAttribute("data-state", "closed")
-  await page.keyboard.press(toggleKey)
+  await toggleStrip(page)
   await strip(page).getByRole("button", { name: "Open full" }).click()
   await expect(page).toHaveURL(/\/command(\?thread=.*)?$/)
 })
@@ -80,14 +84,14 @@ test("AC-7.3 Ctrl/Cmd+J toggles the slim strip; Esc hides it; Open full goes to 
 test("AC-7.3 the strip is not offered on the Command Centre page itself", async ({ page }) => {
   await start(page)
   await page.goto("/command")
-  await page.keyboard.press(toggleKey)
+  await toggleStrip(page)
   await expect(strip(page)).toHaveCount(0)
 })
 
 test("AC-7.3 the strip animates with the motion tokens", async ({ page }) => {
   await start(page)
   await page.goto("/notes")
-  await page.keyboard.press(toggleKey)
+  await toggleStrip(page)
   const opening = await strip(page)
     .locator("[data-command-strip-card]")
     .evaluate((element) => getComputedStyle(element).transitionDuration)

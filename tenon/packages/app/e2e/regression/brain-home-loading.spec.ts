@@ -89,7 +89,14 @@ test("Home remains usable during loading and reuses fresh harness availability",
   })
   const home = page.getByRole("heading", { name: "Home", exact: true })
   const prompt = page.getByRole("textbox", { name: "Start a Run", exact: true })
-  const selector = page.getByRole("button", { name: "Harness", exact: true })
+  const selector = page.locator('[data-action="prompt-model-pill"]')
+  // The pill's text is the model; its Harness row names the harness.
+  const expectHarness = async (name: string) => {
+    await selector.click()
+    await expect(page.locator('[data-component="prompt-model-pill-panel"] [data-step="harness"]')).toContainText(name)
+    await page.keyboard.press("Escape")
+    await expect(page.locator('[data-component="prompt-model-pill-panel"]')).toHaveCount(0)
+  }
   const start = page.getByRole("button", { name: "Start", exact: true })
   try {
     await page.goto("/")
@@ -119,7 +126,7 @@ test("Home remains usable during loading and reuses fresh harness availability",
     await expect(start).toBeEnabled()
     harness.resolve()
     await expect(selector).toBeEnabled()
-    await expect(selector).toHaveText("OpenCode")
+    await expectHarness("OpenCode")
     await expect(start).toBeEnabled()
     await page.screenshot({ path: testInfo.outputPath("home-loaded.png"), fullPage: true })
 
@@ -127,7 +134,7 @@ test("Home remains usable during loading and reuses fresh harness availability",
     await expect(home).not.toBeVisible()
     await page.locator('[data-sidebar-item="overview"]').click()
     await expect(selector).toBeEnabled()
-    await expect(selector).toHaveText("OpenCode")
+    await expectHarness("OpenCode")
     expect(harnessRequests).toBe(1)
 
     // Advance freshness without a sleep. A stale result stays usable during refresh.
@@ -138,7 +145,7 @@ test("Home remains usable during loading and reuses fresh harness availability",
     await page.locator('[data-sidebar-item="overview"]').click()
     await requested
     await expect(selector).toBeEnabled()
-    await expect(selector).toHaveText("OpenCode")
+    await expectHarness("OpenCode")
     await prompt.fill("A draft during background refresh")
     await expect(start).toBeEnabled()
     expect(harnessRequests).toBe(2)
