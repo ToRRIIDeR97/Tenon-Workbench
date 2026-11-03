@@ -24,10 +24,5 @@ declare module "*.mp4" {
   export default src
 }
 
-export declare module "solid-js" {
-  namespace JSX {
-    interface Directives {
-      sortable: true
-    }
-  }
-}
+// Keeps this file a module, as it was when it declared the solid-dnd directive.
+export {}

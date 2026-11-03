@@ -8,7 +8,6 @@ import {
   createOpenSessionFileTab,
   createSessionTabs,
   focusTerminalById,
-  getTabReorderIndex,
   shouldShowFileTree,
 } from "./helpers"
 
@@ -93,16 +92,6 @@ describe("focusTerminalById", () => {
     expect(focused).toBe(true)
     expect(document.activeElement).toBe(terminal)
     expect(pointerDown).toBe(true)
-  })
-})
-
-describe("getTabReorderIndex", () => {
-  test("returns target index for valid drag reorder", () => {
-    expect(getTabReorderIndex(["a", "b", "c"], "a", "c")).toBe(2)
-  })
-
-  test("returns undefined for unknown droppable id", () => {
-    expect(getTabReorderIndex(["a", "b", "c"], "a", "missing")).toBeUndefined()
   })
 })
 

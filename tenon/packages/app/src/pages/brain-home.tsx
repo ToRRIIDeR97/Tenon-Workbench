@@ -25,6 +25,7 @@ import { type CalendarEvent, type PlannerTask } from "@/features/second-brain/cl
 import { useBrainProjects } from "@/components/sidebar/sidebar-controller"
 import { createHomeController } from "@/pages/home/home-controller"
 import { createHomeSessionsController } from "@/pages/home/home-sessions-controller"
+import { agentRunStatus } from "@/pages/activity-runs"
 import { Harness } from "@tenon/schema/harness"
 import {
   harnessAssistantDirectory,
@@ -196,10 +197,12 @@ export default function BrainHomePage() {
   const freshRun = createFreshItems()
   const runningSessions = createMemo(() => {
     const data = tenonHome.server.focusedSync().session.data
-    return tenonSessions.data.records().filter((record) => {
-      const status = data.session_status[record.session.id]
-      return (status?.type ?? "idle") !== "idle" || (data.permission[record.session.id]?.length ?? 0) > 0
-    })
+    return tenonSessions.data
+      .records()
+      .filter(
+        (record) =>
+          !!agentRunStatus(data.session_status[record.session.id], data.permission[record.session.id]?.length ?? 0),
+      )
   })
 
   // The built-in agent needs no check, so only another harness waits for the list. The thread page

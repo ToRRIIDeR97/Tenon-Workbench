@@ -1,12 +1,32 @@
 import { createMemo, Show } from "solid-js"
 import type { JSX } from "solid-js"
 import { useSortable } from "@dnd-kit/solid/sortable"
+import { FileIcon } from "@tenon/ui/file-icon"
 import { TabsV2 } from "@tenon/ui/v2/tabs-v2"
+import { getFilename } from "@tenon/core/util/path"
 import { useFile } from "@/context/file"
 import { useLanguage } from "@/context/language"
 import { useCommand } from "@/context/command"
-import { FileVisual } from "./session-sortable-tab"
 import { SessionTabClose } from "./session-tab-close"
+
+export function FileVisual(props: { path: string; active?: boolean; temporary?: boolean }): JSX.Element {
+  return (
+    <div class="flex items-center gap-x-1.5 min-w-0">
+      <Show
+        when={!props.active}
+        fallback={<FileIcon node={{ path: props.path, type: "file" }} class="size-4 shrink-0" />}
+      >
+        <span class="relative inline-flex size-4 shrink-0">
+          <FileIcon node={{ path: props.path, type: "file" }} class="absolute inset-0 size-4 tab-fileicon-color" />
+          <FileIcon node={{ path: props.path, type: "file" }} mono class="absolute inset-0 size-4 tab-fileicon-mono" />
+        </span>
+      </Show>
+      <span class="truncate font-mono" classList={{ italic: props.temporary }}>
+        {getFilename(props.path)}
+      </span>
+    </div>
+  )
+}
 
 export function SortableTabV2(props: {
   tab: string

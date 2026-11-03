@@ -9,11 +9,6 @@ export type NoteSummary = {
   links: ReadonlyArray<string>
   updatedAt: string
 }
-export type NoteDocument = {
-  info: NoteSummary
-  body: string
-  revision: string
-}
 export type CalendarSource = "local" | "google"
 export type CalendarSyncState = "local" | "pending" | "synced" | "offline" | "stale" | "conflict" | "failed"
 export type CalendarEvent = {
@@ -173,43 +168,6 @@ async function request<T>(client: Client, path: string, init?: RequestInit): Pro
   }
   return (await response.json()) as T
 }
-
-export const listNotes = (client: Client, search = "") =>
-  request<NoteSummary[]>(client, `/second-brain/notes?search=${encodeURIComponent(search)}`)
-
-export const readNote = (client: Client, path: string) =>
-  request<NoteDocument>(client, `/second-brain/note?path=${encodeURIComponent(path)}`)
-
-export const deleteNote = (client: Client, input: { path: string; expectedRevision: string }) =>
-  request<NoteSummary>(
-    client,
-    `/second-brain/note?path=${encodeURIComponent(input.path)}&expectedRevision=${encodeURIComponent(input.expectedRevision)}`,
-    { method: "DELETE" },
-  )
-
-export const writeNote = (
-  client: Client,
-  input: {
-    path: string
-    body: string
-    expectedRevision?: string
-    title?: string
-    projectIds?: ReadonlyArray<string>
-    tags?: ReadonlyArray<string>
-    create?: boolean
-  },
-) =>
-  request<NoteDocument>(client, `/second-brain/note?path=${encodeURIComponent(input.path)}`, {
-    method: "PUT",
-    body: JSON.stringify({
-      body: input.body,
-      expectedRevision: input.expectedRevision,
-      title: input.title,
-      projectIds: input.projectIds,
-      tags: input.tags,
-      create: input.create,
-    }),
-  })
 
 export const readCalendar = (client: Client) => request<CalendarSnapshot>(client, "/second-brain/calendar")
 

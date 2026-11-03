@@ -38,7 +38,7 @@ import { previewSelectedLines } from "@tenon/session-ui/pierre/selection-bridge"
 import { showToast } from "@/utils/toast"
 import { base64Encode, checksum } from "@tenon/core/util/encode"
 import { useLocation, useNavigate, useParams, useSearchParams } from "@solidjs/router"
-import { NewSessionView, SessionHeader } from "@/components/session"
+import { SessionHeader } from "@/components/session"
 import { ErrorPage } from "@/pages/error"
 import { CommentsProvider, useComments } from "@/context/comments"
 import { useCommand } from "@/context/command"
@@ -2085,9 +2085,6 @@ export default function Page() {
                 />
               )}
             </Show>
-          </Match>
-          <Match when={true}>
-            <NewSessionView worktree={newSessionWorktree()} />
           </Match>
         </Switch>
       </div>
