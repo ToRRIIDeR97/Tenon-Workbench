@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { createUpdaterController, type UpdaterBackend, type UpdaterReadyRecord } from "./updater-controller"
 
-function setup(input?: { currentVersion?: string; ready?: UpdaterReadyRecord }) {
+function setup(input?: { currentVersion?: string; ready?: UpdaterReadyRecord; confirm?: () => boolean }) {
   const calls: string[] = []
   const backend: UpdaterBackend = {
     async checkForUpdates() {
@@ -32,6 +32,7 @@ function setup(input?: { currentVersion?: string; ready?: UpdaterReadyRecord }) 
     stop: async () => {
       calls.push("stop")
     },
+    confirm: input?.confirm,
   })
   return { controller, calls, getReady: () => ready }
 }
@@ -83,6 +84,16 @@ describe("updater controller", () => {
     await app.controller.install()
 
     expect(app.calls).toEqual(["check", "download", "stop", "install"])
+    expect(app.controller.getState()).toEqual({ status: "ready", version: "2.0.0" })
+  })
+
+  test("staying with unsaved edits installs nothing and leaves the server running", async () => {
+    const app = setup({ confirm: () => false })
+    await app.controller.start()
+
+    await app.controller.install()
+
+    expect(app.calls).toEqual(["check", "download"])
     expect(app.controller.getState()).toEqual({ status: "ready", version: "2.0.0" })
   })
 

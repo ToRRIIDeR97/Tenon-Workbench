@@ -377,6 +377,16 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
           ctx.query.path,
         ),
       )
+      .handle("removeVaultPage", (ctx) =>
+        vault(
+          "removeVaultPage",
+          (opened) =>
+            KnowledgeVault.removePage(opened, ctx.query.path, ctx.query.expectedRevision).pipe(
+              Effect.as({ removed: true as const }),
+            ),
+          ctx.query.path,
+        ),
+      )
       .handle("readVaultPageHistory", (ctx) =>
         vault(
           "readVaultPageHistory",

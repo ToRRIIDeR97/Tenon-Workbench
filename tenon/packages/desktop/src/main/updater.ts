@@ -4,7 +4,7 @@ import { UPDATER_ENABLED } from "./constants"
 import { createUpdaterController, type UpdaterReadyRecord } from "./updater-controller"
 import { getLogger } from "./logging"
 import { getStore } from "./store"
-import { setAppQuitting } from "./windows"
+import { confirmQuit, setAppQuitting } from "./windows"
 import { nativeT } from "./native-translations"
 
 const { autoUpdater } = pkg
@@ -55,7 +55,13 @@ export function setupAutoUpdater(stop: () => Promise<void>) {
       set: (value) => store.set(key, value),
       clear: () => store.delete(key),
     },
-    stop,
+    // A failed stop leaves the app running, so the next close has to ask again.
+    stop: () =>
+      stop().catch((error) => {
+        setAppQuitting(false)
+        throw error
+      }),
+    confirm: confirmQuit,
     log: (message, data) => logger.log(message, data),
   })
 }

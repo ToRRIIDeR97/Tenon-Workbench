@@ -14,6 +14,7 @@ import { getStore, removeStoreFile, rendererStore } from "./store"
 import { PINCH_ZOOM_ENABLED_KEY, WINDOW_IDS_KEY } from "./store-keys"
 import { createUnresponsiveSampler } from "./unresponsive"
 import { nativeT } from "./native-translations"
+import { createUnloadGuard } from "./unload-guard"
 import { createWindowRegistry } from "./window-registry"
 import { safeWindowURL } from "./window-state"
 import { isSubframeDocumentURL, redactURL, resolveExternalURL, resolveLocalFilePath } from "./external-url"
@@ -78,6 +79,23 @@ const registry = createWindowRegistry<BrowserWindow>({
     removeStoreFile(windowDataFile(id))
   },
 })
+// Sync on purpose: `will-prevent-unload` must be answered before its handler returns.
+const unloadGuard = createUnloadGuard<BrowserWindow>({
+  windows: () => BrowserWindow.getAllWindows(),
+  ask: (win) => {
+    if (!win.isVisible()) win.show()
+    return (
+      dialog.showMessageBoxSync(win, {
+        type: "warning",
+        buttons: [nativeT("secondBrain.desktop.unsaved.leave"), nativeT("secondBrain.desktop.unsaved.stay")],
+        defaultId: 1,
+        cancelId: 1,
+        message: nativeT("secondBrain.desktop.unsaved.message"),
+        detail: nativeT("secondBrain.desktop.unsaved.detail"),
+      }) === 0
+    )
+  },
+})
 const titlebarHeight = 40
 const maxZoomLevel = 10
 const minZoomLevel = 0.2
@@ -88,6 +106,24 @@ export function setRelaunchHandler(handler: () => void) {
 
 export function setAppQuitting(quitting = true) {
   registry.setQuitting(quitting)
+  if (!quitting) unloadGuard.reset()
+}
+
+/**
+ * Asks before a quit, relaunch or update drops unsaved edits, so it runs before anything stops; false means stay.
+ * Once it passes, windows close without asking again.
+ */
+export function confirmQuit() {
+  return unloadGuard.confirmQuit()
+}
+
+/** For a shutdown nobody can answer a dialog in: a signal, or Windows ending the session. */
+export function skipUnloadPrompts() {
+  unloadGuard.allow()
+}
+
+export function setWindowUnsaved(win: BrowserWindow, unsaved: boolean) {
+  unloadGuard.setUnsaved(win, unsaved)
 }
 
 export function setBackgroundColor(color: string) {
@@ -226,6 +262,7 @@ export function createMainWindow(id: string = randomUUID()) {
   wireSession(win.webContents.session)
   wireWindowRecovery(win, id)
   wireNavigationPolicy(win)
+  wireUnloadGuard(win)
   // The app doesn't use WebRTC, and a design frame's CSP doesn't cover it: without a proxy this
   // stops every UDP STUN/ICE request, also from frames nested in a design (design-fence.ts).
   win.webContents.setWebRTCIPHandlingPolicy("disable_non_proxied_udp")
@@ -302,6 +339,16 @@ function wireNavigationPolicy(win: BrowserWindow) {
   })
 }
 
+// A page that cancels beforeunload stops the close without any prompt of its own; Electron leaves that to us.
+function wireUnloadGuard(win: BrowserWindow) {
+  win.webContents.on("will-prevent-unload", (event) => {
+    if (unloadGuard.leave(win)) event.preventDefault()
+  })
+  // A reloaded or crashed page has no edits left to protect, and can't report that itself.
+  win.webContents.on("did-navigate", () => unloadGuard.setUnsaved(win, false))
+  win.webContents.on("render-process-gone", () => unloadGuard.setUnsaved(win, false))
+}
+
 function registerWindow(win: BrowserWindow, id: string) {
   windowIDs.set(win, id)
   registry.register(id, win)
@@ -309,7 +356,10 @@ function registerWindow(win: BrowserWindow, id: string) {
   win.on("focus", () => registry.focused(id))
   // Windows never emits before-quit on OS shutdown/logoff, but each window
   // gets session-end before it closes; flag the quit so ids stay persisted.
-  win.on("session-end", () => registry.setQuitting())
+  win.on("session-end", () => {
+    registry.setQuitting()
+    skipUnloadPrompts()
+  })
   win.on("closed", () => registry.closed(id))
 }
 

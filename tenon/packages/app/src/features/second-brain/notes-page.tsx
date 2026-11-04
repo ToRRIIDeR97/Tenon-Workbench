@@ -1,14 +1,16 @@
-import { useBeforeLeave } from "@solidjs/router"
+import { useDialog } from "@tenon/ui/context/dialog"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { KeybindV2 } from "@tenon/ui/v2/keybind-v2"
+import { MenuV2 } from "@tenon/ui/v2/menu-v2"
 import { Reveal, RevealShow } from "@tenon/ui/v2/reveal"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { createEffect, createMemo, createResource, For, Match, on, onCleanup, Show, Switch } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
+import { showToast } from "@/utils/toast"
 import {
   readVaultPage,
   SecondBrainRequestError,
@@ -19,6 +21,9 @@ import {
 } from "./client"
 import { NoteEditor } from "./note-editor"
 import { noteLinkLookup, previewNoteLinks } from "./note-links"
+import { bodyAfterSave, newPagePath } from "./notes-timeline"
+import { DialogPageVersions } from "./page-versions"
+import { DialogConfirmReload, useUnsavedGuard } from "./unsaved-guard"
 
 type VaultClient = Parameters<typeof readVaultPage>[0]
 
@@ -38,6 +43,8 @@ export function NotesPageView(props: {
   onBack: () => void
   onOpen: (path: string) => void
   onSaved: (info: VaultPageInfo) => void
+  /** Leaves the page and deletes it once its Undo window closes. */
+  onDelete: (page: { path: string; title: string; revision: string }) => void
   /** Reports unsaved edits, so the page can hold its workspace until they are saved or discarded. */
   onDirty: (dirty: boolean) => void
   /** The sidebar switched workspace while this page had unsaved edits. */
@@ -45,6 +52,7 @@ export function NotesPageView(props: {
 }) {
   const language = useLanguage()
   const command = useCommand()
+  const dialog = useDialog()
   const [state, setState] = createStore({
     body: "",
     baseBody: "",
@@ -58,8 +66,10 @@ export function NotesPageView(props: {
     baseProperties: "{}",
     saving: false,
     error: "",
-    /** The last save met a newer revision; offer to reload. */
+    /** The last save met a newer revision; offer to reload or keep the text as a copy. */
     conflict: false,
+    /** The page is gone (deleted elsewhere); the text can still become a copy. */
+    missing: false,
   })
   const propertiesChanged = () => JSON.stringify(state.properties) !== state.baseProperties
   const dirty = createMemo(
@@ -87,6 +97,7 @@ export function NotesPageView(props: {
       baseProperties: JSON.stringify(document.info.properties),
       error: "",
       conflict: false,
+      missing: false,
     })
   createEffect(
     on(
@@ -99,7 +110,8 @@ export function NotesPageView(props: {
   const linkLookup = createMemo(() => noteLinkLookup(props.pages))
 
   const save = async () => {
-    if (!dirty() || state.saving) return
+    if (!dirty()) return true
+    if (state.saving) return false
     const sent = { body: state.body, title: state.title, properties: JSON.stringify(state.properties) }
     const path = props.path
     setState({ saving: true, error: "" })
@@ -115,39 +127,94 @@ export function NotesPageView(props: {
       (error: unknown) => ({ page: undefined, error }),
     )
     setState("saving", false)
-    if (path !== props.path) return
+    if (path !== props.path) return false
     const saved = result.page
     if (!saved) {
-      const conflict = result.error instanceof SecondBrainRequestError && result.error.status === 409
-      return setState({
-        error: language.t(conflict ? "secondBrain.vault.conflict" : "secondBrain.error.request"),
+      const status = result.error instanceof SecondBrainRequestError ? result.error.status : 0
+      const conflict = status === 409
+      const missing = status === 404
+      setState({
+        error: language.t(
+          conflict ? "secondBrain.vault.conflict" : missing ? "secondBrain.vault.missing" : "secondBrain.error.request",
+        ),
         conflict,
+        missing,
       })
+      return false
     }
     // Text typed while the request ran stays unsaved; the rest takes the server copy.
     setState({
-      ...(state.body === sent.body ? { body: saved.body } : {}),
+      ...bodyAfterSave(state.body, sent.body, saved.body),
       ...(state.title === sent.title ? { title: saved.info.title } : {}),
       ...(JSON.stringify(state.properties) === sent.properties ? { properties: { ...saved.info.properties } } : {}),
-      baseBody: saved.body,
       baseTitle: saved.info.title,
       baseProperties: JSON.stringify(saved.info.properties),
       revision: saved.revision,
       updatedAt: saved.info.updatedAt,
       error: "",
       conflict: false,
+      missing: false,
     })
     props.onSaved(saved.info)
+    return true
   }
 
   const reload = () => {
-    setState({ error: "", conflict: false })
+    setState({ error: "", conflict: false, missing: false })
     void pageActions.refetch()
   }
-  const discard = () => {
-    if (state.conflict) return reload()
+  const dropEdits = () =>
     setState({ body: state.baseBody, title: state.baseTitle, properties: JSON.parse(state.baseProperties), error: "" })
+  // Reloading replaces the text, so it asks while there is text to lose.
+  const confirmReload = () => {
+    if (!dirty()) return reload()
+    void dialog.show(() => <DialogConfirmReload onReload={reload} onCopy={() => void saveCopy()} />)
   }
+  const discard = () => (state.conflict ? confirmReload() : dropEdits())
+
+  // Keeps the text in a new page beside this one, then returns this page to what is on disk.
+  const saveCopy = async () => {
+    if (state.saving) return
+    const missing = state.missing
+    const slash = props.path.lastIndexOf("/")
+    const folder = slash < 0 ? "" : props.path.slice(0, slash)
+    const title = [
+      ...language.t("secondBrain.vault.copyTitle", {
+        title: state.title.trim() || language.t("secondBrain.vault.untitled"),
+      }),
+    ]
+      .slice(0, 200)
+      .join("")
+    // File names are shorter than titles.
+    const name = newPagePath([...title].slice(0, 100).join(""), folder, props.pages)
+    setState("saving", true)
+    const copy = await writeVaultPage(props.client, {
+      path: folder ? `${folder}/${name}` : name,
+      body: state.body,
+      title,
+      properties: propertiesChanged() ? { ...state.properties } : undefined,
+      create: true,
+    }).catch(() => undefined)
+    setState("saving", false)
+    if (!copy) return setState("error", language.t("secondBrain.error.request"))
+    props.onSaved(copy.info)
+    showToast({
+      description: language.t("secondBrain.vault.copySaved", { title: copy.info.title }),
+      actions: [{ label: language.t("common.open"), onClick: () => props.onOpen(copy.info.path) }],
+    })
+    if (!missing) return reload()
+    dropEdits()
+    props.onOpen(copy.info.path)
+  }
+
+  const restore = (body: string) => {
+    setState("body", body)
+    void save()
+  }
+  const openVersions = () =>
+    void dialog.show(() => (
+      <DialogPageVersions client={props.client} path={props.path} blocked={dirty()} onRestore={restore} />
+    ))
 
   command.register("notes", () => [
     {
@@ -160,17 +227,11 @@ export function NotesPageView(props: {
     },
   ])
 
-  const beforeUnload = (event: BeforeUnloadEvent) => {
-    if (!dirty()) return
-    event.preventDefault()
-    event.returnValue = ""
-  }
-  window.addEventListener("beforeunload", beforeUnload)
-  onCleanup(() => window.removeEventListener("beforeunload", beforeUnload))
-  useBeforeLeave((event) => {
-    if (!dirty()) return
-    event.preventDefault()
-    setState("error", language.t("secondBrain.vault.unsaved"))
+  useUnsavedGuard({
+    dirty,
+    save,
+    discard: dropEdits,
+    body: () => language.t("secondBrain.unsaved.page"),
   })
 
   const saveButton = () => (
@@ -194,6 +255,22 @@ export function NotesPageView(props: {
       </Reveal>
       {dirty() ? language.t("secondBrain.notes.unsaved") : language.t("secondBrain.notes.saved")}
     </span>
+  )
+
+  // Also in the fullscreen toolbar, where the page's own error line sits behind the editor.
+  const recoveryActions = () => (
+    <>
+      <Show when={state.conflict || state.missing}>
+        <ButtonV2 size="small" variant="outline" disabled={state.saving} onClick={() => void saveCopy()}>
+          {language.t("secondBrain.vault.saveCopy")}
+        </ButtonV2>
+      </Show>
+      <Show when={state.conflict}>
+        <ButtonV2 size="small" variant="outline" disabled={page.loading} onClick={confirmReload}>
+          {language.t("secondBrain.notes.reload")}
+        </ButtonV2>
+      </Show>
+    </>
   )
 
   // Front matter properties: text and dates edit in place, `status` picks a timeline status; lists, numbers and
@@ -293,6 +370,29 @@ export function NotesPageView(props: {
           </ButtonV2>
         </Reveal>
         {saveButton()}
+        <MenuV2 gutter={4} modal={false} placement="bottom-end">
+          <MenuV2.Trigger
+            as={IconButtonV2}
+            variant="ghost-muted"
+            class="!size-8"
+            icon={<Icon name="outline-dots" size="small" />}
+            aria-label={language.t("secondBrain.vault.actions")}
+          />
+          <MenuV2.Portal>
+            <MenuV2.Content>
+              <MenuV2.Item disabled={!state.revision} onSelect={openVersions}>
+                {language.t("secondBrain.vault.versions")}
+              </MenuV2.Item>
+              {/* Unsaved edits would go with the page, so they are saved or discarded first. */}
+              <MenuV2.Item
+                disabled={!state.revision || dirty() || state.saving}
+                onSelect={() => props.onDelete({ path: props.path, title: state.title, revision: state.revision })}
+              >
+                {language.t("secondBrain.vault.delete")}
+              </MenuV2.Item>
+            </MenuV2.Content>
+          </MenuV2.Portal>
+        </MenuV2>
       </header>
 
       <div class="min-h-0 flex-1 overflow-y-auto">
@@ -353,11 +453,7 @@ export function NotesPageView(props: {
                 <p role="alert" class="text-[12px] text-v2-text-text-critical">
                   {error()}
                 </p>
-                <Show when={state.conflict}>
-                  <ButtonV2 size="small" variant="outline" disabled={page.loading} onClick={reload}>
-                    {language.t("secondBrain.notes.reload")}
-                  </ButtonV2>
-                </Show>
+                {recoveryActions()}
               </div>
             )}
           </RevealShow>
@@ -369,10 +465,16 @@ export function NotesPageView(props: {
               previewText={previewNoteLinks(state.body, linkLookup())}
               loading={page.loading}
               onChange={(value) => setState("body", value)}
-              onSave={save}
+              onSave={() => void save()}
               commandLabel={(id) => language.t(`secondBrain.notes.command.${id}`)}
               fullscreenActions={
                 <>
+                  <Show when={state.error}>
+                    <span class="max-w-64 truncate text-[12px] text-v2-text-text-critical" title={state.error}>
+                      {state.error}
+                    </span>
+                  </Show>
+                  {recoveryActions()}
                   {savedState()}
                   {saveButton()}
                 </>

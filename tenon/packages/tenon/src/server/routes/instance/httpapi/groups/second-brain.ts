@@ -212,6 +212,11 @@ export const SecondBrainApi = HttpApi.make("secondBrain").add(
         success: described(KnowledgeVault.Page, "Vault page saved"),
         error: errors,
       }),
+      HttpApiEndpoint.delete("removeVaultPage", SecondBrainPaths.vaultPage, {
+        query: Schema.Struct({ ...VaultPageQuery.fields, expectedRevision: Schema.String }),
+        success: described(Schema.Struct({ removed: Schema.Literal(true) }), "Vault page removed"),
+        error: errors,
+      }),
       HttpApiEndpoint.get("readVaultPageHistory", SecondBrainPaths.vaultPageHistory, {
         query: Schema.Struct({ ...VaultPageQuery.fields, revision: Schema.optional(Schema.String) }),
         success: described(

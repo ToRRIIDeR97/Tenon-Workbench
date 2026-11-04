@@ -372,7 +372,9 @@ export const removePage = Effect.fn("KnowledgeVault.removePage")(function* (
 ) {
   const files = yield* FileMutation.Service
   const relative = yield* pagePath(input)
-  const current = yield* readPageFile(vault, relative, yield* projectFolders(vault))
+  const projects = yield* projectFolders(vault)
+  if (!isWritablePage(relative, projects)) return yield* new InvalidError({ reason: "reserved_path" })
+  const current = yield* readPageFile(vault, relative, projects)
   if (current.revision !== expectedRevision) return yield* new ConflictError({ reason: "stale" })
   yield* keepVersion(vault, relative, current)
   yield* files.remove({ target: yield* resolveInside(vault, relative) })

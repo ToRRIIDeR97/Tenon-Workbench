@@ -370,6 +370,7 @@ or workspace (`{ error: "inside_workspace" }`).
 | `GET /second-brain/vault` | `{ root, workspace: { id, name, folder } }`; creates the workspace folder once |
 | `GET /second-brain/vault/pages?project=&search=` | Page `info` list, newest first, at most 1,000 |
 | `GET`, `PUT /second-brain/vault/page?path=` | Read; write `{ body, title?, projectId?, properties?, expectedRevision?, create? }`. With `projectId` the path is relative to that Project's folder unless it already starts with it. 400 for unsafe paths or `log/` in a Project, 404 missing, 409 stale or existing |
+| `DELETE /second-brain/vault/page?path=&expectedRevision=` | `{ removed: true }`. The removed version stays in the page's history. 400 for a reserved path, 404 missing, 409 stale |
 | `GET /second-brain/vault/page/history?path=&revision=` | Versions `[{ revision, updatedAt }]`, or one version's `{ revision, body }` |
 | `GET`, `PUT /second-brain/vault/timeline?project=` | `{ projectId, revision, items, progress }`; `PUT { items, expectedRevision? }` |
 | `GET`, `POST /second-brain/vault/log?project=` | Merged entries; `POST { text, author }` appends one line |
@@ -390,23 +391,36 @@ Project is one scrolling page since workshop variant B (`Implementations/project
 to it.
 
 - The landing lists the Projects from `useBrainProjects` (non-archived, then a folded Archived group) and General
-  (pages with no known Project), with search (`GET …/vault/pages?search=`), New page and New Project.
+  (pages with no known Project), with search (`GET …/vault/pages?search=`, plus Projects whose name or outcome
+  matches), New page and New Project. The command palette finds the same Projects and pages for the sidebar's
+  workspace: Projects filter in the renderer, and pages are searched on the server behind a 250 ms delay.
 - A Project (`features/second-brain/project-view.tsx`) is one page:
   - a sticky section bar with Start work;
-  - Tasks: the timeline items as a list with Open/All, a checkbox and a status menu per task, an "Add a task" line,
-    and the week grid. Every change saves the whole list through `PUT …/vault/timeline` with the loaded revision;
+  - Tasks: the timeline items as a list with Open/All, a checkbox, a status menu, a date chip and a row menu
+    (Rename, also on double-click, and Delete) per item, an "Add a task" line, and the week grid. Every change saves
+    the whole list through `PUT …/vault/timeline` with the loaded revision; ticking or deleting offers an Undo toast
+    that rebuilds from the latest items;
   - Pages with a New page card (`create: true` in this Project);
   - Threads: the Project folder's recent root threads, from the same `serverSync().child(folder)` lists the sidebar
     reads, and New thread;
   - Log;
-  - Settings, which is `project-details.tsx`'s `ProjectDetails` (also home of the New Project form).
+  - Settings, which is `project-details.tsx`'s `ProjectDetails` (also home of the New Project form). Collapsing hides
+    it without unmounting, so unsaved edits and their guard stay. Renaming changes the card's name, not its folder.
 - `project-controls.tsx` holds the app-styled controls that replace native ones: `DateChip` (`Popover`, quick picks
   and a Monday-first month grid), `StatusMenu` (`MenuV2` radio items) and `KindSwitch` (`SegmentedControlV2`).
 - A page (`notes-page.tsx`) opens full width in the shared `NoteEditor`. Save
   and Ctrl/Cmd+S send the loaded revision; a 409 shows "This page changed
-  somewhere else" with a reload instead of overwriting. While a page has
-  unsaved edits it keeps its workspace (a sidebar switch waits) and leaving is
-  refused until they are saved or discarded.
+  somewhere else" with Save mine as a copy and a confirmed Reload from disk
+  instead of overwriting, also in the fullscreen toolbar. A 404 (deleted
+  elsewhere) offers the copy too. While a page has unsaved edits it keeps its
+  workspace (a sidebar switch waits). `unsaved-guard.tsx`, shared with
+  `ProjectDetails`, turns leaving into Save / Discard / Keep editing and then
+  finishes the navigation, and reports the edits to the desktop shell.
+- A page's menu holds Version history (`page-versions.tsx`: preview a version,
+  restore it as a normal save over the current revision; unsaved text isn't
+  covered, and only the body is restored) and Delete page, which hides the page
+  and calls `DELETE …/vault/page` when its Undo toast expires or the Projects
+  page closes. Rename on disk and moving a page between Projects don't exist.
 - The first visit to a workspace calls `POST …/vault/migrate` once (remembered
   in `localStorage` per workspace directory) before listing pages, and shows
   "Moved N notes into the Tenon vault" when anything moved. A

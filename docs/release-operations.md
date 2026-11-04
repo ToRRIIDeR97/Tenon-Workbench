@@ -297,6 +297,11 @@ up again.
   password after 1, 2, 4, 8 and 16 s, at most 5 times in 10 minutes. Restarts
   are logged in the `utility` log; no IPC event tells the renderer, which
   reconnects through its own health checks. After the limit, restart the app.
+- On quit, relaunch or update install, a window reporting unsaved edits first
+  gets a native Leave or Stay prompt (`unload-guard.ts`). Stay cancels before
+  anything stops, so the server stays up to save. Closing one window asks the
+  same through `will-prevent-unload`. SIGINT, SIGTERM and Windows session end
+  never prompt, because nobody can answer; those edits are lost.
 - On quit, the app waits up to 8 s for the server to stop (it is killed after
   6 s), then exits.
 - Uncaught exceptions and unhandled rejections in the main process are written

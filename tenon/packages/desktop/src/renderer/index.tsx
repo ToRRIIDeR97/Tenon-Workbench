@@ -256,9 +256,13 @@ const createPlatform = (windowState: DesktopWindowState): Platform => {
     recordFatalRendererError: (error) => window.api.recordFatalRendererError(error),
 
     restart: async () => {
+      // Before the server stops: staying with unsaved edits needs it to save them.
+      if (!(await window.api.confirmQuit().catch(() => true))) return
       await window.api.killSidecar().catch(() => undefined)
       window.api.relaunch()
     },
+
+    setUnsavedChanges: (unsaved) => window.api.setUnsavedChanges(unsaved),
 
     notify: async (title, description, onClick) => {
       const focused = await window.api.getWindowFocused().catch(() => document.hasFocus())

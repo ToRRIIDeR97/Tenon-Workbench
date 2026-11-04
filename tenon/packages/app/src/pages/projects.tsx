@@ -4,7 +4,7 @@ import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { RevealShow } from "@tenon/ui/v2/reveal"
 import { debounce } from "@solid-primitives/scheduled"
-import { createEffect, createMemo, createResource, For, on, Show } from "solid-js"
+import { createEffect, createMemo, createResource, For, on, onCleanup, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useCommand } from "@/context/command"
 import { useDrafts } from "@/context/drafts"
@@ -20,6 +20,7 @@ import {
   migrateVault,
   readProjectLog,
   readTimeline,
+  removeVaultPage,
   SecondBrainRequestError,
   writeTimeline,
   writeVaultPage,
@@ -28,12 +29,14 @@ import {
   type VaultPageInfo,
 } from "@/features/second-brain/client"
 import { NotesPageView } from "@/features/second-brain/notes-page"
-import { newPagePath } from "@/features/second-brain/notes-timeline"
+import { matchProjects, newPagePath } from "@/features/second-brain/notes-timeline"
 import { ProjectCreate, ProjectDetails, projectWorkPrompt } from "@/features/second-brain/project-details"
 import { ProjectView, sectionFromTab } from "@/features/second-brain/project-view"
 import { PageEmpty, pagePanelClass, pageRowClass } from "@/components/page"
 import { useBrainProjects } from "@/components/sidebar/sidebar-controller"
 import { sessionHref } from "@/utils/session-route"
+import { dismissToast, showToast } from "@/utils/toast"
+import { createUndoQueue } from "@/utils/undo-action"
 
 /**
  * Projects: every Project and page in the Tenon vault. URL contract: `/projects` (the landing: Projects, Archived,
@@ -75,6 +78,8 @@ export default function ProjectsPage() {
     /** The debounced search the server runs. */
     query: "",
     archivedOpen: false,
+    /** Pages whose delete waits for its Undo window to close, by `pageKey`. */
+    deleting: {} as Record<string, boolean>,
   })
   const directory = () => state.directory
   const client = (target: string) => ({
@@ -125,7 +130,11 @@ export default function ProjectsPage() {
     () => (directory() && state.query ? ([directory(), state.query] as const) : undefined),
     ([target, query]) => listVaultPages(client(target), { search: query }),
   )
-  const pageList = () => (pages.error ? [] : (pages.latest ?? []))
+  const pageKey = (target: string, path: string) => `${target}\n${path}`
+  const visible = (page: VaultPageInfo) => !state.deleting[pageKey(directory(), page.path)]
+  const pageList = () => (pages.error ? [] : (pages.latest ?? [])).filter(visible)
+  const foundPages = () => (matches.error ? [] : (matches.latest ?? [])).filter(visible)
+  const foundProjects = () => matchProjects(projects(), state.query)
   const projects = () => (held() ? [] : (brainProjects.list() ?? []))
   const known = createMemo(() => new Set(projects().map((item) => item.id)))
   // Pages tied to no Project this workspace lists.
@@ -164,11 +173,12 @@ export default function ProjectsPage() {
   const pageHref = (path: string) => `/projects?page=${encodeURIComponent(path)}`
   const openPage = (path: string) => navigate(pageHref(path), { state: { fromNotes: true } })
   const openProject = (id: string) => navigate(`/projects?project=${encodeURIComponent(id)}`)
-  const back = () => {
-    if (location.state?.fromNotes) return navigate(-1)
+  // The open page's Project, else the landing.
+  const parentHref = () => {
     const owner = pageList().find((page) => page.path === pagePath())?.projectId
-    navigate(owner ? `/projects?project=${encodeURIComponent(owner)}&section=pages` : "/projects")
+    return owner ? `/projects?project=${encodeURIComponent(owner)}&section=pages` : "/projects"
   }
+  const back = () => (location.state?.fromNotes ? navigate(-1) : navigate(parentHref()))
   // Folder Projects run their threads in the folder the server resolves; a legacy card in its linked workspace.
   const threadDirectory = (record: ProjectRecord) =>
     brainProjects.entries()?.find((entry) => entry.project.id === record.id)?.threadDirectory ??
@@ -231,6 +241,59 @@ export default function ProjectsPage() {
     if (target !== directory()) return
     storePage(result.page.info)
     openPage(result.page.info.path)
+  }
+
+  const undo = createUndoQueue({
+    show: (action, run) =>
+      showToast({
+        title: action.title,
+        description: action.description,
+        persistent: true,
+        actions: [{ label: language.t("secondBrain.sidebar.undo"), onClick: run }],
+      }),
+    dismiss: dismissToast,
+    onError: (cause) =>
+      showToast({
+        variant: "error",
+        title: language.t(
+          cause instanceof SecondBrainRequestError && cause.status === 409
+            ? "secondBrain.vault.deleteStale"
+            : "secondBrain.error.request",
+        ),
+      }),
+  })
+  onCleanup(() => undo.flush())
+
+  /**
+   * Delete is deferred like a thread's: the page leaves the lists now and the file goes when the Undo window closes.
+   * If the app quits first, the page is simply not deleted. The removed version stays in the page's history.
+   */
+  const deletePage = (page: { path: string; title: string; revision: string }) => {
+    const target = directory()
+    const vault = client(target)
+    const key = pageKey(target, page.path)
+    // Not back(): a page opened from outside Projects would leave this page, which commits the delete with no Undo.
+    navigate(parentHref(), { replace: true })
+    setState("deleting", key, true)
+    const restore = () => setState("deleting", key, false)
+    const removed = () => {
+      if (target === directory()) pagesActions.mutate((items) => items?.filter((item) => item.path !== page.path))
+      restore()
+    }
+    undo.push({
+      title: language.t("secondBrain.vault.deleted"),
+      description: page.title,
+      undo: restore,
+      commit: () =>
+        removeVaultPage(vault, page.path, page.revision)
+          .then(removed)
+          .catch((cause: unknown) => {
+            // Already gone, e.g. deleted from another window: treat it as done.
+            if (cause instanceof SecondBrainRequestError && cause.status === 404) return removed()
+            restore()
+            throw cause
+          }),
+    })
   }
 
   const conflictName = (path: string) => path.split("/").pop() ?? path
@@ -414,11 +477,12 @@ export default function ProjectsPage() {
               fallback={<p class="px-3 text-[12px] text-v2-text-text-faint">{language.t("common.loading")}</p>}
             >
               <Show
-                when={(matches.error ? [] : (matches.latest ?? [])).length > 0}
+                when={foundProjects().length + foundPages().length > 0}
                 fallback={<PageEmpty>{language.t("secondBrain.vault.noMatches")}</PageEmpty>}
               >
                 <ul class="flex flex-col gap-px" aria-label={language.t("secondBrain.vault.results")}>
-                  <For each={matches.error ? [] : matches.latest}>{(page) => pageRow(page)}</For>
+                  <For each={foundProjects()}>{(record) => projectRow(record)}</For>
+                  <For each={foundPages()}>{(page) => pageRow(page)}</For>
                 </ul>
               </Show>
             </Show>
@@ -567,6 +631,13 @@ export default function ProjectsPage() {
                                 ? language.t("common.loading")
                                 : language.t("secondBrain.vault.projectMissing")
                             }
+                            action={
+                              brainProjects.loading() ? undefined : (
+                                <ButtonV2 size="small" variant="outline" onClick={() => navigate("/projects")}>
+                                  {language.t("secondBrain.projects.back")}
+                                </ButtonV2>
+                              )
+                            }
                           />
                         }
                       >
@@ -598,6 +669,7 @@ export default function ProjectsPage() {
                               onPage={openPage}
                               onNewPage={() => void createPage(item().id)}
                               creatingPage={state.creating}
+                              pageError={state.error}
                               onSaveItems={saveItems}
                               threads={threads()}
                               threadHref={(id) => sessionHref(server.key, id)}
@@ -630,6 +702,7 @@ export default function ProjectsPage() {
                     onBack={back}
                     onOpen={openPage}
                     onSaved={storePage}
+                    onDelete={deletePage}
                     onDirty={(dirty) => setState("dirty", dirty)}
                     held={held()}
                   />
