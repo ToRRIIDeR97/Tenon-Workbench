@@ -47,28 +47,21 @@ export interface Interface {
 
 export class Service extends Context.Service<Service, Interface>()("@tenon/v2/ToolOutputStore") {}
 
+// Both take a byte budget. A UTF-16 code unit is at least one byte, so slicing to that many units means only the kept
+// window is encoded. The cut then moves off any UTF-8 continuation byte so no character is split.
 const takePrefix = (input: string, maximumBytes: number) => {
-  let bytes = 0
-  let content = ""
-  for (const char of input) {
-    const size = Buffer.byteLength(char, "utf-8")
-    if (bytes + size > maximumBytes) break
-    content += char
-    bytes += size
-  }
-  return content
+  const bytes = Buffer.from(input.slice(0, maximumBytes))
+  if (bytes.length <= maximumBytes) return bytes.toString()
+  let end = maximumBytes
+  while (end > 0 && (bytes[end] & 0xc0) === 0x80) end--
+  return bytes.toString("utf-8", 0, end)
 }
 
 const takeSuffix = (input: string, maximumBytes: number) => {
-  let bytes = 0
-  const content: string[] = []
-  for (const char of Array.from(input).toReversed()) {
-    const size = Buffer.byteLength(char, "utf-8")
-    if (bytes + size > maximumBytes) break
-    content.unshift(char)
-    bytes += size
-  }
-  return content.join("")
+  const bytes = Buffer.from(input.slice(Math.max(0, input.length - maximumBytes)))
+  let start = Math.max(0, bytes.length - maximumBytes)
+  while (start < bytes.length && (bytes[start] & 0xc0) === 0x80) start++
+  return bytes.toString("utf-8", start)
 }
 
 const preview = (text: string, maxLines: number, maxBytes: number) => {
@@ -105,7 +98,7 @@ const boundedPreview = (text: string, marker: string, maxLines: number, maxBytes
 
 const lineCount = (text: string) => {
   let count = 1
-  for (const char of text) if (char === "\n") count++
+  for (let index = text.indexOf("\n"); index !== -1; index = text.indexOf("\n", index + 1)) count++
   return count
 }
 

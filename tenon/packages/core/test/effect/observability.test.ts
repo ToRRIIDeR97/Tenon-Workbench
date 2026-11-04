@@ -4,7 +4,7 @@ import { Effect, Layer, Logger } from "effect"
 import fs from "fs/promises"
 import os from "os"
 import path from "path"
-import { fileLogger } from "../../src/observability/logging"
+import { fileLogger, rotate } from "../../src/observability/logging"
 import { resource } from "../../src/observability/otlp"
 
 const otelResourceAttributes = process.env.OTEL_RESOURCE_ATTRIBUTES
@@ -77,6 +77,28 @@ test("file logger appends concurrent runs with a run on every line", async () =>
   expect(lines.every((line) => line.startsWith("timestamp=") && line.includes(" level=INFO "))).toBe(true)
   expect(lines.every((line) => !line.includes(" fiber="))).toBe(true)
   expect(lines.every((line) => !line.startsWith("{"))).toBe(true)
+})
+
+test("rotation keeps one backup of an oversized log and removes the pre-rename log", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-log-test-"))
+  await using _ = {
+    async [Symbol.asyncDispose]() {
+      await fs.rm(dir, { recursive: true, force: true })
+    },
+  }
+  const file = path.join(dir, "tenon.log")
+
+  rotate(file, 4)
+  await Bun.write(file, "1234")
+  await Bun.write(path.join(dir, "opencode.log"), "old")
+  rotate(file, 4)
+  expect(await fs.readdir(dir)).toEqual(["tenon.log"])
+
+  await Bun.write(file, "12345")
+  await Bun.write(`${file}.1`, "older")
+  rotate(file, 4)
+  expect(await fs.readdir(dir)).toEqual(["tenon.log.1"])
+  expect(await Bun.file(`${file}.1`).text()).toBe("12345")
 })
 
 test("file logger flattens nested objects", async () => {

@@ -34,6 +34,7 @@ Commands:
   tenon debug skill         list all available skills
   tenon debug snapshot      snapshot debugging utilities
   tenon debug startup       print startup timing
+  tenon debug events        report event rows and bytes per type
   tenon debug agent <name>  show agent configuration details
   tenon debug v2            debug v2 catalog and built-in plugins
   tenon debug info          show debug information

@@ -237,7 +237,9 @@ Verify after the first launch:
    `.legacy-storage-migrated`, and no `*.migrating-*` folder is left beside
    them.
 2. Existing sessions, projects and provider sign-ins appear in the app.
-3. New server logs are written under `tenon-workbench/log`.
+3. New server logs are written under `tenon-workbench/log`. At each start a
+   `tenon.log` over 10 MB becomes `tenon.log.1`, replacing the previous backup,
+   and any leftover `opencode.log` in that folder is deleted.
 
 Rollback: quit the app and run the previous build. It reads the unchanged
 legacy `opencode` folders. Anything the new build wrote after migration stays
@@ -331,6 +333,16 @@ removed on a later backup once they are an hour old.
 Restore a backup: quit the app, move `tenon.db`, `tenon.db-wal` and
 `tenon.db-shm` aside, copy the backup to `tenon.db`, and start the build
 that matches it. Data written after the backup is lost.
+
+After migrations, startup runs a bounded `PRAGMA optimize` to refresh planner
+statistics. If another server process holds the write lock, startup continues
+and the next start retries. `journal_size_limit` caps the `-wal` file at 64 MB
+once it next resets.
+
+The `event` table only shrinks when a session is deleted. There is no retention
+policy, because transfer, sync and replay need contiguous sequence numbers.
+`tenon debug events` prints rows and stored bytes per event type, for deciding
+whether one is needed.
 
 Migration authors: foreign keys are off while migrations run, so
 `ON DELETE CASCADE` does not fire. Delete child rows explicitly, or the foreign
