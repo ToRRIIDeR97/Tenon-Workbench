@@ -15,6 +15,7 @@ import {
   builtInGoogleClient,
   classifyGoogleError,
   createGoogleAccessTokens,
+  finishedWriteTarget,
   googleEventId,
   googleEventPayload,
   googleScopes,
@@ -218,17 +219,28 @@ export function createGoogleCalendarService(): GoogleCalendarPlatform {
   const write: GoogleCalendarPlatform["write"] = async (input) => {
     if (busy) throw new Error("google_operation_busy")
     const account = requireWriteAccount(input.event.accountId)
-    const request =
-      input.kind === "create"
-        ? { ...input, event: { ...input.event, providerId: googleEventId(input.idempotencyKey) } }
-        : input
+    const { overwrite, ...fields } = input
+    const event = overwrite ? withoutEtag(input.event) : input.event
+    const request: GoogleCalendarWrite = {
+      ...fields,
+      event: input.kind === "create" ? { ...event, providerId: googleEventId(input.idempotencyKey) } : event,
+    }
     validateWrite(request)
     const outbox = readOutbox()
-    const existing = outbox.find((operation) => operation.input.idempotencyKey === request.idempotencyKey)
-    const edited = Boolean(existing) && JSON.stringify(existing?.input) !== JSON.stringify(request)
-    if (existing?.state === "succeeded") {
-      if (edited) throw new Error("google_idempotency_collision")
-      return { state: "synced", event: existing.result ?? null }
+    const stored = outbox.find((operation) => operation.input.idempotencyKey === request.idempotencyKey)
+    const edited = Boolean(stored) && JSON.stringify(stored?.input) !== JSON.stringify(request)
+    let existing = stored
+    if (stored?.state === "succeeded") {
+      if (!edited) return { state: "synced", event: stored.result ?? null }
+      const finished = finishedWriteTarget(stored.result, request.event)
+      if (!finished) throw new Error("google_idempotency_collision")
+      // The write finished before the page heard of it, so this edit goes on top of Google's copy.
+      existing = {
+        ...stored,
+        input: { ...request, kind: "update", event: finished },
+        reached: false,
+        result: undefined,
+      }
     }
     let operation: StoredOutbox =
       existing ??
@@ -245,7 +257,7 @@ export function createGoogleCalendarService(): GoogleCalendarPlatform {
       const reached = Boolean(existing.reached) || (existing.input.kind === "create" && existing.attempts > 0)
       const merged = mergeQueuedWrite(
         { kind: existing.input.kind, item: existing.input.event, reached },
-        { kind: request.kind, item: request.event },
+        { kind: request.kind, item: request.event, overwrite },
       )
       if (!merged) {
         persistOutbox(outbox.filter((item) => item.id !== existing.id))
@@ -272,26 +284,32 @@ export function createGoogleCalendarService(): GoogleCalendarPlatform {
   const writeTask: GoogleCalendarPlatform["writeTask"] = async (input) => {
     if (busy) throw new Error("google_operation_busy")
     const account = requireWriteAccount(input.task.accountId)
+    const { overwrite, ...fields } = input
+    const request: GoogleTaskWrite = { ...fields, task: overwrite ? withoutEtag(input.task) : input.task }
     const outbox = readTaskOutbox()
-    const existing = outbox.find((operation) => operation.input.idempotencyKey === input.idempotencyKey)
+    const stored = outbox.find((operation) => operation.input.idempotencyKey === request.idempotencyKey)
+    const finished = stored?.state === "succeeded" ? finishedWriteTarget(stored.result, request.task) : undefined
     // Google has no ID for a task still queued as a create, so there is nothing to delete there. A create
     // whose response was lost shows up at the next sync as an ordinary task.
-    if (input.kind === "delete" && input.task.providerId.startsWith("pending:") && existing?.state !== "succeeded") {
-      if (existing) persistTaskOutbox(outbox.filter((item) => item.id !== existing.id))
+    if (request.kind === "delete" && request.task.providerId.startsWith("pending:") && stored?.state !== "succeeded") {
+      if (stored) persistTaskOutbox(outbox.filter((item) => item.id !== stored.id))
       return { state: "synced", task: null }
     }
-    validateTaskWrite(input)
-    const edited = Boolean(existing) && JSON.stringify(existing?.input) !== JSON.stringify(input)
-    if (existing?.state === "succeeded") {
-      if (edited) throw new Error("google_idempotency_collision")
-      return { state: "synced", task: existing.result ?? null }
+    validateTaskWrite(finished ? { ...request, task: { ...request.task, providerId: finished.providerId } } : request)
+    const edited = Boolean(stored) && JSON.stringify(stored?.input) !== JSON.stringify(request)
+    let existing = stored
+    if (stored?.state === "succeeded") {
+      if (!edited) return { state: "synced", task: stored.result ?? null }
+      if (!finished) throw new Error("google_idempotency_collision")
+      // The write finished before the page heard of it, so this edit goes on top of Google's copy.
+      existing = { ...stored, input: { ...request, kind: "update", task: finished }, result: undefined }
     }
     let operation: StoredTaskOutbox =
       existing ??
       ({
         id: randomUUID(),
         accountId: account.id,
-        input,
+        input: request,
         state: "pending",
         attempts: 0,
         createdAt: new Date().toISOString(),
@@ -300,7 +318,7 @@ export function createGoogleCalendarService(): GoogleCalendarPlatform {
     if (existing && edited) {
       const merged = mergeQueuedWrite(
         { kind: existing.input.kind, item: existing.input.task, reached: false },
-        { kind: input.kind, item: input.task },
+        { kind: request.kind, item: request.task, overwrite },
       )
       if (!merged) {
         persistTaskOutbox(outbox.filter((item) => item.id !== existing.id))
@@ -308,7 +326,7 @@ export function createGoogleCalendarService(): GoogleCalendarPlatform {
       }
       operation = {
         ...existing,
-        input: { kind: merged.kind, idempotencyKey: input.idempotencyKey, task: merged.item },
+        input: { kind: merged.kind, idempotencyKey: request.idempotencyKey, task: merged.item },
         state: "pending",
         attempts: 0,
         lastError: undefined,
@@ -321,6 +339,15 @@ export function createGoogleCalendarService(): GoogleCalendarPlatform {
     } finally {
       busy = false
     }
+  }
+
+  const discardConflict: GoogleCalendarPlatform["discardConflict"] = async ({ idempotencyKey }) => {
+    if (busy) throw new Error("google_operation_busy")
+    const keep = (operation: StoredOutbox | StoredTaskOutbox) =>
+      operation.state !== "conflict" || operation.input.idempotencyKey !== idempotencyKey
+    persistOutbox(readOutbox().filter(keep))
+    persistTaskOutbox(readTaskOutbox().filter(keep))
+    return status()
   }
 
   const disconnect: GoogleCalendarPlatform["disconnect"] = async (input) => {
@@ -364,7 +391,7 @@ export function createGoogleCalendarService(): GoogleCalendarPlatform {
     }
   }
 
-  return { status, connect, sync, write, writeTask, disconnect }
+  return { status, connect, sync, write, writeTask, discardConflict, disconnect }
 }
 
 async function syncAccount(account: Account) {
@@ -710,6 +737,11 @@ async function retryTaskOutbox(account: Account) {
     if (operation.state !== "pending" && operation.state !== "offline") continue
     await dispatchTask(account, operation)
   }
+}
+
+function withoutEtag<T extends { etag?: string }>(item: T) {
+  const { etag: _etag, ...fields } = item
+  return fields as T
 }
 
 function pendingEvent(input: GoogleCalendarWrite) {

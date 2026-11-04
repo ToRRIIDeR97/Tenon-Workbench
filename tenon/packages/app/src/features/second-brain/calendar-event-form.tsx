@@ -127,6 +127,7 @@ export function CalendarEventForm(props: {
   formatDay: (date: string) => string
   onDraft: (patch: Partial<CalendarDraft>) => void
   onSave: () => void
+  onKeepGoogle: () => void
   onRemove: () => void
   onClose: () => void
   onEscape: () => void
@@ -298,6 +299,22 @@ export function CalendarEventForm(props: {
         <p role="status" class={noteClass}>
           {language.t("secondBrain.calendar.google.restricted")}
         </p>
+      </Show>
+      <Show when={props.state.draft.syncState === "conflict" && props.state.draft.outboxKey}>
+        <div class="flex flex-col items-start gap-2 rounded-[16px] bg-v2-background-bg-base p-3 shadow-[0_0_0_0.5px_var(--v2-border-border-muted)]">
+          <p class="text-[12px] leading-5 text-v2-text-text-muted">
+            {language.t("secondBrain.calendar.google.conflictNote")}
+          </p>
+          <ButtonV2
+            type="button"
+            size="small"
+            variant="ghost"
+            disabled={props.state.saving}
+            onClick={props.onKeepGoogle}
+          >
+            {language.t("secondBrain.calendar.google.keepGoogle")}
+          </ButtonV2>
+        </div>
       </Show>
       <Show when={props.state.googleConfirm}>
         <div

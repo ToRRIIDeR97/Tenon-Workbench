@@ -396,6 +396,7 @@ export default function CalendarPage() {
     const message = error instanceof Error ? error.message : String(error)
     if (message.includes("secure_storage")) return language.t("secondBrain.calendar.google.error.secureStorage")
     if (message.includes("write_consent")) return language.t("secondBrain.calendar.google.error.writeConsent")
+    if (message.includes("idempotency_collision")) return language.t("secondBrain.calendar.google.error.finished")
     if (message.includes("conflict")) return language.t("secondBrain.calendar.google.error.conflict")
     if (message.includes("oauth_denied")) return language.t("secondBrain.calendar.google.error.denied")
     if (message.includes("api_disabled_tasks")) return language.t("secondBrain.calendar.google.error.tasksDisabled")
@@ -532,7 +533,8 @@ export default function CalendarPage() {
     }
   }
 
-  const persistTasks = async (tasks: ReadonlyArray<PlannerTask>) => {
+  /** `overwrite` names the task whose save replaces Google's version in a conflict. */
+  const persistTasks = async (tasks: ReadonlyArray<PlannerTask>, overwrite?: string) => {
     // Captured before the Google round trip: the user can switch workspace while it runs, and the
     // result belongs to the calendar these tasks came from.
     const workspace = directory()
@@ -542,6 +544,7 @@ export default function CalendarPage() {
     const removed = current.find((task) => task.source === "google" && !tasks.some((next) => next.id === task.id))
     const changed = tasks.find((task) => {
       if (task.source !== "google") return false
+      if (task.id === overwrite) return true
       const previous = current.find((item) => item.id === task.id)
       return !previous || googleTaskFields(previous) !== googleTaskFields(task)
     })
@@ -562,6 +565,7 @@ export default function CalendarPage() {
       const result = await google.writeTask({
         kind,
         idempotencyKey,
+        ...(target.id === overwrite ? { overwrite: true } : {}),
         task: {
           accountId,
           providerId: target.providerId ?? `pending:${target.id}`,
@@ -592,6 +596,41 @@ export default function CalendarPage() {
     }
     const saved = await writeCalendar(client(workspace), base?.events ?? [], base?.revision, next)
     if (directory() === workspace) events.mutate(saved)
+  }
+
+  // Takes the user's change off the outbox and the planner row off hold; the sync brings Google's copy in.
+  const keepGoogleVersion = async (outboxKey: string) => {
+    const google = platform.googleCalendar
+    const target = directory()
+    const base = snapshot()
+    if (!google || !target || !outboxKey) return
+    googleActions.mutate(await google.discardConflict({ idempotencyKey: outboxKey }))
+    const release = <T extends CalendarEvent | PlannerTask>(item: T): T => {
+      if (item.outboxKey !== outboxKey) return item
+      const { outboxKey: _key, outboxKind: _kind, ...rest } = item
+      return { ...rest, syncState: "stale" } as T
+    }
+    const saved = await writeCalendar(
+      client(target),
+      (base?.events ?? []).map(release),
+      base?.revision,
+      (base?.tasks ?? []).map(release),
+    )
+    if (directory() !== target) return
+    events.mutate(saved)
+    await syncGoogle()
+  }
+
+  const keepGoogleEvent = async () => {
+    setState({ saving: true, error: "" })
+    try {
+      await keepGoogleVersion(state.draft.outboxKey)
+      setState({ editing: false, draft: emptyDraft() })
+    } catch (error) {
+      setState("error", googleMessage(error))
+    } finally {
+      setState("saving", false)
+    }
   }
 
   const toggleTask = async (task: PlannerTask) => {
@@ -752,7 +791,7 @@ export default function CalendarPage() {
         (original.start ?? "") === state.draft.start &&
         (original.end ?? "") === state.draft.end &&
         (original.details ?? "") === state.draft.details.trim()
-      if (original && providerUnchanged) {
+      if (original && providerUnchanged && state.draft.syncState !== "conflict") {
         const { projectId: _projectId, ...providerItem } = original
         const enriched = state.draft.projectId ? { ...providerItem, projectId: state.draft.projectId } : providerItem
         await persist(current.map((event) => (event.id === original.id ? enriched : event)))
@@ -814,6 +853,7 @@ export default function CalendarPage() {
       const result = await google.write({
         kind: operationKind,
         idempotencyKey: state.googleWriteKey,
+        ...(state.draft.syncState === "conflict" ? { overwrite: true } : {}),
         event: draftProviderEvent(state.draft),
       })
       if (directory() !== target) return
@@ -1031,6 +1071,7 @@ export default function CalendarPage() {
                 tasks={snapshot()?.tasks ?? []}
                 projects={brainProjects.latest ?? []}
                 onSave={persistTasks}
+                onKeepGoogle={keepGoogleVersion}
                 onToggle={toggleTask}
                 filter={filter}
                 selectedId={state.selectedTask}
@@ -1435,6 +1476,7 @@ export default function CalendarPage() {
                     }
                     onCancelConfirm={() => setState({ googleConfirm: "", googleWriteKey: "" })}
                     onConfirm={() => void confirmGoogleWrite()}
+                    onKeepGoogle={() => void keepGoogleEvent()}
                   />
                 </Show>
               </SidePanel>

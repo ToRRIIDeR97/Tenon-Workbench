@@ -452,9 +452,16 @@ conflicted item stays editable. A delete of a create that Google cannot have
 drops the operation; a create that may have got there is deleted by its ID
 instead, and editing that delete makes it a create again. An event create that
 attempted before the edit follows a 409 with a PATCH, so the edit is not lost.
-Reusing the key of a succeeded operation with different input is still
-`google_idempotency_collision`; `sync` returns the finished keys as `settled`,
-and the planner then replaces those items with Google's copy.
+`sync` returns the finished keys as `settled`, and the planner then replaces
+those items with Google's copy. A write under a succeeded key before that
+happens goes on top of the stored result, with Google's ID and newest etag. Only
+a finished delete, or a different account, list or ID, is
+`google_idempotency_collision`.
+
+A conflict never resolves by itself, because a plain edit keeps the old etag.
+The event and task forms offer the choice: saving sends `overwrite`, which drops
+the etag, and "Use Google's version" calls `discardConflict`, which removes the
+operation and lets the next sync restore Google's copy.
 
 `sync` syncs the accounts one at a time and returns the items it fetched with
 their `accountId`, plus `syncedAccounts`. An account that fails keeps its error

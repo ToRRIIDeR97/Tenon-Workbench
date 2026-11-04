@@ -367,17 +367,18 @@ type OutboxWriteKind = "create" | "update" | "delete"
  * way to an edit. Undefined means the operation can be dropped: it deletes a create that Google has
  * no record of. `reached` is true when the operation began as a create that an earlier attempt may
  * have got to Google, so it is then deleted by its ID, and an edit of that delete goes back to a
- * create; tasks have no ID until Google assigns one and always pass false.
+ * create; tasks have no ID until Google assigns one and always pass false. `overwrite` is the user
+ * choosing their version over Google's in a conflict, so the etag goes.
  */
 export function mergeQueuedWrite<T extends { providerId: string; etag?: string }>(
   queued: { kind: OutboxWriteKind; item: T; reached: boolean },
-  next: { kind: OutboxWriteKind; item: T },
+  next: { kind: OutboxWriteKind; item: T; overwrite?: boolean },
 ) {
   const { etag: _etag, ...fields } = next.item
   const item = {
     ...fields,
     providerId: queued.item.providerId,
-    ...(queued.item.etag ? { etag: queued.item.etag } : {}),
+    ...(queued.item.etag && !next.overwrite ? { etag: queued.item.etag } : {}),
   } as T
   if (next.kind !== "delete") {
     const restored = queued.reached ? ("create" as const) : ("update" as const)
@@ -385,6 +386,19 @@ export function mergeQueuedWrite<T extends { providerId: string; etag?: string }
   }
   if (queued.kind === "create" && !queued.reached) return undefined
   return { kind: "delete" as const, item }
+}
+
+/**
+ * What Google holds after a finished write, when a new write under the same key still edits that
+ * item: the planner row stayed queued because the page has not heard of the finish yet. Undefined
+ * is a real key collision: a finished delete, or another item.
+ */
+export function finishedWriteTarget<T extends { accountId: string; providerId: string; taskListId?: string }>(
+  result: T | null | undefined,
+  next: T,
+) {
+  if (!result || result.accountId !== next.accountId || result.taskListId !== next.taskListId) return undefined
+  return next.providerId === result.providerId || next.providerId.startsWith("pending:") ? result : undefined
 }
 
 /** The keys of finished writes, which sync reports so the planner stops showing them as queued. */

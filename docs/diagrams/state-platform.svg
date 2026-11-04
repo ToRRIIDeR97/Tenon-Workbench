@@ -127,7 +127,7 @@
 <path class="e " d="M170,464 L210,464 L210,502 L300,502" marker-end="url(#a)"/>
 <path class="e " d="M210,502 L210,547 L300,547" marker-end="url(#a)"/>
 <path class="e " d="M360,564 L360,585 L120,585 L120,474" marker-end="url(#a)"/>
-<text x="40" y="600" text-anchor="start" class="s">An edit returns any unfinished state to pending, same key and etag</text>
+<text x="40" y="600" text-anchor="start" class="s">An edit returns an unfinished state to pending · conflict: overwrite or discard</text>
 <text x="40" y="613" text-anchor="start" class="s">5th transient failure → failed · pruning keeps pending | offline</text>
 <rect class="zone" x="540" y="360" width="500" height="260" rx="10"/>
 <text x="550" y="376" text-anchor="start" class="zonet">Project status · tenon/src/project/brain.ts</text>

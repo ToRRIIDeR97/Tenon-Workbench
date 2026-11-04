@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import {
   classifyGoogleError,
   createGoogleAccessTokens,
+  finishedWriteTarget,
   GOOGLE_OUTBOX_MAX_ATTEMPTS,
   googleEventId,
   googleConnection,
@@ -444,6 +445,23 @@ describe("Google outbox", () => {
     const item = { providerId: "g1", title: "Queued" }
     expect(mergeQueuedWrite({ kind: "create", item, reached: false }, { kind: "delete", item })).toBeUndefined()
     expect(mergeQueuedWrite({ kind: "create", item, reached: true }, { kind: "delete", item })?.kind).toBe("delete")
+  })
+
+  test("drops the etag when the user overwrites Google's version", () => {
+    const item = { providerId: "g1", etag: "e1", title: "Old" }
+    expect(
+      mergeQueuedWrite({ kind: "update", item, reached: false }, { kind: "update", item, overwrite: true })?.item,
+    ).toEqual({ providerId: "g1", title: "Old" })
+  })
+
+  test("lets a stale queued row edit its finished write, but not another item", () => {
+    const result = { accountId: "a1", providerId: "g1", taskListId: "l1", etag: "e2" }
+    const row = { accountId: "a1", providerId: "g1", taskListId: "l1" }
+    expect(finishedWriteTarget(result, row)).toBe(result)
+    expect(finishedWriteTarget(result, { ...row, providerId: "pending:t1" })).toBe(result)
+    expect(finishedWriteTarget(result, { ...row, providerId: "g2" })).toBeUndefined()
+    expect(finishedWriteTarget(result, { ...row, accountId: "a2" })).toBeUndefined()
+    expect(finishedWriteTarget(null, row)).toBeUndefined()
   })
 
   test("reports finished writes with the ID Google gave them", () => {

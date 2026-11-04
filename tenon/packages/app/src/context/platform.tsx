@@ -120,6 +120,8 @@ export type GoogleCalendarWrite = {
   kind: "create" | "update" | "delete"
   idempotencyKey: string
   event: GoogleCalendarProviderEvent
+  /** The user chose their version in a conflict, so the write ignores Google's etag. */
+  overwrite?: boolean
 }
 
 export type GoogleCalendarWriteResult = {
@@ -144,6 +146,8 @@ export type GoogleTaskWrite = {
   kind: "create" | "update" | "delete"
   idempotencyKey: string
   task: GoogleTaskProviderTask
+  /** The user chose their version in a conflict, so the write ignores Google's etag. */
+  overwrite?: boolean
 }
 
 export type GoogleTaskWriteResult = {
@@ -175,6 +179,8 @@ export type GoogleCalendarPlatform = {
   write(input: GoogleCalendarWrite): Promise<GoogleCalendarWriteResult>
   writeTask(input: GoogleTaskWrite): Promise<GoogleTaskWriteResult>
   /** Disconnects one account, or every account when none is named. */
+  /** Drops a write in conflict, keeping Google's version; the next sync brings it back to the planner. */
+  discardConflict(input: { idempotencyKey: string }): Promise<GoogleCalendarConnection>
   disconnect(input?: { accountId?: string }): Promise<GoogleCalendarConnection>
 }
 

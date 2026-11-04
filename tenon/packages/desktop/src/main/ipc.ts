@@ -183,6 +183,10 @@ export function registerIpcHandlers(deps: Deps) {
   trustedHandle("google-task-write", (_event, input: Parameters<GoogleCalendarPlatform["writeTask"]>[0]) =>
     deps.googleCalendar.writeTask(input),
   )
+  trustedHandle("google-calendar-discard-conflict", (_event, input: { idempotencyKey?: unknown }) => {
+    if (typeof input?.idempotencyKey !== "string") throw new Error("google_idempotency_invalid")
+    return deps.googleCalendar.discardConflict({ idempotencyKey: input.idempotencyKey })
+  })
   trustedHandle("google-calendar-disconnect", (_event, input: Parameters<GoogleCalendarPlatform["disconnect"]>[0]) =>
     deps.googleCalendar.disconnect(typeof input?.accountId === "string" ? { accountId: input.accountId } : undefined),
   )

@@ -1659,7 +1659,11 @@ export const dict = {
   "secondBrain.calendar.google.confirm.action": "Confirm Google change",
   "secondBrain.calendar.google.error.secureStorage": "Secure credential storage is unavailable.",
   "secondBrain.calendar.google.error.writeConsent": "Reconnect Google with read and write access.",
-  "secondBrain.calendar.google.error.conflict": "Google changed this event. Sync before trying again.",
+  "secondBrain.calendar.google.error.conflict":
+    "Google changed this item too. Open it to choose which version to keep.",
+  "secondBrain.calendar.google.error.finished": "This item already finished syncing. Sync, then try again.",
+  "secondBrain.calendar.google.conflictNote": "Google changed this too. Saving replaces Google's version with yours.",
+  "secondBrain.calendar.google.keepGoogle": "Use Google's version",
   "secondBrain.calendar.google.error.denied": "Google sign-in was canceled or denied.",
   "secondBrain.calendar.google.error.request": "Google Calendar or Tasks could not complete the request.",
   "secondBrain.calendar.google.error.tasksDisabled":

@@ -1509,7 +1509,7 @@ export const dict = {
   "secondBrain.calendar.google.error.credentials": "Introduce el ID de cliente OAuth de Google y el secreto de cliente",
   "secondBrain.calendar.google.error.secureStorage": "El almacenamiento seguro de credenciales no está disponible.",
   "secondBrain.calendar.google.error.writeConsent": "Vuelve a conectar Google con permisos de lectura y escritura.",
-  "secondBrain.calendar.google.error.conflict": "Google cambió este evento. Sincroniza antes de volver a intentarlo.",
+  "secondBrain.calendar.google.error.conflict": "Google también cambió este elemento. Ábrelo para elegir qué versión conservar.",
   "secondBrain.calendar.google.error.denied": "El inicio de sesión en Google se canceló o se rechazó.",
   "secondBrain.calendar.google.error.request": "Google Calendar o Tasks no pudo completar la solicitud.",
   "secondBrain.calendar.google.error.exactTime":
