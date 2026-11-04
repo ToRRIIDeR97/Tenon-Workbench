@@ -629,9 +629,29 @@ Open Workspace buttons run the sidebar's open-folder flow. Home renders its shel
 metrics, and the harness selector have local loading boundaries. Harness
 availability uses the renderer query cache, keyed by server and workspace
 directory, with 30 seconds of freshness and background refresh on stale
-re-entry. Project cards come from the shared project-threads query; calendar
-data still reloads on each visit. The Projects page loads notes and the
-calendar only when its Map or Plan view first opens.
+re-entry. Project cards come from the shared project-threads query; the
+calendar paints from its cached snapshot and refreshes on each visit. Today
+ticks tasks through `features/second-brain/task-actions.ts`, the same Google
+outbox and Undo path as Calendar. Resume lists recent threads from every open
+folder that aren't running. Home and Command Centre composers keep unsent text
+per window (`composer.<scope>` under `Persist.window`). The Projects page loads
+notes and the calendar only when its Map or Plan view first opens.
+
+Pages read `resource.latest` through `utils/resource.ts` (`settled`), because a
+direct read before the first value suspends the fallback-less `Suspense` in
+`pages/layout-new.tsx` and holds the old page until the list request returns.
+
+## Alerts
+
+`context/notification.tsx` turns server events into sounds, OS notifications and
+unseen marks; `context/notification-events.ts` decides which. Composer turns run
+on core's runner and publish only V2 events: `session.next.step.ended` with a
+finish other than `tool-calls` is a finished turn, and `session.next.step.failed`
+is a failure unless it carries the runner's Stop message. Routine and command
+threads on the legacy runner publish `session.idle` and `session.error`. An error
+or Stop silences that turn's closing event. `permission.asked` and `question.asked`
+raise the Permissions sound and notification for root threads, unless auto-accept
+answers the request. Child threads stay silent. Links use the alert's own server.
 
 Page content renders inside an error boundary in `pages/layout-new.tsx`: a page
 that throws shows a retryable message in the page area while the sidebar stays
