@@ -313,6 +313,7 @@ export function ProjectView(props: {
                           maxLength={200}
                           value={item.title}
                           onKeyDown={(event) => {
+                            if (event.isComposing) return
                             if (event.key === "Enter") finishRename(item, event.currentTarget.value)
                             if (event.key === "Escape") finishRename(item, undefined)
                           }}

@@ -42,6 +42,8 @@ export type CommandPaletteEntry = {
 const ENTRY_LIMIT = 5
 // Each vault search reads every page in the workspace.
 const VAULT_SEARCH_DELAY = 250
+// The server returns up to 1,000 matches; the session search here asks for 50.
+const VAULT_PAGE_LIMIT = 50
 const COMMON_COMMAND_IDS = [
   "session.new",
   "workspace.new",
@@ -275,7 +277,7 @@ export function createVaultEntries(server: () => ServerConnection.Any) {
           href: `/projects?project=${encodeURIComponent(record.id)}`,
         }),
       ),
-      ...pages.map(
+      ...pages.slice(0, VAULT_PAGE_LIMIT).map(
         (page): CommandPaletteEntry => ({
           id: "page:" + page.path,
           type: "page",

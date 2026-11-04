@@ -173,11 +173,12 @@ export default function ProjectsPage() {
   const pageHref = (path: string) => `/projects?page=${encodeURIComponent(path)}`
   const openPage = (path: string) => navigate(pageHref(path), { state: { fromNotes: true } })
   const openProject = (id: string) => navigate(`/projects?project=${encodeURIComponent(id)}`)
-  const back = () => {
-    if (location.state?.fromNotes) return navigate(-1)
+  // The open page's Project, else the landing.
+  const parentHref = () => {
     const owner = pageList().find((page) => page.path === pagePath())?.projectId
-    navigate(owner ? `/projects?project=${encodeURIComponent(owner)}&section=pages` : "/projects")
+    return owner ? `/projects?project=${encodeURIComponent(owner)}&section=pages` : "/projects"
   }
+  const back = () => (location.state?.fromNotes ? navigate(-1) : navigate(parentHref()))
   // Folder Projects run their threads in the folder the server resolves; a legacy card in its linked workspace.
   const threadDirectory = (record: ProjectRecord) =>
     brainProjects.entries()?.find((entry) => entry.project.id === record.id)?.threadDirectory ??
@@ -271,7 +272,8 @@ export default function ProjectsPage() {
     const target = directory()
     const vault = client(target)
     const key = pageKey(target, page.path)
-    back()
+    // Not back(): a page opened from outside Projects would leave this page, which commits the delete with no Undo.
+    navigate(parentHref(), { replace: true })
     setState("deleting", key, true)
     const restore = () => setState("deleting", key, false)
     const removed = () => {

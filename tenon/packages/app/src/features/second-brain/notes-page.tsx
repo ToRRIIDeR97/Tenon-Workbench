@@ -110,7 +110,8 @@ export function NotesPageView(props: {
   const linkLookup = createMemo(() => noteLinkLookup(props.pages))
 
   const save = async () => {
-    if (!dirty() || state.saving) return false
+    if (!dirty()) return true
+    if (state.saving) return false
     const sent = { body: state.body, title: state.title, properties: JSON.stringify(state.properties) }
     const path = props.path
     setState({ saving: true, error: "" })

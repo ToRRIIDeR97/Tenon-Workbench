@@ -70,7 +70,7 @@ export function ProjectDetails(props: {
     )
 
   const save = async () => {
-    if (!dirty()) return false
+    if (!dirty()) return true
     const name = state.name.trim()
     if (!name || !state.outcome.trim()) {
       setState("error", language.t("secondBrain.projects.error.required"))
@@ -97,7 +97,12 @@ export function ProjectDetails(props: {
   }
   useUnsavedGuard({
     dirty,
-    save,
+    // Settings may be collapsed, which hides the form's own error line.
+    save: async () => {
+      const saved = await save()
+      if (!saved) showToast({ variant: "error", title: state.error })
+      return saved
+    },
     discard: () => setState({ ...formFields(props.project), error: "" }),
     body: () => language.t("secondBrain.unsaved.project"),
   })
