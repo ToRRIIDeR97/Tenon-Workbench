@@ -1117,6 +1117,8 @@ export const dict = {
   "secondBrain.home.projects": "Active Projects",
   "secondBrain.home.openWorkspace": "Open folder",
   "secondBrain.home.running": "Running work",
+  "secondBrain.home.resume": "Resume",
+  "secondBrain.home.more": "{{count}} more",
   "secondBrain.home.firstRun.title": "Set up your first Project",
   "secondBrain.home.firstRun.project": "Create Project",
   "secondBrain.home.firstRun.folder": "Open folder",

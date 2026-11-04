@@ -75,6 +75,7 @@ export default function CommandCentrePage() {
     },
   })
   const composer = createComposerController({
+    persist: "command",
     // Each request from here is a fresh thread; it opens once started. A failed send keeps the text.
     send: async (text) => {
       const id = await centre.send(text, null, {
