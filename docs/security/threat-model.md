@@ -952,9 +952,11 @@ the Electron main process (see [architecture](../architecture/README.md#local-di
   the user without a shell and reads only the model file main passes it.
 - **Model downloads.** Whisper Small, Whisper Turbo and Parakeet V3 come from
   pinned Hugging Face revisions (`dictation-models.ts`, the same GGUF files
-  Handy uses). Main streams each to a `.part` file, checks its size and
-  SHA-256 against the pinned values, and only then renames it into
-  `<userData>/dictation/models/`; a mismatch deletes the file. The active choice
+  Handy uses). Main streams each through `net.fetch` (system proxy and
+  certificate store) to a `.part` file, checks its size and SHA-256 against the
+  pinned values, hashing any bytes kept from an interrupted attempt too, and only
+  then renames it into `<userData>/dictation/models/`; a mismatch deletes the
+  file. The active choice
   is `<userData>/dictation/settings.json`. Models are rebuildable downloads,
   not user data.
 - **Known gaps.** The packaged engine is signed with the app on macOS but is

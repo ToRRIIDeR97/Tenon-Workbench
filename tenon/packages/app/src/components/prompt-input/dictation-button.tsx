@@ -17,16 +17,31 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
     level: 0,
   })
   const offLevel = props.dictation.onLevel((rms) => setState("level", Math.min(1, rms * 4)))
+  const offLimit = props.dictation.onLimit(() => {
+    if (state.phase !== "recording") return
+    showToast({ description: language.t("dictation.limitReached") })
+    void finish()
+  })
   // A start still in flight at unmount is cancelled once it resolves, so the mic doesn't keep recording.
+  // A recording in progress is transcribed anyway and offered, so the words aren't lost.
   let disposed = false
   onCleanup(() => {
     disposed = true
     offLevel()
-    if (state.phase === "recording") void props.dictation.cancel()
+    offLimit()
+    if (state.phase === "recording") void finish()
   })
 
   const report = (error: DictationFailure) => {
-    const known = ["no_model", "engine_unavailable", "engine_exited", "no_microphone", "microphone_busy"]
+    const known = [
+      "no_model",
+      "engine_unavailable",
+      "engine_exited",
+      "no_microphone",
+      "microphone_busy",
+      "transcribe_timeout",
+      "already_recording",
+    ]
     // A denied microphone names its platform's help text and offers the privacy settings.
     const key =
       error.help?.key ?? (known.includes(error.code) ? `dictation.error.${error.code}` : "dictation.error.generic")
@@ -45,8 +60,34 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
     })
   }
 
+  const finish = async () => {
+    setState({ phase: "transcribing", level: 0 })
+    const result = await props.dictation.stop()
+    setState("phase", "idle")
+    if (result.error?.code === "cancelled") return
+    if (result.error) return report(result.error)
+    if (!result.text) return
+    if (!disposed) return insertAtCaret(result.text, props.restoreFocus)
+    // The composer is gone, and typing into whatever has focus now could reach a note or another thread.
+    const text = result.text
+    showToast({
+      persistent: true,
+      title: language.t("dictation.transcript.title"),
+      description: text,
+      actions: [
+        {
+          label: language.t("dictation.transcript.copy"),
+          onClick: () => void navigator.clipboard.writeText(text),
+        },
+        { label: language.t("common.dismiss"), onClick: "dismiss" },
+      ],
+    })
+  }
+
   const toggle = async () => {
-    if (state.phase === "starting" || state.phase === "transcribing") return
+    if (state.phase === "starting") return
+    // Gives up on a transcription that is taking too long; finish() ends quietly.
+    if (state.phase === "transcribing") return void props.dictation.cancel()
     if (state.phase === "idle") {
       setState("phase", "starting")
       const result = await props.dictation.start()
@@ -60,15 +101,13 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
       }
       return setState("phase", "recording")
     }
-    setState({ phase: "transcribing", level: 0 })
-    const result = await props.dictation.stop()
-    setState("phase", "idle")
-    if (result.error) return report(result.error)
-    if (result.text) insertAtCaret(result.text, props.restoreFocus)
+    await finish()
   }
 
   const label = () =>
-    state.phase === "transcribing" ? language.t("dictation.transcribing") : language.t("dictation.action.dictate")
+    state.phase === "transcribing"
+      ? language.t("dictation.transcribing.cancel")
+      : language.t("dictation.action.dictate")
   return (
     <TooltipV2 placement="top" value={label()}>
       <IconButtonV2
@@ -77,7 +116,7 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
         data-phase={state.phase}
         variant="ghost-muted"
         size="large"
-        aria-label={language.t("dictation.action.dictate")}
+        aria-label={label()}
         aria-pressed={state.phase === "recording"}
         aria-busy={state.phase === "starting" || state.phase === "transcribing"}
         state={state.phase === "recording" ? "pressed" : undefined}

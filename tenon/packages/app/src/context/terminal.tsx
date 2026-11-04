@@ -165,7 +165,7 @@ function createWorkspaceTerminalSession(
   const reportStartFailure = (error: unknown) =>
     showToast({
       variant: "error",
-      title: language.t("terminal.startFailed.title"),
+      title: language.t("secondBrain.terminal.startFailed.title"),
       description:
         (!(error instanceof Error) && record(error) && text(error.message)) || formatServerError(error, language.t),
     })

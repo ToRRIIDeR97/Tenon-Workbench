@@ -66,17 +66,27 @@ platform exposes `dictation` (desktop); the web build has no mic.
   `start()`, `stop(): Promise<string>`, `cancel()`, `status()` and `onLevel`. If
   the engine exits mid-recording, `stop()` rejects with `engine_exited` and the
   next `start()` respawns it; after 5 crashes in 10 minutes it reports
-  `engine_unavailable`.
+  `engine_unavailable`. A recording stops itself after 30 minutes and tells the
+  window through `onLimit`; `stop()` then collects its transcript. A transcription
+  that outlasts 2 minutes plus ten times the recording rejects `transcribe_timeout`
+  and kills the engine, because the worker holds the session for the whole run.
+  `cancel()` during a transcription does the same with `cancelled` and counts no
+  crash. After 10 idle minutes the engine exits to free the model, and the next
+  `start()` respawns and reloads it. If the composer unmounts mid-dictation, the
+  transcript goes to a toast with a Copy action instead of the focused element.
 - **Service and IPC.** `dictation-service.ts` resolves the binary
   (`resources/dictation/` when packaged, `packages/dictation/target/release/` in
   development, or `TENON_DICTATION_ENGINE`), checks microphone access, keeps the
   active model in `<userData>/dictation/settings.json`, and downloads models
-  (`dictation-models.ts`) into `<userData>/dictation/models/`. `ipc.ts` exposes
+  (`dictation-models.ts`, `dictation-download.ts`) through `net.fetch` into
+  `<userData>/dictation/models/`. A dropped download keeps its `.part` file and
+  the next attempt resumes it with a Range request; a cancel removes it. `ipc.ts` exposes
   thin `dictation-*` handlers; the renderer names models by ID only and never
   passes a path or URL. Levels and download progress go back to the requesting
-  window (`dictation-level`, `dictation-download-progress`).
+  window (`dictation-level`, `dictation-limit`, `dictation-download-progress`).
 - **Settings › Dictation** (`app/src/components/settings-v2/dictation.tsx`) lists
-  Whisper Small, Whisper Turbo and Parakeet V3, downloads with progress, picks
+  Whisper Small, Whisper Turbo and Parakeet V3, downloads with progress, Cancel
+  and a short failure reason, picks
   the active model, and credits Handy by CJ Pais. Licences are in
   `THIRD_PARTY_NOTICES.md`; build steps in
   [release operations](../release-operations.md#dictation-engine-rust).

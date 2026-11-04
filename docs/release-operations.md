@@ -102,7 +102,9 @@ whisper/ggml from source). Run `bun run --cwd tenon/packages/desktop build:dicta
 
 Speech models are not bundled. Settings › Dictation downloads Whisper Small,
 Whisper Turbo or Parakeet V3 (the GGUF files Handy uses, from Hugging Face,
-checked against their SHA-256) into `<userData>/dictation/models/`.
+checked against their SHA-256) into `<userData>/dictation/models/`. Downloads use
+Electron's `net.fetch`, so they follow the system proxy. An interrupted download
+leaves `<model>.part` there and the next attempt resumes it.
 
 ## Bundled ripgrep
 

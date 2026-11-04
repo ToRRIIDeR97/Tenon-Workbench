@@ -367,7 +367,7 @@ export const dict = {
   "prompt.context.removeFile": "Eliminar archivo del contexto",
   "prompt.action.attachFile": "Añadir archivos",
   "dictation.action.dictate": "Dictar",
-  "dictation.transcribing": "Transcribiendo…",
+  "dictation.transcribing.cancel": "Transcribiendo… Haz clic para cancelar",
   "dictation.error.title": "No se pudo dictar",
   "dictation.error.no_model": "Primero descarga un modelo de voz en Ajustes › Dictado.",
   "dictation.error.engine_unavailable": "El motor de dictado no está disponible en esta compilación.",

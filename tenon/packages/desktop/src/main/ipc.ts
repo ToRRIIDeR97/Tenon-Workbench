@@ -188,7 +188,10 @@ export function registerIpcHandlers(deps: Deps) {
   )
   // Dictation: the renderer starts and stops recordings and manages model files by id only.
   trustedHandle("dictation-start", (event) =>
-    deps.dictation.start((rms) => !event.sender.isDestroyed() && event.sender.send("dictation-level", rms)),
+    deps.dictation.start(
+      (rms) => !event.sender.isDestroyed() && event.sender.send("dictation-level", rms),
+      () => !event.sender.isDestroyed() && event.sender.send("dictation-limit"),
+    ),
   )
   trustedHandle("dictation-stop", () => deps.dictation.stop())
   trustedHandle("dictation-cancel", () => deps.dictation.cancel())
@@ -201,6 +204,7 @@ export function registerIpcHandlers(deps: Deps) {
       (progress) => !event.sender.isDestroyed() && event.sender.send("dictation-download-progress", progress),
     ),
   )
+  trustedHandle("dictation-cancel-download", (_event, id: unknown) => deps.dictation.cancelDownload(id))
   trustedHandle("dictation-open-permission-settings", () => deps.dictation.openPermissionSettings())
   trustedHandle("mail-available", () => deps.mail.available())
   trustedHandle("mail-accounts", () => deps.mail.accounts())

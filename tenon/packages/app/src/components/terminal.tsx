@@ -26,7 +26,7 @@ export interface TerminalProps extends ComponentProps<"div"> {
   autoFocus?: boolean
   onAutoFocus?: () => void
   onSubmit?: () => void
-  onCleanup?: (pty: Partial<LocalPTY> & { id: string }) => void
+  onCleanup?: (pty: Partial<LocalPTY> & { id: string; buffer?: string }) => void
   onConnect?: () => void
   onConnectError?: (error: unknown) => void
 }

@@ -15,7 +15,7 @@ export function SettingsDictationV2() {
   const [state, { refetch }] = createResource(() => platform.dictation?.models())
   const [view, setView] = createStore({
     progress: {} as Partial<Record<DictationModelID, number>>,
-    failed: undefined as DictationModelID | undefined,
+    failed: undefined as { id: DictationModelID; code?: string } | undefined,
   })
   const offProgress = platform.dictation?.onDownloadProgress((progress) =>
     setView("progress", progress.id, Math.floor((progress.received / progress.total) * 100)),
@@ -27,7 +27,8 @@ export function SettingsDictationV2() {
     if (!dictation) return
     setView({ failed: undefined })
     setView("progress", id, 0)
-    await dictation.download(id).catch(() => setView({ failed: id }))
+    const result = await dictation.download(id).catch(() => ({ error: "failed" }))
+    if (result.error && result.error !== "cancelled") setView({ failed: { id, code: result.error } })
     setView("progress", id, undefined)
     void refetch()
   }
@@ -58,6 +59,13 @@ export function SettingsDictationV2() {
                 {(model) => {
                   const downloading = () => view.progress[model.id] !== undefined
                   const active = () => state.latest?.active === model.id && model.downloaded
+                  const failure = () => {
+                    const code = view.failed?.id === model.id ? view.failed.code : undefined
+                    if (!code) return
+                    return ["checksum", "disk_space", "network", "server"].includes(code)
+                      ? language.t(`dictation.settings.downloadFailed.${code}` as Parameters<typeof language.t>[0])
+                      : language.t("dictation.settings.downloadFailed")
+                  }
                   return (
                     <SettingsRowV2
                       title={model.name}
@@ -70,10 +78,20 @@ export function SettingsDictationV2() {
                       }
                     >
                       <div class="flex items-center gap-2" data-model={model.id}>
-                        <Show when={view.failed === model.id}>
+                        <Show when={failure()}>
                           <span class="text-12-regular text-text-critical" role="alert">
-                            {language.t("dictation.settings.downloadFailed")}
+                            {failure()}
                           </span>
+                        </Show>
+                        <Show when={downloading()}>
+                          <ButtonV2
+                            size="small"
+                            variant="ghost"
+                            data-action="dictation-download-cancel"
+                            onClick={() => void platform.dictation?.cancelDownload(model.id)}
+                          >
+                            {language.t("common.cancel")}
+                          </ButtonV2>
                         </Show>
                         <Show
                           when={model.downloaded}
