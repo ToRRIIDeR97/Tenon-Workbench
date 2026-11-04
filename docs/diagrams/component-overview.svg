@@ -96,7 +96,7 @@
 <text x="370" y="172" text-anchor="start" class="s">→ domains and SessionV2</text>
 <rect class="sub" x="360" y="215" width="290" height="104" rx="6"/>
 <text x="370" y="233" text-anchor="start" class="t">Second Brain domains</text>
-<text x="370" y="249" text-anchor="start" class="s">tenon/src/knowledge/note.ts, vault.ts</text>
+<text x="370" y="249" text-anchor="start" class="s">tenon/src/knowledge/vault.ts</text>
 <text x="370" y="265" text-anchor="start" class="s">tenon/src/project/brain.ts,</text>
 <text x="370" y="281" text-anchor="start" class="s">planner/calendar.ts, agents/ (Command</text>
 <text x="370" y="297" text-anchor="start" class="s">Centre memory, routines), SecondBrainApi</text>

@@ -22,7 +22,7 @@ def component():
     s.zone(340, 60, 360, 570, "Tenon server «subsystem» · 127.0.0.1")
     s.box(360, 90, 290, 104, "HTTP API", ["native /api: server + protocol pkgs", "legacy: tenon/src/server",
           "Basic auth, workspace routing", "→ domains and SessionV2"], cls="sub")
-    s.box(360, 215, 290, 104, "Second Brain domains", ["tenon/src/knowledge/note.ts, vault.ts", "tenon/src/project/brain.ts,",
+    s.box(360, 215, 290, 104, "Second Brain domains", ["tenon/src/knowledge/vault.ts", "tenon/src/project/brain.ts,",
           "planner/calendar.ts, agents/ (Command", "Centre memory, routines), SecondBrainApi"], cls="sub")
     s.box(360, 340, 290, 80, "Location services", ["core: LocationMutation, FileMutation", "path containment, CAS writes"], cls="sub")
     s.box(360, 440, 290, 170, "Agent runtime", ["core/src/session: SessionV2,", "SessionInput, SessionRunner",

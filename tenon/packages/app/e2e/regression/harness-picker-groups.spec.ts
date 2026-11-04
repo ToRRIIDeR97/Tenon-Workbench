@@ -2,7 +2,9 @@ import { expect, test } from "@playwright/test"
 import { fixture } from "../smoke/session-timeline.fixture"
 import { mockTenonServer } from "../utils/mock-server"
 
-test("Harness picker lists the built-in loop first, then external agents, with an add action", async ({ page }, testInfo) => {
+test("Harness picker lists the built-in loop first, then external agents, with an add action", async ({
+  page,
+}, testInfo) => {
   await mockTenonServer(page, {
     sessions: [],
     provider: fixture.provider,

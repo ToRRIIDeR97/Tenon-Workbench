@@ -47,7 +47,6 @@ export const dict = {
   "ui.sessionTurn.error.freeUsageExceeded": "무료 사용량 초과",
   "ui.sessionTurn.error.addCredits": "크레딧 추가",
 
-
   "ui.sessionTurn.status.delegating": "작업 위임 중",
   "ui.sessionTurn.status.planning": "다음 단계 계획 중",
   "ui.sessionTurn.status.gatheringContext": "탐색 중",

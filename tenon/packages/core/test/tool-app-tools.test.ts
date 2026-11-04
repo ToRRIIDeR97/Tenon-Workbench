@@ -66,10 +66,7 @@ const withRegistry = <A, E, R>(
       AppNodeBuilder.build(LayerNode.group([ToolRegistry.node, ToolRegistry.toolsNode, AppToolsTool.node]), [
         [
           Location.node,
-          Layer.succeed(
-            Location.Service,
-            Location.Service.of(location({ directory: AbsolutePath.make(directory) })),
-          ),
+          Layer.succeed(Location.Service, Location.Service.of(location({ directory: AbsolutePath.make(directory) }))),
         ],
         [PermissionV2.node, permission],
         [ToolOutputStore.node, ToolOutputStore.nodeWithoutConfig],

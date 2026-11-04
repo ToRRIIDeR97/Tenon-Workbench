@@ -23,7 +23,9 @@ export async function moveVault(from: string, to: string, api: path.PlatformPath
   const source = await entries(from)
   if (!(await isVault(from, source, api))) return {}
   const copied = await Promise.all(
-    source.map((name) => cp(api.join(from, name), api.join(to, name), { recursive: true, errorOnExist: true, force: false })),
+    source.map((name) =>
+      cp(api.join(from, name), api.join(to, name), { recursive: true, errorOnExist: true, force: false }),
+    ),
   )
     .then(() => sameFiles(from, to, source, api))
     .catch(() => false)

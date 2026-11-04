@@ -2,9 +2,7 @@ import { makeDefaultApi } from "@tenon/protocol/api"
 import { InvalidRequestError, SessionNotFoundError } from "@tenon/protocol/errors"
 import { HttpApiMiddleware } from "effect/unstable/httpapi"
 
-class LocationMiddleware extends HttpApiMiddleware.Service<LocationMiddleware>()(
-  "@tenon/client/LocationMiddleware",
-) {}
+class LocationMiddleware extends HttpApiMiddleware.Service<LocationMiddleware>()("@tenon/client/LocationMiddleware") {}
 
 class SessionLocationMiddleware extends HttpApiMiddleware.Service<SessionLocationMiddleware>()(
   "@tenon/client/SessionLocationMiddleware",

@@ -76,7 +76,6 @@ export const dict = {
   "ui.sessionTurn.error.freeUsageExceeded": "Prekoračeno besplatno korištenje",
   "ui.sessionTurn.error.addCredits": "Dodaj kredite",
 
-
   "ui.sessionTurn.status.delegating": "Delegiranje posla",
   "ui.sessionTurn.status.planning": "Planiranje sljedećih koraka",
   "ui.sessionTurn.status.gatheringContext": "Istraživanje",

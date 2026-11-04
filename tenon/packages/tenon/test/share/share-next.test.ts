@@ -101,8 +101,8 @@ beforeEach(async () => {
 
 describe("ShareNext", () => {
   it.live("request uses legacy share API without active org account", () =>
-    userShareServer(provideTmpdirInstance(
-      () =>
+    userShareServer(
+      provideTmpdirInstance(() =>
         ShareNext.Service.use((svc) =>
           Effect.gen(function* () {
             const req = yield* svc.request()
@@ -115,7 +115,8 @@ describe("ShareNext", () => {
             expect(req.headers).toEqual({})
           }),
         ).pipe(Effect.provide(requestLayer(none))),
-    )),
+      ),
+    ),
   )
 
   it.live("request uses default URL when no enterprise config", () =>
@@ -153,8 +154,8 @@ describe("ShareNext", () => {
   )
 
   it.live("create posts share, persists it, and returns the result", () =>
-    userShareServer(provideTmpdirInstance(
-      () => {
+    userShareServer(
+      provideTmpdirInstance(() => {
         const createRequests: HttpClientRequest.HttpClientRequest[] = []
         const client = HttpClient.make((req) => {
           if (req.url.endsWith("/api/share")) {
@@ -187,13 +188,13 @@ describe("ShareNext", () => {
           expect(createRequests[0].method).toBe("POST")
           expect(createRequests[0].url).toBe("https://legacy-share.example.com/api/share")
         }).pipe(Effect.provide(integrationLayer(client)))
-      },
-    )),
+      }),
+    ),
   )
 
   it.live("remove deletes the persisted share and calls the delete endpoint", () =>
-    userShareServer(provideTmpdirInstance(
-      () => {
+    userShareServer(
+      provideTmpdirInstance(() => {
         const seen: HttpClientRequest.HttpClientRequest[] = []
         const client = HttpClient.make((req) => {
           seen.push(req)
@@ -221,8 +222,8 @@ describe("ShareNext", () => {
             ["DELETE", "https://legacy-share.example.com/api/share/shr_abc"],
           ])
         }).pipe(Effect.provide(integrationLayer(client)))
-      },
-    )),
+      }),
+    ),
   )
 
   it.live("create fails on a non-ok response and does not persist a share", () =>
@@ -240,8 +241,8 @@ describe("ShareNext", () => {
   )
 
   it.live("ShareNext coalesces rapid diff events into one delayed sync with latest data", () =>
-    userShareServer(provideTmpdirInstance(
-      () => {
+    userShareServer(
+      provideTmpdirInstance(() => {
         const seen: Array<{ url: string; body: string }> = []
         const client = HttpClient.make((req) => {
           if (req.url.endsWith("/sync") && req.body._tag === "Uint8Array") {
@@ -332,7 +333,7 @@ describe("ShareNext", () => {
             },
           ])
         }).pipe(Effect.provide(integrationLayer(client)))
-      },
-    )),
+      }),
+    ),
   )
 })

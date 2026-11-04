@@ -16,6 +16,7 @@ inside `tenon/`, then run these commands from the repository root:
 ```sh
 bun run typecheck
 bun run lint
+bun run format:check
 bun run check:generated
 bun run test
 bun run test:engine

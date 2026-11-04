@@ -155,8 +155,7 @@ export const { use: usePrompt, provider: PromptProvider } = createSimpleContext(
         set: (instanceID: Parameters<PromptSession["harness"]["set"]>[0]) => session().harness.set(instanceID),
         model: {
           current: withSuspense(() => session().harness.model.current()),
-          set: (model: Parameters<PromptSession["harness"]["model"]["set"]>[0]) =>
-            session().harness.model.set(model),
+          set: (model: Parameters<PromptSession["harness"]["model"]["set"]>[0]) => session().harness.model.set(model),
         },
       },
       context: {

@@ -76,7 +76,6 @@ export const dict = {
   "ui.sessionTurn.error.freeUsageExceeded": "Kostenloses Nutzungslimit überschritten",
   "ui.sessionTurn.error.addCredits": "Guthaben aufladen",
 
-
   "ui.sessionTurn.status.delegating": "Arbeit wird delegiert",
   "ui.sessionTurn.status.planning": "Nächste Schritte werden geplant",
   "ui.sessionTurn.status.gatheringContext": "Wird erkundet",

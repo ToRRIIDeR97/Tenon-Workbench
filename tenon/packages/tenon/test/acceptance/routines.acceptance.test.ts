@@ -41,22 +41,37 @@ const appLayer = AppNodeBuilder.build(
     Permission.node,
     EventV2Bridge.node,
   ]),
-  [[InstanceStore.bootstrapNode, Layer.succeed(InstanceBootstrapService.Service, InstanceBootstrapService.Service.of({ run: Effect.void }))]],
+  [
+    [
+      InstanceStore.bootstrapNode,
+      Layer.succeed(InstanceBootstrapService.Service, InstanceBootstrapService.Service.of({ run: Effect.void })),
+    ],
+  ],
 )
-const servedRoutes: Layer.Layer<never, Config.ConfigError, HttpServer.HttpServer> = HttpRouter.serve(HttpApiApp.routes, {
-  disableListenLog: true,
-  disableLogger: true,
-})
+const servedRoutes: Layer.Layer<never, Config.ConfigError, HttpServer.HttpServer> = HttpRouter.serve(
+  HttpApiApp.routes,
+  {
+    disableListenLog: true,
+    disableLogger: true,
+  },
+)
 const it = testEffect(
   Layer.mergeAll(
     appLayer,
-    servedRoutes.pipe(Layer.provide(layerWebSocketConstructorGlobal), Layer.provideMerge(NodeHttpServer.layerTest), Layer.provideMerge(NodeServices.layer)),
+    servedRoutes.pipe(
+      Layer.provide(layerWebSocketConstructorGlobal),
+      Layer.provideMerge(NodeHttpServer.layerTest),
+      Layer.provideMerge(NodeServices.layer),
+    ),
     AppNodeBuilder.build(CrossSpawnSpawner.node),
   ),
 )
 const request = (route: string, init?: RequestInit) => {
   const url = new URL(route, "http://localhost")
-  return HttpClientRequest.fromWeb(new Request(url, init)).pipe(HttpClientRequest.setUrl(url.pathname), HttpClient.execute)
+  return HttpClientRequest.fromWeb(new Request(url, init)).pipe(
+    HttpClientRequest.setUrl(url.pathname),
+    HttpClient.execute,
+  )
 }
 const json = <T>(response: HttpClientResponse.HttpClientResponse) =>
   response.status >= 200 && response.status < 300
@@ -66,18 +81,28 @@ const local = (y: number, m: number, d: number, h: number, min = 0) => new Date(
 
 describe("Routines.nextRun (AC-9.1)", () => {
   test("daily runs the next day once today's time has passed", () => {
-    expect(Routines.nextRun("daily 08:30", local(2026, 11, 2, 9, 0)).getTime()).toBe(local(2026, 11, 3, 8, 30).getTime())
-    expect(Routines.nextRun("daily 08:30", local(2026, 11, 2, 7, 0)).getTime()).toBe(local(2026, 11, 2, 8, 30).getTime())
+    expect(Routines.nextRun("daily 08:30", local(2026, 11, 2, 9, 0)).getTime()).toBe(
+      local(2026, 11, 3, 8, 30).getTime(),
+    )
+    expect(Routines.nextRun("daily 08:30", local(2026, 11, 2, 7, 0)).getTime()).toBe(
+      local(2026, 11, 2, 8, 30).getTime(),
+    )
   })
   test("weekdays skips the weekend", () => {
     // 6 Nov 2026 is a Friday.
-    expect(Routines.nextRun("weekdays 17:30", local(2026, 11, 6, 18, 0)).getTime()).toBe(local(2026, 11, 9, 17, 30).getTime())
+    expect(Routines.nextRun("weekdays 17:30", local(2026, 11, 6, 18, 0)).getTime()).toBe(
+      local(2026, 11, 9, 17, 30).getTime(),
+    )
   })
   test("weekly picks the named day", () => {
-    expect(Routines.nextRun("weekly mon 09:00", local(2026, 11, 3, 12, 0)).getTime()).toBe(local(2026, 11, 9, 9, 0).getTime())
+    expect(Routines.nextRun("weekly mon 09:00", local(2026, 11, 3, 12, 0)).getTime()).toBe(
+      local(2026, 11, 9, 9, 0).getTime(),
+    )
   })
   test("five-field cron is supported", () => {
-    expect(Routines.nextRun("*/15 * * * *", local(2026, 11, 2, 10, 7)).getTime()).toBe(local(2026, 11, 2, 10, 15).getTime())
+    expect(Routines.nextRun("*/15 * * * *", local(2026, 11, 2, 10, 7)).getTime()).toBe(
+      local(2026, 11, 2, 10, 15).getTime(),
+    )
   })
 })
 
@@ -130,7 +155,9 @@ describe("Routines", () => {
       const { headers, write } = yield* setup
       yield* write("Morning brief", { schedule: "weekdays 08:30", enabled: true })
       const routines = yield* request("/second-brain/routines", { headers }).pipe(
-        Effect.flatMap(json<{ id: string; name: string; schedule: string; enabled: boolean; nextRun: string | number }[]>),
+        Effect.flatMap(
+          json<{ id: string; name: string; schedule: string; enabled: boolean; nextRun: string | number }[]>,
+        ),
       )
       expect(routines).toHaveLength(1)
       expect(routines[0]).toMatchObject({ name: "Morning brief", schedule: "weekdays 08:30", enabled: true })
@@ -174,7 +201,10 @@ describe("Routines", () => {
       }
       GlobalBus.on("event", listen)
       yield* Effect.gen(function* () {
-        yield* Routines.runDue({ now: local(2026, 11, 2, 7, 0), run: () => Effect.succeed({ threadId: "ses_x", text: "n/a" }) })
+        yield* Routines.runDue({
+          now: local(2026, 11, 2, 7, 0),
+          run: () => Effect.succeed({ threadId: "ses_x", text: "n/a" }),
+        })
         yield* Routines.runDue({
           now: local(2026, 11, 2, 8, 5),
           run: () => Effect.succeed({ threadId: "ses_brief", text: "Two meetings today; one invoice to pay." }),
@@ -182,7 +212,9 @@ describe("Routines", () => {
       }).pipe(Effect.ensuring(Effect.sync(() => GlobalBus.off("event", listen))))
       expect(events).toHaveLength(1)
       expect(events[0].payload.properties).toMatchObject({ threadId: "ses_brief" })
-      const inbox = yield* request("/second-brain/vault/page?path=Inbox.md", { headers }).pipe(Effect.flatMap(json<{ body: string }>))
+      const inbox = yield* request("/second-brain/vault/page?path=Inbox.md", { headers }).pipe(
+        Effect.flatMap(json<{ body: string }>),
+      )
       expect(inbox.body).toContain("Two meetings today; one invoice to pay.")
     }),
   )

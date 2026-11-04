@@ -256,7 +256,6 @@ state alive across route changes; it replaced the tab store.
 
 | Data                       | Owner and persistence                                                                                                 |
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Notes (legacy)             | `packages/tenon/src/knowledge/note.ts`; workspace Markdown files, moved into the vault by migration                 |
 | Vault pages, timelines, logs | `packages/tenon/src/knowledge/vault.ts`; the Tenon vault (`TENON_VAULT_DIR`, default `Documents/Tenon`); see [Tenon vault](#tenon-vault) |
 | Vault machine map          | `vault.ts`; `vault-machine.json` in the data folder (machine id, workspace directory → vault folder id); rebuilt by opening the vault |
 | Vault folder choice        | `packages/desktop/src/main/vault-folder.ts`; `vaultFolder` key in `tenon.settings`                                   |
@@ -410,8 +409,7 @@ or workspace (`{ error: "inside_workspace" }`).
 | `GET /second-brain/vault/conflicts` | `[{ path, original }]` |
 | `POST /second-brain/vault/migrate` | `{ moved, backup }` (`backup` relative to the root, null when nothing moved) |
 
-The older `/second-brain/notes` and `/second-brain/note` routes still read and
-write `<workspace>/notes`; no page of the app uses them any more.
+Files left in `<workspace>/notes` from before the vault are only read by the migration.
 
 #### Projects page
 

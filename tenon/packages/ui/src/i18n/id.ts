@@ -72,7 +72,6 @@ export const dict: Record<string, string> = {
   "ui.sessionTurn.error.freeUsageExceeded": "Penggunaan gratis telah habis",
   "ui.sessionTurn.error.addCredits": "Tambah kredit",
 
-
   "ui.sessionTurn.status.delegating": "Mendelegasikan pekerjaan",
   "ui.sessionTurn.status.planning": "Merencanakan langkah selanjutnya",
   "ui.sessionTurn.status.gatheringContext": "Menjelajah",

@@ -26,16 +26,28 @@ import { testEffect } from "../lib/effect"
 // P8 · Email, AC-8.4 (implementations/notes-command-centre/implementation.md)
 
 // The served routes install the app tools (AgentAppTools.layer), as in command-centre.acceptance.test.ts.
-const servedRoutes: Layer.Layer<never, Config.ConfigError, HttpServer.HttpServer> = HttpRouter.serve(HttpApiApp.routes, {
-  disableListenLog: true,
-  disableLogger: true,
-})
+const servedRoutes: Layer.Layer<never, Config.ConfigError, HttpServer.HttpServer> = HttpRouter.serve(
+  HttpApiApp.routes,
+  {
+    disableListenLog: true,
+    disableLogger: true,
+  },
+)
 const it = testEffect(
   Layer.mergeAll(
-    servedRoutes.pipe(Layer.provide(layerWebSocketConstructorGlobal), Layer.provideMerge(NodeHttpServer.layerTest), Layer.provideMerge(NodeServices.layer)),
+    servedRoutes.pipe(
+      Layer.provide(layerWebSocketConstructorGlobal),
+      Layer.provideMerge(NodeHttpServer.layerTest),
+      Layer.provideMerge(NodeServices.layer),
+    ),
     AppNodeBuilder.build(
       LayerNode.group([InstanceStore.node, Project.node, Session.node, Workspace.node, Database.node, Ripgrep.node]),
-      [[InstanceStore.bootstrapNode, Layer.succeed(InstanceBootstrapService.Service, InstanceBootstrapService.Service.of({ run: Effect.void }))]],
+      [
+        [
+          InstanceStore.bootstrapNode,
+          Layer.succeed(InstanceBootstrapService.Service, InstanceBootstrapService.Service.of({ run: Effect.void })),
+        ],
+      ],
     ),
     AppNodeBuilder.build(CrossSpawnSpawner.node),
   ),
@@ -75,7 +87,10 @@ describe("mail tools", () => {
         async fetch(request) {
           const url = new URL(request.url)
           seen.push({ path: url.pathname, auth: request.headers.get("authorization"), body: await request.json() })
-          if (url.pathname.endsWith("/search")) return Response.json([{ id: "t1", subject: "Invoice", from: "billing@vendor.com", date: "2026-11-02", snippet: "Pay" }])
+          if (url.pathname.endsWith("/search"))
+            return Response.json([
+              { id: "t1", subject: "Invoice", from: "billing@vendor.com", date: "2026-11-02", snippet: "Pay" },
+            ])
           if (url.pathname.endsWith("/draft")) return Response.json({ id: "d1" })
           return Response.json({ id: "t1", messages: [] })
         },
@@ -87,7 +102,11 @@ describe("mail tools", () => {
       const names = AgentAppTools.list({ sessionID: session.id }).map((tool) => tool.name)
       for (const name of ["mail_search", "mail_read", "mail_draft"]) expect(names).toContain(name)
 
-      const search = (yield* AgentAppTools.call("mail_search", { query: "invoice" }, { sessionID: session.id })) as Result
+      const search = (yield* AgentAppTools.call(
+        "mail_search",
+        { query: "invoice" },
+        { sessionID: session.id },
+      )) as Result
       expect(search.isError).toBe(false)
       expect(JSON.stringify(search.value)).toContain("Invoice")
       expect(seen[0]).toMatchObject({ path: "/mail/search", auth: "Bearer secret-token", body: { query: "invoice" } })

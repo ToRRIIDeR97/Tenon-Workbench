@@ -150,4 +150,3 @@ function canonicalKeys<I, E>(map: LayerMap.LayerMap<Location.Ref, I, E>): LayerM
 // This is temporary for backwards compatibility. It is the same cached Layer the app graph builds,
 // so runtimes sharing a memo map also share the folder services.
 export const locationServiceMapLayer = buildLocationServiceMap()
-

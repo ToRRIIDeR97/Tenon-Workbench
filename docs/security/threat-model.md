@@ -15,7 +15,7 @@ Detailed permission and request flows are in
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Renderer to native process | The main window uses `contextIsolation`, `sandbox`, and disabled `nodeIntegration`. `tenon/packages/desktop/src/preload/index.ts` exposes specific IPC methods implemented in `tenon/packages/desktop/src/main/ipc.ts`. Packaged builds ignore `ELECTRON_RENDERER_URL`; see Renderer content policy for remote media.                                     |
 | Renderer to managed server | Electron starts the Tenon server on `127.0.0.1` with a generated password. Server authorization checks credentials for protected routes. See `tenon/packages/desktop/src/main/index.ts` and `tenon/packages/tenon/src/server/routes/instance/httpapi/middleware/authorization.ts`.                                                                         |
-| Server to workspace files  | Second Brain handlers run in an instance location context. Note and project code resolves targets through `LocationMutation` before reading or writing files. See `tenon/packages/tenon/src/server/routes/instance/httpapi/handlers/second-brain.ts`, `tenon/packages/tenon/src/knowledge/note.ts`, and `tenon/packages/tenon/src/project/brain.ts`. |
+| Server to workspace files  | Second Brain handlers run in an instance location context. Project code and the vault migration resolve workspace targets through `LocationMutation` before reading or writing files. See `tenon/packages/tenon/src/server/routes/instance/httpapi/handlers/second-brain.ts`, `tenon/packages/tenon/src/knowledge/vault.ts`, and `tenon/packages/tenon/src/project/brain.ts`. |
 | Server to the Tenon vault  | Vault pages, timelines and logs live outside the workspace, under `TENON_VAULT_DIR` (default `<Documents>/Tenon`). Every vault path is a validated relative path resolved inside the workspace's vault folder, with its real path checked; see [Tenon vault](#tenon-vault) and `tenon/packages/tenon/src/knowledge/vault.ts`. |
 | Desktop to Google          | Calendar and Tasks integration uses OAuth in the Electron main process. The service keeps any number of accounts, encrypts each account's client secret and refresh token with Electron `safeStorage`, and disables connection when secure storage is unavailable. Access tokens are cached per account, writes are routed to the account named by the item, and the loopback callback ignores requests without the expected state. See `tenon/packages/desktop/src/main/google-calendar.ts`. |
 
@@ -778,9 +778,8 @@ location, so it has its own containment instead of `LocationMutation`:
   already made stay in the vault (a rerun reuses identical copies). Backups and `.history` are plain copies of note text
   and are not pruned except history beyond 20 versions per page.
 - Migration also runs on the server on a workspace's first vault request, under
-  a per-vault lock, so two callers never move the same notes twice. The legacy
-  `/second-brain/note` write route now writes into the vault, never into
-  `<workspace>/notes`.
+  a per-vault lock, so two callers never move the same notes twice. No route
+  writes into `<workspace>/notes`.
 - Changing the vault folder (`choose-vault-folder`) copies the current vault to
   the new folder, compares every file, and only then switches; the old folder
   is left untouched. A non-empty folder that is not a vault, or one inside or
@@ -1195,7 +1194,7 @@ message and shows in a toast. It doesn't run outside git.
 
 From the repository root, `bun run typecheck` checks every workspace package
 through turbo. `bun run test` runs every package suite except the engine
-(core, server) and the client and schema suites, then the Second Brain
+(core, server), then the Second Brain
 domains; `bun run test:engine` runs core and server suites. `bun run lint`
 checks `tenon/`, and `bun run check:generated` fails when the generated
 client is stale. These commands are defined in the root `package.json`.
