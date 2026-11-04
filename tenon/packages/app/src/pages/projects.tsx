@@ -618,7 +618,7 @@ ${path}`
                 )}
                 action={
                   unreadable() ? (
-                    <ButtonV2 size="small" variant="outline" onClick={() => void pagesActions.refetch()}>
+                    <ButtonV2 size="small" variant="outline" onClick={vault.retry}>
                       {language.t("secondBrain.state.retry")}
                     </ButtonV2>
                   ) : undefined

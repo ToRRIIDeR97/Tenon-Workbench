@@ -14,20 +14,30 @@ import { CommandThreads } from "./command-threads"
 import { Routines } from "./routines"
 
 /**
- * Runs due routines at server start and then every minute, for each workspace that has a vault folder
- * on this machine (the vault's machine map in app data). Missed times catch up once (Routines.runDue).
+ * Runs due routines at server start and then every minute, for each workspace with a `Routines` folder in
+ * its vault on this machine (the vault's machine map in app data). That is decided from the files alone, so
+ * a workspace without routines is never booted or kept warm for this; a new folder is seen within a minute.
+ * Missed times catch up once (Routines.runDue).
  * Each workspace's check runs in the background, so a long routine never holds up the next minute; runs
  * left "running" by a previous process are marked failed at start and retried. Only a listening server
  * starts it, never the in-process test routes.
  */
 
-/** Workspace directories with a vault folder under the current root that still exist on this machine. */
+/** Workspace directories with routines in their vault folder under the current root, that exist on this machine. */
 const workspaces = Effect.promise(async () => {
   const global = Global.make()
-  const directories = await KnowledgeVault.currentWorkspaces(
-    KnowledgeVault.rootFor(process.env, global.home),
-    global.data,
-  )
+  const root = KnowledgeVault.rootFor(process.env, global.home)
+  const withRoutines = await KnowledgeVault.workspacesWithFolder(root, Routines.folder)
+  // Every root's entries: a moved vault's workspace keeps its earlier root's entry until it is reopened.
+  const directories = [
+    ...new Set(
+      Object.values(KnowledgeVault.machineRoots(global.data)).flatMap((mapped) =>
+        Object.entries(mapped)
+          .filter(([, id]) => withRoutines.has(id))
+          .map(([directory]) => directory),
+      ),
+    ),
+  ]
   const present = await Promise.all(
     directories.map((directory) =>
       stat(directory)

@@ -583,10 +583,14 @@ assistant that spans workspaces, with its own threads, memory and routines.
 - **Memory.** `CommandMemory.compact({ now?, days, summarize })` summarises
   Command Centre root threads last updated more than `days` ago (1–365) into
   `.command-centre/memory/<thread>.md` (readable, synced with the vault), then
-  deletes those threads. A thread whose summary fails is kept. Project threads
-  are never read. `CommandMemory.search(query)` builds a temporary SQLite FTS5
+  deletes those threads. A thread whose summary fails, or that has no text to
+  summarise, is kept. A thread over 24,000 characters reaches the summariser as
+  its start and end. Project threads are never read.
+  `CommandMemory.search(query)` builds a temporary SQLite FTS5
   table on the profile database's connection from thread titles, message text
-  and the memory files, so the index is never stored. The renderer calls
+  and the memory files, so the index is never stored. Compactions run one at a
+  time and share a lock with search only while removing a thread, so search
+  doesn't wait on model calls. The renderer calls
   `POST /command-centre/memory/compact` at most once a day with the age from
   Settings (`settings.v3` `commandCentre.memoryDays`, default 45); the server's
   summariser (`CommandThreads.summarizer`) makes one model call per thread with
@@ -598,7 +602,8 @@ assistant that spans workspaces, with its own threads, memory and routines.
   point at `tor-project-setup`, `tor-implementation`,
   `tor-feature-map-verification` and `tor-workflow`, then creates the Project
   card (a folder outside the workspace is also linked) and an empty vault
-  timeline. A failed setup removes a folder it created. Command Centre
+  timeline. A setup that fails before the card is written removes a folder it
+  created; after that the folder stays with its Project. Command Centre
   sessions call it as the `project_setup` app tool.
 - **Tools.** `AgentAppTools.list({ sessionID })` (synchronous) gives a
   Command Centre thread the app tools plus `memory_search`, `project_setup`
@@ -638,41 +643,51 @@ assistant that spans workspaces, with its own threads, memory and routines.
 A routine is a vault page under the workspace's `Routines/` folder whose
 properties carry `schedule` (`daily HH:MM`, `weekdays HH:MM`,
 `weekly <mon..sun> HH:MM` or a five-field cron) and optionally `enabled`
-(default true), `harness`, `model` (`provider/model`) and `tools`; the body is
-the prompt (`tenon/src/agents/routines.ts`). `Routines.nextRun(schedule, after)`
+(default true), `harness`, `model` (`provider/model`), `tools` and `timeout`
+(minutes, default 120, at most a day); the body is the prompt
+(`tenon/src/agents/routines.ts`). `Routines.nextRun(schedule, after)`
 gives the next local time. `Routines.runDue({ now, run })` runs each enabled
 approved routine at most once when a scheduled time fell after its last run
 (or, never run, after the first `runDue` that saw it, or after it was last
 enabled, disabled or approved) and at or before `now`, however many were
-missed. A run's reply is appended to the workspace's `Inbox.md` vault page
-under `## <routine> · <time>` and `GlobalBus` emits `routine.finished
-{ routineId, threadId }`. When each routine last ran, the permissions its last
-run was refused and the SHA-256 of the approved content are machine-local state
-in `routines-state.json` in the server data folder, never in the vault. A page
-whose content doesn't match the approved hash shows Needs approval, with a link
-to read it, and doesn't run until approved.
+missed. Only the `Routines/` folder is read (in any letter case), so the
+vault's 1,000-page list limit doesn't apply. A run's reply is appended to the
+workspace's `Inbox.md` vault page under `## <routine> · <time>` and `GlobalBus`
+emits `routine.finished { routineId, threadId }`. Appends run one at a time.
+Past 1 MB the Inbox's entries move to `Inbox/<YYYY-MM>.md` (`-2`, `-3` when a
+month fills more than one). A reply that still can't be filed stays in its
+thread and the routine's status is `unfiled`. A run past its timeout is
+interrupted, its thread cancelled and its status `failed`; one left `running`
+past that limit no longer blocks a new run and lists as `failed`. When each
+routine last ran, the permissions its last run was refused and the SHA-256 of
+the approved content are machine-local state in `routines-state.json` in the
+server data folder, never in the vault, and it is rewritten only when something
+changed. A page whose content doesn't match the approved hash shows Needs
+approval, with a link to read it, and doesn't run until approved.
 
 A listening server (`Server.listen` → `createRoutes(..., { background: true })`)
 starts `RoutinesScheduler.layer` (`agents/routines-scheduler.ts`): at start and
-every minute it checks each workspace that has a vault folder on this machine
-(`KnowledgeVault.currentWorkspaces`: entries under the current root in
+every minute it picks the workspaces on this machine whose vault folder has a
+`Routines` folder, by reading the files alone (entries under the current root in
 `vault-machine.json`, plus earlier roots' entries whose workspace id has a folder
 under the current root, so a moved vault's routines keep running before each
-workspace is reopened) and runs due routines as Command Centre threads
-(`CommandThreads.start`). The in-process routes that tests use don't start it.
+workspace is reopened), and runs due routines as Command Centre threads
+(`CommandThreads.start`). A workspace without routines gets no instance from this
+check. The in-process routes that tests use don't start it.
 These threads are unattended, Run now included: `CommandThreads.refusePrompts`
 answers every permission prompt no, the model carries on without it, and the
 row names what was refused.
 The Routines page (`/routines`, `app/src/pages/routines.tsx`, linked from the
 Command Centre) lists schedule, last run and next run with Run now, whose toast
-links to the new thread, or Approve when the page needs approval. A row's switch
-rewrites the routine page's `enabled` property (read, then `PUT` with its
+links to the new thread, or Approve when the page needs approval. It shows a run
+in flight (Run now is off meanwhile) and re-reads the list until it ends. A row's
+switch rewrites the routine page's `enabled` property (read, then `PUT` with its
 revision, since a write replaces all properties), and its name opens the page.
 
 | Route | Behaviour |
 | --- | --- |
-| `GET /second-brain/routines` | `[{ id, name, path, schedule, enabled, nextRun, lastRun, lastStatus, unsupported, hash, needsApproval, denied }]` (`id` is the page id) |
-| `POST /second-brain/routines/<id>/run` | `{ model? }` → `{ threadId }` once the thread exists; the reply is filed in the background; 409 when the page needs approval |
+| `GET /second-brain/routines` | `[{ id, name, path, schedule, enabled, nextRun, lastRun, lastStatus, unsupported, hash, needsApproval, denied }]` (`id` is the page id; `lastStatus` is `running`, `done`, `failed`, `unfiled` or null) |
+| `POST /second-brain/routines/<id>/run` | `{ model? }` → `{ threadId }` once the thread exists; the reply is filed in the background. 409 when the page needs approval or while a run of the routine is in flight |
 | `POST /second-brain/routines/<id>/approve` | `{ hash }` (from the list) → `{ approved: true }`; 409 when the page changed since |
 
 ### Mail accounts

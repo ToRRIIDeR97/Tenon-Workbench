@@ -53,6 +53,7 @@ const conflictPattern = /conflicted copy|\(conflict|\.sync-conflict-/i
  */
 const oneDriveConflict = /-(?:DESKTOP|LAPTOP)-[A-Z0-9]{4,}(?:-\d+)?(?=\.[^.]+$|$)/
 const isConflictCopy = (name: string) => conflictPattern.test(name) || oneDriveConflict.test(name)
+const sameName = (left: string, right: string) => left.toLowerCase() === right.toLowerCase()
 const utf8 = new TextDecoder("utf-8", { ignoreBOM: true })
 const locks = KeyedMutex.makeUnsafe<string>()
 /**
@@ -338,6 +339,60 @@ export const listPages = Effect.fn("KnowledgeVault.listPages")(function* (
     .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt) || left.path.localeCompare(right.path))
     .slice(0, pageLimit)
 })
+
+/**
+ * Every page under one top-level folder, bodies included, without reading the rest of the vault. The folder
+ * matches in any letter case (a case-sensitive volume may hold `routines/`), and `pageLimit` doesn't apply.
+ */
+export const folderPages = Effect.fn("KnowledgeVault.folderPages")(function* (vault: Vault, name: string) {
+  const fs = yield* FSUtil.Service
+  const entries = yield* fs.readDirectoryEntries(vault.directory).pipe(Effect.orElseSucceed(() => []))
+  const folders = entries.filter((entry) => entry.type === "directory" && sameName(entry.name, name))
+  if (folders.length === 0) return [] as Page[]
+  const projects = yield* projectFolders(vault)
+  const files = yield* Effect.forEach(folders, (folder) =>
+    fs
+      .glob("**/*.md", { cwd: path.join(vault.directory, folder.name), absolute: false, include: "file", dot: false })
+      .pipe(Effect.map((found) => found.map((file) => `${folder.name}/${file.replaceAll("\\", "/")}`))),
+  )
+  const pages = yield* Effect.forEach(
+    files.flat().filter((file) => isListedPage(file, projects)),
+    (file) =>
+      readPageFile(vault, file, projects).pipe(
+        Effect.map((page): Page => ({ info: page.info, body: page.body, revision: page.revision })),
+        Effect.catch((error) =>
+          Effect.logWarning("Skipping unreadable vault page", { path: file, error: error._tag }).pipe(
+            Effect.as(undefined),
+          ),
+        ),
+      ),
+    { concurrency: 8 },
+  )
+  return pages.filter((page): page is Page => page !== undefined)
+})
+
+/**
+ * Ids of the workspaces under `root` that have a top-level `name` folder in any letter case. Plain file
+ * reads, so a background check can skip a workspace without booting an instance for it.
+ */
+export async function workspacesWithFolder(root: string, name: string) {
+  const ids = new Set<string>()
+  const folders = await readdir(root, { withFileTypes: true }).catch(() => [])
+  await Promise.all(
+    folders
+      .filter((folder) => folder.isDirectory() && !folder.name.startsWith("."))
+      .map(async (folder) => {
+        const directory = path.join(root, folder.name)
+        const entries = await readdir(directory, { withFileTypes: true }).catch(() => [])
+        if (!entries.some((entry) => entry.isDirectory() && sameName(entry.name, name))) return
+        const source = await readFile(path.join(directory, "workspace.json"), "utf8").catch(() => undefined)
+        if (source === undefined) return
+        const file = Schema.decodeUnknownOption(Schema.fromJsonString(WorkspaceFile))(source)
+        if (Option.isSome(file)) ids.add(file.value.id)
+      }),
+  )
+  return ids
+}
 
 export const readPage = Effect.fn("KnowledgeVault.readPage")(function* (vault: Vault, input: string) {
   const page = yield* readPageFile(vault, yield* pagePath(input), yield* projectFolders(vault))

@@ -978,6 +978,8 @@ export const dict = {
   "secondBrain.routines.review": "Review page",
   "secondBrain.routines.approve": "Approve",
   "secondBrain.routines.denied": "Last run couldn't use these, as nobody was there to approve: {{permissions}}",
+  "secondBrain.routines.running": "Running",
+  "secondBrain.routines.unfiled": "Reply not filed in the Inbox; it is in the thread",
   "secondBrain.routines.new": "New routine",
   "secondBrain.routines.new.name": "New routine",
   "secondBrain.routines.new.body":

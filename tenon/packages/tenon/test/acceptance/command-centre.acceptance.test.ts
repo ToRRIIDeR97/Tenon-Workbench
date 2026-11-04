@@ -1,4 +1,4 @@
-import { afterEach, describe, expect } from "bun:test"
+import { afterEach, describe, expect, test as bunTest } from "bun:test"
 import { NodeHttpServer, NodeServices } from "@effect/platform-node"
 import { mkdir, readFile, readdir, realpath, symlink, writeFile } from "node:fs/promises"
 import path from "node:path"
@@ -18,6 +18,8 @@ import { Project } from "../../src/project/project"
 import { HttpApiApp } from "../../src/server/routes/instance/httpapi/server"
 import { AgentAppTools } from "../../src/agents/app-tools"
 import { CommandMemory } from "../../src/agents/command-memory"
+import { CommandThreads } from "../../src/agents/command-threads"
+import { MessageID, PartID, type SessionID } from "@/session/schema"
 import { Session } from "@/session/session"
 import { resetDatabase } from "../fixture/db"
 import { disposeAllInstances, provideInstanceEffect, TestInstance, tmpdirScoped } from "../fixture/fixture"
@@ -51,6 +53,23 @@ const json = <T>(response: HttpClientResponse.HttpClientResponse) =>
 type Result = { isError: boolean; value: unknown }
 const DAY = 24 * 60 * 60 * 1000
 
+const say = (sessionID: SessionID, text: string) =>
+  Effect.gen(function* () {
+    const sessions = yield* Session.Service
+    const id = MessageID.ascending()
+    yield* sessions.updateMessage({
+      id,
+      sessionID,
+      role: "user",
+      time: { created: Date.now() },
+      agent: "test",
+      model: { providerID: "test", modelID: "test" },
+      tools: {},
+      mode: "",
+    } as never)
+    yield* sessions.updatePart({ id: PartID.ascending(), sessionID, messageID: id, type: "text", text })
+  })
+
 const setup = Effect.gen(function* () {
   const test = yield* TestInstance
   const root = yield* tmpdirScoped()
@@ -64,6 +83,7 @@ const setup = Effect.gen(function* () {
   const projectFolder = path.join(test.directory, project.location?.path ?? "projects/Acme API")
   yield* Effect.promise(() => mkdir(projectFolder, { recursive: true }))
   const command = yield* Session.use.create({ title: "Billing webhook plan" }).pipe(provideInstanceEffect(commandDirectory))
+  yield* say(command.id, "Retry the billing webhook twice.").pipe(provideInstanceEffect(commandDirectory))
   const projectThread = yield* Session.use.create({ title: "Cookie migration" }).pipe(provideInstanceEffect(projectFolder))
   return { test, root, headers, project, commandDirectory, command, projectThread }
 })
@@ -167,6 +187,29 @@ describe("Command Centre", () => {
     }),
   )
 
+  it.instance("compaction keeps a thread with no text, and memory search runs during a model call", () =>
+    Effect.gen(function* () {
+      const { commandDirectory } = yield* setup
+      const empty = yield* Session.use.create({ title: "Nothing said" }).pipe(provideInstanceEffect(commandDirectory))
+      const result = yield* CommandMemory.compact({
+        now: Date.now() + 50 * DAY,
+        days: 45,
+        // A search that waited for the compaction to end would hang here.
+        summarize: (thread) => CommandMemory.search("billing").pipe(Effect.as(`Summary: ${thread.title}`)),
+      })
+      expect(result).toMatchObject({ summarised: 1, deleted: 1 })
+      expect((yield* Session.use.get(empty.id)).id).toBe(empty.id)
+    }),
+  )
+
+  bunTest("a long thread reaches the summariser as its start and end", () => {
+    expect(CommandThreads.excerpt("short", 100)).toBe("short")
+    const text = CommandThreads.excerpt(`start${"x".repeat(1_000)}end`, 200)
+    expect(text.length).toBeLessThanOrEqual(200)
+    expect(text.startsWith("start")).toBe(true)
+    expect(text.endsWith("end")).toBe(true)
+  })
+
   it.instance("AC-7.5 the memory routes search and compact", () =>
     Effect.gen(function* () {
       const { headers } = yield* setup
@@ -246,6 +289,26 @@ describe("Command Centre", () => {
       )) as Result
       expect(unreadable.isError).toBe(true)
       expect(yield* Effect.promise(() => readFile(file, "utf8"))).toBe("mine")
+    }),
+  )
+
+  it.instance("AC-7.6 a Project card that can't be written removes only a folder setup created", () =>
+    Effect.gen(function* () {
+      const { test, command } = yield* setup
+      const setUp = (folder: string) =>
+        AgentAppTools.call(
+          "project_setup",
+          { workspace: test.directory, name: "Acme API", folder },
+          { sessionID: command.id },
+        ).pipe(Effect.exit)
+      const fresh = path.join(test.directory, "fresh")
+      yield* setUp(fresh)
+      expect(yield* Effect.promise(() => readdir(fresh).catch(() => "removed"))).toBe("removed")
+
+      const empty = path.join(test.directory, "empty")
+      yield* Effect.promise(() => mkdir(empty))
+      yield* setUp(empty)
+      yield* Effect.promise(() => readdir(empty))
     }),
   )
 })

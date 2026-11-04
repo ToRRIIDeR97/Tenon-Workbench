@@ -39,8 +39,10 @@ const hitLimit = 20
 const textLimit = 600
 const threadLimit = 2_000
 const day = 24 * 60 * 60 * 1000
-// One search or compaction at a time: both rebuild or change the same rows.
+// One search or thread removal at a time: both change the same rows.
 const lock = Semaphore.makeUnsafe(1)
+// One compaction at a time. It takes `lock` only per removal, so memory search never waits on a model call.
+const compaction = Semaphore.makeUnsafe(1)
 
 /** The machine's vault root (`TENON_VAULT_DIR`, else `<home>/Documents/Tenon`). */
 export const root = () => KnowledgeVault.rootFor(process.env, Global.make().home)
@@ -252,7 +254,8 @@ export const search = Effect.fn("CommandMemory.search")(function* (query: string
 
 /**
  * Summarise Command Centre threads last updated more than `days` ago into memory files, then delete
- * those threads. A thread whose summary fails is kept for the next run. Project threads are never read.
+ * those threads. A thread whose summary fails is kept for the next run, and so is one with no text to
+ * summarise (empty, or unreadable right now). Project threads are never read.
  */
 export const compact = Effect.fn("CommandMemory.compact")(function* <E, R>(input: {
   now?: number
@@ -262,7 +265,7 @@ export const compact = Effect.fn("CommandMemory.compact")(function* <E, R>(input
   const now = input.now ?? Date.now()
   const days = Math.min(365, Math.max(1, Math.floor(input.days)))
   const cutoff = now - days * day
-  return yield* lock.withPermits(1)(
+  return yield* compaction.withPermits(1)(
     Effect.gen(function* () {
       const sessions = yield* Session.Service
       const old = (yield* threads()).filter((session) => session.time.updated < cutoff)
@@ -270,6 +273,7 @@ export const compact = Effect.fn("CommandMemory.compact")(function* <E, R>(input
       let deleted = 0
       for (const session of old) {
         const text = yield* threadText(session.id)
+        if (!text.trim()) continue
         const summary = yield* input
           .summarize({ sessionID: session.id, title: session.title, text })
           .pipe(
@@ -282,10 +286,12 @@ export const compact = Effect.fn("CommandMemory.compact")(function* <E, R>(input
         if (summary === undefined || !summary.trim()) continue
         yield* writeMemory(session.id, summary, session.time.updated)
         summarised++
-        const removed = yield* sessions.remove(session.id).pipe(
-          Effect.as(true),
-          Effect.catch(() => Effect.succeed(false)),
-        )
+        const removed = yield* lock
+          .withPermits(1)(sessions.remove(session.id))
+          .pipe(
+            Effect.as(true),
+            Effect.catch(() => Effect.succeed(false)),
+          )
         if (removed) deleted++
       }
       return { summarised, deleted }
