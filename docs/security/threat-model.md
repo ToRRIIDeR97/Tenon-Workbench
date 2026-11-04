@@ -853,7 +853,9 @@ is an assistant whose threads span workspaces.
   lowering the age warns first. Each summary is written to
   `.command-centre/memory/<thread>.md` in the vault, so it is synced with the
   vault and readable by anyone with access to it. A thread whose summary fails
-  is kept. The model call sends that thread's text to the Command Centre's
+  is kept, and so is one with no text. A long thread is summarised from its
+  first and last 12,000 characters or so, so what sits in the middle of it can be
+  lost. The model call sends that thread's text to the Command Centre's
   model provider, which is the same exposure the thread already had. The
   renderer triggers compaction at most once a day; the server clamps `days`
   to 1–365. Project threads are never read or deleted.
@@ -863,16 +865,22 @@ is an assistant whose threads span workspaces.
 - **Project setup.** `CommandSetup.run` writes only into a folder that does
   not exist or is empty (a non-empty folder is refused untouched), runs
   `git init` from PATH without a shell, and removes a folder only when its own
-  `mkdir` created it. A folder it can't read is refused. It writes fixed templates; no tool argument is interpolated
+  `mkdir` created it and before the Project card is written. A folder it can't read is refused. It writes fixed templates; no tool argument is interpolated
   except the Project name.
 - **Routines.** A routine is a vault page under `Routines/`; its body is sent
   as a prompt to a new Command Centre thread on its schedule, so anyone who can
   write the vault (including a sync account) can schedule prompts. Routine
   pages are shown on the Routines page with their schedule and can be turned
-  off with `enabled: false`. Replies are appended to the workspace's
-  `Inbox.md` page. Last-run state is machine-local (`routines-state.json` in
-  the server data folder); two machines sharing a synced vault each run the
-  routine. The scheduler runs only in a listening server.
+  off with `enabled: false`. A run is stopped after its `timeout` (default two
+  hours, at most a day), so a scheduled thread waiting on a permission nobody
+  answers can't hold the routine; a rerun can repeat side effects, as recovery
+  after a crash already can. Run now refuses a routine already in flight.
+  Replies are appended to the workspace's `Inbox.md` page, and older entries
+  roll over to `Inbox/<YYYY-MM>.md` pages in the vault. Last-run state is
+  machine-local (`routines-state.json` in the server data folder); two machines
+  sharing a synced vault each run the routine, which means two model bills,
+  repeated side effects and two writers on `Inbox.md`. The scheduler runs only
+  in a listening server.
 
 ## Email accounts
 
