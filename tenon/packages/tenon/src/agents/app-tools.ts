@@ -19,7 +19,7 @@ import { AbsolutePath } from "@tenon/core/schema"
 import { canonicalDirectory } from "@tenon/core/util/directory"
 import { Cause, Context, Effect, Exit, Layer, Option, Schema } from "effect"
 import { randomBytes } from "node:crypto"
-import { readFile, stat } from "node:fs/promises"
+import { stat } from "node:fs/promises"
 import path from "node:path"
 import { ulid } from "ulid"
 import { CommandMemory } from "./command-memory"
@@ -842,7 +842,8 @@ const workspaceCandidates = Effect.fnUntraced(function* () {
   const projects = yield* Project.Service
   const sessions = yield* Session.Service
   const known = (yield* projects.list()).filter((project) => project.worktree !== "/").map((item) => item.worktree)
-  const vaults = yield* Effect.promise(() => vaultWorkspaces())
+  const data = Global.make().data
+  const vaults = yield* Effect.promise(() => KnowledgeVault.currentWorkspaces(CommandMemory.root(), data))
   const recent = (yield* sessions.listGlobal({ roots: true, limit: 200 })).map((item) => item.directory)
   const folders = [...known, ...vaults, ...recent.flatMap((directory) => parents(canonicalDirectory(directory)))]
     .map((directory) => canonicalDirectory(directory))
@@ -851,18 +852,6 @@ const workspaceCandidates = Effect.fnUntraced(function* () {
     Effect.promise(() => isDirectory(path.join(directory, ".tenon", "projects"))),
   )
 })
-
-/** Workspace folders with a vault folder under the current root (`vault-machine.json`). */
-async function vaultWorkspaces() {
-  // The server runs under Node in the desktop app, so plain fs rather than Bun.file.
-  const source = await readFile(path.join(Global.make().data, "vault-machine.json"), "utf8").catch(() => "")
-  try {
-    const machine = JSON.parse(source || "{}") as { roots?: Record<string, Record<string, string>> }
-    return Object.keys(machine.roots?.[CommandMemory.root()] ?? {})
-  } catch {
-    return []
-  }
-}
 
 // ---- writes: events and undo ----
 

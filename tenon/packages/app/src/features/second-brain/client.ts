@@ -340,6 +340,9 @@ export const runRoutine = (client: Client, id: string, model?: ModelChoice) =>
 export const commandDirectory = (client: Client) =>
   request<{ directory: string }>(client, "/command-centre/directory", { method: "POST" })
 
+/** Every Command Centre folder on this machine; a moved vault's threads stay in the earlier root's folder. */
+export const commandFolders = (client: Client) => request<{ folders: string[] }>(client, "/command-centre/folders")
+
 export const searchCommandMemory = (client: Client, search: string) =>
   request<MemoryHit[]>(client, `/command-centre/memory?search=${encodeURIComponent(search)}`)
 

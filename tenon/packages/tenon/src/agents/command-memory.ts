@@ -73,10 +73,17 @@ const fold = (value: string) => {
   return process.platform === "win32" ? resolved.toLowerCase() : resolved
 }
 
-/** Whether a session directory is the Command Centre's. */
-export function isCommandDirectory(value: string, base = root()) {
+/**
+ * Every Command Centre folder this machine has used, the current root's first. A session row keeps the
+ * folder it started in, so a thread from before a vault move still runs in its earlier root's folder.
+ */
+export const folders = (roots = KnowledgeVault.machineRoots(Global.make().data)) =>
+  [...new Set([root(), ...Object.keys(roots)])].map((item) => path.join(item, ".command-centre"))
+
+/** Whether a session directory is a Command Centre folder, of this root or an earlier one. */
+export function isCommandDirectory(value: string, known = folders()) {
   const target = fold(value)
-  return spellings(path.join(base, ".command-centre")).some((spelling) => fold(spelling) === target)
+  return known.some((folder) => spellings(folder).some((spelling) => fold(spelling) === target))
 }
 
 const spellings = (folder: string) => {
@@ -92,15 +99,17 @@ const spellings = (folder: string) => {
 
 /** Root Command Centre threads, newest first; archived ones included. */
 export const threads = Effect.fn("CommandMemory.threads")(function* () {
-  const folder = yield* directory()
+  yield* directory()
   const sessions = yield* Session.Service
-  const found = yield* Effect.forEach(spellings(folder), (spelling) =>
+  const known = [...new Set(folders().flatMap(spellings))]
+  const found = yield* Effect.forEach(known, (spelling) =>
     sessions.listGlobal({ directory: spelling, roots: true, archived: true, limit: threadLimit }),
   )
+  const targets = new Set(known.map(fold))
   const seen = new Set<string>()
   return found
     .flat()
-    .filter((session) => isCommandDirectory(session.directory) && !seen.has(session.id) && seen.add(session.id))
+    .filter((session) => targets.has(fold(session.directory)) && !seen.has(session.id) && seen.add(session.id))
     .sort((left, right) => right.time.updated - left.time.updated)
 })
 

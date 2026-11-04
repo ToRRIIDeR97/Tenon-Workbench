@@ -11,7 +11,8 @@ import { ProjectV2 } from "@tenon/core/project"
 import { Effect, Option, Schema } from "effect"
 import matter from "gray-matter"
 import { createHash, randomBytes } from "node:crypto"
-import { lstat, rmdir } from "node:fs/promises"
+import { readFileSync } from "node:fs"
+import { lstat, readdir, readFile, rmdir } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { ulid } from "ulid"
@@ -234,6 +235,51 @@ export const knownWorkspaces = Effect.fn("KnowledgeVault.knownWorkspaces")(funct
   if (machine === undefined) return []
   return [...new Set(Object.values(machine.roots).flatMap((directories) => Object.keys(directories)))]
 })
+
+/**
+ * The stored roots (vault root → workspace directory → workspace id), read directly for callers that have
+ * no Effect services or must stay synchronous. A missing or damaged map reads as empty.
+ */
+export function machineRoots(data: string): Machine["roots"] {
+  try {
+    const decoded = Schema.decodeUnknownOption(Schema.fromJsonString(Machine))(
+      readFileSync(path.join(data, "vault-machine.json"), "utf8"),
+    )
+    return Option.isSome(decoded) ? decoded.value.roots : {}
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * Workspace directories with a vault folder under `root`. Settings copies the vault to a new root and each
+ * directory is only mapped there when next opened, so an earlier root's entry counts while its id is among
+ * `ids`, the workspace ids found under `root`.
+ */
+export function workspacesUnder(roots: Machine["roots"], root: string, ids: ReadonlySet<string>) {
+  const directories = Object.entries(roots).flatMap(([key, mapped]) =>
+    Object.entries(mapped)
+      .filter(([, id]) => key === root || ids.has(id))
+      .map(([directory]) => directory),
+  )
+  return [...new Set(directories)]
+}
+
+/** `workspacesUnder` for the current root, with plain fs: the scheduler and app tools run under Node. */
+export async function currentWorkspaces(root: string, data: string) {
+  const entries = await readdir(root, { withFileTypes: true }).catch(() => [])
+  const ids = await Promise.all(
+    entries
+      .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
+      .map((entry) =>
+        readFile(path.join(root, entry.name, "workspace.json"), "utf8")
+          .then((source) => Schema.decodeUnknownOption(Schema.fromJsonString(WorkspaceFile))(source))
+          .then((file) => (Option.isSome(file) ? file.value.id : undefined))
+          .catch(() => undefined),
+      ),
+  )
+  return workspacesUnder(machineRoots(data), root, new Set(ids.filter((id) => id !== undefined)))
+}
 
 /** The vault's view of an opened instance: its directory, a display name and, for a repository, its id. */
 export function workspaceFor(context: { directory: string; project: { id: string; name?: string } }): Workspace {

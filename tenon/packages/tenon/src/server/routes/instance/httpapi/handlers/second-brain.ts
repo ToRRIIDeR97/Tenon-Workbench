@@ -328,6 +328,7 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
           failure("commandDirectory"),
         ),
       )
+      .handle("commandFolders", () => Effect.sync(() => ({ folders: CommandMemory.folders() })))
       .handle("searchCommandMemory", (ctx) =>
         commandServices(CommandMemory.search(ctx.query.search ?? "")).pipe(failure("searchCommandMemory")),
       )
