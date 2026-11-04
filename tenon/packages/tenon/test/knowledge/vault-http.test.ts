@@ -86,6 +86,30 @@ afterEach(async () => {
 })
 
 describe("vault routes", () => {
+  it.instance("deleting a page needs its current revision and keeps the removed version in history", () =>
+    Effect.gen(function* () {
+      const { headers, project } = yield* setup
+      const created = yield* put(headers, "Plan.md", { body: "one", create: true }).pipe(
+        Effect.flatMap(json<{ revision: string }>),
+      )
+      const remove = (page: string, revision: string) =>
+        request(
+          `/second-brain/vault/page?path=${encodeURIComponent(page)}&expectedRevision=${encodeURIComponent(revision)}`,
+          { method: "DELETE", headers },
+        )
+      expect((yield* remove("Plan.md", "stale")).status).toBe(409)
+      expect((yield* remove("Plan.md", created.revision)).status).toBe(200)
+      expect((yield* remove("Plan.md", created.revision)).status).toBe(404)
+      const versions = yield* request("/second-brain/vault/page/history?path=Plan.md", { headers }).pipe(
+        Effect.flatMap(json<ReadonlyArray<{ revision: string }>>),
+      )
+      expect(versions).toHaveLength(1)
+      // A Project's log folder stays reserved, as it is for writes.
+      yield* put(headers, "Note.md", { body: "x", projectId: project.id, create: true })
+      expect((yield* remove("Acme API/log/entry.md", "any")).status).toBe(400)
+    }),
+  )
+
   it.instance("a Project path already inside the Project folder is not nested again", () =>
     Effect.gen(function* () {
       const { headers, project } = yield* setup
