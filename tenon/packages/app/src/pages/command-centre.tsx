@@ -237,6 +237,8 @@ function ThreadRow(props: { thread: CommandThread; href: string }) {
   const [editing, setEditing] = createSignal(false)
   const label = () => centre.label(props.thread)
   let input: HTMLInputElement | undefined
+  // The menu stays mounted during an edit: the input takes focus when the menu closes, and closing returns focus
+  // to the "…" trigger, which would blur an already focused input and end the edit straight away.
   const finish = (value: string | undefined) => {
     if (!editing()) return
     setEditing(false)
@@ -250,7 +252,7 @@ function ThreadRow(props: { thread: CommandThread; href: string }) {
         fallback={
           <input
             ref={input}
-            class="h-9 w-full min-w-0 rounded-full bg-v2-background-bg-base px-3 text-[13px] text-v2-text-text-base outline-none [box-shadow:inset_0_0_0_0.5px_var(--v2-border-border-muted)] focus:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)]"
+            class="h-9 w-full min-w-0 rounded-full bg-v2-background-bg-base pl-3 pr-9 text-[13px] text-v2-text-text-base outline-none [box-shadow:inset_0_0_0_0.5px_var(--v2-border-border-muted)] focus:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)]"
             value={label()}
             aria-label={language.t("secondBrain.sidebar.renameThread")}
             onKeyDown={(event) => {
@@ -281,34 +283,38 @@ function ThreadRow(props: { thread: CommandThread; href: string }) {
             />
           </Show>
         </A>
-        <div class="absolute inset-y-0 right-1 flex items-center opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 motion-reduce:transition-none">
-          <MenuV2 gutter={4} modal={false} placement="bottom-start">
-            <MenuV2.Trigger
-              as={IconButtonV2}
-              variant="ghost-muted"
-              size="small"
-              icon={<Icon name="outline-dots" size="small" />}
-              aria-label={language.t("secondBrain.sidebar.threadActions")}
-            />
-            <MenuV2.Portal>
-              <MenuV2.Content
-                onCloseAutoFocus={() => {
-                  // The menu returns focus to its trigger first, so the input takes it in a microtask.
-                  if (editing()) queueMicrotask(() => input?.select())
-                }}
-              >
-                <MenuV2.Item onSelect={() => setEditing(true)}>{language.t("common.rename")}</MenuV2.Item>
-                <MenuV2.Item onSelect={() => void ctrl.archiveThread(props.thread.session)}>
-                  {language.t("common.archive")}
-                </MenuV2.Item>
-                <MenuV2.Item onSelect={() => ctrl.deleteThread(props.thread.session)}>
-                  {language.t("common.delete")}
-                </MenuV2.Item>
-              </MenuV2.Content>
-            </MenuV2.Portal>
-          </MenuV2>
-        </div>
       </Show>
+      <div class="absolute inset-y-0 right-1 flex items-center opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 motion-reduce:transition-none">
+        <MenuV2 gutter={4} modal={false} placement="bottom-start">
+          <MenuV2.Trigger
+            as={IconButtonV2}
+            variant="ghost-muted"
+            size="small"
+            icon={<Icon name="outline-dots" size="small" />}
+            aria-label={language.t("secondBrain.sidebar.threadActions")}
+          />
+          <MenuV2.Portal>
+            <MenuV2.Content
+              onCloseAutoFocus={() => {
+                // Kobalte focuses the trigger right after this handler, so the input takes focus in a microtask.
+                if (!editing()) return
+                queueMicrotask(() => {
+                  input?.focus()
+                  input?.select()
+                })
+              }}
+            >
+              <MenuV2.Item onSelect={() => setEditing(true)}>{language.t("common.rename")}</MenuV2.Item>
+              <MenuV2.Item onSelect={() => void ctrl.archiveThread(props.thread.session)}>
+                {language.t("common.archive")}
+              </MenuV2.Item>
+              <MenuV2.Item onSelect={() => ctrl.deleteThread(props.thread.session)}>
+                {language.t("common.delete")}
+              </MenuV2.Item>
+            </MenuV2.Content>
+          </MenuV2.Portal>
+        </MenuV2>
+      </div>
     </li>
   )
 }

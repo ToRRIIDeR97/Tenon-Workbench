@@ -135,7 +135,8 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
       if (!result) return info.value ?? []
       // Filter here too: an older server answers this list without the directory filter.
       return (result.data ?? [])
-        .filter((session) => sameDirectory(session.location?.directory, folder))
+        // The server's list keeps archived sessions.
+        .filter((session) => sameDirectory(session.location?.directory, folder) && !session.time.archived)
         .map(
           (session): CommandThread => ({
             id: session.id,
