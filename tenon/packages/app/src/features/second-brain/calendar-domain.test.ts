@@ -4,8 +4,11 @@ import {
   dateKeys,
   eventCoversDay,
   eventLastDay,
+  hourSlot,
   localDateKey,
   mergeProviderEvents,
+  monthCellRows,
+  monthCellShown,
   monthGrid,
   shiftDate,
   shiftMonth,
@@ -129,4 +132,18 @@ test("mergeProviderEvents takes Google's copy once the outbox has finished the w
   const queued = google("g1", { title: "Old", syncState: "offline", outboxKind: "create", outboxKey: "k1" })
   const merged = mergeProviderEvents([queued], [remote("g1", "New")], { settled: (key) => key === "k1" })
   expect(merged.map((event) => [event.title, event.syncState])).toEqual([["New", "synced"]])
+})
+
+test("a month cell keeps a row for the rest when its items do not all fit", () => {
+  expect(monthCellRows(0)).toBe(1)
+  expect(monthCellRows(93)).toBe(2)
+  expect(monthCellRows(144)).toBe(4)
+  expect(monthCellShown(2, 2)).toBe(2)
+  expect(monthCellShown(3, 2)).toBe(1)
+  expect(monthCellShown(3, 1)).toBe(0)
+})
+
+test("hourSlot stays within the day", () => {
+  expect(hourSlot(9)).toEqual({ start: "09:00", end: "10:00" })
+  expect(hourSlot(23)).toEqual({ start: "23:00", end: "23:59" })
 })

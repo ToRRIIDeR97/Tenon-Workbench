@@ -143,6 +143,26 @@ export function monthGrid(cursor: Date, now = new Date()): CalendarDay[] {
   })
 }
 
+// A month cell's 8px padding, 1px border and 32px day number; each item row is 24px plus a 2px gap.
+const MONTH_CELL_CHROME = 41
+const MONTH_ROW = 26
+
+/** How many item rows fit in a month cell of `height` pixels; the row count follows the window size. */
+export function monthCellRows(height: number) {
+  return Math.max(1, Math.floor((height - MONTH_CELL_CHROME + 2) / MONTH_ROW))
+}
+
+/** How many of a day's items to show: all that fit, or one row fewer to leave room for "+N more". */
+export function monthCellShown(total: number, rows: number) {
+  return total <= rows ? total : rows - 1
+}
+
+/** The hour starting at `hour`, for an event started from a slot in the day grid. It stays within the day. */
+export function hourSlot(hour: number) {
+  const clock = (value: number) => `${String(value).padStart(2, "0")}:00`
+  return { start: clock(hour), end: hour >= 23 ? "23:59" : clock(hour + 1) }
+}
+
 export function shiftMonth(cursor: Date, amount: number) {
   return new Date(cursor.getFullYear(), cursor.getMonth() + amount, 1, 12)
 }

@@ -23,6 +23,7 @@ import {
   dateKeys,
   eventCoversDay,
   eventLastDay,
+  hourSlot,
   localDateKey,
   monthGrid,
   providerEvent,
@@ -31,6 +32,7 @@ import {
   weekRange,
 } from "@/features/second-brain/calendar-domain"
 import { CalendarGrid, type CalendarGridDay } from "@/features/second-brain/calendar-grid"
+import { CalendarMonth } from "@/features/second-brain/calendar-month"
 import { CalendarPeek, TaskCheck } from "@/features/second-brain/calendar-peek"
 import { CalendarTasks, type CalendarTaskFilter } from "@/features/second-brain/calendar-tasks"
 import { revealSidePanel, SidePanel, sidePanelGridClass } from "@/features/second-brain/side-panel"
@@ -244,11 +246,6 @@ export default function CalendarPage() {
     if (state.view === "month") return monthTitle()
     return language.t("secondBrain.calendar.agenda")
   })
-  const weekdays = createMemo(() =>
-    Array.from({ length: 7 }, (_, index) =>
-      new Intl.DateTimeFormat(language.locale(), { weekday: "short" }).format(new Date(2024, 0, 7 + index, 12)),
-    ),
-  )
   // One pass over the calendar for the visible grid, rather than filtering every item per day.
   const byDay = createMemo(() => {
     const grid = days()
@@ -265,7 +262,10 @@ export default function CalendarPage() {
         map.get(date)?.events.push(event)
     }
     for (const task of snapshot()?.tasks ?? []) {
-      if (!task.completedAt && task.scheduledDate) map.get(task.scheduledDate)?.tasks.push(task)
+      const date = task.scheduledDate ?? task.dueDate
+      if (task.completedAt || !date) continue
+      if (state.projectFilter && task.projectId !== state.projectFilter) continue
+      map.get(date)?.tasks.push(task)
     }
     const byTime = (left: { start?: string; title: string }, right: { start?: string; title: string }) =>
       (left.start ?? "").localeCompare(right.start ?? "") || left.title.localeCompare(right.title)
@@ -294,6 +294,7 @@ export default function CalendarPage() {
       new Intl.DateTimeFormat(language.locale(), { weekday: "long", month: "long", day: "numeric", year: "numeric" }),
   )
   const formatDay = (date: string) => dayFormat().format(new Date(`${date}T12:00:00`))
+  const longDay = (date: string) => longDayFormat().format(new Date(`${date}T12:00:00`))
   const sourceLabel = (source: CalendarEvent["source"]) =>
     source === "google"
       ? language.t("secondBrain.calendar.source.google")
@@ -382,11 +383,13 @@ export default function CalendarPage() {
     setState("cursor", shiftDate(state.cursor, amount * (state.view === "week" ? 7 : 1)))
   }
 
-  const openNew = (date = localDateKey(new Date())) =>
+  const openDay = (date: string) => setState({ view: "today", cursor: new Date(`${date}T12:00:00`) })
+  const openNew = (date = localDateKey(new Date()), time?: { start: string; end: string }) =>
     setState({
       editing: true,
       peek: "",
-      draft: emptyDraft(date, state.projectFilter),
+      googlePanel: false,
+      draft: { ...emptyDraft(date, state.projectFilter), ...(time ? { ...time, allDay: false } : {}) },
       error: "",
       errorField: "",
       confirmingDelete: false,
@@ -1217,86 +1220,23 @@ export default function CalendarPage() {
                               onOpenEvent={peekEvent}
                               onOpenTask={peekTask}
                               onToggle={toggleTask}
-                              onOpenDay={(date) => setState({ view: "today", cursor: new Date(`${date}T12:00:00`) })}
+                              onOpenDay={openDay}
+                              onNewAt={(date, hour) => openNew(date, hourSlot(hour))}
+                              dateLabel={longDay}
                             />
                           </Show>
                         }
                       >
-                        <div class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[24px] shadow-[0_0_0_0.5px_var(--v2-border-border-muted)]">
-                          <div class="grid h-8 shrink-0 grid-cols-7 bg-v2-background-bg-layer-01">
-                            <For each={weekdays()}>
-                              {(weekday) => (
-                                <div class="flex items-center justify-center text-[12px] text-v2-text-text-muted [font-weight:500]">
-                                  {weekday}
-                                </div>
-                              )}
-                            </For>
-                          </div>
-                          <div class="grid min-h-0 flex-1 grid-cols-7 grid-rows-6">
-                            <For each={days()}>
-                              {(day) => (
-                                <div
-                                  classList={{
-                                    "group/day flex min-h-0 flex-col items-stretch overflow-hidden border-b border-r border-v2-border-border-muted p-1 [&:nth-child(7n)]:border-r-0 [&:nth-last-child(-n+7)]:border-b-0": true,
-                                    "bg-v2-background-bg-layer-01": !day.inMonth,
-                                  }}
-                                >
-                                  <button
-                                    type="button"
-                                    classList={{
-                                      "mx-auto mb-1 flex size-7 shrink-0 items-center justify-center rounded-full text-[12px] transition-colors duration-short ease-standard motion-reduce:transition-none": true,
-                                      "bg-v2-icon-icon-accent text-v2-icon-icon-contrast [font-weight:600]": day.today,
-                                      "hover:bg-v2-overlay-simple-overlay-hover": !day.today,
-                                      "text-v2-text-text-faint": !day.inMonth && !day.today,
-                                      "text-v2-text-text-muted": day.inMonth && !day.today,
-                                    }}
-                                    aria-label={language.t("secondBrain.calendar.newOnDate", {
-                                      date: longDayFormat().format(new Date(`${day.date}T12:00:00`)),
-                                    })}
-                                    aria-current={day.today ? "date" : undefined}
-                                    onClick={() => openNew(day.date)}
-                                  >
-                                    {day.day}
-                                  </button>
-                                  <div class="flex min-h-0 flex-col gap-0.5 overflow-hidden">
-                                    <For each={eventsFor(day.date)}>
-                                      {(event) => (
-                                        <TooltipV2 class="min-w-0 shrink-0" value={event.title}>
-                                          <button
-                                            type="button"
-                                            class="min-h-6 w-full truncate rounded-[8px] bg-v2-background-bg-accent-container px-2 text-left text-[11px] text-v2-text-text-on-accent-container transition-[filter,border-radius] duration-short ease-standard hover:brightness-95 active:rounded-[4px] focus-visible:outline-offset-[-2px] motion-reduce:transition-none"
-                                            onClick={() => peekEvent(event)}
-                                          >
-                                            <Show when={event.start && event.date === day.date}>
-                                              <span class="mr-1 opacity-70">{event.start}</span>
-                                            </Show>
-                                            {event.title}
-                                          </button>
-                                        </TooltipV2>
-                                      )}
-                                    </For>
-                                    <For each={tasksFor(day.date)}>
-                                      {(task) => (
-                                        <TooltipV2 class="min-w-0 shrink-0" value={task.title}>
-                                          <button
-                                            type="button"
-                                            class="min-h-6 w-full truncate rounded-[8px] px-2 text-left text-[11px] text-v2-text-text-muted shadow-[inset_0_0_0_1px_var(--v2-border-border-base)] transition-[background-color,border-radius] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover active:rounded-[4px] focus-visible:outline-offset-[-2px] motion-reduce:transition-none"
-                                            onClick={() => peekTask(task)}
-                                          >
-                                            <Show when={task.start}>
-                                              <span class="mr-1 text-v2-text-text-faint">{task.start}</span>
-                                            </Show>
-                                            {task.title}
-                                          </button>
-                                        </TooltipV2>
-                                      )}
-                                    </For>
-                                  </div>
-                                </div>
-                              )}
-                            </For>
-                          </div>
-                        </div>
+                        <CalendarMonth
+                          days={days()}
+                          eventsFor={eventsFor}
+                          tasksFor={tasksFor}
+                          dateLabel={longDay}
+                          onOpenEvent={peekEvent}
+                          onOpenTask={peekTask}
+                          onOpenDay={openDay}
+                          onNew={openNew}
+                        />
                       </Show>
                     </ViewSwitch>
                   </Show>
