@@ -57,6 +57,8 @@ const MAX_LOG_BYTES = 10 * 1024 * 1024
 export function rotate(file: string, maxBytes = MAX_LOG_BYTES) {
   try {
     if ((statSync(file, { throwIfNoEntry: false })?.size ?? 0) > maxBytes) renameSync(file, `${file}.1`)
+  } catch {}
+  try {
     rmSync(path.join(path.dirname(file), "opencode.log"), { force: true })
   } catch {}
 }
