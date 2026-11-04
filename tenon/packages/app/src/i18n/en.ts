@@ -1125,6 +1125,7 @@ export const dict = {
   "harness.group.external": "External agents",
   "harness.checking": "Checking harnesses…",
   "harness.unavailable": "Unavailable",
+  "harness.signInNotFound": "Sign-in not found",
   "harness.probeFailed": "Could not check harnesses",
   "harness.model": "Model",
   "harness.models.loading": "Loading models…",
