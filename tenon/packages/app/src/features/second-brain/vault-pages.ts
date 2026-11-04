@@ -49,9 +49,7 @@ export function useVaultPages(directory: Accessor<string | undefined>) {
     /** Put a saved page at the top of the list. */
     store: (info: VaultPageInfo) =>
       queryClient.setQueryData<VaultPages>(key(directory()), (current) =>
-        current
-          ? { ...current, pages: [info, ...current.pages.filter((item) => item.path !== info.path)] }
-          : current,
+        current ? { ...current, pages: [info, ...current.pages.filter((item) => item.path !== info.path)] } : current,
       ),
   }
 }

@@ -3,21 +3,24 @@ import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
-import { createMemo, createResource, For, Show } from "solid-js"
+import { createMemo, For, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { PageEmpty, PageFrame, PageHeader, pageRowClass } from "@/components/page"
+import { useBrainProjects } from "@/components/sidebar/sidebar-controller"
 import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
 import { useServerSDK } from "@/context/server-sdk"
 import { localDateKey } from "@/features/second-brain/calendar-domain"
-import { listProjects, listVaultPages, readCalendar, vaultPageSummary } from "@/features/second-brain/client"
+import { createCalendarResource } from "@/features/second-brain/calendar-cache"
+import { vaultPageSummary } from "@/features/second-brain/client"
 import {
   filterProjectOverview,
   groupProjectOverview,
   type OverviewGroup,
 } from "@/features/second-brain/project-overview"
+import { useVaultPages } from "@/features/second-brain/vault-pages"
 
 const preview = 5
 const statusKey = {
@@ -37,35 +40,35 @@ export default function ProjectOverviewPage() {
   const [state, setState] = createStore({ filter: "" })
   const client = (directory: string) => ({ server: serverSDK().server, fetch: platform.fetch, target: { directory } })
 
-  // The sidebar workspace switcher owns this choice; each resource reloads when it changes.
+  // The sidebar workspace switcher owns this choice; every read below follows it. All three are shared and
+  // cached, so a revisit paints at once.
   const brainDirectory = () => layout.home.workspace() ?? ""
   const source = () => brainDirectory() || undefined
-  const [projects, projectActions] = createResource(source, (directory) => listProjects(client(directory)))
-  const [notes, noteActions] = createResource(source, (directory) =>
-    listVaultPages(client(directory)).then((pages) => pages.map(vaultPageSummary)),
-  )
-  const [calendar, calendarActions] = createResource(source, (directory) => readCalendar(client(directory)))
+  const projects = useBrainProjects()
+  const vault = useVaultPages(source)
+  const calendar = createCalendarResource(source, client)
 
-  const loading = () => projects.loading || notes.loading || calendar.loading
-  const failed = () => !!projects.error || !!notes.error || !!calendar.error
+  const loading = () => projects.loading() || vault.loading() || calendar.loading()
+  // A failed calendar refresh keeps its last snapshot, which is still worth showing.
+  const calendarFailed = () => !calendar.snapshot() && !!calendar.error()
+  const failed = () => projects.failed() || !!vault.error() || calendarFailed()
   const retry = () => {
-    if (projects.error) void projectActions.refetch()
-    if (notes.error) void noteActions.refetch()
-    if (calendar.error) void calendarActions.refetch()
+    if (projects.failed()) projects.retry()
+    if (vault.error()) vault.retry()
+    if (calendarFailed()) void calendar.refetch()
   }
-  // Reading a failed resource throws, so every read waits until none has failed.
   const groups = createMemo(() =>
     loading() || failed()
       ? []
       : groupProjectOverview({
-          projects: projects.latest ?? [],
-          notes: notes.latest ?? [],
-          calendar: calendar.latest,
+          projects: projects.list() ?? [],
+          notes: (vault.pages() ?? []).map(vaultPageSummary),
+          calendar: calendar.snapshot(),
           today: localDateKey(new Date()),
         }),
   )
   const progress = createMemo(
-    () => new Map((failed() ? [] : (projects.latest ?? [])).map((project) => [project.id, project.progressPercent])),
+    () => new Map((projects.list() ?? []).map((project) => [project.id, project.progressPercent])),
   )
   const visible = createMemo(() => filterProjectOverview(groups(), state.filter))
 
