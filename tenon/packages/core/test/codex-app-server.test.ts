@@ -53,7 +53,9 @@ describe("Codex app-server client", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const exit = yield* watchExit({
-            stderr: Stream.make(encoder.encode("starting\n\u001b[31mfatal: bad flag, token=abc123\u001b[0m\n\n")),
+            stderr: Stream.make(
+              encoder.encode("starting\n\u001b[31mfatal: bad flag, token=abc123 at https://me:pw@host\u001b[0m\n\n"),
+            ),
             exitCode: Effect.sleep("5 millis").pipe(Effect.as(1)),
           })
           const client = yield* make({
@@ -69,7 +71,9 @@ describe("Codex app-server client", () => {
           const notification = yield* Stream.runHead(client.notifications)
           expect(Option.getOrUndefined(notification)).toMatchObject({ method: "turn/started" })
           const error = yield* client.request("model/list").pipe(Effect.flip)
-          expect(error.message).toBe("Codex app-server exited (code 1): fatal: bad flag, token=[redacted]")
+          expect(error.message).toBe(
+            "Codex app-server exited (code 1): fatal: bad flag, token=[redacted] at https://me:[redacted]@host",
+          )
         }),
       ),
     )

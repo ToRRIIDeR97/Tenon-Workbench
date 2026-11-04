@@ -547,6 +547,10 @@ export const open = Effect.fn("AcpHarness.open")(function* (process: Process, in
             prompt: acpPromptBlocks(turnInput.text, turnInput.media ?? [], promptCapabilities),
           })
           .pipe(
+            // Closing the runtime stops this fiber before the client can answer it, and a live turn would wait forever.
+            Effect.onInterrupt(() =>
+              Queue.offer(items, { type: "done", exit: Exit.fail(new ProtocolError("ACP agent client closed.")) }),
+            ),
             Effect.exit,
             Effect.flatMap((exit) => Queue.offer(items, { type: "done", exit })),
             Effect.ensuring(Deferred.succeed(settled, undefined)),
@@ -813,7 +817,7 @@ const AUTH_REQUIRED = -32000
  * older agents, a "not logged in" message); the raw protocol text doesn't say what to do, so `signInHint` adds it.
  */
 export function turnError(error: unknown) {
-  if (!(error instanceof Error) || !error.message) return "The ACP agent failed."
+  if (!(error instanceof Error) || !error.message) return "The agent failed."
   return signInHint(error.message, error instanceof ProtocolError && error.code === AUTH_REQUIRED)
 }
 

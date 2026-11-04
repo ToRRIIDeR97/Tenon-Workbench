@@ -1,5 +1,5 @@
 import { expect } from "bun:test"
-import { Deferred, Effect, Fiber, Stream } from "effect"
+import { Deferred, Effect, Exit, Fiber, Scope, Stream } from "effect"
 import { LayerNode } from "@tenon/core/effect/layer-node"
 import { AcpHarness } from "@tenon/core/harness/acp"
 import { AppProcess } from "@tenon/core/process"
@@ -133,4 +133,25 @@ it.effect("a turn with no steer signal is left alone", () =>
     expect(yield* AcpHarness.stopOnSteer(Stream.make(1, 2), Effect.never, stop).pipe(Stream.runCollect)).toEqual([1, 2])
     expect(stopped).toBe(0)
   }),
+)
+
+it.live("closing the runtime mid-turn ends the turn with an error instead of leaving it waiting", () =>
+  Effect.gen(function* () {
+    const dir = yield* Effect.promise(() => fs.mkdtemp(path.join(os.tmpdir(), "tenon-acp-close-")))
+    const script = path.join(dir, "agent.cjs")
+    yield* Effect.promise(() => Bun.write(script, agent))
+    const process = yield* AppProcess.Service
+    const scope = yield* Scope.make()
+    const session = yield* AcpHarness.open(process, {
+      settings: { command: globalThis.process.execPath, args: [script], env: {}, models: [] },
+      directory: dir,
+      approve: () => Effect.succeed(false),
+    }).pipe(Effect.provideService(Scope.Scope, scope))
+    const turn = yield* session.turn({ text: "Long task" }).pipe(Stream.runCollect, Effect.forkChild)
+
+    yield* Effect.sleep("200 millis")
+    yield* Scope.close(scope, Exit.void)
+    const events = yield* Fiber.join(turn).pipe(Effect.timeout("5 seconds"))
+    expect(events.at(-1)).toMatchObject({ type: "finish", reason: "error" })
+  }).pipe(Effect.scoped),
 )

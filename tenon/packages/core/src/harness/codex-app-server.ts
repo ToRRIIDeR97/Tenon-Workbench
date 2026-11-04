@@ -100,6 +100,7 @@ const SECRETS = [
   /\b([\w-]*(?:api[_-]?key|token|secret|password)[\w-]*["']?\s*[=:]\s*)\S+/gi,
   /\b(?:sk|pk|rk|gh[pousr]|xox[a-z])[-_][\w-]{8,}/g,
   /\beyJ[\w-]+\.[\w-]+\.[\w-]*/g,
+  /\b(\w+:\/\/[^\s:@/]+:)[^\s@/]+(?=@)/g,
   /\b[A-Za-z0-9_-]{32,}\b/g,
 ]
 
