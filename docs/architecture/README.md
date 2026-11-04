@@ -649,7 +649,8 @@ on core's runner and publish only V2 events: `session.next.step.ended` with a
 finish other than `tool-calls` is a finished turn, and `session.next.step.failed`
 is a failure unless it carries the runner's Stop message. Routine and command
 threads on the legacy runner publish `session.idle` and `session.error`. An error
-or Stop silences that turn's closing event. `permission.asked` and `question.asked`
+or Stop silences that turn's closing event; a context overflow raises nothing,
+because auto-compaction carries the turn on. `permission.asked` and `question.asked`
 raise the Permissions sound and notification for root threads, unless auto-accept
 answers the request. Child threads stay silent. Links use the alert's own server.
 

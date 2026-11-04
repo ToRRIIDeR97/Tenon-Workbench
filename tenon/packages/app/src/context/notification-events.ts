@@ -45,8 +45,10 @@ export function notificationTrigger(
     case "session.next.step.ended":
       return properties.finish === "tool-calls" ? undefined : settle()
     case "session.error":
-      // With auto-compaction an overflow does not end the turn, so its session.idle still counts.
-      if (properties.error?.name !== "ContextOverflowError") fail()
+      // With auto-compaction, the default, an overflow does not end the turn, so it stays quiet and its
+      // session.idle still counts.
+      if (properties.error?.name === "ContextOverflowError") return
+      fail()
       if (properties.error?.name === "MessageAbortedError") return
       return { type: "error", sessionID, error: properties.error }
     case "session.next.step.failed": {

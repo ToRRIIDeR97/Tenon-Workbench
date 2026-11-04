@@ -44,9 +44,10 @@ describe("notificationTrigger", () => {
     expect(notificationTrigger(event("session.idle"), failed)?.type).toBe("turn-complete")
   })
 
-  test("an overflow that compaction recovers from still ends in a turn-complete alert", () => {
+  test("an overflow that compaction recovers from is no error, and its turn still completes", () => {
     const failed = new Set<string>()
-    notificationTrigger(event("session.error", { error: { name: "ContextOverflowError", data: {} } }), failed)
+    const overflow = { error: { name: "ContextOverflowError", data: {} } }
+    expect(notificationTrigger(event("session.error", overflow), failed)).toBeUndefined()
     expect(notificationTrigger(event("session.idle"), failed)?.type).toBe("turn-complete")
   })
 })
