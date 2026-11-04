@@ -3,6 +3,7 @@ export * as CommandSetup from "./command-setup"
 import { KnowledgeVault } from "@/knowledge/vault"
 import { BrainProject } from "@/project/brain"
 import { InstanceStore } from "@/project/instance-store"
+import { spawnTarget } from "@tenon/core/util/which"
 import { Effect, Schema } from "effect"
 import { execFile } from "node:child_process"
 import { mkdir, readdir, rm, writeFile } from "node:fs/promises"
@@ -86,8 +87,11 @@ Never commit credentials. Record where each secret lives and who can read it.
 
 const gitInit = (folder: string) =>
   Effect.callback<void, SetupError>((resume) => {
-    // `git` from PATH on both Windows (git.exe) and macOS; no shell, so the folder is one argument.
-    execFile("git", ["init", "--quiet"], { cwd: folder, windowsHide: true }, (error) =>
+    // `git` from PATH on both Windows (git.exe) and macOS, never one sitting in the folder; no shell,
+    // so the folder is one argument.
+    const git = spawnTarget("git")
+    if (!git) return resume(Effect.fail(new SetupError({ reason: "git_init_failed" })))
+    execFile(git, ["init", "--quiet"], { cwd: folder, windowsHide: true }, (error) =>
       resume(error ? Effect.fail(new SetupError({ reason: "git_init_failed" })) : Effect.void),
     )
   })

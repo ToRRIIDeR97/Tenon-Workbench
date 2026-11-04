@@ -248,6 +248,7 @@ state alive across route changes; it replaced the tab store.
 | Vault folder choice        | `packages/desktop/src/main/vault-folder.ts`; `vaultFolder` key in `tenon.settings`                                   |
 | Project records            | `packages/tenon/src/project/brain.ts`; workspace `.tenon/projects/<id>/` Markdown cards (legacy `projects/<id>/`)   |
 | Workspace manifest         | `brain.ts`; workspace `.tenon/workspace.json` (linked project folders)                                                |
+| Trusted folders            | `core/src/config/trust.ts`; `trusted-folders.json` in the data folder; added to only from the app's prompt through `POST /config/trust`; see [Folder trust](../security/threat-model.md#folder-trust) |
 | Linked-folder index        | `brain.ts` writes, `core/src/workspace-instructions.ts` reads; `workspace-links.json` in the data folder; rebuilt by a scan; the first workspace to link a folder keeps it |
 | Project thread directories | Derived, not stored: the card's `location.path` folder (inside the workspace, or a checked linked folder), else a linked Workspace worktree, else the card folder; thread counts read from `opencode.db` |
 | Local events and tasks     | Second Brain HTTP handler and `packages/tenon/src/planner/calendar.ts`; workspace `.tenon/calendar-v1.json` |
@@ -681,7 +682,10 @@ with the pill.
 3. Workspace bootstrap loads configuration, initializes plugins, and then
    starts workspace services. Server readiness precedes this work. Startup
    phase logs in `packages/tenon/src/project/bootstrap.ts` distinguish it
-   from initial server launch.
+   from initial server launch. Until the user approves a folder, its project
+   config can't load code, change providers or expand secrets; the app asks
+   when the folder's config wanted any of that
+   ([Folder trust](../security/threat-model.md#folder-trust)).
 4. Notes, projects, and local calendar requests resolve the selected location
    before reading or mutating files. Google operations use the desktop bridge.
 

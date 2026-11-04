@@ -2,6 +2,7 @@ import { type ChildProcess } from "child_process"
 import type { Stream } from "node:stream"
 import launch from "cross-spawn"
 import { ChildEnv } from "@tenon/core/child-env"
+import { notFound, spawnTarget } from "@tenon/core/util/which"
 import { buffer } from "node:stream/consumers"
 import { errorMessage } from "./error"
 
@@ -61,11 +62,15 @@ export function spawn(cmd: string[], opts: Options = {}): Child {
   if (cmd.length === 0) throw new Error("Command is required")
   opts.abort?.throwIfAborted()
 
-  const proc = launch(cmd[0], cmd.slice(1), {
+  // Children never receive the server credentials, even when they inherit the parent environment.
+  const env = opts.env === null ? {} : ChildEnv.from({ ...process.env, ...opts.env })
+  const file = opts.shell ? cmd[0] : spawnTarget(cmd[0], env)
+  if (!file) throw notFound(cmd[0])
+
+  const proc = launch(file, cmd.slice(1), {
     cwd: opts.cwd,
     shell: opts.shell,
-    // Children never receive the server credentials, even when they inherit the parent environment.
-    env: opts.env === null ? {} : ChildEnv.from({ ...process.env, ...opts.env }),
+    env,
     stdio: [opts.stdin ?? "ignore", opts.stdout ?? "ignore", opts.stderr ?? "ignore"],
     windowsHide: process.platform === "win32",
   })
@@ -114,21 +119,24 @@ export function spawn(cmd: string[], opts: Options = {}): Child {
 }
 
 export async function run(cmd: string[], opts: RunOptions = {}): Promise<Result> {
-  const proc = spawn(cmd, {
-    cwd: opts.cwd,
-    env: opts.env,
-    stdin: opts.stdin,
-    shell: opts.shell,
-    abort: opts.abort,
-    kill: opts.kill,
-    timeout: opts.timeout,
-    stdout: "pipe",
-    stderr: "pipe",
-  })
+  const out = await Promise.resolve()
+    .then(() => {
+      const proc = spawn(cmd, {
+        cwd: opts.cwd,
+        env: opts.env,
+        stdin: opts.stdin,
+        shell: opts.shell,
+        abort: opts.abort,
+        kill: opts.kill,
+        timeout: opts.timeout,
+        stdout: "pipe",
+        stderr: "pipe",
+      })
 
-  if (!proc.stdout || !proc.stderr) throw new Error("Process output not available")
+      if (!proc.stdout || !proc.stderr) throw new Error("Process output not available")
 
-  const out = await Promise.all([proc.exited, buffer(proc.stdout), buffer(proc.stderr)])
+      return Promise.all([proc.exited, buffer(proc.stdout), buffer(proc.stderr)])
+    })
     .then(([code, stdout, stderr]) => ({
       code,
       stdout,

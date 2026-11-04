@@ -5,6 +5,7 @@ import { Effect, Layer, Schema } from "effect"
 import { FastCheck } from "effect/testing"
 import { Config } from "@tenon/core/config"
 import { ConfigProvider } from "@tenon/core/config/provider"
+import { ConfigTrust } from "@tenon/core/config/trust"
 import { AppNodeBuilder } from "@tenon/core/effect/app-node-builder"
 import { LayerNode } from "@tenon/core/effect/layer-node"
 import { ConfigMigrateV1 } from "@tenon/core/v1/config/migrate"
@@ -513,7 +514,7 @@ describe("Config", () => {
                     prompt: "Review changes.",
                     disable: true,
                     temperature: 0.2,
-                    permission: { read: "allow" },
+                    permission: { glob: "allow" },
                   },
                 },
                 plugin: [
@@ -593,7 +594,7 @@ describe("Config", () => {
               system: "Review changes.",
               disabled: true,
               request: { body: { temperature: 0.2 } },
-              permissions: [{ action: "read", resource: "*", effect: "allow" }],
+              permissions: [{ action: "glob", resource: "*", effect: "allow" }],
             })
             expect(documents[0]?.info.plugins).toEqual([
               "opencode-helicone-session",
@@ -793,6 +794,48 @@ describe("Config", () => {
           )
         })
       }),
+    ),
+  )
+
+  it.live("keeps an unapproved folder's plugins, skills and gated keys off", () =>
+    Effect.acquireRelease(
+      Effect.promise(async () => {
+        const tmp = await tmpdir()
+        const list = ConfigTrust.file(Global.Path.data)
+        const before = await fs.readFile(list, "utf8")
+        await fs.writeFile(list, "[]")
+        await fs.mkdir(path.join(tmp.path, ".tenon"))
+        await fs.writeFile(
+          path.join(tmp.path, "tenon.json"),
+          JSON.stringify({
+            username: "kept",
+            plugins: ["./evil.ts"],
+            skills: ["./skills"],
+            instructions: ["docs/guide.md", "~/.ssh/id_rsa"],
+          }),
+        )
+        return { tmp, list, before }
+      }),
+      ({ tmp, list, before }) =>
+        Effect.promise(async () => {
+          await fs.writeFile(list, before)
+          await tmp[Symbol.asyncDispose]()
+        }),
+    ).pipe(
+      Effect.flatMap(({ tmp }) =>
+        Effect.gen(function* () {
+          const entries = yield* (yield* Config.Service).entries()
+          const documents = entries.filter((entry) => entry.type === "document")
+          expect(documents.map((entry) => entry.info.username)).toEqual(["kept"])
+          expect(documents[0]?.info.plugins).toBeUndefined()
+          expect(documents[0]?.info.skills).toBeUndefined()
+          expect(documents[0]?.info.instructions).toEqual(["docs/guide.md"])
+          expect(entries.filter((entry) => entry.type === "directory").map((entry) => entry.untrusted)).toEqual([
+            undefined,
+            true,
+          ])
+        }).pipe(Effect.provide(testLayer(tmp.path))),
+      ),
     ),
   )
 })

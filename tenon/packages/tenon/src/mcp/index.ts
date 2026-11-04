@@ -21,6 +21,7 @@ import { NamedError } from "@tenon/core/util/error"
 import { InstallationVersion } from "@tenon/core/installation/version"
 import { withTimeout } from "@/util/timeout"
 import { FSUtil } from "@tenon/core/fs-util"
+import { spawnTarget } from "@tenon/core/util/which"
 import { McpOAuthPendingProvider, McpOAuthProvider, OAUTH_CALLBACK_PATH } from "./oauth-provider"
 import { McpOAuthCallback } from "./oauth-callback"
 import { McpAuth } from "./auth"
@@ -345,16 +346,22 @@ const layer = Layer.effect(
       const [cmd, ...args] = mcp.command
       const baseDir = yield* InstanceState.directory
       const cwd = mcp.cwd ? path.resolve(baseDir, mcp.cwd) : baseDir
+      const env = {
+        ...ChildEnv.from(),
+        ...(cmd === "opencode" ? { BUN_BE_BUN: "1" } : {}),
+        ...mcp.environment,
+      }
+      // The SDK runs its own cross-spawn, so resolve here to keep a repository's `tool.cmd` out of a bare name.
+      const command = spawnTarget(cmd, env)
+      if (!command) {
+        return { client: undefined, status: { status: "failed", error: `Command not found on PATH: ${cmd}` } as Status }
+      }
       const transport = new StdioClientTransport({
         stderr: "pipe",
-        command: cmd,
+        command,
         args,
         cwd,
-        env: {
-          ...ChildEnv.from(),
-          ...(cmd === "opencode" ? { BUN_BE_BUN: "1" } : {}),
-          ...mcp.environment,
-        },
+        env,
       })
 
       const connectTimeout = mcp.timeout ?? DEFAULT_TIMEOUT

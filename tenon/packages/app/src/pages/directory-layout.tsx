@@ -1,4 +1,5 @@
 import { DataProvider } from "@tenon/session-ui/context"
+import { FolderTrustPrompt } from "@/components/folder-trust-prompt"
 import { showToast } from "@/utils/toast"
 import { base64Encode } from "@tenon/core/util/encode"
 import { useLocation, useNavigate, useParams } from "@solidjs/router"
@@ -85,6 +86,7 @@ export function DirectoryDataProvider(
           onSessionHref={href}
           onOpenSubagent={isDesktop() && params.id ? openSubagent : undefined}
         >
+          <FolderTrustPrompt directory={directory} />
           <LocalProvider>{props.children}</LocalProvider>
         </DataProvider>
       )}

@@ -27,6 +27,8 @@ import { ConfigV1 } from "@tenon/core/v1/config/config"
 import { RemoteAuthError } from "@tenon/core/v1/config/error"
 import { ConfigPermissionV1 } from "@tenon/core/v1/config/permission"
 import { ConfigPluginV1 } from "@tenon/core/v1/config/plugin"
+import { ConfigTrust } from "@tenon/core/config/trust"
+import { Glob } from "@tenon/core/util/glob"
 import { ConfigAgent } from "./agent"
 import { ConfigCommand } from "./command"
 import { ConfigManaged } from "./managed"
@@ -45,8 +47,16 @@ function mergeConfig(target: Info, source: Info): Info {
 
 // A folder's own config can't turn on auto-sharing or choose the share server.
 function withoutSharing(config: Info): Info {
-  const { share: _share, enterprise: _enterprise, ...rest } = config
+  const { share: _share, autoshare: _autoshare, enterprise: _enterprise, ...rest } = config
   return rest
+}
+
+export type TrustStatus = {
+  /** The folder an approval would cover. */
+  root: string
+  trusted: boolean
+  /** What the folder asks for that stays off until it is approved. Empty when there is nothing to ask about. */
+  withheld: string[]
 }
 
 function mergeConfigConcatArrays(target: Info, source: Info): Info {
@@ -126,6 +136,7 @@ type State = {
   directories: string[]
   deps: Fiber.Fiber<void>[]
   consoleState: ConsoleState
+  trust: TrustStatus
 }
 
 export interface Interface {
@@ -137,6 +148,9 @@ export interface Interface {
   readonly invalidate: () => Effect.Effect<void>
   readonly directories: () => Effect.Effect<string[]>
   readonly waitForDependencies: () => Effect.Effect<void>
+  readonly trust: () => Effect.Effect<TrustStatus>
+  /** Adds the instance's folder to the trusted list. Callers reload the instance afterwards. */
+  readonly approveFolder: () => Effect.Effect<void>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@tenon/Config") {}
@@ -219,21 +233,38 @@ const layer = Layer.effect(
       )
     })
 
+    const readApproved = () =>
+      fs.readFileStringSafe(ConfigTrust.file(Global.Path.data)).pipe(
+        Effect.orElseSucceed(() => undefined),
+        Effect.map(ConfigTrust.parse),
+      )
+
     const loadConfig = Effect.fnUntraced(function* (
       text: string,
-      options: { path: string } | { dir: string; source: string },
+      options: { path: string; untrusted?: () => void } | { dir: string; source: string },
       env?: Record<string, string>,
     ) {
       const source = "path" in options ? options.path : options.source
-      const expanded = yield* Effect.promise(() =>
-        ConfigVariable.substitute(
-          "path" in options
-            ? { text, type: "path", path: options.path, env }
-            : { text, type: "virtual", ...options, env },
+      const decode = (input: string) =>
+        ConfigParse.schema(ConfigV1.Info, normalizeLoadedConfig(ConfigParse.jsonc(input, source)), source)
+      if ("path" in options && options.untrusted) {
+        if (!/\{(env|file):/.test(text)) return decode(text)
+        options.untrusted()
+        // A value such as a number may be valid only once its variable expands. An error here would
+        // fail the folder before the app could ask, so the file waits for approval instead.
+        return yield* Effect.try({ try: () => decode(text), catch: (cause) => cause }).pipe(
+          Effect.orElseSucceed(() => ({}) as Info),
+        )
+      }
+      const data = decode(
+        yield* Effect.promise(() =>
+          ConfigVariable.substitute(
+            "path" in options
+              ? { text, type: "path", path: options.path, env }
+              : { text, type: "virtual", ...options, env },
+          ),
         ),
       )
-      const parsed = ConfigParse.jsonc(expanded, source)
-      const data = ConfigParse.schema(ConfigV1.Info, normalizeLoadedConfig(parsed), source)
       if (!("path" in options)) return data
 
       yield* Effect.promise(() => resolveLoadedPlugins(data, options.path))
@@ -245,11 +276,15 @@ const layer = Layer.effect(
       return data
     })
 
-    const loadFile = Effect.fnUntraced(function* (filepath: string, env?: Record<string, string>) {
+    const loadFile = Effect.fnUntraced(function* (
+      filepath: string,
+      env?: Record<string, string>,
+      untrusted?: () => void,
+    ) {
       yield* Effect.logInfo("loading", { path: filepath })
       const text = yield* readConfigFile(filepath)
       if (!text) return {} as Info
-      return yield* loadConfig(text, { path: filepath }, env)
+      return yield* loadConfig(text, { path: filepath, untrusted }, env)
     })
 
     const loadGlobal = Effect.fnUntraced(function* (env?: Record<string, string>) {
@@ -330,6 +365,17 @@ const layer = Layer.effect(
         const authEnv: Record<string, string> = {}
         const consoleManagedProviders = new Set<string>()
         let activeOrgName: string | undefined
+        const approved = yield* readApproved()
+        const withheld = new Set<string>()
+
+        // Until the folder is approved nothing in its config runs or reads a secret, and nothing is written back.
+        const loadProject = Effect.fnUntraced(function* (filepath: string) {
+          const trusted = ConfigTrust.covers(approved, filepath)
+          const loaded = yield* loadFile(filepath, authEnv, trusted ? undefined : () => withheld.add("variables"))
+          const limited = ConfigTrust.projectV1(withoutSharing(loaded), trusted)
+          limited.withheld.forEach((key) => withheld.add(key))
+          return limited.config
+        })
 
         const pluginScopeForSource = Effect.fnUntraced(function* (source: string) {
           if (source.startsWith("http://") || source.startsWith("https://")) return "global"
@@ -418,7 +464,7 @@ const layer = Layer.effect(
           for (const file of yield* ConfigPaths.files(ConfigNames.files, ctx.directory, ctx.worktree).pipe(
             Effect.orDie,
           )) {
-            yield* merge(file, withoutSharing(yield* loadFile(file, authEnv)), "local")
+            yield* merge(file, yield* loadProject(file), "local")
           }
         }
 
@@ -440,48 +486,61 @@ const layer = Layer.effect(
           ...(Flag.TENON_CONFIG_DIR ? [Flag.TENON_CONFIG_DIR] : []),
         ])
         for (const dir of directories) {
+          const user = userDirectories.has(dir)
+          const trusted = user || ConfigTrust.covers(approved, dir)
           if (ConfigNames.isDirectory(path.basename(dir)) || dir === Flag.TENON_CONFIG_DIR) {
             for (const file of ConfigNames.files.flatMap((name) => [`${name}.json`, `${name}.jsonc`])) {
               const source = path.join(dir, file)
               yield* Effect.logDebug(`loading config from ${source}`)
-              const loaded = yield* loadFile(source, authEnv)
-              yield* merge(source, userDirectories.has(dir) ? loaded : withoutSharing(loaded))
+              yield* merge(source, user ? yield* loadFile(source, authEnv) : yield* loadProject(source))
               result.agent ??= {}
               result.mode ??= {}
               result.plugin ??= []
             }
           }
 
-          yield* ensureGitignore(dir).pipe(Effect.orDie)
+          if (trusted) {
+            yield* ensureGitignore(dir).pipe(Effect.orDie)
 
-          const dep = yield* npmSvc
-            .install(dir, {
-              add: [
-                {
-                  name: "@opencode-ai/plugin",
-                  version: InstallationLocal ? undefined : InstallationVersion,
-                },
-              ],
-            })
-            .pipe(
-              Effect.exit,
-              Effect.tap((exit) =>
-                Exit.isFailure(exit)
-                  ? Effect.logWarning("background dependency install failed", { dir, error: String(exit.cause) })
-                  : Effect.void,
-              ),
-              Effect.asVoid,
-              Effect.forkDetach,
-            )
-          deps.push(dep)
+            const dep = yield* npmSvc
+              .install(dir, {
+                add: [
+                  {
+                    name: "@opencode-ai/plugin",
+                    version: InstallationLocal ? undefined : InstallationVersion,
+                  },
+                ],
+              })
+              .pipe(
+                Effect.exit,
+                Effect.tap((exit) =>
+                  Exit.isFailure(exit)
+                    ? Effect.logWarning("background dependency install failed", { dir, error: String(exit.cause) })
+                    : Effect.void,
+                ),
+                Effect.asVoid,
+                Effect.forkDetach,
+              )
+            deps.push(dep)
+          }
 
           result.command = mergeDeep(result.command ?? {}, yield* Effect.promise(() => ConfigCommand.load(dir)))
-          result.agent = mergeDeep(result.agent ?? {}, yield* Effect.promise(() => ConfigAgent.load(dir)))
-          result.agent = mergeDeep(result.agent ?? {}, yield* Effect.promise(() => ConfigAgent.loadMode(dir)))
+          const agents = yield* Effect.promise(() => ConfigAgent.load(dir))
+          const modes = yield* Effect.promise(() => ConfigAgent.loadMode(dir))
+          result.agent = mergeDeep(result.agent ?? {}, user ? agents : ConfigTrust.agentsV1(agents))
+          result.agent = mergeDeep(result.agent ?? {}, user ? modes : ConfigTrust.agentsV1(modes))
           // Auto-discovered plugins under `.tenon/plugin(s)` (or `.opencode/plugin(s)`) are already local files, so ConfigPlugin.load
           // returns normalized Specs and we only need to attach origin metadata here.
           const list = yield* Effect.promise(() => ConfigPlugin.load(dir))
-          yield* mergePluginOrigins(dir, list)
+          if (trusted) {
+            yield* mergePluginOrigins(dir, list)
+            continue
+          }
+          if (list.length) withheld.add("plugin")
+          const scan = (pattern: string) =>
+            Glob.scanSync(pattern, { cwd: dir, absolute: true, dot: true, symlink: true })
+          if (scan("{tool,tools}/*.{js,ts}").length) withheld.add("tools")
+          if (scan("{skill,skills}/**/SKILL.md").length) withheld.add("skills")
         }
 
         if (process.env.TENON_CONFIG_CONTENT) {
@@ -602,9 +661,12 @@ const layer = Layer.effect(
           result.compaction = { ...result.compaction, prune: false }
         }
 
+        const root = ConfigTrust.root(ctx.directory, ctx.worktree)
         return {
           config: result,
-          directories,
+          // Custom tools and skills load from these folders, so an unapproved one stays out.
+          directories: directories.filter((dir) => userDirectories.has(dir) || ConfigTrust.covers(approved, dir)),
+          trust: { root, trusted: ConfigTrust.covers(approved, root), withheld: Array.from(withheld) },
           deps,
           consoleState: {
             consoleManagedProviders: Array.from(consoleManagedProviders),
@@ -638,6 +700,17 @@ const layer = Layer.effect(
       yield* InstanceState.useEffect(state, (s) =>
         Effect.forEach(s.deps, Fiber.join, { concurrency: "unbounded" }).pipe(Effect.asVoid),
       )
+    })
+
+    const trust = Effect.fn("Config.trust")(function* () {
+      return yield* InstanceState.use(state, (s) => s.trust)
+    })
+
+    const approveFolder = Effect.fn("Config.approveFolder")(function* () {
+      const root = (yield* trust()).root
+      yield* fs
+        .writeWithDirs(ConfigTrust.file(Global.Path.data), ConfigTrust.add(yield* readApproved(), root))
+        .pipe(Effect.orDie)
     })
 
     const update = Effect.fn("Config.update")(function* (config: Info) {
@@ -687,6 +760,8 @@ const layer = Layer.effect(
       invalidate,
       directories,
       waitForDependencies,
+      trust,
+      approveFolder,
     })
   }),
 )
