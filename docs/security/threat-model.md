@@ -914,6 +914,14 @@ Mail lives in the desktop main process (`desktop/src/main/mail/`; see
   `desktop/package.json`, with one short-lived TLS connection per call
   (STARTTLS when TLS is off).
 
+## Terminal scrollback
+
+Scrollback stays in memory. The sidecar keeps up to 2 MB per PTY for replay, and
+the renderer keeps a serialized copy per PTY only to restore a tab switch
+(`terminalScrollback` in `app/src/context/terminal.tsx`). The persisted workspace
+store holds a terminal's title, size, cursor and scroll position, not its output,
+and loading an older store removes any `buffer` it saved.
+
 ## Local dictation
 
 The composer's mic records through `tenon-dictation`, a Rust child process of

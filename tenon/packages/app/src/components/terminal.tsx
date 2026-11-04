@@ -14,7 +14,7 @@ import { usePlatform } from "@/context/platform"
 import { useSDK } from "@/context/sdk"
 import { useServerSDK } from "@/context/server-sdk"
 import { terminalFontFamily, useSettings } from "@/context/settings"
-import type { LocalPTY } from "@/context/terminal"
+import { terminalScrollback, type LocalPTY } from "@/context/terminal"
 import { disposeIfDisposable, getHoveredLinkText, setOptionIfSupported } from "@/utils/runtime-adapters"
 import { terminalWriter } from "@/utils/terminal-writer"
 import { terminalWebSocketURL } from "@/utils/terminal-websocket-url"
@@ -148,7 +148,7 @@ const persistTerminal = (input: {
   addon: SerializeAddon | undefined
   cursor: number
   id: string
-  onCleanup?: (pty: Partial<LocalPTY> & { id: string }) => void
+  onCleanup?: (pty: Partial<LocalPTY> & { id: string; buffer?: string }) => void
 }) => {
   if (!input.addon || !input.onCleanup || !input.term) return
   const buffer = (() => {
@@ -196,7 +196,7 @@ export const Terminal = (props: TerminalProps) => {
     "onConnectError",
   ])
   const id = local.pty.id
-  const restore = typeof local.pty.buffer === "string" ? local.pty.buffer : ""
+  const restore = terminalScrollback(id) ?? ""
   const restoreSize =
     restore &&
     typeof local.pty.cols === "number" &&
@@ -220,8 +220,11 @@ export const Terminal = (props: TerminalProps) => {
   let lastSize: { cols: number; rows: number } | undefined
   let disposed = false
   const cleanups: VoidFunction[] = []
+  // A saved cursor only marks where the restored scrollback ends; without it the server replays everything.
   const start =
-    typeof local.pty.cursor === "number" && Number.isSafeInteger(local.pty.cursor) ? local.pty.cursor : undefined
+    restore && typeof local.pty.cursor === "number" && Number.isSafeInteger(local.pty.cursor)
+      ? local.pty.cursor
+      : undefined
   let cursor = start ?? 0
   let seek = start !== undefined ? start : restore ? -1 : 0
   let output: ReturnType<typeof terminalWriter> | undefined

@@ -19,13 +19,22 @@ export type LocalPTY = {
   titleNumber: number
   rows?: number
   cols?: number
-  buffer?: string
   scrollY?: number
   cursor?: number
 }
 
+type TerminalUpdate = Partial<LocalPTY> & { id: string; buffer?: string }
+
 const WORKSPACE_KEY = "__workspace__"
 const MAX_TERMINAL_SESSIONS = 20
+
+// Scrollback stays out of the persisted store so terminal output never reaches disk. This copy only
+// restores a tab switch or panel toggle; after a reload the server replays its own buffer.
+const scrollback = new Map<string, string>()
+
+export function terminalScrollback(id: string) {
+  return scrollback.get(id)
+}
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -53,7 +62,6 @@ function pty(value: unknown): LocalPTY | undefined {
   const number = num(value.titleNumber)
   const rows = num(value.rows)
   const cols = num(value.cols)
-  const buffer = text(value.buffer)
   const scrollY = num(value.scrollY)
   const cursor = num(value.cursor)
 
@@ -63,7 +71,6 @@ function pty(value: unknown): LocalPTY | undefined {
     titleNumber: number && number > 0 ? number : (numberFromTitle(title) ?? 0),
     ...(rows !== undefined ? { rows } : {}),
     ...(cols !== undefined ? { cols } : {}),
-    ...(buffer !== undefined ? { buffer } : {}),
     ...(scrollY !== undefined ? { scrollY } : {}),
     ...(cursor !== undefined ? { cursor } : {}),
   }
@@ -107,10 +114,10 @@ type TerminalCacheEntry = {
 const caches = new Set<Map<string, TerminalCacheEntry>>()
 
 const trimTerminal = (pty: LocalPTY) => {
-  if (!pty.buffer && pty.cursor === undefined && pty.scrollY === undefined) return pty
+  scrollback.delete(pty.id)
+  if (pty.cursor === undefined && pty.scrollY === undefined) return pty
   return {
     ...pty,
-    buffer: undefined,
     cursor: undefined,
     scrollY: undefined,
   }
@@ -235,6 +242,7 @@ function createWorkspaceTerminalSession(
   const removeExited = (id: string) => {
     const all = store.all
     const index = all.findIndex((x) => x.id === id)
+    scrollback.delete(id)
     if (index === -1) return
     const active = store.active === id ? (index === 0 ? all[1]?.id : all[0]?.id) : store.active
     batch(() => {
@@ -253,10 +261,12 @@ function createWorkspaceTerminalSession(
   })
   onCleanup(unsub)
 
-  const update = (pty: Partial<LocalPTY> & { id: string }) => {
+  const update = (input: TerminalUpdate) => {
+    const { buffer, ...pty } = input
     const index = store.all.findIndex((x) => x.id === pty.id)
     const previous = index >= 0 ? store.all[index] : undefined
     if (index >= 0) {
+      if (buffer !== undefined) scrollback.set(pty.id, buffer)
       setStore("all", index, (item) => ({ ...item, ...pty }))
     }
     const doUpdate = async () => {
@@ -305,13 +315,13 @@ function createWorkspaceTerminalSession(
     if (!data?.id) return
 
     const active = store.active === pty.id
+    scrollback.delete(pty.id)
 
     batch(() => {
       setStore("all", index, {
         id: data.id,
         title: data.title ?? pty.title,
         titleNumber: pty.titleNumber,
-        buffer: undefined,
         cursor: undefined,
         scrollY: undefined,
         rows: undefined,
@@ -328,6 +338,7 @@ function createWorkspaceTerminalSession(
     all: createMemo(() => store.all),
     active: createMemo(() => store.active),
     clear() {
+      store.all.forEach((pty) => scrollback.delete(pty.id))
       batch(() => {
         setStore("active", undefined)
         setStore("all", [])
@@ -368,7 +379,7 @@ function createWorkspaceTerminalSession(
           reportStartFailure(error)
         })
     },
-    update(pty: Partial<LocalPTY> & { id: string }) {
+    update(pty: TerminalUpdate) {
       update(pty)
     },
     trim(id: string) {
@@ -393,7 +404,7 @@ function createWorkspaceTerminalSession(
           if (index === -1) return
           setStore("all", index, (pty) => trimTerminal(pty))
         },
-        update(pty: Partial<LocalPTY> & { id: string }) {
+        update(pty: TerminalUpdate) {
           update(pty)
         },
         async clone(id: string) {
@@ -429,6 +440,7 @@ function createWorkspaceTerminalSession(
       setStore("active", store.all[prevIndex]?.id)
     },
     async close(id: string) {
+      scrollback.delete(id)
       const index = store.all.findIndex((f) => f.id === id)
       if (index !== -1) {
         batch(() => {
@@ -539,7 +551,7 @@ export const { use: useTerminal, provider: TerminalProvider } = createSimpleCont
       all: () => workspace().all(),
       active: () => workspace().active(),
       new: (options?: { focus?: boolean }) => workspace().new(options),
-      update: (pty: Partial<LocalPTY> & { id: string }) => workspace().update(pty),
+      update: (pty: TerminalUpdate) => workspace().update(pty),
       trim: (id: string) => workspace().trim(id),
       trimAll: () => workspace().trimAll(),
       clone: (id: string) => workspace().clone(id),
