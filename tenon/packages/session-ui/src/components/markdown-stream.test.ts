@@ -140,6 +140,7 @@ describe("markdown stream", () => {
       "| a | b |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |\n\nafter",
       "para\n| a |\n|---|\n| 1 |\n",
       "> quote\nlazy\n\n> another\n\n    indented code\n\ntext",
+      "first\n\nsecond\n\n> - quoted item\nlazy line\n\nafter",
       "<div>\nhtml\n</div>\n\n<pre>\n\nkept\n</pre>\n\ndone",
       "before\n\n```ts\nconst x = 1\n```\n\nbetween\n\n~~~\nopen fence\n",
       "```\na\n```x\nb\n```\n\ntail",

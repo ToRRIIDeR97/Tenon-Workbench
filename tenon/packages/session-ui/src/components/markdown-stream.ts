@@ -136,7 +136,12 @@ export function project(previous: Projection | undefined, text: string, live: bo
   if (text.includes("\r") || text.includes("]:")) return { text, blocks: stream(text, live) }
   // Only the last line grows, so frozen blocks keep their bounds, except that a line can turn out to continue
   // the block before it ("1. a\n\n2" then ". b"). Lexing from that block gives the same blocks as the whole text.
-  const kept = previous.blocks.slice(0, -4)
-  const start = previous.blocks.slice(-4).reduce((offset, block) => offset - block.raw.length, previous.text.length)
-  return { text, blocks: [...kept, ...liveBlocks(text.slice(start), "")] }
+  // A block's raw can differ from the text (the lexer ends some blockquotes with a newline), so check the offset.
+  const relexed = previous.blocks
+    .slice(-4)
+    .map((block) => block.raw)
+    .join("")
+  if (!previous.text.endsWith(relexed)) return { text, blocks: stream(text, live) }
+  const start = previous.text.length - relexed.length
+  return { text, blocks: [...previous.blocks.slice(0, -4), ...liveBlocks(text.slice(start), "")] }
 }
