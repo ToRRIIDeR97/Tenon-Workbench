@@ -209,6 +209,13 @@ export const linkProjectFolder = (client: Client, folder: string) =>
 export const unlinkProjectFolder = (client: Client, folder: string) =>
   request<ScanResult>(client, "/second-brain/projects/unlink", { method: "POST", body: JSON.stringify({ folder }) })
 
+/** Whether the target folder is approved, and what its config asks for that stays off until it is. */
+export type FolderTrust = { root: string; trusted: boolean; withheld: ReadonlyArray<string> }
+
+export const readFolderTrust = (client: Client) => request<FolderTrust>(client, "/config/trust")
+
+export const approveFolder = (client: Client) => request<FolderTrust>(client, "/config/trust", { method: "POST" })
+
 /** The target folder's own AGENTS.md; `content` is null when it has none. */
 export type Instructions = { path: string; content: string | null }
 
