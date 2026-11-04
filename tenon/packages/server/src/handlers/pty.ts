@@ -53,7 +53,7 @@ export const PtyHandler = HttpApiBuilder.group(Api, "server.pty", (handlers) =>
             }),
           ).pipe(
             Effect.catchTag("Pty.SpawnError", (error) =>
-              Effect.fail(new InvalidRequestError({ message: error.message, field: "command" })),
+              Effect.fail(new InvalidRequestError({ message: error.message, field: error.field })),
             ),
           )
         }),

@@ -1,6 +1,6 @@
 // Acceptance fixture for P2 (implementations/notes-command-centre): speaks the tenon-dictation
 // JSON-lines protocol without audio or models. FAKE_DICTATION_CRASH=1 exits right after "start";
-// FAKE_DICTATION_HANG_LOAD=1 never answers a "load".
+// FAKE_DICTATION_HANG_LOAD=1 never answers a "load"; FAKE_DICTATION_HANG_STOP=1 never answers a "stop".
 import { createInterface } from "node:readline"
 
 const send = (event) => process.stdout.write(JSON.stringify(event) + "\n")
@@ -18,6 +18,7 @@ createInterface({ input: process.stdin }).on("line", (line) => {
   if (request.type === "stop") {
     if (!recording) return send({ type: "error", id: request.id, code: "not_recording", message: "Not recording" })
     recording = false
+    if (process.env.FAKE_DICTATION_HANG_STOP === "1") return
     return send({ type: "final", id: request.id, text: "hello from the fake engine" })
   }
   if (request.type === "cancel") {

@@ -222,6 +222,8 @@ on its own. Removed in the T3 parity Phase 1 cleanup:
 
 Still outbound: the configured LLM providers (including the `opencode` Zen
 provider when the user selects it), the `models.dev` catalog, Google APIs,
+`github.com` for the pinned, SHA-256-checked ripgrep release when neither `PATH`
+nor the app bundle has one (`core/src/ripgrep/release.ts`),
 `huggingface.co` for dictation models the user downloads (see
 [Local dictation](#local-dictation)), the Gmail API, Microsoft identity and
 Graph, and the IMAP servers of connected mail accounts (see
@@ -947,6 +949,14 @@ Mail lives in the desktop main process (`desktop/src/main/mail/`; see
   fails before the password is sent. Loopback hosts are the exception, for
   local mail bridges with no TLS.
 
+## Terminal scrollback
+
+Scrollback stays in memory. The sidecar keeps up to 2 MB per PTY for replay, and
+the renderer keeps a serialized copy per PTY only to restore a tab switch
+(`terminalScrollback` in `app/src/context/terminal.tsx`). The persisted workspace
+store holds a terminal's title, size, cursor and scroll position, not its output,
+and loading an older store removes any `buffer` it saved.
+
 ## Local dictation
 
 The composer's mic records through `tenon-dictation`, a Rust child process of
@@ -977,9 +987,11 @@ the Electron main process (see [architecture](../architecture/README.md#local-di
   the user without a shell and reads only the model file main passes it.
 - **Model downloads.** Whisper Small, Whisper Turbo and Parakeet V3 come from
   pinned Hugging Face revisions (`dictation-models.ts`, the same GGUF files
-  Handy uses). Main streams each to a `.part` file, checks its size and
-  SHA-256 against the pinned values, and only then renames it into
-  `<userData>/dictation/models/`; a mismatch deletes the file. The active choice
+  Handy uses). Main streams each through `net.fetch` (system proxy and
+  certificate store) to a `.part` file, checks its size and SHA-256 against the
+  pinned values, hashing any bytes kept from an interrupted attempt too, and only
+  then renames it into `<userData>/dictation/models/`; a mismatch deletes the
+  file. The active choice
   is `<userData>/dictation/settings.json`. Models are rebuildable downloads,
   not user data.
 - **Known gaps.** The packaged engine is signed with the app on macOS but is

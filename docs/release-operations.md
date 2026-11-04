@@ -102,7 +102,27 @@ whisper/ggml from source). Run `bun run --cwd tenon/packages/desktop build:dicta
 
 Speech models are not bundled. Settings › Dictation downloads Whisper Small,
 Whisper Turbo or Parakeet V3 (the GGUF files Handy uses, from Hugging Face,
-checked against their SHA-256) into `<userData>/dictation/models/`.
+checked against their SHA-256) into `<userData>/dictation/models/`. Downloads use
+Electron's `net.fetch`, so they follow the system proxy. An interrupted download
+leaves `<model>.part` there and the next attempt resumes it.
+
+## Bundled ripgrep
+
+`desktop/scripts/prebuild.ts` downloads the pinned ripgrep release for the build
+target (`RUST_TARGET`, or the host) into `desktop/resources/ripgrep/`, checks it
+against the SHA-256 in `core/src/ripgrep/release.ts`, and skips the download when
+`.version` there already matches. It runs before `bun run build`, so the first
+build needs GitHub, and a failed download or mismatch stops it. `electron-builder.config.ts`
+copies `rg[.exe]` into the app's `resources/ripgrep/` folder; on macOS it is signed
+with the app, like the dictation engine. Not yet proved on a signed and notarized
+macOS candidate: check `resources/ripgrep/rg` runs and passes notarization on the
+next one. To move to a new ripgrep, change `VERSION` and all the `sha256` values
+together.
+
+At runtime `preferAppEnv` sets `TENON_RIPGREP_PATH` in packaged builds. The sidecar
+looks for `rg` on `PATH`, then at that path, then in its `bin` folder, and only then
+downloads the same verified archive. A failed download is retried on the next
+search. LSP server auto-install still fetches unpinned releases.
 
 ## Desktop identity change
 

@@ -42,10 +42,14 @@ export type DictationPlatform = {
   stop(): Promise<{ text?: string; error?: DictationFailure }>
   cancel(): Promise<void>
   onLevel(cb: (rms: number) => void): () => void
+  /** The recording reached its length limit; the engine has stopped listening and `stop()` collects the text. */
+  onLimit(cb: () => void): () => void
   models(): Promise<DictationModelState>
   setActive(id: DictationModelID): Promise<void>
   remove(id: DictationModelID): Promise<void>
-  download(id: DictationModelID): Promise<void>
+  /** Settles with why a download stopped; `cancelled` when `cancelDownload` ended it. */
+  download(id: DictationModelID): Promise<{ error?: string }>
+  cancelDownload(id: DictationModelID): Promise<void>
   onDownloadProgress(cb: (progress: DictationDownloadProgress) => void): () => void
   openPermissionSettings(): Promise<void>
 }

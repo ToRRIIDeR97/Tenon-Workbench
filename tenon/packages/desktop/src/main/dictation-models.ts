@@ -31,9 +31,10 @@ export const DICTATION_MODELS = [
   },
 ] as const
 
-export type DictationModelID = (typeof DICTATION_MODELS)[number]["id"]
+export type DictationModel = (typeof DICTATION_MODELS)[number]
+export type DictationModelID = DictationModel["id"]
 
-export function dictationModelURL(model: (typeof DICTATION_MODELS)[number]) {
+export function dictationModelURL(model: DictationModel) {
   return `https://huggingface.co/${model.repository}/resolve/${model.revision}/${model.file}`
 }
 

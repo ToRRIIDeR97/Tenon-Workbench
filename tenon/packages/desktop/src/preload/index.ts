@@ -182,10 +182,16 @@ const api: ElectronAPI = {
       ipcRenderer.on("dictation-level", handler)
       return () => ipcRenderer.removeListener("dictation-level", handler)
     },
+    onLimit: (cb) => {
+      const handler = () => cb()
+      ipcRenderer.on("dictation-limit", handler)
+      return () => ipcRenderer.removeListener("dictation-limit", handler)
+    },
     models: () => ipcRenderer.invoke("dictation-models"),
     setActive: (id) => ipcRenderer.invoke("dictation-set-active", id),
     remove: (id) => ipcRenderer.invoke("dictation-remove", id),
     download: (id) => ipcRenderer.invoke("dictation-download", id),
+    cancelDownload: (id) => ipcRenderer.invoke("dictation-cancel-download", id),
     onDownloadProgress: (cb) => {
       const handler = (_: unknown, progress: Parameters<typeof cb>[0]) => cb(progress)
       ipcRenderer.on("dictation-download-progress", handler)
