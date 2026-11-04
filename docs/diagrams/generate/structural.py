@@ -82,7 +82,7 @@ def trust():
     s.box(40, 534, 190, 70, "Profile data", ["drafts.sqlite (plaintext)", "electron-store files"], cls="store")
     s.zone(300, 70, 330, 380, "Loopback server process")
     s.box(320, 100, 290, 74, "Authorization", ["Basic auth opencode:<uuid>", "header or auth_token query"], cls="sub")
-    s.box(320, 186, 290, 70, "Workspace routing", ["directory → instance", "LocationMutation containment"], cls="sub")
+    s.box(320, 186, 290, 70, "Workspace routing", ["directory → instance, LocationMutation", "project config: trusted folders only"], cls="sub")
     s.box(320, 268, 290, 84, "PermissionV2", ["rules: allow / ask / deny", "harness add: Settings only, no tool", "plan agent denies edits"], cls="sub")
     s.box(320, 364, 220, 70, "Secrets at rest", ["auth.json, harness-credentials.json", "SQLite profile, harnesses.json"], cls="store")
     s.zone(680, 70, 300, 150, "Workspace filesystem + Tenon vault")

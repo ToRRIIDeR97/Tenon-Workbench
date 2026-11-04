@@ -1175,8 +1175,69 @@ location and canonical Git worktree.
   keep their old meaning.
 - A folder's own config (project files and project `.tenon` or `.opencode` folders) can't
   set `share` or `enterprise`; only user and admin config can turn on sharing.
-  Project config can still load plugins and MCP commands: there is no
-  workspace trust prompt yet.
+- A cloned repository is not trusted by being opened. See
+  [Folder trust](#folder-trust).
+
+### Folder trust
+
+The user's approved folders are a JSON array in `trusted-folders.json` in the
+data folder (`core/src/config/trust.ts`). A folder is approved if it or a parent
+is on the list. The list adds only through `POST /config/trust`, which takes no
+path: it approves the current instance's repository, or the opened folder when
+there is no repository. The app calls it only from the Trust folder button in
+`app/src/components/folder-trust-prompt.tsx`. Opening a folder, including from
+a `tenon://` deep link, never approves it. An unreadable list reads as empty,
+so the gate stays shut. Windows comparisons ignore case through `path.relative`;
+on macOS a differently cased spelling reads as unapproved.
+
+Both config readers apply the gate, `tenon/src/config/config.ts` and
+`core/src/config.ts`. Project files are the ones found by walking up from the
+opened folder, and each is judged by its own path, so a file above an approved
+folder stays unapproved. Until a folder is approved:
+
+- Its `.tenon` or `.opencode` `plugin(s)` and `tool(s)` files aren't imported,
+  and its skills there aren't loaded, because custom code and skill folders run
+  or widen access as the user.
+- The keys `mcp`, `plugin`, `lsp`, `formatter`, `provider`, `shell`,
+  `references` and `skills` are dropped, and `instructions` entries that are
+  absolute, home-relative or climb with `..` are dropped.
+- `{env:}` and `{file:}` stay as literal text, so a config can't put a secret
+  in a URL or header.
+- Nothing is written into the folder: no `$schema` line, `.gitignore` or
+  dependency install.
+
+Other keys, such as `model`, and markdown agents and commands still apply. When
+something was withheld, `GET /config/trust` names it and the app asks once per
+run. Approving reloads the instance, which reopens the location too.
+
+Approval doesn't lift every limit. In any folder, a project permission entry
+that allows `external_directory`, or allows reads that could reach a `.env`
+file, is refused (`ConfigTrust.loosens`). That covers wildcard keys such as
+`"*": "allow"`, the legacy `tools` map, per-agent `permission` blocks and
+markdown agents. A `read` allow pattern is refused if it ends in a wildcard,
+names `env`, or matches a sample `.env` path, so a repository that sets
+`"*": "deny"` can't reopen all reads from its own config. Deny and ask entries
+stay, and user config isn't limited.
+
+The gate protects against a repository, not against an agent. An agent with
+shell access runs as the user and could edit the list itself. An approved
+folder's `references` are still added to the `external_directory` allowlist.
+
+### Windows command lookup
+
+`cross-spawn`, the `which` package and libuv all search the working directory
+before `PATH` on Windows, so `git rev-parse` in a folder holding `git.cmd` would
+run that file on open. `resolveWin32` in `core/src/util/which.ts` walks absolute
+`PATH` entries and `PATHEXT` only, and `spawnTarget` applies it to bare names
+at `core/src/cross-spawn-spawner.ts`, `tenon/src/util/process.ts` and MCP
+`connectLocal`, whose SDK transport has its own `cross-spawn`. With no match the
+spawn fails with ENOENT; it never falls back to the bare name. A checked-in tool
+needs an explicit path such as `./tool.cmd`. macOS needs none of this: its
+spawn doesn't search the working directory.
+
+Not covered: commands run through a shell, such as agent shell commands, keep
+`cmd.exe`'s own lookup, and a `.cmd` shim that calls a bare name runs under
+`cmd.exe` too.
 
 ## Known gaps
 

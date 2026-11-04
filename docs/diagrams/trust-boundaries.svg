@@ -95,8 +95,8 @@
 <text x="330" y="150" text-anchor="start" class="s">header or auth_token query</text>
 <rect class="sub" x="320" y="186" width="290" height="70" rx="6"/>
 <text x="330" y="204" text-anchor="start" class="t">Workspace routing</text>
-<text x="330" y="220" text-anchor="start" class="s">directory → instance</text>
-<text x="330" y="236" text-anchor="start" class="s">LocationMutation containment</text>
+<text x="330" y="220" text-anchor="start" class="s">directory → instance, LocationMutation</text>
+<text x="330" y="236" text-anchor="start" class="s">project config: trusted folders only</text>
 <rect class="sub" x="320" y="268" width="290" height="84" rx="6"/>
 <text x="330" y="286" text-anchor="start" class="t">PermissionV2</text>
 <text x="330" y="302" text-anchor="start" class="s">rules: allow / ask / deny</text>
