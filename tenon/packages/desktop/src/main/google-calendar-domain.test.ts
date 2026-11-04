@@ -8,6 +8,7 @@ import {
   googleEventPayload,
   googleScopes,
   googleTaskPayload,
+  mergeQueuedWrite,
   nearestEvents,
   normalizeGoogleEvent,
   normalizeGoogleTask,
@@ -18,6 +19,7 @@ import {
   requestGoogleToken,
   sanitizeProviderEvent,
   sanitizeProviderTask,
+  settledWrites,
 } from "./google-calendar-domain"
 
 function tokenFetch(...responses: { status?: number; body: Record<string, unknown> }[]) {
@@ -408,6 +410,45 @@ describe("Google outbox", () => {
     expect(pruneOutbox(entries, 2).map((item) => item.id)).toEqual(["p1", "o1"])
     expect(pruneOutbox(entries, 1).map((item) => item.id)).toEqual(["p1", "o1"])
     expect(pruneOutbox(entries, 4)).toBe(entries)
+  })
+
+  test("folds an edit into a queued write, keeping its Google ID and etag", () => {
+    const queued = { providerId: "g1", etag: "e1", title: "Old" }
+    const edit = { providerId: "other", etag: "e2", title: "New" }
+    const expected = { providerId: "g1", etag: "e1", title: "New" }
+
+    expect(mergeQueuedWrite({ kind: "create", item: queued, reached: true }, { kind: "create", item: edit })).toEqual({
+      kind: "create",
+      item: expected,
+    })
+    expect(mergeQueuedWrite({ kind: "update", item: queued, reached: true }, { kind: "update", item: edit })).toEqual({
+      kind: "update",
+      item: expected,
+    })
+    expect(mergeQueuedWrite({ kind: "delete", item: queued, reached: true }, { kind: "update", item: edit })).toEqual({
+      kind: "update",
+      item: expected,
+    })
+    expect(mergeQueuedWrite({ kind: "update", item: queued, reached: true }, { kind: "delete", item: edit })).toEqual({
+      kind: "delete",
+      item: expected,
+    })
+  })
+
+  test("drops a deleted create only when Google cannot have it", () => {
+    const item = { providerId: "g1", title: "Queued" }
+    expect(mergeQueuedWrite({ kind: "create", item, reached: false }, { kind: "delete", item })).toBeUndefined()
+    expect(mergeQueuedWrite({ kind: "create", item, reached: true }, { kind: "delete", item })?.kind).toBe("delete")
+  })
+
+  test("reports finished writes with the ID Google gave them", () => {
+    expect(
+      settledWrites([
+        { state: "succeeded", input: { idempotencyKey: "k1" }, result: { providerId: "g1" } },
+        { state: "succeeded", input: { idempotencyKey: "k2" }, result: null },
+        { state: "offline", input: { idempotencyKey: "k3" } },
+      ]),
+    ).toEqual([{ idempotencyKey: "k1", providerId: "g1" }, { idempotencyKey: "k2" }])
   })
 
   test("keeps timeouts, rate limits and server errors queued until the attempt cap", () => {

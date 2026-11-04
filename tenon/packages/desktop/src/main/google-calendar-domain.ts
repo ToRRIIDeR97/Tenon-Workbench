@@ -358,6 +358,51 @@ export function pruneOutbox<T extends { state: OutboxState }>(entries: T[], limi
   return entries.filter((entry) => !drop.has(entry))
 }
 
+type OutboxWriteKind = "create" | "update" | "delete"
+
+/**
+ * Folds a newer write into an unfinished operation under the same idempotency key, so the user can
+ * keep editing an item that is queued or failed. The Google ID and etag stay those of the original
+ * operation: a new etag would hide a conflict. A create stays a create, and a queued delete gives
+ * way to an edit. Undefined means the operation can be dropped: it deletes a create that Google has
+ * no record of. `reached` is true when an earlier attempt may have got there, so a create is then
+ * deleted by its ID; tasks have no ID until Google assigns one and always pass false.
+ */
+export function mergeQueuedWrite<T extends { providerId: string; etag?: string }>(
+  queued: { kind: OutboxWriteKind; item: T; reached: boolean },
+  next: { kind: OutboxWriteKind; item: T },
+) {
+  const { etag: _etag, ...fields } = next.item
+  const item = {
+    ...fields,
+    providerId: queued.item.providerId,
+    ...(queued.item.etag ? { etag: queued.item.etag } : {}),
+  } as T
+  if (next.kind !== "delete") return { kind: queued.kind === "delete" ? ("update" as const) : queued.kind, item }
+  if (queued.kind === "create" && !queued.reached) return undefined
+  return { kind: "delete" as const, item }
+}
+
+/** The keys of finished writes, which sync reports so the planner stops showing them as queued. */
+export function settledWrites(
+  operations: ReadonlyArray<{
+    state: OutboxState
+    input: { idempotencyKey: string }
+    result?: { providerId: string } | null
+  }>,
+) {
+  return operations.flatMap((operation) =>
+    operation.state === "succeeded"
+      ? [
+          {
+            idempotencyKey: operation.input.idempotencyKey,
+            ...(operation.result ? { providerId: operation.result.providerId } : {}),
+          },
+        ]
+      : [],
+  )
+}
+
 type GoogleErrorBody = {
   error?: {
     status?: string

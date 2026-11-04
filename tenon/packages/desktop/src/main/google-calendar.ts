@@ -21,6 +21,7 @@ import {
   googleConnection,
   googleTaskPayload,
   GOOGLE_LEGACY_KEYS,
+  mergeQueuedWrite,
   migrateLegacyGoogleStore,
   nearestEvents,
   normalizeGoogleEvent,
@@ -32,6 +33,7 @@ import {
   resolveGoogleClient,
   sanitizeProviderEvent,
   sanitizeProviderTask,
+  settledWrites,
   type GoogleEventResponse,
   type GoogleTaskResponse,
 } from "./google-calendar-domain"
@@ -75,6 +77,8 @@ type StoredOutbox = {
   createdAt: string
   lastError?: string
   result?: GoogleCalendarProviderEvent | null
+  /** The input was edited after an attempt that may have reached Google. */
+  reached?: boolean
 }
 
 type StoredTaskOutbox = {
@@ -199,7 +203,13 @@ export function createGoogleCalendarService(): GoogleCalendarPlatform {
         updateAccount(account.id, { lastSyncedAt: new Date().toISOString() })
       }
       if (syncedAccounts.length === 0) throw new Error(errors.get(accounts[0].id) ?? "google_sync_failed")
-      return { events, tasks, syncedAccounts, connection: await status() }
+      return {
+        events,
+        tasks,
+        syncedAccounts,
+        settled: [...settledWrites(readOutbox()), ...settledWrites(readTaskOutbox())],
+        connection: await status(),
+      }
     } finally {
       busy = false
     }
@@ -215,11 +225,12 @@ export function createGoogleCalendarService(): GoogleCalendarPlatform {
     validateWrite(request)
     const outbox = readOutbox()
     const existing = outbox.find((operation) => operation.input.idempotencyKey === request.idempotencyKey)
-    if (existing) {
-      if (JSON.stringify(existing.input) !== JSON.stringify(request)) throw new Error("google_idempotency_collision")
-      if (existing.state === "succeeded") return { state: "synced", event: existing.result ?? null }
+    const edited = Boolean(existing) && JSON.stringify(existing?.input) !== JSON.stringify(request)
+    if (existing?.state === "succeeded") {
+      if (edited) throw new Error("google_idempotency_collision")
+      return { state: "synced", event: existing.result ?? null }
     }
-    const operation =
+    let operation: StoredOutbox =
       existing ??
       ({
         id: randomUUID(),
@@ -230,6 +241,26 @@ export function createGoogleCalendarService(): GoogleCalendarPlatform {
         createdAt: new Date().toISOString(),
       } satisfies StoredOutbox)
     if (!existing) persistOutbox([...outbox, operation])
+    if (existing && edited) {
+      const reached = Boolean(existing.reached) || existing.attempts > 0
+      const merged = mergeQueuedWrite(
+        { kind: existing.input.kind, item: existing.input.event, reached },
+        { kind: request.kind, item: request.event },
+      )
+      if (!merged) {
+        persistOutbox(outbox.filter((item) => item.id !== existing.id))
+        return { state: "synced", event: null }
+      }
+      operation = {
+        ...existing,
+        input: { kind: merged.kind, idempotencyKey: request.idempotencyKey, event: merged.item },
+        state: "pending",
+        attempts: 0,
+        lastError: undefined,
+        reached,
+      }
+      persistOutbox(outbox.map((item) => (item.id === existing.id ? operation : item)))
+    }
     busy = true
     try {
       return await dispatch(account, operation)
@@ -241,14 +272,21 @@ export function createGoogleCalendarService(): GoogleCalendarPlatform {
   const writeTask: GoogleCalendarPlatform["writeTask"] = async (input) => {
     if (busy) throw new Error("google_operation_busy")
     const account = requireWriteAccount(input.task.accountId)
-    validateTaskWrite(input)
     const outbox = readTaskOutbox()
     const existing = outbox.find((operation) => operation.input.idempotencyKey === input.idempotencyKey)
-    if (existing) {
-      if (JSON.stringify(existing.input) !== JSON.stringify(input)) throw new Error("google_idempotency_collision")
-      if (existing.state === "succeeded") return { state: "synced", task: existing.result ?? null }
+    // Google has no ID for a task still queued as a create, so there is nothing to delete there. A create
+    // whose response was lost shows up at the next sync as an ordinary task.
+    if (input.kind === "delete" && input.task.providerId.startsWith("pending:") && existing?.state !== "succeeded") {
+      if (existing) persistTaskOutbox(outbox.filter((item) => item.id !== existing.id))
+      return { state: "synced", task: null }
     }
-    const operation =
+    validateTaskWrite(input)
+    const edited = Boolean(existing) && JSON.stringify(existing?.input) !== JSON.stringify(input)
+    if (existing?.state === "succeeded") {
+      if (edited) throw new Error("google_idempotency_collision")
+      return { state: "synced", task: existing.result ?? null }
+    }
+    let operation: StoredTaskOutbox =
       existing ??
       ({
         id: randomUUID(),
@@ -259,6 +297,24 @@ export function createGoogleCalendarService(): GoogleCalendarPlatform {
         createdAt: new Date().toISOString(),
       } satisfies StoredTaskOutbox)
     if (!existing) persistTaskOutbox([...outbox, operation])
+    if (existing && edited) {
+      const merged = mergeQueuedWrite(
+        { kind: existing.input.kind, item: existing.input.task, reached: false },
+        { kind: input.kind, item: input.task },
+      )
+      if (!merged) {
+        persistTaskOutbox(outbox.filter((item) => item.id !== existing.id))
+        return { state: "synced", task: null }
+      }
+      operation = {
+        ...existing,
+        input: { kind: merged.kind, idempotencyKey: input.idempotencyKey, task: merged.item },
+        state: "pending",
+        attempts: 0,
+        lastError: undefined,
+      }
+      persistTaskOutbox(outbox.map((item) => (item.id === existing.id ? operation : item)))
+    }
     busy = true
     try {
       return await dispatchTask(account, operation)
@@ -565,10 +621,11 @@ async function dispatch(account: Account, operation: StoredOutbox) {
           account.id,
         ).catch((error) => {
           if (input.kind !== "create" || !(error instanceof Error) || error.message !== "google_http_409") throw error
+          // The ID is taken, so an earlier attempt did reach Google; an edit since then still has to.
           return providerJson<GoogleEventResponse>(
             `${eventsEndpoint}/${encodeURIComponent(id)}`,
             accessToken,
-            undefined,
+            operation.reached ? { method: "PATCH", body: JSON.stringify(googleEventPayload(input.event)) } : undefined,
             account.id,
           )
         })

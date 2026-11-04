@@ -445,6 +445,16 @@ account instead of adding a second one. Access tokens are cached per account
 (`createGoogleAccessTokens`), so accounts that share the built-in client never
 share a token, and a 401 clears only that account's token.
 
+An idempotency key names one outbox operation. A new write under a key whose
+operation has not succeeded replaces its input (`mergeQueuedWrite`), keeps the
+original Google ID and etag and resets the attempts, so a queued, failed or
+conflicted item stays editable. A delete of a create that Google cannot have
+drops the operation. An event create that attempted before the edit follows a
+409 with a PATCH, so the edit is not lost. Reusing the key of a succeeded
+operation with different input is still `google_idempotency_collision`; `sync`
+returns the finished keys as `settled`, and the planner then replaces those
+items with Google's copy.
+
 `sync` syncs the accounts one at a time and returns the items it fetched with
 their `accountId`, plus `syncedAccounts`. An account that fails keeps its error
 in memory for `status` and its items on the page; the call fails only when

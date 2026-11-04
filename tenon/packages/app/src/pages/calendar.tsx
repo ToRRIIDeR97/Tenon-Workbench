@@ -875,9 +875,12 @@ export default function CalendarPage() {
     setState({ saving: true, error: "" })
     try {
       const deleting = state.googleConfirm === "delete"
-      const operationKind = deleting
+      // Saving an edit over a queued delete keeps the event, so the operation becomes an update.
+      const operationKind: "create" | "update" | "delete" = deleting
         ? "delete"
-        : state.draft.outboxKind || (state.draft.providerId ? "update" : "create")
+        : state.draft.outboxKind === "delete"
+          ? "update"
+          : state.draft.outboxKind || (state.draft.providerId ? "update" : "create")
       const result = await google.write({
         kind: operationKind,
         idempotencyKey: state.googleWriteKey,

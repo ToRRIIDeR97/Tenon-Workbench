@@ -124,3 +124,9 @@ test("builds a stable six-week local calendar grid", () => {
   expect(localDateKey(shiftDate(new Date(2026, 11, 31, 12), 1))).toBe("2027-01-01")
   expect(weekRange(new Date(2026, 7, 25, 12))).toEqual({ start: "2026-08-23", end: "2026-08-29" })
 })
+
+test("mergeProviderEvents takes Google's copy once the outbox has finished the write", () => {
+  const queued = google("g1", { title: "Old", syncState: "offline", outboxKind: "create", outboxKey: "k1" })
+  const merged = mergeProviderEvents([queued], [remote("g1", "New")], { settled: (key) => key === "k1" })
+  expect(merged.map((event) => [event.title, event.syncState])).toEqual([["New", "synced"]])
+})

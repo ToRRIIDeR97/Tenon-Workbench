@@ -64,6 +64,8 @@ export type ProviderMergeOptions = {
   failed?: (account: string | undefined) => boolean
   /** Accounts this sync fetched. */
   synced?: (account: string | undefined) => boolean
+  /** Outbox keys whose write has finished, so the item no longer waits on the outbox. */
+  settled?: (outboxKey: string) => boolean
   today?: string
 }
 
@@ -71,7 +73,8 @@ export type ProviderMergeOptions = {
  * Merge a Google sync into the local calendar. Local events stay, and so does every event of
  * an account that failed this sync. A synced account's event with an unsynced write (queued,
  * failed or in conflict) stays as it is, whether or not Google returned it, so a sync never
- * silently drops or overwrites the user's change. Every other event of a synced account is
+ * silently drops or overwrites the user's change; a write the outbox has finished no longer
+ * counts as unsynced. Every other event of a synced account is
  * replaced by Google's copy, keeping its Project link; events of accounts that are gone are
  * dropped. Ids stay unique, and remote events farthest from `today` are dropped if the
  * calendar would exceed its limit.
@@ -84,6 +87,7 @@ export function mergeProviderEvents(
   const accountOf = options.accountOf ?? ((accountId) => accountId)
   const failed = options.failed ?? (() => false)
   const synced = options.synced ?? (() => true)
+  const settled = options.settled ?? (() => false)
   const today = options.today ?? localDateKey(new Date())
   const projectByProvider = new Map(
     current.flatMap((event) =>
@@ -96,7 +100,7 @@ export function mergeProviderEvents(
     if (event.source !== "google") return true
     const account = accountOf(event.accountId)
     if (failed(account)) return true
-    return synced(account) && Boolean(event.outboxKey) && event.syncState !== "synced"
+    return synced(account) && Boolean(event.outboxKey) && event.syncState !== "synced" && !settled(event.outboxKey!)
   })
   const keptIds = new Set(kept.map((event) => event.id))
   const fresh = remote

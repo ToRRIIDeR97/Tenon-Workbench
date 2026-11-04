@@ -168,6 +168,8 @@ export type GoogleCalendarPlatform = {
     tasks: GoogleTaskProviderTask[]
     /** Accounts whose items were fetched; the page replaces only those accounts' items. */
     syncedAccounts: string[]
+    /** Finished outbox writes; the planner stops showing these as queued. `providerId` is Google's ID, if any. */
+    settled: { idempotencyKey: string; providerId?: string }[]
     connection: GoogleCalendarConnection
   }>
   write(input: GoogleCalendarWrite): Promise<GoogleCalendarWriteResult>
