@@ -791,7 +791,9 @@ and switches with `POST /vcs/branch`; with none the list is empty) and the
 fixed folder and the branch picker; the context ring opens a popover list
 instead of a strip above the box. The composer
 (`PromptInputV2Composer`, given a harness) replaces the separate harness, model,
-effort and service-tier pickers with one pill (`components/prompt-input/model-pill.tsx`):
+effort and service-tier pickers with one pill (`components/prompt-input/model-pill.tsx`).
+A built-in ACP harness with no login in its files shows "Sign-in not found" there, without blocking a send,
+because Bedrock, Vertex or a key in the shell don't show in those files:
 its panel is a drill-in stack: a summary row each for harness, model, reasoning
 and speed (the last two only when the model offers them), and each row slides to
 a full-width list of that choice, so names never truncate. Picking returns to
@@ -1071,7 +1073,10 @@ instance. It keys the in-memory runtimes, so a harness that is switched back
 in reopens its thread and gets the delta. A cached runtime whose process exited (the
 JSON-RPC client's `closed`, set when its stdout ends or fails) is closed and
 reopened instead of reused; requests on a closed client fail at once rather
-than wait. A runtime idle for 30 minutes with no turn running is
+than wait. When the process ends, the thread's error gives its exit code and
+one capped, redacted line from the end of its stderr (`watchExit`). A stdout
+line that isn't JSON is skipped and only its length logged; a JSON message of
+the wrong shape still ends the connection. A runtime idle for 30 minutes with no turn running is
 closed by a sweep that runs every minute (`idleRuntimeKeys`); its thread
 reconnects on the next message. ACP model discovery runs in
 `<state>/harness-discovery`, so the sessions it opens don't land in the
@@ -1080,8 +1085,24 @@ thread folder's history. When an ACP session is reopened with
 (`replayedCost`), so the next turn records only its own cost.
 
 Each harness runtime has a turn gate: approvals asked during a turn are
-withdrawn and denied when the turn ends (`turnGate`). A refused ACP model
-switch ends the turn with an error naming the model. Codex turn usage is the
+withdrawn and denied when the turn ends (`turnGate`). Codex's
+`item/tool/requestUserInput` goes through the same asker as `ask_user`, so the
+end of a turn withdraws it too. A refused ACP model
+switch ends the turn with an error naming the model; that turn, like a prompt
+that failed with no text or tool output, keeps its handoff for the next turn.
+
+Turns have deadlines. `turn/start`, `session/set_model` and
+`session/set_config_option` must answer within 60 seconds, and a timeout
+replaces the runtime. `failOnSilence` fails a turn after 10 silent minutes, not
+counting time when a tool or item is open or an approval or question is
+pending; the turn's finalizer asks the agent to stop and the runtime is
+replaced. Stop on Codex waits 5 seconds for `turn/interrupt`, then replaces the
+process. After Stop on an ACP agent the `session/prompt` request stays in the
+runtime's scope, and the next turn waits up to 10 seconds for its answer before
+clearing the queue, so late updates can't reach the new reply. Past that bound
+the turn fails and the runtime reopens through `session/load`.
+
+Codex turn usage is the
 growth of the thread's cumulative `tokenUsage.total`; the last call's input
 and output are reported as `contextUsed`, which the step stores on the
 assistant message next to `contextWindow` and the context meter divides by
@@ -2157,8 +2178,9 @@ choice naming a harness the runtime no longer knows is ignored.
   native session that belongs to no thread, with a 90-second timeout because it
   starts a new process. Codex uses an ephemeral, read-only thread with approvals
   off. ACP agents get a new session whose tool requests are all refused. The
-  thread's own harness uses the thread's model; a harness chosen in settings
-  uses its own default model.
+  thread's own harness uses the thread's model, without its service tier and
+  at the model's lowest listed effort; a harness chosen in settings uses its
+  own default model. Both run in `<state>/harness-discovery`, not the project.
 
 The reply is cleaned by `SessionTitle.clean` (`core/src/session/title.ts`). The
 rename is published as `SessionV1.Event.Updated` after re-reading the row, so a
@@ -2245,9 +2267,12 @@ main process with a bearer token passed in the server's environment
 (`TENON_BROWSER_URL`, `TENON_BROWSER_TOKEN`; harness processes don't get it).
 An agent call brings the matching tab forward and logs the step in it.
 `browser_navigate` to a site other than localhost asks the user in a native
-dialog first. While a browser tool is in flight, a page's own link, redirect or
-`window.open` to a host not yet allowed gets the same dialog
+dialog first; the dialog closes as a refusal if the agent gives up waiting.
+While a browser tool is in flight, a page's own link, redirect or `window.open`
+to a host not yet allowed gets the same dialog
 (`desktop/src/main/browser-policy.ts`).
+Calls time out after 60 seconds, or 200 for `browser_navigate` and
+`device_install`, and then report that the tool is still running.
 
 `render_svg` rides the same bridge so agents can check a diagram before
 sending it (`desktop/src/main/svg-render.ts`). The main process loads the SVG

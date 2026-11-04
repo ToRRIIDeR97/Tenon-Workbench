@@ -162,15 +162,26 @@ export const isTool = (name: string) => names.has(name)
 /** An MCP tool result: text, an image (browser_screenshot), or both (render_svg's picture and its findings). */
 export type Result = { readonly text?: string; readonly image?: string; readonly mimeType?: string }
 
-export async function call(name: string, args: Record<string, unknown>, sessionID: string): Promise<Result> {
+// The desktop side runs an install for up to 180 s and waits on the user's answer to open a site.
+const TIMEOUT_SECONDS: Readonly<Record<string, number>> = { device_install: 200, browser_navigate: 200 }
+
+export async function call(
+  name: string,
+  args: Record<string, unknown>,
+  sessionID: string,
+  seconds = TIMEOUT_SECONDS[name] ?? 60,
+): Promise<Result> {
   const url = process.env[URL_ENV]
   const token = process.env[TOKEN_ENV]
   if (!url || !token) throw new Error("The Workbench browser is only available in the desktop app.")
+  const signal = AbortSignal.timeout(seconds * 1_000)
   const response = await fetch(`${url}/${name}`, {
     method: "POST",
     headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
     body: JSON.stringify({ ...args, sessionID }),
-    signal: AbortSignal.timeout(60_000),
+    signal,
+  }).catch((cause: unknown) => {
+    throw signal.aborted ? new Error(`${name} is still running after ${seconds} seconds.`) : cause
   })
   const body = (await response.json().catch(() => undefined)) as
     | { error?: string; text?: string; image?: string; mimeType?: string }

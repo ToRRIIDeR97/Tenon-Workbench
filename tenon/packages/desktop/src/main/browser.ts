@@ -228,7 +228,7 @@ const SNAPSHOT = `(() => {
   return { url: location.href, title: document.title, headings, elements, text: (document.body?.innerText || "").slice(0, 8000) }
 })()`
 
-async function askAgentHost(window: BrowserWindow, host: string) {
+async function askAgentHost(window: BrowserWindow, host: string, signal?: AbortSignal) {
   const choice = await dialog.showMessageBox(window, {
     type: "question",
     title: nativeT("secondBrain.desktop.browser.agentNavigate.title"),
@@ -239,12 +239,18 @@ async function askAgentHost(window: BrowserWindow, host: string) {
     ],
     defaultId: 1,
     cancelId: 1,
+    signal,
   })
-  if (choice.response === 0) state.allowedHosts.add(host)
-  return choice.response === 0
+  const allowed = choice.response === 0 && !signal?.aborted
+  if (allowed) state.allowedHosts.add(host)
+  return allowed
 }
 
-async function runTool(name: string, args: Record<string, unknown>): Promise<{ text?: string; image?: string }> {
+async function runTool(
+  name: string,
+  args: Record<string, unknown>,
+  signal: AbortSignal,
+): Promise<{ text?: string; image?: string }> {
   if (name.startsWith("device_")) return runDeviceTool(name, args)
   if (name === "render_svg") return renderSvg(String(args.svg ?? ""))
   const window = state.window ?? BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
@@ -257,7 +263,7 @@ async function runTool(name: string, args: Record<string, unknown>): Promise<{ t
     const url = normalizeURL(String(args.url ?? ""))
     if (!url) throw new Error("browser_navigate needs an http(s) URL.")
     const parsed = new URL(url)
-    if (!isLocal(parsed) && !(await askAgentHost(window, parsed.host)))
+    if (!isLocal(parsed) && !(await askAgentHost(window, parsed.host, signal)))
       throw new Error(`The user didn't allow opening ${parsed.host}.`)
     await contents.loadURL(url).catch(() => undefined)
     sendState()
@@ -309,12 +315,17 @@ export function startBrowserBridge() {
       // Only the server process holds the token; a web page can't set this header cross-origin.
       if (request.method !== "POST" || request.headers.authorization !== `Bearer ${token}` || request.headers.origin)
         return answer(403, { error: "Forbidden" })
+      // An agent that gave up must not leave a dialog open that could still navigate the panel later.
+      const abandoned = new AbortController()
+      response.once("close", () => {
+        if (!response.writableFinished) abandoned.abort()
+      })
       void readJSON(request)
         .then((args) => {
           const name = (request.url ?? "").replace(/^\//, "")
-          if (!name.startsWith("browser_")) return runTool(name, args)
+          if (!name.startsWith("browser_")) return runTool(name, args, abandoned.signal)
           state.agentCalls++
-          return runTool(name, args).finally(() => setTimeout(() => state.agentCalls--, AGENT_SETTLE_MS))
+          return runTool(name, args, abandoned.signal).finally(() => setTimeout(() => state.agentCalls--, AGENT_SETTLE_MS))
         })
         .then(
           (result) =>

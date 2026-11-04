@@ -376,8 +376,10 @@ allows `/usr/bin/security` (it does for entries Claude Code writes).
   (`core/src/harness/pids.ts`). At the first location start of a server run,
   entries from earlier runs are read; a PID still running its recorded command
   (checked with `ps`) has its process group sent `SIGTERM`, and the files are
-  removed. Entries owned by the running server are never touched, and Windows
-  is skipped.
+  removed. Entries owned by the running server are never touched. Windows only
+  removes the files: harnesses aren't detached there, and Codex, OpenCode and
+  Claude Code's adapter each exited on their closed stdin when the server was
+  killed outright (checked per CLI). A tool one of them started can outlive it.
 - **Sign-in restarts.** When a setup read sees a harness change from signed
   out to signed in or API key, its open runtimes are closed and its cached
   checks cleared, so the next message starts a process with the new login.

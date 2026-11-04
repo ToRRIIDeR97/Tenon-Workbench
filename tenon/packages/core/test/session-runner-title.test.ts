@@ -226,7 +226,9 @@ const setup = (input: { harness?: boolean; agentModel?: boolean } = {}) =>
         directory: "/project",
         title: defaultTitle,
         version: "test",
-        metadata: input.harness ? { harnessInstanceID: harnessID, harnessModel: { id: "haiku" } } : undefined,
+        metadata: input.harness
+          ? { harnessInstanceID: harnessID, harnessModel: { id: "haiku", reasoningEffort: "high", serviceTier: "fast" } }
+          : undefined,
         model: input.harness ? undefined : { id: "main", providerID: "fake" },
       })
       .run()
@@ -296,8 +298,7 @@ describe("session runner titles", () => {
       expect(titleRequests).toHaveLength(0)
       expect(harnessTitles).toHaveLength(1)
       expect(harnessTitles[0]?.instanceID).toBe(harnessID)
-      expect(harnessTitles[0]?.model?.id).toBe("haiku")
-      expect(harnessTitles[0]?.directory).toBe("/project")
+      expect(harnessTitles[0]?.model).toEqual({ id: "haiku" })
       expect(harnessTitles[0]?.request.tools).toEqual([])
       expect(harnessTitles[0]?.request.system.map((part) => part.text)).toEqual(["You generate thread titles."])
       expect(yield* storedTitle).toBe("Fix login redirect")

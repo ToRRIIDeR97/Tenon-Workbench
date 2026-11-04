@@ -217,9 +217,12 @@ const layer = Layer.effect(
             yield* harnesses
               .complete({
                 instanceID,
-                directory: session.location.directory,
                 request: LLM.request({ model: harnessRequestModel(session), system, messages, tools: [] }),
-                model: instanceID === session.harnessInstanceID ? session.harnessModel : undefined,
+                // The model only: a title doesn't need the thread's reasoning effort or service tier.
+                model:
+                  instanceID === session.harnessInstanceID && session.harnessModel
+                    ? { id: session.harnessModel.id }
+                    : undefined,
               })
               .pipe(Effect.timeout(HARNESS_TITLE_TIMEOUT))
       const title = SessionTitle.clean(text)
