@@ -1,7 +1,10 @@
 // What the embedded browser may load. Kept apart from browser.ts, which needs Electron at runtime.
 
-export const isLocal = (url: URL) =>
-  ["localhost", "127.0.0.1", "[::1]", "0.0.0.0"].includes(url.hostname) || url.hostname.endsWith(".localhost")
+// Chromium resolves a trailing dot the same, and an IPv4-mapped address dials 127.0.0.1.
+export function isLocal(url: URL) {
+  const host = url.hostname.replace(/\.$/, "")
+  return ["localhost", "127.0.0.1", "[::1]", "[::ffff:7f00:1]", "0.0.0.0"].includes(host) || host.endsWith(".localhost")
+}
 
 /** Whether a request reaches a blocked origin. Every loopback name for a blocked port is the same server. */
 export function isBlockedRequest(url: URL, blocked: ReadonlySet<string>) {

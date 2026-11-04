@@ -889,7 +889,9 @@ is an assistant whose threads span workspaces.
   (prompt, schedule, `model`, `harness`, `tools`), and the scheduler and Run now
   skip anything else. An edit needs approving again, on each machine; `enabled`
   is not part of the hash. `notes_write` also refuses `Routines/` from a thread
-  outside the Command Centre, which narrows that one writer only.
+  outside the Command Centre, which narrows that one writer only. The state file
+  is outside the vault, so sync can't approve a page, but a process that can write
+  the data folder (default-allowed `bash` in a workspace thread) could.
 - **Unattended runs.** Nobody watches a routine run, Run now included, so every
   permission prompt in it and its subagents is answered no
   (`CommandThreads.refusePrompts`). The model is told to carry on without it,
@@ -1115,8 +1117,8 @@ message and shows in a toast. It doesn't run outside git.
   `persist:tenon-browser` session: no cookies or storage shared with the app,
   every permission denied, `window.open` loads in place, and only http(s)
   navigations. Requests to the app's own server are cancelled, by origin and by
-  port under every loopback name, so a page can't reach its API. The element picker and snapshots run in an isolated
-  world the page can't see.
+  port under every loopback name, so a page can't reach its API. The element
+  picker and snapshots run in an isolated world the page can't see.
 - **Agent bridge.** A loopback HTTP server in main (`127.0.0.1:0`) takes
   browser and device tool calls. It requires a 256-bit bearer token passed only
   in the server process's environment (harness processes get an allow-listed

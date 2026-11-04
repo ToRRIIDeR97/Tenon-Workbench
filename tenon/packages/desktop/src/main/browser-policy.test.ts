@@ -9,6 +9,8 @@ test("the app server's port is blocked under every loopback name, and only there
     "http://app.localhost:4096/",
     "http://[::1]:4096/",
     "http://0.0.0.0:4096/",
+    "http://localhost.:4096/",
+    "http://[::ffff:127.0.0.1]:4096/",
   ])
     expect(isBlockedRequest(new URL(url), blocked)).toBe(true)
   expect(isBlockedRequest(new URL("http://localhost:3000/"), blocked)).toBe(false)

@@ -841,6 +841,34 @@ it.instance(
 )
 
 it.instance(
+  "reply - reject with message gives pending requests in the session the same feedback",
+  () =>
+    Effect.gen(function* () {
+      const request = (id: string, permission: string) =>
+        ask({
+          id: PermissionV1.ID.make(id),
+          sessionID: SessionID.make("session_feedback"),
+          permission,
+          patterns: ["*"],
+          metadata: {},
+          always: [],
+          ruleset: [],
+        }).pipe(Effect.forkScoped)
+      const a = yield* request("per_test4c", "bash")
+      const b = yield* request("per_test4d", "webfetch")
+
+      yield* waitForPending(2)
+      yield* reply({ requestID: PermissionV1.ID.make("per_test4c"), reply: "reject", message: "Carry on without it" })
+
+      for (const exit of yield* Effect.all([Fiber.await(a), Fiber.await(b)])) {
+        expect(Exit.isFailure(exit)).toBe(true)
+        if (Exit.isFailure(exit)) expect(Cause.squash(exit.cause)).toBeInstanceOf(PermissionV1.CorrectedError)
+      }
+    }),
+  { git: true },
+)
+
+it.instance(
   "reply - always resolves matching pending requests in same session",
   () =>
     Effect.gen(function* () {

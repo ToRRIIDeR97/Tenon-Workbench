@@ -565,7 +565,8 @@ the prompt (`tenon/src/agents/routines.ts`). `Routines.nextRun(schedule, after)`
 gives the next local time. `Routines.runDue({ now, run })` runs each enabled
 approved routine at most once when a scheduled time fell after its last run
 (or, never run, after the first `runDue` that saw it, or after it was last
-enabled, disabled or approved) and at or before `now`, however many were missed. A run's reply is appended to the workspace's `Inbox.md` vault page
+enabled, disabled or approved) and at or before `now`, however many were
+missed. A run's reply is appended to the workspace's `Inbox.md` vault page
 under `## <routine> · <time>` and `GlobalBus` emits `routine.finished
 { routineId, threadId }`. When each routine last ran, the permissions its last
 run was refused and the SHA-256 of the approved content are machine-local state
