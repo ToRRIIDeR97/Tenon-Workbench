@@ -119,6 +119,9 @@ export type ElectronAPI = {
   setWindowFocus: () => Promise<void>
   showWindow: () => Promise<void>
   relaunch: () => void
+  /** False when the person chose to stay with unsaved edits. */
+  confirmQuit: () => Promise<boolean>
+  setUnsavedChanges: (unsaved: boolean) => void
   getZoomFactor: () => Promise<number>
   setZoomFactor: (factor: number) => Promise<void>
   getPinchZoomEnabled: () => Promise<boolean>

@@ -31,8 +31,10 @@ import {
   getWindowID,
   openExternalURL,
   openLocalFileURL,
+  confirmQuit,
   setPinchZoomEnabled,
   setTitlebar,
+  setWindowUnsaved,
   updateTitlebar,
 } from "./windows"
 import type { UpdaterController } from "./updater-controller"
@@ -502,6 +504,11 @@ export function registerIpcHandlers(deps: Deps) {
 
   trustedOn("relaunch", () => {
     deps.relaunch()
+  })
+  trustedHandle("confirm-quit", () => confirmQuit())
+  trustedOn("set-unsaved-changes", (event, unsaved: unknown) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (win) setWindowUnsaved(win, unsaved === true)
   })
 
   trustedHandle("get-zoom-factor", (event: IpcMainInvokeEvent) => event.sender.getZoomFactor())

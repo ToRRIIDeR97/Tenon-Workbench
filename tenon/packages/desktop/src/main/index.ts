@@ -44,12 +44,14 @@ import { superviseSidecar } from "./sidecar-supervisor"
 import { setupAutoUpdater, showUpdaterDialog } from "./updater"
 import { safeWebContentsURL } from "./window-state"
 import {
+  confirmQuit,
   getLastFocusedWindow,
   registerRendererProtocol,
   setRelaunchHandler,
   setAppQuitting,
   setBackgroundColor,
   setDockIcon,
+  skipUnloadPrompts,
   restoreMainWindows,
 } from "./windows"
 import { createWslServersController } from "./wsl/servers"
@@ -307,6 +309,7 @@ const main = Effect.gen(function* () {
     wslServers.stopAll()
   }
   const relaunch = () => {
+    if (!confirmQuit()) return
     setAppQuitting()
     void stopSidecars().finally(() => {
       app.relaunch()
@@ -362,6 +365,12 @@ const main = Effect.gen(function* () {
   let quitStop: Promise<void> | undefined
   let quitStopped = false
   app.on("before-quit", (event) => {
+    // Asked first: a page that refused the quit after this point would be left without its server.
+    if (!confirmQuit()) {
+      setAppQuitting(false)
+      event.preventDefault()
+      return
+    }
     setAppQuitting()
     if (quitStopped || (!quitStop && !server)) return
     event.preventDefault()
@@ -392,6 +401,7 @@ const main = Effect.gen(function* () {
 
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
     process.on(signal, () => {
+      skipUnloadPrompts()
       setAppQuitting()
       void stopSidecars().finally(() => app.quit())
     })

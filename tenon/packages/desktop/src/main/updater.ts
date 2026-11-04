@@ -4,7 +4,7 @@ import { UPDATER_ENABLED } from "./constants"
 import { createUpdaterController, type UpdaterReadyRecord } from "./updater-controller"
 import { getLogger } from "./logging"
 import { getStore } from "./store"
-import { setAppQuitting } from "./windows"
+import { confirmQuit, setAppQuitting } from "./windows"
 import { nativeT } from "./native-translations"
 
 const { autoUpdater } = pkg
@@ -56,6 +56,7 @@ export function setupAutoUpdater(stop: () => Promise<void>) {
       clear: () => store.delete(key),
     },
     stop,
+    confirm: confirmQuit,
     log: (message, data) => logger.log(message, data),
   })
 }

@@ -22,6 +22,8 @@ export function createUpdaterController(input: {
   backend: UpdaterBackend
   persistence: UpdaterPersistence
   stop: () => Promise<void>
+  /** Asked before anything stops; false keeps the app running (unsaved edits the person chose to stay with). */
+  confirm?: () => boolean
   log?: (message: string, data?: object) => void
 }) {
   let state: UpdaterState = input.enabled ? { status: "idle" } : { status: "disabled" }
@@ -78,6 +80,7 @@ export function createUpdaterController(input: {
     check,
     async install() {
       if (state.status !== "ready") throw new Error("Update is not ready to install")
+      if (input.confirm && !input.confirm()) return
       const version = state.version
       transition({ status: "installing", version })
       await input

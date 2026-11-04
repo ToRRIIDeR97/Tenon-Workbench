@@ -235,6 +235,9 @@ type PlatformBase = {
   /** Restart the app  */
   restart(): Promise<void>
 
+  /** Tells the desktop shell this window has unsaved edits, so a quit can ask before it stops the server. */
+  setUnsavedChanges?(unsaved: boolean): void
+
   /** Send a system notification */
   notify(title: string, description?: string, onClick?: () => void): Promise<void>
 
