@@ -1,9 +1,20 @@
 import whichPkg from "which"
-import { statSync } from "fs"
+import { lstatSync, statSync } from "fs"
 import path from "path"
 import { Global } from "../global"
 
-const isFile = (file: string) => statSync(file, { throwIfNoEntry: false })?.isFile() ?? false
+const isFile = (file: string) => {
+  try {
+    return statSync(file, { throwIfNoEntry: false })?.isFile() ?? false
+  } catch {
+    // App execution aliases such as the WindowsApps python.exe refuse stat but still run; lstat sees their link.
+    try {
+      return lstatSync(file, { throwIfNoEntry: false })?.isSymbolicLink() ?? false
+    } catch {
+      return false
+    }
+  }
+}
 
 const envValue = (env: NodeJS.ProcessEnv, name: string) =>
   env[Object.keys(env).find((key) => key.toUpperCase() === name) ?? name]
