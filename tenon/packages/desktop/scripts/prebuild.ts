@@ -9,4 +9,4 @@ await $`bun ./scripts/copy-metainfo.ts ${channel}`
 
 await $`cd ../tenon && bun script/build-node.ts`
 await downloadRipgrepToResources()
-if (channel === "dev") await downloadCliToResources()
+if (channel === "dev" && Bun.env.TENON_BUNDLE_CLI === "1") await downloadCliToResources()

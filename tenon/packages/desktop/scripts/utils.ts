@@ -1,5 +1,6 @@
 import { $ } from "bun"
 import { createHash } from "node:crypto"
+import { existsSync } from "node:fs"
 import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -73,8 +74,11 @@ export function getCurrentCli(target = RUST_TARGET ?? nativeTarget()) {
 
 export async function downloadCliToResources() {
   const cli = getCurrentCli()
-  const directory = await mkdtemp(join(tmpdir(), "opencode-cli-"))
   const dest = windowsify("resources/opencode-cli")
+  const sentinel = Bun.file("resources/opencode-cli.version")
+  const wanted = `${cli.package}@${CLI_VERSION}`
+  if (existsSync(dest) && (await sentinel.exists()) && (await sentinel.text()) === wanted) return
+  const directory = await mkdtemp(join(tmpdir(), "opencode-cli-"))
   try {
     await $`bun install --no-save --cwd ${directory} ${`${cli.package}@${CLI_VERSION}`} ${`--os=${cli.os}`} ${`--cpu=${cli.cpu}`}`
     await copyFile(
@@ -89,6 +93,7 @@ export async function downloadCliToResources() {
     await $`pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File ../../script/sign-windows.ps1 ${dest}`
   }
   if (process.platform === "darwin") await $`codesign --force --sign - ${dest}`
+  await Bun.write(sentinel, wanted)
 
   console.log(`Copied ${cli.package} to ${dest}`)
 }

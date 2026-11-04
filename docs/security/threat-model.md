@@ -115,8 +115,11 @@ and logs. Provider
 credentials (`auth.json`, `mcp-auth.json`) and the session database
 (`tenon.db`) live in the XDG data directory (by default
 `~/.local/share/tenon-workbench/`), outside Electron `userData`. `userData` holds
-drafts, electron-store files, logs, and server state. Treat both locations as
-sensitive and exclude them from source control and release artifacts. Outside
+drafts, electron-store files, logs, server state, and the sidecar's V8 compile
+cache (`compile-cache/`). That cache is code the server runs and sits outside the
+asar integrity check, but writing to it already takes the user's own account.
+Treat both locations as sensitive and exclude them from source control and
+release artifacts. Outside
 Windows, the server sets the data directory to `0700` and `tenon.db`, its
 `-wal`/`-shm` files and its pre-migration backups to `0600`. Failed-query errors
 keep the SQL text but replace bound values with `[redacted]`, so logged defects

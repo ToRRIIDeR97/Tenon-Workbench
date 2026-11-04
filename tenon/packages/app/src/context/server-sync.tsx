@@ -11,6 +11,7 @@ import { getFilename } from "@tenon/core/util/path"
 import { type Accessor, batch, createMemo, getOwner, onCleanup, onMount, untrack } from "solid-js"
 import { createStore, produce, reconcile } from "solid-js/store"
 import { useLanguage } from "@/context/language"
+import { usePlatform } from "@/context/platform"
 import type { InitError } from "../pages/error"
 import { ServerSDK } from "./server-sdk"
 import {
@@ -249,6 +250,7 @@ export type QueryOptionsApi = ReturnType<typeof makeQueryOptionsApi>
 
 export function createServerSyncContextInner(serverSDK: ServerSDK) {
   const language = useLanguage()
+  const platform = usePlatform()
   const owner = getOwner()
   if (!owner) throw new Error("ServerSync must be created within owner")
 
@@ -375,7 +377,7 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
         formatMoreCount: (count) => language.t("common.moreCountSuffix", { count }),
         setGlobalStore: setBootStore,
         queryClient,
-      })
+      }).finally(() => platform.recordStartupMilestone?.("bootstrap-settled"))
       bootedAt = Date.now()
       return bootedAt
     },

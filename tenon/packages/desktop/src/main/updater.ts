@@ -1,5 +1,5 @@
 import { app, dialog } from "electron"
-import pkg from "electron-updater"
+import type { AppUpdater } from "electron-updater"
 import { UPDATER_ENABLED } from "./constants"
 import { createUpdaterController, type UpdaterReadyRecord } from "./updater-controller"
 import { getLogger } from "./logging"
@@ -7,37 +7,45 @@ import { getStore } from "./store"
 import { confirmQuit, setAppQuitting } from "./windows"
 import { nativeT } from "./native-translations"
 
-const { autoUpdater } = pkg
 const key = "ready"
 
 export function setupAutoUpdater(stop: () => Promise<void>) {
   const logger = getLogger()
-  autoUpdater.logger = logger
-  autoUpdater.channel = "latest"
-  autoUpdater.allowPrerelease = false
-  autoUpdater.allowDowngrade = true
-  autoUpdater.autoDownload = false
-  autoUpdater.autoInstallOnAppQuit = false
-  logger.log("auto updater configured", {
-    channel: autoUpdater.channel,
-    allowPrerelease: autoUpdater.allowPrerelease,
-    allowDowngrade: autoUpdater.allowDowngrade,
-    currentVersion: app.getVersion(),
-  })
+  let autoUpdater: AppUpdater | undefined
+  // A slow import, so the first check pays for it, after the first window; a disabled updater never does.
+  const load = async () => {
+    if (autoUpdater) return autoUpdater
+    const { default: pkg } = await import("electron-updater")
+    autoUpdater = pkg.autoUpdater
+    autoUpdater.logger = logger
+    autoUpdater.channel = "latest"
+    autoUpdater.allowPrerelease = false
+    autoUpdater.allowDowngrade = true
+    autoUpdater.autoDownload = false
+    autoUpdater.autoInstallOnAppQuit = false
+    logger.log("auto updater configured", {
+      channel: autoUpdater.channel,
+      allowPrerelease: autoUpdater.allowPrerelease,
+      allowDowngrade: autoUpdater.allowDowngrade,
+      currentVersion: app.getVersion(),
+    })
+    return autoUpdater
+  }
 
   const store = getStore("tenon.updater")
   return createUpdaterController({
     enabled: UPDATER_ENABLED,
     currentVersion: app.getVersion(),
     backend: {
-      checkForUpdates: () => autoUpdater.checkForUpdates(),
-      downloadUpdate: () => autoUpdater.downloadUpdate(),
+      checkForUpdates: () => load().then((updater) => updater.checkForUpdates()),
+      downloadUpdate: () => load().then((updater) => updater.downloadUpdate()),
       quitAndInstall: () => {
         // quitAndInstall closes all windows before emitting before-quit, so
         // flag the quit first to keep window ids persisted for restore.
         setAppQuitting()
         try {
-          autoUpdater.quitAndInstall()
+          // "ready" is only reached through a download, so the updater is loaded by now.
+          autoUpdater!.quitAndInstall()
         } catch (error) {
           // The install failed and the app keeps running; clear the flag so
           // deliberate window closes prune ids again.

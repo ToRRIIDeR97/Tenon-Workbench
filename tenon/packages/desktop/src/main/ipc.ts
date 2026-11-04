@@ -17,7 +17,7 @@ import type { DesktopMenuAction } from "@tenon/app/desktop-menu"
 import type { GoogleCalendarPlatform } from "@tenon/app"
 import { parseDesktopNativeBundle, type DesktopNativeBundle } from "@tenon/app/i18n/desktop-native"
 
-import type { FatalRendererError, ServerReadyData, TitlebarTheme } from "../preload/types"
+import type { FatalRendererError, ServerReadyData, StartupMilestone, TitlebarTheme } from "../preload/types"
 import { resolveAppPath } from "./apps"
 import { runDesktopMenuAction } from "./desktop-menu-actions"
 import { setForceFocus } from "./debug"
@@ -112,6 +112,7 @@ type Deps = {
   setBackgroundColor: (color: string) => void
   exportDebugLogs: () => Promise<string>
   recordFatalRendererError: (error: FatalRendererError) => Promise<void> | void
+  recordStartupMilestone: (name: StartupMilestone, sinceNavigation: number) => void
   setNativeTranslations: (bundle: DesktopNativeBundle) => void
   dictation: DictationService
   mail: MailService
@@ -238,6 +239,11 @@ export function registerIpcHandlers(deps: Deps) {
   trustedHandle("record-fatal-renderer-error", (_event: IpcMainInvokeEvent, error: FatalRendererError) =>
     deps.recordFatalRendererError(error),
   )
+  trustedHandle("record-startup-milestone", (_event, name: unknown, sinceNavigation: unknown) => {
+    if (name !== "first-route" && name !== "bootstrap-settled") return
+    if (typeof sinceNavigation !== "number" || !Number.isFinite(sinceNavigation)) return
+    deps.recordStartupMilestone(name, sinceNavigation)
+  })
   trustedHandle("set-native-translations", (_event: IpcMainInvokeEvent, value: unknown) => {
     const bundle = parseDesktopNativeBundle(value)
     if (!bundle) throw new Error("Invalid native translation bundle")

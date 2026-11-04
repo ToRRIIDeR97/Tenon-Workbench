@@ -133,7 +133,7 @@ export type Provider = Schema.Schema.Type<typeof Provider>
 
 export const Event = ModelsDev.Event
 
-declare const TENON_MODELS_DEV: Record<string, Provider> | undefined
+declare const TENON_MODELS_DEV: string | undefined
 
 export interface Interface {
   readonly get: () => Effect.Effect<Record<string, Provider>>
@@ -191,7 +191,9 @@ const layer = Layer.effect(
       Effect.map((v) => v as Record<string, Provider> | undefined),
     )
 
-    const loadSnapshot = Effect.sync(() => (typeof TENON_MODELS_DEV === "undefined" ? undefined : TENON_MODELS_DEV))
+    const loadSnapshot = Effect.sync(() =>
+      typeof TENON_MODELS_DEV === "undefined" ? undefined : (JSON.parse(TENON_MODELS_DEV) as Record<string, Provider>),
+    )
 
     const fetchAndWrite = Effect.fn("ModelsDev.fetchAndWrite")(function* () {
       const text = yield* fetchApi()

@@ -818,8 +818,18 @@ with the pill.
    config can't load code, change providers or expand secrets; the app asks
    when the folder's config wanted any of that
    ([Folder trust](../security/threat-model.md#folder-trust)).
-4. Notes, projects, and local calendar requests resolve the selected location
+4. The main process log records the launch timeline for each window: module
+   load and `app starting` as time since the OS created the process, then
+   `window ready to show`, the sidecar milestones, and renderer `first-route`
+   and `bootstrap-settled` marks (`record-startup-milestone` IPC, a fixed name
+   and a number, nothing from the page).
+5. Notes, projects, and local calendar requests resolve the selected location
    before reading or mutating files. Google operations use the desktop bridge.
+
+Main-process startup stays small: mail, debug-log export, interactive WSL and
+the auto-updater import their heavy dependencies on first use, and the first
+update check runs after the server start plus five seconds. The sidecar keeps
+Node's compile cache for the server bundle in `<userData>/compile-cache`.
 
 The packaged desktop disables embedded web UI fallback. The server serves only
 a UI bundled into its binary; without one, and for missing `/api` routes, it
