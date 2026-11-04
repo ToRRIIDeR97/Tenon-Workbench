@@ -114,7 +114,7 @@ export async function downloadRipgrepToResources() {
     const archive = join(directory, archiveName(config))
     await writeFile(archive, bytes)
     if (config.extension === "zip")
-      await $`powershell -NoProfile -NonInteractive -Command ${`Expand-Archive -LiteralPath '${archive}' -DestinationPath '${directory}' -Force`}`
+      await $`powershell -NoProfile -NonInteractive -Command ${`Expand-Archive -LiteralPath '${archive.replaceAll("'", "''")}' -DestinationPath '${directory.replaceAll("'", "''")}' -Force`}`
     else await $`tar -xzf ${archive} -C ${directory}`
     await rm("resources/ripgrep", { recursive: true, force: true })
     await mkdir("resources/ripgrep", { recursive: true })

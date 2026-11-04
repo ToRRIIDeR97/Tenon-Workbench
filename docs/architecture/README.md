@@ -72,8 +72,9 @@ platform exposes `dictation` (desktop); the web build has no mic.
   and kills the engine, because the worker holds the session for the whole run.
   `cancel()` during a transcription does the same with `cancelled` and counts no
   crash. After 10 idle minutes the engine exits to free the model, and the next
-  `start()` respawns and reloads it. If the composer unmounts mid-dictation, the
-  transcript goes to a toast with a Copy action instead of the focused element.
+  `start()` respawns and reloads it. If the composer unmounts or moves to another
+  thread mid-dictation, the transcript goes to a toast with a Copy action instead
+  of the focused element.
 - **Service and IPC.** `dictation-service.ts` resolves the binary
   (`resources/dictation/` when packaged, `packages/dictation/target/release/` in
   development, or `TENON_DICTATION_ENGINE`), checks microphone access, keeps the
