@@ -365,7 +365,16 @@ const routinesIn = Effect.fnUntraced(function* (vault: KnowledgeVault.Vault) {
 /** What a run depends on. `enabled` is out: turning a routine off and on changes nothing it would do. */
 const contentHash = (routine: Routine) =>
   createHash("sha256")
-    .update(JSON.stringify([routine.prompt, routine.schedule, routine.model, routine.harness, routine.tools]))
+    .update(
+      JSON.stringify([
+        routine.prompt,
+        routine.schedule,
+        routine.model,
+        routine.harness,
+        routine.tools,
+        routine.timeout,
+      ]),
+    )
     .digest("hex")
 
 const describe = (routine: Routine, state: State, now: Date): Info => {

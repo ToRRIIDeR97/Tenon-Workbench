@@ -37,7 +37,8 @@ const noSend = (calls: Call[]) => {
 test("IMAP without TLS requires STARTTLS, except on a loopback bridge", () => {
   const account = { port: 143, secure: false, user: "me", password: "app-password" }
   expect(imapOptions({ ...account, host: "mail.example.com" }).doSTARTTLS).toBe(true)
-  for (const host of ["localhost", "127.0.0.1", "::1"]) expect(imapOptions({ ...account, host }).doSTARTTLS).toBeUndefined()
+  for (const host of ["localhost", "127.0.0.1", "::1"])
+    expect(imapOptions({ ...account, host }).doSTARTTLS).toBeUndefined()
   expect(imapOptions({ ...account, host: "mail.example.com", secure: true }).doSTARTTLS).toBeUndefined()
 })
 

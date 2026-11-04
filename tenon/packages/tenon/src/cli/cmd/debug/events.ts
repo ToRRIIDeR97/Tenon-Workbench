@@ -15,7 +15,9 @@ export const EventsCommand = effectCmd({
         type: string
         rows: number
         bytes: number
-      }>(sql`SELECT type, count(*) AS rows, sum(length(CAST(data AS BLOB))) AS bytes FROM event GROUP BY type ORDER BY bytes DESC`)
+      }>(
+        sql`SELECT type, count(*) AS rows, sum(length(CAST(data AS BLOB))) AS bytes FROM event GROUP BY type ORDER BY bytes DESC`,
+      )
       .pipe(Effect.orDie)
     const lines = rows.map((row) => [row.type, row.rows, row.bytes].join("\t"))
     process.stdout.write(["type\trows\tbytes", ...lines].join(EOL) + EOL)

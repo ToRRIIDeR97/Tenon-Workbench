@@ -325,7 +325,9 @@ export function startBrowserBridge() {
           const name = (request.url ?? "").replace(/^\//, "")
           if (!name.startsWith("browser_")) return runTool(name, args, abandoned.signal)
           state.agentCalls++
-          return runTool(name, args, abandoned.signal).finally(() => setTimeout(() => state.agentCalls--, AGENT_SETTLE_MS))
+          return runTool(name, args, abandoned.signal).finally(() =>
+            setTimeout(() => state.agentCalls--, AGENT_SETTLE_MS),
+          )
         })
         .then(
           (result) =>

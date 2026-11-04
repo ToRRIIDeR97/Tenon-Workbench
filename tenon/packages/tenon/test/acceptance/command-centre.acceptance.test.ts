@@ -173,7 +173,9 @@ describe("Command Centre", () => {
       yield* Effect.promise(() => mkdir(real, { recursive: true }))
       yield* Effect.promise(() => symlink(target, link, "junction"))
       const machine = JSON.parse(before)
-      yield* Effect.promise(() => writeFile(file, JSON.stringify({ ...machine, roots: { ...machine.roots, [link]: {} } })))
+      yield* Effect.promise(() =>
+        writeFile(file, JSON.stringify({ ...machine, roots: { ...machine.roots, [link]: {} } })),
+      )
       yield* Effect.gen(function* () {
         expect(CommandMemory.isCommandDirectory(path.join(link, ".command-centre"))).toBe(true)
         expect(CommandMemory.isCommandDirectory(real)).toBe(false)

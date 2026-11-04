@@ -110,7 +110,8 @@ const resolved = Effect.promise(() => resolveFolders()).pipe(Effect.timeoutOptio
 
 const spellings = (folder: string) => [...new Set([folder, path.resolve(folder), reals.get(folder) ?? folder])]
 
-const isCommandFolderName = (value: string) => path.basename(path.resolve(value)) === HarnessAppTools.COMMAND_CENTRE_FOLDER
+const isCommandFolderName = (value: string) =>
+  path.basename(path.resolve(value)) === HarnessAppTools.COMMAND_CENTRE_FOLDER
 
 /**
  * Whether a session directory is a Command Centre folder, of this root or an earlier one. Called on every

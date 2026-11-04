@@ -100,7 +100,7 @@ describe("util.which", () => {
 })
 
 describe("util.which resolveWin32", () => {
-  const env = { Path: "C:\\tools;.;relative\\bin;\"C:\\Program Files\\Git\\cmd\"", PATHEXT: ".exe;.cmd" }
+  const env = { Path: 'C:\\tools;.;relative\\bin;"C:\\Program Files\\Git\\cmd"', PATHEXT: ".exe;.cmd" }
 
   test("takes bare names from PATH entries in PATHEXT order, never relative entries", () => {
     const files = new Set(["C:\\Program Files\\Git\\cmd\\git.cmd", ".\\git.exe", "relative\\bin\\git.exe"])

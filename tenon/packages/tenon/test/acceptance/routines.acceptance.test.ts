@@ -300,9 +300,15 @@ describe("Routines", () => {
       )
       yield* Effect.promise(async () => {
         await mkdir(path.join(root, "Other", "routines"), { recursive: true })
-        await writeFile(path.join(root, "Other", "workspace.json"), JSON.stringify({ version: 1, id: "lower", name: "Other" }))
+        await writeFile(
+          path.join(root, "Other", "workspace.json"),
+          JSON.stringify({ version: 1, id: "lower", name: "Other" }),
+        )
         await mkdir(path.join(root, "Plain"), { recursive: true })
-        await writeFile(path.join(root, "Plain", "workspace.json"), JSON.stringify({ version: 1, id: "plain", name: "Plain" }))
+        await writeFile(
+          path.join(root, "Plain", "workspace.json"),
+          JSON.stringify({ version: 1, id: "plain", name: "Plain" }),
+        )
       })
       const found = yield* Effect.promise(() => KnowledgeVault.workspacesWithFolder(root, Routines.folder))
       expect([...found].sort()).toEqual([id, "lower"].sort())
@@ -367,7 +373,8 @@ describe("Routines", () => {
       const release = yield* Deferred.make<void>()
       yield* Routines.runNow({
         id: routine.id,
-        start: () => Effect.succeed({ threadId: "ses_now", reply: Deferred.await(release).pipe(Effect.as({ text: "Done" })) }),
+        start: () =>
+          Effect.succeed({ threadId: "ses_now", reply: Deferred.await(release).pipe(Effect.as({ text: "Done" })) }),
       })
       const second = yield* request(`/second-brain/routines/${routine.id}/run`, { method: "POST", headers, body: "{}" })
       expect(second.status).toBe(409)
@@ -482,6 +489,9 @@ describe("Routines", () => {
       expect((yield* list())[0].needsApproval).toBe(false)
       yield* write("Brief", { schedule: "daily 09:30" }, false)
       expect((yield* list())[0].needsApproval).toBe(true)
+      yield* approveAll
+      yield* write("Brief", { schedule: "daily 09:30", timeout: 600 }, false)
+      expect((yield* list())[0].needsApproval).toBe(true)
     }),
   )
 
@@ -495,8 +505,8 @@ describe("Routines", () => {
       const ask = (sessionID: typeof thread.id, name: string) =>
         permission.ask({ sessionID, permission: name, patterns: ["*"], metadata: {}, always: [], ruleset: [] })
       const watch = yield* CommandThreads.refusePrompts(thread.id)
-      expect((yield* ask(thread.id, "bash").pipe(Effect.flip))).toBeInstanceOf(PermissionV1.CorrectedError)
-      expect((yield* ask(child.id, "webfetch").pipe(Effect.flip))).toBeInstanceOf(PermissionV1.CorrectedError)
+      expect(yield* ask(thread.id, "bash").pipe(Effect.flip)).toBeInstanceOf(PermissionV1.CorrectedError)
+      expect(yield* ask(child.id, "webfetch").pipe(Effect.flip)).toBeInstanceOf(PermissionV1.CorrectedError)
       const untouched = yield* ask(other.id, "edit").pipe(Effect.forkChild)
       yield* Effect.yieldNow
       expect((yield* permission.list()).map((item) => item.permission)).toEqual(["edit"])

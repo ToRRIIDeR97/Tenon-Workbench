@@ -1,7 +1,17 @@
 import { useLocation } from "@solidjs/router"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { ViewSwitch } from "@tenon/ui/v2/view-switch"
-import { createEffect, createMemo, ErrorBoundary, on, onMount, Show, Suspense, untrack, type ParentProps } from "solid-js"
+import {
+  createEffect,
+  createMemo,
+  ErrorBoundary,
+  on,
+  onMount,
+  Show,
+  Suspense,
+  untrack,
+  type ParentProps,
+} from "solid-js"
 import { createStore } from "solid-js/store"
 import { PageEmpty, PageFrame } from "@/components/page"
 import { DebugBar } from "@/components/debug-bar"

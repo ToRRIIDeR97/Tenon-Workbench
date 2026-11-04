@@ -218,7 +218,10 @@ const setup = (input: { harness?: boolean; agentModel?: boolean } = {}) =>
         title: defaultTitle,
         version: "test",
         metadata: input.harness
-          ? { harnessInstanceID: harnessID, harnessModel: { id: "haiku", reasoningEffort: "high", serviceTier: "fast" } }
+          ? {
+              harnessInstanceID: harnessID,
+              harnessModel: { id: "haiku", reasoningEffort: "high", serviceTier: "fast" },
+            }
           : undefined,
         model: input.harness ? undefined : { id: "main", providerID: "fake" },
       })

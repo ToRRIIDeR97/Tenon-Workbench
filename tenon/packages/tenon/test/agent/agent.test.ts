@@ -77,7 +77,8 @@ it.instance("Command Centre threads ask before shell, network and edits, without
     yield* Effect.promise(() => mkdir(folder))
     yield* Effect.gen(function* () {
       const build = yield* load((svc) => svc.get("build"))
-      for (const permission of ["bash", "webfetch", "websearch", "edit"]) expect(evalPerm(build, permission)).toBe("ask")
+      for (const permission of ["bash", "webfetch", "websearch", "edit"])
+        expect(evalPerm(build, permission)).toBe("ask")
       expect(evalPerm(yield* load((svc) => svc.get("explore")), "webfetch")).toBe("ask")
       expect(evalPerm(yield* load((svc) => svc.get("explore")), "edit")).toBe("deny")
       expect(evalPerm(yield* load((svc) => svc.get("plan")), "edit")).toBe("deny")

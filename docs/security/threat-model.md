@@ -913,7 +913,7 @@ is an assistant whose threads span workspaces.
   write the vault (including a sync account, or a process with file access) can
   write such a page, so a page runs only after the user approves it on the
   Routines page: `routines-state.json` keeps the SHA-256 of what it would run
-  (prompt, schedule, `model`, `harness`, `tools`), and the scheduler and Run now
+  (prompt, schedule, `model`, `harness`, `tools`, `timeout`), and the scheduler and Run now
   skip anything else. An edit needs approving again, on each machine; `enabled`
   is not part of the hash. `notes_write` also refuses `Routines/` from a thread
   outside the Command Centre, which narrows that one writer only. The state file

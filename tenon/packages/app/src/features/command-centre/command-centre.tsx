@@ -153,23 +153,25 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
       // A failed refresh keeps the last list; reading a failed resource would throw into the page.
       if (!results[0]) return info.value ?? []
       // Filter here too: an older server answers this list without the directory filter.
-      return results
-        .flatMap((result) => result?.data ?? [])
-        // The server's list keeps archived sessions.
-        .filter(
-          (session) =>
-            folders.some((item) => sameDirectory(session.location?.directory, item)) && !session.time.archived,
-        )
-        .map(
-          (session): CommandThread => ({
-            id: session.id,
-            title: session.title,
-            directory: session.location?.directory ?? folder,
-            updated: session.time.updated,
-            session: normalizeSessionInfo(session),
-          }),
-        )
-        .sort((left, right) => right.updated - left.updated)
+      return (
+        results
+          .flatMap((result) => result?.data ?? [])
+          // The server's list keeps archived sessions.
+          .filter(
+            (session) =>
+              folders.some((item) => sameDirectory(session.location?.directory, item)) && !session.time.archived,
+          )
+          .map(
+            (session): CommandThread => ({
+              id: session.id,
+              title: session.title,
+              directory: session.location?.directory ?? folder,
+              updated: session.time.updated,
+              session: normalizeSessionInfo(session),
+            }),
+          )
+          .sort((left, right) => right.updated - left.updated)
+      )
     })
     // Threads also change outside this client's sends: archives, deletes and routine runs. Debounced, because
     // a running turn updates its session often.
