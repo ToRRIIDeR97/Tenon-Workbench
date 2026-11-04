@@ -75,8 +75,26 @@ export interface Session {
     readonly media?: ReadonlyArray<Media>
     readonly model?: string
     readonly reasoningEffort?: string
+    /** Finishes when a steer is waiting; the agent is then asked to end this turn. */
+    readonly steer?: Effect.Effect<void>
   }) => Stream.Stream<LLMEvent, LLMError>
 }
+
+/**
+ * An external agent runs its whole loop inside one turn, so the turn boundary a steer otherwise waits for is the
+ * end of the agent's work. Once `steer` finishes this runs `stop`, once, and keeps reading: the turn still ends
+ * through its own finish events, so the next turn cannot overlap it. An agent that ignores `stop` finishes as usual.
+ */
+export const stopOnSteer = <A, E>(
+  events: Stream.Stream<A, E>,
+  steer: Effect.Effect<void> | undefined,
+  stop: Effect.Effect<unknown, unknown>,
+) =>
+  steer
+    ? events.pipe(
+        Stream.merge(Stream.fromEffectDrain(steer.pipe(Effect.andThen(stop), Effect.ignore)), { haltStrategy: "left" })
+      )
+    : events
 
 /** An attachment on the user message: `data` is a `data:` URL (pasted) or a `file://` URL (picked file). */
 export interface Media {
@@ -407,6 +425,7 @@ export const open = Effect.fn("AcpHarness.open")(function* (process: Process, in
     readonly media?: ReadonlyArray<Media>
     readonly model?: string
     readonly reasoningEffort?: string
+    readonly steer?: Effect.Effect<void>
   }) =>
     Stream.unwrap(
       Effect.gen(function* () {
@@ -452,7 +471,12 @@ export const open = Effect.fn("AcpHarness.open")(function* (process: Process, in
             ),
           ),
         )
-        return Stream.concat(Stream.make(LLMEvent.stepStart({ index: 0 })), body).pipe(
+        const stoppable = stopOnSteer(
+          body,
+          turnInput.steer,
+          client.notify("session/cancel", { sessionId: session.sessionId }),
+        )
+        return Stream.concat(Stream.make(LLMEvent.stepStart({ index: 0 })), stoppable).pipe(
           Stream.ensuring(
             Effect.suspend(() => {
               if (parser.sessionCost !== undefined) state.sessionCost = parser.sessionCost

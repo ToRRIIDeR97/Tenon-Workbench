@@ -12,7 +12,7 @@ import {
 import * as OpenAIChat from "@tenon/llm/protocols/openai-chat"
 import { RequestExecutor } from "@tenon/llm/route"
 import { Harness } from "@tenon/schema/harness"
-import { Cause, DateTime, Effect, FiberSet, Layer, Option, Scope, Semaphore, Stream } from "effect"
+import { Cause, DateTime, Effect, FiberSet, Layer, Option, Schedule, Scope, Semaphore, Stream } from "effect"
 import { eq } from "drizzle-orm"
 import { AgentV2 } from "../../agent"
 import { Catalog } from "../../catalog"
@@ -357,6 +357,10 @@ const layer = Layer.effect(
           request,
           model: session.harnessModel,
           revision: session.harnessRevision ?? 0,
+          steer: SessionInput.hasPending(db, session.id, "steer").pipe(
+            Effect.repeat({ schedule: Schedule.spaced(STEER_POLL), until: (pending) => pending }),
+            Effect.asVoid,
+          ),
           permissionSource: (callID) =>
             withPublication(publisher.startAssistant()).pipe(
               Effect.map((messageID) => ({ type: "tool" as const, messageID, callID })),
@@ -654,6 +658,7 @@ const localToolCallsSinceLastUser = (context: ReadonlyArray<SessionMessage.Messa
           ),
     )
 
+const STEER_POLL = "500 millis"
 const TITLE_TIMEOUT = "30 seconds"
 const HARNESS_TITLE_TIMEOUT = "90 seconds"
 

@@ -252,6 +252,20 @@ describe("server session", () => {
     expect(store.data.session_status.child).toEqual({ type: "idle" })
   })
 
+  test("a step the drain starts on its own marks an idle session busy again", () => {
+    const store = setup({}).store
+    store.remember(session("child"))
+    store.set("session_status", "child", { type: "idle" })
+
+    store.applyV2({
+      id: "evt_step_start",
+      type: "session.next.step.started",
+      data: { sessionID: "child", assistantMessageID: "msg_2_assistant" },
+    } as unknown as OpenCodeEvent)
+
+    expect(store.data.session_status.child).toEqual({ type: "busy" })
+  })
+
   test("applies the server's session.next.moved event to session info", () => {
     const store = setup({}).store
     store.remember(session("child"))
