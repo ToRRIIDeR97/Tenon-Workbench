@@ -44,18 +44,18 @@ revision, and migration gaps are recorded in [the archive](docs/archive/tauri/RE
 | `bun run dev`               | Start the Tenon Workbench Electron app                     |
 | `bun run build`             | Build the Electron renderer and main process               |
 | `bun run desktop:build`     | Build and package an unsigned Windows candidate            |
-| `bun run typecheck`         | Typecheck every `tenon/` package through turbo          |
+| `bun run typecheck`         | Typecheck every package and the app e2e specs via turbo    |
 | `bun run lint`              | Run the linter (oxlint)                                    |
 | `bun run test`              | Run package tests (engine suites excluded) via turbo       |
 | `bun run check:generated`   | Fail if the generated client in `packages/client` is stale |
-| `bun run check`             | Run typecheck, lint, check:generated, test, and build      |
+| `bun run check`             | Run typecheck, lint, format, generated, test, and build    |
 | `bun run test:engine`       | Run the full core and server suites                        |
 | `bun run test:routes`       | Check Brain home and workspace navigation in Chromium      |
 | `bun run test:second-brain` | Run the notes, planner and Project card server tests       |
 | `bun run test:desktop`      | Run the Electron main-process tests                        |
 | `bun run test:app`          | Run the renderer unit tests                                |
 | `bun run desktop:dev`       | Same as `bun run dev`                                      |
-| `bun run format:check`      | Check Prettier formatting of the Second Brain sources      |
+| `bun run format:check`      | Check Prettier formatting of every `tenon/` package        |
 
 The fork is pinned and documented in
 [docs/opencode-upstream.md](docs/opencode-upstream.md).

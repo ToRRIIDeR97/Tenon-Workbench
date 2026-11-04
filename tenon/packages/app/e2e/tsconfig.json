@@ -13,8 +13,12 @@
     "./reproduction/timeline-suspense/**/*.ts",
     "./reproduction/timeline-suspense/**/*.tsx",
     "../src/pages/session/timeline/observe-element-offset.ts",
+    "./regression/brain-home-routing.spec.ts",
     "./regression/new-session-panel-corner.spec.ts",
+    "./regression/project-picker-recent-search.spec.ts",
+    "./regression/session-list-path-loading.spec.ts",
     "./regression/session-timeline-context-resize.spec.ts",
+    "./smoke/session-timeline.fixture.ts",
     "./utils/**/*.ts"
   ]
 }

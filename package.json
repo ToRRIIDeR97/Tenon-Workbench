@@ -12,7 +12,7 @@
     "lint": "bun run --cwd tenon lint",
     "format:check": "bun run --cwd tenon format:check",
     "check:generated": "bun run --cwd tenon/packages/client check:generated",
-    "check": "bun run typecheck && bun run lint && bun run check:generated && bun run test && bun run build",
+    "check": "bun run typecheck && bun run lint && bun run format:check && bun run check:generated && bun run test && bun run build",
     "test": "bun run --cwd tenon turbo run test --continue --filter='!tenon' --filter='!@tenon/core' && bun run test:second-brain",
     "test:desktop": "bun run --cwd tenon/packages/desktop test",
     "test:app": "bun run --cwd tenon/packages/app test",

@@ -70,8 +70,9 @@ Run from the repository root, locally, before requesting a merge. `bun run check
 runs these in order and stops at the first failure:
 
 ```sh
-bun run typecheck        # turbo typecheck of every tenon/ package
+bun run typecheck        # turbo typecheck of every tenon/ package and the app e2e specs
 bun run lint
+bun run format:check     # Prettier over every tenon/ package
 bun run check:generated  # generated client in packages/client is current
 bun run test             # turbo test of packages + Second Brain server tests
 bun run build

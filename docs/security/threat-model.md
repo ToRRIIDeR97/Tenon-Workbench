@@ -1112,7 +1112,7 @@ message and shows in a toast. It doesn't run outside git.
 
 From the repository root, `bun run typecheck` checks every workspace package
 through turbo. `bun run test` runs every package suite except the engine
-(core, server) and the client and schema suites, then the Second Brain
+(core, server), then the Second Brain
 domains; `bun run test:engine` runs core and server suites. `bun run lint`
 checks `tenon/`, and `bun run check:generated` fails when the generated
 client is stale. These commands are defined in the root `package.json`.
