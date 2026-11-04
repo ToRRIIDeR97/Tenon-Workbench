@@ -1,4 +1,4 @@
-import { ImapFlow, type FetchMessageObject, type MessageStructureObject } from "imapflow"
+import type { FetchMessageObject, ImapFlow, MessageStructureObject } from "imapflow"
 import { htmlToText, type ImapClient, type MailSummary } from "./index"
 
 export type ImapSettings = { host: string; port: number; secure: boolean; user: string; password: string }
@@ -13,6 +13,7 @@ const partLimit = 512 * 1024
  */
 export function createImapClient(settings: ImapSettings): ImapClient {
   const session = async <T>(run: (client: ImapFlow) => Promise<T>) => {
+    const { ImapFlow } = await import("imapflow")
     const client = new ImapFlow({
       host: settings.host,
       port: settings.port,
@@ -84,6 +85,7 @@ export function createImapClient(settings: ImapSettings): ImapClient {
 
 /** Log in and out once, so a wrong host or password is caught before the account is kept. */
 export async function verifyImap(settings: ImapSettings) {
+  const { ImapFlow } = await import("imapflow")
   const client = new ImapFlow({
     host: settings.host,
     port: settings.port,

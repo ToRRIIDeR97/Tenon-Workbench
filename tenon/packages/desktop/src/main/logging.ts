@@ -2,7 +2,6 @@ import { MainLogger } from "electron-log"
 import log from "electron-log/main.js"
 import { app, crashReporter, shell } from "electron"
 import { createWriteStream, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs"
-import { ZipWriter, Uint8ArrayReader } from "@zip.js/zip.js"
 import { Writable } from "node:stream"
 import { dirname, join } from "node:path"
 import { homedir } from "node:os"
@@ -185,6 +184,7 @@ function crashDumpIndex(dir: string) {
 
 // Streams to disk, so the archive is never held in memory; a file removed since it was listed is skipped.
 async function writeZip(output: string, entries: Entry[]) {
+  const { ZipWriter, Uint8ArrayReader } = await import("@zip.js/zip.js")
   const writer = new ZipWriter(Writable.toWeb(createWriteStream(output)) as WritableStream)
   for (const entry of entries) {
     let data: Buffer

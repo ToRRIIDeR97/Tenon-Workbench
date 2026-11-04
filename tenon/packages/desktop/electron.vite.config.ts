@@ -51,7 +51,8 @@ const require = __cjs_mod__.createRequire(import.meta.url);
 `,
         },
       },
-      externalizeDeps: { include: [nodePtyPkg] },
+      // Bundled so tree-shaking drops the barrel's unused modules; externals load whole from the asar.
+      externalizeDeps: { include: [nodePtyPkg], exclude: ["effect"] },
     },
     plugins: [
       {

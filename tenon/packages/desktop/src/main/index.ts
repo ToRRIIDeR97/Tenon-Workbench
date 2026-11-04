@@ -85,6 +85,8 @@ const SIDECAR_VERSION = SIDECAR_V2_REQUESTED && CHANNEL === "dev" ? "v2" : "v1"
 const jsCallStackFeature = "DocumentPolicyIncludeJSCallStacksInCrashReports"
 // Covers the sidecar's own graceful stop (6 s) before it is killed.
 const QUIT_STOP_TIMEOUT = 8_000
+// Clears the first window's load, because importing electron-updater blocks this process.
+const UPDATER_START_DELAY = 5_000
 
 let logger: ReturnType<typeof initLogging>
 let server: SidecarListener | null = null
@@ -471,7 +473,6 @@ const main = Effect.gen(function* () {
     mail,
   })
   registerWslIpcHandlers(wslServers)
-  void updater.start()
   const updateTimer = setInterval(() => void updater.check(), 10 * 60 * 1000)
   updateTimer.unref()
   app.once("will-quit", () => clearInterval(updateTimer))
@@ -599,6 +600,10 @@ const main = Effect.gen(function* () {
 
   const loaded = yield* Fiber.await(loadingTask)
   if (Exit.isFailure(loaded)) logger.error("loading task failed", Cause.pretty(loaded.cause))
+
+  const updaterStart = setTimeout(() => void updater.start(), UPDATER_START_DELAY)
+  updaterStart.unref()
+  app.once("will-quit", () => clearTimeout(updaterStart))
 })
 
 // A startup failure would otherwise leave the app running with no window and nothing in the log.
