@@ -1834,6 +1834,21 @@ message with the opposite delivery. Idle sessions send without `delivery`
 have no durable inbox: the compatibility layer drops `delivery` and reports
 every V1 prompt as a steer.
 
+An external harness runs its whole loop inside one provider turn, so that
+boundary would be the end of the agent's work. The runner therefore hands each
+harness a `steer` signal (`StreamInput.steer`, polling `session_input` every
+500 ms). When a steer is pending, including a queued item moved by "Send now",
+the driver asks the agent to stop: `session/cancel` for ACP, `turn/interrupt`
+for Codex. `stopOnSteer` (`core/src/harness/acp.ts`) keeps reading until the
+agent ends the turn, so the next turn cannot overlap it, and the turn finishes
+as a normal `stop` step. The drain then promotes the steer into the same native
+session. Work the agent had in flight is cut short, and an agent that ignores
+the request delivers the steer when its turn ends. `queue` never interrupts.
+
+The drain starts these follow-on steps by itself, after the previous step has
+set the session idle, so the renderer marks a session busy on
+`session.next.step.started`.
+
 Queued inputs stay out of the transcript. The renderer reducer skips
 `session.next.prompt.admitted` events whose `delivery` is `queue` and appends
 the message on `session.next.prompted`. `serverSync.session.data.session_queue`

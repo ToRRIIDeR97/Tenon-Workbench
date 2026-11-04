@@ -992,6 +992,8 @@ export function createServerSession(
       if (reduction.missing) hydrateV2Message(sessionID, reduction.missing)
     }
 
+    // The drain can start another step on its own for a steered or queued input, after an earlier step set idle.
+    if (eventType === "session.next.step.started") setData("session_status", sessionID, { type: "busy" })
     if (eventType === "session.next.step.ended" || eventType === "session.next.step.failed") {
       if (eventData.assistantMessageID) hydrateV2Message(sessionID, eventData.assistantMessageID)
       if (eventType === "session.next.step.failed" || eventData.finish !== "tool-calls")
