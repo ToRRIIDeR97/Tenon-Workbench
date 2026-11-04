@@ -415,7 +415,11 @@ export default function ProjectsPage() {
             >
               <Show
                 when={(matches.error ? [] : (matches.latest ?? [])).length > 0}
-                fallback={<PageEmpty>{language.t("secondBrain.vault.noMatches")}</PageEmpty>}
+                fallback={
+                  <PageEmpty error={!!matches.error}>
+                    {language.t(matches.error ? "common.requestFailed" : "secondBrain.vault.noMatches")}
+                  </PageEmpty>
+                }
               >
                 <ul class="flex flex-col gap-px" aria-label={language.t("secondBrain.vault.results")}>
                   <For each={matches.error ? [] : matches.latest}>{(page) => pageRow(page)}</For>

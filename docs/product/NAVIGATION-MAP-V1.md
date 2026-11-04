@@ -100,9 +100,11 @@ Pins are stored on the thread (`metadata.pinned`, the pin time) so they survive
 restarts. Pinned threads sort first inside their own group (a Project or
 General); pinning a child thread does not move it out of its parent.
 
-**Archived threads** opens a dialog listing the Project's archived threads
-(threads in its thread directory, up to the 500 most recently updated), each
-with **Unarchive**.
+**Archived threads** opens a dialog listing a folder's archived threads (up to
+the 500 most recently updated), each with **Unarchive**. It is on a Project's
+menu (its thread directory), the General row's menu (the workspace folder
+itself, so threads archived in its non-Project subfolders are not listed) and
+the Command Centre page.
 
 ### Undo
 

@@ -16,7 +16,7 @@ import { useLayout } from "@/context/layout"
 import { useSettingsDialog } from "@/components/settings-dialog"
 import {
   BRAIN_GROUP,
-  createSidebarController,
+  useSidebarController,
   type SidebarController,
   type SidebarProjectItem,
 } from "@/components/sidebar/sidebar-controller"
@@ -51,7 +51,7 @@ export function SecondBrainSidebar() {
   const layout = useLayout()
   const navigate = useNavigate()
   const openSettings = useSettingsDialog()
-  const ctrl = createSidebarController()
+  const ctrl = useSidebarController()
   const command = useCommand()
   const dialog = useDialog()
   const global = useGlobal()
@@ -204,6 +204,7 @@ export function SecondBrainSidebar() {
                       label={language.t("secondBrain.sidebar.workspaceThreads")}
                       threads={ctrl.groups().workspace}
                       onNewThread={ctrl.newBrainThread}
+                      archivedDirectory={ctrl.brainDirectory()}
                     />
                   </Show>
                 </div>
@@ -621,7 +622,9 @@ function ProjectGroup(props: { ctrl: SidebarController; project: SidebarProjectI
                 </MenuV2.Item>
                 <MenuV2.Item
                   onSelect={() =>
-                    dialog.show(() => <DialogArchivedThreads ctrl={props.ctrl} project={props.project} />)
+                    dialog.show(() => (
+                      <DialogArchivedThreads ctrl={props.ctrl} directory={props.project.threadDirectory} />
+                    ))
                   }
                 >
                   {language.t("secondBrain.sidebar.archivedThreads")}
@@ -666,8 +669,11 @@ function ThreadGroup(props: {
   label: string
   threads: ThreadNode<Session>[]
   onNewThread?: () => void
+  /** Offers the folder's Archived threads dialog from a "…" menu. */
+  archivedDirectory?: string
 }) {
   const language = useLanguage()
+  const dialog = useDialog()
   const open = () => props.ctrl.expanded(props.id)
   const summary = () => props.ctrl.card(props.id)?.summary
   return (
@@ -685,9 +691,9 @@ function ThreadGroup(props: {
             <CardMarks summary={summary()} />
           </span>
         </button>
-        <Show when={props.onNewThread}>
-          {(run) => (
-            <div class="absolute inset-y-0 right-0.5 flex items-center opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 motion-reduce:transition-none">
+        <div class="absolute inset-y-0 right-0.5 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 motion-reduce:transition-none">
+          <Show when={props.onNewThread}>
+            {(run) => (
               <TooltipV2 placement="right" value={language.t("secondBrain.sidebar.newThread")}>
                 <IconButtonV2
                   type="button"
@@ -698,9 +704,33 @@ function ThreadGroup(props: {
                   onClick={run()}
                 />
               </TooltipV2>
-            </div>
-          )}
-        </Show>
+            )}
+          </Show>
+          <Show when={props.archivedDirectory}>
+            {(directory) => (
+              <MenuV2 gutter={4} modal={false} placement="bottom-start">
+                <MenuV2.Trigger
+                  as={IconButtonV2}
+                  variant="ghost-muted"
+                  size="small"
+                  icon={<Icon name="outline-dots" size="small" />}
+                  aria-label={language.t("secondBrain.sidebar.workspaceThreadActions")}
+                />
+                <MenuV2.Portal>
+                  <MenuV2.Content>
+                    <MenuV2.Item
+                      onSelect={() =>
+                        dialog.show(() => <DialogArchivedThreads ctrl={props.ctrl} directory={directory()} />)
+                      }
+                    >
+                      {language.t("secondBrain.sidebar.archivedThreads")}
+                    </MenuV2.Item>
+                  </MenuV2.Content>
+                </MenuV2.Portal>
+              </MenuV2>
+            )}
+          </Show>
+        </div>
       </div>
       <Reveal open={open()} variant="even">
         <ThreadList ctrl={props.ctrl} threads={props.threads} onNewThread={props.onNewThread} />

@@ -43,6 +43,8 @@ export function CommandStrip() {
   ])
   createEffect(() => {
     if (state.open) {
+      // An old failure shouldn't hide the latest reply.
+      centre.clearError()
       if (!card?.contains(document.activeElement)) returnFocus = document.activeElement as HTMLElement | undefined
       // A disabled input (no workspace yet) can't take focus; "Open full" can.
       queueMicrotask(() => (input && !input.disabled ? input : full)?.focus())

@@ -4,6 +4,7 @@ import { type QueryClient, useQueries, useQuery, useQueryClient } from "@tanstac
 import { createComputed, createEffect, createMemo, createResource, on, onCleanup, onMount } from "solid-js"
 import { createStore, produce, reconcile } from "solid-js/store"
 import { makeEventListener } from "@solid-primitives/event-listener"
+import { createSimpleContext } from "@tenon/ui/context"
 import { useDirectoryPicker } from "@/components/directory-picker"
 import { outsideEditable, useCommand } from "@/context/command"
 import { useDrafts } from "@/context/drafts"
@@ -675,11 +676,14 @@ export function createSidebarController() {
       .catch(requestFailed)
   }
 
-  /** Archived threads in a Project's thread folder, newest first, within the list limit. */
-  const listArchivedThreads = (project: SidebarProjectItem) =>
+  /**
+   * Archived threads in one folder, newest first, within the list limit. The server matches the folder
+   * exactly, so the workspace folder's list never includes threads from a Project's folder.
+   */
+  const listArchivedThreads = (directory: string) =>
     serverSDK()
       .client.experimental.session.list(
-        { directory: project.threadDirectory, archived: true, limit: ARCHIVED_THREAD_LIMIT },
+        { directory, archived: true, limit: ARCHIVED_THREAD_LIMIT },
         { throwOnError: true },
       )
       .then((result) => result.data.filter((session) => !!session.time.archived) as Session[])
@@ -891,6 +895,7 @@ export function createSidebarController() {
     archiveThread,
     unarchiveThread,
     deleteThread,
+    threadHidden: (sessionID: string) => !!local.hidden[sessionID],
     setThreadPinned,
     listArchivedThreads,
     forkThread,
@@ -901,3 +906,10 @@ export function createSidebarController() {
 }
 
 export type SidebarController = ReturnType<typeof createSidebarController>
+
+/** One controller for the sidebar and the pages that run its thread actions, so they share the undo queue. */
+export const { use: useSidebarController, provider: SidebarControllerProvider } = createSimpleContext({
+  name: "SidebarController",
+  gate: false,
+  init: createSidebarController,
+})

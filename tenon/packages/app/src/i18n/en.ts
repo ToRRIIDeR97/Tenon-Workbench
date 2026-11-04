@@ -1021,6 +1021,7 @@ export const dict = {
   "secondBrain.sidebar.unpin": "Unpin",
   "secondBrain.sidebar.pinned": "Pinned",
   "secondBrain.sidebar.archivedThreads": "Archived threads",
+  "secondBrain.sidebar.workspaceThreadActions": "General actions",
   "secondBrain.sidebar.noArchivedThreads": "No archived threads",
   "secondBrain.sidebar.unarchive": "Unarchive",
   "secondBrain.sidebar.workspaceThreads": "General",
