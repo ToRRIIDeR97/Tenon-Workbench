@@ -35,14 +35,18 @@ export function useVaultPages(directory: Accessor<string | undefined>) {
       staleTime: 30_000,
       refetchOnMount: true,
       retry: false,
+      // The server is usually local, so a lost connection is no reason to pause.
+      networkMode: "always" as const,
     }
   })
   // Reading `data` while the query is pending suspends, so check the status first.
   const data = () => (query.isPending || query.isError ? undefined : query.data)
   return {
     pages: () => data()?.pages,
-    /** Notes the latest read moved into the vault. */
+    /** Notes the latest read moved into the vault, until `clearMoved`. */
     moved: () => data()?.moved ?? 0,
+    clearMoved: () =>
+      queryClient.setQueryData<VaultPages>(key(directory()), (current) => current && { ...current, moved: 0 }),
     loading: () => query.isLoading,
     error: () => (query.isError ? (query.error as unknown) : undefined),
     retry: () => void query.refetch(),

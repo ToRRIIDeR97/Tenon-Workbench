@@ -127,6 +127,7 @@ export default function RoutinesPage() {
     const path = await write(1)
     setState("creating", false)
     if (!path) return setState("failed", true)
+    void invalidateVaultPages(queryClient, server.key)
     navigate(`/projects?page=${encodeURIComponent(path)}`)
   }
 

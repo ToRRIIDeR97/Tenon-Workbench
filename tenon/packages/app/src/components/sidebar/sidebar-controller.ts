@@ -108,6 +108,8 @@ export function useProjectThreads() {
       staleTime: 30_000,
       refetchOnMount: true,
       retry: false,
+      // The server is usually local, so a lost connection is no reason to pause.
+      networkMode: "always" as const,
     }
   })
 }

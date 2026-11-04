@@ -96,8 +96,12 @@ export default function ProjectsPage() {
 
   // The first read of a workspace's vault moves its pre-vault notes in.
   const vault = useVaultPages(() => directory() || undefined)
+  // Taken once, or a revisit within the cache's life would show the notice again.
   createEffect(() => {
-    if (vault.moved() > 0) setState("moved", vault.moved())
+    const moved = vault.moved()
+    if (moved <= 0) return
+    setState("moved", moved)
+    vault.clearMoved()
   })
   // Waits for the move above, which the server would otherwise make (and report) on this first vault read.
   const [conflicts] = createResource(

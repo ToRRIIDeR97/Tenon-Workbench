@@ -48,7 +48,8 @@ export default function ProjectOverviewPage() {
   const vault = useVaultPages(source)
   const calendar = createCalendarResource(source, client)
 
-  const loading = () => projects.loading() || vault.loading() || calendar.loading()
+  // With no workspace nothing loads, and the calendar has no snapshot to wait for.
+  const loading = () => !!source() && (projects.loading() || vault.loading() || calendar.loading())
   // A failed calendar refresh keeps its last snapshot, which is still worth showing.
   const calendarFailed = () => !calendar.snapshot() && !!calendar.error()
   const failed = () => projects.failed() || !!vault.error() || calendarFailed()
