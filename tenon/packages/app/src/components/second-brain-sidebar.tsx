@@ -9,13 +9,14 @@ import { createReveal, Reveal } from "@tenon/ui/v2/reveal"
 import { SegmentedControlItemV2, SegmentedControlV2 } from "@tenon/ui/v2/segmented-control-v2"
 import { PathTooltip, TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { useDialog } from "@tenon/ui/context/dialog"
-import { formatKeybind } from "@/context/command"
+import { formatKeybind, useCommand } from "@/context/command"
+import { useGlobal } from "@/context/global"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { useSettingsDialog } from "@/components/settings-dialog"
 import {
   BRAIN_GROUP,
-  createSidebarController,
+  useSidebarController,
   type SidebarController,
   type SidebarProjectItem,
 } from "@/components/sidebar/sidebar-controller"
@@ -28,6 +29,7 @@ import { parseGrouping, type CardSummary, type ThreadState } from "@/features/se
 import type { ThreadNode } from "@/features/second-brain/sidebar-threads"
 import { createFreshItems } from "@/utils/fresh-items"
 import { sessionPinnedAt } from "@/utils/session"
+import { sessionHref } from "@/utils/session-route"
 import { sessionTitle } from "@/utils/session-title"
 
 // Rows clip, so keyboard focus draws an inset ring on the row: when the row is the button, or while its
@@ -49,7 +51,37 @@ export function SecondBrainSidebar() {
   const layout = useLayout()
   const navigate = useNavigate()
   const openSettings = useSettingsDialog()
-  const ctrl = createSidebarController()
+  const ctrl = useSidebarController()
+  const command = useCommand()
+  const dialog = useDialog()
+  const global = useGlobal()
+  const server = useServer()
+  // The palette on every page without its own; thread and draft pages register after this and shadow it.
+  command.register("sidebar.palette", () => [
+    {
+      id: "command.palette",
+      title: language.t("command.palette"),
+      hidden: true,
+      onSelect: async () => {
+        const conn = server.current
+        if (!conn) return
+        const ctx = global.ensureServerCtx(conn)
+        const { DialogHomeCommandPaletteV2 } = await import("@/components/dialog-command-palette-v2")
+        void dialog.show(() => (
+          <DialogHomeCommandPaletteV2
+            server={conn}
+            onSelectSession={(entry) => {
+              if (!entry.sessionID || !entry.directory || !entry.server) return
+              const directory = entry.project?.worktree ?? entry.directory
+              ctx.projects.open(directory)
+              ctx.projects.touch(directory)
+              navigate(sessionHref(entry.server, entry.sessionID))
+            }}
+          />
+        ))
+      },
+    },
+  ])
   // The panel keeps its content while its width collapses, so it never closes as an empty column.
   const panel = createReveal(() => layout.sidebar.opened())
   const path = () => ctrl.location.pathname
@@ -172,6 +204,7 @@ export function SecondBrainSidebar() {
                       label={language.t("secondBrain.sidebar.workspaceThreads")}
                       threads={ctrl.groups().workspace}
                       onNewThread={ctrl.newBrainThread}
+                      archivedDirectory={ctrl.brainDirectory()}
                     />
                   </Show>
                 </div>
@@ -268,7 +301,7 @@ function WorkspaceHeader(props: { ctrl: SidebarController }) {
   }
   return (
     <div class="flex h-10 shrink-0 items-center gap-1">
-      <MenuV2 gutter={4} modal={false} placement="bottom-start">
+      <MenuV2 gutter={4} modal={false} placement="bottom-start" onOpenChange={props.ctrl.setSwitcherOpen}>
         <MenuV2.Trigger
           as="button"
           type="button"
@@ -586,7 +619,9 @@ function ProjectGroup(props: { ctrl: SidebarController; project: SidebarProjectI
                 </MenuV2.Item>
                 <MenuV2.Item
                   onSelect={() =>
-                    dialog.show(() => <DialogArchivedThreads ctrl={props.ctrl} project={props.project} />)
+                    dialog.show(() => (
+                      <DialogArchivedThreads ctrl={props.ctrl} directory={props.project.threadDirectory} />
+                    ))
                   }
                 >
                   {language.t("secondBrain.sidebar.archivedThreads")}
@@ -632,8 +667,11 @@ function ThreadGroup(props: {
   label: string
   threads: ThreadNode<Session>[]
   onNewThread?: () => void
+  /** Offers the folder's Archived threads dialog from a "…" menu. */
+  archivedDirectory?: string
 }) {
   const language = useLanguage()
+  const dialog = useDialog()
   const open = () => props.ctrl.expanded(props.id)
   const summary = () => props.ctrl.card(props.id)?.summary
   return (
@@ -651,9 +689,9 @@ function ThreadGroup(props: {
             <CardMarks summary={summary()} />
           </span>
         </button>
-        <Show when={props.onNewThread}>
-          {(run) => (
-            <div class="absolute inset-y-0 right-0.5 flex items-center opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 motion-reduce:transition-none">
+        <div class="absolute inset-y-0 right-0.5 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 motion-reduce:transition-none">
+          <Show when={props.onNewThread}>
+            {(run) => (
               <TooltipV2 placement="right" value={language.t("secondBrain.sidebar.newThread")}>
                 <IconButtonV2
                   type="button"
@@ -664,9 +702,33 @@ function ThreadGroup(props: {
                   onClick={run()}
                 />
               </TooltipV2>
-            </div>
-          )}
-        </Show>
+            )}
+          </Show>
+          <Show when={props.archivedDirectory}>
+            {(directory) => (
+              <MenuV2 gutter={4} modal={false} placement="bottom-start">
+                <MenuV2.Trigger
+                  as={IconButtonV2}
+                  variant="ghost-muted"
+                  size="small"
+                  icon={<Icon name="outline-dots" size="small" />}
+                  aria-label={language.t("secondBrain.sidebar.workspaceThreadActions")}
+                />
+                <MenuV2.Portal>
+                  <MenuV2.Content>
+                    <MenuV2.Item
+                      onSelect={() =>
+                        dialog.show(() => <DialogArchivedThreads ctrl={props.ctrl} directory={directory()} />)
+                      }
+                    >
+                      {language.t("secondBrain.sidebar.archivedThreads")}
+                    </MenuV2.Item>
+                  </MenuV2.Content>
+                </MenuV2.Portal>
+              </MenuV2>
+            )}
+          </Show>
+        </div>
       </div>
       <Reveal open={open()} variant="even">
         <ThreadList ctrl={props.ctrl} threads={props.threads} onNewThread={props.onNewThread} />

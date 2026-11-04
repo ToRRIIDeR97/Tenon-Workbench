@@ -1,13 +1,5 @@
 import { describe, expect } from "bun:test"
-import {
-  LLMClient,
-  LLMError,
-  LLMEvent,
-  Model,
-  TransportReason,
-  type LLMClientShape,
-  type LLMRequest,
-} from "@tenon/llm"
+import { LLMClient, LLMError, LLMEvent, Model, TransportReason, type LLMClientShape, type LLMRequest } from "@tenon/llm"
 import * as OpenAIChat from "@tenon/llm/protocols/openai-chat"
 import { Harness } from "@tenon/schema/harness"
 import { AgentV2 } from "@tenon/core/agent"
@@ -97,8 +89,7 @@ const otherHarnessID = Harness.InstanceID.make("other-acp")
 const harnessTitles: Array<HarnessRuntime.CompleteInput & { readonly instanceID: Harness.InstanceID }> = []
 let preferredTitleAgent: Harness.InstanceID | undefined
 const harnesses = Layer.mock(HarnessRuntime.Service, {
-  driver: (id) =>
-    id === harnessID || id === otherHarnessID ? Harness.DriverKind.make("acp") : Harness.OpenCodeDriver,
+  driver: (id) => (id === harnessID || id === otherHarnessID ? Harness.DriverKind.make("acp") : Harness.OpenCodeDriver),
   stream: () => Stream.fromIterable(turn),
   complete: (input) =>
     Effect.sync(() => {
@@ -226,7 +217,12 @@ const setup = (input: { harness?: boolean; agentModel?: boolean } = {}) =>
         directory: "/project",
         title: defaultTitle,
         version: "test",
-        metadata: input.harness ? { harnessInstanceID: harnessID, harnessModel: { id: "haiku" } } : undefined,
+        metadata: input.harness
+          ? {
+              harnessInstanceID: harnessID,
+              harnessModel: { id: "haiku", reasoningEffort: "high", serviceTier: "fast" },
+            }
+          : undefined,
         model: input.harness ? undefined : { id: "main", providerID: "fake" },
       })
       .run()
@@ -296,8 +292,7 @@ describe("session runner titles", () => {
       expect(titleRequests).toHaveLength(0)
       expect(harnessTitles).toHaveLength(1)
       expect(harnessTitles[0]?.instanceID).toBe(harnessID)
-      expect(harnessTitles[0]?.model?.id).toBe("haiku")
-      expect(harnessTitles[0]?.directory).toBe("/project")
+      expect(harnessTitles[0]?.model).toEqual({ id: "haiku" })
       expect(harnessTitles[0]?.request.tools).toEqual([])
       expect(harnessTitles[0]?.request.system.map((part) => part.text)).toEqual(["You generate thread titles."])
       expect(yield* storedTitle).toBe("Fix login redirect")

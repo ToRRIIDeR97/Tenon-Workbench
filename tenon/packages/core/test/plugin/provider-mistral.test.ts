@@ -1,5 +1,4 @@
 import { AISDK } from "@tenon/core/aisdk"
-import type { LanguageModelV3 } from "@ai-sdk/provider"
 import { describe, expect } from "bun:test"
 import { Effect } from "effect"
 import { ModelV2 } from "@tenon/core/model"
@@ -98,32 +97,6 @@ describe("MistralPlugin", () => {
         options: { name: "custom-mistral" },
       })
       expect(providers).toEqual(["mistral.chat"])
-    }),
-  )
-
-  it.effect("leaves Mistral language selection on the default sdk.languageModel(api.id) path", () =>
-    Effect.gen(function* () {
-      const plugin = yield* PluginV2.Service
-      const aisdk = yield* AISDK.Service
-      const calls: string[] = []
-      const sdk = {
-        languageModel: (id: string) => {
-          calls.push(`languageModel:${id}`)
-          return { modelId: id, provider: "languageModel", specificationVersion: "v3" } as unknown as LanguageModelV3
-        },
-      }
-      yield* addPlugin()
-      const result = yield* aisdk.runLanguage({
-        model: ModelV2.Info.make({
-          ...ModelV2.Info.empty(ProviderV2.ID.make("mistral"), ModelV2.ID.make("alias")),
-          api: { id: ModelV2.ID.make("mistral-large"), type: "aisdk", package: "test-provider" },
-        }),
-        sdk,
-        options: {},
-      })
-      const language = result.language ?? sdk.languageModel(result.model.api.id)
-      expect(calls).toEqual(["languageModel:mistral-large"])
-      expect(language).toBeDefined()
     }),
   )
 })

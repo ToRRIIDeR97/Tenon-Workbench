@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { join, dirname, resolve } from "node:path"
 import { existsSync } from "node:fs"
 import { fileURLToPath } from "node:url"
+import appPlugin from "@tenon/app/vite"
 
 const dir = dirname(fileURLToPath(import.meta.url))
 const root = resolve(dir, "../..")
@@ -40,6 +41,13 @@ describe("electron renderer html", () => {
       })
     })
   }
+})
+
+test("the build inlines the theme preload into the desktop page", async () => {
+  const plugin = appPlugin.find((item) => item.name === "opencode-desktop:theme-preload")
+  const built = plugin?.transformIndexHtml(await html("index.html"))
+  expect(built).toContain('<script id="oc-theme-preload-script">')
+  expect(built).not.toContain("./oc-theme-preload.js")
 })
 
 /**

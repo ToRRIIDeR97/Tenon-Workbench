@@ -278,9 +278,7 @@ export const DESKTOP_MENU: DesktopMenu[] = [
   {
     id: "help",
     labelKey: "desktop.menu.help",
-    items: [
-      { type: "item", labelKey: "desktop.menu.exportLogs", command: "logs.export" },
-    ],
+    items: [{ type: "item", labelKey: "desktop.menu.exportLogs", command: "logs.export" }],
   },
 ]
 

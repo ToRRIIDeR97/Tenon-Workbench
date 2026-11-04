@@ -31,9 +31,14 @@ const layer = (filename: string) =>
       yield* db.run("PRAGMA synchronous = NORMAL")
       yield* db.run("PRAGMA cache_size = -64000")
       yield* db.run("PRAGMA foreign_keys = ON")
+      yield* db.run("PRAGMA journal_size_limit = 67108864")
       yield* db.run("PRAGMA wal_checkpoint(PASSIVE)")
       yield* restrictPermissions(filename)
       yield* DatabaseMigration.apply(db)
+      // Keeps planner statistics current. analysis_limit bounds the blocking scan on a large database, and a second
+      // server process holding the write lock only defers this to the next start.
+      yield* db.run("PRAGMA analysis_limit = 1000")
+      yield* db.run("PRAGMA optimize = 0x10002").pipe(Effect.ignore)
 
       return { db }
     }).pipe(Effect.orDie),

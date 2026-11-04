@@ -138,7 +138,10 @@ export function requestErrorReason(body: unknown) {
   if (!body || typeof body !== "object" || !("data" in body)) return undefined
   const data = body.data
   if (!data || typeof data !== "object" || !("message" in data) || typeof data.message !== "string") return undefined
-  return /^[a-z0-9_]{1,64}$/.test(data.message) ? data.message : undefined
+  // `vault_unavailable` alone carries a detail: the vault-relative file that could not be read.
+  return /^[a-z0-9_]{1,64}$/.test(data.message) || data.message.startsWith("vault_unavailable: ")
+    ? data.message
+    : undefined
 }
 
 async function request<T>(client: Client, path: string, init?: RequestInit): Promise<T> {
@@ -209,6 +212,13 @@ export const linkProjectFolder = (client: Client, folder: string) =>
 export const unlinkProjectFolder = (client: Client, folder: string) =>
   request<ScanResult>(client, "/second-brain/projects/unlink", { method: "POST", body: JSON.stringify({ folder }) })
 
+/** Whether the target folder is approved, and what its config asks for that stays off until it is. */
+export type FolderTrust = { root: string; trusted: boolean; withheld: ReadonlyArray<string> }
+
+export const readFolderTrust = (client: Client) => request<FolderTrust>(client, "/config/trust")
+
+export const approveFolder = (client: Client) => request<FolderTrust>(client, "/config/trust", { method: "POST" })
+
 /** The target folder's own AGENTS.md; `content` is null when it has none. */
 export type Instructions = { path: string; content: string | null }
 
@@ -232,6 +242,7 @@ export type VaultPageInfo = {
   updatedAt: string
 }
 export type VaultPage = { info: VaultPageInfo; body: string; revision: string }
+export type VaultPageVersion = { revision: string; updatedAt: string }
 export type TimelineItem = {
   id: string
   title: string
@@ -282,6 +293,36 @@ export const writeVaultPage = (
     }),
   })
 
+/** The file stays in the page's history. A 409 means the page changed since `revision`. */
+export const removeVaultPage = (client: Client, path: string, revision: string) =>
+  request<{ removed: true }>(
+    client,
+    `/second-brain/vault/page?path=${encodeURIComponent(path)}&expectedRevision=${encodeURIComponent(revision)}`,
+    { method: "DELETE" },
+  )
+
+/** Earlier saved versions of a page, newest first. */
+export const listVaultPageVersions = (client: Client, path: string) =>
+  request<VaultPageVersion[]>(client, `/second-brain/vault/page/history?path=${encodeURIComponent(path)}`)
+
+export const readVaultPageVersion = (client: Client, path: string, revision: string) =>
+  request<{ revision: string; body: string }>(
+    client,
+    `/second-brain/vault/page/history?path=${encodeURIComponent(path)}&revision=${encodeURIComponent(revision)}`,
+  )
+
+/** Switch a routine on or off. The server replaces all properties, so this sends the page's others back. */
+export const setRoutineEnabled = async (client: Client, path: string, enabled: boolean) => {
+  const page = await readVaultPage(client, path)
+  return writeVaultPage(client, {
+    path,
+    body: page.body,
+    title: page.info.title,
+    properties: { ...page.info.properties, enabled },
+    expectedRevision: page.revision,
+  })
+}
+
 export const readTimeline = (client: Client, projectId: string) =>
   request<Timeline>(client, `/second-brain/vault/timeline?project=${encodeURIComponent(projectId)}`)
 
@@ -323,7 +364,10 @@ export type Routine = {
   enabled: boolean
   nextRun: string | null
   lastRun: string | null
-  lastStatus: "running" | "done" | "failed" | null
+  lastStatus: "running" | "done" | "failed" | "unfiled" | null
+  hash: string
+  needsApproval: boolean
+  denied: ReadonlyArray<string>
 }
 export type ModelChoice = { providerID: string; modelID: string }
 export type MemoryHit = { sessionID?: string; text: string; at: number }
@@ -336,9 +380,18 @@ export const runRoutine = (client: Client, id: string, model?: ModelChoice) =>
     body: JSON.stringify(model ? { model } : {}),
   })
 
+export const approveRoutine = (client: Client, id: string, hash: string) =>
+  request<{ approved: true }>(client, `/second-brain/routines/${encodeURIComponent(id)}/approve`, {
+    method: "POST",
+    body: JSON.stringify({ hash }),
+  })
+
 /** Creates the vault's `.command-centre` folder when missing and returns it. */
 export const commandDirectory = (client: Client) =>
   request<{ directory: string }>(client, "/command-centre/directory", { method: "POST" })
+
+/** Every Command Centre folder on this machine; a moved vault's threads stay in the earlier root's folder. */
+export const commandFolders = (client: Client) => request<{ folders: string[] }>(client, "/command-centre/folders")
 
 export const searchCommandMemory = (client: Client, search: string) =>
   request<MemoryHit[]>(client, `/command-centre/memory?search=${encodeURIComponent(search)}`)

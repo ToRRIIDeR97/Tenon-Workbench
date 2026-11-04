@@ -1,6 +1,7 @@
 import { createSimpleContext } from "@tenon/ui/context"
 import { readPartText } from "@tenon/session-ui/message-part-text"
 import { Harness } from "@tenon/schema/harness"
+import { debounce } from "@solid-primitives/scheduled"
 import { createEffect, createMemo, createResource, on, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLayout } from "@/context/layout"
@@ -8,11 +9,26 @@ import { usePlatform } from "@/context/platform"
 import { useServerSDK } from "@/context/server-sdk"
 import { useServerSync } from "@/context/server-sync"
 import { useSettings } from "@/context/settings"
-import { commandDirectory, compactCommandMemory, readVault, type ModelChoice } from "@/features/second-brain/client"
+import {
+  commandDirectory,
+  commandFolders,
+  compactCommandMemory,
+  readVault,
+  type ModelChoice,
+} from "@/features/second-brain/client"
 import { useAgentWrites, type AgentWrite } from "@/features/agent-writes/store"
 import { Identifier } from "@/utils/id"
+import { settled } from "@/utils/resource"
+import { normalizeSessionInfo } from "@/utils/session"
 
-export type CommandThread = { id: string; title: string; directory: string; updated: number }
+export type CommandThread = {
+  id: string
+  title: string
+  directory: string
+  updated: number
+  /** The server's session, for the thread actions the sidebar controller runs. */
+  session: ReturnType<typeof normalizeSessionInfo>
+}
 export type CommandMessage = { id: string; role: "user" | "assistant"; text: string; done: boolean }
 /** What a new thread runs on, from the composer's model pill; without it the Settings default applies. */
 export type CommandChoice = {
@@ -117,27 +133,71 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
       const root = vault()?.root
       return root ? commandDirectoryFor(root) : undefined
     })
-    const [threads, { refetch }] = createResource(directory, async (folder) => {
-      const result = await serverSDK().api.session.list({ directory: folder, parentID: null, limit: 100 })
+    const [threads, { refetch }] = createResource<CommandThread[], string>(directory, async (folder, info) => {
+      // Threads from before a vault move stay in the earlier root's folder. An older server has no such route.
+      const target = workspace()
+      const known = target
+        ? await commandFolders({ ...client(target), target: { directory: target, header: true } }).then(
+            (result) => result.folders,
+            () => [],
+          )
+        : []
+      const folders = [folder, ...known.filter((item) => !sameDirectory(item, folder))]
+      const results = await Promise.all(
+        folders.map((item, index) => {
+          const listed = serverSDK().api.session.list({ directory: item, parentID: null, limit: 100 })
+          // An earlier root may be gone or offline; that must not hide the current root's threads.
+          return index === 0 ? listed.catch(() => undefined) : listed.catch(() => ({ data: [] }))
+        }),
+      )
+      // A failed refresh keeps the last list; reading a failed resource would throw into the page.
+      if (!results[0]) return info.value ?? []
       // Filter here too: an older server answers this list without the directory filter.
-      return (result.data ?? [])
-        .filter((session) => sameDirectory(session.location?.directory, folder))
-        .map(
-          (session): CommandThread => ({
-            id: session.id,
-            title: session.title,
-            directory: session.location?.directory ?? folder,
-            updated: session.time.updated,
-          }),
-        )
-        .sort((left, right) => right.updated - left.updated)
+      return (
+        results
+          .flatMap((result) => result?.data ?? [])
+          // The server's list keeps archived sessions.
+          .filter(
+            (session) =>
+              folders.some((item) => sameDirectory(session.location?.directory, item)) && !session.time.archived,
+          )
+          .map(
+            (session): CommandThread => ({
+              id: session.id,
+              title: session.title,
+              directory: session.location?.directory ?? folder,
+              updated: session.time.updated,
+              session: normalizeSessionInfo(session),
+            }),
+          )
+          .sort((left, right) => right.updated - left.updated)
+      )
     })
-    // The synced session info carries the title the server sets after the first reply.
+    // Threads also change outside this client's sends: archives, deletes and routine runs. Debounced, because
+    // a running turn updates its session often.
+    const refresh = debounce(() => void refetch(), 500)
+    onCleanup(() => refresh.clear())
+    createEffect(() => {
+      const unsubscribe = serverSDK().event.listen((e) => {
+        const event = e.details
+        if (event.type !== "session.created" && event.type !== "session.updated" && event.type !== "session.deleted")
+          return
+        if (sameDirectory(event.properties.info.directory, directory())) refresh()
+      })
+      onCleanup(unsubscribe)
+    })
+    // The synced session info carries the title the server sets after the first reply and the latest activity.
     const list = () =>
-      (threads.latest ?? []).map((thread) => ({
-        ...thread,
-        title: serverSync().session.get(thread.id)?.title ?? thread.title,
-      }))
+      (settled(threads) ?? [])
+        .map((thread) => {
+          const info = serverSync().session.get(thread.id)
+          return {
+            ...thread,
+            title: info?.title ?? thread.title,
+            updated: Math.max(thread.updated, info?.time.updated ?? 0),
+          }
+        })
+        .sort((left, right) => right.updated - left.updated)
     const latest = () => list()[0]
 
     const messages = (sessionID: string | undefined): CommandMessage[] => {
@@ -210,7 +270,9 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
         const harnessID = choice?.harnessID ?? Harness.InstanceID.make(current.harnessID ?? Harness.OpenCode)
         const harness = harnessID !== Harness.OpenCode
         const harnessModel = choice ? choice.harnessModel : current.modelID ? { id: current.modelID } : undefined
-        const existing = sessionID === null ? undefined : (sessionID ?? latest()?.id)
+        // The default target stays in the current folder: an earlier root's folder may be gone by now.
+        const newest = list().find((thread) => sameDirectory(thread.directory, folder))
+        const existing = sessionID === null ? undefined : (sessionID ?? newest?.id)
         const create = async () => {
           // The server creates the vault's .command-centre folder; an older server without the route is fine.
           await commandDirectory(client(target)).catch(() => undefined)
@@ -255,6 +317,8 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
       loading: () => threads.loading || vault.loading,
       latest,
       messages,
+      /** Whether the latest thread is waiting on a permission prompt, which only its own page can answer. */
+      waiting: () => (serverSync().session.data.permission[latest()?.id ?? ""]?.length ?? 0) > 0,
       /** Whether the thread's agent is working on a reply. */
       working: (sessionID: string | undefined) =>
         !!sessionID && threadWorking(serverSync().session.data.session_status[sessionID]?.type, messages(sessionID)),
@@ -269,6 +333,7 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
           .replace(/\s+/g, " ") ?? "",
       sending: () => state.sending,
       error: () => state.error,
+      clearError: () => setState("error", ""),
       send,
       refetch,
     }

@@ -23,10 +23,6 @@ describe("readPartText", () => {
   test("returns empty string for whitespace-only text", () => {
     expect(readPartText(undefined, { id: "part_1", text: "   \n\t  " })).toBe("")
   })
-
-  test("trims leading and trailing whitespace", () => {
-    expect(readPartText(undefined, { id: "part_1", text: "\n  body  \n" })).toBe("body")
-  })
 })
 
 const tool = (id: string, name: string, status = "completed") =>

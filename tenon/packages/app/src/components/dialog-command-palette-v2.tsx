@@ -7,6 +7,7 @@ import { KeybindV2 } from "@tenon/ui/v2/keybind-v2"
 import { TextInputV2 } from "@tenon/ui/v2/text-input-v2"
 import { useDialog } from "@tenon/ui/context/dialog"
 import { createEffect, createMemo, createResource, createSignal, For, Match, onCleanup, Show, Switch } from "solid-js"
+import { useNavigate } from "@solidjs/router"
 import { commandPaletteOptions, formatKeybindParts, useCommand } from "@/context/command"
 import { useGlobal } from "@/context/global"
 import { useLanguage } from "@/context/language"
@@ -18,6 +19,7 @@ import {
   createCommandPaletteFileEntry,
   createCommandPaletteModel,
   createServerSessionEntries,
+  createVaultEntries,
   uniqueCommandPaletteEntries,
   type CommandPaletteEntry,
 } from "./command-palette"
@@ -40,11 +42,16 @@ export function DialogCommandPaletteV2(props: { onOpenFile?: (path: string) => v
     const q = text.trim()
     if (!q) return [...palette.preferredCommandEntries(), ...palette.recentFileEntries()]
 
-    const [files, nextSessions] = await Promise.all([palette.file.searchFiles(q), Promise.resolve(palette.sessions(q))])
+    const [files, nextSessions, vault] = await Promise.all([
+      palette.file.searchFiles(q),
+      Promise.resolve(palette.sessions(q)),
+      palette.vault(q),
+    ])
     const category = palette.language.t("palette.group.files")
     return [
       ...palette.commandEntries().filter((entry) => matchesEntry(entry, q)),
       ...nextSessions,
+      ...vault,
       ...files.map((path) => createCommandPaletteFileEntry(path, category)),
     ]
   }
@@ -68,6 +75,7 @@ export function DialogHomeCommandPaletteV2(props: {
   const dialog = useDialog()
   const global = useGlobal()
   const language = useLanguage()
+  const navigate = useNavigate()
   const serverCtx = global.ensureServerCtx(props.server)
   const state = { cleanup: undefined as (() => void) | void, committed: false }
   const commandEntries = createMemo(() => {
@@ -82,6 +90,7 @@ export function DialogHomeCommandPaletteV2(props: {
     untitled: () => language.t("command.session.new"),
     category: () => language.t("command.category.session"),
   })
+  const vault = createVaultEntries(() => props.server)
 
   const highlight = (item: CommandPaletteEntry | undefined) => {
     state.cleanup?.()
@@ -98,12 +107,14 @@ export function DialogHomeCommandPaletteV2(props: {
       item.option?.onSelect?.("palette")
       return
     }
+    if (item.href) return navigate(item.href, { state: { fromNotes: true } })
     if (item.type === "session") props.onSelectSession(item)
   }
   const loadItems = async (text: string) => {
     const query = text.trim()
     if (!query) return commandEntries().slice(0, 5)
-    return [...commandEntries().filter((entry) => matchesEntry(entry, query)), ...(await sessions(query))]
+    const [nextSessions, pages] = await Promise.all([sessions(query), vault(query)])
+    return [...commandEntries().filter((entry) => matchesEntry(entry, query)), ...nextSessions, ...pages]
   }
 
   onCleanup(() => {
@@ -149,6 +160,8 @@ function CommandPaletteView(props: {
   })
 
   let resultsRef: HTMLDivElement | undefined
+  // Focus stays in the input, so screen readers follow the highlighted row through aria-activedescendant.
+  const optionId = (item: CommandPaletteEntry) => `command-palette-option-${visibleEntries().indexOf(item)}`
 
   const move = (delta: -1 | 1) => {
     const count = visibleEntries().length
@@ -191,6 +204,12 @@ function CommandPaletteView(props: {
             autocomplete="off"
             spellcheck={false}
             appearance="large"
+            role="combobox"
+            aria-label={props.placeholder}
+            aria-autocomplete="list"
+            aria-controls="command-palette-results"
+            aria-expanded={visibleEntries().length > 0}
+            aria-activedescendant={activeEntry() ? optionId(activeEntry()!) : undefined}
             placeholder={props.placeholder}
             leadingIcon={<Icon name="magnifying-glass" />}
             onInput={(event) => setQuery(event.currentTarget.value)}
@@ -198,7 +217,12 @@ function CommandPaletteView(props: {
           />
         </div>
         <ScrollView class="command-palette-v2-scroll" viewportRef={(el) => (resultsRef = el)}>
-          <div class="command-palette-v2-results" role="listbox">
+          <div
+            id="command-palette-results"
+            class="command-palette-v2-results"
+            role="listbox"
+            aria-label={props.placeholder}
+          >
             <Show
               when={visibleEntries().length > 0}
               fallback={
@@ -216,6 +240,7 @@ function CommandPaletteView(props: {
                     <For each={group.entries}>
                       {(item) => (
                         <PaletteRow
+                          id={optionId(item)}
                           item={item}
                           active={activeEntry()?.id === item.id}
                           language={language}
@@ -236,6 +261,7 @@ function CommandPaletteView(props: {
 }
 
 function PaletteRow(props: {
+  id: string
   item: CommandPaletteEntry
   active: boolean
   language: ReturnType<typeof useLanguage>
@@ -249,6 +275,7 @@ function PaletteRow(props: {
 
   return (
     <button
+      id={props.id}
       type="button"
       class="command-palette-v2-row group"
       role="option"
@@ -285,6 +312,21 @@ function PaletteRow(props: {
           <Show when={props.item.keybind}>
             <KeybindV2 keys={formatKeybindParts(props.item.keybind ?? "", props.language.t)} variant="neutral" />
           </Show>
+        </Match>
+        <Match when={props.item.type === "page" || props.item.type === "project"}>
+          <div class="command-palette-v2-row-main">
+            <Icon
+              name={props.item.type === "page" ? "book" : "workspace"}
+              size="small"
+              class="command-palette-v2-row-icon shrink-0"
+            />
+            <div class="command-palette-v2-row-text">
+              <span class="command-palette-v2-title">{props.item.title}</span>
+              <Show when={props.item.description}>
+                <span class="command-palette-v2-description">{props.item.description}</span>
+              </Show>
+            </div>
+          </div>
         </Match>
         <Match when={props.item.type === "session"}>
           <div class="command-palette-v2-row-main">

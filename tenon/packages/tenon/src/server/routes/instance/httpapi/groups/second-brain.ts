@@ -1,5 +1,4 @@
 import { Schema } from "effect"
-import { KnowledgeNote } from "@/knowledge/note"
 import { KnowledgeVault } from "@/knowledge/vault"
 import { PlannerCalendar } from "@/planner/calendar"
 import { BrainProject } from "@/project/brain"
@@ -11,11 +10,6 @@ import { Authorization } from "../middleware/authorization"
 import { InstanceContextMiddleware } from "../middleware/instance-context"
 import { WorkspaceRoutingMiddleware, WorkspaceRoutingQueryFields } from "../middleware/workspace-routing"
 import { described } from "./metadata"
-
-const NoteQuery = Schema.Struct({
-  ...WorkspaceRoutingQueryFields,
-  path: Schema.String,
-})
 
 const VaultPageQuery = Schema.Struct({
   ...WorkspaceRoutingQueryFields,
@@ -58,8 +52,6 @@ const errors = [
 ]
 
 export const SecondBrainPaths = {
-  notes: "/second-brain/notes",
-  note: "/second-brain/note",
   calendar: "/second-brain/calendar",
   projects: "/second-brain/projects",
   project: "/second-brain/project",
@@ -80,7 +72,9 @@ export const SecondBrainPaths = {
   undoWrite: "/second-brain/writes/:undo/undo",
   routines: "/second-brain/routines",
   routineRun: "/second-brain/routines/:id/run",
+  routineApprove: "/second-brain/routines/:id/approve",
   commandDirectory: "/command-centre/directory",
+  commandFolders: "/command-centre/folders",
   commandMemory: "/command-centre/memory",
   commandMemoryCompact: "/command-centre/memory/compact",
 } as const
@@ -88,27 +82,6 @@ export const SecondBrainPaths = {
 export const SecondBrainApi = HttpApi.make("secondBrain").add(
   HttpApiGroup.make("secondBrain")
     .add(
-      HttpApiEndpoint.get("listNotes", SecondBrainPaths.notes, {
-        query: Schema.Struct({ ...WorkspaceRoutingQueryFields, search: Schema.optional(Schema.String) }),
-        success: described(Schema.Array(KnowledgeNote.Info), "Notes"),
-        error: errors,
-      }),
-      HttpApiEndpoint.get("readNote", SecondBrainPaths.note, {
-        query: NoteQuery,
-        success: described(KnowledgeNote.Document, "Note"),
-        error: errors,
-      }),
-      HttpApiEndpoint.put("writeNote", SecondBrainPaths.note, {
-        query: NoteQuery,
-        payload: KnowledgeNote.WriteInput,
-        success: described(KnowledgeNote.Document, "Note saved"),
-        error: errors,
-      }),
-      HttpApiEndpoint.delete("deleteNote", SecondBrainPaths.note, {
-        query: Schema.Struct({ ...NoteQuery.fields, expectedRevision: Schema.String }),
-        success: described(KnowledgeNote.Info, "Note deleted"),
-        error: errors,
-      }),
       HttpApiEndpoint.get("readCalendar", SecondBrainPaths.calendar, {
         query: Schema.Struct(WorkspaceRoutingQueryFields),
         success: described(PlannerCalendar.Snapshot, "Calendar"),
@@ -211,6 +184,11 @@ export const SecondBrainApi = HttpApi.make("secondBrain").add(
         success: described(KnowledgeVault.Page, "Vault page saved"),
         error: errors,
       }),
+      HttpApiEndpoint.delete("removeVaultPage", SecondBrainPaths.vaultPage, {
+        query: Schema.Struct({ ...VaultPageQuery.fields, expectedRevision: Schema.String }),
+        success: described(Schema.Struct({ removed: Schema.Literal(true) }), "Vault page removed"),
+        error: errors,
+      }),
       HttpApiEndpoint.get("readVaultPageHistory", SecondBrainPaths.vaultPageHistory, {
         query: Schema.Struct({ ...VaultPageQuery.fields, revision: Schema.optional(Schema.String) }),
         success: described(
@@ -272,9 +250,27 @@ export const SecondBrainApi = HttpApi.make("secondBrain").add(
         success: described(Routines.RunResult, "The Command Centre thread the run started"),
         error: errors,
       }),
+      HttpApiEndpoint.post("approveRoutine", SecondBrainPaths.routineApprove, {
+        params: { id: Schema.String },
+        query: Schema.Struct(WorkspaceRoutingQueryFields),
+        payload: Schema.Struct({ hash: Schema.String }),
+        success: described(
+          Schema.Struct({ approved: Schema.Literal(true) }),
+          "The routine may run; 409 when the page changed since it was listed",
+        ),
+        error: errors,
+      }),
       HttpApiEndpoint.post("commandDirectory", SecondBrainPaths.commandDirectory, {
         query: Schema.Struct(WorkspaceRoutingQueryFields),
         success: described(Schema.Struct({ directory: Schema.String }), "Where Command Centre threads run"),
+        error: errors,
+      }),
+      HttpApiEndpoint.get("commandFolders", SecondBrainPaths.commandFolders, {
+        query: Schema.Struct(WorkspaceRoutingQueryFields),
+        success: described(
+          Schema.Struct({ folders: Schema.Array(Schema.String) }),
+          "Every Command Centre folder on this machine, the current root's first",
+        ),
         error: errors,
       }),
       HttpApiEndpoint.get("searchCommandMemory", SecondBrainPaths.commandMemory, {

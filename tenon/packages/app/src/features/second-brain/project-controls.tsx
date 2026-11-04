@@ -50,7 +50,12 @@ export function monthDays(month: string) {
 }
 
 /** A date chip that opens a picker: quick picks, then a month grid. */
-export function DateChip(props: { value?: string; label: string; onChange: (value: string | undefined) => void }) {
+export function DateChip(props: {
+  value?: string
+  label: string
+  onChange: (value: string | undefined) => void
+  disabled?: boolean
+}) {
   const language = useLanguage()
   const today = () => localDay()
   const [state, setState] = createStore({ open: false, month: (props.value ?? today()).slice(0, 7) })
@@ -86,7 +91,7 @@ export function DateChip(props: { value?: string; label: string; onChange: (valu
       gutter={6}
       class="w-[272px] [&_[data-slot=popover-body]]:p-3"
       triggerAs="button"
-      triggerProps={{ type: "button", class: chipClass, "aria-label": props.label }}
+      triggerProps={{ type: "button", class: chipClass, "aria-label": props.label, disabled: props.disabled }}
       trigger={
         <>
           <Icon name="calendar" size="small" class="text-v2-icon-icon-muted" />

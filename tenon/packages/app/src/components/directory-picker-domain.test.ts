@@ -5,8 +5,6 @@ import {
   advanceTreePreload,
   nextSuggestionIndex,
   nextTreeScrollTop,
-  pickerTreeEntries,
-  pickerSearchEntries,
   pickerFileSearchQuery,
   pickerMode,
   preloadTreeDirectories,
@@ -36,24 +34,6 @@ test("maps Pierre paths back to the selected server root", () => {
   expect(absoluteTreePath("C:/", "")).toBe("C:/")
   expect(absoluteTreePath("C:/", "README.md")).toBe("C:/README.md")
   expect(absoluteTreePath("/home/luke", "README.md")).toBe("/home/luke/README.md")
-})
-
-test("includes files only when the picker selects files", () => {
-  const nodes = [
-    { name: "components", type: "directory" as const },
-    { name: "index.ts", type: "file" as const },
-  ]
-  expect(pickerTreeEntries("", nodes, "directory")).toEqual(["components/"])
-  expect(pickerTreeEntries("", nodes, "file")).toEqual(["components/", "index.ts"])
-})
-
-test("includes files in file autocomplete while preserving directory navigation", () => {
-  const nodes = [
-    { name: "src", absolute: "/repo/src", type: "directory" as const },
-    { name: "README.md", absolute: "/repo/README.md", type: "file" as const },
-  ]
-  expect(pickerSearchEntries(nodes, "directory")).toEqual([nodes[0]])
-  expect(pickerSearchEntries(nodes, "file")).toEqual(nodes)
 })
 
 test("centralizes file and directory selection policy", () => {

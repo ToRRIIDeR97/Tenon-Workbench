@@ -12,6 +12,8 @@ export function make(overrides: Partial<Config.Interface> = {}) {
     invalidate: () => Effect.void,
     directories: () => Effect.succeed([]),
     waitForDependencies: () => Effect.void,
+    trust: () => Effect.succeed({ root: "/", trusted: true, withheld: [] }),
+    approveFolder: () => Effect.void,
     ...overrides,
   })
 }

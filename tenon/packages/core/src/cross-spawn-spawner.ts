@@ -27,6 +27,7 @@ import launch from "cross-spawn"
 import { ChildEnv } from "./child-env"
 import { makeGlobalNode } from "./effect/app-node"
 import { filesystem, path } from "./effect/app-node-platform"
+import { notFound, spawnTarget } from "./util/which"
 
 const EXIT_GRACE_MS = 500
 
@@ -270,8 +271,13 @@ export const make = Effect.gen(function* () {
 
   const spawn = (command: ChildProcess.StandardCommand, opts: NodeChildProcess.SpawnOptions) =>
     Effect.callback<readonly [NodeChildProcess.ChildProcess, ExitSignal], PlatformError.PlatformError>((resume) => {
+      const file = opts.shell ? command.command : spawnTarget(command.command, opts.env)
+      if (!file) {
+        resume(Effect.fail(toPlatformError("spawn", notFound(command.command), command)))
+        return
+      }
       const signal = Deferred.makeUnsafe<readonly [code: number | null, signal: NodeJS.Signals | null]>()
-      const proc = launch(command.command, command.args, opts)
+      const proc = launch(file, command.args, opts)
       let end = false
       let exit: readonly [code: number | null, signal: NodeJS.Signals | null] | undefined
       let grace: ReturnType<typeof setTimeout> | undefined

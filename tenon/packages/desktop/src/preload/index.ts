@@ -60,6 +60,7 @@ const api: ElectronAPI = {
     sync: () => ipcRenderer.invoke("google-calendar-sync"),
     write: (input) => ipcRenderer.invoke("google-calendar-write", input),
     writeTask: (input) => ipcRenderer.invoke("google-task-write", input),
+    discardConflict: (input) => ipcRenderer.invoke("google-calendar-discard-conflict", input),
     disconnect: (input) => ipcRenderer.invoke("google-calendar-disconnect", input),
   },
   consumeInitialDeepLinks: () => ipcRenderer.invoke("consume-initial-deep-links"),
@@ -150,6 +151,8 @@ const api: ElectronAPI = {
   setWindowFocus: () => ipcRenderer.invoke("set-window-focus"),
   showWindow: () => ipcRenderer.invoke("show-window"),
   relaunch: () => ipcRenderer.send("relaunch"),
+  confirmQuit: () => ipcRenderer.invoke("confirm-quit"),
+  setUnsavedChanges: (unsaved) => ipcRenderer.send("set-unsaved-changes", unsaved),
   getZoomFactor: () => ipcRenderer.invoke("get-zoom-factor"),
   setZoomFactor: (factor) => ipcRenderer.invoke("set-zoom-factor", factor),
   getPinchZoomEnabled: () => ipcRenderer.invoke("get-pinch-zoom-enabled"),
@@ -170,6 +173,8 @@ const api: ElectronAPI = {
   exportDebugLogs: () => ipcRenderer.invoke("export-debug-logs"),
   setForceFocus: (enabled) => ipcRenderer.invoke("set-force-focus", enabled),
   recordFatalRendererError: (error) => ipcRenderer.invoke("record-fatal-renderer-error", error),
+  recordStartupMilestone: (name, sinceNavigation) =>
+    ipcRenderer.invoke("record-startup-milestone", name, sinceNavigation),
   setNativeTranslations: (bundle) => ipcRenderer.invoke("set-native-translations", bundle),
   dictation: {
     start: () => ipcRenderer.invoke("dictation-start"),
@@ -180,10 +185,16 @@ const api: ElectronAPI = {
       ipcRenderer.on("dictation-level", handler)
       return () => ipcRenderer.removeListener("dictation-level", handler)
     },
+    onLimit: (cb) => {
+      const handler = () => cb()
+      ipcRenderer.on("dictation-limit", handler)
+      return () => ipcRenderer.removeListener("dictation-limit", handler)
+    },
     models: () => ipcRenderer.invoke("dictation-models"),
     setActive: (id) => ipcRenderer.invoke("dictation-set-active", id),
     remove: (id) => ipcRenderer.invoke("dictation-remove", id),
     download: (id) => ipcRenderer.invoke("dictation-download", id),
+    cancelDownload: (id) => ipcRenderer.invoke("dictation-cancel-download", id),
     onDownloadProgress: (cb) => {
       const handler = (_: unknown, progress: Parameters<typeof cb>[0]) => cb(progress)
       ipcRenderer.on("dictation-download-progress", handler)

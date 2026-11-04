@@ -69,7 +69,6 @@ export const dict = {
   "ui.sessionTurn.error.freeUsageExceeded": "Grænsen for gratis forbrug er overskredet",
   "ui.sessionTurn.error.addCredits": "Tilføj kreditter",
 
-
   "ui.sessionTurn.status.delegating": "Delegerer arbejde",
   "ui.sessionTurn.status.planning": "Planlægger næste trin",
   "ui.sessionTurn.status.gatheringContext": "Udforsker",

@@ -1,10 +1,27 @@
-import { ImapFlow, type FetchMessageObject, type MessageStructureObject } from "imapflow"
+import type { FetchMessageObject, ImapFlow, MessageStructureObject } from "imapflow"
 import { htmlToText, type ImapClient, type MailSummary } from "./index"
 
 export type ImapSettings = { host: string; port: number; secure: boolean; user: string; password: string }
 
 const resultLimit = 20
 const partLimit = 512 * 1024
+const loopbackHosts = ["localhost", "127.0.0.1", "::1"]
+
+/**
+ * ImapFlow options for one connection. With TLS off, STARTTLS is required: otherwise a network attacker who
+ * strips the capability receives the password in clear text. A loopback bridge has no network to attack.
+ */
+export function imapOptions(settings: ImapSettings) {
+  return {
+    host: settings.host,
+    port: settings.port,
+    secure: settings.secure,
+    ...(!settings.secure && !loopbackHosts.includes(settings.host.toLowerCase()) ? { doSTARTTLS: true } : {}),
+    auth: { user: settings.user, pass: settings.password },
+    logger: false as const,
+    disableAutoIdle: true,
+  }
+}
 
 /**
  * IMAP through imapflow (MIT): one short-lived connection per call, so no idle socket stays open. A
@@ -13,14 +30,8 @@ const partLimit = 512 * 1024
  */
 export function createImapClient(settings: ImapSettings): ImapClient {
   const session = async <T>(run: (client: ImapFlow) => Promise<T>) => {
-    const client = new ImapFlow({
-      host: settings.host,
-      port: settings.port,
-      secure: settings.secure,
-      auth: { user: settings.user, pass: settings.password },
-      logger: false,
-      disableAutoIdle: true,
-    })
+    const { ImapFlow } = await import("imapflow")
+    const client = new ImapFlow(imapOptions(settings))
     await client.connect()
     try {
       return await run(client)
@@ -84,14 +95,8 @@ export function createImapClient(settings: ImapSettings): ImapClient {
 
 /** Log in and out once, so a wrong host or password is caught before the account is kept. */
 export async function verifyImap(settings: ImapSettings) {
-  const client = new ImapFlow({
-    host: settings.host,
-    port: settings.port,
-    secure: settings.secure,
-    auth: { user: settings.user, pass: settings.password },
-    logger: false,
-    disableAutoIdle: true,
-  })
+  const { ImapFlow } = await import("imapflow")
+  const client = new ImapFlow(imapOptions(settings))
   await client.connect()
   await client.logout().catch(() => undefined)
 }

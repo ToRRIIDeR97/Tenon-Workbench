@@ -6,7 +6,7 @@ import { createStore } from "solid-js/store"
 import { normalizeSessionMessages } from "@/utils/session-message"
 
 mock.module("@tenon/session-ui/message-part", () => ({
-  renderable: () => true,
+  renderable: (part: Part) => part.type !== "text" || /\S/.test(part.text),
 }))
 
 const { createTimelineProjection } = await import("@/pages/session/timeline/projection")
@@ -58,6 +58,79 @@ describe("createTimelineProjection", () => {
       expect(reads.get("msg_4")).toBeGreaterThan(0)
       const firstAfter = after.filter((row) => "userMessageID" in row && row.userMessageID === "msg_1")
       expect(firstAfter.every((row, index) => row === firstTurn[index])).toBe(true)
+      dispose()
+    })
+  })
+
+  test("streamed text rebuilds a turn's rows only when something they show changes", () => {
+    const source = [
+      { id: "msg_1", type: "user", text: "first", time: { created: 1 } },
+      {
+        id: "msg_2",
+        type: "assistant",
+        agent: "build",
+        model: { id: "model", providerID: "provider" },
+        content: [
+          { type: "reasoning", text: "**Plan**" },
+          {
+            type: "tool",
+            id: "call_1",
+            name: "bash",
+            state: { status: "running", input: {} },
+            time: { created: 2 },
+          },
+        ],
+        time: { created: 2 },
+      },
+    ] as SessionMessageInfo[]
+    const normalized = normalizeSessionMessages("ses_1", source)
+    const initial = normalized.parts.get("msg_2")!
+    const text = { id: "text", sessionID: "ses_1", messageID: "msg_2", type: "text", text: "  " } as Part
+    const [store, setStore] = createStore({ parts: { msg_1: [], msg_2: [text, ...initial] } as Record<string, Part[]> })
+    const [settings, setSettings] = createStore({ reasoning: true })
+    let userReads = 0
+
+    createRoot((dispose) => {
+      const projection = createTimelineProjection({
+        messages: () => normalized.messages,
+        userMessages: () => normalized.messages.filter((message) => message.role === "user"),
+        sessionMessages: () => source,
+        parts: (messageID) => {
+          if (messageID === "msg_1") userReads++
+          return store.parts[messageID] ?? []
+        },
+        status: () => ({ type: "busy" }),
+        showReasoningSummaries: () => settings.reasoning,
+        inlineComments: () => true,
+      })
+      const rows = () => projection.rows()
+      const textRow = () => rows().some((row) => row._tag === "AssistantPart" && row.group.key.endsWith(":text"))
+      const steps = () => rows().find((row) => row._tag === "TurnSteps")
+
+      expect(textRow()).toBe(false)
+      const blank = rows()
+
+      setStore("parts", "msg_2", 0, "text" as never, "   " as never)
+      userReads = 0
+      expect(rows()).toBe(blank)
+      expect(userReads).toBe(0)
+
+      setStore("parts", "msg_2", 0, "text" as never, "   a" as never)
+      expect(textRow()).toBe(true)
+
+      const answered = rows()
+      setStore("parts", "msg_2", 0, "text" as never, "   a b" as never)
+      userReads = 0
+      expect(rows()).toBe(answered)
+      expect(userReads).toBe(0)
+
+      setStore("parts", "msg_2", 2, "state" as never, "status" as never, "error" as never)
+      expect(steps()).toMatchObject({ failed: true })
+
+      setSettings("reasoning", false)
+      expect(rows().find((row) => row._tag === "Thinking")).toMatchObject({ reasoningHeading: "Plan" })
+      setStore("parts", "msg_2", 1, "text" as never, "**Next**" as never)
+      expect(rows().find((row) => row._tag === "Thinking")).toMatchObject({ reasoningHeading: "Next" })
       dispose()
     })
   })

@@ -35,7 +35,7 @@ reading of the code, not a runtime trace, except where a step says it was run.
 | Electron main | App lifecycle, windows and URL policy, IPC handlers, server launch, Google service, mail accounts and the mail loopback endpoint, drafts, dictation supervisor | `desktop/src/main/index.ts`, `ipc.ts`, `windows.ts`, `server.ts`, `google-calendar.ts`, `mail/`, `draft-store.ts`, `dictation.ts`, `dictation-service.ts` |
 | Dictation engine | Microphone capture, voice activity, local transcription; JSON lines on stdio | `dictation/src/main.rs`, `dictation/src/audio.rs` (Rust, `tenon-dictation`) |
 | HTTP API | Native `/api` routes plus legacy instance routes, with Basic auth and workspace routing | `server/src/handlers/`, `protocol/src/groups/`, `tenon/src/server/routes/instance/httpapi/` |
-| Second Brain domains | Notes and the Tenon vault (pages, Project timelines and logs, history, migration), project cards, local calendar, Command Centre memory and project setup, routines and their scheduler | `tenon/src/knowledge/note.ts`, `tenon/src/knowledge/vault.ts`, `tenon/src/project/brain.ts`, `tenon/src/planner/calendar.ts`, `tenon/src/agents/` |
+| Second Brain domains | Notes and the Tenon vault (pages, Project timelines and logs, history, migration), project cards, local calendar, Command Centre memory and project setup, routines and their scheduler | `tenon/src/knowledge/vault.ts`, `tenon/src/project/brain.ts`, `tenon/src/planner/calendar.ts`, `tenon/src/agents/` |
 | Location services | Path containment and compare-and-swap file writes | `core/src/location-mutation.ts`, `core/src/file-mutation.ts`, `core/src/location-services.ts` |
 | Agent runtime | Prompt admission, run draining, harness dispatch, permissions, durable events, snapshots | `core/src/session.ts`, `core/src/session/`, `core/src/harness.ts`, `core/src/harness/`, `core/src/permission.ts`, `core/src/event.ts`, `core/src/snapshot.ts` |
 
@@ -73,13 +73,13 @@ reading of the code, not a runtime trace, except where a step says it was run.
   synced between machines; the map from workspace directories to vault folders
   and the machine id stay in `vault-machine.json` in the XDG data folder
   ([README](README.md#tenon-vault)).
-- The `opencode-cli` daemon (`TENON_SIDECAR_V2=1`) ships only in the
-  development channel. Packaging and update limits are covered in
-  [release operations](../release-operations.md).
+- The `opencode-cli` daemon (`TENON_SIDECAR_V2=1`) ships only in
+  development-channel builds made with `TENON_BUNDLE_CLI=1`. Packaging and
+  update limits are covered in [release operations](../release-operations.md).
 
 ### Class
 
-![Class view: Project, Session, SessionMessage, SessionInput, durable Event, permission types and HarnessInstance; Location, BrainProject, KnowledgeNote, CalendarSnapshot, CalendarEvent and Task](../diagrams/class-domain.svg)
+![Class view: Project, Session, SessionMessage, SessionInput, durable Event, permission types and HarnessInstance; Location, BrainProject, VaultPage, CalendarSnapshot, CalendarEvent and Task](../diagrams/class-domain.svg)
 
 Notes on the class view:
 
@@ -94,10 +94,9 @@ Notes on the class view:
 - Permission requests exist only in memory. Saved permission rows are allow
   rules, scoped to a project. Values saved from a command or path are literal
   patterns (`[*]` and `[?]` stand for a literal `*` and `?`).
-- `BrainProject` and `KnowledgeNote` are Markdown files. `CalendarSnapshot` is
-  one JSON file per location. None of them is stored in SQLite. A note is
-  deleted only with the revision the caller read; writes refuse a file that
-  would exceed the read limit.
+- `BrainProject` and `VaultPage` are Markdown files. `CalendarSnapshot` is
+  one JSON file per location. None of them is stored in SQLite. A page
+  write with a stale revision is refused.
 - `BrainProject.location.path` names the Project's folder (inside the
   workspace's `projects` folder, or an absolute linked folder). A legacy
   `location.workspaceId` is a Tenon `Project.id`. A BrainProject's thread
@@ -140,8 +139,8 @@ Some details of the write path:
   workspace's vault folder (real path checked through symlinks) instead of
   through `LocationMutation`, then use the same `FileMutation` create or
   compare-and-swap. A page overwrite first copies the old bytes to `.history`.
-- Notes, projects and the calendar use different revisions:
-  - notes and vault pages and timelines: a SHA-256 hash of the file;
+- Vault files, projects and the calendar use different revisions:
+  - vault pages and timelines: a SHA-256 hash of the file;
   - projects: `updatedAt`;
   - calendar: a ULID.
 - No delete endpoints exist for notes, projects or tasks. Undoing an agent
@@ -200,6 +199,11 @@ JSON-RPC protocol (`thread/start` or `thread/resume`, `turn/start`,
 `turn/interrupt`) instead of ACP. Its approvals come from
 `item/*/requestApproval` requests.
 
+A stopped ACP turn leaves its `session/prompt` open in the runtime's scope; the
+next turn waits for that answer before it clears the queue and prompts again
+(not drawn in the diagram). See the harness section of the
+[architecture document](README.md) for the turn deadlines.
+
 Before `session/prompt` (not drawn in the diagram), the ACP driver switches the
 model and then the reasoning effort (`thought_level` option) when they differ
 from the session's, through `session/set_model` or `session/set_config_option`.
@@ -251,7 +255,7 @@ store (`KnowledgeVault.writeTimeline`, `appendLog`,
 | Sidebar navigation (rail, workspace dropdown, Projects, General) and drafts | Subsystem | Component; text in [README](README.md#product-entry-points-and-persistence) and the [navigation map](../product/NAVIGATION-MAP-V1.md) | `app/src/components/second-brain-sidebar.tsx`, `app/src/components/sidebar/sidebar-controller.ts`, `app/src/features/second-brain/sidebar-threads.ts`, `app/src/features/second-brain/sidebar-grouping.ts` (Group by cards and thread state), `app/src/context/global-sync/home-session-index.ts` (recent-session index shared with Home, with child-to-parent links for the sidebar), `app/src/context/drafts.tsx`, `app/src/components/sidebar/dialog-archived-threads.tsx`, `app/src/components/sidebar/dialog-instructions.tsx` |
 | Page frame and visual system (Material 3 shape and motion tokens, motion helpers) | Subsystem | Text in [README](README.md#product-entry-points-and-persistence) | `app/src/components/page.tsx`, `ui/src/v2/styles/theme.css`, `ui/src/theme/v2/mapping.ts`, `ui/src/v2/components/*-v2.css`, `ui/src/styles/tailwind/` (motion utilities), `ui/src/v2/components/{reveal,presence,view-switch,motion}` (motion helpers), `ui/src/context/dialog.tsx` (dialog exit), `app/src/pages/page-motion.ts` (page fade-through key), `app/src/features/second-brain/side-panel.tsx`, `app/src/utils/{focus-when-connected,fresh-items,replay-animation}.ts` (shell motion) |
 | Preload and IPC | Subsystem | Component, Sequence: startup | `desktop/src/preload/index.ts`, `desktop/src/main/ipc.ts` |
-| Local dictation (engine, supervisor, model downloads, composer mic, Settings › Dictation) | Subsystem | Component, Deployment; text in [README](README.md#local-dictation) and the [threat model](../security/threat-model.md#local-dictation) | `dictation/src/`, `desktop/src/main/dictation.ts`, `desktop/src/main/dictation-service.ts`, `desktop/src/main/dictation-models.ts`, `app/src/components/prompt-input/dictation-button.tsx`, `app/src/components/settings-v2/dictation.tsx` |
+| Local dictation (engine, supervisor, model downloads, composer mic, Settings › Dictation) | Subsystem | Component, Deployment; text in [README](README.md#local-dictation) and the [threat model](../security/threat-model.md#local-dictation) | `dictation/src/`, `desktop/src/main/dictation.ts`, `desktop/src/main/dictation-service.ts`, `desktop/src/main/dictation-models.ts`, `desktop/src/main/dictation-download.ts`, `app/src/components/prompt-input/dictation-button.tsx`, `app/src/components/settings-v2/dictation.tsx` |
 | Server launch and lifecycle | Subsystem | Deployment, State: sidecar, Sequence: startup | `desktop/src/main/server.ts`, `desktop/src/main/sidecar.ts`, `desktop/src/main/sidecar-supervisor.ts` |
 | Second Brain notes, projects, calendar | Subsystem | Component, Class, Activity: write, State: project status | `tenon/src/knowledge/`, `tenon/src/project/brain.ts`, `tenon/src/planner/calendar.ts` |
 | Workspace project scan and AGENTS.md defaults | Critical workflow | Class; text in [README](README.md#projects-and-thread-directories) | `tenon/src/project/brain.ts` (`scan`, `link`, `unlink`, instructions), `core/src/workspace-instructions.ts`, `core/src/instruction-context.ts`, `tenon/src/session/instruction.ts` |
@@ -265,11 +269,14 @@ store (`KnowledgeVault.writeTimeline`, `appendLog`,
 | Composer header row and context ring (worktree, branch picker; ring opens the context menu list) | Subsystem | Text in [README](README.md#composer-context-ring-and-menu) | `app/src/components/prompt-input/context-strip.tsx`, `app/src/components/prompt-input/context-strip-model.ts`, `app/src/components/prompt-input-v2.tsx` (`boxHeader`, `trailing`), `app/src/pages/session.tsx` |
 | Rollback ("Edit from here", Restore, commit on the next prompt) | Critical workflow | Text in [README](README.md#session-compatibility-and-review) | `core/src/session.ts` (`prompt`, `revert`), `core/src/session/revert.ts`, `core/src/session/projector.ts` (`RevertEvent.Committed`), `core/src/harness.ts` (runtimes closed on commit), `app/src/pages/session.tsx` (`revertMutation`, `restoreMutation`), `app/src/context/server-session.ts`, `app/src/pages/session/composer/session-revert-dock.tsx` |
 | Permissions | Subsystem | Activity: prompt run, State: permission, Sequence: ACP turn | `core/src/permission.ts`, `core/src/plugin/agent.ts` |
+| Folder trust (trusted list, project config gate, app prompt, permission refusal) | Critical workflow | Trust boundaries; text in [threat model](../security/threat-model.md#folder-trust) | `core/src/config/trust.ts`, `core/src/config.ts`, `core/src/config/plugin/external.ts`, `core/src/config/plugin/skill.ts`, `core/src/config/plugin/agent.ts`, `tenon/src/config/config.ts`, `tenon/src/server/routes/instance/httpapi/handlers/config.ts`, `app/src/components/folder-trust-prompt.tsx` |
+| `trusted-folders.json` | Shared store | Text in [threat model](../security/threat-model.md#folder-trust) | `core/src/config/trust.ts` (written only by `Config.approveFolder` through `POST /config/trust`) |
+| Windows command lookup (PATH and PATHEXT only, no working directory) | Critical workflow | Text in [threat model](../security/threat-model.md#windows-command-lookup) | `core/src/util/which.ts`, `core/src/cross-spawn-spawner.ts`, `tenon/src/util/process.ts`, `tenon/src/mcp/index.ts` (`connectLocal`), `tenon/src/agents/command-setup.ts` |
 | Workspace files | Shared store | Component, Deployment, Activity: write | `notes/` (legacy, migrated), `projects/`, `.tenon/` (cards, `calendar-v1.json`) |
 | Tenon vault (pages, `timeline.json`, `log/<machine>.md`, `.history`, `.backups`) | Shared store | Component, Deployment, Trust boundaries, Activity: write; text in [README](README.md#tenon-vault) | `tenon/src/knowledge/vault.ts`, `tenon/src/server/routes/instance/httpapi/handlers/second-brain.ts` |
-| `vault-machine.json` (machine id, workspace → vault folder) | Shared store | Deployment; text in [README](README.md#tenon-vault) | `tenon/src/knowledge/vault.ts` (`open`) |
+| `vault-machine.json` (machine id, workspace → vault folder) | Shared store | Deployment; text in [README](README.md#tenon-vault) | `tenon/src/knowledge/vault.ts` (`open`, `machineRoots`, `currentWorkspaces`) |
 | Vault migration (copy, backup, remove originals) | Critical workflow | Text in [README](README.md#tenon-vault) | `tenon/src/knowledge/vault.ts` (`migrate`); triggered once per workspace by the Projects page (`app/src/pages/projects.tsx`, `migrateOnce`) |
-| Projects page over the vault (landing, a Project as one page with Tasks/Pages/Threads/Log/Settings, app-styled date/status/kind controls, New Project, page editing with revision checks, conflict-copy banner) | Subsystem | Text in [README](README.md#projects-page) | `app/src/pages/projects.tsx`, `app/src/features/second-brain/project-view.tsx`, `project-controls.tsx`, `project-details.tsx`, `notes-page.tsx`, `notes-timeline.ts`, `note-editor.tsx`, `client.ts` (vault functions) |
+| Projects page over the vault (landing, a Project as one page with Tasks/Pages/Threads/Log/Settings, app-styled date/status/kind controls, New Project, page editing with revision checks, conflict-copy banner) | Subsystem | Text in [README](README.md#projects-page) | `app/src/pages/projects.tsx`, `app/src/features/second-brain/project-view.tsx`, `project-controls.tsx`, `project-details.tsx`, `notes-page.tsx`, `notes-timeline.ts`, `note-editor.tsx`, `unsaved-guard.tsx`, `page-versions.tsx`, `client.ts` (vault functions) |
 | Vault folder choice (`TENON_VAULT_DIR`, `choose-vault-folder` IPC) | Subsystem | Deployment; text in [README](README.md#tenon-vault) | `desktop/src/main/vault-folder.ts`, `desktop/src/main/server.ts` (`preferAppEnv`), `desktop/src/main/ipc.ts` |
 | Profile SQLite (`tenon.db`) | Shared store | Component, Deployment, Class | `core/src/database/`, `core/src/event.ts` |
 | Snapshot repository | Shared store | Component, Class, Activity: prompt run | `core/src/snapshot.ts` |
@@ -277,10 +284,10 @@ store (`KnowledgeVault.writeTimeline`, `appendLog`,
 | `harnesses.json` | Shared store | Component, Deployment | `core/src/harness/registry.ts` (written only from Settings → Harnesses through `/api/harness/registry`) |
 | `harness-preferences.json` (title agent) | Shared store | Text in [README](README.md#thread-titles) | `core/src/harness/registry.ts` (`titleAgent`, `setTitleAgent`; written only from Settings → Harnesses through `/api/harness/title-agent`) |
 | `drafts.sqlite`, electron-store files | Shared store | Component, Deployment | `desktop/src/main/draft-store.ts`, `desktop/src/main/store.ts` (renderer `*.dat` stores are cached in memory and written behind by `write-behind-store.ts`, flushed on quit); per-window `drafts` and `sidebar` keys from `app/src/context/drafts.tsx` and the sidebar controller |
-| Command Centre (own threads in `<vault>/.command-centre`, K3 strip with Undo, per-turn step list, memory search and daily compaction, project setup and mail tools) | Subsystem | Component; text in [README](README.md#command-centre) and the [threat model](../security/threat-model.md#command-centre-memory-and-routines) | `tenon/src/agents/command-memory.ts`, `command-threads.ts`, `command-setup.ts`, `command-vault.ts`, `app-tools.ts` (`COMMAND_TOOLS`, `commandScope`), `mail-tools.ts`, `tenon/src/server/routes/instance/httpapi/handlers/second-brain.ts`, `app/src/pages/command-centre.tsx`, `app/src/features/command-centre/`, `app/src/components/settings-v2/command-centre.tsx`, `app/src/context/settings.tsx` (`commandCentre`) |
+| Command Centre (own threads in `<vault>/.command-centre`, earlier roots' folders still recognised, K3 strip with Undo, per-turn step list, memory search and daily compaction, project setup and mail tools) | Subsystem | Component; text in [README](README.md#command-centre) and the [threat model](../security/threat-model.md#command-centre-memory-and-routines) | `tenon/src/agents/command-memory.ts`, `command-threads.ts`, `command-setup.ts`, `command-vault.ts`, `app-tools.ts` (`COMMAND_TOOLS`, `commandScope`), `mail-tools.ts`, `tenon/src/server/routes/instance/httpapi/handlers/second-brain.ts`, `app/src/pages/command-centre.tsx`, `app/src/features/command-centre/`, `app/src/components/settings-v2/command-centre.tsx`, `app/src/context/settings.tsx` (`commandCentre`) |
 | Command Centre memory files (`.command-centre/memory/<thread>.md`) and the per-search FTS5 table | Shared store | Text in [README](README.md#command-centre) | `tenon/src/agents/command-memory.ts` (`compact`, `search`) |
-| Routines (vault pages under `Routines/`, `runDue` catch-up, Inbox append, `routine.finished`, minute scheduler, Routines page) | Critical workflow | Text in [README](README.md#routines) | `tenon/src/agents/routines.ts`, `tenon/src/agents/routines-scheduler.ts`, `tenon/src/server/routes/instance/httpapi/server.ts` (`background`), `app/src/pages/routines.tsx` |
-| `routines-state.json` (last run per routine, machine-local) | Shared store | Text in [README](README.md#routines) | `tenon/src/agents/routines.ts` |
+| Routines (vault pages under `Routines/`, approval by content hash, `runDue` catch-up, run timeout, unattended runs that refuse prompts, Inbox append and rollover, `routine.finished`, minute scheduler, Routines page) | Critical workflow | Text in [README](README.md#routines) | `tenon/src/agents/routines.ts`, `tenon/src/agents/routines-scheduler.ts`, `tenon/src/agents/command-threads.ts` (`refusePrompts`), `tenon/src/server/routes/instance/httpapi/server.ts` (`background`), `app/src/pages/routines.tsx` |
+| `routines-state.json` (last run, refused permissions and approved content hash per routine, machine-local) | Shared store | Text in [README](README.md#routines) | `tenon/src/agents/routines.ts` |
 | Mail accounts (Gmail, Microsoft Graph, IMAP; drafts only) and the mail loopback endpoint | External integration | Component, Trust boundaries; text in [README](README.md#mail-accounts) | `desktop/src/main/mail/index.ts`, `mail/service.ts`, `mail/imap-client.ts`, `desktop/src/main/ipc.ts` (`mail-*`), `app/src/components/settings-v2/accounts.tsx` |
 | Google Calendar and Tasks (multiple accounts, sync, outbox) | External integration | Component, Deployment, State: outbox, Class: CalendarEvent; text in [README](README.md#google-accounts) | `desktop/src/main/google-calendar.ts`, `desktop/src/main/google-calendar-domain.ts`, `app/src/features/second-brain/calendar-domain.ts` (`mergeProviderEvents`) |
 | LLM providers | External integration | Component, Deployment | `core/src/harness.ts` (`opencode` driver) |
@@ -297,7 +304,7 @@ store (`KnowledgeVault.writeTimeline`, `appendLog`,
 | Desktop startup and dev-channel `userData` migration | Critical workflow | Sequence: startup; Deployment | `desktop/src/main/index.ts`, `desktop/src/main/user-data-migration.ts` |
 | Deep links (`tenon://open-project`, `tenon://new-session`) | Critical workflow | Text in [threat model](../security/threat-model.md#assets-and-boundaries): main-process validation and native confirmation before the renderer | `desktop/src/main/deep-links.ts`, `desktop/src/main/index.ts` (`receiveDeepLinks`), `app/src/pages/layout/deep-links.ts` |
 | Renderer content policy, local file links, Electron fuses | Subsystem | Text in [threat model](../security/threat-model.md#renderer-content-policy) | `desktop/src/main/windows.ts`, `desktop/src/main/local-file-policy.ts`, `desktop/electron-builder.config.ts`, `session-ui/src/components/markdown-media.ts` |
-| Markdown front matter parsing | Subsystem | Text in [threat model](../security/threat-model.md#assets-and-boundaries) | `core/src/frontmatter.ts`, `core/src/config/markdown.ts`, `tenon/src/knowledge/note.ts`, `tenon/src/knowledge/vault.ts`, `tenon/src/project/brain.ts` |
+| Markdown front matter parsing | Subsystem | Text in [threat model](../security/threat-model.md#assets-and-boundaries) | `core/src/frontmatter.ts`, `core/src/config/markdown.ts`, `tenon/src/knowledge/vault.ts`, `tenon/src/project/brain.ts` |
 | Session timeline (folded turn steps) and side-panel Session tab (session usage) | Subsystem | Text only ([README](README.md#session-compatibility-and-review)) | `app/src/pages/session/timeline/rows.ts`, `timeline/row-reconciliation.ts` (`foldTimelineRows`), `timeline/message-timeline.tsx`, `app/src/components/session/turn-steps-summary.tsx`, `app/src/components/session/session-usage.ts`, `app/src/components/session/session-context-metrics.ts` (`getSessionContext`, harness-reported `contextWindow` first), `app/src/components/session/session-context-tab.tsx`, `core/src/session/runner/publish-llm-event.ts` (`harnessContextWindow`), `session-ui/src/components/step-kind.ts` |
 | Harness settings (add, assistant, verify, toggle, remove) | Critical workflow | Component | `app/src/components/settings-v2/harnesses.tsx`, `app/src/components/settings-v2/harness-assistant.tsx`, `server/src/handlers/harness.ts`, `core/src/harness/registry.ts` |
 | Harness model lists (live discovery, background revalidation, persisted server and renderer lists, refresh, hidden models) | Critical workflow | Text in [README](README.md#harness-model-lists) | `core/src/harness.ts` (`cachedProbe`, `discoverAcpModels`, `refresh`), `core/src/harness/catalog-cache.ts` (`harness-models.json`, `harness-probes.json`), `makeCachedProbe`, `core/src/harness/acp.ts` (`probe`, `discover`), `app/src/components/prompt-input/harness-controller.ts` (`revalidate`, model retry, `harness.instances.v1`), `app/src/utils/server.ts` (`listHarnessesRemembered`), `app/src/pages/brain-home.tsx` (`harnessQuery`), `app/src/context/settings.tsx` (`harnesses.hiddenModels`, `harnesses.hiddenProviders`), `app/src/components/settings-v2/harnesses.tsx` |
@@ -334,9 +341,10 @@ The following were inferred from source and haven't been confirmed at runtime.
   child session at all is up to the agent. Upstream OpenCode's behavior wasn't
   confirmed; the agent tab shows "Not reported" when it doesn't.
 - **v2 CLI daemon.** The opt-in v2 sidecar is upstream's `opencode-cli`
-  background service. It is allowed only on the development channel, the
-  only one that bundles the CLI, and it outlives the app by design
-  (`opencode-cli service stop` ends it).
+  background service. It is allowed only on the development channel, in a
+  build made with `TENON_BUNDLE_CLI=1`; otherwise the app warns and starts the
+  v1 server. It outlives the app by design (`opencode-cli service stop` ends
+  it).
 - **Server health checks.** A server that exits after ready is restarted on
   the same port and password with backoff
   (`desktop/src/main/sidecar-supervisor.ts`); the renderer's status popover

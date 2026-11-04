@@ -1,6 +1,7 @@
 import type { SessionMessageInfo } from "@opencode-ai/client/promise"
 import type { AssistantMessage, Message, Part, SessionStatus, UserMessage } from "@opencode-ai/sdk/v2"
-import { createMemo, createSelector, mapArray, type Accessor } from "solid-js"
+import { createMemo, createSelector, mapArray, untrack, type Accessor } from "solid-js"
+import { unwrap } from "solid-js/store"
 import { foldTimelineRows, reuseTimelineRows } from "./row-reconciliation"
 import { Timeline, TimelineRow } from "./rows"
 import { same } from "@/utils/same"
@@ -32,8 +33,8 @@ export function createTimelineProjection(input: {
     })
     return result
   })
-  // Turns read messages only. Each turn builds its rows in its own memo, so a streamed part rebuilds
-  // the active turn's rows instead of the whole session's.
+  // Turns read messages only. Each turn builds its rows in its own memo, so a streamed part can only
+  // rebuild the active turn's rows, and only when the parts' signature changes: rows hold no part text.
   const turns = createMemo(() =>
     Timeline.constructSessionTurns(
       input.sessionMessages(),
@@ -48,14 +49,26 @@ export function createTimelineProjection(input: {
     () => turns().map((turn) => turn.user.id),
     (userMessageID) => {
       const entry = createMemo(() => turnByID().get(userMessageID), undefined, { equals: sameTurn })
+      const signature = createMemo(() => {
+        const current = entry()
+        if (!current) return ""
+        return Timeline.turnPartsSignature(
+          current.turn.assistants,
+          input.parts,
+          input.showReasoningSummaries(),
+          isActive(userMessageID) && input.status().type === "busy",
+        )
+      })
       return createMemo((previous: TimelineRow.TimelineRow[] | undefined) => {
+        signature()
         const current = entry()
         if (!current) return []
         return reuseTimelineRows(
           previous,
           Timeline.constructTurnRows(
             current.turn,
-            input.parts,
+            (messageID) =>
+              messageID === userMessageID ? input.parts(messageID) : unwrap(untrack(() => input.parts(messageID))),
             current.index,
             input.showReasoningSummaries(),
             input.status().type,

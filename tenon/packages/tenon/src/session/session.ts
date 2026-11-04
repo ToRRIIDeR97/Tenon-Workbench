@@ -1001,9 +1001,11 @@ function listByProject(
   }
   if (input.path !== undefined) {
     if (input.path) {
+      // Stored paths always use forward slashes (see sessionPath); Windows callers may not.
+      const filterPath = input.path.replaceAll("\\", "/")
       const conds = [
-        eq(SessionTable.path, input.path),
-        like(SessionTable.path, sql.param(`${input.path}/%`, SessionTable.path)),
+        eq(SessionTable.path, filterPath),
+        like(SessionTable.path, sql.param(`${filterPath}/%`, SessionTable.path)),
       ]
 
       conditions.push(

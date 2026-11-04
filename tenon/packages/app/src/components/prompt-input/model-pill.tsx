@@ -6,7 +6,12 @@ import { Icon } from "@tenon/ui/v2/icon"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { useDialog } from "@tenon/ui/context/dialog"
 import { useLanguage } from "@/context/language"
-import { createHarnessView, openHarnessSettings, type PromptInputHarnessController } from "./harness-controls"
+import {
+  createHarnessView,
+  harnessStatusKey,
+  openHarnessSettings,
+  type PromptInputHarnessController,
+} from "./harness-controls"
 import { harnessModelSlot } from "./harness-model-slot"
 import { modelPillLabel } from "./model-pill-label"
 import "./model-pill.css"
@@ -230,7 +235,7 @@ export function PromptModelPill(props: {
                       {(item) => (
                         <Choice
                           label={item.name}
-                          detail={item.status === "unavailable" ? language.t("harness.unavailable") : undefined}
+                          detail={harnessStatusKey(item) && language.t(harnessStatusKey(item)!)}
                           title={item.error}
                           selected={item.id === props.harness.current()}
                           disabled={item.status === "unavailable"}

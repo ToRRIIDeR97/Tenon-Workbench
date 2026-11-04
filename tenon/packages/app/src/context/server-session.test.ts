@@ -396,6 +396,37 @@ describe("server session", () => {
     expect(store.data.session_message.root?.some((message) => message.id === "msg_later")).toBe(false)
   })
 
+  test("a streamed reply re-projects its user message only when the agent or model changes", () => {
+    const ctx = setup({ child: session("child") })
+    ctx.store.remember(session("child"))
+    ctx.store.set("session_message", "child", [{ id: "msg_1_user", type: "user", text: "hello", time: { created: 1 } }])
+    const apply = (type: string, created: number, data: object) =>
+      ctx.store.applyV2({
+        id: `evt_${created}`,
+        created,
+        type,
+        data: { sessionID: "child", ...data },
+      } as unknown as OpenCodeEvent)
+    const step = (created: number, model: string) =>
+      apply("session.step.started", created, {
+        assistantMessageID: "msg_2_assistant",
+        agent: "build",
+        model: { id: model, providerID: "provider" },
+      })
+
+    step(2, "first")
+    apply("session.text.started", 3, { assistantMessageID: "msg_2_assistant", ordinal: 0 })
+    expect(ctx.store.data.message.child?.[0]).toMatchObject({ agent: "build", model: { modelID: "first" } })
+
+    ctx.store.set("part", "msg_1_user", [])
+    apply("session.text.delta", 4, { assistantMessageID: "msg_2_assistant", ordinal: 0, delta: "world" })
+    expect(ctx.store.data.part.msg_1_user).toEqual([])
+
+    ctx.store.set("message", "child", 0, "agent", "older")
+    apply("session.text.delta", 5, { assistantMessageID: "msg_2_assistant", ordinal: 0, delta: "!" })
+    expect(ctx.store.data.message.child?.[0]).toMatchObject({ agent: "build" })
+  })
+
   test("resolves lineage by session ID without directory", async () => {
     const ctx = setup({ child: session("child", "root"), root: session("root") })
 
@@ -1832,5 +1863,98 @@ describe("server session", () => {
 
     expect(ctx.store.data.message.active?.map((message) => message.id)).toEqual(["message"])
     expect(ctx.store.data.session_status["session-0"]).toBeUndefined()
+  })
+
+  test("evicts the least recently touched session", () => {
+    const ctx = setup({})
+    const touch = (sessionID: string) => {
+      ctx.store.remember(session(sessionID))
+      ctx.store.apply({ type: "session.status", properties: { sessionID, status: { type: "idle" } } })
+    }
+
+    for (let index = 0; index < 40; index++) touch(`session-${index}`)
+    touch("session-0")
+    touch("session-40")
+
+    expect(ctx.store.data.session_status["session-0"]).toBeDefined()
+    expect(ctx.store.data.session_status["session-1"]).toBeUndefined()
+  })
+
+  describe("revalidating a cached thread", () => {
+    const user = (index: number) => ({
+      id: `msg_${String(index).padStart(3, "0")}`,
+      type: "user",
+      text: "hello",
+      time: { created: 1_000 + index },
+    })
+    const range = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, index) => user(to - index))
+    const setupPages = (respond: (input: { limit: number; cursor?: string }) => { data: unknown[]; next?: string }) => {
+      const requests: { limit: number; cursor?: string }[] = []
+      const list = async (input: { limit: number; cursor?: string }) => {
+        requests.push(input)
+        const page = respond(input)
+        return { data: page.data, cursor: { next: page.next ?? null } }
+      }
+      const sessionApi = { get: async () => session("child") } as unknown as SessionApi
+      const store = createServerSession({} as OpencodeClient, sessionApi, { list } as unknown as MessageApi, {
+        protocol: Promise.resolve("v2"),
+      })
+      return { requests, store }
+    }
+
+    test("fetches the newest page and keeps paging from the loaded history", async () => {
+      let newest = 40
+      const { requests, store } = setupPages((input) => {
+        if (input.cursor === "older") return { data: range(1, 20), next: "oldest" }
+        if (input.cursor) return { data: [] }
+        return { data: range(newest - 19, newest), next: "older" }
+      })
+
+      await store.sync("child")
+      await store.history.loadMore("child")
+      newest = 41
+      await store.sync("child", { force: true })
+      await store.history.loadMore("child")
+
+      expect(requests.map((input) => [input.limit, input.cursor])).toEqual([
+        [20, undefined],
+        [200, "older"],
+        [20, undefined],
+        [200, "oldest"],
+      ])
+      expect(store.data.message.child?.length).toBe(41)
+    })
+
+    test("reloads what was loaded, one route page at most, when the newest page shares nothing with it", async () => {
+      let newest = 220
+      const { requests, store } = setupPages((input) => {
+        if (input.cursor) return { data: range(1, 200), next: "oldest" }
+        return { data: range(newest - input.limit + 1, newest), next: "older" }
+      })
+
+      await store.sync("child")
+      await store.history.loadMore("child")
+      newest = 300
+      await store.sync("child", { force: true })
+
+      expect(requests.at(-2)?.limit).toBe(20)
+      expect(requests.at(-1)?.limit).toBe(200)
+      expect(store.data.message.child?.at(-1)?.id).toBe("msg_300")
+    })
+
+    test("does not refetch a thread cached with a page or less", async () => {
+      let newest = 0
+      const { requests, store } = setupPages((input) => {
+        if (!newest) return { data: [] }
+        return { data: range(newest - input.limit + 1, newest), next: "older" }
+      })
+
+      await store.sync("child")
+      newest = 30
+      await store.sync("child", { force: true })
+
+      expect(requests.map((input) => input.limit)).toEqual([20, 20])
+      expect(store.data.message.child?.at(-1)?.id).toBe("msg_030")
+    })
   })
 })

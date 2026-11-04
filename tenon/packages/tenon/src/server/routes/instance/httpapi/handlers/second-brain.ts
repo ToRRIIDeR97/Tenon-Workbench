@@ -3,12 +3,13 @@ import { CommandThreads } from "@/agents/command-threads"
 import { Routines } from "@/agents/routines"
 import { RoutinesScheduler } from "@/agents/routines-scheduler"
 import { InstanceState } from "@/effect/instance-state"
+import { EventV2Bridge } from "@/event-v2-bridge"
+import { Permission } from "@/permission"
 import { InstanceStore } from "@/project/instance-store"
 import { Provider } from "@/provider/provider"
 import { LLM } from "@/session/llm"
 import { SessionPrompt } from "@/session/prompt"
 import { Session } from "@/session/session"
-import { KnowledgeNote } from "@/knowledge/note"
 import { KnowledgeVault } from "@/knowledge/vault"
 import { AgentAppTools } from "@/agents/app-tools"
 import { PlannerCalendar } from "@/planner/calendar"
@@ -49,6 +50,8 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
     const instances = yield* InstanceStore.Service
     const llm = yield* LLM.Service
     const provider = yield* Provider.Service
+    const events = yield* EventV2Bridge.Service
+    const permission = yield* Permission.Service
     // One lock per Brain directory serializes calendar saves (with their timeline sync),
     // Project mutations and project folder scans, so none of them interleave.
     const brainLocks = KeyedMutex.makeUnsafe<string>()
@@ -61,58 +64,6 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
     })
     const serialized = Effect.fnUntraced(function* <A, E, R>(effect: Effect.Effect<A, E, R>) {
       return yield* brainLocks.withLock((yield* InstanceState.context).directory)(effect)
-    })
-
-    const listNotes = Effect.fn("SecondBrain.listNotes")(function* (ctx: { query: { search?: string } }) {
-      return yield* filesystem(KnowledgeNote.list(ctx.query.search)).pipe(failure("listNotes"))
-    })
-
-    const readNote = Effect.fn("SecondBrain.readNote")(function* (ctx: { query: { path: string } }) {
-      return yield* filesystem(KnowledgeNote.read(ctx.query.path)).pipe(failure("readNote", ctx.query.path))
-    })
-
-    // The pre-vault write route. Project folders are never written to, so a `notes/<page>.md` or Project card
-    // note path is saved as the matching vault page instead (the vault opens with the notes moved in first).
-    const writeNote = Effect.fn("SecondBrain.writeNote")(function* (ctx: {
-      query: { path: string }
-      payload: KnowledgeNote.WriteInput
-    }) {
-      const relative = ctx.query.path.replaceAll("\\", "/").replace(/^\.\//, "")
-      const card = /^(?:\.tenon\/)?projects\/(project_[0-9A-Z]+)\/notes\/(.+\.md)$/i.exec(relative)
-      const page = card?.[2] ?? (/^notes\/.+\.md$/i.test(relative) ? relative.slice("notes/".length) : undefined)
-      if (page === undefined) return yield* invalid("invalid_path")
-      const written = yield* vault(
-        "writeNote",
-        (opened) =>
-          KnowledgeVault.writePage(opened, page, {
-            body: ctx.payload.body,
-            title: ctx.payload.title,
-            projectId: card?.[1],
-            expectedRevision: ctx.payload.expectedRevision,
-            create: ctx.payload.create,
-          }),
-        ctx.query.path,
-      )
-      return {
-        info: {
-          path: written.info.path,
-          title: written.info.title,
-          projectIds: written.info.projectId ? [written.info.projectId] : [],
-          tags: [],
-          links: [],
-          updatedAt: written.info.updatedAt,
-        },
-        body: written.body,
-        revision: written.revision,
-      }
-    })
-
-    const deleteNote = Effect.fn("SecondBrain.deleteNote")(function* (ctx: {
-      query: { path: string; expectedRevision: string }
-    }) {
-      return yield* filesystem(
-        KnowledgeNote.remove(ctx.query.path, { expectedRevision: ctx.query.expectedRevision }),
-      ).pipe(failure("deleteNote", ctx.query.path))
     })
 
     const readCalendar = Effect.fn("SecondBrain.readCalendar")(function* () {
@@ -296,6 +247,8 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
         Effect.provideService(LLM.Service, llm),
         Effect.provideService(Provider.Service, provider),
         Effect.provideService(LocationServiceMap.Service, locations),
+        Effect.provideService(EventV2Bridge.Service, events),
+        Effect.provideService(Permission.Service, permission),
       )
 
     // Run now and scheduled runs agree: the routine's own model first, then the Command Centre default the
@@ -322,12 +275,19 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
           failure("runRoutine", ctx.params.id),
         ),
       )
+      .handle("approveRoutine", (ctx) =>
+        commandServices(Routines.approve({ id: ctx.params.id, hash: ctx.payload.hash })).pipe(
+          Effect.as({ approved: true as const }),
+          failure("approveRoutine", ctx.params.id),
+        ),
+      )
       .handle("commandDirectory", () =>
         CommandMemory.directory().pipe(
           Effect.map((directory) => ({ directory })),
           failure("commandDirectory"),
         ),
       )
+      .handle("commandFolders", () => Effect.sync(() => ({ folders: CommandMemory.folders() })))
       .handle("searchCommandMemory", (ctx) =>
         commandServices(CommandMemory.search(ctx.query.search ?? "")).pipe(failure("searchCommandMemory")),
       )
@@ -362,6 +322,16 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
         vault(
           "writeVaultPage",
           (opened) => KnowledgeVault.writePage(opened, ctx.query.path, ctx.payload),
+          ctx.query.path,
+        ),
+      )
+      .handle("removeVaultPage", (ctx) =>
+        vault(
+          "removeVaultPage",
+          (opened) =>
+            KnowledgeVault.removePage(opened, ctx.query.path, ctx.query.expectedRevision).pipe(
+              Effect.as({ removed: true as const }),
+            ),
           ctx.query.path,
         ),
       )
@@ -401,10 +371,6 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
           }),
         ),
       )
-      .handle("listNotes", listNotes)
-      .handle("readNote", readNote)
-      .handle("writeNote", writeNote)
-      .handle("deleteNote", deleteNote)
       .handle("readCalendar", readCalendar)
       .handle("writeCalendar", writeCalendar)
       .handle("listProjects", listProjects)
@@ -444,14 +410,14 @@ function toApiFailure(operation: string, path: string | undefined, error: unknow
   }
   if (
     error instanceof Routines.NotFoundError ||
-    error instanceof KnowledgeNote.NotFoundError ||
     error instanceof KnowledgeVault.NotFoundError ||
     error instanceof BrainProject.NotFoundError
   ) {
     return Effect.fail(new HttpApiError.NotFound({}))
   }
+  if (error instanceof Routines.ApprovalError) return Effect.fail(conflict("routine_needs_approval"))
+  if (error instanceof Routines.ConflictError) return Effect.fail(conflict("routine_running"))
   if (
-    error instanceof KnowledgeNote.ConflictError ||
     error instanceof KnowledgeVault.ConflictError ||
     error instanceof PlannerCalendarStore.ConflictError ||
     error instanceof BrainProject.ConflictError
@@ -459,7 +425,6 @@ function toApiFailure(operation: string, path: string | undefined, error: unknow
     return Effect.fail(conflict(error.reason))
   }
   if (
-    error instanceof KnowledgeNote.InvalidError ||
     error instanceof KnowledgeVault.InvalidError ||
     error instanceof BrainProject.InvalidError ||
     error instanceof PlannerCalendar.InvalidError ||

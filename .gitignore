@@ -18,3 +18,9 @@ target/
 
 # Local test-resolution links created by implementations/*/implementation.md setup
 implementations/*/node_modules
+
+# Local tool, app and agent output at the repository root
+/.claude/
+/.tenon/
+/.turbo/
+/recordings/

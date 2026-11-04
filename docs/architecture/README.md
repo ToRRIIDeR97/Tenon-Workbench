@@ -66,17 +66,28 @@ platform exposes `dictation` (desktop); the web build has no mic.
   `start()`, `stop(): Promise<string>`, `cancel()`, `status()` and `onLevel`. If
   the engine exits mid-recording, `stop()` rejects with `engine_exited` and the
   next `start()` respawns it; after 5 crashes in 10 minutes it reports
-  `engine_unavailable`.
+  `engine_unavailable`. A recording stops itself after 30 minutes and tells the
+  window through `onLimit`; `stop()` then collects its transcript. A transcription
+  that outlasts 2 minutes plus ten times the recording rejects `transcribe_timeout`
+  and kills the engine, because the worker holds the session for the whole run.
+  `cancel()` during a transcription does the same with `cancelled` and counts no
+  crash. After 10 idle minutes the engine exits to free the model, and the next
+  `start()` respawns and reloads it. If the composer unmounts or moves to another
+  thread mid-dictation, the transcript goes to a toast with a Copy action instead
+  of the focused element.
 - **Service and IPC.** `dictation-service.ts` resolves the binary
   (`resources/dictation/` when packaged, `packages/dictation/target/release/` in
   development, or `TENON_DICTATION_ENGINE`), checks microphone access, keeps the
   active model in `<userData>/dictation/settings.json`, and downloads models
-  (`dictation-models.ts`) into `<userData>/dictation/models/`. `ipc.ts` exposes
+  (`dictation-models.ts`, `dictation-download.ts`) through `net.fetch` into
+  `<userData>/dictation/models/`. A dropped download keeps its `.part` file and
+  the next attempt resumes it with a Range request; a cancel removes it. `ipc.ts` exposes
   thin `dictation-*` handlers; the renderer names models by ID only and never
   passes a path or URL. Levels and download progress go back to the requesting
-  window (`dictation-level`, `dictation-download-progress`).
+  window (`dictation-level`, `dictation-limit`, `dictation-download-progress`).
 - **Settings › Dictation** (`app/src/components/settings-v2/dictation.tsx`) lists
-  Whisper Small, Whisper Turbo and Parakeet V3, downloads with progress, picks
+  Whisper Small, Whisper Turbo and Parakeet V3, downloads with progress, Cancel
+  and a short failure reason, picks
   the active model, and credits Handy by CJ Pais. Licences are in
   `THIRD_PARTY_NOTICES.md`; build steps in
   [release operations](../release-operations.md#dictation-engine-rust).
@@ -171,7 +182,9 @@ timeline, the question and permission docks grow in as the composer folds away,
 and the queued and rolled-back docks keep removed rows closing in place with
 `createExitList` (`pages/session/composer/exit-list.ts`).
 
-The sidebar's controller (`components/sidebar/sidebar-controller.ts`) reads
+The sidebar's controller (`components/sidebar/sidebar-controller.ts`, provided by
+`SidebarControllerProvider` in `pages/layout-new.tsx` so the Command Centre page
+shares its thread actions and undo queue) reads
 `GET /second-brain/project-threads`, loads each expanded Project's threads
 (and General's, when expanded) with
 `serverSync().project.loadSessions(threadDirectory)` (kept live by
@@ -206,7 +219,8 @@ Calendar and Projects read `layout.home.workspace` and have no picker of their
 own; Notes keeps an open page with unsaved edits in its workspace until it is
 saved or discarded. Home, Notes and the Projects page's thread folders read the
 same cached project-threads query as the sidebar (`useProjectThreads` and
-`useBrainProjects` in `sidebar-controller.ts`, 30 seconds of freshness); the
+`useBrainProjects` in `sidebar-controller.ts`, 30 seconds of freshness, used by
+Project Overview and Calendar too); the
 Projects page keeps its own card list for editing. The controller
 scans each workspace once per app session (`POST /second-brain/projects/scan`)
 and on **Scan for projects**. The automatic scan reloads the Project list only
@@ -242,12 +256,12 @@ state alive across route changes; it replaced the tab store.
 
 | Data                       | Owner and persistence                                                                                                 |
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Notes (legacy)             | `packages/tenon/src/knowledge/note.ts`; workspace Markdown files, moved into the vault by migration                 |
 | Vault pages, timelines, logs | `packages/tenon/src/knowledge/vault.ts`; the Tenon vault (`TENON_VAULT_DIR`, default `Documents/Tenon`); see [Tenon vault](#tenon-vault) |
 | Vault machine map          | `vault.ts`; `vault-machine.json` in the data folder (machine id, workspace directory → vault folder id); rebuilt by opening the vault |
 | Vault folder choice        | `packages/desktop/src/main/vault-folder.ts`; `vaultFolder` key in `tenon.settings`                                   |
 | Project records            | `packages/tenon/src/project/brain.ts`; workspace `.tenon/projects/<id>/` Markdown cards (legacy `projects/<id>/`)   |
 | Workspace manifest         | `brain.ts`; workspace `.tenon/workspace.json` (linked project folders)                                                |
+| Trusted folders            | `core/src/config/trust.ts`; `trusted-folders.json` in the data folder; added to only from the app's prompt through `POST /config/trust`; see [Folder trust](../security/threat-model.md#folder-trust) |
 | Linked-folder index        | `brain.ts` writes, `core/src/workspace-instructions.ts` reads; `workspace-links.json` in the data folder; rebuilt by a scan; the first workspace to link a folder keeps it |
 | Project thread directories | Derived, not stored: the card's `location.path` folder (inside the workspace, or a checked linked folder), else a linked Workspace worktree, else the card folder; thread counts read from `opencode.db` |
 | Local events and tasks     | Second Brain HTTP handler and `packages/tenon/src/planner/calendar.ts`; workspace `.tenon/calendar-v1.json` |
@@ -339,6 +353,23 @@ or workspace (`{ error: "inside_workspace" }`).
   a new folder is created. Two checkouts of one repository share a vault
   folder. Project folders are found by `project.json` id, so renaming a folder
   by hand keeps it; renaming a Project does not rename its folder.
+- A missing `workspace.json` or `project.json` means "no folder here". Any other
+  failure (a sync lock, an offline placeholder, a body that doesn't decode, a
+  listing that fails) means "unknown": `open` and `ensureProjectFolder` refuse to
+  create a folder with `vault_unavailable: <file>` while the folder may be behind
+  that file, so an outage never forks the vault into `Name (2)`. This applies to
+  a workspace with a mapped id or a repository id, and to any new Project folder.
+  The Projects page names the file and offers a retry.
+- Folder and page names compare with `foldName` (NFC plus lower case). Existing
+  files keep their spelling on disk. New workspace and Project folders and new
+  page file names are NFC; other folders in a page path keep the spelling given,
+  and a new page in an existing Project folder takes that folder's spelling.
+- Page lists and searches reuse parsed pages from a bounded in-memory cache
+  (`pageCache`: 5,000 entries, 32 MB of search text, least recently used first)
+  while a file's canonical path, size and modification time are unchanged.
+  `resolveInside` runs on every lookup, `projectId` is never taken from the cache,
+  and a file with no usable modification time is always read. A `project` filter
+  narrows the file list before anything is read.
 - Pages are Markdown with front matter `id`, `title`, `updated_at` plus free
   `properties` (other keys: simple names, JSON scalars or lists, at most 64
   keys and 16 KiB). A page's `path` is relative to the workspace folder; its
@@ -347,11 +378,13 @@ or workspace (`{ error: "inside_workspace" }`).
   overwrite the old bytes go to `.history`; `updated_at` always moves forward,
   so version names stay in save order.
 - `timeline.json` has a SHA-256 revision (`"new"` before the first save); an
-  unreadable file reads as empty but its revision still guards the next save.
+  unreadable file reads as empty but its revision still guards the next save,
+  which first copies the old bytes to `timeline.json.corrupt-<time>` beside it.
   `progress` is done tasks over tasks; milestones don't count.
 - Each machine appends `- <ISO time> · <author> · <text>` lines only to its own
   `log/<machine>.md`, so sync never merges one file from two machines. Reads
-  merge every `log/*.md`, newest first (at most 1,000).
+  merge every `log/*.md`, newest first (at most 1,000). A log over the 5 MB read
+  cap drops out of the list with a warning in the server log.
 - Conflict copies are files whose name contains `conflicted copy`,
   `(conflict` or `.sync-conflict-` (Dropbox, OneDrive, Syncthing). They are left
   in place, excluded from the page list and reported with the file they came
@@ -369,14 +402,14 @@ or workspace (`{ error: "inside_workspace" }`).
 | `GET /second-brain/vault` | `{ root, workspace: { id, name, folder } }`; creates the workspace folder once |
 | `GET /second-brain/vault/pages?project=&search=` | Page `info` list, newest first, at most 1,000 |
 | `GET`, `PUT /second-brain/vault/page?path=` | Read; write `{ body, title?, projectId?, properties?, expectedRevision?, create? }`. With `projectId` the path is relative to that Project's folder unless it already starts with it. 400 for unsafe paths or `log/` in a Project, 404 missing, 409 stale or existing |
+| `DELETE /second-brain/vault/page?path=&expectedRevision=` | `{ removed: true }`. The removed version stays in the page's history. 400 for a reserved path, 404 missing, 409 stale |
 | `GET /second-brain/vault/page/history?path=&revision=` | Versions `[{ revision, updatedAt }]`, or one version's `{ revision, body }` |
 | `GET`, `PUT /second-brain/vault/timeline?project=` | `{ projectId, revision, items, progress }`; `PUT { items, expectedRevision? }` |
 | `GET`, `POST /second-brain/vault/log?project=` | Merged entries; `POST { text, author }` appends one line |
 | `GET /second-brain/vault/conflicts` | `[{ path, original }]` |
 | `POST /second-brain/vault/migrate` | `{ moved, backup }` (`backup` relative to the root, null when nothing moved) |
 
-The older `/second-brain/notes` and `/second-brain/note` routes still read and
-write `<workspace>/notes`; no page of the app uses them any more.
+Files left in `<workspace>/notes` from before the vault are only read by the migration.
 
 #### Projects page
 
@@ -389,23 +422,38 @@ Project is one scrolling page since workshop variant B (`Implementations/project
 to it.
 
 - The landing lists the Projects from `useBrainProjects` (non-archived, then a folded Archived group) and General
-  (pages with no known Project), with search (`GET …/vault/pages?search=`), New page and New Project.
+  (pages with no known Project), with search (`GET …/vault/pages?search=`, plus Projects whose name or outcome
+  matches), New page and New Project. The command palette finds the same Projects and pages for the sidebar's
+  workspace: Projects filter in the renderer, and pages are searched on the server behind a 250 ms delay.
 - A Project (`features/second-brain/project-view.tsx`) is one page:
   - a sticky section bar with Start work;
-  - Tasks: the timeline items as a list with Open/All, a checkbox and a status menu per task, an "Add a task" line,
-    and the week grid. Every change saves the whole list through `PUT …/vault/timeline` with the loaded revision;
+  - Tasks: the timeline items as a list with Open/All, a checkbox, a status menu, a date chip and a row menu
+    (Rename, also on double-click, and Delete) per item, an "Add a task" line, and the week grid. Every change saves
+    the whole list through `PUT …/vault/timeline` with the loaded revision; ticking or deleting offers an Undo toast
+    that rebuilds from the latest items;
   - Pages with a New page card (`create: true` in this Project);
   - Threads: the Project folder's recent root threads, from the same `serverSync().child(folder)` lists the sidebar
     reads, and New thread;
   - Log;
-  - Settings, which is `project-details.tsx`'s `ProjectDetails` (also home of the New Project form).
+  - Settings, which is `project-details.tsx`'s `ProjectDetails` (also home of the New Project form). Collapsing hides
+    it without unmounting, so unsaved edits and their guard stay. Renaming changes the card's name, not its folder.
 - `project-controls.tsx` holds the app-styled controls that replace native ones: `DateChip` (`Popover`, quick picks
   and a Monday-first month grid), `StatusMenu` (`MenuV2` radio items) and `KindSwitch` (`SegmentedControlV2`).
 - A page (`notes-page.tsx`) opens full width in the shared `NoteEditor`. Save
   and Ctrl/Cmd+S send the loaded revision; a 409 shows "This page changed
-  somewhere else" with a reload instead of overwriting. While a page has
-  unsaved edits it keeps its workspace (a sidebar switch waits) and leaving is
-  refused until they are saved or discarded.
+  somewhere else" with Save mine as a copy and a confirmed Reload from disk
+  instead of overwriting, also in the fullscreen toolbar. A 404 (deleted
+  elsewhere) offers the copy too. While a page has unsaved edits it keeps its
+  workspace (a sidebar switch waits). `unsaved-guard.tsx`, shared with
+  `ProjectDetails`, turns leaving into Save / Discard / Keep editing and then
+  finishes the navigation, and reports the edits to the desktop shell.
+  Windows answers a held `beforeunload` with a false `unresponsive` report after Stay, so
+  `windows.ts` asks the page itself (`renderer-probe.ts`) before offering Relaunch.
+- A page's menu holds Version history (`page-versions.tsx`: preview a version,
+  restore it as a normal save over the current revision; unsaved text isn't
+  covered, and only the body is restored) and Delete page, which hides the page
+  and calls `DELETE …/vault/page` when its Undo toast expires or the Projects
+  page closes. Rename on disk and moving a page between Projects don't exist.
 - The first visit to a workspace calls `POST …/vault/migrate` once (remembered
   in `localStorage` per workspace directory) before listing pages, and shows
   "Moved N notes into the Tenon vault" when anything moved. A
@@ -414,6 +462,10 @@ to it.
 - Settings › General › Tenon vault (desktop only, through the platform's
   `getVaultFolder` and `chooseVaultFolder`) shows the folder and picks another;
   a folder inside a workspace is refused, and a new one asks for a restart.
+- The page list is one cached query (`useVaultPages` in
+  `features/second-brain/vault-pages.ts`, 30 seconds of freshness). Page saves
+  update it and a finished `agent.write` invalidates it, so a page changed
+  outside the app can show up to 30 seconds late on a revisit.
 - The Projects page Map and `/projects/overview` list vault pages (as note
   summaries without links) and open them at `/notes?page=`.
 
@@ -444,6 +496,24 @@ with it. Signing in with an address that is already connected renews that
 account instead of adding a second one. Access tokens are cached per account
 (`createGoogleAccessTokens`), so accounts that share the built-in client never
 share a token, and a 401 clears only that account's token.
+
+An idempotency key names one outbox operation. A new write under a key whose
+operation has not succeeded replaces its input (`mergeQueuedWrite`), keeps the
+original Google ID and etag and resets the attempts, so a queued, failed or
+conflicted item stays editable. A delete of a create that Google cannot have
+drops the operation; a create that may have got there is deleted by its ID
+instead, and editing that delete makes it a create again. An event create that
+attempted before the edit follows a 409 with a PATCH, so the edit is not lost.
+`sync` returns the finished keys as `settled`, and the planner then replaces
+those items with Google's copy. A write under a succeeded key before that
+happens goes on top of the stored result, with Google's ID and newest etag. Only
+a finished delete, or a different account, list or ID, is
+`google_idempotency_collision`.
+
+A conflict never resolves by itself, because a plain edit keeps the old etag.
+The event and task forms offer the choice: saving sends `overwrite`, which drops
+the etag, and "Use Google's version" calls `discardConflict`, which removes the
+operation and lets the next sync restore Google's copy.
 
 `sync` syncs the accounts one at a time and returns the items it fetched with
 their `accountId`, plus `syncedAccounts`. An account that fails keeps its error
@@ -485,11 +555,18 @@ assistant that spans workspaces, with its own threads, memory and routines.
   /second-brain/vault` and asks `POST /command-centre/directory` before its
   first thread). No Project card points at that folder, so
   `/second-brain/project-threads` and the sidebar never list these threads, and
-  the page lists only sessions whose directory is that folder.
+  the page lists only sessions whose directory is that folder. A session keeps
+  the folder it started in, so after a vault move a thread stays in its earlier
+  root's folder: `CommandMemory.folders()` adds every root in
+  `vault-machine.json`, and the list, search, compaction, tool catalogue and
+  `GET /command-centre/folders` all use it. New threads, and a send that names no
+  thread, use the current root's folder.
   `features/command-centre/command-centre.tsx` (`CommandCentreProvider`,
   mounted in `pages/layout-new.tsx`) holds the thread list, the latest reply
   and `send`, which prompts the open thread, else the latest one, else creates
-  one with the harness and model from Settings › Command Centre.
+  one with the harness and model from Settings › Command Centre. The list
+  refreshes when the page opens and, debounced, on `session.created/updated/deleted`
+  events for that folder, so archives, deletes and routine runs show up.
 - **K3 strip.** `features/command-centre/command-strip.tsx`
   (`[data-command-strip]`) sits inside `<main>` on every page except
   `/command`: a 20 px handle while closed, an 84 px strip when open with the
@@ -506,10 +583,14 @@ assistant that spans workspaces, with its own threads, memory and routines.
 - **Memory.** `CommandMemory.compact({ now?, days, summarize })` summarises
   Command Centre root threads last updated more than `days` ago (1–365) into
   `.command-centre/memory/<thread>.md` (readable, synced with the vault), then
-  deletes those threads. A thread whose summary fails is kept. Project threads
-  are never read. `CommandMemory.search(query)` builds a temporary SQLite FTS5
+  deletes those threads. A thread whose summary fails, or that has no text to
+  summarise, is kept. A thread over 24,000 characters reaches the summariser as
+  its start and end. Project threads are never read.
+  `CommandMemory.search(query)` builds a temporary SQLite FTS5
   table on the profile database's connection from thread titles, message text
-  and the memory files, so the index is never stored. The renderer calls
+  and the memory files, so the index is never stored. Compactions run one at a
+  time and share a lock with search only while removing a thread, so search
+  doesn't wait on model calls. The renderer calls
   `POST /command-centre/memory/compact` at most once a day with the age from
   Settings (`settings.v3` `commandCentre.memoryDays`, default 45); the server's
   summariser (`CommandThreads.summarizer`) makes one model call per thread with
@@ -521,7 +602,8 @@ assistant that spans workspaces, with its own threads, memory and routines.
   point at `tor-project-setup`, `tor-implementation`,
   `tor-feature-map-verification` and `tor-workflow`, then creates the Project
   card (a folder outside the workspace is also linked) and an empty vault
-  timeline. A failed setup removes a folder it created. Command Centre
+  timeline. A setup that fails before the card is written removes a folder it
+  created; after that the folder stays with its Project. Command Centre
   sessions call it as the `project_setup` app tool.
 - **Tools.** `AgentAppTools.list({ sessionID })` (synchronous) gives a
   Command Centre thread the app tools plus `memory_search`, `project_setup`
@@ -542,6 +624,9 @@ assistant that spans workspaces, with its own threads, memory and routines.
   `AgentAppTools.catalogFor`): the `.command-centre` folder gets the Command
   Centre tools, every other folder only the app tools. A call outside the
   thread's list still fails with "… is only available in the Command Centre."
+  In that folder the built-in agents also ask before `bash`, `webfetch`,
+  `websearch` and `edit` (`core/src/plugin/agent.ts`, `tenon/src/agent/agent.ts`),
+  and the K3 strip says when the latest thread is waiting on a prompt.
 - **Pill.** The Command Centre page marks its open thread as focused
   (`useAgentWrites().focus`), so the top pill leaves that thread's writes to
   the step list.
@@ -549,6 +634,7 @@ assistant that spans workspaces, with its own threads, memory and routines.
 | Route (workspace from `x-opencode-directory` or `?directory=`) | Behaviour |
 | --- | --- |
 | `POST /command-centre/directory` | `{ directory }`; creates `<vault root>/.command-centre` |
+| `GET /command-centre/folders` | `{ folders }`; every Command Centre folder on this machine, the current root's first |
 | `GET /command-centre/memory?search=` | `[{ sessionID?, text, at }]`, at most 20; summaries have no `sessionID` |
 | `POST /command-centre/memory/compact` | `{ days, model?: { providerID, modelID } }` → `{ summarised, deleted }` |
 
@@ -557,28 +643,52 @@ assistant that spans workspaces, with its own threads, memory and routines.
 A routine is a vault page under the workspace's `Routines/` folder whose
 properties carry `schedule` (`daily HH:MM`, `weekdays HH:MM`,
 `weekly <mon..sun> HH:MM` or a five-field cron) and optionally `enabled`
-(default true), `harness`, `model` (`provider/model`) and `tools`; the body is
-the prompt (`tenon/src/agents/routines.ts`). `Routines.nextRun(schedule, after)`
+(default true), `harness`, `model` (`provider/model`), `tools` and `timeout`
+(minutes, default 120, at most a day); the body is the prompt
+(`tenon/src/agents/routines.ts`). `Routines.nextRun(schedule, after)`
 gives the next local time. `Routines.runDue({ now, run })` runs each enabled
-routine at most once when a scheduled time fell after its last run (or, never
-run, after the first `runDue` that saw it) and at or before `now`, however many
-were missed. A run's reply is appended to the workspace's `Inbox.md` vault page
-under `## <routine> · <time>` and `GlobalBus` emits `routine.finished
-{ routineId, threadId }`. When each routine last ran is machine-local state in
-`routines-state.json` in the server data folder, never in the vault.
+approved routine at most once when a scheduled time fell after its last run
+(or, never run, after the first `runDue` that saw it, or after it was last
+enabled, disabled or approved) and at or before `now`, however many were
+missed. Only the `Routines/` folder is read (in any letter case), so the
+vault's 1,000-page list limit doesn't apply. A run's reply is appended to the
+workspace's `Inbox.md` vault page under `## <routine> · <time>` and `GlobalBus`
+emits `routine.finished { routineId, threadId }`. Appends run one at a time.
+Past 1 MB the Inbox's entries move to `Inbox/<YYYY-MM>.md` (`-2`, `-3` when a
+month fills more than one). A reply that still can't be filed stays in its
+thread and the routine's status is `unfiled`. A run past its timeout is
+interrupted, its thread cancelled and its status `failed`; one left `running`
+past that limit no longer blocks a new run and lists as `failed`. When each
+routine last ran, the permissions its last run was refused and the SHA-256 of
+the approved content are machine-local state in `routines-state.json` in the
+server data folder, never in the vault, and it is rewritten only when something
+changed. A page whose content doesn't match the approved hash shows Needs
+approval, with a link to read it, and doesn't run until approved.
 
 A listening server (`Server.listen` → `createRoutes(..., { background: true })`)
 starts `RoutinesScheduler.layer` (`agents/routines-scheduler.ts`): at start and
-every minute it checks each workspace that has a vault folder on this machine
-(`vault-machine.json`) and runs due routines as Command Centre threads
-(`CommandThreads.start`). The in-process routes that tests use don't start it.
+every minute it picks the workspaces on this machine whose vault folder has a
+`Routines` folder, by reading the files alone (entries under the current root in
+`vault-machine.json`, plus earlier roots' entries whose workspace id has a folder
+under the current root, so a moved vault's routines keep running before each
+workspace is reopened), and runs due routines as Command Centre threads
+(`CommandThreads.start`). A workspace without routines gets no instance from this
+check. The in-process routes that tests use don't start it.
+These threads are unattended, Run now included: `CommandThreads.refusePrompts`
+answers every permission prompt no, the model carries on without it, and the
+row names what was refused.
 The Routines page (`/routines`, `app/src/pages/routines.tsx`, linked from the
-Command Centre) lists schedule, last run and next run with Run now.
+Command Centre) lists schedule, last run and next run with Run now, whose toast
+links to the new thread, or Approve when the page needs approval. It shows a run
+in flight (Run now is off meanwhile) and re-reads the list until it ends. A row's
+switch rewrites the routine page's `enabled` property (read, then `PUT` with its
+revision, since a write replaces all properties), and its name opens the page.
 
 | Route | Behaviour |
 | --- | --- |
-| `GET /second-brain/routines` | `[{ id, name, path, schedule, enabled, nextRun, lastRun, lastStatus }]` (`id` is the page id) |
-| `POST /second-brain/routines/<id>/run` | `{ model? }` → `{ threadId }` once the thread exists; the reply is filed in the background |
+| `GET /second-brain/routines` | `[{ id, name, path, schedule, enabled, nextRun, lastRun, lastStatus, unsupported, hash, needsApproval, denied }]` (`id` is the page id; `lastStatus` is `running`, `done`, `failed`, `unfiled` or null) |
+| `POST /second-brain/routines/<id>/run` | `{ model? }` → `{ threadId }` once the thread exists; the reply is filed in the background. 409 when the page needs approval or while a run of the routine is in flight |
+| `POST /second-brain/routines/<id>/approve` | `{ hash }` (from the list) → `{ approved: true }`; 409 when the page changed since |
 
 ### Mail accounts
 
@@ -617,9 +727,30 @@ Open Workspace buttons run the sidebar's open-folder flow. Home renders its shel
 metrics, and the harness selector have local loading boundaries. Harness
 availability uses the renderer query cache, keyed by server and workspace
 directory, with 30 seconds of freshness and background refresh on stale
-re-entry. Project cards come from the shared project-threads query; calendar
-data still reloads on each visit. The Projects page loads notes and the
-calendar only when its Map or Plan view first opens.
+re-entry. Project cards come from the shared project-threads query; the
+calendar paints from its cached snapshot and refreshes on each visit. Today
+ticks tasks through `features/second-brain/task-actions.ts`, the same Google
+outbox and Undo path as Calendar. Resume lists recent threads from every open
+folder that aren't running. Home and Command Centre composers keep unsent text
+per window (`composer.<scope>` under `Persist.window`). The Projects page loads
+notes and the calendar only when its Map or Plan view first opens.
+
+Pages read `resource.latest` through `utils/resource.ts` (`settled`), because a
+direct read before the first value suspends the fallback-less `Suspense` in
+`pages/layout-new.tsx` and holds the old page until the list request returns.
+
+## Alerts
+
+`context/notification.tsx` turns server events into sounds, OS notifications and
+unseen marks; `context/notification-events.ts` decides which. Composer turns run
+on core's runner and publish only V2 events: `session.next.step.ended` with a
+finish other than `tool-calls` is a finished turn, and `session.next.step.failed`
+is a failure unless it carries the runner's Stop message. Routine and command
+threads on the legacy runner publish `session.idle` and `session.error`. An error
+or Stop silences that turn's closing event; a context overflow raises nothing,
+because auto-compaction carries the turn on. `permission.asked` and `question.asked`
+raise the Permissions sound and notification for root threads, unless auto-accept
+answers the request. Child threads stay silent. Links use the alert's own server.
 
 Page content renders inside an error boundary in `pages/layout-new.tsx`: a page
 that throws shows a retryable message in the page area while the sidebar stays
@@ -660,7 +791,9 @@ and switches with `POST /vcs/branch`; with none the list is empty) and the
 fixed folder and the branch picker; the context ring opens a popover list
 instead of a strip above the box. The composer
 (`PromptInputV2Composer`, given a harness) replaces the separate harness, model,
-effort and service-tier pickers with one pill (`components/prompt-input/model-pill.tsx`):
+effort and service-tier pickers with one pill (`components/prompt-input/model-pill.tsx`).
+A built-in ACP harness with no login in its files shows "Sign-in not found" there, without blocking a send,
+because Bedrock, Vertex or a key in the shell don't show in those files:
 its panel is a drill-in stack: a summary row each for harness, model, reasoning
 and speed (the last two only when the model offers them), and each row slides to
 a full-width list of that choice, so names never truncate. Picking returns to
@@ -681,9 +814,22 @@ with the pill.
 3. Workspace bootstrap loads configuration, initializes plugins, and then
    starts workspace services. Server readiness precedes this work. Startup
    phase logs in `packages/tenon/src/project/bootstrap.ts` distinguish it
-   from initial server launch.
-4. Notes, projects, and local calendar requests resolve the selected location
+   from initial server launch. Until the user approves a folder, its project
+   config can't load code, change providers or expand secrets; the app asks
+   when the folder's config wanted any of that
+   ([Folder trust](../security/threat-model.md#folder-trust)).
+4. The main process log records the launch timeline for each window: module
+   load and `app starting` as time since the OS created the process, then
+   `window ready to show`, the sidecar milestones, and renderer `first-route`
+   and `bootstrap-settled` marks (`record-startup-milestone` IPC, a fixed name
+   and a number, nothing from the page).
+5. Notes, projects, and local calendar requests resolve the selected location
    before reading or mutating files. Google operations use the desktop bridge.
+
+Main-process startup stays small: mail, debug-log export, interactive WSL and
+the auto-updater import their heavy dependencies on first use, and the first
+update check runs after the server start plus five seconds. The sidecar keeps
+Node's compile cache for the server bundle in `<userData>/compile-cache`.
 
 The packaged desktop disables embedded web UI fallback. The server serves only
 a UI bundled into its binary; without one, and for missing `/api` routes, it
@@ -937,7 +1083,10 @@ instance. It keys the in-memory runtimes, so a harness that is switched back
 in reopens its thread and gets the delta. A cached runtime whose process exited (the
 JSON-RPC client's `closed`, set when its stdout ends or fails) is closed and
 reopened instead of reused; requests on a closed client fail at once rather
-than wait. A runtime idle for 30 minutes with no turn running is
+than wait. When the process ends, the thread's error gives its exit code and
+one capped, redacted line from the end of its stderr (`watchExit`). A stdout
+line that isn't JSON is skipped and only its length logged; a JSON message of
+the wrong shape still ends the connection. A runtime idle for 30 minutes with no turn running is
 closed by a sweep that runs every minute (`idleRuntimeKeys`); its thread
 reconnects on the next message. ACP model discovery runs in
 `<state>/harness-discovery`, so the sessions it opens don't land in the
@@ -946,8 +1095,24 @@ thread folder's history. When an ACP session is reopened with
 (`replayedCost`), so the next turn records only its own cost.
 
 Each harness runtime has a turn gate: approvals asked during a turn are
-withdrawn and denied when the turn ends (`turnGate`). A refused ACP model
-switch ends the turn with an error naming the model. Codex turn usage is the
+withdrawn and denied when the turn ends (`turnGate`). Codex's
+`item/tool/requestUserInput` goes through the same asker as `ask_user`, so the
+end of a turn withdraws it too. A refused ACP model
+switch ends the turn with an error naming the model; that turn, like a prompt
+that failed with no text or tool output, keeps its handoff for the next turn.
+
+Turns have deadlines. `turn/start`, `session/set_model` and
+`session/set_config_option` must answer within 60 seconds, and a timeout
+replaces the runtime. `failOnSilence` fails a turn after 10 silent minutes, not
+counting time when a tool or item is open or an approval or question is
+pending; the turn's finalizer asks the agent to stop and the runtime is
+replaced. Stop on Codex waits 5 seconds for `turn/interrupt`, then replaces the
+process. After Stop on an ACP agent the `session/prompt` request stays in the
+runtime's scope, and the next turn waits up to 10 seconds for its answer before
+clearing the queue, so late updates can't reach the new reply. Past that bound
+the turn fails and the runtime reopens through `session/load`.
+
+Codex turn usage is the
 growth of the thread's cumulative `tokenUsage.total`; the last call's input
 and output are reported as `contextUsed`, which the step stores on the
 assistant message next to `contextWindow` and the context meter divides by
@@ -2023,8 +2188,9 @@ choice naming a harness the runtime no longer knows is ignored.
   native session that belongs to no thread, with a 90-second timeout because it
   starts a new process. Codex uses an ephemeral, read-only thread with approvals
   off. ACP agents get a new session whose tool requests are all refused. The
-  thread's own harness uses the thread's model; a harness chosen in settings
-  uses its own default model.
+  thread's own harness uses the thread's model, without its service tier and
+  at the model's lowest listed effort; a harness chosen in settings uses its
+  own default model. Both run in `<state>/harness-discovery`, not the project.
 
 The reply is cleaned by `SessionTitle.clean` (`core/src/session/title.ts`). The
 rename is published as `SessionV1.Event.Updated` after re-reading the row, so a
@@ -2111,7 +2277,12 @@ main process with a bearer token passed in the server's environment
 (`TENON_BROWSER_URL`, `TENON_BROWSER_TOKEN`; harness processes don't get it).
 An agent call brings the matching tab forward and logs the step in it.
 `browser_navigate` to a site other than localhost asks the user in a native
-dialog first.
+dialog first; the dialog closes as a refusal if the agent gives up waiting.
+While a browser tool is in flight, a page's own link, redirect or `window.open`
+to a host not yet allowed gets the same dialog
+(`desktop/src/main/browser-policy.ts`).
+Calls time out after 60 seconds, or 200 for `browser_navigate` and
+`device_install`, and then report that the tool is still running.
 
 `render_svg` rides the same bridge so agents can check a diagram before
 sending it (`desktop/src/main/svg-render.ts`). The main process loads the SVG

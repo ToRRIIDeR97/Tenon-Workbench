@@ -36,7 +36,8 @@ const question = Layer.succeed(
   }),
 )
 const events = Layer.succeed(EventV2.Service, {
-  publish: (definition: { type: string }, data: unknown) => Effect.sync(() => void published.push({ type: definition.type, data })),
+  publish: (definition: { type: string }, data: unknown) =>
+    Effect.sync(() => void published.push({ type: definition.type, data })),
 } as unknown as EventV2.Interface)
 const it = testEffect(
   AppNodeBuilder.build(LayerNode.group([ToolRegistry.node, ToolRegistry.toolsNode, PlanExitTool.node]), [

@@ -112,6 +112,7 @@ function DesktopMemoryRouter(props: BaseRouterProps & { windowID: string }) {
 
 const createPlatform = (windowState: DesktopWindowState): Platform => {
   const attachmentPaths = new WeakMap<File, string>()
+  const startupMilestones = new Set<string>()
   const os = (() => {
     const ua = navigator.userAgent
     if (ua.includes("Mac")) return "macos"
@@ -255,10 +256,20 @@ const createPlatform = (windowState: DesktopWindowState): Platform => {
 
     recordFatalRendererError: (error) => window.api.recordFatalRendererError(error),
 
+    recordStartupMilestone(name) {
+      if (startupMilestones.has(name)) return
+      startupMilestones.add(name)
+      void window.api.recordStartupMilestone(name, Math.round(performance.now())).catch(() => undefined)
+    },
+
     restart: async () => {
+      // Before the server stops: staying with unsaved edits needs it to save them.
+      if (!(await window.api.confirmQuit().catch(() => true))) return
       await window.api.killSidecar().catch(() => undefined)
       window.api.relaunch()
     },
+
+    setUnsavedChanges: (unsaved) => window.api.setUnsavedChanges(unsaved),
 
     notify: async (title, description, onClick) => {
       const focused = await window.api.getWindowFocused().catch(() => document.hasFocus())

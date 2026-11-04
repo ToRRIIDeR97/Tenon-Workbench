@@ -16,6 +16,7 @@ inside `tenon/`, then run these commands from the repository root:
 ```sh
 bun run typecheck
 bun run lint
+bun run format:check
 bun run check:generated
 bun run test
 bun run test:engine
@@ -39,8 +40,24 @@ publishing disabled. Output is under `tenon/packages/desktop/dist/`.
 The packaged app starts its local server in the user's home folder and, on
 Windows, reads the current PATH from the registry at launch, so harness CLIs
 installed since sign-in are found without signing out.
-The build downloads the pinned upstream CLI for the optional development
-sidecar and bundles the fork's local server. These are separate runtimes.
+The build bundles the fork's local server. The pinned upstream CLI for the
+optional v2 development sidecar is a separate runtime and is left out unless
+the build runs with `TENON_BUNDLE_CLI=1` on the development channel; a matching
+`resources/opencode-cli.version` skips copying it again. `bun run dev` also
+fetches it when `TENON_SIDECAR_V2=1` is set. When v2 is requested and the binary
+is missing, the app logs a warning and starts the normal v1 server.
+The server bundle embeds a models.dev snapshot. `MODELS_DEV_API_JSON` names a
+file to use instead; otherwise the build downloads the catalog, saves it to
+`tenon/packages/tenon/dist/models-dev-snapshot.json` and, when the download
+fails, falls back to that copy with a warning. Only a first build with neither
+stops.
+Packaged builds leave out `.map` files from `node_modules`, `effect/src`, and
+the Chromium language packs that no app locale can detect (`electronLanguages`
+in `electron-builder.config.ts`, checked against `DESKTOP_NATIVE_LOCALE_TAGS`).
+Do not trim drizzle's dialect folders: `_relations.js` imports `pg-core` at
+runtime under the SQLite driver too.
+The renderer is minified with `keepNames`. The candidate workflow uploads no
+source maps, so logged renderer stacks keep function names but not file lines.
 The local server comes from `tenon/packages/tenon/script/build-node.ts`
 (entry `src/node.ts`). The fork doesn't build or ship its own `opencode` CLI
 binary, and the desktop app has no "Install CLI" action.
@@ -102,7 +119,27 @@ whisper/ggml from source). Run `bun run --cwd tenon/packages/desktop build:dicta
 
 Speech models are not bundled. Settings › Dictation downloads Whisper Small,
 Whisper Turbo or Parakeet V3 (the GGUF files Handy uses, from Hugging Face,
-checked against their SHA-256) into `<userData>/dictation/models/`.
+checked against their SHA-256) into `<userData>/dictation/models/`. Downloads use
+Electron's `net.fetch`, so they follow the system proxy. An interrupted download
+leaves `<model>.part` there and the next attempt resumes it.
+
+## Bundled ripgrep
+
+`desktop/scripts/prebuild.ts` downloads the pinned ripgrep release for the build
+target (`RUST_TARGET`, or the host) into `desktop/resources/ripgrep/`, checks it
+against the SHA-256 in `core/src/ripgrep/release.ts`, and skips the download when
+`.version` there already matches. It runs before `bun run build`, so the first
+build needs GitHub, and a failed download or mismatch stops it. `electron-builder.config.ts`
+copies `rg[.exe]` into the app's `resources/ripgrep/` folder; on macOS it is signed
+with the app, like the dictation engine. Not yet proved on a signed and notarized
+macOS candidate: check `resources/ripgrep/rg` runs and passes notarization on the
+next one. To move to a new ripgrep, change `VERSION` and all the `sha256` values
+together.
+
+At runtime `preferAppEnv` sets `TENON_RIPGREP_PATH` in packaged builds. The sidecar
+looks for `rg` on `PATH`, then at that path, then in its `bin` folder, and only then
+downloads the same verified archive. A failed download is retried on the next
+search. LSP server auto-install still fetches unpinned releases.
 
 ## Desktop identity change
 
@@ -237,7 +274,9 @@ Verify after the first launch:
    `.legacy-storage-migrated`, and no `*.migrating-*` folder is left beside
    them.
 2. Existing sessions, projects and provider sign-ins appear in the app.
-3. New server logs are written under `tenon-workbench/log`.
+3. New server logs are written under `tenon-workbench/log`. At each start a
+   `tenon.log` over 10 MB becomes `tenon.log.1`, replacing the previous backup,
+   and any leftover `opencode.log` in that folder is deleted.
 
 Rollback: quit the app and run the previous build. It reads the unchanged
 legacy `opencode` folders. Anything the new build wrote after migration stays
@@ -297,6 +336,11 @@ up again.
   password after 1, 2, 4, 8 and 16 s, at most 5 times in 10 minutes. Restarts
   are logged in the `utility` log; no IPC event tells the renderer, which
   reconnects through its own health checks. After the limit, restart the app.
+- On quit, relaunch or update install, a window reporting unsaved edits first
+  gets a native Leave or Stay prompt (`unload-guard.ts`). Stay cancels before
+  anything stops, so the server stays up to save. Closing one window asks the
+  same through `will-prevent-unload`. SIGINT, SIGTERM and Windows session end
+  never prompt, because nobody can answer; those edits are lost.
 - On quit, the app waits up to 8 s for the server to stop (it is killed after
   6 s), then exits.
 - Uncaught exceptions and unhandled rejections in the main process are written
@@ -326,6 +370,16 @@ removed on a later backup once they are an hour old.
 Restore a backup: quit the app, move `tenon.db`, `tenon.db-wal` and
 `tenon.db-shm` aside, copy the backup to `tenon.db`, and start the build
 that matches it. Data written after the backup is lost.
+
+After migrations, startup runs a bounded `PRAGMA optimize` to refresh planner
+statistics. If another server process holds the write lock, startup continues
+and the next start retries. `journal_size_limit` caps the `-wal` file at 64 MB
+once it next resets.
+
+The `event` table only shrinks when a session is deleted. There is no retention
+policy, because transfer, sync and replay need contiguous sequence numbers.
+`tenon debug events` prints rows and stored bytes per event type, for deciding
+whether one is needed.
 
 Migration authors: foreign keys are off while migrations run, so
 `ON DELETE CASCADE` does not fire. Delete child rows explicitly, or the foreign

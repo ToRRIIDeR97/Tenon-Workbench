@@ -1,16 +1,21 @@
 import { afterEach, describe, expect } from "bun:test"
 import { NodeHttpServer, NodeServices } from "@effect/platform-node"
-import { mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises"
+import { cp, mkdir, readFile, readdir, rm, stat, symlink, utimes, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { Config, Effect, Layer } from "effect"
+import { systemError } from "effect/PlatformError"
 import { HttpClient, HttpClientRequest, HttpClientResponse, HttpRouter, HttpServer } from "effect/unstable/http"
 import { layerWebSocketConstructorGlobal } from "effect/unstable/socket/Socket"
 import { AppNodeBuilder } from "@tenon/core/effect/app-node-builder"
 import { LayerNode } from "@tenon/core/effect/layer-node"
 import { CrossSpawnSpawner } from "@tenon/core/cross-spawn-spawner"
 import { Database } from "@tenon/core/database/database"
+import { FileMutation } from "@tenon/core/file-mutation"
 import { FSUtil } from "@tenon/core/fs-util"
 import { Global } from "@tenon/core/global"
+import { Location } from "@tenon/core/location"
+import { LocationServiceMap, locationServiceMapLayer } from "@tenon/core/location-services"
+import { AbsolutePath } from "@tenon/core/schema"
 import { Ripgrep } from "@tenon/core/ripgrep"
 import { Workspace } from "../../src/control-plane/workspace"
 import { KnowledgeVault } from "../../src/knowledge/vault"
@@ -86,6 +91,30 @@ afterEach(async () => {
 })
 
 describe("vault routes", () => {
+  it.instance("deleting a page needs its current revision and keeps the removed version in history", () =>
+    Effect.gen(function* () {
+      const { headers, project } = yield* setup
+      const created = yield* put(headers, "Plan.md", { body: "one", create: true }).pipe(
+        Effect.flatMap(json<{ revision: string }>),
+      )
+      const remove = (page: string, revision: string) =>
+        request(
+          `/second-brain/vault/page?path=${encodeURIComponent(page)}&expectedRevision=${encodeURIComponent(revision)}`,
+          { method: "DELETE", headers },
+        )
+      expect((yield* remove("Plan.md", "stale")).status).toBe(409)
+      expect((yield* remove("Plan.md", created.revision)).status).toBe(200)
+      expect((yield* remove("Plan.md", created.revision)).status).toBe(404)
+      const versions = yield* request("/second-brain/vault/page/history?path=Plan.md", { headers }).pipe(
+        Effect.flatMap(json<ReadonlyArray<{ revision: string }>>),
+      )
+      expect(versions).toHaveLength(1)
+      // A Project's log folder stays reserved, as it is for writes.
+      yield* put(headers, "Note.md", { body: "x", projectId: project.id, create: true })
+      expect((yield* remove("Acme API/log/entry.md", "any")).status).toBe(400)
+    }),
+  )
+
   it.instance("a Project path already inside the Project folder is not nested again", () =>
     Effect.gen(function* () {
       const { headers, project } = yield* setup
@@ -211,6 +240,136 @@ describe("vault routes", () => {
       expect(response.status).toBe(400)
       expect(yield* response.text).toContain("vault_inside_workspace")
       expect(yield* Effect.promise(() => readdir(test.directory))).not.toContain("vault")
+    }),
+  )
+
+  it.instance("listing reuses a page while its size and time match, and containment still runs on a hit", () =>
+    Effect.gen(function* () {
+      const { headers, folder } = yield* setup
+      yield* put(headers, "Kept/Cached.md", { title: "One", body: "alpha", create: true }).pipe(Effect.flatMap(json))
+      const file = path.join(folder, "Kept", "Cached.md")
+      const list = (query = "") =>
+        request(`/second-brain/vault/pages${query}`, { headers }).pipe(
+          Effect.flatMap(json<{ path: string; title: string }[]>),
+          Effect.map((pages) => pages.filter((page) => page.path.endsWith("Cached.md")).map((page) => page.title)),
+        )
+      expect(yield* list()).toEqual(["One"])
+      expect(yield* list("?search=alpha")).toEqual(["One"])
+
+      // Same size and time: the cached title and search text stand. A changed time reads the file again.
+      const time = (yield* Effect.promise(() => stat(file))).mtime
+      const source = yield* Effect.promise(() => readFile(file, "utf8"))
+      yield* Effect.promise(() => writeFile(file, source.replace("One", "Two").replace("alpha", "gamma")))
+      yield* Effect.promise(() => utimes(file, time, time))
+      expect(yield* list("?search=alpha")).toEqual(["One"])
+      yield* Effect.promise(() => utimes(file, time, new Date(time.getTime() + 5_000)))
+      expect(yield* list("?search=gamma")).toEqual(["Two"])
+
+      // A link to the same bytes and time out of the vault: the cached entry must not be served. Glob doesn't
+      // walk into linked folders, so only a file link reaches the cache; Windows may refuse to make one.
+      const outside = path.join(yield* tmpdirScoped(), "Cached.md")
+      yield* Effect.promise(() => cp(file, outside, { preserveTimestamps: true }))
+      yield* Effect.promise(() => rm(file))
+      const linked = yield* Effect.promise(() =>
+        symlink(outside, file, "file").then(
+          () => true,
+          () => false,
+        ),
+      )
+      if (linked) expect(yield* list()).toEqual([])
+    }),
+  )
+
+  it.instance("an unreadable id file fails with its name instead of forking the folder", () =>
+    Effect.gen(function* () {
+      const { root, headers, project, folder } = yield* setup
+      const vault = () => request("/second-brain/vault", { headers })
+      const id = path.join(folder, "workspace.json")
+      const good = yield* Effect.promise(() => readFile(id, "utf8"))
+      yield* put(headers, "Plan.md", { body: "x", projectId: project.id, create: true }).pipe(Effect.flatMap(json))
+
+      yield* Effect.promise(() => writeFile(id, "{ half synced"))
+      const refused = yield* vault()
+      expect(refused.status).toBe(400)
+      expect(yield* refused.text).toContain(`vault_unavailable: ${path.basename(folder)}/workspace.json`)
+      expect(yield* Effect.promise(() => readdir(root))).toEqual([path.basename(folder)])
+      yield* Effect.promise(() => writeFile(id, good))
+
+      // The same rule for a Project: a broken project.json is not "no folder yet".
+      yield* Effect.promise(() => writeFile(path.join(folder, "Acme API", "project.json"), "{ half synced"))
+      const write = yield* put(headers, "Next.md", { body: "x", projectId: project.id, create: true })
+      expect(write.status).toBe(400)
+      expect(yield* write.text).toContain("vault_unavailable: Acme API/project.json")
+      expect(yield* Effect.promise(() => readdir(folder))).not.toContain("Acme API (2)")
+
+      // A folder the user really deleted lists clean, so it comes back.
+      yield* Effect.promise(() => rm(folder, { recursive: true }))
+      yield* vault().pipe(Effect.flatMap(json))
+      expect(yield* Effect.promise(() => readdir(root))).toEqual([path.basename(folder)])
+    }),
+  )
+
+  it.instance("saving over a damaged timeline keeps its bytes beside it", () =>
+    Effect.gen(function* () {
+      const { headers, project, folder } = yield* setup
+      const route = `/second-brain/vault/timeline?project=${project.id}`
+      yield* put(headers, "Plan.md", { body: "x", projectId: project.id, create: true }).pipe(Effect.flatMap(json))
+      const projectFolder = path.join(folder, "Acme API")
+      yield* Effect.promise(() => writeFile(path.join(projectFolder, "timeline.json"), '{ "version": 1, "items": [ {'))
+      const damaged = yield* request(route, { headers }).pipe(Effect.flatMap(json<{ revision: string }>))
+      yield* request(route, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({ items: [], expectedRevision: damaged.revision }),
+      }).pipe(Effect.flatMap(json))
+      const names = yield* Effect.promise(() => readdir(projectFolder))
+      const copy = names.find((name) => name.startsWith("timeline.json.corrupt-"))
+      expect(copy).toBeDefined()
+      expect(yield* Effect.promise(() => readFile(path.join(projectFolder, copy!), "utf8"))).toContain('"items": [ {')
+    }),
+  )
+
+  it.instance("a page in a folder synced in another Unicode form stays in that Project", () =>
+    Effect.gen(function* () {
+      const { headers, folder } = yield* setup
+      const nfd = "Cafe\u0301"
+      yield* Effect.promise(() => mkdir(path.join(folder, nfd)))
+      const id = "project_01ABC"
+      yield* Effect.promise(() =>
+        writeFile(path.join(folder, nfd, "project.json"), JSON.stringify({ version: 1, id, name: nfd })),
+      )
+      const saved = yield* put(headers, "Caf\u00e9/Plan.md", { body: "x", create: true }).pipe(
+        Effect.flatMap(json<{ info: { path: string; projectId: string } }>),
+      )
+      expect(saved.info).toMatchObject({ path: `${nfd}/Plan.md`, projectId: id })
+    }),
+  )
+
+  it.instance("a failed history prune does not fail the save", () =>
+    Effect.gen(function* () {
+      const { headers, folder } = yield* setup
+      const test = yield* TestInstance
+      yield* put(headers, "Draft.md", { body: "v0", create: true }).pipe(Effect.flatMap(json))
+      const history = path.join(folder, ".history", "Draft")
+      yield* Effect.promise(() => mkdir(history, { recursive: true }))
+      yield* Effect.promise(() =>
+        Promise.all(
+          Array.from({ length: 21 }, (_, index) =>
+            writeFile(path.join(history, `${String(index + 1).padStart(13, "0")}-0123456789abcdef.md`), "old"),
+          ),
+        ),
+      )
+      const denied = systemError({ _tag: "PermissionDenied", module: "FileSystem", method: "remove" })
+      const saved = yield* Effect.gen(function* () {
+        const locations = yield* LocationServiceMap.Service
+        return yield* KnowledgeVault.open({ directory: test.directory, name: "Test" }).pipe(
+          Effect.flatMap((vault) => KnowledgeVault.writePage(vault, "Draft.md", { body: "v1" })),
+          Effect.updateService(FileMutation.Service, (files) => ({ ...files, remove: () => Effect.fail(denied) })),
+          Effect.provide(locations.get(Location.Ref.make({ directory: AbsolutePath.make(test.directory) }))),
+          Effect.provideService(Global.Service, Global.make()),
+        )
+      }).pipe(Effect.provide(locationServiceMapLayer), Effect.provide(LayerNode.compile(FSUtil.node)))
+      expect(saved.body).toContain("v1")
     }),
   )
 

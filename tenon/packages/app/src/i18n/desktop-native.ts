@@ -339,6 +339,10 @@ export const DESKTOP_NATIVE_ENGLISH = {
   "secondBrain.desktop.browser.agentNavigate.message": "An agent wants to open {{host}} in the Workbench browser.",
   "secondBrain.desktop.browser.agentNavigate.allow": "Open",
   "secondBrain.desktop.browser.agentNavigate.deny": "Don't open",
+  "secondBrain.desktop.unsaved.message": "You have unsaved changes",
+  "secondBrain.desktop.unsaved.detail": "If you leave now, the edits you haven't saved will be lost.",
+  "secondBrain.desktop.unsaved.leave": "Leave",
+  "secondBrain.desktop.unsaved.stay": "Stay",
 } as const
 
 export type DesktopNativeKey = keyof typeof DESKTOP_NATIVE_ENGLISH

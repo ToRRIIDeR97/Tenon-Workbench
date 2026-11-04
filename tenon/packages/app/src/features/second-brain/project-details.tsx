@@ -1,4 +1,3 @@
-import { useBeforeLeave } from "@solidjs/router"
 import { useQueryClient } from "@tanstack/solid-query"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { SelectV2 } from "@tenon/ui/v2/select-v2"
@@ -17,11 +16,12 @@ import { focusWhenConnected } from "@/utils/focus-when-connected"
 import { pathKey } from "@/utils/path-key"
 import { showToast } from "@/utils/toast"
 import { createProject, SecondBrainRequestError, updateProject, type ProjectRecord, type ProjectStatus } from "./client"
+import { useUnsavedGuard } from "./unsaved-guard"
 
 /**
- * A Project's Settings section on the Projects page: progress, next milestone, blocker and settings (outcome,
+ * A Project's Settings section on the Projects page: progress, next milestone, blocker and settings (name, outcome,
  * instructions, tags), with Save/Discard, Pause/Resume and Archive (with Undo). Edits survive a newer record of the
- * same Project, and leaving the page with unsaved edits is blocked. Start work sits in the page's sticky bar.
+ * same Project, and leaving the page with unsaved edits asks first. Start work sits in the page's sticky bar.
  */
 export function ProjectDetails(props: {
   project: ProjectRecord
@@ -36,6 +36,7 @@ export function ProjectDetails(props: {
     progress: state.progress,
     nextMilestone: state.nextMilestone,
     blocker: state.blocker,
+    name: state.name,
     outcome: state.outcome,
     instructions: state.instructions,
     tags: state.tags,
@@ -61,12 +62,6 @@ export function ProjectDetails(props: {
       { defer: true },
     ),
   )
-  useBeforeLeave((event) => {
-    if (!dirty()) return
-    event.preventDefault()
-    setState("error", language.t("secondBrain.projects.error.unsaved"))
-  })
-
   const report = (error: unknown) =>
     setState(
       "error",
@@ -76,12 +71,18 @@ export function ProjectDetails(props: {
     )
 
   const save = async () => {
-    if (!dirty()) return
-    if (!state.outcome.trim()) return setState("error", language.t("secondBrain.projects.error.required"))
+    if (!dirty()) return true
+    const name = state.name.trim()
+    if (!name || !state.outcome.trim()) {
+      setState("error", language.t("secondBrain.projects.error.required"))
+      return false
+    }
     const sent = current()
     setState({ saving: true, error: "" })
     const updated = await project
       .update(props.project, {
+        // Only a change is sent. A rename changes the card's name; a folder-backed Project keeps its folder.
+        ...(name === props.project.name ? {} : { name }),
         outcome: state.outcome.trim(),
         instructions: state.instructions.trim(),
         tags: splitTags(state.tags),
@@ -93,7 +94,19 @@ export function ProjectDetails(props: {
     setState("saving", false)
     // Fields saved as typed take the server's normalized copy; ones edited during the save stay unsaved.
     if (updated) followUnedited(sent, formFields(updated))
+    return !!updated
   }
+  useUnsavedGuard({
+    dirty,
+    // Settings may be collapsed, which hides the form's own error line.
+    save: async () => {
+      const saved = await save()
+      if (!saved) showToast({ variant: "error", title: state.error })
+      return saved
+    },
+    discard: () => setState({ ...formFields(props.project), error: "" }),
+    body: () => language.t("secondBrain.unsaved.project"),
+  })
 
   const setStatus = async (status: ProjectStatus) => {
     const before = props.project
@@ -168,6 +181,15 @@ export function ProjectDetails(props: {
           {language.t("secondBrain.projects.settings")}
         </summary>
         <div class="mt-3 flex flex-col gap-4">
+          <label class={labelClass} for="project-settings-name">
+            {language.t("secondBrain.projects.name")}
+            <TextInputV2
+              id="project-settings-name"
+              appearance="large"
+              value={state.name}
+              onInput={(event) => setState("name", event.currentTarget.value)}
+            />
+          </label>
           <label class={labelClass} for="project-settings-outcome">
             {language.t("secondBrain.projects.outcome")}
             <TextareaV2
@@ -317,7 +339,9 @@ export function ProjectCreate(props: {
         void submit()
       }}
       onKeyDown={(event) => {
+        // Esc only leaves an untouched form; typed text waits for Cancel.
         if (event.key !== "Escape" || event.defaultPrevented) return
+        if (Object.values(state.draft).some((value) => value.trim())) return
         event.preventDefault()
         props.onCancel()
       }}
@@ -438,6 +462,7 @@ function useProjectActions(directory: () => string) {
 }
 
 const formFields = (project: ProjectRecord) => ({
+  name: project.name,
   progress: project.progressPercent,
   nextMilestone: project.nextMilestone ?? "",
   blocker: project.blocker ?? "",

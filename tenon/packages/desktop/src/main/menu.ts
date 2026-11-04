@@ -1,11 +1,6 @@
 import { BrowserWindow, Menu } from "electron"
 import type { MenuItemConstructorOptions } from "electron"
-import {
-  DESKTOP_MENU,
-  desktopMenuVisible,
-  type DesktopMenuEntry,
-  type DesktopMenuRole,
-} from "@tenon/app/desktop-menu"
+import { DESKTOP_MENU, desktopMenuVisible, type DesktopMenuEntry, type DesktopMenuRole } from "@tenon/app/desktop-menu"
 
 import { UPDATER_ENABLED } from "./constants"
 import { runDesktopMenuAction } from "./desktop-menu-actions"

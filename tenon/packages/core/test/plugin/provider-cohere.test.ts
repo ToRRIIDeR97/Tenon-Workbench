@@ -6,7 +6,6 @@ import { PluginV2 } from "@tenon/core/plugin"
 import { PluginHost } from "@tenon/core/plugin/host"
 import { CoherePlugin } from "@tenon/core/plugin/provider/cohere"
 import { ProviderV2 } from "@tenon/core/provider"
-import type { LanguageModelV3 } from "@ai-sdk/provider"
 import { testEffect } from "../lib/effect"
 import { PluginTestLayer } from "./fixture"
 
@@ -19,19 +18,6 @@ const addPlugin = Effect.fn(function* () {
   const host = yield* PluginHost.make(plugin)
   yield* CoherePlugin.effect(host)
 })
-
-function fakeSelectorSdk(calls: string[]) {
-  const make = (method: string) => (id: string) => {
-    calls.push(`${method}:${id}`)
-    return { modelId: id, provider: method, specificationVersion: "v3" } as unknown as LanguageModelV3
-  }
-  return {
-    responses: make("responses"),
-    messages: make("messages"),
-    chat: make("chat"),
-    languageModel: make("languageModel"),
-  }
-}
 
 void mock.module("@ai-sdk/cohere", () => ({
   createCohere: (options: Record<string, any>) => {
@@ -95,29 +81,6 @@ describe("CoherePlugin", () => {
         baseURL: "https://cohere.example",
       })
       expect(result.sdk?.languageModel("command-r-plus").provider).toBe("custom-cohere.chat")
-    }),
-  )
-
-  it.effect("leaves language selection to the default languageModel fallback", () =>
-    Effect.gen(function* () {
-      const plugin = yield* PluginV2.Service
-      const aisdk = yield* AISDK.Service
-      const calls: string[] = []
-      const sdk = fakeSelectorSdk(calls)
-      yield* addPlugin()
-      const result = yield* aisdk.runLanguage({
-        model: ModelV2.Info.make({
-          ...ModelV2.Info.empty(ProviderV2.ID.make("cohere"), ModelV2.ID.make("alias")),
-          api: { id: ModelV2.ID.make("command-r-plus"), type: "aisdk", package: "test-provider" },
-        }),
-        sdk,
-        options: {},
-      })
-
-      expect(result.language).toBeUndefined()
-      expect(calls).toEqual([])
-      expect(result.language ?? sdk.languageModel("command-r-plus")).toBeDefined()
-      expect(calls).toEqual(["languageModel:command-r-plus"])
     }),
   )
 })

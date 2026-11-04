@@ -119,17 +119,23 @@ export async function syncGoogleCalendar(input: {
     // A connected account that failed this sync keeps its items; disconnected accounts lose theirs.
     const failed = (account: string | undefined) => Boolean(account && connected.has(account) && !synced.has(account))
     const kept = (accountId: string | undefined) => failed(accountOf(accountId))
+    const settled = new Map(result.settled.map((write) => [write.idempotencyKey, write.providerId]))
     const events = mergeProviderEvents(current.events, result.events, {
       accountOf,
       failed,
       synced: (account) => Boolean(account && synced.has(account)),
+      settled: (outboxKey) => settled.has(outboxKey),
     })
     const taskKey = (task: { accountId?: string; taskListId?: string; providerId?: string }) =>
       `${accountOf(task.accountId)}:${task.taskListId}:${task.providerId}`
     const localByProvider = new Map(
       current.tasks
         .filter((task) => task.source === "google" && task.providerId && task.taskListId)
-        .map((task) => [taskKey(task), task] as const),
+        // A create that has since finished is known by Google's ID, which keeps its Project and schedule.
+        .map((task) => {
+          const providerId = settled.get(task.outboxKey ?? "") ?? task.providerId
+          return [taskKey({ ...task, providerId }), task] as const
+        }),
     )
     const remoteKeys = new Set(result.tasks.map(taskKey))
     const tasks = [
@@ -139,6 +145,7 @@ export async function syncGoogleCalendar(input: {
           task.source === "google" &&
           synced.has(accountOf(task.accountId) ?? "") &&
           Boolean(task.outboxKey) &&
+          !settled.has(task.outboxKey!) &&
           !remoteKeys.has(taskKey(task)),
       ),
       ...result.tasks.map((task) => providerTask(task, localByProvider.get(taskKey(task)))),

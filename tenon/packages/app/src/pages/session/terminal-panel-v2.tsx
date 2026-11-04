@@ -191,9 +191,13 @@ export function TerminalPanelV2(props: { stacked?: boolean } = {}) {
           collapseThreshold={50}
           onResize={(next) => {
             size.touch()
-            layout.terminal.resize(next)
+            layout.terminal.preview(next)
           }}
-          onCollapse={close}
+          onResizeEnd={(next) => layout.terminal.resize(next)}
+          onCollapse={() => {
+            layout.terminal.preview(undefined)
+            close()
+          }}
         />
       </div>
       <div

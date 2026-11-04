@@ -1,3 +1,4 @@
+import { useParams } from "@solidjs/router"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { createStore } from "solid-js/store"
@@ -6,27 +7,48 @@ import type { DictationFailure, DictationPlatform } from "@/context/platform"
 import { useLanguage } from "@/context/language"
 import { showToast } from "@/utils/toast"
 
+// Toasts have a fixed height, so a long transcript would push Copy out of reach. Copy takes all of it.
+const TRANSCRIPT_PREVIEW = 300
+
 /**
  * The composer's mic: click to record through the desktop dictation engine, click again to stop
  * and insert the transcript at the caret. Rendered only when the platform exposes dictation.
  */
 export function PromptDictationButton(props: { dictation: DictationPlatform; restoreFocus: () => void }) {
   const language = useLanguage()
+  const params = useParams()
+  // The composer stays mounted across threads in the same folder, so a recording remembers its own.
+  let thread: string | undefined
   const [state, setState] = createStore({
     phase: "idle" as "idle" | "starting" | "recording" | "transcribing",
     level: 0,
   })
   const offLevel = props.dictation.onLevel((rms) => setState("level", Math.min(1, rms * 4)))
+  const offLimit = props.dictation.onLimit(() => {
+    if (state.phase !== "recording") return
+    showToast({ description: language.t("dictation.limitReached") })
+    void finish()
+  })
   // A start still in flight at unmount is cancelled once it resolves, so the mic doesn't keep recording.
+  // A recording in progress is transcribed anyway and offered, so the words aren't lost.
   let disposed = false
   onCleanup(() => {
     disposed = true
     offLevel()
-    if (state.phase === "recording") void props.dictation.cancel()
+    offLimit()
+    if (state.phase === "recording") void finish()
   })
 
   const report = (error: DictationFailure) => {
-    const known = ["no_model", "engine_unavailable", "engine_exited", "no_microphone", "microphone_busy"]
+    const known = [
+      "no_model",
+      "engine_unavailable",
+      "engine_exited",
+      "no_microphone",
+      "microphone_busy",
+      "transcribe_timeout",
+      "already_recording",
+    ]
     // A denied microphone names its platform's help text and offers the privacy settings.
     const key =
       error.help?.key ?? (known.includes(error.code) ? `dictation.error.${error.code}` : "dictation.error.generic")
@@ -45,9 +67,40 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
     })
   }
 
-  const toggle = async () => {
-    if (state.phase === "starting" || state.phase === "transcribing") return
+  const finish = async () => {
+    setState({ phase: "transcribing", level: 0 })
+    const result = await props.dictation.stop()
+    setState("phase", "idle")
+    if (result.error?.code === "cancelled") return
+    if (result.error) return report(result.error)
+    if (!result.text) return
+    if (!disposed && params.id === thread) return insertAtCaret(result.text, props.restoreFocus)
+    // The composer is gone or shows another thread, and typing there could reach a note or the wrong draft.
+    const text = result.text
+    showToast({
+      persistent: true,
+      title: language.t("dictation.transcript.title"),
+      description: text.length > TRANSCRIPT_PREVIEW ? `${text.slice(0, TRANSCRIPT_PREVIEW)}…` : text,
+      actions: [
+        {
+          label: language.t("dictation.transcript.copy"),
+          onClick: () => void navigator.clipboard.writeText(text),
+        },
+        { label: language.t("common.dismiss"), onClick: "dismiss" },
+      ],
+    })
+  }
+
+  const toggle = async (clicks: number) => {
+    if (state.phase === "starting") return
+    // Gives up on a transcription that is taking too long; finish() ends quietly. The second click of
+    // a double-click on stop is not a cancel: it would throw the recording away.
+    if (state.phase === "transcribing") {
+      if (clicks < 2) void props.dictation.cancel()
+      return
+    }
     if (state.phase === "idle") {
+      thread = params.id
       setState("phase", "starting")
       const result = await props.dictation.start()
       if (disposed) {
@@ -60,15 +113,13 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
       }
       return setState("phase", "recording")
     }
-    setState({ phase: "transcribing", level: 0 })
-    const result = await props.dictation.stop()
-    setState("phase", "idle")
-    if (result.error) return report(result.error)
-    if (result.text) insertAtCaret(result.text, props.restoreFocus)
+    await finish()
   }
 
   const label = () =>
-    state.phase === "transcribing" ? language.t("dictation.transcribing") : language.t("dictation.action.dictate")
+    state.phase === "transcribing"
+      ? language.t("dictation.transcribing.cancel")
+      : language.t("dictation.action.dictate")
   return (
     <TooltipV2 placement="top" value={label()}>
       <IconButtonV2
@@ -77,11 +128,11 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
         data-phase={state.phase}
         variant="ghost-muted"
         size="large"
-        aria-label={language.t("dictation.action.dictate")}
+        aria-label={label()}
         aria-pressed={state.phase === "recording"}
         aria-busy={state.phase === "starting" || state.phase === "transcribing"}
         state={state.phase === "recording" ? "pressed" : undefined}
-        onClick={() => void toggle()}
+        onClick={(event) => void toggle(event.detail)}
         icon={<MicIcon level={state.phase === "recording" ? state.level : undefined} />}
       />
     </TooltipV2>

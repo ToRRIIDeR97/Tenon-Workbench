@@ -41,7 +41,7 @@ def assoc(s, pts, m1, m2, name=None, comp=False, at=None):
 def classes():
     s = SVG(1080, 870, "Class view of core domain types",
             "UML class view: agent-runtime types (Project, Session, SessionMessage, SessionInput, durable Event, "
-            "permission types, HarnessInstance) and Second Brain types (Location, BrainProject, KnowledgeNote, calendar).")
+            "permission types, HarnessInstance) and Second Brain types (Location, BrainProject, VaultPage, calendar).")
     s.heading("Class view", "UML 2.5.1 class diagram · filled diamond = composition · schema/src, core/src, tenon/src · fields abridged")
     klass(s, 20, 84, 230, "Project", ["id", "worktree", "directories[]"], "core table")
     klass(s, 280, 84, 230, "Event", ["aggregate_id = sessionID", "seq (unique per aggregate)", "type (versioned)"], "durable")
@@ -60,8 +60,8 @@ def classes():
     klass(s, 540, 470, 230, "HarnessInstance", ["id, driver: opencode|codex|acp", "status: available|unavailable",
                                                "models[]; built-ins: opencode,", "codex, opencode-acp, claude-code",
                                                "source: built-in | harnesses.json", "| config harnesses"])
-    klass(s, 800, 470, 240, "KnowledgeNote", ["path notes/**.md or", "projects/<id>/notes/**.md", "title, tags[], links[]",
-                                             "projectIds[]", "revision = sha256(raw)"])
+    klass(s, 800, 470, 240, "VaultPage", ["path relative to the workspace's", "vault folder", "title, projectId?, properties",
+                                             "updatedAt", "revision = sha256(raw)"])
     klass(s, 280, 690, 230, "Task", ["id, title, dueDate?, scheduledDate?", "completedAt? (open if unset)", "projectId?, source, syncState"])
     klass(s, 540, 690, 230, "CalendarEvent", ["id, title, date, start?/end?", "projectId?, accountId? (Google)", "source: local | google, syncState"])
     klass(s, 800, 690, 240, "CalendarSnapshot", ["version 2, revision (ULID)", ".tenon/calendar-v1.json", "events ≤ 5000, tasks ≤ 5000"])
@@ -149,9 +149,9 @@ def activity_run():
 
 def activity_write():
     s = SVG(960, 930, "Activity: Second Brain write",
-            "UML activity for PUT /second-brain/note and PUT /second-brain/calendar: authorization, workspace routing, "
+            "UML activity for PUT /second-brain/vault/page and PUT /second-brain/calendar: authorization, workspace routing, "
             "decode, path containment, compare-and-swap write and best-effort timeline sync, with HTTP error exits.")
-    s.heading("Activity: Second Brain write (note or calendar)",
+    s.heading("Activity: Second Brain write (vault page or calendar)",
               "tenon/src/server/routes/instance/httpapi/handlers/second-brain.ts · core/src/file-mutation.ts")
     cx, E = 440, s.edge
 
@@ -163,7 +163,7 @@ def activity_write():
     rows = [(92, "Authorization", "Basic auth (header or auth_token)", "[bad credentials]", "401"),
             (182, "WorkspaceRouting + InstanceContext", "directory → InstanceStore.load", "[invalid · unknown · folder gone]", "400 / 500 / 404"),
             (272, "decode query + payload", "schema layer", "[schema error]", "400"),
-            (362, "resolve target path", "notePath rules · LocationMutation.resolve", "[escape · bad path · > 5 MiB]", "400")]
+            (362, "resolve target path", "vault path rules · LocationMutation.resolve", "[escape · bad path · > 5 MiB]", "400")]
     for y, t, sub, guard, code in rows:
         s.node(cx - 150, y, 300, 44, t, sub)
         E([(cx, y + 44), (cx, y + 44 + 0.01)], head=None)

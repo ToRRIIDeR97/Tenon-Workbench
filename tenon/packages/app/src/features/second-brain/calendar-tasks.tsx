@@ -70,7 +70,10 @@ const emptyDraft = (): Draft => ({
 export function CalendarTasks(props: {
   tasks: ReadonlyArray<PlannerTask>
   projects: ReadonlyArray<ProjectRecord>
-  onSave: (tasks: ReadonlyArray<PlannerTask>) => Promise<void>
+  /** `overwrite` names the task whose save replaces Google's version in a conflict. */
+  onSave: (tasks: ReadonlyArray<PlannerTask>, overwrite?: string) => Promise<void>
+  /** Drops the queued change of a task in conflict, keeping Google's version. */
+  onKeepGoogle?: (outboxKey: string) => Promise<void>
   /** Completes or reopens a task at once, Google tasks included; no editor or confirm step. */
   onToggle: (task: PlannerTask) => Promise<void>
   filter?: CalendarTaskFilter
@@ -174,10 +177,24 @@ export function CalendarTasks(props: {
     ),
   )
 
+  const inConflict = () => state.draft.syncState === "conflict" && Boolean(state.draft.outboxKey)
+
   const persist = async (tasks: ReadonlyArray<PlannerTask>) => {
     setState({ saving: true, error: "" })
     try {
-      await props.onSave(tasks)
+      await props.onSave(tasks, inConflict() ? state.draft.id : undefined)
+      setState({ editing: false, draft: emptyDraft(), confirmingDelete: false, googleConfirm: false })
+    } catch {
+      setState("error", language.t("secondBrain.tasks.error.request"))
+    } finally {
+      setState("saving", false)
+    }
+  }
+
+  const keepGoogle = async () => {
+    setState({ saving: true, error: "" })
+    try {
+      await props.onKeepGoogle?.(state.draft.outboxKey)
       setState({ editing: false, draft: emptyDraft(), confirmingDelete: false, googleConfirm: false })
     } catch {
       setState("error", language.t("secondBrain.tasks.error.request"))
@@ -230,7 +247,7 @@ export function CalendarTasks(props: {
       (!original ||
         JSON.stringify([original.title, original.notes ?? "", original.dueDate ?? "", original.completedAt ?? ""]) !==
           JSON.stringify([task.title, task.notes ?? "", task.dueDate ?? "", task.completedAt ?? ""]))
-    if (providerChanged && !state.googleConfirm) {
+    if ((providerChanged || inConflict()) && !state.googleConfirm) {
       setState("googleConfirm", true)
       return
     }
@@ -532,6 +549,22 @@ export function CalendarTasks(props: {
               <p id="task-error" role="alert" class="text-[12px] text-v2-text-text-critical">
                 {state.error}
               </p>
+            </Show>
+            <Show when={inConflict()}>
+              <div class="flex flex-col items-start gap-2 rounded-[12px] bg-v2-background-bg-base px-3 py-2">
+                <p class="text-[12px] leading-5 text-v2-text-text-muted">
+                  {language.t("secondBrain.calendar.google.conflictNote")}
+                </p>
+                <ButtonV2
+                  type="button"
+                  size="small"
+                  variant="ghost"
+                  disabled={state.saving}
+                  onClick={() => void keepGoogle()}
+                >
+                  {language.t("secondBrain.calendar.google.keepGoogle")}
+                </ButtonV2>
+              </div>
             </Show>
             <Show when={state.googleConfirm}>
               <p

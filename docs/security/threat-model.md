@@ -15,7 +15,7 @@ Detailed permission and request flows are in
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Renderer to native process | The main window uses `contextIsolation`, `sandbox`, and disabled `nodeIntegration`. `tenon/packages/desktop/src/preload/index.ts` exposes specific IPC methods implemented in `tenon/packages/desktop/src/main/ipc.ts`. Packaged builds ignore `ELECTRON_RENDERER_URL`; see Renderer content policy for remote media.                                     |
 | Renderer to managed server | Electron starts the Tenon server on `127.0.0.1` with a generated password. Server authorization checks credentials for protected routes. See `tenon/packages/desktop/src/main/index.ts` and `tenon/packages/tenon/src/server/routes/instance/httpapi/middleware/authorization.ts`.                                                                         |
-| Server to workspace files  | Second Brain handlers run in an instance location context. Note and project code resolves targets through `LocationMutation` before reading or writing files. See `tenon/packages/tenon/src/server/routes/instance/httpapi/handlers/second-brain.ts`, `tenon/packages/tenon/src/knowledge/note.ts`, and `tenon/packages/tenon/src/project/brain.ts`. |
+| Server to workspace files  | Second Brain handlers run in an instance location context. Project code and the vault migration resolve workspace targets through `LocationMutation` before reading or writing files. See `tenon/packages/tenon/src/server/routes/instance/httpapi/handlers/second-brain.ts`, `tenon/packages/tenon/src/knowledge/vault.ts`, and `tenon/packages/tenon/src/project/brain.ts`. |
 | Server to the Tenon vault  | Vault pages, timelines and logs live outside the workspace, under `TENON_VAULT_DIR` (default `<Documents>/Tenon`). Every vault path is a validated relative path resolved inside the workspace's vault folder, with its real path checked; see [Tenon vault](#tenon-vault) and `tenon/packages/tenon/src/knowledge/vault.ts`. |
 | Desktop to Google          | Calendar and Tasks integration uses OAuth in the Electron main process. The service keeps any number of accounts, encrypts each account's client secret and refresh token with Electron `safeStorage`, and disables connection when secure storage is unavailable. Access tokens are cached per account, writes are routed to the account named by the item, and the loopback callback ignores requests without the expected state. See `tenon/packages/desktop/src/main/google-calendar.ts`. |
 
@@ -115,8 +115,11 @@ and logs. Provider
 credentials (`auth.json`, `mcp-auth.json`) and the session database
 (`tenon.db`) live in the XDG data directory (by default
 `~/.local/share/tenon-workbench/`), outside Electron `userData`. `userData` holds
-drafts, electron-store files, logs, and server state. Treat both locations as
-sensitive and exclude them from source control and release artifacts. Outside
+drafts, electron-store files, logs, server state, and the sidecar's V8 compile
+cache (`compile-cache/`). That cache is code the server runs and sits outside the
+asar integrity check, but writing to it already takes the user's own account.
+Treat both locations as sensitive and exclude them from source control and
+release artifacts. Outside
 Windows, the server sets the data directory to `0700` and `tenon.db`, its
 `-wal`/`-shm` files and its pre-migration backups to `0600`. Failed-query errors
 keep the SQL text but replace bound values with `[redacted]`, so logged defects
@@ -148,17 +151,26 @@ Rendered Markdown drops every image and media source that is not `data:` or
 `blob:` before it reaches the DOM (`session-ui/src/components/markdown-media.ts`),
 so a note or model reply cannot beacon to a remote host.
 
-The packaged renderer has no page-wide Content-Security-Policy yet. Design
-previews run their own inline scripts in sandboxed `srcdoc` frames, and a
-`srcdoc` frame inherits its parent's policy, so a `script-src 'self'` policy on
-`index.html` would block them. Adding one needs the previews served from their
-own origin first.
+The renderer's HTML is served with a partial Content-Security-Policy
+(`addDocumentPolicy` and `addRendererHeaders` in `desktop/src/main/windows.ts`):
+`object-src 'none'; base-uri 'none'; form-action 'none'`. It leaves `script-src`
+out. Design previews run their own inline scripts in sandboxed `srcdoc` frames,
+and a `srcdoc` frame inherits its parent's policy, so a `script-src 'self'` policy
+on `index.html` would block them; adding one needs the previews served from
+their own origin first. `img-src` and `media-src` are only reported
+(`Content-Security-Policy-Report-Only`, seen in the renderer console): read what
+they flag on a candidate before enforcing them, because that is what would back
+the Markdown rule above.
 
 `file://` links (terminal output, Markdown) open with the default app only for
-documents. Executables (Windows `PATHEXT` plus `.lnk`, `.hta`, `.msi`, `.scr`;
-macOS `.app`, `.command`, `.terminal`, `.workflow`; any POSIX file with an
-execute bit) and anything that cannot be inspected are revealed in the file
-manager instead (`desktop/src/main/local-file-policy.ts`).
+documents. Executables (Windows `PATHEXT` plus shell launchers such as `.lnk`,
+`.hta`, `.msi`, `.scr`, `.cpl`, `.jar`, `.chm` and `.msix`, and any file name with
+a colon, which names an alternate data stream; macOS bundles and scripts such as
+`.app`, `.command`, `.terminal`, `.workflow`, `.fileloc`, `.webloc` and
+`.mobileconfig`; any POSIX file with an execute bit) and anything that cannot be
+inspected are revealed in the file manager instead
+(`desktop/src/main/local-file-policy.ts`). A file name ending in a dot or space
+is not handled: `stat` fails on it on Windows, so it is revealed.
 
 Packaged builds set Electron fuses in `desktop/electron-builder.config.ts`:
 RunAsNode, `NODE_OPTIONS` and the `--inspect` flags are off, the app loads only
@@ -213,6 +225,8 @@ on its own. Removed in the T3 parity Phase 1 cleanup:
 
 Still outbound: the configured LLM providers (including the `opencode` Zen
 provider when the user selects it), the `models.dev` catalog, Google APIs,
+`github.com` for the pinned, SHA-256-checked ripgrep release when neither `PATH`
+nor the app bundle has one (`core/src/ripgrep/release.ts`),
 `huggingface.co` for dictation models the user downloads (see
 [Local dictation](#local-dictation)), the Gmail API, Microsoft identity and
 Graph, and the IMAP servers of connected mail accounts (see
@@ -365,8 +379,10 @@ allows `/usr/bin/security` (it does for entries Claude Code writes).
   (`core/src/harness/pids.ts`). At the first location start of a server run,
   entries from earlier runs are read; a PID still running its recorded command
   (checked with `ps`) has its process group sent `SIGTERM`, and the files are
-  removed. Entries owned by the running server are never touched, and Windows
-  is skipped.
+  removed. Entries owned by the running server are never touched. Windows only
+  removes the files: harnesses aren't detached there, and Codex, OpenCode and
+  Claude Code's adapter each exited on their closed stdin when the server was
+  killed outright (checked per CLI). A tool one of them started can outlive it.
 - **Sign-in restarts.** When a setup read sees a harness change from signed
   out to signed in or API key, its open runtimes are closed and its cached
   checks cleared, so the next message starts a process with the new login.
@@ -725,7 +741,8 @@ location, so it has its own containment instead of `LocationMutation`:
   `/`-separated `.md` names: absolute and drive paths, backslashes, `..`, empty
   or hidden segments (so `.history` and `.backups` are unreachable as pages),
   characters Windows refuses, reserved device names and a Project's `log/`
-  folder are refused with 400. History revisions must match
+  folder are refused with 400, for deletes as for writes. A delete needs the
+  page's current revision and keeps the removed version in `.history`. History revisions must match
   `<13 digits>-<16 hex>`; Project ids must match `project_<id>` and exist.
 - Each target's nearest existing entry (found with `lstat`, so a dangling link
   counts) is resolved with `realpath` and must stay inside the workspace's vault
@@ -761,13 +778,30 @@ location, so it has its own containment instead of `LocationMutation`:
   already made stay in the vault (a rerun reuses identical copies). Backups and `.history` are plain copies of note text
   and are not pruned except history beyond 20 versions per page.
 - Migration also runs on the server on a workspace's first vault request, under
-  a per-vault lock, so two callers never move the same notes twice. The legacy
-  `/second-brain/note` write route now writes into the vault, never into
-  `<workspace>/notes`.
+  a per-vault lock, so two callers never move the same notes twice. No route
+  writes into `<workspace>/notes`.
 - Changing the vault folder (`choose-vault-folder`) copies the current vault to
   the new folder, compares every file, and only then switches; the old folder
   is left untouched. A non-empty folder that is not a vault, or one inside or
-  around the current vault, is refused.
+  around the current vault, is refused. Workspaces and Command Centre threads
+  follow without rewriting session rows: `workspacesUnder` keeps an earlier
+  root's workspace while its id has a folder under the current root, and
+  `CommandMemory.folders()` keeps every root in `vault-machine.json`. So
+  `<earlier root>/.command-centre` still gets the Command Centre tool catalogue
+  (`isCommandDirectory`) for as long as that root stays in the map, which is
+  app-data state the renderer can't change.
+- A missing `workspace.json` or `project.json` is the only "no folder here". A
+  read or decode failure fails the request with `vault_unavailable: <file>`
+  (a vault-relative name) instead of creating a same-id fork.
+- The page list cache (`pageCache`) holds titles, properties and lowercased page
+  text in server memory only. Each lookup runs `resolveInside` first, so a page
+  replaced by a link out of the vault stops listing on a cache hit. An external
+  edit that preserves both size and modification time shows stale list text
+  until the file next changes; reads and writes always go to the file.
+- A timeline that fails to decode is copied to `timeline.json.corrupt-<time>`
+  before a save replaces it. Pruning `.history` is best effort: a failure is
+  logged and retried on the next save, so a page can briefly hold more than 20
+  versions, and it never fails the save.
 - Agent app tools find a Project thread's workspace from its parent folders,
   the server's known repositories, and the workspace folders listed in
   `vault-machine.json` (workspaces that are not git repositories). Only
@@ -827,8 +861,9 @@ apply unchanged: loopback only, a bearer token per runtime bound to its Run,
   added items are still exactly as written (calendar, tasks); otherwise 409. Tokens live in
   server memory for 24 hours (at most 500) and are lost on restart.
 - In the built-in loop, write tools ask permission `tenon_write` (reads are
-  not asked), like any local tool. Codex and ACP agents apply their own MCP
-  tool policy. Either way the user sees each write with Undo.
+  not asked; the rule is in the agents' defaults, and config can change it),
+  like any local tool. Codex and ACP agents apply their own MCP tool policy.
+  Either way the user sees each write with Undo.
 - Tasks with a Google `accountId` are stored as pending Google creates; they
   reach Google only through the desktop outbox and its write consent, not
   from the server: the renderer's Google sync sends them with their
@@ -853,7 +888,9 @@ is an assistant whose threads span workspaces.
   lowering the age warns first. Each summary is written to
   `.command-centre/memory/<thread>.md` in the vault, so it is synced with the
   vault and readable by anyone with access to it. A thread whose summary fails
-  is kept. The model call sends that thread's text to the Command Centre's
+  is kept, and so is one with no text. A long thread is summarised from its
+  first and last 12,000 characters or so, so what sits in the middle of it can be
+  lost. The model call sends that thread's text to the Command Centre's
   model provider, which is the same exposure the thread already had. The
   renderer triggers compaction at most once a day; the server clamps `days`
   to 1–365. Project threads are never read or deleted.
@@ -863,16 +900,42 @@ is an assistant whose threads span workspaces.
 - **Project setup.** `CommandSetup.run` writes only into a folder that does
   not exist or is empty (a non-empty folder is refused untouched), runs
   `git init` from PATH without a shell, and removes a folder only when its own
-  `mkdir` created it. A folder it can't read is refused. It writes fixed templates; no tool argument is interpolated
+  `mkdir` created it and before the Project card is written. A folder it can't read is refused. It writes fixed templates; no tool argument is interpolated
   except the Project name.
+- **Tool prompts.** Command Centre threads read untrusted mail, so in the
+  built-in loop `bash`, `webfetch`, `websearch`, `edit` and `tenon_write` ask
+  first in a folder named `.command-centre`. Subagents ask too, and an ask never
+  widens an agent's deny. A user's `permission` config still wins, so allowing
+  one of these there takes the prompt away. Harness-run threads keep their own
+  policy. Browser and device tools are unchanged.
 - **Routines.** A routine is a vault page under `Routines/`; its body is sent
-  as a prompt to a new Command Centre thread on its schedule, so anyone who can
-  write the vault (including a sync account) can schedule prompts. Routine
-  pages are shown on the Routines page with their schedule and can be turned
-  off with `enabled: false`. Replies are appended to the workspace's
-  `Inbox.md` page. Last-run state is machine-local (`routines-state.json` in
-  the server data folder); two machines sharing a synced vault each run the
-  routine. The scheduler runs only in a listening server.
+  as a prompt to a new Command Centre thread on its schedule. Anyone who can
+  write the vault (including a sync account, or a process with file access) can
+  write such a page, so a page runs only after the user approves it on the
+  Routines page: `routines-state.json` keeps the SHA-256 of what it would run
+  (prompt, schedule, `model`, `harness`, `tools`, `timeout`), and the scheduler
+  and Run now skip anything else. An edit needs approving again, on each
+  machine; `enabled` is not part of the hash. `notes_write` also refuses `Routines/` from a thread
+  outside the Command Centre, which narrows that one writer only. The state file
+  is outside the vault, so sync can't approve a page, but a process that can write
+  the data folder (default-allowed `bash` in a workspace thread) could.
+- **Unattended runs.** Nobody watches a routine run, Run now included, so every
+  permission prompt in it and its subagents is answered no
+  (`CommandThreads.refusePrompts`). The model is told to carry on without it,
+  and the Routines row names what was refused. `question` and `plan_enter` are
+  denied, since nothing could answer them. A routine that needs shell or web
+  access needs it allowed in the user's `permission` config.
+- **Routine runs.** A run is stopped after its `timeout` (default two hours, at
+  most a day), so a hung thread can't hold the routine; a rerun can repeat side
+  effects, as recovery after a crash already can. Run now refuses a routine
+  already in flight.
+- **Routine output.** Replies are appended to the workspace's `Inbox.md` page,
+  and older entries roll over to `Inbox/<YYYY-MM>.md` pages in the vault.
+  Last-run state is machine-local (`routines-state.json` in the server data
+  folder); two machines sharing a synced vault each run the routine, which means
+  two model bills, repeated side effects and two writers on `Inbox.md`. The
+  scheduler runs only in a listening server. Pages can be turned off with
+  `enabled: false`.
 
 ## Email accounts
 
@@ -907,10 +970,22 @@ Mail lives in the desktop main process (`desktop/src/main/mail/`; see
   content.
 - **Mail is data.** Message text reaches the model only as tool results in
   Command Centre sessions; it is never treated as instructions, and Project
-  sessions don't get the mail tools.
+  sessions don't get the mail tools. Tool descriptions alone are no boundary:
+  what a crafted email could steer asks first there (see
+  [Tool prompts](#command-centre-memory-and-routines)).
 - **Dependency.** IMAP uses `imapflow` (MIT, Postal Systems), pinned in
-  `desktop/package.json`, with one short-lived TLS connection per call
-  (STARTTLS when TLS is off).
+  `desktop/package.json`, with one short-lived connection per call. With TLS
+  off, STARTTLS is required (`doSTARTTLS`), so a server that doesn't offer it
+  fails before the password is sent. Loopback hosts are the exception, for
+  local mail bridges with no TLS.
+
+## Terminal scrollback
+
+Scrollback stays in memory. The sidecar keeps up to 2 MB per PTY for replay, and
+the renderer keeps a serialized copy per PTY only to restore a tab switch
+(`terminalScrollback` in `app/src/context/terminal.tsx`). The persisted workspace
+store holds a terminal's title, size, cursor and scroll position, not its output,
+and loading an older store removes any `buffer` it saved.
 
 ## Local dictation
 
@@ -942,9 +1017,11 @@ the Electron main process (see [architecture](../architecture/README.md#local-di
   the user without a shell and reads only the model file main passes it.
 - **Model downloads.** Whisper Small, Whisper Turbo and Parakeet V3 come from
   pinned Hugging Face revisions (`dictation-models.ts`, the same GGUF files
-  Handy uses). Main streams each to a `.part` file, checks its size and
-  SHA-256 against the pinned values, and only then renames it into
-  `<userData>/dictation/models/`; a mismatch deletes the file. The active choice
+  Handy uses). Main streams each through `net.fetch` (system proxy and
+  certificate store) to a `.part` file, checks its size and SHA-256 against the
+  pinned values, hashing any bytes kept from an interrupted attempt too, and only
+  then renames it into `<userData>/dictation/models/`; a mismatch deletes the
+  file. The active choice
   is `<userData>/dictation/settings.json`. Models are rebuildable downloads,
   not user data.
 - **Known gaps.** The packaged engine is signed with the app on macOS but is
@@ -1082,16 +1159,20 @@ message and shows in a toast. It doesn't run outside git.
 - **Embedded browser.** Pages run in a `WebContentsView` in the
   `persist:tenon-browser` session: no cookies or storage shared with the app,
   every permission denied, `window.open` loads in place, and only http(s)
-  navigations. Requests to the app's own server origin are cancelled, so a page
-  can't reach its API. The element picker and snapshots run in an isolated
-  world the page can't see.
+  navigations. Requests to the app's own server are cancelled, by origin and by
+  port under every loopback name, so a page can't reach its API. The element
+  picker and snapshots run in an isolated world the page can't see.
 - **Agent bridge.** A loopback HTTP server in main (`127.0.0.1:0`) takes
   browser and device tool calls. It requires a 256-bit bearer token passed only
   in the server process's environment (harness processes get an allow-listed
   environment without it) and refuses any request with an `Origin` header.
   Bodies are capped at 400,000 characters, to fit a whole diagram for
-  `render_svg`. Agents always have these tools; navigating to a site other
-  than localhost needs the user's yes in a native dialog.
+  `render_svg`. Agents always have these tools; `browser_navigate` to a site
+  other than localhost needs the user's yes in a native dialog. While a browser
+  tool is in flight (and one second after, for the navigation it started), a
+  link, redirect or `window.open` to a host not yet allowed this run of the app
+  gets the same dialog. This is a partial guard: a page can wait out that time,
+  so the dialog is not an exfiltration boundary.
 - **Diagram rendering.** `render_svg` puts agent-written SVG in a hidden
   offscreen `BrowserWindow` (sandboxed, context-isolated, no Node). Its page
   has the chat's CSP (`default-src 'none'`, inline styles and `data:` images
@@ -1113,7 +1194,7 @@ message and shows in a toast. It doesn't run outside git.
 
 From the repository root, `bun run typecheck` checks every workspace package
 through turbo. `bun run test` runs every package suite except the engine
-(core, server) and the client and schema suites, then the Second Brain
+(core, server), then the Second Brain
 domains; `bun run test:engine` runs core and server suites. `bun run lint`
 checks `tenon/`, and `bun run check:generated` fails when the generated
 client is stale. These commands are defined in the root `package.json`.
@@ -1175,8 +1256,78 @@ location and canonical Git worktree.
   keep their old meaning.
 - A folder's own config (project files and project `.tenon` or `.opencode` folders) can't
   set `share` or `enterprise`; only user and admin config can turn on sharing.
-  Project config can still load plugins and MCP commands: there is no
-  workspace trust prompt yet.
+- A cloned repository is not trusted by being opened. See
+  [Folder trust](#folder-trust).
+
+### Folder trust
+
+The user's approved folders are a JSON array in `trusted-folders.json` in the
+data folder (`core/src/config/trust.ts`). A folder is approved if it or a parent
+is on the list. The list adds only through `POST /config/trust`, which takes no
+path: it approves the current instance's repository, or the opened folder when
+there is no repository. The app calls it only from the Trust folder button in
+`app/src/components/folder-trust-prompt.tsx`. Opening a folder, including from
+a `tenon://` deep link, never approves it. An unreadable list reads as empty,
+so the gate stays shut. Windows comparisons ignore case through `path.relative`;
+on macOS a differently cased spelling reads as unapproved.
+
+Both config readers apply the gate, `tenon/src/config/config.ts` and
+`core/src/config.ts`. Project files are the ones found by walking up from the
+opened folder, and each is judged by its own path, so a file above an approved
+folder stays unapproved. Until a folder is approved:
+
+- Its `.tenon` or `.opencode` `plugin(s)` and `tool(s)` files aren't imported,
+  and its skills there aren't loaded, because custom code and skill folders run
+  or widen access as the user.
+- The keys `mcp`, `plugin`, `lsp`, `formatter`, `provider`, `shell`,
+  `references` and `skills` are dropped, and `instructions` entries that are
+  absolute, home-relative or climb with `..` are dropped.
+- `{env:}` and `{file:}` stay as literal text, so a config can't put a secret
+  in a URL or header. A file that only decodes once its variables expand, such
+  as one with a number supplied by `{env:}`, is skipped until approval, so its
+  error can't stop the app from asking.
+- Nothing is written into the folder: no `$schema` line, `.gitignore` or
+  dependency install.
+
+Other keys, such as `model`, `experimental.policies` (provider access only, and
+user rules override it), markdown agents and commands, and skills under the
+folder's `.claude` and `.agents` still apply. The user's own `~/.tenon` and
+`~/.opencode` are never project folders, even when a folder with no repository
+walks up past them. A linked Git worktree is its own folder, so it needs its own
+approval. When something was withheld, `GET /config/trust` names it and the app
+asks once per run. Approving reloads the instance, which reopens the location
+too.
+
+Approval doesn't lift every limit. In any folder, a project permission entry
+that allows `external_directory`, or allows reads that could reach a `.env`
+file, is refused (`ConfigTrust.loosens`). That covers wildcard keys such as
+`"*": "allow"`, the legacy `tools` map, per-agent `permission` blocks and
+markdown agents. A `read` allow pattern is refused if it ends in a wildcard,
+names `env`, or its last segment matches a sample `.env` name, so a repository that sets
+`"*": "deny"` can't reopen all reads from its own config. Deny and ask entries
+stay, and user config isn't limited.
+
+The gate protects against a repository, not against an agent. An agent with
+shell access runs as the user and could edit the list itself. An approved
+folder's `references` are still added to the `external_directory` allowlist.
+
+### Windows command lookup
+
+`cross-spawn`, the `which` package and libuv all search the working directory
+before `PATH` on Windows, so `git rev-parse` in a folder holding `git.cmd` would
+run that file on open. `resolveWin32` in `core/src/util/which.ts` walks absolute
+`PATH` entries and `PATHEXT` only, and `spawnTarget` applies it to bare names
+at `core/src/cross-spawn-spawner.ts`, `tenon/src/util/process.ts`, MCP
+`connectLocal`, whose SDK transport has its own `cross-spawn`, and the
+`git init` in `tenon/src/agents/command-setup.ts`. App execution
+aliases in `WindowsApps` count as matches, though `stat` refuses them. With no
+match the spawn fails with ENOENT; it never falls back to the bare name. A checked-in tool
+needs an explicit path such as `./tool.cmd`. macOS needs none of this: its
+spawn doesn't search the working directory.
+
+Not covered: commands run through a shell, such as agent shell commands, keep
+`cmd.exe`'s own lookup, and a `.cmd` shim that calls a bare name runs under
+`cmd.exe` too.
 
 ## Known gaps
 
@@ -1203,6 +1354,9 @@ fix lands.
   `event.senderFrame` against the trusted main frame through the shared
   `trustedHandle`/`trustedOn` wrappers in `ipc.ts`. Before the 2026-10
   desktop IPC hardening, the WSL handlers used raw `ipcMain.handle`.
+- `set-unsaved-changes` takes a boolean for the sender's own window and
+  `confirm-quit` takes no arguments. A page can delay a quit only by asking the
+  person; it can't cancel one or read another window's state.
 - WSL distro names from the renderer must match `^[A-Za-z0-9][A-Za-z0-9._-]*$`
   (`wsl/policy.ts`); probe lists skip names that don't. The "open terminal" action still goes through
   `cmd.exe /c start` to get its own console window, so the allowlist is what

@@ -1,14 +1,20 @@
 import { expect, test } from "bun:test"
 import type { CalendarEvent } from "./client"
 import {
+  calendarView,
   dateKeys,
   eventCoversDay,
   eventLastDay,
+  hourSlot,
   localDateKey,
   mergeProviderEvents,
+  monthCellRows,
+  monthCellShown,
   monthGrid,
   shiftDate,
   shiftMonth,
+  taskFilter,
+  viewForTaskFilter,
   weekRange,
 } from "./calendar-domain"
 
@@ -123,4 +129,33 @@ test("builds a stable six-week local calendar grid", () => {
   expect(localDateKey(shiftMonth(new Date(2026, 11, 1, 12), 1))).toBe("2027-01-01")
   expect(localDateKey(shiftDate(new Date(2026, 11, 31, 12), 1))).toBe("2027-01-01")
   expect(weekRange(new Date(2026, 7, 25, 12))).toEqual({ start: "2026-08-23", end: "2026-08-29" })
+})
+
+test("mergeProviderEvents takes Google's copy once the outbox has finished the write", () => {
+  const queued = google("g1", { title: "Old", syncState: "offline", outboxKind: "create", outboxKey: "k1" })
+  const merged = mergeProviderEvents([queued], [remote("g1", "New")], { settled: (key) => key === "k1" })
+  expect(merged.map((event) => [event.title, event.syncState])).toEqual([["New", "synced"]])
+})
+
+test("a month cell keeps a row for the rest when its items do not all fit", () => {
+  expect(monthCellRows(0)).toBe(1)
+  expect(monthCellRows(93)).toBe(2)
+  expect(monthCellRows(144)).toBe(4)
+  expect(monthCellShown(2, 2)).toBe(2)
+  expect(monthCellShown(3, 2)).toBe(1)
+  expect(monthCellShown(3, 1)).toBe(0)
+})
+
+test("hourSlot stays within the day", () => {
+  expect(hourSlot(9)).toEqual({ start: "09:00", end: "10:00" })
+  expect(hourSlot(23)).toEqual({ start: "23:00", end: "23:59" })
+})
+
+test("every task view round-trips through its filter, and others have none", () => {
+  for (const view of ["tasks", "upcoming", "unscheduled", "completed"] as const) {
+    expect(viewForTaskFilter(taskFilter(view)!)).toBe(view)
+  }
+  expect(taskFilter("month")).toBeUndefined()
+  expect(calendarView("nonsense")).toBe("today")
+  expect(calendarView("upcoming")).toBe("upcoming")
 })

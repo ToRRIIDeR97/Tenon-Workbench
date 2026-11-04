@@ -3,6 +3,7 @@ import { Effect, Exit, Scope } from "effect"
 import { AgentV2 } from "@tenon/core/agent"
 import { AppNodeBuilder } from "@tenon/core/effect/app-node-builder"
 import { Location } from "@tenon/core/location"
+import { PermissionV2 } from "@tenon/core/permission"
 import { AgentPlugin } from "@tenon/core/plugin/agent"
 import { AbsolutePath } from "@tenon/core/schema"
 import { location } from "./fixture/location"
@@ -126,6 +127,28 @@ describe("AgentV2", () => {
       for (const item of agents) {
         expect(item.permissions.some((rule) => rule.action === "bash" && rule.effect !== "deny")).toBe(false)
       }
+    }),
+  )
+
+  it.effect("Command Centre threads ask before shell, network and writes, without widening a deny", () =>
+    Effect.gen(function* () {
+      const agent = yield* AgentV2.Service
+      yield* AgentPlugin.Plugin.effect(host({ agent: agentHost(agent) })).pipe(
+        Effect.provideService(
+          Location.Service,
+          Location.Service.of(location({ directory: AbsolutePath.make("/vault/.command-centre") })),
+        ),
+      )
+      const effect = (id: string, action: string) =>
+        agent
+          .get(AgentV2.ID.make(id))
+          .pipe(Effect.map((item) => PermissionV2.evaluate(action, "*", item?.permissions ?? []).effect))
+      for (const action of ["bash", "webfetch", "websearch", "edit", "tenon_write"])
+        expect(yield* effect("build", action)).toBe("ask")
+      expect(yield* effect("explore", "webfetch")).toBe("ask")
+      expect(yield* effect("explore", "bash")).toBe("deny")
+      expect(yield* effect("plan", "edit")).toBe("deny")
+      expect(yield* effect("title", "bash")).toBe("deny")
     }),
   )
 })

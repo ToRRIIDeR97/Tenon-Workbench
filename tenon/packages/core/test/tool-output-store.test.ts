@@ -225,6 +225,30 @@ describe("ToolOutputStore", () => {
     ),
   )
 
+  it.live("never splits a multi-byte character at either end of the preview", () =>
+    withStore(
+      ({ store }) =>
+        Effect.gen(function* () {
+          for (const text of ["\u6f22".repeat(4_000), "\u{1f600}".repeat(4_000), "\u6f22\u{1f600}a".repeat(2_000)]) {
+            const result = yield* store.bound({
+              sessionID,
+              toolCallID: "call-multibyte",
+              output: { structured: {}, content: [{ type: "text", text }] },
+            })
+            if (result.output.content[0]?.type !== "text") throw new Error("expected text preview")
+            const preview = result.output.content[0].text
+            expect(preview).not.toContain("\ufffd")
+            expect(preview.isWellFormed()).toBe(true)
+            expect(Buffer.byteLength(preview)).toBeLessThanOrEqual(1_001)
+            const [head, tail] = preview.split(/\n\n.*\n\n/)
+            expect(head && text.startsWith(head)).toBe(true)
+            expect(tail && text.endsWith(tail)).toBe(true)
+          }
+        }),
+      new Config.Info({ tool_output: new ConfigToolOutput.Info({ max_lines: 100, max_bytes: 1_001 }) }),
+    ),
+  )
+
   it.live("cleans expired managed files and preserves unrelated files", () =>
     withStore(({ root, store, fs }) =>
       Effect.gen(function* () {

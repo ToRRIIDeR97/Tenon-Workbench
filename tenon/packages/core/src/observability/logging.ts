@@ -1,4 +1,5 @@
 import { Formatter, Logger, type LogLevel } from "effect"
+import { renameSync, rmSync, statSync } from "fs"
 import path from "path"
 import { Global } from "../global"
 import { runID } from "./shared"
@@ -46,7 +47,24 @@ function format(input: unknown) {
   return /^[^\s="\\]+$/.test(value) ? value : JSON.stringify(value)
 }
 
+const MAX_LOG_BYTES = 10 * 1024 * 1024
+
+/**
+ * Keeps one backup of an oversized log and removes the `opencode.log` left by builds from before the rename. If another
+ * server process has the file, Windows may refuse the rename, which retries at the next start. Otherwise that process
+ * keeps writing to the backup until it restarts. Both are fine for logs, and neither should stop a start.
+ */
+export function rotate(file: string, maxBytes = MAX_LOG_BYTES) {
+  try {
+    if ((statSync(file, { throwIfNoEntry: false })?.size ?? 0) > maxBytes) renameSync(file, `${file}.1`)
+  } catch {}
+  try {
+    rmSync(path.join(path.dirname(file), "opencode.log"), { force: true })
+  } catch {}
+}
+
 export function fileLogger(file = path.join(Global.Path.log, "tenon.log"), id: string = runID) {
+  rotate(file)
   // Do not set batchWindow to 0; it causes high idle CPU usage.
   return Logger.toFile(formatter(id), file, { flag: "a" })
 }

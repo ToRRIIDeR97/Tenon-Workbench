@@ -56,7 +56,12 @@ function styled(declarations: Record<string, string>) {
         return target[key as keyof typeof target]
       },
     },
-  ) as unknown as { length: number; [index: number]: string; getPropertyValue(p: string): string; removeProperty(p: string): string }
+  ) as unknown as {
+    length: number
+    [index: number]: string
+    getPropertyValue(p: string): string
+    removeProperty(p: string): string
+  }
   let attribute = true
   return {
     node: { style, hasAttribute: () => attribute, removeAttribute: () => void (attribute = false) },
@@ -70,7 +75,12 @@ test("markdown keeps code colours but drops layout and url() styles", () => {
   restrictStyle(code.node)
   expect([...code.values.keys()]).toEqual(["color", "font-style", "--shiki-dark"])
 
-  const overlay = styled({ position: "fixed", "z-index": "9999", top: "0", "background-color": "url(https://x.test/a.png)" })
+  const overlay = styled({
+    position: "fixed",
+    "z-index": "9999",
+    top: "0",
+    "background-color": "url(https://x.test/a.png)",
+  })
   restrictStyle(overlay.node)
   expect(overlay.values.size).toBe(0)
   expect(overlay.attribute()).toBe(false)

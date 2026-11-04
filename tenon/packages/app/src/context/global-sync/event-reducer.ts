@@ -312,11 +312,12 @@ export function applyDirectoryEvent(input: {
     case "message.part.updated": {
       const part = (event.properties as { part: Part }).part
       if (SKIP_PARTS.has(part.type)) break
-      input.setStore(
-        produce((draft) => {
-          delete draft.part_text_accum_delta[part.id]
-        }),
-      )
+      if (input.store.part_text_accum_delta[part.id] !== undefined)
+        input.setStore(
+          produce((draft) => {
+            delete draft.part_text_accum_delta[part.id]
+          }),
+        )
       const parts = input.store.part[part.messageID]
       if (!parts) {
         input.setStore("part", part.messageID, [part])

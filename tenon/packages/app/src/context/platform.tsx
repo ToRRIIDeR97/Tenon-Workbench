@@ -42,10 +42,14 @@ export type DictationPlatform = {
   stop(): Promise<{ text?: string; error?: DictationFailure }>
   cancel(): Promise<void>
   onLevel(cb: (rms: number) => void): () => void
+  /** The recording reached its length limit; the engine has stopped listening and `stop()` collects the text. */
+  onLimit(cb: () => void): () => void
   models(): Promise<DictationModelState>
   setActive(id: DictationModelID): Promise<void>
   remove(id: DictationModelID): Promise<void>
-  download(id: DictationModelID): Promise<void>
+  /** Settles with why a download stopped; `cancelled` when `cancelDownload` ended it. */
+  download(id: DictationModelID): Promise<{ error?: string }>
+  cancelDownload(id: DictationModelID): Promise<void>
   onDownloadProgress(cb: (progress: DictationDownloadProgress) => void): () => void
   openPermissionSettings(): Promise<void>
 }
@@ -120,6 +124,8 @@ export type GoogleCalendarWrite = {
   kind: "create" | "update" | "delete"
   idempotencyKey: string
   event: GoogleCalendarProviderEvent
+  /** The user chose their version in a conflict, so the write ignores Google's etag. */
+  overwrite?: boolean
 }
 
 export type GoogleCalendarWriteResult = {
@@ -144,6 +150,8 @@ export type GoogleTaskWrite = {
   kind: "create" | "update" | "delete"
   idempotencyKey: string
   task: GoogleTaskProviderTask
+  /** The user chose their version in a conflict, so the write ignores Google's etag. */
+  overwrite?: boolean
 }
 
 export type GoogleTaskWriteResult = {
@@ -168,11 +176,15 @@ export type GoogleCalendarPlatform = {
     tasks: GoogleTaskProviderTask[]
     /** Accounts whose items were fetched; the page replaces only those accounts' items. */
     syncedAccounts: string[]
+    /** Finished outbox writes; the planner stops showing these as queued. `providerId` is Google's ID, if any. */
+    settled: { idempotencyKey: string; providerId?: string }[]
     connection: GoogleCalendarConnection
   }>
   write(input: GoogleCalendarWrite): Promise<GoogleCalendarWriteResult>
   writeTask(input: GoogleTaskWrite): Promise<GoogleTaskWriteResult>
   /** Disconnects one account, or every account when none is named. */
+  /** Drops a write in conflict, keeping Google's version; the next sync brings it back to the planner. */
+  discardConflict(input: { idempotencyKey: string }): Promise<GoogleCalendarConnection>
   disconnect(input?: { accountId?: string }): Promise<GoogleCalendarConnection>
 }
 
@@ -234,6 +246,9 @@ type PlatformBase = {
 
   /** Restart the app  */
   restart(): Promise<void>
+
+  /** Tells the desktop shell this window has unsaved edits, so a quit can ask before it stops the server. */
+  setUnsavedChanges?(unsaved: boolean): void
 
   /** Send a system notification */
   notify(title: string, description?: string, onClick?: () => void): Promise<void>
@@ -333,6 +348,9 @@ type PlatformBase = {
 
   /** Record a fatal renderer error in platform logs (desktop only) */
   recordFatalRendererError?(error: FatalRendererErrorLog): Promise<void>
+
+  /** Log one startup milestone with its time since this page began loading, once per page (desktop only) */
+  recordStartupMilestone?(name: "first-route" | "bootstrap-settled"): void
 }
 
 export type Platform = PlatformBase &

@@ -647,8 +647,8 @@ export function renderable(part: PartType, showReasoningSummaries = true) {
     if (part.tool === "question") return part.state.status !== "pending" && part.state.status !== "running"
     return true
   }
-  if (part.type === "text") return !!part.text?.trim()
-  if (part.type === "reasoning") return showReasoningSummaries && !!part.text?.trim()
+  if (part.type === "text") return /\S/.test(part.text ?? "")
+  if (part.type === "reasoning") return showReasoningSummaries && /\S/.test(part.text ?? "")
   return !!PART_MAPPING[part.type]
 }
 
@@ -1789,12 +1789,10 @@ PART_MAPPING["text"] = function TextPartDisplay(props) {
     () => props.message.role === "assistant" && typeof (props.message as AssistantMessage).time.completed !== "number",
   )
   const text = () => readPartText(data.store.part_text_accum_delta, part())
-  const isLastTextPart = createMemo(() => {
-    const last = (data.store.part?.[props.message.id] ?? [])
-      .filter((item): item is TextPart => item?.type === "text" && !!item.text?.trim())
-      .at(-1)
-    return last?.id === part().id
-  })
+  // Only some rows ask for this, so it stays a plain function: a memo would subscribe to every text in the message.
+  const isLastTextPart = () =>
+    (data.store.part?.[props.message.id] ?? []).findLast((item) => item?.type === "text" && /\S/.test(item.text ?? ""))
+      ?.id === part().id
   const showCopy = createMemo(() => {
     if (props.message.role !== "assistant") return isLastTextPart()
     if (props.showAssistantCopyPartID === null) return false

@@ -92,30 +92,4 @@ describe("GroqPlugin", () => {
       expect(actual?.modelId).toBe(expected.modelId)
     }),
   )
-
-  it.effect("uses the default languageModel(api.id) behavior", () =>
-    Effect.gen(function* () {
-      const plugin = yield* PluginV2.Service
-      const aisdk = yield* AISDK.Service
-      yield* addPlugin()
-      const sdk = createGroq({ name: "groq", apiKey: "test" } as Parameters<typeof createGroq>[0] & {
-        name: string
-      })
-      const result = yield* aisdk.runLanguage({
-        model: ModelV2.Info.make({
-          ...ModelV2.Info.empty(ProviderV2.ID.make("groq"), ModelV2.ID.make("alias")),
-          api: {
-            id: ModelV2.ID.make("llama-api"),
-            type: "aisdk",
-            package: "@ai-sdk/groq",
-          },
-        }),
-        sdk,
-        options: { name: "groq", apiKey: "test" },
-      })
-      const language = result.language ?? sdk.languageModel(result.model.api.id)
-      expect(language.modelId).toBe("llama-api")
-      expect(language.provider).toBe("groq.chat")
-    }),
-  )
 })

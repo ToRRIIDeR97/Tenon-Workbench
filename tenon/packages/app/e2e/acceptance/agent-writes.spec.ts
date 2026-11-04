@@ -17,7 +17,13 @@ const thread = {
 
 type Event = { directory: string; payload: Record<string, unknown> }
 
-const write = (phase: "started" | "done", kind: string, preview: unknown, id = `w_${kind}`, session = sessionID): Event => ({
+const write = (
+  phase: "started" | "done",
+  kind: string,
+  preview: unknown,
+  id = `w_${kind}`,
+  session = sessionID,
+): Event => ({
   directory,
   payload: {
     id: `evt_${id}_${phase}`,
@@ -35,11 +41,25 @@ const write = (phase: "started" | "done", kind: string, preview: unknown, id = `
 })
 
 const previews: Record<string, { preview: unknown; expect: string[] }> = {
-  note: { preview: { title: "Week 45 progress", text: "Done: rate limiting." }, expect: ["Week 45 progress", "Done: rate limiting."] },
-  tasks: { preview: { tasks: [{ title: "Webhook retries", dueDate: "2026-11-09" }, { title: "Rotate signing secret" }] }, expect: ["Webhook retries", "Rotate signing secret"] },
-  calendar: { preview: { events: [{ title: "Billing review", date: "2026-11-02", start: "14:00", end: "15:00" }] }, expect: ["Billing review"] },
+  note: {
+    preview: { title: "Week 45 progress", text: "Done: rate limiting." },
+    expect: ["Week 45 progress", "Done: rate limiting."],
+  },
+  tasks: {
+    preview: { tasks: [{ title: "Webhook retries", dueDate: "2026-11-09" }, { title: "Rotate signing secret" }] },
+    expect: ["Webhook retries", "Rotate signing secret"],
+  },
+  calendar: {
+    preview: { events: [{ title: "Billing review", date: "2026-11-02", start: "14:00", end: "15:00" }] },
+    expect: ["Billing review"],
+  },
   timeline: {
-    preview: { projectId: "project_01ACME", items: [{ id: "auth", title: "Auth redesign", kind: "task", status: "done", start: "2026-11-02", end: "2026-11-12" }] },
+    preview: {
+      projectId: "project_01ACME",
+      items: [
+        { id: "auth", title: "Auth redesign", kind: "task", status: "done", start: "2026-11-02", end: "2026-11-12" },
+      ],
+    },
     expect: ["Auth redesign"],
   },
   email: {
@@ -57,7 +77,8 @@ async function start(page: Page, events: Event[], undoStatus = 200) {
   })
   return undos
 }
-const base64 = (value: string) => Buffer.from(value, "utf8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")
+const base64 = (value: string) =>
+  Buffer.from(value, "utf8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")
 
 test.use({ viewport: { width: 1360, height: 860 } })
 
@@ -100,7 +121,10 @@ for (const [kind, sample] of Object.entries(previews)) {
 }
 
 test("AC-6.5 Undo calls the endpoint and confirms", async ({ page }) => {
-  const undos = await start(page, [write("started", "note", previews.note.preview), write("done", "note", previews.note.preview)])
+  const undos = await start(page, [
+    write("started", "note", previews.note.preview),
+    write("done", "note", previews.note.preview),
+  ])
   await page.goto(`/${base64(directory)}/session/${sessionID}`)
   const card = page.locator('[data-agent-write][data-variant="inline"]')
   await card.getByRole("button", { name: "Undo" }).click()
@@ -109,7 +133,11 @@ test("AC-6.5 Undo calls the endpoint and confirms", async ({ page }) => {
 })
 
 test("AC-6.5 an undo refused with 409 says it already changed", async ({ page }) => {
-  await start(page, [write("started", "note", previews.note.preview), write("done", "note", previews.note.preview)], 409)
+  await start(
+    page,
+    [write("started", "note", previews.note.preview), write("done", "note", previews.note.preview)],
+    409,
+  )
   await page.goto(`/${base64(directory)}/session/${sessionID}`)
   const card = page.locator('[data-agent-write][data-variant="inline"]')
   await card.getByRole("button", { name: "Undo" }).click()

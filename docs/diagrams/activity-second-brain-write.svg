@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 930" width="960" height="930" role="img" aria-labelledby="title desc">
 <title id="title">Activity: Second Brain write</title>
-<desc id="desc">UML activity for PUT /second-brain/note and PUT /second-brain/calendar: authorization, workspace routing, decode, path containment, compare-and-swap write and best-effort timeline sync, with HTTP error exits.</desc>
+<desc id="desc">UML activity for PUT /second-brain/vault/page and PUT /second-brain/calendar: authorization, workspace routing, decode, path containment, compare-and-swap write and best-effort timeline sync, with HTTP error exits.</desc>
 
 <style>
   .bg{fill:#ffffff}
@@ -58,7 +58,7 @@
 </defs>
 
 <rect class="bg" x="0" y="0" width="960" height="930"/>
-<text x="20" y="28" text-anchor="start" class="h">Activity: Second Brain write (note or calendar)</text>
+<text x="20" y="28" text-anchor="start" class="h">Activity: Second Brain write (vault page or calendar)</text>
 <text x="20" y="46" text-anchor="start" class="s">tenon/src/server/routes/instance/httpapi/handlers/second-brain.ts · core/src/file-mutation.ts</text>
 <circle class="dot" cx="440" cy="70" r="8"/>
 <path class="e " d="M440,78 L440,92" marker-end="url(#a)"/>
@@ -91,7 +91,7 @@
 <path class="e " d="M440,344 L440,362" marker-end="url(#a)"/>
 <rect class="act" x="290" y="362" width="300" height="44" rx="14"/>
 <text x="440.0" y="382.0" text-anchor="middle" class="t">resolve target path</text>
-<text x="440.0" y="397.0" text-anchor="middle" class="s">notePath rules · LocationMutation.resolve</text>
+<text x="440.0" y="397.0" text-anchor="middle" class="s">vault path rules · LocationMutation.resolve</text>
 <path class="e " d="M440,406 L440,406.01"/>
 <path class="dia" d="M440,406 L454,420 L440,434 L426,420 z"/>
 <path class="e " d="M454,420 L680,420" marker-end="url(#a)"/>

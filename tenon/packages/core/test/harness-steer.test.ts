@@ -1,5 +1,5 @@
 import { expect } from "bun:test"
-import { Deferred, Effect, Fiber, Stream } from "effect"
+import { Deferred, Effect, Exit, Fiber, Scope, Stream } from "effect"
 import { LayerNode } from "@tenon/core/effect/layer-node"
 import { AcpHarness } from "@tenon/core/harness/acp"
 import { AppProcess } from "@tenon/core/process"
@@ -68,6 +68,63 @@ it.live("a waiting steer ends a harness turn through session/cancel, and the tur
   }).pipe(Effect.scoped),
 )
 
+// Answers session/cancel late, with one more chunk first, and would mark a prompt sent over a live one.
+const slowToStop = `
+let buffer = ""
+const send = (message) => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...message }) + "\\n")
+const chunk = (text) =>
+  send({
+    method: "session/update",
+    params: { sessionId: "s1", update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text } } },
+  })
+let live
+process.stdin.on("data", (data) => {
+  buffer += data
+  const lines = buffer.split("\\n")
+  buffer = lines.pop()
+  for (const line of lines.filter(Boolean)) {
+    const message = JSON.parse(line)
+    if (message.method === "initialize") send({ id: message.id, result: { protocolVersion: 1, agentCapabilities: {} } })
+    if (message.method === "session/new") send({ id: message.id, result: { sessionId: "s1" } })
+    if (message.method === "session/prompt") {
+      if (live === undefined && message.params.prompt[0].text === "First") {
+        live = message.id
+        continue
+      }
+      chunk(live === undefined ? "Fresh" : "Overlap")
+      send({ id: message.id, result: { stopReason: "end_turn" } })
+    }
+    if (message.method === "session/cancel")
+      setTimeout(() => {
+        chunk("Stale")
+        const id = live
+        live = undefined
+        send({ id, result: { stopReason: "cancelled" } })
+      }, 300)
+  }
+})
+`
+
+it.live("the turn after Stop waits for the old prompt, and none of its late output reaches the new reply", () =>
+  Effect.gen(function* () {
+    const dir = yield* Effect.promise(() => fs.mkdtemp(path.join(os.tmpdir(), "tenon-acp-stop-")))
+    const script = path.join(dir, "agent.cjs")
+    yield* Effect.promise(() => Bun.write(script, slowToStop))
+    const process = yield* AppProcess.Service
+    const session = yield* AcpHarness.open(process, {
+      settings: { command: globalThis.process.execPath, args: [script], env: {}, models: [] },
+      directory: dir,
+      approve: () => Effect.succeed(false),
+    })
+    const first = yield* session.turn({ text: "First" }).pipe(Stream.runDrain, Effect.forkChild)
+    yield* Effect.sleep("100 millis")
+    yield* Fiber.interrupt(first)
+
+    const events = yield* session.turn({ text: "Second" }).pipe(Stream.runCollect, Effect.timeout("5 seconds"))
+    expect(events.flatMap((event) => (event.type === "text-delta" ? [event.text] : []))).toEqual(["Fresh"])
+  }).pipe(Effect.scoped),
+)
+
 it.effect("a turn with no steer signal is left alone", () =>
   Effect.gen(function* () {
     let stopped = 0
@@ -76,4 +133,25 @@ it.effect("a turn with no steer signal is left alone", () =>
     expect(yield* AcpHarness.stopOnSteer(Stream.make(1, 2), Effect.never, stop).pipe(Stream.runCollect)).toEqual([1, 2])
     expect(stopped).toBe(0)
   }),
+)
+
+it.live("closing the runtime mid-turn ends the turn with an error instead of leaving it waiting", () =>
+  Effect.gen(function* () {
+    const dir = yield* Effect.promise(() => fs.mkdtemp(path.join(os.tmpdir(), "tenon-acp-close-")))
+    const script = path.join(dir, "agent.cjs")
+    yield* Effect.promise(() => Bun.write(script, agent))
+    const process = yield* AppProcess.Service
+    const scope = yield* Scope.make()
+    const session = yield* AcpHarness.open(process, {
+      settings: { command: globalThis.process.execPath, args: [script], env: {}, models: [] },
+      directory: dir,
+      approve: () => Effect.succeed(false),
+    }).pipe(Effect.provideService(Scope.Scope, scope))
+    const turn = yield* session.turn({ text: "Long task" }).pipe(Stream.runCollect, Effect.forkChild)
+
+    yield* Effect.sleep("200 millis")
+    yield* Scope.close(scope, Exit.void)
+    const events = yield* Fiber.join(turn).pipe(Effect.timeout("5 seconds"))
+    expect(events.at(-1)).toMatchObject({ type: "finish", reason: "error" })
+  }).pipe(Effect.scoped),
 )

@@ -185,24 +185,18 @@ import type {
   SecondBrainCreateProjectResponses,
   SecondBrainEnsureWorkspaceProjectErrors,
   SecondBrainEnsureWorkspaceProjectResponses,
-  SecondBrainListNotesErrors,
-  SecondBrainListNotesResponses,
   SecondBrainListProjectsErrors,
   SecondBrainListProjectsResponses,
   SecondBrainListProjectThreadsErrors,
   SecondBrainListProjectThreadsResponses,
   SecondBrainReadCalendarErrors,
   SecondBrainReadCalendarResponses,
-  SecondBrainReadNoteErrors,
-  SecondBrainReadNoteResponses,
   SecondBrainReadProjectErrors,
   SecondBrainReadProjectResponses,
   SecondBrainUpdateProjectErrors,
   SecondBrainUpdateProjectResponses,
   SecondBrainWriteCalendarErrors,
   SecondBrainWriteCalendarResponses,
-  SecondBrainWriteNoteErrors,
-  SecondBrainWriteNoteResponses,
   ServerSessionSessionDiffErrors,
   ServerSessionSessionDiffResponses,
   ServerSessionSessionForkErrors,
@@ -4469,112 +4463,6 @@ export class Part extends HeyApiClient {
 }
 
 export class SecondBrain extends HeyApiClient {
-  public listNotes<ThrowOnError extends boolean = false>(
-    parameters?: {
-      directory?: string
-      workspace?: string
-      search?: string
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-            { in: "query", key: "search" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).get<
-      SecondBrainListNotesResponses,
-      SecondBrainListNotesErrors,
-      ThrowOnError
-    >({
-      url: "/second-brain/notes",
-      ...options,
-      ...params,
-    })
-  }
-
-  public readNote<ThrowOnError extends boolean = false>(
-    parameters: {
-      directory?: string
-      workspace?: string
-      path: string
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-            { in: "query", key: "path" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).get<SecondBrainReadNoteResponses, SecondBrainReadNoteErrors, ThrowOnError>({
-      url: "/second-brain/note",
-      ...options,
-      ...params,
-    })
-  }
-
-  public writeNote<ThrowOnError extends boolean = false>(
-    parameters: {
-      directory?: string
-      workspace?: string
-      path: string
-      body?: string
-      expectedRevision?: string
-      title?: string
-      projectIds?: Array<string>
-      tags?: Array<string>
-      create?: boolean
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-            { in: "query", key: "path" },
-            { in: "body", key: "body" },
-            { in: "body", key: "expectedRevision" },
-            { in: "body", key: "title" },
-            { in: "body", key: "projectIds" },
-            { in: "body", key: "tags" },
-            { in: "body", key: "create" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).put<
-      SecondBrainWriteNoteResponses,
-      SecondBrainWriteNoteErrors,
-      ThrowOnError
-    >({
-      url: "/second-brain/note",
-      ...options,
-      ...params,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-        ...params.headers,
-      },
-    })
-  }
-
   public readCalendar<ThrowOnError extends boolean = false>(
     parameters?: {
       directory?: string

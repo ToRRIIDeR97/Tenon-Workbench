@@ -11,7 +11,6 @@ import { PluginTestLayer } from "./fixture"
 
 const it = testEffect(PluginTestLayer)
 const deepinfraOptions: Record<string, unknown>[] = []
-const deepinfraLanguageModels: string[] = []
 
 const addPlugin = Effect.fn(function* () {
   const plugin = yield* PluginV2.Service
@@ -26,7 +25,6 @@ void mock.module("@ai-sdk/deepinfra", () => ({
     deepinfraOptions.push(captured)
     return {
       languageModel: (modelID: string) => {
-        deepinfraLanguageModels.push(modelID)
         return { modelID, provider: `${captured.name ?? "deepinfra"}.chat`, specificationVersion: "v3" }
       },
     }
@@ -35,7 +33,6 @@ void mock.module("@ai-sdk/deepinfra", () => ({
 
 function resetDeepInfraMock() {
   deepinfraOptions.length = 0
-  deepinfraLanguageModels.length = 0
 }
 
 describe("DeepInfraPlugin", () => {
@@ -76,25 +73,6 @@ describe("DeepInfraPlugin", () => {
     }),
   )
 
-  it.effect("uses the canonical provider ID as the bundled DeepInfra SDK name", () =>
-    Effect.gen(function* () {
-      resetDeepInfraMock()
-      const plugin = yield* PluginV2.Service
-      const aisdk = yield* AISDK.Service
-      yield* addPlugin()
-      const result = yield* aisdk.runSDK({
-        model: ModelV2.Info.make({
-          ...ModelV2.Info.empty(ProviderV2.ID.make("deepinfra"), ModelV2.ID.make("model")),
-          api: { id: ModelV2.ID.make("model"), type: "aisdk", package: "@ai-sdk/deepinfra" },
-        }),
-        package: "@ai-sdk/deepinfra",
-        options: { name: "deepinfra", apiKey: "test" },
-      })
-      expect(result.sdk.languageModel("model").provider).toBe("deepinfra.chat")
-      expect(deepinfraOptions).toEqual([{ name: "deepinfra", apiKey: "test" }])
-    }),
-  )
-
   it.effect("matches only the exact bundled DeepInfra package", () =>
     Effect.gen(function* () {
       resetDeepInfraMock()
@@ -129,31 +107,6 @@ describe("DeepInfraPlugin", () => {
       })
       expect(result.sdk).toBeDefined()
       expect(deepinfraOptions).toEqual([{ name: "deepinfra" }])
-    }),
-  )
-
-  it.effect("uses the default languageModel selection for DeepInfra models", () =>
-    Effect.gen(function* () {
-      resetDeepInfraMock()
-      const plugin = yield* PluginV2.Service
-      const aisdk = yield* AISDK.Service
-      yield* addPlugin()
-      const sdkEvent = yield* aisdk.runSDK({
-        model: ModelV2.Info.make({
-          ...ModelV2.Info.empty(ProviderV2.ID.make("deepinfra"), ModelV2.ID.make("meta-llama/Llama-3.3-70B-Instruct")),
-          api: {
-            id: ModelV2.ID.make("meta-llama/Llama-3.3-70B-Instruct"),
-            type: "aisdk",
-            package: "@ai-sdk/deepinfra",
-          },
-        }),
-        package: "@ai-sdk/deepinfra",
-        options: { name: "deepinfra" },
-      })
-      const result = yield* aisdk.runLanguage({ model: sdkEvent.model, sdk: sdkEvent.sdk, options: sdkEvent.options })
-      const language = result.language ?? result.sdk.languageModel(result.model.api.id)
-      expect(language.provider).toBe("deepinfra.chat")
-      expect(deepinfraLanguageModels).toEqual(["meta-llama/Llama-3.3-70B-Instruct"])
     }),
   )
 })

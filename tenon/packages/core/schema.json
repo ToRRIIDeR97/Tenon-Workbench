@@ -1,8 +1,8 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "12c72787-ff11-454e-92e3-cb151ab453f3",
-  "prevIds": ["f734396f-70f9-4a5b-b668-1f1dedfa1af5"],
+  "id": "d067c4bb-8488-49dc-b977-9cb0f4cbd42a",
+  "prevIds": ["12c72787-ff11-454e-92e3-cb151ab453f3"],
   "ddl": [
     {
       "name": "workspace",
@@ -1771,28 +1771,6 @@
       "where": null,
       "origin": "manual",
       "name": "event_aggregate_seq_idx",
-      "entityType": "indexes",
-      "table": "event"
-    },
-    {
-      "columns": [
-        {
-          "value": "aggregate_id",
-          "isExpression": false
-        },
-        {
-          "value": "type",
-          "isExpression": false
-        },
-        {
-          "value": "seq",
-          "isExpression": false
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "origin": "manual",
-      "name": "event_aggregate_type_seq_idx",
       "entityType": "indexes",
       "table": "event"
     },

@@ -19,12 +19,13 @@ import { AbsolutePath } from "@tenon/core/schema"
 import { canonicalDirectory } from "@tenon/core/util/directory"
 import { Cause, Context, Effect, Exit, Layer, Option, Schema } from "effect"
 import { randomBytes } from "node:crypto"
-import { readFile, stat } from "node:fs/promises"
+import { stat } from "node:fs/promises"
 import path from "node:path"
 import { ulid } from "ulid"
 import { CommandMemory } from "./command-memory"
 import { CommandSetup } from "./command-setup"
 import { MailTools } from "./mail-tools"
+import { Routines } from "./routines"
 
 /**
  * Tenon app tools for agents: notes in the vault, a Project's timeline and log, the workspace
@@ -356,8 +357,8 @@ GlobalBus.on("event", (event) => {
   if (payload?.type !== "session.created" && payload?.type !== "session.updated") return
   const sessionID = payload.properties?.sessionID
   const directory = payload.properties?.info?.directory
-  if (typeof sessionID === "string" && typeof directory === "string" && CommandMemory.isCommandDirectory(directory))
-    commandSessions.add(sessionID)
+  if (typeof sessionID !== "string" || typeof directory !== "string" || commandSessions.has(sessionID)) return
+  if (CommandMemory.isCommandDirectory(directory)) commandSessions.add(sessionID)
 })
 
 /** Every tool any thread can get, for the in-process loop's registration. Calls still check `list`. */
@@ -388,7 +389,7 @@ const isCommandSession = (sessionID: string) =>
     const sessions = yield* Session.Service
     const id = Option.getOrUndefined(Schema.decodeUnknownOption(SessionID)(sessionID))
     const session = id ? yield* sessions.get(id).pipe(Effect.orElseSucceed(() => undefined)) : undefined
-    if (!session || !CommandMemory.isCommandDirectory(session.directory)) return false
+    if (!session || !(yield* CommandMemory.isCommandDirectoryResolved(session.directory))) return false
     commandSessions.add(sessionID)
     return true
   })
@@ -449,6 +450,7 @@ export const layer = Layer.effectDiscard(
     yield* Effect.acquireRelease(
       Effect.sync(() => {
         state.context = context
+        void CommandMemory.resolveFolders()
         const uninstall = HarnessAppTools.install({
           catalog: catalog(),
           catalogFor,
@@ -477,6 +479,7 @@ type Scope = {
   /** The workspace (Brain) directory whose vault and calendar the thread uses. */
   readonly workspace: string
   readonly project?: BrainProject.Info
+  readonly command?: boolean
 }
 
 const execute = Effect.fnUntraced(function* (
@@ -499,6 +502,7 @@ const execute = Effect.fnUntraced(function* (
   const scope: Scope = {
     ...(command ? yield* commandScope(sessionID, input) : yield* scopeOf(sessionID)),
     origin,
+    command,
   }
   const parse = <S extends Schema.Decoder<unknown>>(schema: S) => {
     const decoded = Schema.decodeUnknownOption(schema)(input)
@@ -539,6 +543,9 @@ const notesRead = Effect.fnUntraced(function* (scope: Scope, args: typeof Args.n
 const notesWrite = Effect.fnUntraced(function* (scope: Scope, args: typeof Args.notes_write.Type) {
   const projectId = yield* writableProject(scope, "notes_write", args.projectId)
   if (!KnowledgeVault.isPagePath(args.path)) return yield* new ToolError({ message: "Invalid request: invalid_path" })
+  // A workspace thread reads repositories; it can't queue a routine for approval or pause an approved one.
+  if (!projectId && !scope.command && Routines.isRoutinePath(args.path))
+    return yield* new ToolError({ message: "notes_write can't change Routines/ outside the Command Centre." })
   const write = begin(scope, "note", targetName(scope), {
     title: args.title ?? pageTitle(args.path, args.body),
     text: preview(args.body),
@@ -842,7 +849,8 @@ const workspaceCandidates = Effect.fnUntraced(function* () {
   const projects = yield* Project.Service
   const sessions = yield* Session.Service
   const known = (yield* projects.list()).filter((project) => project.worktree !== "/").map((item) => item.worktree)
-  const vaults = yield* Effect.promise(() => vaultWorkspaces())
+  const data = Global.make().data
+  const vaults = yield* Effect.promise(() => KnowledgeVault.currentWorkspaces(CommandMemory.root(), data))
   const recent = (yield* sessions.listGlobal({ roots: true, limit: 200 })).map((item) => item.directory)
   const folders = [...known, ...vaults, ...recent.flatMap((directory) => parents(canonicalDirectory(directory)))]
     .map((directory) => canonicalDirectory(directory))
@@ -851,18 +859,6 @@ const workspaceCandidates = Effect.fnUntraced(function* () {
     Effect.promise(() => isDirectory(path.join(directory, ".tenon", "projects"))),
   )
 })
-
-/** Workspace folders with a vault folder under the current root (`vault-machine.json`). */
-async function vaultWorkspaces() {
-  // The server runs under Node in the desktop app, so plain fs rather than Bun.file.
-  const source = await readFile(path.join(Global.make().data, "vault-machine.json"), "utf8").catch(() => "")
-  try {
-    const machine = JSON.parse(source || "{}") as { roots?: Record<string, Record<string, string>> }
-    return Object.keys(machine.roots?.[CommandMemory.root()] ?? {})
-  } catch {
-    return []
-  }
-}
 
 // ---- writes: events and undo ----
 
@@ -1009,9 +1005,7 @@ const scopeOf = Effect.fnUntraced(function* (sessionID: string) {
     ...ancestors,
     ...known.map((project) => canonicalDirectory(project.worktree)),
     ...opened.map((directory) => canonicalDirectory(directory)),
-  ].filter(
-    (directory, index, all) => all.findIndex((other) => key(other) === key(directory)) === index,
-  )
+  ].filter((directory, index, all) => all.findIndex((other) => key(other) === key(directory)) === index)
   const brains = yield* Effect.filter(candidates, (directory) =>
     Effect.promise(() => isDirectory(path.join(directory, ".tenon", "projects"))),
   )

@@ -1,43 +1,51 @@
 export * as RoutinesScheduler from "./routines-scheduler"
 
+import { EventV2Bridge } from "@/event-v2-bridge"
 import { KnowledgeVault } from "@/knowledge/vault"
+import { Permission } from "@/permission"
 import { InstanceStore } from "@/project/instance-store"
 import { SessionPrompt } from "@/session/prompt"
 import { Session } from "@/session/session"
 import { Global } from "@tenon/core/global"
 import { LocationServiceMap } from "@tenon/core/location-services"
 import { Effect, Layer, Schedule, Scope } from "effect"
-import { readFile, stat } from "node:fs/promises"
-import path from "node:path"
+import { stat } from "node:fs/promises"
 import { CommandThreads } from "./command-threads"
 import { Routines } from "./routines"
 
 /**
- * Runs due routines at server start and then every minute, for each workspace that has a vault folder
- * on this machine (the vault's machine map in app data). Missed times catch up once (Routines.runDue).
+ * Runs due routines at server start and then every minute, for each workspace with a `Routines` folder in
+ * its vault on this machine (the vault's machine map in app data). That is decided from the files alone, so
+ * a workspace without routines is never booted or kept warm for this; a new folder is seen within a minute.
+ * Missed times catch up once (Routines.runDue).
  * Each workspace's check runs in the background, so a long routine never holds up the next minute; runs
  * left "running" by a previous process are marked failed at start and retried. Only a listening server
  * starts it, never the in-process test routes.
  */
 
-/** Workspace directories with a vault folder under the current root, from `vault-machine.json`. */
+/** Workspace directories with routines in their vault folder under the current root, that exist on this machine. */
 const workspaces = Effect.promise(async () => {
-  const source = await readFile(path.join(Global.make().data, "vault-machine.json"), "utf8").catch(() => undefined)
-  if (!source) return [] as string[]
-  try {
-    const machine = JSON.parse(source) as { roots?: Record<string, Record<string, string>> }
-    const directories = Object.keys(machine.roots?.[KnowledgeVault.rootFor(process.env, Global.make().home)] ?? {})
-    const present = await Promise.all(
-      directories.map((directory) =>
-        stat(directory)
-          .then((info) => info.isDirectory())
-          .catch(() => false),
+  const global = Global.make()
+  const root = KnowledgeVault.rootFor(process.env, global.home)
+  const withRoutines = await KnowledgeVault.workspacesWithFolder(root, Routines.folder)
+  // Every root's entries: a moved vault's workspace keeps its earlier root's entry until it is reopened.
+  const directories = [
+    ...new Set(
+      Object.values(KnowledgeVault.machineRoots(global.data)).flatMap((mapped) =>
+        Object.entries(mapped)
+          .filter(([, id]) => withRoutines.has(id))
+          .map(([directory]) => directory),
       ),
-    )
-    return directories.filter((_, index) => present[index])
-  } catch {
-    return [] as string[]
-  }
+    ),
+  ]
+  const present = await Promise.all(
+    directories.map((directory) =>
+      stat(directory)
+        .then((info) => info.isDirectory())
+        .catch(() => false),
+    ),
+  )
+  return directories.filter((_, index) => present[index])
 })
 
 /** `provider/model` from a routine's `model` property. */
@@ -53,6 +61,8 @@ export const layer = Layer.effectDiscard(
     const sessions = yield* Session.Service
     const prompts = yield* SessionPrompt.Service
     const locations = yield* LocationServiceMap.Service
+    const events = yield* EventV2Bridge.Service
+    const permission = yield* Permission.Service
     const scope = yield* Scope.Scope
     const provide = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
       effect.pipe(
@@ -60,14 +70,15 @@ export const layer = Layer.effectDiscard(
         Effect.provideService(Session.Service, sessions),
         Effect.provideService(SessionPrompt.Service, prompts),
         Effect.provideService(LocationServiceMap.Service, locations),
+        Effect.provideService(EventV2Bridge.Service, events),
+        Effect.provideService(Permission.Service, permission),
       )
     // The routine's own model first, then the Command Centre's default model.
     const run: Routines.Run<unknown> = (routine) =>
       Effect.gen(function* () {
         const model = modelChoice(routine.model) ?? (yield* Routines.defaultModel)
         const started = yield* provide(CommandThreads.start({ prompt: routine.prompt, title: routine.name, model }))
-        const text = yield* provide(started.reply)
-        return { threadId: started.threadId, text }
+        return { threadId: started.threadId, ...(yield* provide(started.reply)) }
       })
     yield* Routines.recoverInterrupted.pipe(
       Effect.catchCause((cause) => Effect.logWarning("Routines recovery failed", { cause })),

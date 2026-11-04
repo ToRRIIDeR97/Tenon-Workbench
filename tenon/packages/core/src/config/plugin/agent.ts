@@ -57,7 +57,11 @@ export const Plugin = define({
             const files = yield* discover(fs, entry.path)
             return yield* Effect.forEach(files, (file) =>
               fs.readFileStringSafe(file.filepath).pipe(
-                Effect.map((content) => content && decode(file, content)),
+                Effect.map((content) => {
+                  const document = content ? decode(file, content) : undefined
+                  if (!document || !entry.project) return document
+                  return new Config.Document({ ...document, info: Config.limitPermissions(document.info) })
+                }),
                 Effect.catch(() => Effect.succeed(undefined)),
               ),
             ).pipe(

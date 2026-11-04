@@ -1,5 +1,6 @@
 export * as Pty from "./pty"
 
+import { stat } from "fs/promises"
 import { makeLocationNode } from "./effect/app-node"
 import type { Disp, Proc } from "#pty"
 import { Context, Effect, Layer, Schema, Types } from "effect"
@@ -88,9 +89,12 @@ export class ExitedError extends Schema.TaggedErrorClass<ExitedError>()("Pty.Exi
 }) {}
 
 // node-pty reports a missing executable from a worker thread, where nothing can catch it and the
-// process dies, so a command must resolve to a file before it is spawned.
+// process dies, so a command must resolve to a file before it is spawned. On Windows the working
+// folder reaches the same uncatchable path, so it must exist first too.
 export class SpawnError extends Schema.TaggedErrorClass<SpawnError>()("Pty.SpawnError", {
   command: Schema.String,
+  // The request field at fault, so routes don't report a folder problem as a command problem.
+  field: Schema.Literals(["command", "cwd"]),
   message: Schema.String,
 }) {}
 
@@ -195,67 +199,87 @@ const layer = Layer.effect(
         env.LC_CTYPE = "C.UTF-8"
         env.LANG = "C.UTF-8"
       }
+      const folder = yield* Effect.promise(() =>
+        stat(cwd).then(
+          (info) => info.isDirectory(),
+          () => false,
+        ),
+      )
+      if (!folder)
+        return yield* new SpawnError({
+          command,
+          field: "cwd",
+          message: `Can't start a terminal in "${cwd}": the folder doesn't exist.`,
+        })
       const target = yield* spawnTarget(command, args, env)
       yield* Effect.logInfo("creating session", { id, cmd: command, args, cwd })
       const { spawn } = yield* Effect.promise(() => pty())
       // Subscribe in the same synchronous step as spawn: a fiber yield between the two would let a
       // fast child write or exit before anyone listens, and that output or exit would be lost.
-      const info = yield* Effect.sync(() => {
-        const proc = spawn(target.file, target.args, { name: "xterm-256color", cwd, env })
-        const info: Info = {
-          id,
-          title: input.title || `Terminal ${id.slice(-4)}`,
-          command,
-          args,
-          cwd,
-          status: "running",
-          pid: proc.pid,
-        }
-        const session: Active = {
-          info,
-          process: proc,
-          buffer: "",
-          bufferCursor: 0,
-          cursor: 0,
-          subscribers: new Map(),
-          listeners: [],
-        }
-        sessions.set(id, session)
-        session.listeners.push(
-          proc.onData((chunk) => {
-            session.cursor += chunk.length
-            for (const [token, subscriber] of session.subscribers.entries()) {
-              if (!subscriber.active) continue
-              try {
-                subscriber.onData(chunk)
-              } catch {
-                session.subscribers.delete(token)
-              }
-            }
-            session.buffer += chunk
-            if (session.buffer.length > BUFFER_TRIM_AT) trimBuffer(session, BUFFER_LIMIT)
-          }),
-          proc.onExit(({ exitCode }) => {
-            if (session.info.status === "exited") return
-            session.info.status = "exited"
-            session.info.exitCode = exitCode
-            notifyEnd(session, { exitCode })
-            trimBuffer(session, EXITED_BUFFER_LIMIT)
-            exitOrder.push(id)
-            runFork(
-              Effect.gen(function* () {
-                yield* Effect.logInfo("session exited", { id, exitCode })
-                yield* events.publish(Event.Exited, { id, exitCode })
-                while (exitOrder.length > EXITED_LIMIT) {
-                  const oldest = exitOrder[0]
-                  if (!oldest) break
-                  yield* removeSession(oldest)
+      const info = yield* Effect.try({
+        try: () => {
+          const proc = spawn(target.file, target.args, { name: "xterm-256color", cwd, env })
+          const info: Info = {
+            id,
+            title: input.title || `Terminal ${id.slice(-4)}`,
+            command,
+            args,
+            cwd,
+            status: "running",
+            pid: proc.pid,
+          }
+          const session: Active = {
+            info,
+            process: proc,
+            buffer: "",
+            bufferCursor: 0,
+            cursor: 0,
+            subscribers: new Map(),
+            listeners: [],
+          }
+          sessions.set(id, session)
+          session.listeners.push(
+            proc.onData((chunk) => {
+              session.cursor += chunk.length
+              for (const [token, subscriber] of session.subscribers.entries()) {
+                if (!subscriber.active) continue
+                try {
+                  subscriber.onData(chunk)
+                } catch {
+                  session.subscribers.delete(token)
                 }
-              }),
-            )
+              }
+              session.buffer += chunk
+              if (session.buffer.length > BUFFER_TRIM_AT) trimBuffer(session, BUFFER_LIMIT)
+            }),
+            proc.onExit(({ exitCode }) => {
+              if (session.info.status === "exited") return
+              session.info.status = "exited"
+              session.info.exitCode = exitCode
+              notifyEnd(session, { exitCode })
+              trimBuffer(session, EXITED_BUFFER_LIMIT)
+              exitOrder.push(id)
+              runFork(
+                Effect.gen(function* () {
+                  yield* Effect.logInfo("session exited", { id, exitCode })
+                  yield* events.publish(Event.Exited, { id, exitCode })
+                  while (exitOrder.length > EXITED_LIMIT) {
+                    const oldest = exitOrder[0]
+                    if (!oldest) break
+                    yield* removeSession(oldest)
+                  }
+                }),
+              )
+            }),
+          )
+          return info
+        },
+        catch: (cause) =>
+          new SpawnError({
+            command,
+            field: "command",
+            message: `Can't start "${command}": ${cause instanceof Error ? cause.message : String(cause)}`,
           }),
-        )
-        return info
       })
       yield* events.publish(Event.Created, { info })
       return info
@@ -353,7 +377,9 @@ export const node = makeLocationNode({ service: Service, layer, deps: [EventV2.n
 function spawnTarget(command: string, args: string[], env: Record<string, string>) {
   const file = which(command, env)
   if (!file)
-    return Effect.fail(new SpawnError({ command, message: `Can't start "${command}": it was not found on PATH.` }))
+    return Effect.fail(
+      new SpawnError({ command, field: "command", message: `Can't start "${command}": it was not found on PATH.` }),
+    )
   if (process.platform === "win32" && /\.(cmd|bat)$/i.test(file))
     return Effect.succeed({ file: env.ComSpec || env.COMSPEC || "cmd.exe", args: ["/d", "/c", file, ...args] })
   return Effect.succeed({ file, args })

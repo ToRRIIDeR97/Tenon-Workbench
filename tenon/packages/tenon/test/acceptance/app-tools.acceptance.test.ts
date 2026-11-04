@@ -50,7 +50,10 @@ const it = testEffect(
 )
 const request = (route: string, init?: RequestInit) => {
   const url = new URL(route, "http://localhost")
-  return HttpClientRequest.fromWeb(new Request(url, init)).pipe(HttpClientRequest.setUrl(url.pathname), HttpClient.execute)
+  return HttpClientRequest.fromWeb(new Request(url, init)).pipe(
+    HttpClientRequest.setUrl(url.pathname),
+    HttpClient.execute,
+  )
 }
 const json = <T>(response: HttpClientResponse.HttpClientResponse) =>
   response.status >= 200 && response.status < 300
@@ -133,12 +136,18 @@ describe("AgentAppTools", () => {
       const workspace = yield* tmpdirScoped()
       const code = yield* tmpdirScoped()
       const headers = { "x-opencode-directory": workspace, "content-type": "application/json" }
-      yield* request("/second-brain/projects/link", { method: "POST", headers, body: JSON.stringify({ folder: code }) }).pipe(
-        Effect.flatMap(json<unknown>),
-      )
+      yield* request("/second-brain/projects/link", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ folder: code }),
+      }).pipe(Effect.flatMap(json<unknown>))
       yield* request("/second-brain/vault", { headers }).pipe(Effect.flatMap(json<unknown>))
       const session = yield* Session.use.create({ title: "linked work" }).pipe(provideInstanceEffect(code))
-      const result = (yield* AgentAppTools.call("log_append", { text: "Linked progress" }, { sessionID: session.id })) as Result
+      const result = (yield* AgentAppTools.call(
+        "log_append",
+        { text: "Linked progress" },
+        { sessionID: session.id },
+      )) as Result
       expect(result.isError).toBe(false)
     }),
   )
@@ -196,13 +205,22 @@ describe("AgentAppTools", () => {
       const first = (yield* call("notes_write", { path: "Undo.md", body: "original", create: true })).value as {
         revision: string
       }
-      const second = (yield* call("notes_write", { path: "Undo.md", body: "changed", expectedRevision: first.revision }))
-        .value as { undo: string }
-      const undone = yield* request(`/second-brain/writes/${encodeURIComponent(second.undo)}/undo`, { method: "POST", headers })
+      const second = (yield* call("notes_write", {
+        path: "Undo.md",
+        body: "changed",
+        expectedRevision: first.revision,
+      })).value as { undo: string }
+      const undone = yield* request(`/second-brain/writes/${encodeURIComponent(second.undo)}/undo`, {
+        method: "POST",
+        headers,
+      })
       expect(undone.status).toBe(200)
       const read = (yield* call("notes_read", { path: "Undo.md" })).value as { body: string }
       expect(read.body).toContain("original")
-      const again = yield* request(`/second-brain/writes/${encodeURIComponent(second.undo)}/undo`, { method: "POST", headers })
+      const again = yield* request(`/second-brain/writes/${encodeURIComponent(second.undo)}/undo`, {
+        method: "POST",
+        headers,
+      })
       expect(again.status).toBe(409)
     }),
   )
@@ -214,7 +232,9 @@ describe("AgentAppTools", () => {
         events: [{ title: "Remove legacy /login", date: "2026-11-03", start: "10:00", end: "12:00" }],
       })
       expect(applied.isError).toBe(false)
-      const tasks = yield* call("tasks_create", { tasks: [{ title: "Webhook retries", dueDate: "2026-11-09", accountId: "acct_1" }] })
+      const tasks = yield* call("tasks_create", {
+        tasks: [{ title: "Webhook retries", dueDate: "2026-11-09", accountId: "acct_1" }],
+      })
       expect(tasks.isError).toBe(false)
       const snapshot = yield* request("/second-brain/calendar", { headers }).pipe(
         Effect.flatMap(json<{ events: { title: string }[]; tasks: { title: string; accountId?: string }[] }>),
