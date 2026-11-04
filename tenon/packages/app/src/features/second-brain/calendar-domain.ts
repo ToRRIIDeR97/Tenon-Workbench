@@ -1,5 +1,8 @@
 import type { GoogleCalendarProviderEvent } from "@/context/platform"
 import type { CalendarEvent } from "./client"
+import type { CalendarTaskFilter } from "./calendar-tasks"
+
+export type CalendarView = "today" | "week" | "month" | "agenda" | "tasks" | "upcoming" | "unscheduled" | "completed"
 
 export type CalendarDay = { date: string; day: number; inMonth: boolean; today: boolean }
 
@@ -64,6 +67,8 @@ export type ProviderMergeOptions = {
   failed?: (account: string | undefined) => boolean
   /** Accounts this sync fetched. */
   synced?: (account: string | undefined) => boolean
+  /** Outbox keys whose write has finished, so the item no longer waits on the outbox. */
+  settled?: (outboxKey: string) => boolean
   today?: string
 }
 
@@ -71,7 +76,8 @@ export type ProviderMergeOptions = {
  * Merge a Google sync into the local calendar. Local events stay, and so does every event of
  * an account that failed this sync. A synced account's event with an unsynced write (queued,
  * failed or in conflict) stays as it is, whether or not Google returned it, so a sync never
- * silently drops or overwrites the user's change. Every other event of a synced account is
+ * silently drops or overwrites the user's change; a write the outbox has finished no longer
+ * counts as unsynced. Every other event of a synced account is
  * replaced by Google's copy, keeping its Project link; events of accounts that are gone are
  * dropped. Ids stay unique, and remote events farthest from `today` are dropped if the
  * calendar would exceed its limit.
@@ -84,6 +90,7 @@ export function mergeProviderEvents(
   const accountOf = options.accountOf ?? ((accountId) => accountId)
   const failed = options.failed ?? (() => false)
   const synced = options.synced ?? (() => true)
+  const settled = options.settled ?? (() => false)
   const today = options.today ?? localDateKey(new Date())
   const projectByProvider = new Map(
     current.flatMap((event) =>
@@ -96,7 +103,7 @@ export function mergeProviderEvents(
     if (event.source !== "google") return true
     const account = accountOf(event.accountId)
     if (failed(account)) return true
-    return synced(account) && Boolean(event.outboxKey) && event.syncState !== "synced"
+    return synced(account) && Boolean(event.outboxKey) && event.syncState !== "synced" && !settled(event.outboxKey!)
   })
   const keptIds = new Set(kept.map((event) => event.id))
   const fresh = remote
@@ -139,6 +146,26 @@ export function monthGrid(cursor: Date, now = new Date()): CalendarDay[] {
   })
 }
 
+// A month cell's 8px padding, 1px border and 32px day number; each item row is 24px plus a 2px gap.
+const MONTH_CELL_CHROME = 41
+const MONTH_ROW = 26
+
+/** How many item rows fit in a month cell of `height` pixels; the row count follows the window size. */
+export function monthCellRows(height: number) {
+  return Math.max(1, Math.floor((height - MONTH_CELL_CHROME + 2) / MONTH_ROW))
+}
+
+/** How many of a day's items to show: all that fit, or one row fewer to leave room for "+N more". */
+export function monthCellShown(total: number, rows: number) {
+  return total <= rows ? total : rows - 1
+}
+
+/** The hour starting at `hour`, for an event started from a slot in the day grid. It stays within the day. */
+export function hourSlot(hour: number) {
+  const clock = (value: number) => `${String(value).padStart(2, "0")}:00`
+  return { start: clock(hour), end: hour >= 23 ? "23:59" : clock(hour + 1) }
+}
+
 export function shiftMonth(cursor: Date, amount: number) {
   return new Date(cursor.getFullYear(), cursor.getMonth() + amount, 1, 12)
 }
@@ -152,4 +179,34 @@ export function shiftDate(cursor: Date, amount: number) {
 export function weekRange(cursor: Date) {
   const start = shiftDate(cursor, -cursor.getDay())
   return { start: localDateKey(start), end: localDateKey(shiftDate(start, 6)) }
+}
+
+/** The view named in `?view=`; anything else opens Today. */
+export function calendarView(value?: string): CalendarView {
+  if (
+    value === "week" ||
+    value === "month" ||
+    value === "agenda" ||
+    value === "tasks" ||
+    value === "upcoming" ||
+    value === "unscheduled" ||
+    value === "completed"
+  ) {
+    return value
+  }
+  return "today"
+}
+
+export function taskFilter(view: CalendarView): CalendarTaskFilter | undefined {
+  if (view === "tasks") return "today"
+  if (view === "upcoming") return "upcoming"
+  if (view === "unscheduled") return "unscheduled"
+  if (view === "completed") return "completed"
+}
+
+export function viewForTaskFilter(filter: CalendarTaskFilter): CalendarView {
+  if (filter === "upcoming") return "upcoming"
+  if (filter === "unscheduled") return "unscheduled"
+  if (filter === "completed") return "completed"
+  return "tasks"
 }

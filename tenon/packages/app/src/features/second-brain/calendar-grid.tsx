@@ -26,6 +26,8 @@ export function CalendarGrid(props: {
   onOpenTask: (task: PlannerTask) => void
   onToggle: (task: PlannerTask) => Promise<void>
   onOpenDay: (date: string) => void
+  onNewAt: (date: string, hour: number) => void
+  dateLabel: (date: string) => string
 }) {
   const language = useLanguage()
   // Office hours by default, widened to fit the earliest and latest event shown.
@@ -167,6 +169,22 @@ export function CalendarGrid(props: {
                 "background-image": `repeating-linear-gradient(to bottom, var(--v2-border-border-muted) 0 0.5px, transparent 0.5px ${HOUR}px)`,
               }}
             >
+              {/* Out of the tab order: New stays the keyboard path, and a week would add over 100 stops. */}
+              <For each={hours()}>
+                {(hour, index) => (
+                  <button
+                    type="button"
+                    tabindex={-1}
+                    class="absolute inset-x-0 transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none"
+                    style={{ top: `${index() * HOUR}px`, height: `${HOUR}px` }}
+                    aria-label={language.t("secondBrain.calendar.newAtTime", {
+                      date: props.dateLabel(day.date),
+                      time: `${String(hour).padStart(2, "0")}:00`,
+                    })}
+                    onClick={() => props.onNewAt(day.date, hour)}
+                  />
+                )}
+              </For>
               <For each={blocks(day)}>
                 {(block) => (
                   <div class="absolute" style={block.style}>

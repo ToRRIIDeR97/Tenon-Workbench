@@ -48,6 +48,7 @@ describe("syncGoogleCalendar", () => {
         ],
         tasks: [],
         syncedAccounts: ["a1"],
+        settled: [],
         connection,
       }),
     } as unknown as GoogleCalendarPlatform
@@ -67,7 +68,7 @@ describe("syncGoogleCalendar", () => {
     const google = {
       sync: () =>
         new Promise((resolve) => {
-          release = () => resolve({ events: [], tasks: [], syncedAccounts: [], connection })
+          release = () => resolve({ events: [], tasks: [], syncedAccounts: [], settled: [], connection })
         }),
     } as unknown as GoogleCalendarPlatform
 
@@ -111,7 +112,7 @@ describe("syncGoogleCalendar", () => {
         sent.push(input)
         return { state: "synced" as const, task: created }
       },
-      sync: async () => ({ events: [], tasks: [created], syncedAccounts: ["a1"], connection }),
+      sync: async () => ({ events: [], tasks: [created], syncedAccounts: ["a1"], settled: [], connection }),
     } as unknown as GoogleCalendarPlatform
 
     await syncGoogleCalendar({
@@ -131,5 +132,50 @@ describe("syncGoogleCalendar", () => {
       { tasks: [{ providerId: "g1", projectId: "project_01ACME", syncState: "synced", source: "google" }] },
     ])
     expect((writes[0] as { tasks: unknown[] }).tasks).toHaveLength(1)
+  })
+
+  test("replaces a queued create the outbox finished, keeping its Project", async () => {
+    const { writes, client } = setup()
+    const queued = {
+      id: "google-task:a1:@default:pending:t1",
+      title: "Renew passport",
+      projectId: "project_01ACME",
+      accountId: "a1",
+      providerId: "pending:t1",
+      taskListId: "@default",
+      taskListTitle: "Tasks",
+      outboxKind: "create" as const,
+      outboxKey: "k1",
+      createdAt: "2026-11-02T00:00:00.000Z",
+      updatedAt: "2026-11-02T00:00:00.000Z",
+      source: "google" as const,
+      syncState: "offline" as const,
+    }
+    const created = {
+      accountId: "a1",
+      providerId: "g1",
+      taskListId: "@default",
+      taskListTitle: "Tasks",
+      title: "Renew passport",
+      updatedAt: "2026-11-02T00:00:01.000Z",
+    }
+    const google = {
+      sync: async () => ({
+        events: [],
+        tasks: [created],
+        syncedAccounts: ["a1"],
+        settled: [{ idempotencyKey: "k1", providerId: "g1" }],
+        connection,
+      }),
+    } as unknown as GoogleCalendarPlatform
+
+    await syncGoogleCalendar({
+      google,
+      client,
+      current: { version: 2, revision: "r1", events: [], tasks: [queued] },
+    })
+
+    expect((writes[0] as { tasks: unknown[] }).tasks).toHaveLength(1)
+    expect(writes).toMatchObject([{ tasks: [{ providerId: "g1", projectId: "project_01ACME", syncState: "synced" }] }])
   })
 })

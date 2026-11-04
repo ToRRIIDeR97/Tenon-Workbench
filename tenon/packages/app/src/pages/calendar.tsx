@@ -4,7 +4,6 @@ import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { SegmentedControlItemV2, SegmentedControlV2 } from "@tenon/ui/v2/segmented-control-v2"
 import { SelectV2 } from "@tenon/ui/v2/select-v2"
-import { TextareaV2 } from "@tenon/ui/v2/textarea-v2"
 import { TextInputV2 } from "@tenon/ui/v2/text-input-v2"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { ViewSwitch } from "@tenon/ui/v2/view-switch"
@@ -16,25 +15,40 @@ import { PageEmpty, PageFrame, PageHeader, pageRowClass } from "@/components/pag
 import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
-import { usePlatform, type GoogleCalendarConnection, type GoogleCalendarProviderEvent } from "@/context/platform"
+import { usePlatform, type GoogleCalendarConnection } from "@/context/platform"
 import { useServerSDK } from "@/context/server-sdk"
 import { showToast } from "@/utils/toast"
 import {
+  calendarView,
   dateKeys,
   eventCoversDay,
   eventLastDay,
+  hourSlot,
   localDateKey,
   monthGrid,
   providerEvent,
   shiftDate,
   shiftMonth,
+  taskFilter,
+  viewForTaskFilter,
   weekRange,
+  type CalendarView,
 } from "@/features/second-brain/calendar-domain"
+import {
+  CalendarEventForm,
+  draftProviderEvent,
+  emptyDraft,
+  eventDraft,
+  fieldClass,
+  noteClass,
+  type CalendarDraft,
+  type CalendarDraftField,
+} from "@/features/second-brain/calendar-event-form"
 import { CalendarGrid, type CalendarGridDay } from "@/features/second-brain/calendar-grid"
+import { CalendarMonth } from "@/features/second-brain/calendar-month"
 import { CalendarPeek, TaskCheck } from "@/features/second-brain/calendar-peek"
-import { CalendarTasks, type CalendarTaskFilter } from "@/features/second-brain/calendar-tasks"
+import { CalendarTasks } from "@/features/second-brain/calendar-tasks"
 import { revealSidePanel, SidePanel, sidePanelGridClass } from "@/features/second-brain/side-panel"
-import { focusWhenConnected } from "@/utils/focus-when-connected"
 import { calendarSync, providerTask, syncGoogleCalendar } from "@/features/second-brain/calendar-sync"
 import {
   listProjects,
@@ -45,33 +59,9 @@ import {
   type ProjectRecord,
 } from "@/features/second-brain/client"
 
-type CalendarView = "today" | "week" | "month" | "agenda" | "tasks" | "upcoming" | "unscheduled" | "completed"
 type ScheduleItem =
   | { kind: "event"; date: string; title: string; projectId?: string; event: CalendarEvent }
   | { kind: "task"; date: string; title: string; projectId?: string; task: PlannerTask }
-
-type CalendarDraft = {
-  id: string
-  title: string
-  date: string
-  endDate: string
-  start: string
-  end: string
-  details: string
-  projectId: string
-  source: CalendarEvent["source"]
-  syncState: CalendarEvent["syncState"]
-  accountId: string
-  providerId: string
-  calendarId: string
-  etag: string
-  timezone: string
-  allDay: boolean
-  recurringSeriesId: string
-  participantCount: number
-  outboxKind: "" | "create" | "update" | "delete"
-  outboxKey: string
-}
 
 type CalendarState = {
   cursor: Date
@@ -84,7 +74,7 @@ type CalendarState = {
   draft: CalendarDraft
   saving: boolean
   error: string
-  errorField: "" | "title" | "date" | "endDate" | "time"
+  errorField: CalendarDraftField
   confirmingDelete: boolean
   googlePanel: boolean
   /** Shows the sign-in form while accounts are connected, to add another account. */
@@ -100,29 +90,6 @@ type CalendarState = {
   googleConfirm: "" | "save" | "delete"
   googleWriteKey: string
 }
-
-const emptyDraft = (date = localDateKey(new Date()), projectId = ""): CalendarDraft => ({
-  id: "",
-  title: "",
-  date,
-  endDate: "",
-  start: "",
-  end: "",
-  details: "",
-  projectId,
-  source: "local" as CalendarEvent["source"],
-  syncState: "local" as CalendarEvent["syncState"],
-  accountId: "",
-  providerId: "",
-  calendarId: "primary",
-  etag: "",
-  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-  allDay: true,
-  recurringSeriesId: "",
-  participantCount: 0,
-  outboxKind: "",
-  outboxKey: "",
-})
 
 const unavailableGoogle: GoogleCalendarConnection = {
   available: false,
@@ -244,11 +211,6 @@ export default function CalendarPage() {
     if (state.view === "month") return monthTitle()
     return language.t("secondBrain.calendar.agenda")
   })
-  const weekdays = createMemo(() =>
-    Array.from({ length: 7 }, (_, index) =>
-      new Intl.DateTimeFormat(language.locale(), { weekday: "short" }).format(new Date(2024, 0, 7 + index, 12)),
-    ),
-  )
   // One pass over the calendar for the visible grid, rather than filtering every item per day.
   const byDay = createMemo(() => {
     const grid = days()
@@ -265,7 +227,10 @@ export default function CalendarPage() {
         map.get(date)?.events.push(event)
     }
     for (const task of snapshot()?.tasks ?? []) {
-      if (!task.completedAt && task.scheduledDate) map.get(task.scheduledDate)?.tasks.push(task)
+      const date = task.scheduledDate ?? task.dueDate
+      if (task.completedAt || !date) continue
+      if (state.projectFilter && task.projectId !== state.projectFilter) continue
+      map.get(date)?.tasks.push(task)
     }
     const byTime = (left: { start?: string; title: string }, right: { start?: string; title: string }) =>
       (left.start ?? "").localeCompare(right.start ?? "") || left.title.localeCompare(right.title)
@@ -294,6 +259,7 @@ export default function CalendarPage() {
       new Intl.DateTimeFormat(language.locale(), { weekday: "long", month: "long", day: "numeric", year: "numeric" }),
   )
   const formatDay = (date: string) => dayFormat().format(new Date(`${date}T12:00:00`))
+  const longDay = (date: string) => longDayFormat().format(new Date(`${date}T12:00:00`))
   const sourceLabel = (source: CalendarEvent["source"]) =>
     source === "google"
       ? language.t("secondBrain.calendar.source.google")
@@ -382,11 +348,13 @@ export default function CalendarPage() {
     setState("cursor", shiftDate(state.cursor, amount * (state.view === "week" ? 7 : 1)))
   }
 
-  const openNew = (date = localDateKey(new Date())) =>
+  const openDay = (date: string) => setState({ view: "today", cursor: new Date(`${date}T12:00:00`) })
+  const openNew = (date = localDateKey(new Date()), time?: { start: string; end: string }) =>
     setState({
       editing: true,
       peek: "",
-      draft: emptyDraft(date, state.projectFilter),
+      googlePanel: false,
+      draft: { ...emptyDraft(date, state.projectFilter), ...(time ? { ...time, allDay: false } : {}) },
       error: "",
       errorField: "",
       confirmingDelete: false,
@@ -402,28 +370,7 @@ export default function CalendarPage() {
       error: "",
       errorField: "",
       confirmingDelete: false,
-      draft: {
-        id: event.id,
-        title: event.title,
-        date: event.date,
-        endDate: event.endDate ?? "",
-        start: event.start ?? "",
-        end: event.end ?? "",
-        details: event.details ?? "",
-        projectId: event.projectId ?? "",
-        source: event.source,
-        syncState: event.syncState,
-        accountId: itemAccount(event.accountId) ?? "",
-        providerId: event.providerId ?? "",
-        calendarId: event.calendarId ?? "primary",
-        etag: event.etag ?? "",
-        timezone: event.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
-        allDay: event.allDay ?? !event.start,
-        recurringSeriesId: event.recurringSeriesId ?? "",
-        participantCount: event.participantCount ?? 0,
-        outboxKind: event.outboxKind ?? "",
-        outboxKey: event.outboxKey ?? "",
-      },
+      draft: eventDraft(event, itemAccount(event.accountId)),
       googleConfirm: "",
       googleWriteKey: "",
     })
@@ -449,6 +396,7 @@ export default function CalendarPage() {
     const message = error instanceof Error ? error.message : String(error)
     if (message.includes("secure_storage")) return language.t("secondBrain.calendar.google.error.secureStorage")
     if (message.includes("write_consent")) return language.t("secondBrain.calendar.google.error.writeConsent")
+    if (message.includes("idempotency_collision")) return language.t("secondBrain.calendar.google.error.finished")
     if (message.includes("conflict")) return language.t("secondBrain.calendar.google.error.conflict")
     if (message.includes("oauth_denied")) return language.t("secondBrain.calendar.google.error.denied")
     if (message.includes("api_disabled_tasks")) return language.t("secondBrain.calendar.google.error.tasksDisabled")
@@ -585,7 +533,8 @@ export default function CalendarPage() {
     }
   }
 
-  const persistTasks = async (tasks: ReadonlyArray<PlannerTask>) => {
+  /** `overwrite` names the task whose save replaces Google's version in a conflict. */
+  const persistTasks = async (tasks: ReadonlyArray<PlannerTask>, overwrite?: string) => {
     // Captured before the Google round trip: the user can switch workspace while it runs, and the
     // result belongs to the calendar these tasks came from.
     const workspace = directory()
@@ -595,6 +544,7 @@ export default function CalendarPage() {
     const removed = current.find((task) => task.source === "google" && !tasks.some((next) => next.id === task.id))
     const changed = tasks.find((task) => {
       if (task.source !== "google") return false
+      if (task.id === overwrite) return true
       const previous = current.find((item) => item.id === task.id)
       return !previous || googleTaskFields(previous) !== googleTaskFields(task)
     })
@@ -615,6 +565,7 @@ export default function CalendarPage() {
       const result = await google.writeTask({
         kind,
         idempotencyKey,
+        ...(target.id === overwrite ? { overwrite: true } : {}),
         task: {
           accountId,
           providerId: target.providerId ?? `pending:${target.id}`,
@@ -645,6 +596,41 @@ export default function CalendarPage() {
     }
     const saved = await writeCalendar(client(workspace), base?.events ?? [], base?.revision, next)
     if (directory() === workspace) events.mutate(saved)
+  }
+
+  // Takes the user's change off the outbox and the planner row off hold; the sync brings Google's copy in.
+  const keepGoogleVersion = async (outboxKey: string) => {
+    const google = platform.googleCalendar
+    const target = directory()
+    const base = snapshot()
+    if (!google || !target || !outboxKey) return
+    googleActions.mutate(await google.discardConflict({ idempotencyKey: outboxKey }))
+    const release = <T extends CalendarEvent | PlannerTask>(item: T): T => {
+      if (item.outboxKey !== outboxKey) return item
+      const { outboxKey: _key, outboxKind: _kind, ...rest } = item
+      return { ...rest, syncState: "stale" } as T
+    }
+    const saved = await writeCalendar(
+      client(target),
+      (base?.events ?? []).map(release),
+      base?.revision,
+      (base?.tasks ?? []).map(release),
+    )
+    if (directory() !== target) return
+    events.mutate(saved)
+    await syncGoogle()
+  }
+
+  const keepGoogleEvent = async () => {
+    setState({ saving: true, error: "" })
+    try {
+      await keepGoogleVersion(state.draft.outboxKey)
+      setState({ editing: false, draft: emptyDraft() })
+    } catch (error) {
+      setState("error", googleMessage(error))
+    } finally {
+      setState("saving", false)
+    }
   }
 
   const toggleTask = async (task: PlannerTask) => {
@@ -805,7 +791,7 @@ export default function CalendarPage() {
         (original.start ?? "") === state.draft.start &&
         (original.end ?? "") === state.draft.end &&
         (original.details ?? "") === state.draft.details.trim()
-      if (original && providerUnchanged) {
+      if (original && providerUnchanged && state.draft.syncState !== "conflict") {
         const { projectId: _projectId, ...providerItem } = original
         const enriched = state.draft.projectId ? { ...providerItem, projectId: state.draft.projectId } : providerItem
         await persist(current.map((event) => (event.id === original.id ? enriched : event)))
@@ -851,23 +837,6 @@ export default function CalendarPage() {
     await persist((snapshot()?.events ?? []).filter((event) => event.id !== state.draft.id))
   }
 
-  const googleDraft = (): GoogleCalendarProviderEvent => ({
-    accountId: state.draft.accountId,
-    providerId: state.draft.providerId || "pending",
-    calendarId: "primary",
-    title: state.draft.title.trim(),
-    date: state.draft.date,
-    ...(state.draft.endDate ? { endDate: state.draft.endDate } : {}),
-    ...(state.draft.start ? { start: state.draft.start } : {}),
-    ...(state.draft.end ? { end: state.draft.end } : {}),
-    ...(state.draft.details.trim() ? { details: state.draft.details.trim() } : {}),
-    timezone: state.draft.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
-    allDay: !state.draft.start && !state.draft.end,
-    ...(state.draft.recurringSeriesId ? { recurringSeriesId: state.draft.recurringSeriesId } : {}),
-    participantCount: state.draft.participantCount,
-    ...(state.draft.etag ? { etag: state.draft.etag } : {}),
-  })
-
   const confirmGoogleWrite = async () => {
     const google = platform.googleCalendar
     const target = directory()
@@ -875,13 +844,17 @@ export default function CalendarPage() {
     setState({ saving: true, error: "" })
     try {
       const deleting = state.googleConfirm === "delete"
-      const operationKind = deleting
+      // Saving an edit over a queued delete keeps the event; the outbox makes it a create again if it began as one.
+      const operationKind: "create" | "update" | "delete" = deleting
         ? "delete"
-        : state.draft.outboxKind || (state.draft.providerId ? "update" : "create")
+        : state.draft.outboxKind === "delete"
+          ? "update"
+          : state.draft.outboxKind || (state.draft.providerId ? "update" : "create")
       const result = await google.write({
         kind: operationKind,
         idempotencyKey: state.googleWriteKey,
-        event: googleDraft(),
+        ...(state.draft.syncState === "conflict" ? { overwrite: true } : {}),
+        event: draftProviderEvent(state.draft),
       })
       if (directory() !== target) return
       const current = snapshot()?.events ?? []
@@ -1098,6 +1071,7 @@ export default function CalendarPage() {
                 tasks={snapshot()?.tasks ?? []}
                 projects={brainProjects.latest ?? []}
                 onSave={persistTasks}
+                onKeepGoogle={keepGoogleVersion}
                 onToggle={toggleTask}
                 filter={filter}
                 selectedId={state.selectedTask}
@@ -1214,86 +1188,23 @@ export default function CalendarPage() {
                               onOpenEvent={peekEvent}
                               onOpenTask={peekTask}
                               onToggle={toggleTask}
-                              onOpenDay={(date) => setState({ view: "today", cursor: new Date(`${date}T12:00:00`) })}
+                              onOpenDay={openDay}
+                              onNewAt={(date, hour) => openNew(date, hourSlot(hour))}
+                              dateLabel={longDay}
                             />
                           </Show>
                         }
                       >
-                        <div class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[24px] shadow-[0_0_0_0.5px_var(--v2-border-border-muted)]">
-                          <div class="grid h-8 shrink-0 grid-cols-7 bg-v2-background-bg-layer-01">
-                            <For each={weekdays()}>
-                              {(weekday) => (
-                                <div class="flex items-center justify-center text-[12px] text-v2-text-text-muted [font-weight:500]">
-                                  {weekday}
-                                </div>
-                              )}
-                            </For>
-                          </div>
-                          <div class="grid min-h-0 flex-1 grid-cols-7 grid-rows-6">
-                            <For each={days()}>
-                              {(day) => (
-                                <div
-                                  classList={{
-                                    "group/day flex min-h-0 flex-col items-stretch overflow-hidden border-b border-r border-v2-border-border-muted p-1 [&:nth-child(7n)]:border-r-0 [&:nth-last-child(-n+7)]:border-b-0": true,
-                                    "bg-v2-background-bg-layer-01": !day.inMonth,
-                                  }}
-                                >
-                                  <button
-                                    type="button"
-                                    classList={{
-                                      "mx-auto mb-1 flex size-7 shrink-0 items-center justify-center rounded-full text-[12px] transition-colors duration-short ease-standard motion-reduce:transition-none": true,
-                                      "bg-v2-icon-icon-accent text-v2-icon-icon-contrast [font-weight:600]": day.today,
-                                      "hover:bg-v2-overlay-simple-overlay-hover": !day.today,
-                                      "text-v2-text-text-faint": !day.inMonth && !day.today,
-                                      "text-v2-text-text-muted": day.inMonth && !day.today,
-                                    }}
-                                    aria-label={language.t("secondBrain.calendar.newOnDate", {
-                                      date: longDayFormat().format(new Date(`${day.date}T12:00:00`)),
-                                    })}
-                                    aria-current={day.today ? "date" : undefined}
-                                    onClick={() => openNew(day.date)}
-                                  >
-                                    {day.day}
-                                  </button>
-                                  <div class="flex min-h-0 flex-col gap-0.5 overflow-hidden">
-                                    <For each={eventsFor(day.date)}>
-                                      {(event) => (
-                                        <TooltipV2 class="min-w-0 shrink-0" value={event.title}>
-                                          <button
-                                            type="button"
-                                            class="min-h-6 w-full truncate rounded-[8px] bg-v2-background-bg-accent-container px-2 text-left text-[11px] text-v2-text-text-on-accent-container transition-[filter,border-radius] duration-short ease-standard hover:brightness-95 active:rounded-[4px] focus-visible:outline-offset-[-2px] motion-reduce:transition-none"
-                                            onClick={() => peekEvent(event)}
-                                          >
-                                            <Show when={event.start && event.date === day.date}>
-                                              <span class="mr-1 opacity-70">{event.start}</span>
-                                            </Show>
-                                            {event.title}
-                                          </button>
-                                        </TooltipV2>
-                                      )}
-                                    </For>
-                                    <For each={tasksFor(day.date)}>
-                                      {(task) => (
-                                        <TooltipV2 class="min-w-0 shrink-0" value={task.title}>
-                                          <button
-                                            type="button"
-                                            class="min-h-6 w-full truncate rounded-[8px] px-2 text-left text-[11px] text-v2-text-text-muted shadow-[inset_0_0_0_1px_var(--v2-border-border-base)] transition-[background-color,border-radius] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover active:rounded-[4px] focus-visible:outline-offset-[-2px] motion-reduce:transition-none"
-                                            onClick={() => peekTask(task)}
-                                          >
-                                            <Show when={task.start}>
-                                              <span class="mr-1 text-v2-text-text-faint">{task.start}</span>
-                                            </Show>
-                                            {task.title}
-                                          </button>
-                                        </TooltipV2>
-                                      )}
-                                    </For>
-                                  </div>
-                                </div>
-                              )}
-                            </For>
-                          </div>
-                        </div>
+                        <CalendarMonth
+                          days={days()}
+                          eventsFor={eventsFor}
+                          tasksFor={tasksFor}
+                          dateLabel={longDay}
+                          onOpenEvent={peekEvent}
+                          onOpenTask={peekTask}
+                          onOpenDay={openDay}
+                          onNew={openNew}
+                        />
                       </Show>
                     </ViewSwitch>
                   </Show>
@@ -1548,245 +1459,25 @@ export default function CalendarPage() {
                   </div>
                 </Show>
                 <Show when={!state.googlePanel && state.editing}>
-                  <form
-                    class="flex flex-col gap-3 p-4"
-                    onSubmit={(event) => {
-                      event.preventDefault()
-                      void save()
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key !== "Escape" || event.defaultPrevented) return
-                      event.preventDefault()
+                  <CalendarEventForm
+                    state={state}
+                    projects={brainProjects.latest ?? []}
+                    googleAccounts={googleWriteAccounts()}
+                    accountLabel={googleAccountLabel}
+                    sourceLabel={sourceLabel}
+                    syncLabel={syncLabel}
+                    formatDay={formatDay}
+                    onDraft={(patch) => setState("draft", patch)}
+                    onSave={() => void save()}
+                    onRemove={() => void remove()}
+                    onClose={() => setState("editing", false)}
+                    onEscape={() =>
                       setState({ editing: false, confirmingDelete: false, googleConfirm: "", googleWriteKey: "" })
-                    }}
-                  >
-                    <div class="flex items-center gap-2">
-                      <h2 class="min-w-0 flex-1 text-[14px] text-v2-text-text-base [font-weight:500]">
-                        {state.draft.id
-                          ? language.t("secondBrain.calendar.edit")
-                          : language.t("secondBrain.calendar.new")}
-                      </h2>
-                      <Show when={state.draft.id}>
-                        <span class="rounded-full bg-v2-background-bg-base px-2 py-1 text-[10px] capitalize text-v2-text-text-faint">
-                          {sourceLabel(state.draft.source)} · {syncLabel(state.draft.syncState)}
-                        </span>
-                      </Show>
-                      <TooltipV2 value={language.t("common.cancel")}>
-                        <IconButtonV2
-                          type="button"
-                          size="small"
-                          variant="ghost"
-                          icon={<Icon name="close" />}
-                          aria-label={language.t("common.cancel")}
-                          onClick={() => setState("editing", false)}
-                        />
-                      </TooltipV2>
-                    </div>
-                    <label class={fieldClass} for="calendar-event-title">
-                      {language.t("secondBrain.calendar.eventTitle")}
-                      <TextInputV2
-                        id="calendar-event-title"
-                        appearance="large"
-                        ref={focusWhenConnected}
-                        invalid={state.errorField === "title"}
-                        aria-describedby={state.errorField === "title" ? "calendar-event-error" : undefined}
-                        value={state.draft.title}
-                        onInput={(event) => setState("draft", "title", event.currentTarget.value)}
-                      />
-                    </label>
-                    <Show when={!state.draft.id && googleWriteAccounts().length > 0}>
-                      <label class={fieldClass} for="calendar-event-source">
-                        {language.t("secondBrain.calendar.google.destination")}
-                        <SelectV2
-                          id="calendar-event-source"
-                          aria-label={language.t("secondBrain.calendar.google.destination")}
-                          class="!h-8 !w-full"
-                          options={["local", ...googleWriteAccounts().map((account) => account.id)]}
-                          current={state.draft.source === "google" ? state.draft.accountId : "local"}
-                          label={(source) =>
-                            source === "local"
-                              ? language.t("secondBrain.calendar.sync.local")
-                              : language.t("secondBrain.calendar.google.destinationAccount", {
-                                  account: googleAccountLabel(source),
-                                })
-                          }
-                          onSelect={(source) =>
-                            source &&
-                            setState("draft", {
-                              ...state.draft,
-                              source: source === "local" ? "local" : "google",
-                              accountId: source === "local" ? "" : source,
-                              syncState: source === "local" ? "local" : "pending",
-                            })
-                          }
-                        />
-                      </label>
-                    </Show>
-                    <label class={fieldClass} for="calendar-event-project">
-                      {language.t("secondBrain.calendar.project")}
-                      <SelectV2
-                        id="calendar-event-project"
-                        aria-label={language.t("secondBrain.calendar.project")}
-                        class="!h-8 !w-full"
-                        options={["__none__", ...(brainProjects.latest ?? []).map((project) => project.id)]}
-                        current={state.draft.projectId || "__none__"}
-                        label={(projectID) =>
-                          projectID === "__none__"
-                            ? language.t("secondBrain.calendar.noProject")
-                            : (brainProjects.latest?.find((project) => project.id === projectID)?.name ?? projectID)
-                        }
-                        onSelect={(projectID) =>
-                          setState("draft", "projectId", projectID === "__none__" ? "" : (projectID ?? ""))
-                        }
-                      />
-                    </label>
-                    <div class="grid grid-cols-2 gap-3">
-                      <label class={fieldClass} for="calendar-event-date">
-                        {language.t("secondBrain.calendar.date")}
-                        <input
-                          id="calendar-event-date"
-                          type="date"
-                          class={dateInputClass}
-                          aria-invalid={state.errorField === "date" ? true : undefined}
-                          aria-describedby={state.errorField === "date" ? "calendar-event-error" : undefined}
-                          value={state.draft.date}
-                          onInput={(event) => setState("draft", "date", event.currentTarget.value)}
-                        />
-                      </label>
-                      <label class={fieldClass} for="calendar-event-end-date">
-                        {language.t("secondBrain.calendar.endDate")}
-                        <input
-                          id="calendar-event-end-date"
-                          type="date"
-                          min={state.draft.date}
-                          class={dateInputClass}
-                          aria-invalid={state.errorField === "endDate" ? true : undefined}
-                          aria-describedby={state.errorField === "endDate" ? "calendar-event-error" : undefined}
-                          value={state.draft.endDate}
-                          onInput={(event) => setState("draft", "endDate", event.currentTarget.value)}
-                        />
-                      </label>
-                    </div>
-                    <div class="grid grid-cols-2 gap-3">
-                      <label class={fieldClass} for="calendar-event-start">
-                        {language.t("secondBrain.calendar.start")}
-                        <input
-                          id="calendar-event-start"
-                          type="time"
-                          class={dateInputClass}
-                          aria-invalid={state.errorField === "time" ? true : undefined}
-                          aria-describedby={state.errorField === "time" ? "calendar-event-error" : undefined}
-                          value={state.draft.start}
-                          onInput={(event) => setState("draft", "start", event.currentTarget.value)}
-                        />
-                      </label>
-                      <label class={fieldClass} for="calendar-event-end">
-                        {language.t("secondBrain.calendar.end")}
-                        <input
-                          id="calendar-event-end"
-                          type="time"
-                          class={dateInputClass}
-                          aria-invalid={state.errorField === "time" ? true : undefined}
-                          aria-describedby={state.errorField === "time" ? "calendar-event-error" : undefined}
-                          value={state.draft.end}
-                          onInput={(event) => setState("draft", "end", event.currentTarget.value)}
-                        />
-                      </label>
-                    </div>
-                    <Show when={state.draft.source === "google" && (state.draft.start || state.draft.end)}>
-                      <p class="-mt-1 text-[11px] leading-4 text-v2-text-text-faint">
-                        {language.t("secondBrain.calendar.google.timezone", { timezone: state.draft.timezone })}
-                      </p>
-                    </Show>
-                    <label class={fieldClass} for="calendar-event-details">
-                      {language.t("secondBrain.calendar.details")}
-                      <TextareaV2
-                        id="calendar-event-details"
-                        rows={5}
-                        value={state.draft.details}
-                        onInput={(event) => setState("draft", "details", event.currentTarget.value)}
-                      />
-                    </label>
-                    <Show
-                      when={
-                        state.draft.source === "google" &&
-                        (state.draft.recurringSeriesId || state.draft.participantCount > 0)
-                      }
-                    >
-                      <p role="status" class={noteClass}>
-                        {language.t("secondBrain.calendar.google.restricted")}
-                      </p>
-                    </Show>
-                    <Show when={state.googleConfirm}>
-                      <div
-                        role="group"
-                        aria-label={language.t("secondBrain.calendar.google.confirm.title")}
-                        class="rounded-[16px] bg-v2-background-bg-base p-3 shadow-[0_0_0_0.5px_var(--v2-border-border-muted)]"
-                      >
-                        <p class="text-[12px] leading-5 text-v2-text-text-base [font-weight:500]">
-                          {state.googleConfirm === "delete"
-                            ? language.t("secondBrain.calendar.google.confirm.delete")
-                            : language.t("secondBrain.calendar.google.confirm.save")}
-                        </p>
-                        <p class="mt-1 text-[11px] leading-4 text-v2-text-text-faint">
-                          {formatDay(state.draft.date)}
-                          <Show when={state.draft.start && state.draft.end}>
-                            {` · ${state.draft.start}–${state.draft.end} · ${state.draft.timezone}`}
-                          </Show>
-                        </p>
-                        <div class="mt-3 flex justify-end gap-2">
-                          <ButtonV2
-                            type="button"
-                            size="small"
-                            variant="ghost"
-                            disabled={state.saving}
-                            onClick={() => setState({ googleConfirm: "", googleWriteKey: "" })}
-                          >
-                            {language.t("common.cancel")}
-                          </ButtonV2>
-                          <ButtonV2
-                            type="button"
-                            size="small"
-                            variant={state.googleConfirm === "delete" ? "danger" : "contrast"}
-                            disabled={state.saving}
-                            onClick={() => void confirmGoogleWrite()}
-                          >
-                            {state.saving
-                              ? language.t("secondBrain.saving")
-                              : language.t("secondBrain.calendar.google.confirm.action")}
-                          </ButtonV2>
-                        </div>
-                      </div>
-                    </Show>
-                    <Show when={state.error}>
-                      <p id="calendar-event-error" role="alert" class="text-[12px] text-v2-text-text-critical">
-                        {state.error}
-                      </p>
-                    </Show>
-                    <div class="flex items-center justify-between gap-2">
-                      <Show when={state.draft.id} fallback={<span />}>
-                        <ButtonV2
-                          type="button"
-                          size="small"
-                          variant="danger"
-                          disabled={state.saving || Boolean(state.googleConfirm)}
-                          onClick={() => void remove()}
-                        >
-                          {state.confirmingDelete
-                            ? language.t("secondBrain.calendar.confirmDelete")
-                            : language.t("common.delete")}
-                        </ButtonV2>
-                      </Show>
-                      <ButtonV2
-                        type="submit"
-                        size="small"
-                        variant="contrast"
-                        disabled={state.saving || Boolean(state.googleConfirm)}
-                      >
-                        {state.saving ? language.t("secondBrain.saving") : language.t("common.save")}
-                      </ButtonV2>
-                    </div>
-                  </form>
+                    }
+                    onCancelConfirm={() => setState({ googleConfirm: "", googleWriteKey: "" })}
+                    onConfirm={() => void confirmGoogleWrite()}
+                    onKeepGoogle={() => void keepGoogleEvent()}
+                  />
                 </Show>
               </SidePanel>
             </div>
@@ -1798,42 +1489,6 @@ export default function CalendarPage() {
 }
 
 const calendarNavigation = ["today", "week", "month", "agenda", "tasks"] as const
-
-const fieldClass = "flex flex-col gap-1.5 text-[12px] text-v2-text-text-muted"
-
-const noteClass = "rounded-[12px] bg-v2-background-bg-base px-3 py-2 text-[12px] leading-5 text-v2-text-text-muted"
-
-const dateInputClass =
-  "h-9 w-full min-w-0 rounded-[12px] border-0 bg-v2-background-bg-base px-3 text-[12px] text-v2-text-text-base outline-none transition-shadow duration-short ease-standard focus:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)] motion-reduce:transition-none"
-
-function calendarView(value?: string): CalendarView {
-  if (
-    value === "week" ||
-    value === "month" ||
-    value === "agenda" ||
-    value === "tasks" ||
-    value === "upcoming" ||
-    value === "unscheduled" ||
-    value === "completed"
-  ) {
-    return value
-  }
-  return "today"
-}
-
-function taskFilter(view: CalendarView): CalendarTaskFilter | undefined {
-  if (view === "tasks") return "today"
-  if (view === "upcoming") return "upcoming"
-  if (view === "unscheduled") return "unscheduled"
-  if (view === "completed") return "completed"
-}
-
-function viewForTaskFilter(filter: CalendarTaskFilter): CalendarView {
-  if (filter === "upcoming") return "upcoming"
-  if (filter === "unscheduled") return "unscheduled"
-  if (filter === "completed") return "completed"
-  return "tasks"
-}
 
 function scheduleTime(item: ScheduleItem) {
   return item.kind === "event" ? (item.event.start ?? "") : (item.task.start ?? "")
