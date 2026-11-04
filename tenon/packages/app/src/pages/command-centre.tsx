@@ -193,8 +193,13 @@ export default function CommandCentrePage() {
               }
             >
               <ul class="flex flex-col gap-0.5" aria-label={language.t("secondBrain.commandCentre.threads")}>
-                <For each={centre.threads().filter((thread) => !ctrl.threadHidden(thread.id))}>
-                  {(thread) => <ThreadRow thread={thread} href={sessionHref(server.key, thread.id)} />}
+                {/* By ID: a refresh rebuilds the thread objects, which must not end a rename in progress. */}
+                <For each={centre.threads().flatMap((thread) => (ctrl.threadHidden(thread.id) ? [] : [thread.id]))}>
+                  {(id) => (
+                    <Show when={centre.threads().find((thread) => thread.id === id)}>
+                      {(thread) => <ThreadRow thread={thread()} href={sessionHref(server.key, id)} />}
+                    </Show>
+                  )}
                 </For>
               </ul>
             </Show>
