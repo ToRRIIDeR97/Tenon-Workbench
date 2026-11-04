@@ -339,6 +339,22 @@ or workspace (`{ error: "inside_workspace" }`).
   a new folder is created. Two checkouts of one repository share a vault
   folder. Project folders are found by `project.json` id, so renaming a folder
   by hand keeps it; renaming a Project does not rename its folder.
+- A missing `workspace.json` or `project.json` means "no folder here". Any other
+  failure (a sync lock, an offline placeholder, a body that doesn't decode, a
+  listing that fails) means "unknown": `open` and `ensureProjectFolder` refuse to
+  create a folder with `vault_unavailable: <file>` while the folder may be behind
+  that file, so an outage never forks the vault into `Name (2)`. This applies to
+  a workspace with a mapped id or a repository id, and to any new Project folder.
+  The Projects page names the file.
+- Folder and page names compare with `foldName` (NFC plus lower case). Existing
+  files keep their spelling on disk; new folders and pages are created in NFC,
+  and a new page in an existing Project folder takes that folder's spelling.
+- Page lists and searches reuse parsed pages from a bounded in-memory cache
+  (`pageCache`: 5,000 entries, 32 MB of search text, least recently used first)
+  while a file's canonical path, size and modification time are unchanged.
+  `resolveInside` runs on every lookup, `projectId` is never taken from the cache,
+  and a file with no usable modification time is always read. A `project` filter
+  narrows the file list before anything is read.
 - Pages are Markdown with front matter `id`, `title`, `updated_at` plus free
   `properties` (other keys: simple names, JSON scalars or lists, at most 64
   keys and 16 KiB). A page's `path` is relative to the workspace folder; its
@@ -347,11 +363,13 @@ or workspace (`{ error: "inside_workspace" }`).
   overwrite the old bytes go to `.history`; `updated_at` always moves forward,
   so version names stay in save order.
 - `timeline.json` has a SHA-256 revision (`"new"` before the first save); an
-  unreadable file reads as empty but its revision still guards the next save.
+  unreadable file reads as empty but its revision still guards the next save,
+  which first copies the old bytes to `timeline.json.corrupt-<time>` beside it.
   `progress` is done tasks over tasks; milestones don't count.
 - Each machine appends `- <ISO time> · <author> · <text>` lines only to its own
   `log/<machine>.md`, so sync never merges one file from two machines. Reads
-  merge every `log/*.md`, newest first (at most 1,000).
+  merge every `log/*.md`, newest first (at most 1,000). A log over the 5 MB read
+  cap drops out of the list with a warning in the server log.
 - Conflict copies are files whose name contains `conflicted copy`,
   `(conflict` or `.sync-conflict-` (Dropbox, OneDrive, Syncthing). They are left
   in place, excluded from the page list and reported with the file they came
@@ -485,7 +503,12 @@ assistant that spans workspaces, with its own threads, memory and routines.
   /second-brain/vault` and asks `POST /command-centre/directory` before its
   first thread). No Project card points at that folder, so
   `/second-brain/project-threads` and the sidebar never list these threads, and
-  the page lists only sessions whose directory is that folder.
+  the page lists only sessions whose directory is that folder. A session keeps
+  the folder it started in, so after a vault move a thread stays in its earlier
+  root's folder: `CommandMemory.folders()` adds every root in
+  `vault-machine.json`, and the list, search, compaction, tool catalogue and
+  `GET /command-centre/folders` all use it. New threads, and a send that names no
+  thread, use the current root's folder.
   `features/command-centre/command-centre.tsx` (`CommandCentreProvider`,
   mounted in `pages/layout-new.tsx`) holds the thread list, the latest reply
   and `send`, which prompts the open thread, else the latest one, else creates
@@ -549,6 +572,7 @@ assistant that spans workspaces, with its own threads, memory and routines.
 | Route (workspace from `x-opencode-directory` or `?directory=`) | Behaviour |
 | --- | --- |
 | `POST /command-centre/directory` | `{ directory }`; creates `<vault root>/.command-centre` |
+| `GET /command-centre/folders` | `{ folders }`; every Command Centre folder on this machine, the current root's first |
 | `GET /command-centre/memory?search=` | `[{ sessionID?, text, at }]`, at most 20; summaries have no `sessionID` |
 | `POST /command-centre/memory/compact` | `{ days, model?: { providerID, modelID } }` → `{ summarised, deleted }` |
 
@@ -570,7 +594,10 @@ under `## <routine> · <time>` and `GlobalBus` emits `routine.finished
 A listening server (`Server.listen` → `createRoutes(..., { background: true })`)
 starts `RoutinesScheduler.layer` (`agents/routines-scheduler.ts`): at start and
 every minute it checks each workspace that has a vault folder on this machine
-(`vault-machine.json`) and runs due routines as Command Centre threads
+(`KnowledgeVault.currentWorkspaces`: entries under the current root in
+`vault-machine.json`, plus earlier roots' entries whose workspace id has a folder
+under the current root, so a moved vault's routines keep running before each
+workspace is reopened) and runs due routines as Command Centre threads
 (`CommandThreads.start`). The in-process routes that tests use don't start it.
 The Routines page (`/routines`, `app/src/pages/routines.tsx`, linked from the
 Command Centre) lists schedule, last run and next run with Run now.

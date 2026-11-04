@@ -767,7 +767,25 @@ location, so it has its own containment instead of `LocationMutation`:
 - Changing the vault folder (`choose-vault-folder`) copies the current vault to
   the new folder, compares every file, and only then switches; the old folder
   is left untouched. A non-empty folder that is not a vault, or one inside or
-  around the current vault, is refused.
+  around the current vault, is refused. Workspaces and Command Centre threads
+  follow without rewriting session rows: `workspacesUnder` keeps an earlier
+  root's workspace while its id has a folder under the current root, and
+  `CommandMemory.folders()` keeps every root in `vault-machine.json`. So
+  `<earlier root>/.command-centre` still gets the Command Centre tool catalogue
+  (`isCommandDirectory`) for as long as that root stays in the map, which is
+  app-data state the renderer can't change.
+- A missing `workspace.json` or `project.json` is the only "no folder here". A
+  read or decode failure fails the request with `vault_unavailable: <file>`
+  (a vault-relative name) instead of creating a same-id fork.
+- The page list cache (`pageCache`) holds titles, properties and lowercased page
+  text in server memory only. Each lookup runs `resolveInside` first, so a page
+  replaced by a link out of the vault stops listing on a cache hit. An external
+  edit that preserves both size and modification time shows stale list text
+  until the file next changes; reads and writes always go to the file.
+- A timeline that fails to decode is copied to `timeline.json.corrupt-<time>`
+  before a save replaces it. Pruning `.history` is best effort: a failure is
+  logged and retried on the next save, so a page can briefly hold more than 20
+  versions, and it never fails the save.
 - Agent app tools find a Project thread's workspace from its parent folders,
   the server's known repositories, and the workspace folders listed in
   `vault-machine.json` (workspaces that are not git repositories). Only
