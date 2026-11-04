@@ -16,7 +16,6 @@ import os from "node:os"
 import path from "node:path"
 import { ulid } from "ulid"
 import { BrainProject } from "../project/brain"
-import { titleFromBody } from "./note"
 
 /**
  * The Tenon vault: one machine-wide folder of readable Markdown, outside every code folder.
@@ -1130,4 +1129,19 @@ const readIdFile = (file: string) =>
 
 function hash(source: string) {
   return createHash("sha256").update(source).digest("hex")
+}
+
+/**
+ * The first `# Heading` line's text. The regex has no overlapping quantifiers, so it runs in linear
+ * time; the closing `#` sequence is trimmed in code for the same reason.
+ */
+export function titleFromBody(body: string) {
+  const heading = /^ {0,3}#[ \t]+(.*)$/m.exec(body)?.[1]
+  if (!heading) return ""
+  const text = heading.slice(0, 1000).trimEnd()
+  let end = text.length
+  while (end > 0 && text[end - 1] === "#") end--
+  // A closing sequence counts only after a space, as in CommonMark: "# C#" keeps its "#".
+  const closed = end === 0 || text[end - 1] === " " || text[end - 1] === "\t"
+  return (closed ? text.slice(0, end) : text).trim()
 }

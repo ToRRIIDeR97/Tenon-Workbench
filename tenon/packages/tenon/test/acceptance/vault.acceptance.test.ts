@@ -366,24 +366,6 @@ describe("vault", () => {
     }),
   )
 
-  it.instance("AC-3.6 the pre-vault note route writes into the vault, never the workspace", () =>
-    Effect.gen(function* () {
-      const { test, root, headers } = yield* withVault
-      const saved = yield* request("/second-brain/note?path=notes%2FLegacy.md", {
-        method: "PUT",
-        headers,
-        body: JSON.stringify({ body: "# Legacy\n\nfrom an old client", create: true }),
-      }).pipe(Effect.flatMap(json<{ info: { path: string; title: string }; revision: string }>))
-      expect(saved.info.path).toBe("Legacy.md")
-      expect(yield* Effect.promise(() => walk(path.join(test.directory, "notes")))).toEqual([])
-      const page = yield* request("/second-brain/vault/page?path=Legacy.md", { headers }).pipe(
-        Effect.flatMap(json<Page>),
-      )
-      expect(page.body).toContain("from an old client")
-      expect((yield* Effect.promise(() => walk(root))).some((file) => file.endsWith("Legacy.md"))).toBe(true)
-    }),
-  )
-
   it.instance("AC-3.2 reads an unparsable updated_at as unknown", () =>
     Effect.gen(function* () {
       const { root, headers } = yield* withVault

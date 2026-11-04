@@ -71,3 +71,12 @@ describe("KnowledgeVault", () => {
     expect(KnowledgeVault.machineName("Ana's MacBook Pro.local")).not.toBe(first)
   })
 })
+
+test("a heading title is read in linear time and keeps CommonMark closing rules", () => {
+  expect(KnowledgeVault.titleFromBody("intro\n# Plan ##\nbody")).toBe("Plan")
+  expect(KnowledgeVault.titleFromBody("# Learn C#")).toBe("Learn C#")
+  expect(KnowledgeVault.titleFromBody("#\nNot a heading")).toBe("")
+  const started = performance.now()
+  expect(KnowledgeVault.titleFromBody("# a" + " ".repeat(100_000) + "x")).toStartWith("a")
+  expect(performance.now() - started).toBeLessThan(100)
+})

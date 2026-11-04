@@ -35,7 +35,7 @@ reading of the code, not a runtime trace, except where a step says it was run.
 | Electron main | App lifecycle, windows and URL policy, IPC handlers, server launch, Google service, mail accounts and the mail loopback endpoint, drafts, dictation supervisor | `desktop/src/main/index.ts`, `ipc.ts`, `windows.ts`, `server.ts`, `google-calendar.ts`, `mail/`, `draft-store.ts`, `dictation.ts`, `dictation-service.ts` |
 | Dictation engine | Microphone capture, voice activity, local transcription; JSON lines on stdio | `dictation/src/main.rs`, `dictation/src/audio.rs` (Rust, `tenon-dictation`) |
 | HTTP API | Native `/api` routes plus legacy instance routes, with Basic auth and workspace routing | `server/src/handlers/`, `protocol/src/groups/`, `tenon/src/server/routes/instance/httpapi/` |
-| Second Brain domains | Notes and the Tenon vault (pages, Project timelines and logs, history, migration), project cards, local calendar, Command Centre memory and project setup, routines and their scheduler | `tenon/src/knowledge/note.ts`, `tenon/src/knowledge/vault.ts`, `tenon/src/project/brain.ts`, `tenon/src/planner/calendar.ts`, `tenon/src/agents/` |
+| Second Brain domains | Notes and the Tenon vault (pages, Project timelines and logs, history, migration), project cards, local calendar, Command Centre memory and project setup, routines and their scheduler | `tenon/src/knowledge/vault.ts`, `tenon/src/project/brain.ts`, `tenon/src/planner/calendar.ts`, `tenon/src/agents/` |
 | Location services | Path containment and compare-and-swap file writes | `core/src/location-mutation.ts`, `core/src/file-mutation.ts`, `core/src/location-services.ts` |
 | Agent runtime | Prompt admission, run draining, harness dispatch, permissions, durable events, snapshots | `core/src/session.ts`, `core/src/session/`, `core/src/harness.ts`, `core/src/harness/`, `core/src/permission.ts`, `core/src/event.ts`, `core/src/snapshot.ts` |
 
@@ -79,7 +79,7 @@ reading of the code, not a runtime trace, except where a step says it was run.
 
 ### Class
 
-![Class view: Project, Session, SessionMessage, SessionInput, durable Event, permission types and HarnessInstance; Location, BrainProject, KnowledgeNote, CalendarSnapshot, CalendarEvent and Task](../diagrams/class-domain.svg)
+![Class view: Project, Session, SessionMessage, SessionInput, durable Event, permission types and HarnessInstance; Location, BrainProject, VaultPage, CalendarSnapshot, CalendarEvent and Task](../diagrams/class-domain.svg)
 
 Notes on the class view:
 
@@ -94,10 +94,9 @@ Notes on the class view:
 - Permission requests exist only in memory. Saved permission rows are allow
   rules, scoped to a project. Values saved from a command or path are literal
   patterns (`[*]` and `[?]` stand for a literal `*` and `?`).
-- `BrainProject` and `KnowledgeNote` are Markdown files. `CalendarSnapshot` is
-  one JSON file per location. None of them is stored in SQLite. A note is
-  deleted only with the revision the caller read; writes refuse a file that
-  would exceed the read limit.
+- `BrainProject` and `VaultPage` are Markdown files. `CalendarSnapshot` is
+  one JSON file per location. None of them is stored in SQLite. A page
+  write with a stale revision is refused.
 - `BrainProject.location.path` names the Project's folder (inside the
   workspace's `projects` folder, or an absolute linked folder). A legacy
   `location.workspaceId` is a Tenon `Project.id`. A BrainProject's thread
@@ -140,8 +139,8 @@ Some details of the write path:
   workspace's vault folder (real path checked through symlinks) instead of
   through `LocationMutation`, then use the same `FileMutation` create or
   compare-and-swap. A page overwrite first copies the old bytes to `.history`.
-- Notes, projects and the calendar use different revisions:
-  - notes and vault pages and timelines: a SHA-256 hash of the file;
+- Vault files, projects and the calendar use different revisions:
+  - vault pages and timelines: a SHA-256 hash of the file;
   - projects: `updatedAt`;
   - calendar: a ULID.
 - No delete endpoints exist for notes, projects or tasks. Undoing an agent
@@ -297,7 +296,7 @@ store (`KnowledgeVault.writeTimeline`, `appendLog`,
 | Desktop startup and dev-channel `userData` migration | Critical workflow | Sequence: startup; Deployment | `desktop/src/main/index.ts`, `desktop/src/main/user-data-migration.ts` |
 | Deep links (`tenon://open-project`, `tenon://new-session`) | Critical workflow | Text in [threat model](../security/threat-model.md#assets-and-boundaries): main-process validation and native confirmation before the renderer | `desktop/src/main/deep-links.ts`, `desktop/src/main/index.ts` (`receiveDeepLinks`), `app/src/pages/layout/deep-links.ts` |
 | Renderer content policy, local file links, Electron fuses | Subsystem | Text in [threat model](../security/threat-model.md#renderer-content-policy) | `desktop/src/main/windows.ts`, `desktop/src/main/local-file-policy.ts`, `desktop/electron-builder.config.ts`, `session-ui/src/components/markdown-media.ts` |
-| Markdown front matter parsing | Subsystem | Text in [threat model](../security/threat-model.md#assets-and-boundaries) | `core/src/frontmatter.ts`, `core/src/config/markdown.ts`, `tenon/src/knowledge/note.ts`, `tenon/src/knowledge/vault.ts`, `tenon/src/project/brain.ts` |
+| Markdown front matter parsing | Subsystem | Text in [threat model](../security/threat-model.md#assets-and-boundaries) | `core/src/frontmatter.ts`, `core/src/config/markdown.ts`, `tenon/src/knowledge/vault.ts`, `tenon/src/project/brain.ts` |
 | Session timeline (folded turn steps) and side-panel Session tab (session usage) | Subsystem | Text only ([README](README.md#session-compatibility-and-review)) | `app/src/pages/session/timeline/rows.ts`, `timeline/row-reconciliation.ts` (`foldTimelineRows`), `timeline/message-timeline.tsx`, `app/src/components/session/turn-steps-summary.tsx`, `app/src/components/session/session-usage.ts`, `app/src/components/session/session-context-metrics.ts` (`getSessionContext`, harness-reported `contextWindow` first), `app/src/components/session/session-context-tab.tsx`, `core/src/session/runner/publish-llm-event.ts` (`harnessContextWindow`), `session-ui/src/components/step-kind.ts` |
 | Harness settings (add, assistant, verify, toggle, remove) | Critical workflow | Component | `app/src/components/settings-v2/harnesses.tsx`, `app/src/components/settings-v2/harness-assistant.tsx`, `server/src/handlers/harness.ts`, `core/src/harness/registry.ts` |
 | Harness model lists (live discovery, background revalidation, persisted server and renderer lists, refresh, hidden models) | Critical workflow | Text in [README](README.md#harness-model-lists) | `core/src/harness.ts` (`cachedProbe`, `discoverAcpModels`, `refresh`), `core/src/harness/catalog-cache.ts` (`harness-models.json`, `harness-probes.json`), `makeCachedProbe`, `core/src/harness/acp.ts` (`probe`, `discover`), `app/src/components/prompt-input/harness-controller.ts` (`revalidate`, model retry, `harness.instances.v1`), `app/src/utils/server.ts` (`listHarnessesRemembered`), `app/src/pages/brain-home.tsx` (`harnessQuery`), `app/src/context/settings.tsx` (`harnesses.hiddenModels`, `harnesses.hiddenProviders`), `app/src/components/settings-v2/harnesses.tsx` |

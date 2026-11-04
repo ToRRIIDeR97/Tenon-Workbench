@@ -1,5 +1,4 @@
 import { Schema } from "effect"
-import { KnowledgeNote } from "@/knowledge/note"
 import { KnowledgeVault } from "@/knowledge/vault"
 import { PlannerCalendar } from "@/planner/calendar"
 import { BrainProject } from "@/project/brain"
@@ -11,11 +10,6 @@ import { Authorization } from "../middleware/authorization"
 import { InstanceContextMiddleware } from "../middleware/instance-context"
 import { WorkspaceRoutingMiddleware, WorkspaceRoutingQueryFields } from "../middleware/workspace-routing"
 import { described } from "./metadata"
-
-const NoteQuery = Schema.Struct({
-  ...WorkspaceRoutingQueryFields,
-  path: Schema.String,
-})
 
 const VaultPageQuery = Schema.Struct({
   ...WorkspaceRoutingQueryFields,
@@ -58,8 +52,6 @@ const errors = [
 ]
 
 export const SecondBrainPaths = {
-  notes: "/second-brain/notes",
-  note: "/second-brain/note",
   calendar: "/second-brain/calendar",
   projects: "/second-brain/projects",
   project: "/second-brain/project",
@@ -88,27 +80,6 @@ export const SecondBrainPaths = {
 export const SecondBrainApi = HttpApi.make("secondBrain").add(
   HttpApiGroup.make("secondBrain")
     .add(
-      HttpApiEndpoint.get("listNotes", SecondBrainPaths.notes, {
-        query: Schema.Struct({ ...WorkspaceRoutingQueryFields, search: Schema.optional(Schema.String) }),
-        success: described(Schema.Array(KnowledgeNote.Info), "Notes"),
-        error: errors,
-      }),
-      HttpApiEndpoint.get("readNote", SecondBrainPaths.note, {
-        query: NoteQuery,
-        success: described(KnowledgeNote.Document, "Note"),
-        error: errors,
-      }),
-      HttpApiEndpoint.put("writeNote", SecondBrainPaths.note, {
-        query: NoteQuery,
-        payload: KnowledgeNote.WriteInput,
-        success: described(KnowledgeNote.Document, "Note saved"),
-        error: errors,
-      }),
-      HttpApiEndpoint.delete("deleteNote", SecondBrainPaths.note, {
-        query: Schema.Struct({ ...NoteQuery.fields, expectedRevision: Schema.String }),
-        success: described(KnowledgeNote.Info, "Note deleted"),
-        error: errors,
-      }),
       HttpApiEndpoint.get("readCalendar", SecondBrainPaths.calendar, {
         query: Schema.Struct(WorkspaceRoutingQueryFields),
         success: described(PlannerCalendar.Snapshot, "Calendar"),
