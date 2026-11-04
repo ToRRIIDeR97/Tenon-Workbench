@@ -6,6 +6,7 @@ import { Duration, Effect } from "effect"
 import { effectCmd } from "../../effect-cmd"
 import { cmd } from "../cmd"
 import { ConfigCommand } from "./config"
+import { EventsCommand } from "./events"
 import { FileCommand } from "./file"
 import { LSPCommand } from "./lsp"
 import { RipgrepCommand } from "./ripgrep"
@@ -29,6 +30,7 @@ export const DebugCommand = cmd({
       .command(SkillCommand)
       .command(SnapshotCommand)
       .command(StartupCommand)
+      .command(EventsCommand)
       .command(AgentCommand)
       .command(V2Command)
       .command(InfoCommand)
