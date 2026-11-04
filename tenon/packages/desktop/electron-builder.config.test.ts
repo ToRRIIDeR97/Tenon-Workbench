@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import type { Configuration } from "electron-builder"
-import { detectDesktopNativeLocale } from "../app/src/i18n/desktop-native"
+import { detectDesktopNativeLocale } from "@tenon/app/i18n/desktop-native"
 
 const channels = [
   { channel: "dev", appId: "io.github.torriider97.tenonworkbench.dev", name: "tenon-workbench-dev" },

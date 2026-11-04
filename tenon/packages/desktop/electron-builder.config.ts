@@ -105,9 +105,9 @@ const getBase = (appId: string): Configuration => ({
     name: PACKAGE_NAMES[channel],
     desktopName: `${appId}.desktop`,
   },
+  electronLanguages: CHROMIUM_LOCALES,
   // Only `dist` of effect is loaded. Keep drizzle's dialect folders: `_relations.js` imports `pg-core`
   // at runtime even under the SQLite driver.
-  electronLanguages: CHROMIUM_LOCALES,
   files: [
     "out/**/*",
     "!out/**/*.map",

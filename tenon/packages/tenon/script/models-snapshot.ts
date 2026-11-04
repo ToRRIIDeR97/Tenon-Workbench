@@ -3,7 +3,11 @@
  * download, so being offline or a models.dev outage doesn't stop a build.
  */
 export async function loadModelsData(input: { url: string; source?: string; snapshot: string }) {
-  if (input.source) return Bun.file(input.source).text()
+  if (input.source) {
+    const text = await Bun.file(input.source).text()
+    JSON.parse(text)
+    return text
+  }
   try {
     const response = await fetch(input.url, { signal: AbortSignal.timeout(15_000) })
     if (!response.ok) throw new Error(`HTTP ${response.status}`)

@@ -481,7 +481,7 @@ const main = Effect.gen(function* () {
     const sidecarVersion = SIDECAR_V2_REQUESTED && CHANNEL === "dev" && existsSync(bundledCliPath()) ? "v2" : "v1"
     logger.log("sidecar connection started", { version: sidecarVersion })
     if (SIDECAR_V2_REQUESTED && sidecarVersion === "v1")
-      logger.warn("v2 sidecar requested but this build has no opencode-cli; build it with TENON_BUNDLE_CLI=1", {
+      logger.warn("v2 sidecar requested but unavailable: it needs a dev-channel build made with TENON_BUNDLE_CLI=1", {
         channel: CHANNEL,
       })
 
