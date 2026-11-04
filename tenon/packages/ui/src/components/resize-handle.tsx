@@ -8,7 +8,7 @@ export interface ResizeHandleProps extends Omit<JSX.HTMLAttributes<HTMLDivElemen
   max: number
   /** Called at most once per animation frame while dragging, with the clamped size. */
   onResize: (size: number) => void
-  /** Called once when a drag that did not collapse ends, with the final clamped size. */
+  /** Called once when a drag ends without collapsing, or the handle unmounts mid-drag, with the final clamped size. */
   onResizeEnd?: (size: number) => void
   onCollapse?: () => void
   /** Called while dragging when size crosses `collapseThreshold`. */
@@ -115,6 +115,7 @@ export function ResizeHandle(props: ResizeHandleProps) {
     release = () => {
       detach()
       frame = undefined
+      onResizeEnd?.(clamped())
     }
     document.addEventListener("mousemove", onMouseMove)
     document.addEventListener("pointerup", onMouseUp, true)
