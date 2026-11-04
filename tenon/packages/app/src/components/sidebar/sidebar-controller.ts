@@ -27,13 +27,23 @@ import {
   type ProjectThreads,
 } from "@/features/second-brain/client"
 import {
+  attentionCards,
+  cardSummary,
+  isGroupingCard,
+  lastUpdate,
+  parseGrouping,
+  recentCards,
+  threadState,
+  type ThreadCard,
+  type ThreadGrouping,
+} from "@/features/second-brain/sidebar-grouping"
+import {
   createThreadNodeCache,
   flattenThreads,
   groupSidebarThreads,
   isWithinDirectory,
   mergeSidebarSessions,
   projectForDirectory,
-  type ThreadNode,
 } from "@/features/second-brain/sidebar-threads"
 import {
   collectNewSessionDeepLinks,
@@ -126,7 +136,11 @@ export function createSidebarController() {
 
   const [state, setState] = persisted(
     Persist.window("sidebar"),
-    createStore({ current: undefined as string | undefined, expanded: {} as Record<string, boolean> }),
+    createStore({
+      current: undefined as string | undefined,
+      expanded: {} as Record<string, boolean>,
+      grouping: "project" as ThreadGrouping,
+    }),
   )
 
   // The selected workspace (also called the Brain): the sidebar shows only its Projects and threads.
@@ -329,6 +343,30 @@ export function createSidebarController() {
       }),
     )
   })
+  const grouping = () => parseGrouping(state.grouping)
+  const stateOf = (session: Pick<Session, "id">) => {
+    const data = serverSync().session.data
+    return threadState(data.session_status[session.id], data.permission[session.id]?.length ?? 0)
+  }
+  /**
+   * What the sidebar shows, top to bottom, in the current mode. A Project or workspace card's ID is its
+   * `expanded` key. Attention and Recent mix Projects, so their roots run newest first. Cards are rebuilt on
+   * every thread or status change, so key a view by card ID; only the thread nodes keep their identity.
+   */
+  const cards = createMemo<ThreadCard<Session>[]>(() => {
+    const value = groups()
+    const mode = grouping()
+    if (mode === "project") {
+      return [
+        ...value.projects.map((group) => ({ id: group.project.id, threads: group.threads })),
+        { id: BRAIN_GROUP, threads: value.workspace },
+      ].map((card) => ({ ...card, summary: cardSummary(card.threads, stateOf) }))
+    }
+    const roots = [...value.projects.flatMap((group) => group.threads), ...value.workspace].sort(
+      (a, b) => lastUpdate(b.session) - lastUpdate(a.session),
+    )
+    return mode === "attention" ? attentionCards(roots, stateOf) : recentCards(roots, stateOf, Date.now())
+  })
   /** Each Project's root threads by Project ID, so a row looks its threads up instead of scanning every group. */
   const projectThreads = createMemo(
     () => new Map(groups().projects.map((group) => [group.project.id, group.threads] as const)),
@@ -390,17 +428,12 @@ export function createSidebarController() {
     return projects().find((project) => project.id === id)
   })
 
-  const expanded = (id: string) => state.expanded[id] ?? false
+  const expanded = (id: string) => state.expanded[id] ?? isGroupingCard(id)
   const toggleExpanded = (id: string) => setState("expanded", id, !expanded(id))
 
-  const visibleThreads = createMemo(() => {
-    const value = groups()
-    const nodes: ThreadNode<Session>[] = [
-      ...value.projects.flatMap((group) => (expanded(group.project.id) ? group.threads : [])),
-      ...(expanded(BRAIN_GROUP) ? value.workspace : []),
-    ]
-    return flattenThreads(nodes)
-  })
+  const visibleThreads = createMemo(() =>
+    flattenThreads(cards().flatMap((card) => (expanded(card.id) ? card.threads : []))),
+  )
 
   const openThread = (session: Pick<Session, "id">) => navigate(sessionHref(server.key, session.id))
 
@@ -817,6 +850,10 @@ export function createSidebarController() {
     removeProject,
     projects,
     groups,
+    cards,
+    grouping,
+    setGrouping: (value: ThreadGrouping) => setState("grouping", value),
+    stateOf,
     projectThreads,
     loading: () => projectsQuery.isLoading,
     failed: () => projectsQuery.isError,
