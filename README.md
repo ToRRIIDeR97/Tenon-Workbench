@@ -22,6 +22,11 @@ cd ..
 bun run dev
 ```
 
+Keep the checkout outside OneDrive, iCloud and other synced folders if you can.
+Each build rewrites hundreds of megabytes under `tenon/packages/*/dist`,
+`tenon/packages/desktop/out` and `node_modules`, and a sync client has to follow
+all of it.
+
 On Windows, native package installation can exceed the legacy 260-character
 limit when this repository lives under a long OneDrive path. Prefer a shorter
 checkout path. For this checkout, the verified fallback is:

@@ -73,9 +73,9 @@ reading of the code, not a runtime trace, except where a step says it was run.
   synced between machines; the map from workspace directories to vault folders
   and the machine id stay in `vault-machine.json` in the XDG data folder
   ([README](README.md#tenon-vault)).
-- The `opencode-cli` daemon (`TENON_SIDECAR_V2=1`) ships only in the
-  development channel. Packaging and update limits are covered in
-  [release operations](../release-operations.md).
+- The `opencode-cli` daemon (`TENON_SIDECAR_V2=1`) ships only in
+  development-channel builds made with `TENON_BUNDLE_CLI=1`. Packaging and
+  update limits are covered in [release operations](../release-operations.md).
 
 ### Class
 
@@ -334,9 +334,10 @@ The following were inferred from source and haven't been confirmed at runtime.
   child session at all is up to the agent. Upstream OpenCode's behavior wasn't
   confirmed; the agent tab shows "Not reported" when it doesn't.
 - **v2 CLI daemon.** The opt-in v2 sidecar is upstream's `opencode-cli`
-  background service. It is allowed only on the development channel, the
-  only one that bundles the CLI, and it outlives the app by design
-  (`opencode-cli service stop` ends it).
+  background service. It is allowed only on the development channel, in a
+  build made with `TENON_BUNDLE_CLI=1`; otherwise the app warns and starts the
+  v1 server. It outlives the app by design (`opencode-cli service stop` ends
+  it).
 - **Server health checks.** A server that exits after ready is restarted on
   the same port and password with backoff
   (`desktop/src/main/sidecar-supervisor.ts`); the renderer's status popover

@@ -39,8 +39,24 @@ publishing disabled. Output is under `tenon/packages/desktop/dist/`.
 The packaged app starts its local server in the user's home folder and, on
 Windows, reads the current PATH from the registry at launch, so harness CLIs
 installed since sign-in are found without signing out.
-The build downloads the pinned upstream CLI for the optional development
-sidecar and bundles the fork's local server. These are separate runtimes.
+The build bundles the fork's local server. The pinned upstream CLI for the
+optional v2 development sidecar is a separate runtime and is left out unless
+the build runs with `TENON_BUNDLE_CLI=1` on the development channel; a matching
+`resources/opencode-cli.version` skips copying it again. `bun run dev` also
+fetches it when `TENON_SIDECAR_V2=1` is set. When v2 is requested and the binary
+is missing, the app logs a warning and starts the normal v1 server.
+The server bundle embeds a models.dev snapshot. `MODELS_DEV_API_JSON` names a
+file to use instead; otherwise the build downloads the catalog, saves it to
+`tenon/packages/tenon/dist/models-dev-snapshot.json` and, when the download
+fails, falls back to that copy with a warning. Only a first build with neither
+stops.
+Packaged builds leave out `.map` files from `node_modules`, `effect/src`, and
+the Chromium language packs that no app locale can detect (`electronLanguages`
+in `electron-builder.config.ts`, checked against `DESKTOP_NATIVE_LOCALE_TAGS`).
+Do not trim drizzle's dialect folders: `_relations.js` imports `pg-core` at
+runtime under the SQLite driver too.
+The renderer is minified with `keepNames`. The candidate workflow uploads no
+source maps, so logged renderer stacks keep function names but not file lines.
 The local server comes from `tenon/packages/tenon/script/build-node.ts`
 (entry `src/node.ts`). The fork doesn't build or ship its own `opencode` CLI
 binary, and the desktop app has no "Install CLI" action.
