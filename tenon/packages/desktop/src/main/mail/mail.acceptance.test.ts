@@ -7,6 +7,7 @@ import {
   GRAPH_SCOPES,
   saveImapPassword,
 } from "./index"
+import { imapOptions } from "./imap-client"
 
 // P8 · Email (implementations/notes-command-centre/implementation.md, AC-8.1 … AC-8.3)
 
@@ -28,6 +29,13 @@ const noSend = (calls: Call[]) => {
     expect(call.url).not.toMatch(/\/send\b|\/sendMail\b/i)
   }
 }
+
+test("IMAP without TLS requires STARTTLS, except on a loopback bridge", () => {
+  const account = { port: 143, secure: false, user: "me", password: "app-password" }
+  expect(imapOptions({ ...account, host: "mail.example.com" }).doSTARTTLS).toBe(true)
+  for (const host of ["localhost", "127.0.0.1", "::1"]) expect(imapOptions({ ...account, host }).doSTARTTLS).toBeUndefined()
+  expect(imapOptions({ ...account, host: "mail.example.com", secure: true }).doSTARTTLS).toBeUndefined()
+})
 
 describe("Gmail", () => {
   const gmail = fakeFetch((call) => {

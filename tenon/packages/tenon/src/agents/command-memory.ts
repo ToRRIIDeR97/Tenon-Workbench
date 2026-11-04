@@ -4,6 +4,7 @@ import { KnowledgeVault } from "@/knowledge/vault"
 import { Session } from "@/session/session"
 import { Database } from "@tenon/core/database/database"
 import { Global } from "@tenon/core/global"
+import { HarnessAppTools } from "@tenon/core/harness/app-tools"
 import { sql } from "drizzle-orm"
 import { Effect, Schema, Semaphore } from "effect"
 import { realpathSync } from "node:fs"
@@ -50,7 +51,7 @@ export const root = () => KnowledgeVault.rootFor(process.env, Global.make().home
  * thread there loads as its instructions.
  */
 export const directory = Effect.fn("CommandMemory.directory")(function* () {
-  const folder = path.join(root(), ".command-centre")
+  const folder = path.join(root(), HarnessAppTools.COMMAND_CENTRE_FOLDER)
   yield* Effect.promise(() => mkdir(folder, { recursive: true }))
   yield* Effect.promise(() => writeInstructions(folder))
   return folder
@@ -76,7 +77,7 @@ const fold = (value: string) => {
 /** Whether a session directory is the Command Centre's. */
 export function isCommandDirectory(value: string, base = root()) {
   const target = fold(value)
-  return spellings(path.join(base, ".command-centre")).some((spelling) => fold(spelling) === target)
+  return spellings(path.join(base, HarnessAppTools.COMMAND_CENTRE_FOLDER)).some((spelling) => fold(spelling) === target)
 }
 
 const spellings = (folder: string) => {

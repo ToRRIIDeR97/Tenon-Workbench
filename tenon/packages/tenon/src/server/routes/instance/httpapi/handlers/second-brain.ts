@@ -3,6 +3,8 @@ import { CommandThreads } from "@/agents/command-threads"
 import { Routines } from "@/agents/routines"
 import { RoutinesScheduler } from "@/agents/routines-scheduler"
 import { InstanceState } from "@/effect/instance-state"
+import { EventV2Bridge } from "@/event-v2-bridge"
+import { Permission } from "@/permission"
 import { InstanceStore } from "@/project/instance-store"
 import { Provider } from "@/provider/provider"
 import { LLM } from "@/session/llm"
@@ -49,6 +51,8 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
     const instances = yield* InstanceStore.Service
     const llm = yield* LLM.Service
     const provider = yield* Provider.Service
+    const events = yield* EventV2Bridge.Service
+    const permission = yield* Permission.Service
     // One lock per Brain directory serializes calendar saves (with their timeline sync),
     // Project mutations and project folder scans, so none of them interleave.
     const brainLocks = KeyedMutex.makeUnsafe<string>()
@@ -296,6 +300,8 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
         Effect.provideService(LLM.Service, llm),
         Effect.provideService(Provider.Service, provider),
         Effect.provideService(LocationServiceMap.Service, locations),
+        Effect.provideService(EventV2Bridge.Service, events),
+        Effect.provideService(Permission.Service, permission),
       )
 
     // Run now and scheduled runs agree: the routine's own model first, then the Command Centre default the
@@ -320,6 +326,12 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
       .handle("runRoutine", (ctx) =>
         commandServices(Routines.runNow({ id: ctx.params.id, start: startRoutine(ctx.payload.model) })).pipe(
           failure("runRoutine", ctx.params.id),
+        ),
+      )
+      .handle("approveRoutine", (ctx) =>
+        commandServices(Routines.approve({ id: ctx.params.id, hash: ctx.payload.hash })).pipe(
+          Effect.as({ approved: true as const }),
+          failure("approveRoutine", ctx.params.id),
         ),
       )
       .handle("commandDirectory", () =>
@@ -450,6 +462,7 @@ function toApiFailure(operation: string, path: string | undefined, error: unknow
   ) {
     return Effect.fail(new HttpApiError.NotFound({}))
   }
+  if (error instanceof Routines.ApprovalError) return Effect.fail(conflict("routine_needs_approval"))
   if (
     error instanceof KnowledgeNote.ConflictError ||
     error instanceof KnowledgeVault.ConflictError ||

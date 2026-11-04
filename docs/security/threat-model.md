@@ -148,17 +148,26 @@ Rendered Markdown drops every image and media source that is not `data:` or
 `blob:` before it reaches the DOM (`session-ui/src/components/markdown-media.ts`),
 so a note or model reply cannot beacon to a remote host.
 
-The packaged renderer has no page-wide Content-Security-Policy yet. Design
-previews run their own inline scripts in sandboxed `srcdoc` frames, and a
-`srcdoc` frame inherits its parent's policy, so a `script-src 'self'` policy on
-`index.html` would block them. Adding one needs the previews served from their
-own origin first.
+The renderer's HTML is served with a partial Content-Security-Policy
+(`addDocumentPolicy` and `addRendererHeaders` in `desktop/src/main/windows.ts`):
+`object-src 'none'; base-uri 'none'; form-action 'none'`. It leaves `script-src`
+out. Design previews run their own inline scripts in sandboxed `srcdoc` frames,
+and a `srcdoc` frame inherits its parent's policy, so a `script-src 'self'` policy
+on `index.html` would block them; adding one needs the previews served from
+their own origin first. `img-src` and `media-src` are only reported
+(`Content-Security-Policy-Report-Only`, seen in the renderer console): read what
+they flag on a candidate before enforcing them, because that is what would back
+the Markdown rule above.
 
 `file://` links (terminal output, Markdown) open with the default app only for
-documents. Executables (Windows `PATHEXT` plus `.lnk`, `.hta`, `.msi`, `.scr`;
-macOS `.app`, `.command`, `.terminal`, `.workflow`; any POSIX file with an
-execute bit) and anything that cannot be inspected are revealed in the file
-manager instead (`desktop/src/main/local-file-policy.ts`).
+documents. Executables (Windows `PATHEXT` plus shell launchers such as `.lnk`,
+`.hta`, `.msi`, `.scr`, `.cpl`, `.jar`, `.chm` and `.msix`, and any file name with
+a colon, which names an alternate data stream; macOS bundles and scripts such as
+`.app`, `.command`, `.terminal`, `.workflow`, `.fileloc`, `.webloc` and
+`.mobileconfig`; any POSIX file with an execute bit) and anything that cannot be
+inspected are revealed in the file manager instead
+(`desktop/src/main/local-file-policy.ts`). A file name ending in a dot or space
+is not handled: `stat` fails on it on Windows, so it is revealed.
 
 Packaged builds set Electron fuses in `desktop/electron-builder.config.ts`:
 RunAsNode, `NODE_OPTIONS` and the `--inspect` flags are off, the app loads only
@@ -827,8 +836,9 @@ apply unchanged: loopback only, a bearer token per runtime bound to its Run,
   added items are still exactly as written (calendar, tasks); otherwise 409. Tokens live in
   server memory for 24 hours (at most 500) and are lost on restart.
 - In the built-in loop, write tools ask permission `tenon_write` (reads are
-  not asked), like any local tool. Codex and ACP agents apply their own MCP
-  tool policy. Either way the user sees each write with Undo.
+  not asked; the rule is in the agents' defaults, and config can change it),
+  like any local tool. Codex and ACP agents apply their own MCP tool policy.
+  Either way the user sees each write with Undo.
 - Tasks with a Google `accountId` are stored as pending Google creates; they
   reach Google only through the desktop outbox and its write consent, not
   from the server: the renderer's Google sync sends them with their
@@ -865,14 +875,34 @@ is an assistant whose threads span workspaces.
   `git init` from PATH without a shell, and removes a folder only when its own
   `mkdir` created it. A folder it can't read is refused. It writes fixed templates; no tool argument is interpolated
   except the Project name.
+- **Tool prompts.** Command Centre threads read untrusted mail, so in the
+  built-in loop `bash`, `webfetch`, `websearch`, `edit` and `tenon_write` ask
+  first in a folder named `.command-centre`. Subagents ask too, and an ask never
+  widens an agent's deny. A user's `permission` config still wins, so allowing
+  one of these there takes the prompt away. Harness-run threads keep their own
+  policy. Browser and device tools are unchanged.
 - **Routines.** A routine is a vault page under `Routines/`; its body is sent
-  as a prompt to a new Command Centre thread on its schedule, so anyone who can
-  write the vault (including a sync account) can schedule prompts. Routine
-  pages are shown on the Routines page with their schedule and can be turned
-  off with `enabled: false`. Replies are appended to the workspace's
-  `Inbox.md` page. Last-run state is machine-local (`routines-state.json` in
-  the server data folder); two machines sharing a synced vault each run the
-  routine. The scheduler runs only in a listening server.
+  as a prompt to a new Command Centre thread on its schedule. Anyone who can
+  write the vault (including a sync account, or a process with file access) can
+  write such a page, so a page runs only after the user approves it on the
+  Routines page: `routines-state.json` keeps the SHA-256 of what it would run
+  (prompt, schedule, `model`, `harness`, `tools`), and the scheduler and Run now
+  skip anything else. An edit needs approving again, on each machine; `enabled`
+  is not part of the hash. `notes_write` also refuses `Routines/` from a thread
+  outside the Command Centre, which narrows that one writer only. The state file
+  is outside the vault, so sync can't approve a page, but a process that can write
+  the data folder (default-allowed `bash` in a workspace thread) could.
+- **Unattended runs.** Nobody watches a routine run, Run now included, so every
+  permission prompt in it and its subagents is answered no
+  (`CommandThreads.refusePrompts`). The model is told to carry on without it,
+  and the Routines row names what was refused. `question` and `plan_enter` are
+  denied, since nothing could answer them. A routine that needs shell or web
+  access needs it allowed in the user's `permission` config.
+- **Routine output.** Replies are appended to the workspace's `Inbox.md` page.
+  Last-run state is machine-local (`routines-state.json` in the server data
+  folder); two machines sharing a synced vault each run the routine. The
+  scheduler runs only in a listening server. Pages can be turned off with
+  `enabled: false`.
 
 ## Email accounts
 
@@ -907,10 +937,14 @@ Mail lives in the desktop main process (`desktop/src/main/mail/`; see
   content.
 - **Mail is data.** Message text reaches the model only as tool results in
   Command Centre sessions; it is never treated as instructions, and Project
-  sessions don't get the mail tools.
+  sessions don't get the mail tools. Tool descriptions alone are no boundary:
+  what a crafted email could steer asks first there (see
+  [Tool prompts](#command-centre-memory-and-routines)).
 - **Dependency.** IMAP uses `imapflow` (MIT, Postal Systems), pinned in
-  `desktop/package.json`, with one short-lived TLS connection per call
-  (STARTTLS when TLS is off).
+  `desktop/package.json`, with one short-lived connection per call. With TLS
+  off, STARTTLS is required (`doSTARTTLS`), so a server that doesn't offer it
+  fails before the password is sent. Loopback hosts are the exception, for
+  local mail bridges with no TLS.
 
 ## Local dictation
 
@@ -1082,16 +1116,20 @@ message and shows in a toast. It doesn't run outside git.
 - **Embedded browser.** Pages run in a `WebContentsView` in the
   `persist:tenon-browser` session: no cookies or storage shared with the app,
   every permission denied, `window.open` loads in place, and only http(s)
-  navigations. Requests to the app's own server origin are cancelled, so a page
-  can't reach its API. The element picker and snapshots run in an isolated
-  world the page can't see.
+  navigations. Requests to the app's own server are cancelled, by origin and by
+  port under every loopback name, so a page can't reach its API. The element
+  picker and snapshots run in an isolated world the page can't see.
 - **Agent bridge.** A loopback HTTP server in main (`127.0.0.1:0`) takes
   browser and device tool calls. It requires a 256-bit bearer token passed only
   in the server process's environment (harness processes get an allow-listed
   environment without it) and refuses any request with an `Origin` header.
   Bodies are capped at 400,000 characters, to fit a whole diagram for
-  `render_svg`. Agents always have these tools; navigating to a site other
-  than localhost needs the user's yes in a native dialog.
+  `render_svg`. Agents always have these tools; `browser_navigate` to a site
+  other than localhost needs the user's yes in a native dialog. While a browser
+  tool is in flight (and one second after, for the navigation it started), a
+  link, redirect or `window.open` to a host not yet allowed this run of the app
+  gets the same dialog. This is a partial guard: a page can wait out that time,
+  so the dialog is not an exfiltration boundary.
 - **Diagram rendering.** `render_svg` puts agent-written SVG in a hidden
   offscreen `BrowserWindow` (sandboxed, context-isolated, no Node). Its page
   has the chat's CSP (`default-src 'none'`, inline styles and `data:` images

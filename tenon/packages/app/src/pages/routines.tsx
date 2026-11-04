@@ -10,6 +10,7 @@ import { useServerSDK } from "@/context/server-sdk"
 import { useSettings } from "@/context/settings"
 import { modelChoice } from "@/features/command-centre/command-centre"
 import {
+  approveRoutine,
   listRoutines,
   runRoutine,
   SecondBrainRequestError,
@@ -19,8 +20,9 @@ import {
 
 /**
  * Routines: vault pages under `Routines/` with a `schedule` property. Each row shows the schedule, last and
- * next run, and Run now starts a Command Centre thread with the routine's prompt. New routine writes a
- * `Routines/` page from a template (switched off until edited) and opens it in Notes.
+ * next run, and Run now starts a Command Centre thread with the routine's prompt. A page runs only once
+ * approved, and again after any change to what it would run; the row links to the page to read first. New
+ * routine writes a `Routines/` page from a template (switched off until edited) and opens it in Notes.
  */
 export default function RoutinesPage() {
   const language = useLanguage()
@@ -54,6 +56,17 @@ export default function RoutinesPage() {
       .then(() => refetch())
       .catch(() => setState("failed", true))
     setState("running", id, false)
+  }
+
+  // A page changed since this list was read stays unapproved; the refetch shows its new content's state.
+  const approve = async (routine: Routine) => {
+    const directory = workspace()
+    if (!directory) return
+    setState({ failed: false })
+    setState("running", routine.id, true)
+    await approveRoutine(client(directory), routine.id, routine.hash).catch(() => setState("failed", true))
+    await refetch()
+    setState("running", routine.id, false)
   }
 
   // Routines are pages under `Routines/` whose properties carry a `schedule`; the template starts switched off.
@@ -159,6 +172,22 @@ export default function RoutinesPage() {
                           })}
                         </span>
                       </Show>
+                      <Show when={routine.needsApproval}>
+                        <span class="block text-[11px] text-v2-text-text-muted">
+                          {language.t("secondBrain.routines.needsApproval")}
+                          {" · "}
+                          <A href={`/projects?page=${encodeURIComponent(routine.path)}`} class="underline">
+                            {language.t("secondBrain.routines.review")}
+                          </A>
+                        </span>
+                      </Show>
+                      <Show when={(routine.denied ?? []).length > 0}>
+                        <span class="block text-[11px] text-v2-text-text-faint">
+                          {language.t("secondBrain.routines.denied", {
+                            permissions: (routine.denied ?? []).join(", "),
+                          })}
+                        </span>
+                      </Show>
                     </td>
                     <td class="px-3 py-2 font-mono text-[12px] text-v2-text-text-muted">{routine.schedule}</td>
                     <td class="px-3 py-2 text-v2-text-text-muted">
@@ -173,9 +202,11 @@ export default function RoutinesPage() {
                         size="small"
                         variant="tonal"
                         disabled={state.running[routine.id] === true}
-                        onClick={() => void run(routine.id)}
+                        onClick={() => void (routine.needsApproval ? approve(routine) : run(routine.id))}
                       >
-                        {language.t("secondBrain.routines.runNow")}
+                        {language.t(
+                          routine.needsApproval ? "secondBrain.routines.approve" : "secondBrain.routines.runNow",
+                        )}
                       </ButtonV2>
                     </td>
                   </tr>

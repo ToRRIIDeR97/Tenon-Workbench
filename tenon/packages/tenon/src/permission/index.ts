@@ -119,12 +119,12 @@ const layer = Layer.effect(
       })
 
       if (input.reply === "reject") {
-        yield* Deferred.fail(
-          existing.deferred,
+        // With feedback the turn goes on, so calls waiting beside this one get it too; a plain reject stops the turn.
+        const rejection = () =>
           input.message
             ? new PermissionV1.CorrectedError({ feedback: input.message })
-            : new PermissionV1.RejectedError(),
-        )
+            : new PermissionV1.RejectedError()
+        yield* Deferred.fail(existing.deferred, rejection())
 
         for (const [id, item] of pending.entries()) {
           if (item.info.sessionID !== existing.info.sessionID) continue
@@ -134,7 +134,7 @@ const layer = Layer.effect(
             requestID: item.info.id,
             reply: "reject",
           })
-          yield* Deferred.fail(item.deferred, new PermissionV1.RejectedError())
+          yield* Deferred.fail(item.deferred, rejection())
         }
         return
       }

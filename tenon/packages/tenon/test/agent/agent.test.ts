@@ -1,8 +1,9 @@
 import { afterEach, expect } from "bun:test"
 import { LayerNode } from "@tenon/core/effect/layer-node"
 import { Cause, Effect, Exit, Layer } from "effect"
+import { mkdir } from "node:fs/promises"
 import path from "path"
-import { disposeAllInstances, TestInstance } from "../fixture/fixture"
+import { disposeAllInstances, provideInstanceEffect, TestInstance } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 import { Agent } from "../../src/agent/agent"
 import { Auth } from "../../src/auth"
@@ -66,6 +67,21 @@ it.instance("build agent has correct default properties", () =>
     expect(build?.native).toBe(true)
     expect(evalPerm(build, "edit")).toBe("allow")
     expect(evalPerm(build, "bash")).toBe("allow")
+  }),
+)
+
+it.instance("Command Centre threads ask before shell, network and edits, without widening a deny", () =>
+  Effect.gen(function* () {
+    const test = yield* TestInstance
+    const folder = path.join(test.directory, ".command-centre")
+    yield* Effect.promise(() => mkdir(folder))
+    yield* Effect.gen(function* () {
+      const build = yield* load((svc) => svc.get("build"))
+      for (const permission of ["bash", "webfetch", "websearch", "edit"]) expect(evalPerm(build, permission)).toBe("ask")
+      expect(evalPerm(yield* load((svc) => svc.get("explore")), "webfetch")).toBe("ask")
+      expect(evalPerm(yield* load((svc) => svc.get("explore")), "edit")).toBe("deny")
+      expect(evalPerm(yield* load((svc) => svc.get("plan")), "edit")).toBe("deny")
+    }).pipe(provideInstanceEffect(folder))
   }),
 )
 

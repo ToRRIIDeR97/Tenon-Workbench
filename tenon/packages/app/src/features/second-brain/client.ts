@@ -331,6 +331,9 @@ export type Routine = {
   nextRun: string | null
   lastRun: string | null
   lastStatus: "running" | "done" | "failed" | null
+  hash: string
+  needsApproval: boolean
+  denied: ReadonlyArray<string>
 }
 export type ModelChoice = { providerID: string; modelID: string }
 export type MemoryHit = { sessionID?: string; text: string; at: number }
@@ -341,6 +344,12 @@ export const runRoutine = (client: Client, id: string, model?: ModelChoice) =>
   request<{ threadId: string }>(client, `/second-brain/routines/${encodeURIComponent(id)}/run`, {
     method: "POST",
     body: JSON.stringify(model ? { model } : {}),
+  })
+
+export const approveRoutine = (client: Client, id: string, hash: string) =>
+  request<{ approved: true }>(client, `/second-brain/routines/${encodeURIComponent(id)}/approve`, {
+    method: "POST",
+    body: JSON.stringify({ hash }),
   })
 
 /** Creates the vault's `.command-centre` folder when missing and returns it. */

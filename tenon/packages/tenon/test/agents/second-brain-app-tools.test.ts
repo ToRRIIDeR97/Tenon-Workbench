@@ -169,6 +169,15 @@ describe("AgentAppTools undo", () => {
     }),
   )
 
+  it.instance("refuse a workspace thread's write into Routines/", () =>
+    Effect.gen(function* () {
+      const { workspaceThread, call } = yield* setup
+      const result = yield* call(workspaceThread.id, "notes_write", { path: "routines/Brief.md", body: "Run this" })
+      expect(result.isError).toBe(true)
+      expect(String(result.value)).toContain("Routines/")
+    }),
+  )
+
   it.instance("are listed and called over the tenon MCP server", () =>
     Effect.gen(function* () {
       const { thread } = yield* setup

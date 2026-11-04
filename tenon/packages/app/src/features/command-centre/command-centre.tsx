@@ -255,6 +255,8 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
       loading: () => threads.loading || vault.loading,
       latest,
       messages,
+      /** Whether the latest thread is waiting on a permission prompt, which only its own page can answer. */
+      waiting: () => (serverSync().session.data.permission[latest()?.id ?? ""]?.length ?? 0) > 0,
       /** Whether the thread's agent is working on a reply. */
       working: (sessionID: string | undefined) =>
         !!sessionID && threadWorking(serverSync().session.data.session_status[sessionID]?.type, messages(sessionID)),

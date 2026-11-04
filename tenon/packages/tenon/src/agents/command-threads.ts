@@ -1,12 +1,15 @@
 export * as CommandThreads from "./command-threads"
 
 import type { Agent } from "@/agent/agent"
+import { EventV2Bridge } from "@/event-v2-bridge"
+import { Permission } from "@/permission"
 import { InstanceStore } from "@/project/instance-store"
 import { Provider } from "@/provider/provider"
 import { LLM } from "@/session/llm"
 import { SessionPrompt } from "@/session/prompt"
 import { MessageID, SessionID } from "@/session/schema"
 import { Session } from "@/session/session"
+import type { EventV2 } from "@tenon/core/event"
 import { LLMEvent } from "@tenon/llm"
 import { ModelV2 } from "@tenon/core/model"
 import { ProviderV2 } from "@tenon/core/provider"
@@ -31,9 +34,45 @@ const summaryLimit = 24_000
 const modelRef = (model?: ModelChoice) =>
   model ? { providerID: ProviderV2.ID.make(model.providerID), modelID: ModelV2.ID.make(model.modelID) } : undefined
 
+const refused =
+  "This is an unattended routine, so nobody can approve this. Carry on without it and say what you skipped."
+
 /**
- * Start a Command Centre thread with `prompt`. Returns at once with the thread id; `reply` runs the turn
- * and resolves with the assistant's text.
+ * Answer no to every permission prompt of the run in `root` and its subagents, telling the model why. Without
+ * this a run would wait forever on a prompt nobody sees. `denied` names what was refused; `stop` ends the watch.
+ */
+export const refusePrompts = Effect.fnUntraced(function* (root: SessionID) {
+  const events = yield* EventV2Bridge.Service
+  const permission = yield* Permission.Service
+  const sessions = yield* Session.Service
+  const context = yield* Effect.context()
+  const denied = new Set<string>()
+  const inRun = (id: SessionID): Effect.Effect<boolean> =>
+    id === root
+      ? Effect.succeed(true)
+      : sessions.get(id).pipe(
+          Effect.flatMap((session) => (session.parentID ? inRun(session.parentID) : Effect.succeed(false))),
+          Effect.orElseSucceed(() => false),
+        )
+  const stop = yield* events.listen((event) => {
+    if (event.type !== Permission.Event.Asked.type) return Effect.void
+    const request = event.data as EventV2.Data<typeof Permission.Event.Asked>
+    return inRun(request.sessionID).pipe(
+      Effect.flatMap((own) => {
+        if (!own) return Effect.void
+        denied.add(request.permission)
+        return permission.reply({ requestID: request.id, reply: "reject", message: refused }).pipe(Effect.ignore)
+      }),
+      Effect.provideContext(context),
+    )
+  })
+  return { denied, stop }
+})
+
+/**
+ * Start an unattended Command Centre thread with `prompt`: a routine run, which nobody is watching. Returns
+ * at once with the thread id; `reply` runs the turn and resolves with the assistant's text and the
+ * permissions that were refused because nobody could answer them.
  */
 export const start = Effect.fn("CommandThreads.start")(function* (input: {
   prompt: string
@@ -45,14 +84,27 @@ export const start = Effect.fn("CommandThreads.start")(function* (input: {
   const sessions = yield* Session.Service
   const prompts = yield* SessionPrompt.Service
   const inCommandCentre = <A, E, R>(effect: Effect.Effect<A, E, R>) => store.provide({ directory: folder }, effect)
-  const info = yield* inCommandCentre(sessions.create(input.title ? { title: input.title } : {}))
+  // Nobody can answer a question or a switch to plan mode either; both tools would wait forever.
+  const info = yield* inCommandCentre(
+    sessions.create({
+      ...(input.title ? { title: input.title } : {}),
+      permission: Permission.fromConfig({ question: "deny", plan_enter: "deny" }),
+    }),
+  )
   const model = modelRef(input.model)
   const reply = inCommandCentre(
-    prompts.prompt({ sessionID: info.id, ...(model ? { model } : {}), parts: [{ type: "text", text: input.prompt }] }),
-  ).pipe(
-    Effect.map((message) =>
-      message.parts.flatMap((part) => (part.type === "text" && !part.synthetic ? [part.text] : [])).join("\n\n"),
-    ),
+    Effect.gen(function* () {
+      const watch = yield* refusePrompts(info.id)
+      const message = yield* prompts
+        .prompt({ sessionID: info.id, ...(model ? { model } : {}), parts: [{ type: "text", text: input.prompt }] })
+        .pipe(Effect.ensuring(watch.stop))
+      return {
+        text: message.parts
+          .flatMap((part) => (part.type === "text" && !part.synthetic ? [part.text] : []))
+          .join("\n\n"),
+        denied: [...watch.denied],
+      }
+    }),
   )
   return { threadId: info.id as string, reply }
 })
