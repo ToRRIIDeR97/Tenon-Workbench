@@ -1209,10 +1209,13 @@ folder stays unapproved. Until a folder is approved:
   dependency install.
 
 Other keys, such as `model`, `experimental.policies` (provider access only, and
-user rules override it), and markdown agents and commands still apply. The
-user's own `~/.tenon` and `~/.opencode` are never project folders, even when a
-folder with no repository walks up past them. When something was withheld, `GET /config/trust` names it and the app asks once per
-run. Approving reloads the instance, which reopens the location too.
+user rules override it), markdown agents and commands, and skills under the
+folder's `.claude` and `.agents` still apply. The user's own `~/.tenon` and
+`~/.opencode` are never project folders, even when a folder with no repository
+walks up past them. A linked Git worktree is its own folder, so it needs its own
+approval. When something was withheld, `GET /config/trust` names it and the app
+asks once per run. Approving reloads the instance, which reopens the location
+too.
 
 Approval doesn't lift every limit. In any folder, a project permission entry
 that allows `external_directory`, or allows reads that could reach a `.env`
@@ -1233,8 +1236,9 @@ folder's `references` are still added to the `external_directory` allowlist.
 before `PATH` on Windows, so `git rev-parse` in a folder holding `git.cmd` would
 run that file on open. `resolveWin32` in `core/src/util/which.ts` walks absolute
 `PATH` entries and `PATHEXT` only, and `spawnTarget` applies it to bare names
-at `core/src/cross-spawn-spawner.ts`, `tenon/src/util/process.ts` and MCP
-`connectLocal`, whose SDK transport has its own `cross-spawn`. App execution
+at `core/src/cross-spawn-spawner.ts`, `tenon/src/util/process.ts`, MCP
+`connectLocal`, whose SDK transport has its own `cross-spawn`, and the
+`git init` in `tenon/src/agents/command-setup.ts`. App execution
 aliases in `WindowsApps` count as matches, though `stat` refuses them. With no
 match the spawn fails with ENOENT; it never falls back to the bare name. A checked-in tool
 needs an explicit path such as `./tool.cmd`. macOS needs none of this: its
