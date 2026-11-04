@@ -3,6 +3,7 @@ import {
   attentionCards,
   cardSummary,
   isGroupingCard,
+  linkedStates,
   nodeState,
   parseGrouping,
   recentCards,
@@ -134,6 +135,62 @@ describe("card order for previous and next thread", () => {
       "running",
       "idle",
     ])
+  })
+})
+
+describe("linked child threads", () => {
+  // A root in a collapsed Project: the index drops children, so only the links know about them.
+  const collapsed = [node("root"), node("quiet")]
+  const parents = { child: "root", grandchild: "child" }
+  const linkedFrom = (active: Record<string, ThreadState>, links: Record<string, string> = parents) => {
+    const map = linkedStates(Object.keys(active), links, (id) => active[id] ?? "idle")
+    return (session: SidebarSession) => map.get(session.id) ?? []
+  }
+
+  test("a root with no loaded children takes an approving child's state", () => {
+    const cards = attentionCards(collapsed, states({}), linkedFrom({ child: "approval" }))
+    expect(cards.map((card) => [card.id, ids(card.threads)])).toEqual([
+      ["attention:needs", ["root"]],
+      ["attention:other", ["quiet"]],
+    ])
+    expect(cards[0]?.summary).toEqual({ running: 0, approvals: 1, total: 1 })
+  })
+
+  test("state rolls up from any depth and approval still wins", () => {
+    const linked = linkedFrom({ grandchild: "running", child: "approval" })
+    expect(nodeState(node("root"), states({}), linked)).toBe("approval")
+    expect(nodeState(node("root"), states({}), linkedFrom({ grandchild: "running" }))).toBe("running")
+  })
+
+  test("each hidden child counts", () => {
+    const linked = linkedFrom({ a: "approval", b: "approval", c: "running" }, { a: "root", b: "root", c: "root" })
+    expect(cardSummary([node("root")], states({}), linked)).toEqual({ running: 1, approvals: 2, total: 1 })
+  })
+
+  test("expanding a Project gives the same grouping and summary", () => {
+    const active = { child: "approval" } as const
+    const expanded = [node("root", 0, [node("child")]), node("quiet")]
+    const shape = (roots: ThreadNode[]) =>
+      attentionCards(roots, states(active), linkedFrom(active)).map((card) => [card.id, card.summary])
+    expect(shape(expanded)).toEqual(shape(collapsed))
+  })
+
+  test("a thread that is both a root and a linked child counts once in a card", () => {
+    const active = { child: "running" } as const
+    const summary = cardSummary([node("root"), node("child")], states(active), linkedFrom(active))
+    expect(summary).toEqual({ running: 1, approvals: 0, total: 2 })
+  })
+
+  test("Recent cards see linked state too", () => {
+    const [card] = recentCards([node("root", 5)], states({}), 5, linkedFrom({ child: "running" }))
+    expect(card?.summary).toEqual({ running: 1, approvals: 0, total: 1 })
+  })
+
+  test("idle threads add nothing, and a broken link loop ends", () => {
+    expect(linkedStates(["child"], parents, () => "idle").size).toBe(0)
+    const loop = linkedStates(["a"], { a: "b", b: "a" }, () => "running")
+    expect(loop.get("b")).toEqual([{ id: "a", state: "running" }])
+    expect(loop.has("a")).toBe(false)
   })
 })
 

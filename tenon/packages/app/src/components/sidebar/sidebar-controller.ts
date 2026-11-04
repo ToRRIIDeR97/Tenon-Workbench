@@ -31,6 +31,8 @@ import {
   cardSummary,
   isGroupingCard,
   lastUpdate,
+  linkedStates,
+  nodeState,
   parseGrouping,
   recentCards,
   threadState,
@@ -44,6 +46,7 @@ import {
   isWithinDirectory,
   mergeSidebarSessions,
   projectForDirectory,
+  type ThreadNode,
 } from "@/features/second-brain/sidebar-threads"
 import {
   collectNewSessionDeepLinks,
@@ -348,6 +351,17 @@ export function createSidebarController() {
     const data = serverSync().session.data
     return threadState(data.session_status[session.id], data.permission[session.id]?.length ?? 0)
   }
+  // Only expanded Projects load child threads; elsewhere a root has no child nodes. The session index's
+  // parent links still carry a child's state up to its root, with no request per folder.
+  const linkedThreads = createMemo(() => {
+    const data = serverSync().session.data
+    return linkedStates(
+      [...Object.keys(data.session_status), ...Object.keys(data.permission)],
+      homeSessions().parents(sessionIndex.data, sessionEvents.data),
+      (id) => stateOf({ id }),
+    )
+  })
+  const linked = (session: Pick<Session, "id">) => linkedThreads().get(session.id) ?? []
   /**
    * What the sidebar shows, top to bottom, in the current mode. A Project or workspace card's ID is its
    * `expanded` key. Attention and Recent mix Projects, so their roots run newest first. Cards are rebuilt on
@@ -360,12 +374,14 @@ export function createSidebarController() {
       return [
         ...value.projects.map((group) => ({ id: group.project.id, threads: group.threads })),
         { id: BRAIN_GROUP, threads: value.workspace },
-      ].map((card) => ({ ...card, summary: cardSummary(card.threads, stateOf) }))
+      ].map((card) => ({ ...card, summary: cardSummary(card.threads, stateOf, linked) }))
     }
     const roots = [...value.projects.flatMap((group) => group.threads), ...value.workspace].sort(
       (a, b) => lastUpdate(b.session) - lastUpdate(a.session),
     )
-    return mode === "attention" ? attentionCards(roots, stateOf) : recentCards(roots, stateOf, Date.now())
+    return mode === "attention"
+      ? attentionCards(roots, stateOf, linked)
+      : recentCards(roots, stateOf, Date.now(), linked)
   })
   /** Each Project's root threads by Project ID, so a row looks its threads up instead of scanning every group. */
   const projectThreads = createMemo(
@@ -854,6 +870,7 @@ export function createSidebarController() {
     grouping,
     setGrouping: (value: ThreadGrouping) => setState("grouping", value),
     stateOf,
+    subtreeState: (node: ThreadNode<Session>) => nodeState(node, stateOf, linked),
     projectThreads,
     loading: () => projectsQuery.isLoading,
     failed: () => projectsQuery.isError,

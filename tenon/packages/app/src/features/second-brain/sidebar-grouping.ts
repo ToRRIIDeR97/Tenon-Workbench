@@ -11,6 +11,10 @@ export type ThreadCard<S extends SidebarSession = SidebarSession> = {
   summary: CardSummary
 }
 
+/** A thread's state known only through parent links, because the thread itself isn't in the tree. */
+export type LinkedState = { id: string; state: ThreadState }
+type LinkedStates<S> = (session: S) => LinkedState[]
+
 /** Stored values come from disk, so anything unknown falls back to Project. */
 export function parseGrouping(value: unknown): ThreadGrouping {
   return value === "attention" || value === "recent" ? value : "project"
@@ -23,12 +27,13 @@ export function threadState(status: SessionStatus | undefined, approvals: number
   return run ? "running" : "idle"
 }
 
-/** The most urgent state in a thread's subtree. */
+/** The most urgent state in a thread's subtree, including descendants reachable only through `linked`. */
 export function nodeState<S extends SidebarSession>(
   node: ThreadNode<S>,
   stateOf: (session: S) => ThreadState,
+  linked?: LinkedStates<S>,
 ): ThreadState {
-  const states = flattenThreads([node]).map((session) => stateOf(session))
+  const states = subtreeStates([node], stateOf, linked)
   if (states.includes("approval")) return "approval"
   return states.includes("running") ? "running" : "idle"
 }
@@ -37,8 +42,9 @@ export function nodeState<S extends SidebarSession>(
 export function cardSummary<S extends SidebarSession>(
   nodes: readonly ThreadNode<S>[],
   stateOf: (session: S) => ThreadState,
+  linked?: LinkedStates<S>,
 ): CardSummary {
-  const states = flattenThreads(nodes).map((session) => stateOf(session))
+  const states = subtreeStates(nodes, stateOf, linked)
   return {
     running: states.filter((state) => state === "running").length,
     approvals: states.filter((state) => state === "approval").length,
@@ -50,8 +56,9 @@ export function cardSummary<S extends SidebarSession>(
 export function attentionCards<S extends SidebarSession>(
   roots: readonly ThreadNode<S>[],
   stateOf: (session: S) => ThreadState,
+  linked?: LinkedStates<S>,
 ): ThreadCard<S>[] {
-  const inState = (state: ThreadState) => roots.filter((node) => nodeState(node, stateOf) === state)
+  const inState = (state: ThreadState) => roots.filter((node) => nodeState(node, stateOf, linked) === state)
   return nonEmptyCards(
     [
       ["attention:needs", inState("approval")],
@@ -59,6 +66,7 @@ export function attentionCards<S extends SidebarSession>(
       ["attention:other", inState("idle")],
     ],
     stateOf,
+    linked,
   )
 }
 
@@ -67,6 +75,7 @@ export function recentCards<S extends SidebarSession>(
   roots: readonly ThreadNode<S>[],
   stateOf: (session: S) => ThreadState,
   now: number,
+  linked?: LinkedStates<S>,
 ): ThreadCard<S>[] {
   const date = new Date(now)
   // Built from calendar fields so a daylight saving change can't move the day boundaries.
@@ -80,7 +89,30 @@ export function recentCards<S extends SidebarSession>(
       ["recent:earlier", roots.filter((node) => updated(node) < yesterday)],
     ],
     stateOf,
+    linked,
   )
+}
+
+/**
+ * Every working thread listed under each of its ancestors, by following child-to-parent links. Idle threads
+ * are skipped, so the cost follows what's running rather than how many threads exist.
+ */
+export function linkedStates(
+  ids: Iterable<string>,
+  parents: Record<string, string>,
+  stateOf: (id: string) => ThreadState,
+) {
+  const result = new Map<string, LinkedState[]>()
+  for (const id of new Set(ids)) {
+    const state = stateOf(id)
+    if (state === "idle") continue
+    const seen = new Set([id])
+    for (let parent = parents[id]; parent && !seen.has(parent); parent = parents[parent]) {
+      seen.add(parent)
+      result.set(parent, [...(result.get(parent) ?? []), { id, state }])
+    }
+  }
+  return result
 }
 
 export const lastUpdate = (session: SidebarSession) => session.time.updated ?? session.time.created
@@ -88,11 +120,29 @@ export const lastUpdate = (session: SidebarSession) => session.time.updated ?? s
 /** Attention and Recent cards open by default; Project and workspace groups keep their own default. */
 export const isGroupingCard = (id: string) => /^(attention|recent):/.test(id)
 
+/** A loaded thread counts once however it's reached, so expanding a Project can't change the result. */
+function subtreeStates<S extends SidebarSession>(
+  nodes: readonly ThreadNode<S>[],
+  stateOf: (session: S) => ThreadState,
+  linked?: LinkedStates<S>,
+) {
+  const loaded = flattenThreads(nodes)
+  const ids = new Set(loaded.map((session) => session.id))
+  const unloaded = new Map(
+    nodes
+      .flatMap((node) => linked?.(node.session) ?? [])
+      .filter((item) => !ids.has(item.id))
+      .map((item) => [item.id, item.state] as const),
+  )
+  return [...loaded.map((session) => stateOf(session)), ...unloaded.values()]
+}
+
 function nonEmptyCards<S extends SidebarSession>(
   buckets: [id: string, threads: ThreadNode<S>[]][],
   stateOf: (session: S) => ThreadState,
+  linked?: LinkedStates<S>,
 ): ThreadCard<S>[] {
   return buckets
     .filter(([, threads]) => threads.length > 0)
-    .map(([id, threads]) => ({ id, threads, summary: cardSummary(threads, stateOf) }))
+    .map(([id, threads]) => ({ id, threads, summary: cardSummary(threads, stateOf, linked) }))
 }

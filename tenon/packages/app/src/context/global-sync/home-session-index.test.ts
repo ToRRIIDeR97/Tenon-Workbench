@@ -1,12 +1,18 @@
 import { describe, expect, test } from "bun:test"
-import type { SessionV2Info } from "@opencode-ai/sdk/v2/client"
+import type { Session, SessionV2Info } from "@opencode-ai/sdk/v2/client"
+import { QueryClient } from "@tanstack/solid-query"
 import {
   applyHomeSessionEvent,
   appendHomeSessionEvent,
+  createHomeSessionIndexCache,
   HOME_V2_SESSION_PAGE_LIMIT,
+  type HomeSessionEvent,
+  type HomeSessionEvents,
+  type HomeSessionIndex,
   loadHomeSessionIndex,
   homeSessionIndexQueryOptions,
   homeSessionIndexSessions,
+  homeSessionIndexParents,
   homeSessionIndexRefresh,
   parseHomeSessionIndex,
   retainHomeSessions,
@@ -28,6 +34,78 @@ const session = (input: {
   time: { created: 1, updated: input.updated ?? 1, archived: input.archived },
   title: input.id,
   location: { directory: input.directory ?? "/project" },
+})
+
+describe("Home session parent links", () => {
+  const event = (type: "session.created" | "session.updated" | "session.deleted", info: Session, sequence: number) => ({
+    sequence,
+    event: { type, properties: { sessionID: info.id, info } } satisfies HomeSessionEvent,
+  })
+  const legacy = (id: string, parentID?: string, archived?: number) =>
+    ({ id, parentID, directory: "/project", time: { created: 1, updated: 1, archived } }) as unknown as Session
+
+  test("loading keeps the links while Home's root list stays roots only", async () => {
+    const index = await loadHomeSessionIndex(async () => ({
+      data: {
+        data: [
+          session({ id: "root" }),
+          session({ id: "child", parentID: "root" }),
+          session({ id: "grandchild", parentID: "child" }),
+          session({ id: "gone", parentID: "root", archived: 5 }),
+        ],
+        cursor: {},
+      },
+    }))
+
+    expect(index.sessions.map((item) => item.id)).toEqual(["root"])
+    expect(index.parents).toEqual({ child: "root", grandchild: "child" })
+  })
+
+  test("live events add and drop links without touching the root list", () => {
+    const root = legacy("root")
+    const index = { sessions: [root], eventSequence: 0, parents: { old: "root", tidy: "root" } }
+    const events = {
+      sequence: 3,
+      entries: [
+        event("session.created", legacy("new", "root"), 1),
+        event("session.deleted", legacy("old", "root"), 2),
+        event("session.updated", legacy("tidy", "root", 9), 3),
+      ],
+    }
+
+    expect(homeSessionIndexParents(index, events)).toEqual({ new: "root" })
+    expect(homeSessionIndexSessions(index, events)).toEqual([root])
+  })
+
+  test("an update to a known child keeps the same object", () => {
+    const parents = { child: "root" }
+    const events = { sequence: 1, entries: [event("session.updated", legacy("child", "root"), 1)] }
+    expect(homeSessionIndexParents({ sessions: [], eventSequence: 0, parents }, events)).toBe(parents)
+  })
+
+  test("an index without links, or no index, has none", () => {
+    expect(homeSessionIndexParents({ sessions: [], eventSequence: 0 }, undefined)).toEqual({})
+    expect(homeSessionIndexParents(undefined, undefined)).toEqual({})
+  })
+
+  test("the cache keeps links when it folds events into the index", () => {
+    const queryClient = new QueryClient()
+    const cache = createHomeSessionIndexCache(queryClient, "server")
+    queryClient.setQueryData<HomeSessionIndex>(cache.indexKey, {
+      sessions: [],
+      eventSequence: 0,
+      parents: { a: "root" },
+    })
+
+    cache.apply(event("session.created", legacy("b", "root"), 1).event)
+
+    const index = queryClient.getQueryData<HomeSessionIndex>(cache.indexKey)
+    expect(cache.parents(index, queryClient.getQueryData<HomeSessionEvents>(cache.eventsKey))).toEqual({
+      a: "root",
+      b: "root",
+    })
+    expect(index?.sessions).toEqual([])
+  })
 })
 
 describe("Home V2 session index", () => {
