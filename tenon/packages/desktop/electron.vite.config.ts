@@ -95,7 +95,10 @@ const require = __cjs_mod__.createRequire(import.meta.url);
     plugins: [appPlugin, sentry],
     publicDir: "../../../app/public",
     root: "src/renderer",
+    // Release builds upload no maps, so keepNames is what leaves logged renderer stacks readable.
+    esbuild: { keepNames: true },
     build: {
+      minify: "esbuild",
       // Hidden maps stay available for Sentry upload but carry no
       // sourceMappingURL; electron-builder also leaves *.map out of the asar.
       sourcemap: "hidden",

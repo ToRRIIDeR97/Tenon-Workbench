@@ -15,7 +15,6 @@ import { useServerSDK } from "@/context/server-sdk"
 import { useDrafts } from "@/context/drafts"
 import { useCommand } from "@/context/command"
 import { useDialog } from "@tenon/ui/context/dialog"
-import { DialogHarnessSetup } from "@/components/settings-v2/harness-setup"
 import { PageEmpty, PageFrame, PageSection, pageRowClass } from "@/components/page"
 import { localDateKey } from "@/features/second-brain/calendar-domain"
 import { createCalendarResource } from "@/features/second-brain/calendar-cache"
@@ -83,6 +82,7 @@ export default function BrainHomePage() {
       .then(async (statuses) => {
         if (statuses.every((item) => item.installed && item.auth !== "signed-out")) return
         const target = await harnessAssistantDirectory(harnessServer, "")
+        const { DialogHarnessSetup } = await import("@/components/settings-v2/harness-setup")
         void dialog.show(() => <DialogHarnessSetup directory={target} />)
       })
       .catch(() => undefined)
