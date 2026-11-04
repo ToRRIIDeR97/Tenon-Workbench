@@ -189,13 +189,13 @@ describe("second brain errors and recovery HttpApi", () => {
     Effect.gen(function* () {
       const test = yield* TestInstance
       const headers = { "x-opencode-directory": test.directory, "content-type": "application/json" }
-      const rejected = yield* request("/second-brain/note?path=outside.md", {
-        method: "PUT",
+      const rejected = yield* request("/second-brain/projects/link", {
+        method: "POST",
         headers,
-        body: JSON.stringify({ body: "x", create: true }),
+        body: JSON.stringify({ folder: "relative/folder" }),
       })
       expect(rejected.status).toBe(400)
-      expect(yield* rejected.json).toEqual({ name: "SecondBrainInvalidError", data: { message: "invalid_path" } })
+      expect(yield* rejected.json).toEqual({ name: "SecondBrainInvalidError", data: { message: "invalid_folder" } })
 
       yield* Effect.promise(() => mkdir(path.join(test.directory, "projects"), { recursive: true }))
       yield* Effect.promise(() => writeFile(path.join(test.directory, "projects", "README.md"), "# Projects\n"))

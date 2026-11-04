@@ -34,6 +34,7 @@ type PluralKey =
   | "session.question.pending"
   | "session.followupDock.summary"
   | "session.revertDock.summary"
+  | "secondBrain.calendar.moreOnDate"
   | "secondBrain.sessionTab.messages"
   | "secondBrain.sidebar.cardRunning"
   | "secondBrain.turnSteps.failed"

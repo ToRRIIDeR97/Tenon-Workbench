@@ -53,7 +53,7 @@ export const PtyHandler = HttpApiBuilder.group(Api, "server.pty", (handlers) =>
             }),
           ).pipe(
             Effect.catchTag("Pty.SpawnError", (error) =>
-              Effect.fail(new InvalidRequestError({ message: error.message, field: "command" })),
+              Effect.fail(new InvalidRequestError({ message: error.message, field: error.field })),
             ),
           )
         }),
@@ -187,7 +187,10 @@ export const PtyHandler = HttpApiBuilder.group(Api, "server.pty", (handlers) =>
             const admitted = budget.admit(chunk)
             if (admitted === "send") Queue.offerUnsafe(outbox, chunk)
             else if (admitted === "close")
-              Queue.offerUnsafe(outbox, new Socket.CloseEvent(PtyProtocol.TOO_SLOW_CLOSE.code, PtyProtocol.TOO_SLOW_CLOSE.reason))
+              Queue.offerUnsafe(
+                outbox,
+                new Socket.CloseEvent(PtyProtocol.TOO_SLOW_CLOSE.code, PtyProtocol.TOO_SLOW_CLOSE.reason),
+              )
           }
           const attachment = yield* pty
             .attach(ctx.params.ptyID, {

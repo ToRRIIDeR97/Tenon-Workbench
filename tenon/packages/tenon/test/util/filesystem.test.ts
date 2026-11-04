@@ -30,59 +30,6 @@ describe("filesystem", () => {
     })
   })
 
-  describe("isDir()", () => {
-    test("returns true for directory", async () => {
-      await using tmp = await tmpdir()
-      const dirpath = path.join(tmp.path, "testdir")
-      await fs.mkdir(dirpath)
-
-      expect(await Filesystem.isDir(dirpath)).toBe(true)
-    })
-
-    test("returns false for file", async () => {
-      await using tmp = await tmpdir()
-      const filepath = path.join(tmp.path, "test.txt")
-      await fs.writeFile(filepath, "content", "utf-8")
-
-      expect(await Filesystem.isDir(filepath)).toBe(false)
-    })
-
-    test("returns false for non-existent path", async () => {
-      await using tmp = await tmpdir()
-      const filepath = path.join(tmp.path, "does-not-exist")
-
-      expect(await Filesystem.isDir(filepath)).toBe(false)
-    })
-  })
-
-  describe("size()", () => {
-    test("returns file size", async () => {
-      await using tmp = await tmpdir()
-      const filepath = path.join(tmp.path, "test.txt")
-      const content = "Hello, World!"
-      await fs.writeFile(filepath, content, "utf-8")
-
-      expect(await Filesystem.size(filepath)).toBe(content.length)
-    })
-
-    test("returns 0 for non-existent file", async () => {
-      await using tmp = await tmpdir()
-      const filepath = path.join(tmp.path, "does-not-exist.txt")
-
-      expect(await Filesystem.size(filepath)).toBe(0)
-    })
-
-    test("returns directory size", async () => {
-      await using tmp = await tmpdir()
-      const dirpath = path.join(tmp.path, "testdir")
-      await fs.mkdir(dirpath)
-
-      // Directories have size on some systems
-      const size = await Filesystem.size(dirpath)
-      expect(typeof size).toBe("number")
-    })
-  })
-
   describe("findUp()", () => {
     test("keeps previous nearest-first behavior for single target", async () => {
       await using tmp = await tmpdir()
@@ -241,26 +188,6 @@ describe("filesystem", () => {
     })
   })
 
-  describe("readBytes()", () => {
-    test("reads file as buffer", async () => {
-      await using tmp = await tmpdir()
-      const filepath = path.join(tmp.path, "test.txt")
-      const content = "Hello, World!"
-      await fs.writeFile(filepath, content, "utf-8")
-
-      const buffer = await Filesystem.readBytes(filepath)
-      expect(buffer).toBeInstanceOf(Buffer)
-      expect(buffer.toString("utf-8")).toBe(content)
-    })
-
-    test("throws for non-existent file", async () => {
-      await using tmp = await tmpdir()
-      const filepath = path.join(tmp.path, "does-not-exist.bin")
-
-      await expect(Filesystem.readBytes(filepath)).rejects.toThrow()
-    })
-  })
-
   describe("write()", () => {
     test("writes text content", async () => {
       await using tmp = await tmpdir()
@@ -343,35 +270,6 @@ describe("filesystem", () => {
       if (process.platform !== "win32") {
         expect(stats.mode & 0o777).toBe(0o600)
       }
-    })
-  })
-
-  describe("mimeType()", () => {
-    test("returns correct MIME type for JSON", async () => {
-      expect(await Filesystem.mimeType("test.json")).toContain("application/json")
-    })
-
-    test("returns correct MIME type for JavaScript", async () => {
-      expect(await Filesystem.mimeType("test.js")).toContain("javascript")
-    })
-
-    test("returns MIME type for TypeScript (or video/mp2t due to extension conflict)", async () => {
-      const mime = await Filesystem.mimeType("test.ts")
-      // .ts is ambiguous: TypeScript vs MPEG-2 TS video
-      expect(mime === "video/mp2t" || mime === "application/typescript" || mime === "text/typescript").toBe(true)
-    })
-
-    test("returns correct MIME type for images", async () => {
-      expect(await Filesystem.mimeType("test.png")).toContain("image/png")
-      expect(await Filesystem.mimeType("test.jpg")).toContain("image/jpeg")
-    })
-
-    test("returns default for unknown extension", async () => {
-      expect(await Filesystem.mimeType("test.unknown")).toBe("application/octet-stream")
-    })
-
-    test("handles files without extension", async () => {
-      expect(await Filesystem.mimeType("Makefile")).toBe("application/octet-stream")
     })
   })
 

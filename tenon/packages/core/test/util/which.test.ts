@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import fs from "fs/promises"
 import path from "path"
-import { which } from "@tenon/core/util/which"
+import { resolveWin32, spawnTarget, which } from "@tenon/core/util/which"
 import { tmpdir } from "../fixture/tmpdir"
 
 async function cmd(dir: string, name: string, exec = true) {
@@ -96,5 +96,35 @@ describe("util.which", () => {
     const file = await cmd(bin, "mixed")
 
     same(which("mixed", envPath(bin)), file)
+  })
+})
+
+describe("util.which resolveWin32", () => {
+  const env = { Path: 'C:\\tools;.;relative\\bin;"C:\\Program Files\\Git\\cmd"', PATHEXT: ".exe;.cmd" }
+
+  test("takes bare names from PATH entries in PATHEXT order, never relative entries", () => {
+    const files = new Set(["C:\\Program Files\\Git\\cmd\\git.cmd", ".\\git.exe", "relative\\bin\\git.exe"])
+    expect(resolveWin32("git", env, (file) => files.has(file))).toBe("C:\\Program Files\\Git\\cmd\\git.cmd")
+  })
+
+  test("keeps a name that already has an extension", () => {
+    const files = new Set(["C:\\tools\\tool.exe"])
+    expect(resolveWin32("tool.exe", env, (file) => files.has(file))).toBe("C:\\tools\\tool.exe")
+  })
+
+  test("returns null rather than the bare name when PATH has no match", () => {
+    expect(resolveWin32("git", env, () => false)).toBeNull()
+  })
+})
+
+describe("util.which spawnTarget", () => {
+  test("passes explicit paths through", () => {
+    expect(spawnTarget("./tool.cmd")).toBe("./tool.cmd")
+    expect(spawnTarget("C:\\tools\\tool.exe")).toBe("C:\\tools\\tool.exe")
+  })
+
+  test("resolves bare names on Windows only", () => {
+    const missing = "opencode-missing-command-for-test"
+    expect(spawnTarget(missing)).toBe(process.platform === "win32" ? null : missing)
   })
 })

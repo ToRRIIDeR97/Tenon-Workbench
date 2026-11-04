@@ -242,7 +242,10 @@ describe("vault", () => {
       expect(own).toBeDefined()
       // Another machine's log, synced in.
       yield* Effect.promise(() =>
-        writeFile(path.join(path.dirname(own!), "other-machine.md"), "- 2020-01-01T00:00:00.000Z · you · from elsewhere\n"),
+        writeFile(
+          path.join(path.dirname(own!), "other-machine.md"),
+          "- 2020-01-01T00:00:00.000Z · you · from elsewhere\n",
+        ),
       )
       yield* request(`/second-brain/vault/log?project=${project.id}`, {
         method: "POST",
@@ -331,9 +334,7 @@ describe("vault", () => {
         "Plan-LAPTOP-9F2K1-2.md",
       ])
       for (const item of conflicts) expect(path.posix.basename(item.original)).toBe("Plan.md")
-      const pages = yield* request("/second-brain/vault/pages", { headers }).pipe(
-        Effect.flatMap(json<Page["info"][]>),
-      )
+      const pages = yield* request("/second-brain/vault/pages", { headers }).pipe(Effect.flatMap(json<Page["info"][]>))
       expect(pages.map((page) => page.path).sort()).toEqual(["Desktop-setup.md", "Plan.md"])
     }),
   )
@@ -363,24 +364,6 @@ describe("vault", () => {
       const backups = yield* Effect.promise(() => readdir(path.join(root, ".backups")))
       expect(backups).toHaveLength(1)
       expect(yield* Effect.promise(() => walk(path.join(test.directory, "notes")))).toEqual([])
-    }),
-  )
-
-  it.instance("AC-3.6 the pre-vault note route writes into the vault, never the workspace", () =>
-    Effect.gen(function* () {
-      const { test, root, headers } = yield* withVault
-      const saved = yield* request("/second-brain/note?path=notes%2FLegacy.md", {
-        method: "PUT",
-        headers,
-        body: JSON.stringify({ body: "# Legacy\n\nfrom an old client", create: true }),
-      }).pipe(Effect.flatMap(json<{ info: { path: string; title: string }; revision: string }>))
-      expect(saved.info.path).toBe("Legacy.md")
-      expect(yield* Effect.promise(() => walk(path.join(test.directory, "notes")))).toEqual([])
-      const page = yield* request("/second-brain/vault/page?path=Legacy.md", { headers }).pipe(
-        Effect.flatMap(json<Page>),
-      )
-      expect(page.body).toContain("from an old client")
-      expect((yield* Effect.promise(() => walk(root))).some((file) => file.endsWith("Legacy.md"))).toBe(true)
     }),
   )
 

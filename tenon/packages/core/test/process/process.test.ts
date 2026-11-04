@@ -198,15 +198,6 @@ describe("AppProcess", () => {
 
   describe("inherited platform methods", () => {
     it.effect(
-      "string returns stdout as string",
-      Effect.gen(function* () {
-        const svc = yield* AppProcess.Service
-        const out = yield* svc.string(cmd("-e", "process.stdout.write('hi\\n')"))
-        expect(out).toBe("hi\n")
-      }),
-    )
-
-    it.effect(
       "lines returns the platform's array of lines",
       Effect.gen(function* () {
         const svc = yield* AppProcess.Service

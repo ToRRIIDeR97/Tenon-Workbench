@@ -3,6 +3,8 @@ import { Effect, Layer, Context, Schema } from "effect"
 import { SessionV1 } from "@tenon/core/v1/session"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { Snapshot } from "@/snapshot"
+import { Database } from "@tenon/core/database/database"
+import { MessageV2 } from "./message-v2"
 import { Session } from "./session"
 import { SessionID, MessageID } from "./schema"
 import { Config } from "@/config/config"
@@ -75,6 +77,7 @@ const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
     const sessions = yield* Session.Service
+    const database = yield* Database.Service
     const snapshot = yield* Snapshot.Service
     const events = yield* EventV2Bridge.Service
     const config = yield* Config.Service
@@ -113,10 +116,12 @@ const layer = Layer.effect(
       })
       yield* events.publish(Session.Event.Diff, { sessionID: input.sessionID, diff: [] })
       if ((yield* config.get()).snapshot === false) return
-      const all = yield* sessions.messages({ sessionID: input.sessionID }).pipe(Effect.orDie)
-      if (!all.length) return
+      const recent = yield* MessageV2.fromMessage(input).pipe(
+        Effect.provideService(Database.Service, database),
+        Effect.orDie,
+      )
 
-      const messages = all.filter(
+      const messages = recent.filter(
         (m) => m.info.id === input.messageID || (m.info.role === "assistant" && m.info.parentID === input.messageID),
       )
       const target = messages.find((m) => m.info.id === input.messageID)
@@ -128,8 +133,9 @@ const layer = Layer.effect(
 
     const diff = Effect.fn("SessionSummary.diff")(function* (input: { sessionID: SessionID; messageID?: MessageID }) {
       if (!input.messageID) return []
-      const message = (yield* sessions.messages({ sessionID: input.sessionID }).pipe(Effect.orDie)).find(
-        (item) => item.info.id === input.messageID,
+      const message = yield* MessageV2.get({ sessionID: input.sessionID, messageID: input.messageID }).pipe(
+        Effect.provideService(Database.Service, database),
+        Effect.catchTag("NotFoundError", () => Effect.succeed(undefined)),
       )
       if (!message || message.info.role !== "user") return []
       const diffs = message.info.summary?.diffs ?? []
@@ -154,7 +160,7 @@ export type DiffInput = Schema.Schema.Type<typeof DiffInput>
 export const node = LayerNode.make({
   service: Service,
   layer: layer,
-  deps: [Session.node, Snapshot.node, EventV2Bridge.node, Config.node],
+  deps: [Session.node, Database.node, Snapshot.node, EventV2Bridge.node, Config.node],
 })
 
 export * as SessionSummary from "./summary"

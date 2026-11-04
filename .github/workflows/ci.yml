@@ -26,6 +26,7 @@ jobs:
         working-directory: tenon
       - run: bun run typecheck
       - run: bun run lint
+      - run: bun run format:check
       - run: bun run check:generated
       - run: bun run test
       - if: runner.os == 'Linux'

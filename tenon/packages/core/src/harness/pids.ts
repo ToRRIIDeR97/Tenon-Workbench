@@ -56,10 +56,14 @@ export async function reap(
   return ended
 }
 
-/** Reaps the ledger left by a previous run and clears it. Windows is skipped: harnesses aren't detached there. */
+/**
+ * Reaps the ledger left by a previous run and clears it. Windows only clears it: harnesses aren't detached there, and
+ * when the server is killed outright, Codex, OpenCode and Claude Code's adapter all exit on their closed stdin (checked
+ * against each CLI). A tool one of them started can outlive it, but nothing can reach that once its parent is gone.
+ */
 export const reapLedger = Effect.promise(async () => {
   const directory = ledger
-  if (!directory || reaped || process.platform === "win32") return []
+  if (!directory || reaped) return []
   reaped = true
   const names = await fs.readdir(directory).catch(() => [] as string[])
   const entries = (
@@ -77,7 +81,8 @@ export const reapLedger = Effect.promise(async () => {
     .filter((entry): entry is Entry => !!entry && Number.isInteger(entry.pid) && typeof entry.command === "string")
     // This server's own harnesses are live; only those left by an earlier run are candidates.
     .filter((entry) => entry.owner !== process.pid)
-  const ended = await reap(entries, commandOf, (pid) => {
+  const running = process.platform === "win32" ? async () => false : commandOf
+  const ended = await reap(entries, running, (pid) => {
     // The PID leads its own process group, so the negative PID stops the harness and everything it started.
     // A process that exited in the meantime throws ESRCH; there is nothing left to end then.
     for (const target of [-pid, pid]) {

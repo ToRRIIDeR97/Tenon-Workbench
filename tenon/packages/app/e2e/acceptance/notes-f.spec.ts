@@ -79,7 +79,11 @@ async function mockVault(page: Page, options: { conflicts?: unknown[]; conflictO
       writes.push({ method: "PUT", path: url.searchParams.get("path")!, body })
       if (options.conflictOnSave && !body.create) return json({ data: { message: "conflict" } }, 409)
       const path = url.searchParams.get("path")!
-      return json({ info: info(path, body.title ?? "Untitled", body.projectId ?? null), body: body.body, revision: "r2" })
+      return json({
+        info: info(path, body.title ?? "Untitled", body.projectId ?? null),
+        body: body.body,
+        revision: "r2",
+      })
     }
     if (url.pathname === "/second-brain/vault/timeline" && request.method() === "PUT") {
       const body = request.postDataJSON()
@@ -138,11 +142,16 @@ test("AC-4.3 the sections show the Project's tasks, timeline, pages and log", as
   const pagesSection = page.getByRole("region", { name: "Pages" })
   await expect(pagesSection.getByRole("link", { name: /Auth redesign/ })).toBeVisible()
   await expect(pagesSection.getByRole("link", { name: /Billing notes/ })).toBeVisible()
-  const texts = await page.getByRole("region", { name: "Log" }).getByText(/Token rotation finished|Moved Billing webhooks/).allTextContents()
+  const texts = await page
+    .getByRole("region", { name: "Log" })
+    .getByText(/Token rotation finished|Moved Billing webhooks/)
+    .allTextContents()
   expect(texts[0]).toContain("Token rotation finished")
 })
 
-test("AC-4.3 a task is added from the task line with a date, and its status changes from its pill", async ({ page }) => {
+test("AC-4.3 a task is added from the task line with a date, and its status changes from its pill", async ({
+  page,
+}) => {
   const writes = await open(page)
   await page.goto(`/projects?project=${project.project.id}`)
   await page.getByRole("button", { name: "Due date", exact: true }).click()
@@ -158,7 +167,9 @@ test("AC-4.3 a task is added from the task line with a date, and its status chan
   await page.getByRole("button", { name: "Status of Billing webhooks", exact: true }).click()
   await page.getByRole("menuitemradio", { name: "Doing" }).click()
   await expect.poll(() => writes.filter((write) => write.path === "timeline").length).toBe(2)
-  const changed = (writes[1].body as { items: { id: string; status: string }[] }).items.find((item) => item.id === "hooks")
+  const changed = (writes[1].body as { items: { id: string; status: string }[] }).items.find(
+    (item) => item.id === "hooks",
+  )
   expect(changed?.status).toBe("doing")
   await expect(page.locator("main select, main input[type=date]")).toHaveCount(0)
 })
@@ -166,7 +177,10 @@ test("AC-4.3 a task is added from the task line with a date, and its status chan
 test("AC-4.4 a page opens full width and Back returns to the Project", async ({ page }) => {
   await open(page)
   await page.goto(`/projects?project=${project.project.id}`)
-  await page.getByRole("region", { name: "Pages" }).getByRole("link", { name: /Billing notes/ }).click()
+  await page
+    .getByRole("region", { name: "Pages" })
+    .getByRole("link", { name: /Billing notes/ })
+    .click()
   await expect(page).toHaveURL(/page=/)
   await expect(page.getByRole("heading", { name: "Billing notes" }).first()).toBeVisible()
   await page.goBack()

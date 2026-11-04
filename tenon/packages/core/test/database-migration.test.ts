@@ -88,7 +88,6 @@ describe("DatabaseMigration", () => {
           ),
         ).toEqual([
           { name: "event_aggregate_seq_idx" },
-          { name: "event_aggregate_type_seq_idx" },
           { name: "session_input_session_admitted_seq_idx" },
           { name: "session_input_session_pending_delivery_seq_idx" },
           { name: "session_input_session_promoted_seq_idx" },

@@ -1,5 +1,15 @@
 import { randomUUID } from "node:crypto"
-import { cpSync, existsSync, mkdirSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs"
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  realpathSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs"
 import { basename, dirname, join, relative, sep } from "node:path"
 
 /** Written last in the new userData folder, so an interrupted copy is resumed on the next start. */

@@ -358,6 +358,69 @@ export function pruneOutbox<T extends { state: OutboxState }>(entries: T[], limi
   return entries.filter((entry) => !drop.has(entry))
 }
 
+type OutboxWriteKind = "create" | "update" | "delete"
+
+/**
+ * Folds a newer write into an unfinished operation under the same idempotency key, so the user can
+ * keep editing an item that is queued or failed. The Google ID and etag stay those of the original
+ * operation: a new etag would hide a conflict. A create stays a create, and a queued delete gives
+ * way to an edit. Undefined means the operation can be dropped: it deletes a create that Google has
+ * no record of. `reached` is true when the operation began as a create that an earlier attempt may
+ * have got to Google, so it is then deleted by its ID, and an edit of that delete goes back to a
+ * create; tasks have no ID until Google assigns one and always pass false. `overwrite` is the user
+ * choosing their version over Google's in a conflict, so the etag goes.
+ */
+export function mergeQueuedWrite<T extends { providerId: string; etag?: string }>(
+  queued: { kind: OutboxWriteKind; item: T; reached: boolean },
+  next: { kind: OutboxWriteKind; item: T; overwrite?: boolean },
+) {
+  const { etag: _etag, ...fields } = next.item
+  const item = {
+    ...fields,
+    providerId: queued.item.providerId,
+    ...(queued.item.etag && !next.overwrite ? { etag: queued.item.etag } : {}),
+  } as T
+  if (next.kind !== "delete") {
+    const restored = queued.reached ? ("create" as const) : ("update" as const)
+    return { kind: queued.kind === "delete" ? restored : queued.kind, item }
+  }
+  if (queued.kind === "create" && !queued.reached) return undefined
+  return { kind: "delete" as const, item }
+}
+
+/**
+ * What Google holds after a finished write, when a new write under the same key still edits that
+ * item: the planner row stayed queued because the page has not heard of the finish yet. Undefined
+ * is a real key collision: a finished delete, or another item.
+ */
+export function finishedWriteTarget<T extends { accountId: string; providerId: string; taskListId?: string }>(
+  result: T | null | undefined,
+  next: T,
+) {
+  if (!result || result.accountId !== next.accountId || result.taskListId !== next.taskListId) return undefined
+  return next.providerId === result.providerId || next.providerId.startsWith("pending:") ? result : undefined
+}
+
+/** The keys of finished writes, which sync reports so the planner stops showing them as queued. */
+export function settledWrites(
+  operations: ReadonlyArray<{
+    state: OutboxState
+    input: { idempotencyKey: string }
+    result?: { providerId: string } | null
+  }>,
+) {
+  return operations.flatMap((operation) =>
+    operation.state === "succeeded"
+      ? [
+          {
+            idempotencyKey: operation.input.idempotencyKey,
+            ...(operation.result ? { providerId: operation.result.providerId } : {}),
+          },
+        ]
+      : [],
+  )
+}
+
 type GoogleErrorBody = {
   error?: {
     status?: string

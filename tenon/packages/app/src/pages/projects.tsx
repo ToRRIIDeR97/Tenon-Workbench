@@ -4,7 +4,7 @@ import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { RevealShow } from "@tenon/ui/v2/reveal"
 import { debounce } from "@solid-primitives/scheduled"
-import { createEffect, createMemo, createResource, For, on, Show } from "solid-js"
+import { createEffect, createMemo, createResource, For, on, onCleanup, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useCommand } from "@/context/command"
 import { useDrafts } from "@/context/drafts"
@@ -17,9 +17,9 @@ import { useServerSync } from "@/context/server-sync"
 import {
   listVaultConflicts,
   listVaultPages,
-  migrateVault,
   readProjectLog,
   readTimeline,
+  removeVaultPage,
   SecondBrainRequestError,
   writeTimeline,
   writeVaultPage,
@@ -28,12 +28,16 @@ import {
   type VaultPageInfo,
 } from "@/features/second-brain/client"
 import { NotesPageView } from "@/features/second-brain/notes-page"
-import { newPagePath } from "@/features/second-brain/notes-timeline"
+import { matchProjects, newPagePath } from "@/features/second-brain/notes-timeline"
 import { ProjectCreate, ProjectDetails, projectWorkPrompt } from "@/features/second-brain/project-details"
 import { ProjectView, sectionFromTab } from "@/features/second-brain/project-view"
 import { PageEmpty, pagePanelClass, pageRowClass } from "@/components/page"
 import { useBrainProjects } from "@/components/sidebar/sidebar-controller"
+import { useVaultPages, vaultMigration } from "@/features/second-brain/vault-pages"
+import { settled } from "@/utils/resource"
 import { sessionHref } from "@/utils/session-route"
+import { dismissToast, showToast } from "@/utils/toast"
+import { createUndoQueue } from "@/utils/undo-action"
 
 /**
  * Projects: every Project and page in the Tenon vault. URL contract: `/projects` (the landing: Projects, Archived,
@@ -75,6 +79,8 @@ export default function ProjectsPage() {
     /** The debounced search the server runs. */
     query: "",
     archivedOpen: false,
+    /** Pages whose delete waits for its Undo window to close, by `pageKey`. */
+    deleting: {} as Record<string, boolean>,
   })
   const directory = () => state.directory
   const client = (target: string) => ({
@@ -93,20 +99,20 @@ export default function ProjectsPage() {
     setState({ directory: next, error: "", moved: 0, search: "", query: "" })
   })
 
-  // The first visit to a workspace moves its pre-vault notes in, then lists the vault.
-  const [pages, pagesActions] = createResource(
-    () => directory() || undefined,
-    async (target) => {
-      const moved = await migrateOnce(client(target), target)
-      if (moved > 0 && target === state.directory) setState("moved", moved)
-      return listVaultPages(client(target))
-    },
-  )
+  // The first read of a workspace's vault moves its pre-vault notes in.
+  const vault = useVaultPages(() => directory() || undefined)
+  // Taken once, or a revisit within the cache's life would show the notice again.
+  createEffect(() => {
+    const moved = vault.moved()
+    if (moved <= 0) return
+    setState("moved", moved)
+    vault.clearMoved()
+  })
   // Waits for the move above, which the server would otherwise make (and report) on this first vault read.
   const [conflicts] = createResource(
     () => directory() || undefined,
     async (target) => {
-      await migrating.get(target)
+      await vaultMigration(target)
       return listVaultConflicts(client(target)).catch(() => [])
     },
   )
@@ -125,14 +131,28 @@ export default function ProjectsPage() {
     () => (directory() && state.query ? ([directory(), state.query] as const) : undefined),
     ([target, query]) => listVaultPages(client(target), { search: query }),
   )
-  const pageList = () => (pages.error ? [] : (pages.latest ?? []))
+  const pageKey = (target: string, path: string) => `${target}
+${path}`
+  const visible = (page: VaultPageInfo) => !state.deleting[pageKey(directory(), page.path)]
+  const pageList = () => (vault.pages() ?? []).filter(visible)
+  const foundPages = () => (settled(matches) ?? []).filter(visible)
+  const foundProjects = () => matchProjects(projects(), state.query)
   const projects = () => (held() ? [] : (brainProjects.list() ?? []))
   const known = createMemo(() => new Set(projects().map((item) => item.id)))
   // Pages tied to no Project this workspace lists.
   const generalPages = () => pageList().filter((page) => !page.projectId || !known().has(page.projectId))
   // The vault refuses to live inside a workspace or Project folder; say so instead of a generic failure.
-  const misplaced = () =>
-    pages.error instanceof SecondBrainRequestError && pages.error.reason === "vault_inside_workspace"
+  const misplaced = () => {
+    const error = vault.error()
+    return error instanceof SecondBrainRequestError && error.reason === "vault_inside_workspace"
+  }
+  // A file the vault needs could not be read (a sync lock, an offline placeholder); `reason` names it.
+  const unreadable = () => {
+    const error = vault.error()
+    return error instanceof SecondBrainRequestError && error.reason?.startsWith("vault_unavailable: ")
+      ? error.reason.slice("vault_unavailable: ".length)
+      : undefined
+  }
 
   const pagePath = () => search.page ?? search.note ?? ""
   const projectId = () => (pagePath() ? "" : (search.project ?? ""))
@@ -146,7 +166,7 @@ export default function ProjectsPage() {
   // Saves the Project's items over the revision on screen; a stale save reloads the timeline instead.
   const saveItems = async (items: ReadonlyArray<TimelineItem>) => {
     const key = projectKey()
-    const current = timeline.error ? undefined : timeline.latest
+    const current = settled(timeline)
     if (!key || !current) return language.t("secondBrain.error.request")
     const result = await writeTimeline(client(key[0]), key[1], { items, expectedRevision: current.revision }).then(
       (saved) => ({ saved, error: undefined }),
@@ -164,11 +184,12 @@ export default function ProjectsPage() {
   const pageHref = (path: string) => `/projects?page=${encodeURIComponent(path)}`
   const openPage = (path: string) => navigate(pageHref(path), { state: { fromNotes: true } })
   const openProject = (id: string) => navigate(`/projects?project=${encodeURIComponent(id)}`)
-  const back = () => {
-    if (location.state?.fromNotes) return navigate(-1)
+  // The open page's Project, else the landing.
+  const parentHref = () => {
     const owner = pageList().find((page) => page.path === pagePath())?.projectId
-    navigate(owner ? `/projects?project=${encodeURIComponent(owner)}&section=pages` : "/projects")
+    return owner ? `/projects?project=${encodeURIComponent(owner)}&section=pages` : "/projects"
   }
+  const back = () => (location.state?.fromNotes ? navigate(-1) : navigate(parentHref()))
   // Folder Projects run their threads in the folder the server resolves; a legacy card in its linked workspace.
   const threadDirectory = (record: ProjectRecord) =>
     brainProjects.entries()?.find((entry) => entry.project.id === record.id)?.threadDirectory ??
@@ -199,9 +220,6 @@ export default function ProjectsPage() {
       }))
   })
 
-  const storePage = (info: VaultPageInfo) =>
-    pagesActions.mutate((items) => (items ? [info, ...items.filter((item) => item.path !== info.path)] : items))
-
   // A new page goes into `owner` (a Project), else the workspace's General pages; it opens right away.
   const createPage = async (owner?: string) => {
     const target = directory()
@@ -229,8 +247,61 @@ export default function ProjectsPage() {
       return setState("error", language.t(exists ? "secondBrain.vault.exists" : "secondBrain.error.request"))
     }
     if (target !== directory()) return
-    storePage(result.page.info)
+    vault.store(result.page.info)
     openPage(result.page.info.path)
+  }
+
+  const undo = createUndoQueue({
+    show: (action, run) =>
+      showToast({
+        title: action.title,
+        description: action.description,
+        persistent: true,
+        actions: [{ label: language.t("secondBrain.sidebar.undo"), onClick: run }],
+      }),
+    dismiss: dismissToast,
+    onError: (cause) =>
+      showToast({
+        variant: "error",
+        title: language.t(
+          cause instanceof SecondBrainRequestError && cause.status === 409
+            ? "secondBrain.vault.deleteStale"
+            : "secondBrain.error.request",
+        ),
+      }),
+  })
+  onCleanup(() => undo.flush())
+
+  /**
+   * Delete is deferred like a thread's: the page leaves the lists now and the file goes when the Undo window closes.
+   * If the app quits first, the page is simply not deleted. The removed version stays in the page's history.
+   */
+  const deletePage = (page: { path: string; title: string; revision: string }) => {
+    const target = directory()
+    const targetClient = client(target)
+    const key = pageKey(target, page.path)
+    // Not back(): a page opened from outside Projects would leave this page, which commits the delete with no Undo.
+    navigate(parentHref(), { replace: true })
+    setState("deleting", key, true)
+    const restore = () => setState("deleting", key, false)
+    const removed = () => {
+      if (target === directory()) vault.remove(page.path)
+      restore()
+    }
+    undo.push({
+      title: language.t("secondBrain.vault.deleted"),
+      description: page.title,
+      undo: restore,
+      commit: () =>
+        removeVaultPage(targetClient, page.path, page.revision)
+          .then(removed)
+          .catch((cause: unknown) => {
+            // Already gone, e.g. deleted from another window: treat it as done.
+            if (cause instanceof SecondBrainRequestError && cause.status === 404) return removed()
+            restore()
+            throw cause
+          }),
+    })
   }
 
   const conflictName = (path: string) => path.split("/").pop() ?? path
@@ -265,7 +336,7 @@ export default function ProjectsPage() {
 
   // Only Markdown copies open as pages; others (a sync copy of `project.json`, an image) are named only.
   const conflictCopies = () => (
-    <RevealShow when={(conflicts.latest ?? []).length > 0 && conflicts.latest} class="shrink-0">
+    <RevealShow when={(settled(conflicts) ?? []).length > 0 && settled(conflicts)} class="shrink-0">
       {(list) => (
         <div
           role="status"
@@ -414,11 +485,16 @@ export default function ProjectsPage() {
               fallback={<p class="px-3 text-[12px] text-v2-text-text-faint">{language.t("common.loading")}</p>}
             >
               <Show
-                when={(matches.error ? [] : (matches.latest ?? [])).length > 0}
-                fallback={<PageEmpty>{language.t("secondBrain.vault.noMatches")}</PageEmpty>}
+                when={foundProjects().length + foundPages().length > 0}
+                fallback={
+                  <PageEmpty error={!!matches.error}>
+                    {language.t(matches.error ? "common.requestFailed" : "secondBrain.vault.noMatches")}
+                  </PageEmpty>
+                }
               >
                 <ul class="flex flex-col gap-px" aria-label={language.t("secondBrain.vault.results")}>
-                  <For each={matches.error ? [] : matches.latest}>{(page) => pageRow(page)}</For>
+                  <For each={foundProjects()}>{(record) => projectRow(record)}</For>
+                  <For each={foundPages()}>{(page) => pageRow(page)}</For>
                 </ul>
               </Show>
             </Show>
@@ -480,13 +556,13 @@ export default function ProjectsPage() {
           <section aria-labelledby="projects-general-title" class="flex flex-col gap-1">
             {sectionTitle("projects-general-title", language.t("secondBrain.vault.general"))}
             <Show
-              when={!pages.error}
+              when={!vault.error()}
               fallback={
                 <PageEmpty
                   error
                   title={language.t("secondBrain.state.error.title")}
                   action={
-                    <ButtonV2 size="small" variant="outline" onClick={() => void pagesActions.refetch()}>
+                    <ButtonV2 size="small" variant="outline" onClick={vault.retry}>
                       {language.t("secondBrain.state.retry")}
                     </ButtonV2>
                   }
@@ -499,7 +575,7 @@ export default function ProjectsPage() {
                 when={generalPages().length > 0}
                 fallback={
                   <p class="px-3 py-2 text-[13px] text-v2-text-text-faint">
-                    {pages.loading ? language.t("common.loading") : language.t("secondBrain.project.generalEmpty")}
+                    {vault.loading() ? language.t("common.loading") : language.t("secondBrain.project.generalEmpty")}
                   </p>
                 }
               >
@@ -533,10 +609,24 @@ export default function ProjectsPage() {
           }
         >
           <Show
-            when={!misplaced()}
+            when={!misplaced() && !unreadable()}
             fallback={
-              <PageEmpty error title={language.t("secondBrain.vault.misplaced.title")}>
-                {language.t("secondBrain.vault.misplaced.body")}
+              <PageEmpty
+                error
+                title={language.t(
+                  misplaced() ? "secondBrain.vault.misplaced.title" : "secondBrain.vault.unavailable.title",
+                )}
+                action={
+                  unreadable() ? (
+                    <ButtonV2 size="small" variant="outline" onClick={vault.retry}>
+                      {language.t("secondBrain.state.retry")}
+                    </ButtonV2>
+                  ) : undefined
+                }
+              >
+                {misplaced()
+                  ? language.t("secondBrain.vault.misplaced.body")
+                  : language.t("secondBrain.vault.unavailable.body", { file: unreadable() ?? "" })}
               </PageEmpty>
             }
           >
@@ -567,6 +657,13 @@ export default function ProjectsPage() {
                                 ? language.t("common.loading")
                                 : language.t("secondBrain.vault.projectMissing")
                             }
+                            action={
+                              brainProjects.loading() ? undefined : (
+                                <ButtonV2 size="small" variant="outline" onClick={() => navigate("/projects")}>
+                                  {language.t("secondBrain.projects.back")}
+                                </ButtonV2>
+                              )
+                            }
                           />
                         }
                       >
@@ -582,13 +679,13 @@ export default function ProjectsPage() {
                               project={item()}
                               section={section()}
                               timeline={{
-                                value: timeline.error ? undefined : timeline.latest,
+                                value: settled(timeline),
                                 loading: timeline.loading,
                                 failed: !!timeline.error,
                                 retry: () => void timelineActions.refetch(),
                               }}
                               log={{
-                                value: log.error ? undefined : log.latest,
+                                value: settled(log),
                                 loading: log.loading,
                                 failed: !!log.error,
                                 retry: () => void logActions.refetch(),
@@ -598,6 +695,7 @@ export default function ProjectsPage() {
                               onPage={openPage}
                               onNewPage={() => void createPage(item().id)}
                               creatingPage={state.creating}
+                              pageError={state.error}
                               onSaveItems={saveItems}
                               threads={threads()}
                               threadHref={(id) => sessionHref(server.key, id)}
@@ -629,7 +727,8 @@ export default function ProjectsPage() {
                     projects={projects()}
                     onBack={back}
                     onOpen={openPage}
-                    onSaved={storePage}
+                    onSaved={vault.store}
+                    onDelete={deletePage}
                     onDirty={(dirty) => setState("dirty", dirty)}
                     held={held()}
                   />
@@ -641,42 +740,4 @@ export default function ProjectsPage() {
       </div>
     </section>
   )
-}
-
-const migratedKey = "tenon.notes.migrated:"
-const migrated = new Set<string>()
-/** The migration request in flight per workspace, so other vault reads can wait for it. */
-const migrating = new Map<string, Promise<number>>()
-
-/**
- * Ask the server once per workspace to move pre-vault notes in (it backs them up and a repeat moves nothing).
- * A failed call is retried on the next visit; the page list then reports any lasting failure. The server also
- * moves them on its first vault request, so this call mainly reports how many moved.
- */
-function migrateOnce(client: Parameters<typeof migrateVault>[0], directory: string) {
-  if (migrated.has(directory) || storedFlag(directory)) return Promise.resolve(0)
-  const running = migrating.get(directory)
-  if (running) return running.then(() => 0)
-  const request = migrateVault(client)
-    .then((result) => {
-      migrated.add(directory)
-      try {
-        localStorage.setItem(migratedKey + directory, "1")
-      } catch {
-        // Blocked storage only costs one repeat request next launch, which moves nothing.
-      }
-      return result.moved
-    })
-    .catch(() => 0)
-    .finally(() => migrating.delete(directory))
-  migrating.set(directory, request)
-  return request
-}
-
-function storedFlag(directory: string) {
-  try {
-    return localStorage.getItem(migratedKey + directory) === "1"
-  } catch {
-    return false
-  }
 }

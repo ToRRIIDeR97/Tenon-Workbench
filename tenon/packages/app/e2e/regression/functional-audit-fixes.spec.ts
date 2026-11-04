@@ -174,23 +174,22 @@ test("notes preserve edits across navigation, search bodies, render headings and
   const editor = page.getByRole("textbox", { name: "Markdown note editor" })
   await editor.fill("Edited, unsaved body")
   await page.getByRole("button", { name: "Calendar", exact: true }).click()
+  // Leaving asks first; Keep editing stays on the page with the text.
+  const unsaved = page.getByRole("dialog", { name: "Save your changes?" })
+  await unsaved.getByRole("button", { name: "Keep editing" }).click()
   await expect(page).toHaveURL(/\/projects\?page=/)
   await expect(editor).toHaveValue("Edited, unsaved body")
-  await expect(page.getByRole("alert")).toContainText("Save or discard")
   await page.screenshot({ path: testInfo.outputPath("notes.png"), fullPage: true })
-  await page.getByRole("button", { name: "Save", exact: true }).click()
-  // Saving sends the revision the page was loaded at, clears the warning and keeps the text.
-  await expect(page.getByRole("alert")).toHaveCount(0)
-  await expect(editor).toHaveValue("Edited, unsaved body")
+  // Save sends the revision the page was loaded at, then finishes the navigation.
+  await page.getByRole("button", { name: "Calendar", exact: true }).click()
+  await unsaved.getByRole("button", { name: "Save", exact: true }).click()
+  await expect(page).toHaveURL(/\/calendar$/)
   expect(writes).toEqual([
     {
       path: "Audit Project/Beta.md",
       body: expect.objectContaining({ body: "Edited, unsaved body", expectedRevision: "1" }),
     },
   ])
-  // Saved, the page can be left again.
-  await page.getByRole("button", { name: "Calendar", exact: true }).click()
-  await expect(page).toHaveURL(/\/calendar$/)
 })
 
 test("a New page error shows on the Projects page, and New page in a Project opens there", async ({
@@ -256,7 +255,10 @@ test("an archived Project restores from the Archived fold and its Pages open", a
   await page.getByRole("button", { name: "Restore Project", exact: true }).click()
   await expect(page.getByRole("button", { name: "Pause Project", exact: true })).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath("project-pages.png"), fullPage: true })
-  await page.getByRole("region", { name: "Pages" }).getByRole("link", { name: /Beta Updated/ }).click()
+  await page
+    .getByRole("region", { name: "Pages" })
+    .getByRole("link", { name: /Beta Updated/ })
+    .click()
   await expect(page.getByRole("heading", { name: "Beta body" })).toBeVisible()
 })
 

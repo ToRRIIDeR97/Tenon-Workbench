@@ -32,7 +32,11 @@ test("a batch of delegate calls can't start more tasks than the limit", async ()
       Effect.gen(function* () {
         yield* Layer.build(HarnessDelegationTasks.layer.pipe(Layer.provide(Layer.mergeAll(sessions, locations))))
         const batch = Array.from({ length: HarnessDelegationTasks.MAX_RUNNING + 3 }, (_, index) =>
-          HarnessDelegation.invoke("delegate_task", { agent: "codex", task: `task ${index}`, wait_seconds: 0 }, parent.id)
+          HarnessDelegation.invoke(
+            "delegate_task",
+            { agent: "codex", task: `task ${index}`, wait_seconds: 0 },
+            parent.id,
+          )
             .then(() => "started" as const)
             .catch(() => "refused" as const),
         )

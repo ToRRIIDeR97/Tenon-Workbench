@@ -58,7 +58,7 @@ describe("migrateTerminalState", () => {
           null,
           { id: "one", title: "Terminal 2" },
           { id: "one", title: "duplicate", titleNumber: 9 },
-          { id: "two", title: "logs", titleNumber: 4, rows: 24, cols: 80 },
+          { id: "two", title: "logs", titleNumber: 4, rows: 24, cols: 80, buffer: "secret output" },
           { title: "no-id" },
         ],
       }),

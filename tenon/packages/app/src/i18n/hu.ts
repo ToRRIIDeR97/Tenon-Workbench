@@ -96,6 +96,10 @@ const desktop = [
   "An agent wants to open {{host}} in the Workbench browser.",
   "Open",
   "Don't open",
+  "You have unsaved changes",
+  "If you leave now, the edits you haven't saved will be lost.",
+  "Leave",
+  "Stay",
 ]
 
 export const dict = {

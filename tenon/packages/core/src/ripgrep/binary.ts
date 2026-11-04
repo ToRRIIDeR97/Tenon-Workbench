@@ -1,6 +1,7 @@
+import { createHash } from "crypto"
 import path from "path"
-import { Context, Effect, Layer, Stream } from "effect"
-import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/unstable/http"
+import { Context, Duration, Effect, Layer, Stream } from "effect"
+import { HttpClient, HttpClientRequest } from "effect/unstable/http"
 import { ChildProcess } from "effect/unstable/process"
 import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
 import { CrossSpawnSpawner } from "../cross-spawn-spawner"
@@ -9,18 +10,11 @@ import { httpClient } from "../effect/app-node-platform"
 import { FSUtil } from "../fs-util"
 import { Global } from "../global"
 import { which } from "../util/which"
+import { archiveFolder, archiveName, archiveURL, PLATFORM, type Config } from "./release"
 
 export namespace RipgrepBinary {
-  const VERSION = "15.1.0"
-  const PLATFORM = {
-    "arm64-darwin": { platform: "aarch64-apple-darwin", extension: "tar.gz" },
-    "arm64-linux": { platform: "aarch64-unknown-linux-gnu", extension: "tar.gz" },
-    "x64-darwin": { platform: "x86_64-apple-darwin", extension: "tar.gz" },
-    "x64-linux": { platform: "x86_64-unknown-linux-musl", extension: "tar.gz" },
-    "arm64-win32": { platform: "aarch64-pc-windows-msvc", extension: "zip" },
-    "ia32-win32": { platform: "i686-pc-windows-msvc", extension: "zip" },
-    "x64-win32": { platform: "x86_64-pc-windows-msvc", extension: "zip" },
-  } as const
+  // The archives are about 2 MB, so this only trips on a stalled connection.
+  const DOWNLOAD_TIMEOUT = "2 minutes"
 
   interface Interface {
     readonly filepath: Effect.Effect<string, Error>
@@ -48,11 +42,7 @@ export namespace RipgrepBinary {
         return { stdout, stderr, code }
       }, Effect.scoped)
 
-      const extract = Effect.fnUntraced(function* (
-        archive: string,
-        config: (typeof PLATFORM)[keyof typeof PLATFORM],
-        target: string,
-      ) {
+      const extract = Effect.fnUntraced(function* (archive: string, config: Config, target: string) {
         const dir = yield* fs.makeTempDirectoryScoped({ directory: Global.Path.bin, prefix: "ripgrep-" })
 
         if (config.extension === "zip") {
@@ -77,50 +67,56 @@ export namespace RipgrepBinary {
             )
         }
 
-        const extracted = path.join(
-          dir,
-          `ripgrep-${VERSION}-${config.platform}`,
-          process.platform === "win32" ? "rg.exe" : "rg",
-        )
+        const extracted = path.join(dir, archiveFolder(config), process.platform === "win32" ? "rg.exe" : "rg")
         if (!(yield* fs.isFile(extracted))) throw new Error(`ripgrep archive did not contain executable: ${extracted}`)
 
-        yield* fs.copyFile(extracted, target)
-        if (process.platform !== "win32") yield* fs.chmod(target, 0o755)
+        if (process.platform !== "win32") yield* fs.chmod(extracted, 0o755)
+        // The temp folder sits beside the target, so this rename is atomic: an existing file at the
+        // target is always complete, which is why the lookup below can trust it.
+        yield* fs.rename(extracted, target)
       }, Effect.scoped)
 
-      return Service.of({
-        filepath: yield* Effect.cached(
-          Effect.gen(function* () {
-            const system = yield* Effect.sync(() => which(process.platform === "win32" ? "rg.exe" : "rg"))
-            if (system && (yield* fs.isFile(system).pipe(Effect.orDie))) return system
+      const [filepath, invalidate] = yield* Effect.cachedInvalidateWithTTL(
+        Effect.gen(function* () {
+          const system = yield* Effect.sync(() => which(process.platform === "win32" ? "rg.exe" : "rg"))
+          if (system && (yield* fs.isFile(system).pipe(Effect.orDie))) return system
 
-            const target = path.join(Global.Path.bin, `rg${process.platform === "win32" ? ".exe" : ""}`)
-            if (yield* fs.isFile(target).pipe(Effect.orDie)) return target
+          // The desktop app ships its own copy, so search works without a download.
+          const bundled = process.env.TENON_RIPGREP_PATH
+          if (bundled && (yield* fs.isFile(bundled).pipe(Effect.orDie))) return bundled
 
-            const platformKey = `${process.arch}-${process.platform}` as keyof typeof PLATFORM
-            const config = PLATFORM[platformKey]
-            if (!config) throw new Error(`unsupported platform for ripgrep: ${platformKey}`)
+          const target = path.join(Global.Path.bin, `rg${process.platform === "win32" ? ".exe" : ""}`)
+          if (yield* fs.isFile(target).pipe(Effect.orDie)) return target
 
-            const filename = `ripgrep-${VERSION}-${config.platform}.${config.extension}`
-            const url = `https://github.com/BurntSushi/ripgrep/releases/download/${VERSION}/${filename}`
-            const archive = path.join(Global.Path.bin, filename)
+          const platformKey = `${process.arch}-${process.platform}` as keyof typeof PLATFORM
+          const config = PLATFORM[platformKey]
+          if (!config) throw new Error(`unsupported platform for ripgrep: ${platformKey}`)
 
-            yield* Effect.logInfo("downloading ripgrep", { url })
-            yield* fs.ensureDir(Global.Path.bin).pipe(Effect.orDie)
-            const bytes = yield* HttpClientRequest.get(url).pipe(
-              http.execute,
-              Effect.flatMap((response) => response.arrayBuffer),
-              Effect.mapError((cause) => (cause instanceof Error ? cause : new Error(String(cause)))),
-            )
-            if (bytes.byteLength === 0) throw new Error(`failed to download ripgrep from ${url}`)
+          const url = archiveURL(config)
+          const archive = path.join(Global.Path.bin, archiveName(config))
 
-            yield* fs.writeWithDirs(archive, new Uint8Array(bytes))
-            yield* extract(archive, config, target)
-            yield* fs.remove(archive, { force: true }).pipe(Effect.ignore)
-            return target
-          }),
-        ),
-      })
+          yield* Effect.logInfo("downloading ripgrep", { url })
+          yield* fs.ensureDir(Global.Path.bin).pipe(Effect.orDie)
+          const bytes = yield* HttpClientRequest.get(url).pipe(
+            http.execute,
+            Effect.flatMap((response) => response.arrayBuffer),
+            Effect.timeout(DOWNLOAD_TIMEOUT),
+            Effect.mapError((cause) => (cause instanceof Error ? cause : new Error(String(cause)))),
+          )
+          if (bytes.byteLength === 0) throw new Error(`failed to download ripgrep from ${url}`)
+          const digest = createHash("sha256").update(new Uint8Array(bytes)).digest("hex")
+          if (digest !== config.sha256) return yield* Effect.fail(new Error(`ripgrep checksum mismatch for ${url}`))
+
+          yield* fs.writeWithDirs(archive, new Uint8Array(bytes))
+          yield* extract(archive, config, target)
+          yield* fs.remove(archive, { force: true }).pipe(Effect.ignore)
+          return target
+        }),
+        Duration.infinity,
+      )
+
+      // Concurrent callers share one attempt; a failed one is forgotten, so the next search retries.
+      return Service.of({ filepath: filepath.pipe(Effect.onError(() => invalidate)) })
     }),
   )
 

@@ -57,6 +57,30 @@ export namespace Timeline {
     }
   }
 
+  /**
+   * What a turn's rows read from its assistant parts. A streamed character almost never changes it, so
+   * the rows only rebuild when it does. `thinking` is whether the turn is active and busy.
+   */
+  export function turnPartsSignature(
+    assistantMessages: AssistantMessage[],
+    getMessageParts: (messageID: string) => Part[],
+    showReasoning: boolean,
+    thinking: boolean,
+  ) {
+    let signature = ""
+    let shown = false
+    for (const message of assistantMessages) {
+      for (const part of getMessageParts(message.id)) {
+        const visible = renderable(part, showReasoning)
+        shown ||= visible
+        const tool = part.type === "tool" ? `${part.tool}:${part.state.status}` : ""
+        signature += `${message.id} ${part.id} ${part.type} ${tool} ${visible}\n`
+      }
+    }
+    if (thinking && (!showReasoning || !shown)) signature += thinkingHeading(assistantMessages, getMessageParts) ?? ""
+    return signature
+  }
+
   /** Groups messages into turns. It reads messages only, so streamed parts don't re-run it. */
   export function constructSessionTurns(
     messages: SessionMessageInfo[],
@@ -247,15 +271,10 @@ export namespace Timeline {
     })
 
     if (isActive && status === "busy" && !error && (showReasoning ? assistantPartRefs.length === 0 : true)) {
-      const heading = assistantMessages
-        .flatMap((message) => getMessageParts(message.id))
-        .map((part) => (part.type === "reasoning" && part.text ? reasoningHeading(part.text) : undefined))
-        .find((value): value is string => !!value)
-
       rows.push(
         new TimelineRow.Thinking({
           userMessageID: userMessage.id,
-          reasoningHeading: heading,
+          reasoningHeading: thinkingHeading(assistantMessages, getMessageParts),
         }),
       )
     }
@@ -285,6 +304,16 @@ export namespace Timeline {
     }
 
     return rows
+  }
+
+  function thinkingHeading(assistantMessages: AssistantMessage[], getMessageParts: (messageID: string) => Part[]) {
+    for (const message of assistantMessages) {
+      for (const part of getMessageParts(message.id)) {
+        if (part.type !== "reasoning" || !part.text) continue
+        const heading = reasoningHeading(part.text)
+        if (heading) return heading
+      }
+    }
   }
 
   function reasoningHeading(text: string) {

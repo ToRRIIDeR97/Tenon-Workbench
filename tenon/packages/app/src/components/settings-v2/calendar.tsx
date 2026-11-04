@@ -66,7 +66,9 @@ export function SettingsCalendarV2() {
       <div class="settings-v2-tab-body" data-component="calendar-settings">
         <Show
           when={platform.googleCalendar}
-          fallback={<div class="settings-v2-provider-empty">{language.t("secondBrain.settings.calendar.desktopOnly")}</div>}
+          fallback={
+            <div class="settings-v2-provider-empty">{language.t("secondBrain.settings.calendar.desktopOnly")}</div>
+          }
         >
           <div class="settings-v2-section">
             <h4 class="settings-v2-section-title">{language.t("secondBrain.settings.calendar.accounts")}</h4>

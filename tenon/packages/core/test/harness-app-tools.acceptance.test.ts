@@ -19,7 +19,11 @@ afterEach(() => {
 })
 
 const list = async () => {
-  const reply = (await HarnessDelegation.handleMessage({ jsonrpc: "2.0", id: 1, method: "tools/list" }, caller, undefined)) as {
+  const reply = (await HarnessDelegation.handleMessage(
+    { jsonrpc: "2.0", id: 1, method: "tools/list" },
+    caller,
+    undefined,
+  )) as {
     result: { tools: { name: string }[] }
   }
   return reply.result.tools.map((item) => item.name)

@@ -303,6 +303,8 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
     const [ephemeral, setEphemeral] = createStore({
       reviewPanelSource: "other" as ReviewPanelSource,
       sessionTabPreview: {} as Record<string, string | undefined>,
+      terminalHeight: undefined as number | undefined,
+      fileTreeWidth: undefined as number | undefined,
     })
 
     const MAX_SESSION_KEYS = 50
@@ -688,9 +690,14 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         },
       },
       terminal: {
-        height: createMemo(() => store.terminal.height),
+        height: createMemo(() => ephemeral.terminalHeight ?? store.terminal.height),
+        // A drag previews the size; persisting serializes the whole layout, so it happens once, on release.
+        preview(height: number | undefined) {
+          setEphemeral("terminalHeight", height)
+        },
         resize(height: number) {
           setStore("terminal", "height", height)
+          setEphemeral("terminalHeight", undefined)
         },
       },
       review: {
@@ -705,7 +712,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
       },
       fileTree: {
         opened: createMemo(() => store.fileTree?.opened ?? true),
-        width: createMemo(() => store.fileTree?.width ?? DEFAULT_FILE_TREE_WIDTH),
+        width: createMemo(() => ephemeral.fileTreeWidth ?? store.fileTree?.width ?? DEFAULT_FILE_TREE_WIDTH),
         tab: createMemo(() => store.fileTree?.tab ?? "changes"),
         setTab(tab: "changes" | "all") {
           if (!store.fileTree) {
@@ -735,12 +742,13 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           }
           setStore("fileTree", "opened", (x) => !x)
         },
+        preview(width: number | undefined) {
+          setEphemeral("fileTreeWidth", width)
+        },
         resize(width: number) {
-          if (!store.fileTree) {
-            setStore("fileTree", { opened: true, width, tab: "changes" })
-            return
-          }
-          setStore("fileTree", "width", width)
+          if (store.fileTree) setStore("fileTree", "width", width)
+          else setStore("fileTree", { opened: true, width, tab: "changes" })
+          setEphemeral("fileTreeWidth", undefined)
         },
       },
       sidePanel: {

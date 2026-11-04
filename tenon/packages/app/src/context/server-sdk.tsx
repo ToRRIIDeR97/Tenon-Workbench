@@ -39,7 +39,7 @@ type CurrentEvent =
   | SessionNextToolInputDelta
   | SessionNextCompactionDelta
 export type ServerEvent = Event & { current?: OpenCodeEvent }
-type QueuedServerEvent = { directory: string; payload: ServerEvent }
+export type QueuedServerEvent = { directory: string; payload: ServerEvent }
 type CurrentDelta = Extract<
   CurrentEvent,
   {
@@ -125,25 +125,35 @@ export function enqueueServerEvent(queue: QueuedServerEvent[], event: QueuedServ
   return true
 }
 
+function queuedSessionID(event: QueuedServerEvent) {
+  const data = (event.payload.current as { data?: { sessionID?: unknown } } | undefined)?.data
+  const properties = event.payload.properties as
+    | { sessionID?: unknown; info?: { sessionID?: unknown }; part?: { sessionID?: unknown } }
+    | undefined
+  const id = data?.sessionID ?? properties?.sessionID ?? properties?.info?.sessionID ?? properties?.part?.sessionID
+  return typeof id === "string" ? id : undefined
+}
+
 export function coalesceServerEvents(events: QueuedServerEvent[]) {
   const output: QueuedServerEvent[] = []
+  // Where each session's latest delta sits. Sessions don't affect each other, so a session's deltas merge
+  // across another's, but never across one of its own other events, or one that isn't tied to a session.
+  const latest = new Map<string, number>()
   events.forEach((event) => {
+    const sessionID = queuedSessionID(event)
+    const scope = `${event.directory}:${sessionID ?? ""}`
+    const index = latest.get(scope)
+    const previous = index === undefined ? undefined : output[index]
     const current = currentDelta(event.payload.current as CurrentEvent | undefined)
     if (current) {
-      const previous = output[output.length - 1]
       const prior = currentDelta(previous?.payload.current as CurrentEvent | undefined)
-      if (
-        previous &&
-        prior &&
-        previous.directory === event.directory &&
-        currentDeltaKey(prior) === currentDeltaKey(current)
-      ) {
+      if (index !== undefined && prior && currentDeltaKey(prior) === currentDeltaKey(current)) {
         const fragment = currentDeltaFragment(prior) + currentDeltaFragment(current)
         const data =
           current.type === "session.compaction.delta" || current.type === "session.next.compaction.delta"
             ? { ...current.data, text: fragment }
             : { ...current.data, delta: fragment }
-        output[output.length - 1] = {
+        output[index] = {
           directory: event.directory,
           payload: {
             ...event.payload,
@@ -153,30 +163,34 @@ export function coalesceServerEvents(events: QueuedServerEvent[]) {
         }
         return
       }
-      output.push(event)
+      latest.set(scope, output.push(event) - 1)
       return
     }
     if (event.payload.type !== "message.part.delta") {
       output.push(event)
+      if (sessionID) latest.delete(scope)
+      else latest.clear()
       return
     }
     const props = event.payload.properties
-    const previous = output[output.length - 1]
     if (
+      index === undefined ||
       !previous ||
       previous.payload.type !== "message.part.delta" ||
-      previous.directory !== event.directory ||
       previous.payload.properties.messageID !== props.messageID ||
       previous.payload.properties.partID !== props.partID ||
       previous.payload.properties.field !== props.field
     ) {
-      output.push({
-        directory: event.directory,
-        payload: { ...event.payload, properties: { ...props } },
-      })
+      latest.set(
+        scope,
+        output.push({
+          directory: event.directory,
+          payload: { ...event.payload, properties: { ...props } },
+        }) - 1,
+      )
       return
     }
-    output[output.length - 1] = {
+    output[index] = {
       directory: event.directory,
       payload: {
         ...event.payload,

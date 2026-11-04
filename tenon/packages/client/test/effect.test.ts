@@ -199,6 +199,7 @@ const session = {
   data: {
     id: "ses_test",
     projectID: "project",
+    harnessInstanceID: "harness_test",
     cost: 0,
     tokens: {
       input: 1,

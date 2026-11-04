@@ -27,6 +27,13 @@ export function orderHarnesses(instances: ReadonlyArray<Harness.Instance> | unde
   return instances?.toSorted((a, b) => Number(isExternalHarness(a)) - Number(isExternalHarness(b)))
 }
 
+/** What the harness pickers say beside a harness. A missing sign-in is a hint: the agent may have another login. */
+export function harnessStatusKey(instance: Pick<Harness.Instance, "driver" | "status" | "authenticated">) {
+  if (instance.status === "unavailable") return "harness.unavailable"
+  if (instance.driver === Harness.AcpDriver && instance.authenticated === false) return "harness.signInNotFound"
+  return undefined
+}
+
 export function isExternalHarness(instance: Pick<Harness.Instance, "driver">) {
   return instance.driver !== Harness.OpenCodeDriver
 }
@@ -98,7 +105,7 @@ export function PromptInputHarnessControls(props: { controller: PromptInputHarne
         options={
           options()?.map((item) => ({
             id: item.id,
-            label: item.name + (item.status === "unavailable" ? ` - ${language.t("harness.unavailable")}` : ""),
+            label: item.name + (harnessStatusKey(item) ? ` - ${language.t(harnessStatusKey(item)!)}` : ""),
             disabled: item.status === "unavailable",
             title: item.error,
             group: isExternalHarness(item) ? language.t("harness.group.external") : undefined,

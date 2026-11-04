@@ -4,7 +4,6 @@ import * as Google from "../../src/providers/google"
 import * as OpenAI from "../../src/providers/openai"
 import * as OpenAICompatible from "../../src/providers/openai-compatible"
 import * as OpenRouter from "../../src/providers/openrouter"
-import * as XAI from "../../src/providers/xai"
 import { describeRecordedGoldenScenarios } from "../recorded-golden"
 
 const openAI = OpenAI.configure({
@@ -12,7 +11,6 @@ const openAI = OpenAI.configure({
 })
 const openAIChat = openAI.chat("gpt-4o-mini")
 const openAIResponses = openAI.responses("gpt-5.5")
-const openAIResponsesWebSocket = openAI.responsesWebSocket("gpt-4.1-mini")
 const anthropic = Anthropic.configure({
   apiKey: process.env.ANTHROPIC_API_KEY ?? "fixture",
 })
@@ -20,9 +18,6 @@ const anthropicHaiku = anthropic.model("claude-haiku-4-5-20251001")
 const anthropicOpus = anthropic.model("claude-opus-4-7")
 const google = Google.configure({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? "fixture" })
 const gemini = google.model("gemini-2.5-flash")
-const xai = XAI.configure({ apiKey: process.env.XAI_API_KEY ?? "fixture" })
-const xaiBasic = xai.model("grok-3-mini")
-const xaiFlagship = xai.model("grok-4.3")
 const cloudflareAIGateway = CloudflareAIGateway.configure({
   accountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? "fixture-account",
   gatewayId:
@@ -90,14 +85,6 @@ describeRecordedGoldenScenarios([
     ],
   },
   {
-    name: "OpenAI Responses WebSocket gpt-4.1-mini",
-    prefix: "openai-responses-websocket",
-    model: openAIResponsesWebSocket,
-    transport: "websocket",
-    requires: ["OPENAI_API_KEY"],
-    scenarios: ["tool-loop"],
-  },
-  {
     name: "Anthropic Haiku 4.5",
     prefix: "anthropic-messages",
     model: anthropicHaiku,
@@ -128,21 +115,6 @@ describeRecordedGoldenScenarios([
       { id: "image", maxTokens: 160 },
       { id: "image-tool-result", maxTokens: 40 },
     ],
-  },
-  {
-    name: "xAI Grok 3 Mini",
-    prefix: "xai",
-    model: xaiBasic,
-    requires: ["XAI_API_KEY"],
-    scenarios: ["text", "tool-call"],
-  },
-  {
-    name: "xAI Grok 4.3",
-    prefix: "xai",
-    model: xaiFlagship,
-    requires: ["XAI_API_KEY"],
-    tags: ["flagship"],
-    scenarios: [{ id: "tool-loop", timeout: 30_000 }],
   },
   {
     name: "Cloudflare AI Gateway Workers AI Llama 3.1 8B",

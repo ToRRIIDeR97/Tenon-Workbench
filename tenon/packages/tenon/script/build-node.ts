@@ -19,7 +19,8 @@ await Bun.build({
   sourcemap: "linked",
   external: ["jsonc-parser", "@lydell/node-pty"],
   define: {
-    TENON_MODELS_DEV: generated.modelsData,
+    // A string literal: parsing it on a first run beats evaluating a 6 MB object, and later runs skip it.
+    TENON_MODELS_DEV: JSON.stringify(generated.modelsData),
     TENON_VERSION: `'${Script.version}'`,
     TENON_CHANNEL: `'${Script.channel}'`,
   },

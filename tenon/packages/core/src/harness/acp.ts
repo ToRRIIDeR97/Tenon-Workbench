@@ -2,7 +2,8 @@ export * as AcpHarness from "./acp"
 
 import { LLMError, LLMEvent, TransportReason, type FinishReason } from "@tenon/llm"
 import { Harness } from "@tenon/schema/harness"
-import { Effect, Exit, Option, Queue, Schema, Stream } from "effect"
+import { Clock, Deferred, Effect, Exit, Option, Queue, Schema, Stream } from "effect"
+import type { PlatformError } from "effect/PlatformError"
 import { ChildProcess } from "effect/unstable/process"
 import os from "os"
 import path from "path"
@@ -14,6 +15,7 @@ import { HarnessPids } from "./pids"
 import {
   make as makeClient,
   ProtocolError,
+  watchExit,
   type Client,
   type Notification,
   type ServerRequest,
@@ -77,6 +79,8 @@ export interface Session {
     readonly reasoningEffort?: string
     /** Finishes when a steer is waiting; the agent is then asked to end this turn. */
     readonly steer?: Effect.Effect<void>
+    /** Fails the turn when the agent goes silent; see `failOnSilence`. One-off prompts have their own deadline. */
+    readonly watch?: { readonly name: string; readonly waiting: () => boolean }
   }) => Stream.Stream<LLMEvent, LLMError>
 }
 
@@ -92,9 +96,48 @@ export const stopOnSteer = <A, E>(
 ) =>
   steer
     ? events.pipe(
-        Stream.merge(Stream.fromEffectDrain(steer.pipe(Effect.andThen(stop), Effect.ignore)), { haltStrategy: "left" })
+        Stream.merge(Stream.fromEffectDrain(steer.pipe(Effect.andThen(stop), Effect.ignore)), { haltStrategy: "left" }),
       )
     : events
+
+/** How long a harness turn may stay silent with nothing open before it counts as stopped. */
+export const SILENCE_LIMIT_MINUTES = 10
+const SILENCE_LIMIT = SILENCE_LIMIT_MINUTES * 60_000
+
+/**
+ * A liveness check for a harness turn, which otherwise has no deadline: an agent that is alive but silent, say on a
+ * stalled provider connection, would keep the thread running until the user presses Stop. `build` calls `heard` for
+ * each message from the agent; `busy` is true while a tool or a question to the user legitimately takes long, and
+ * the wait restarts when it ends. The failure takes the stream's usual path: its finalizer asks the agent to stop,
+ * and the caller replaces the runtime.
+ */
+export const failOnSilence = <A, E>(
+  build: (heard: Effect.Effect<void>) => Stream.Stream<A, E>,
+  busy: () => boolean,
+  failure: E,
+) =>
+  Stream.unwrap(
+    Clock.currentTimeMillis.pipe(
+      Effect.map((started) => {
+        const state = { last: started }
+        const heard = Clock.currentTimeMillis.pipe(
+          Effect.map((now) => {
+            state.last = now
+          }),
+        )
+        const silent = Effect.sleep("30 seconds").pipe(
+          Effect.andThen(Clock.currentTimeMillis),
+          Effect.map((now) => {
+            if (busy()) state.last = now
+            return now - state.last >= SILENCE_LIMIT
+          }),
+          Effect.repeat({ until: (stopped) => stopped }),
+          Effect.andThen(Effect.fail(failure)),
+        )
+        return build(heard).pipe(Stream.merge(Stream.fromEffectDrain(silent), { haltStrategy: "left" }))
+      }),
+    ),
+  )
 
 /** An attachment on the user message: `data` is a `data:` URL (pasted) or a `file://` URL (picked file). */
 export interface Media {
@@ -179,13 +222,14 @@ function connect(
           stdin: { stream: "pipe", endOnDone: false },
         }),
       )
-      .pipe(Effect.mapError((cause) => new ProtocolError(`Could not start ${settings.command}.`, { cause })))
+      .pipe(Effect.mapError((cause) => startError(settings.command, cause)))
     yield* HarnessPids.track(handle.pid, settings.command)
-    yield* Stream.runDrain(handle.stderr).pipe(Effect.ignore, Effect.forkScoped)
+    const exit = yield* watchExit(handle)
     const client = yield* makeClient({
       connection: { stdout: handle.stdout, stdin: handle.stdin },
       jsonrpc: true,
       label: "ACP agent",
+      exit,
       handleRequest: options.handleRequest ?? ((request) => Effect.fail(unsupported(request.method))),
       onNotification: options.onNotification ?? (() => Effect.void),
     })
@@ -205,6 +249,18 @@ function connect(
       )
     return { client, initialize: info }
   })
+}
+
+/** Why a harness CLI didn't start, in words that say what to do about it. */
+export function startError(command: string, cause: PlatformError) {
+  const reason = cause.reason._tag
+  if (reason === "NotFound")
+    return new ProtocolError(`${command} isn't installed or isn't on PATH. Set it up in Settings → Harnesses.`, {
+      cause,
+    })
+  if (reason === "PermissionDenied")
+    return new ProtocolError(`Tenon isn't allowed to run ${command}. Check that file's permissions.`, { cause })
+  return new ProtocolError(`Could not start ${command}.`, { cause })
 }
 
 export function agentInfo(initialize: Record<string, unknown>) {
@@ -236,20 +292,19 @@ export const discover = (process: Process, settings: Settings, directory: string
       // its others have them (476 switches take well under a second). A switch can fail without saying anything
       // about levels (Claude Code checks some models with its server first), so a failed switch keeps the active
       // model's levels rather than none.
-      const models =
-        configId
-          ? yield* Effect.forEach(selector.models, (model) =>
-              model.isDefault
-                ? Effect.succeed(model)
-                : client
-                    .request("session/set_config_option", { sessionId: session.sessionId, configId, value: model.id })
-                    .pipe(
-                      Effect.map((response) => levels(sessionModels(response).effort)),
-                      Effect.catch(() => Effect.succeed(levels(selector.effort))),
-                      Effect.map((reasoningEfforts) => Harness.Model.make({ ...model, reasoningEfforts })),
-                    ),
-            )
-          : selector.models
+      const models = configId
+        ? yield* Effect.forEach(selector.models, (model) =>
+            model.isDefault
+              ? Effect.succeed(model)
+              : client
+                  .request("session/set_config_option", { sessionId: session.sessionId, configId, value: model.id })
+                  .pipe(
+                    Effect.map((response) => levels(sessionModels(response).effort)),
+                    Effect.catch(() => Effect.succeed(levels(selector.effort))),
+                    Effect.map((reasoningEfforts) => Harness.Model.make({ ...model, reasoningEfforts })),
+                  ),
+          )
+        : selector.models
       return { ...agentInfo(initialize), models }
     }),
   ).pipe(
@@ -327,6 +382,7 @@ export function withConfigured(models: ReadonlyArray<Harness.Model>, configured:
 }
 
 export const open = Effect.fn("AcpHarness.open")(function* (process: Process, input: OpenInput) {
+  const scope = yield* Effect.scope
   const items = yield* Queue.unbounded<Item>()
   const { client, initialize } = yield* connect(process, input.settings, input.directory, {
     handleRequest: (request) => handleRequest(request, input.approve, input.ask),
@@ -372,7 +428,13 @@ export const open = Effect.fn("AcpHarness.open")(function* (process: Process, in
         Effect.catch((error) => Effect.logWarning("ACP session could not leave bypass mode", { error: error.message })),
       )
   const selector = sessionModels(session.response)
-  const state: { currentModel: string | undefined; effort?: EffortOption; sessionCost?: number } = {
+  const state: {
+    currentModel: string | undefined
+    effort?: EffortOption
+    sessionCost?: number
+    /** Finishes when the last session/prompt has been answered, which a stopped turn doesn't wait for. */
+    prompt?: Deferred.Deferred<void>
+  } = {
     currentModel: selector.current,
     effort: selector.effort,
     sessionCost: baseline,
@@ -387,12 +449,12 @@ export const open = Effect.fn("AcpHarness.open")(function* (process: Process, in
     !model || model === state.currentModel
       ? Effect.void
       : (selector.configId
-          ? client.request("session/set_config_option", {
-              sessionId: session.sessionId,
-              configId: selector.configId,
-              value: model,
-            })
-          : client.request("session/set_model", { sessionId: session.sessionId, modelId: model })
+          ? client.request(
+              "session/set_config_option",
+              { sessionId: session.sessionId, configId: selector.configId, value: model },
+              SESSION_SETUP_TIMEOUT,
+            )
+          : client.request("session/set_model", { sessionId: session.sessionId, modelId: model }, SESSION_SETUP_TIMEOUT)
         ).pipe(
           Effect.tap((response) =>
             Effect.sync(() => {
@@ -409,16 +471,38 @@ export const open = Effect.fn("AcpHarness.open")(function* (process: Process, in
       const value = effort ?? (option?.values.includes(EFFORT_DEFAULT) ? EFFORT_DEFAULT : undefined)
       if (!option || !value || value === option.current || !option.values.includes(value)) return Effect.void
       return client
-        .request("session/set_config_option", { sessionId: session.sessionId, configId: option.configId, value })
+        .request(
+          "session/set_config_option",
+          { sessionId: session.sessionId, configId: option.configId, value },
+          SESSION_SETUP_TIMEOUT,
+        )
         .pipe(
           Effect.tap((response) =>
             Effect.sync(() => {
               state.effort = { ...option, current: value }
             }).pipe(Effect.andThen(readEffort(response))),
           ),
-          Effect.ignore,
+          Effect.asVoid,
+          // A refused level is left to the agent; no answer at all means the process needs replacing.
+          Effect.catch((error) => (error.timedOut ? Effect.fail(error) : Effect.void)),
         )
     })
+
+  // After Stop the agent can still be unwinding the old prompt, and its late updates carry the same session ID. The
+  // next prompt starts once the old one is answered, or the turn fails and the runtime reopens through session/load.
+  const promptSettled = Effect.suspend(() =>
+    state.prompt
+      ? Deferred.await(state.prompt).pipe(
+          Effect.timeoutOrElse({
+            duration: PROMPT_UNWIND_TIMEOUT,
+            orElse: () =>
+              Effect.fail(
+                new ProtocolError("The agent is still stopping its last turn. Send again.", { timedOut: true }),
+              ),
+          }),
+        )
+      : Effect.void,
+  )
 
   const turn = (turnInput: {
     readonly text: string
@@ -426,9 +510,11 @@ export const open = Effect.fn("AcpHarness.open")(function* (process: Process, in
     readonly model?: string
     readonly reasoningEffort?: string
     readonly steer?: Effect.Effect<void>
+    readonly watch?: { readonly name: string; readonly waiting: () => boolean }
   }) =>
     Stream.unwrap(
       Effect.gen(function* () {
+        yield* promptSettled
         // A folded level is sent as its `<base>/<level>` model; otherwise as the agent's level option.
         const variant = `${turnInput.model}/${turnInput.reasoningEffort}`
         const requested = selector.variants?.has(variant) ? variant : turnInput.model
@@ -437,6 +523,7 @@ export const open = Effect.fn("AcpHarness.open")(function* (process: Process, in
         const switched = yield* Effect.exit(setModel(requested))
         if (Exit.isFailure(switched)) {
           const error = Option.getOrUndefined(Exit.findErrorOption(switched))
+          if (error?.timedOut) return yield* Effect.fail(error)
           return Stream.fromIterable(
             finishAcpTurn(
               Exit.fail(
@@ -451,28 +538,45 @@ export const open = Effect.fn("AcpHarness.open")(function* (process: Process, in
         yield* setEffort(turnInput.reasoningEffort)
         yield* Queue.clear(items)
         const parser = acpState(state.sessionCost)
+        const settled = yield* Deferred.make<void>()
+        state.prompt = settled
+        // In the runtime's scope, not the stream's: the request outlives a stopped turn, or its answer would be lost.
         yield* client
           .request("session/prompt", {
             sessionId: session.sessionId,
             prompt: acpPromptBlocks(turnInput.text, turnInput.media ?? [], promptCapabilities),
           })
           .pipe(
+            // Closing the runtime stops this fiber before the client can answer it, and a live turn would wait forever.
+            Effect.onInterrupt(() =>
+              Queue.offer(items, { type: "done", exit: Exit.fail(new ProtocolError("ACP agent client closed.")) }),
+            ),
             Effect.exit,
             Effect.flatMap((exit) => Queue.offer(items, { type: "done", exit })),
-            Effect.forkScoped,
+            Effect.ensuring(Deferred.succeed(settled, undefined)),
+            Effect.forkIn(scope),
           )
-        const body = Stream.fromQueue(items).pipe(
-          Stream.takeUntil((item) => item.type === "done"),
-          Stream.flatMap((item) =>
-            Stream.fromIterable(
-              item.type === "done"
-                ? finishAcpTurn(item.exit, parser)
-                : parseAcpNotification(item.notification, session.sessionId, parser),
+        const body = (heard: Effect.Effect<void>) =>
+          Stream.fromQueue(items).pipe(
+            Stream.tap(() => heard),
+            Stream.takeUntil((item) => item.type === "done"),
+            Stream.flatMap((item) =>
+              Stream.fromIterable(
+                item.type === "done"
+                  ? finishAcpTurn(item.exit, parser)
+                  : parseAcpNotification(item.notification, session.sessionId, parser),
+              ),
             ),
-          ),
-        )
+          )
+        const watch = turnInput.watch
         const stoppable = stopOnSteer(
-          body,
+          watch
+            ? failOnSilence(
+                body,
+                () => watch.waiting() || [...parser.tools.values()].some((tool) => !tool.done),
+                llmError(`${watch.name} stopped responding for ${SILENCE_LIMIT_MINUTES} minutes.`),
+              )
+            : body(Effect.void),
           turnInput.steer,
           client.notify("session/cancel", { sessionId: session.sessionId }),
         )
@@ -502,6 +606,7 @@ export const open = Effect.fn("AcpHarness.open")(function* (process: Process, in
 
 // session/load replays history before it answers, so allow more than the initialize handshake.
 const SESSION_SETUP_TIMEOUT = "60 seconds"
+const PROMPT_UNWIND_TIMEOUT = "10 seconds"
 
 export interface McpServer {
   readonly type: "http"
@@ -708,16 +813,19 @@ export function parseAcpNotification(
 const AUTH_REQUIRED = -32000
 
 /**
- * The error a failed turn shows. A signed-out agent answers with `auth_required` (or, from older agents, a "not
- * logged in" message); the raw protocol text doesn't say what to do, so the error names where to sign in.
+ * The error a failed turn or a failed session setup shows. A signed-out agent answers with `auth_required` (or, from
+ * older agents, a "not logged in" message); the raw protocol text doesn't say what to do, so `signInHint` adds it.
  */
-function turnError(error: ProtocolError | undefined) {
-  if (!error) return "The ACP agent failed."
-  const signedOut =
-    error.code === AUTH_REQUIRED ||
-    /auth(entication)?[ _-]required|not (logged|signed) in|please (run \/login|log ?in|sign in)/i.test(error.message)
-  if (!signedOut) return error.message
-  return `The agent isn't signed in (${error.message}). Sign in from Settings → Harnesses, or run the agent's own login, then send again.`
+export function turnError(error: unknown) {
+  if (!(error instanceof Error) || !error.message) return "The agent failed."
+  return signInHint(error.message, error instanceof ProtocolError && error.code === AUTH_REQUIRED)
+}
+
+/** `message`, or when it means the agent has no login, the same with where to sign in. */
+export function signInHint(message: string, signedOut = false) {
+  const noLogin = /auth(entication)?[ _-]required|not (logged|signed) in|please (run \/login|log ?in|sign in)/i
+  if (!signedOut && !noLogin.test(message)) return message
+  return `The agent isn't signed in (${message}). Sign in from Settings → Harnesses, or run the agent's own login, then send again.`
 }
 
 /** The USD cost of the last `usage_update` among replayed updates: an agent's cost is cumulative per session. */

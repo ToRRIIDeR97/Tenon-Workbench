@@ -1,6 +1,8 @@
 // Must run first: maps pre-rename OPENCODE_* variables to TENON_* before other modules read them.
 import "./legacy-env"
 import * as http from "node:http"
+import { constants, enableCompileCache, flushCompileCache } from "node:module"
+import { join } from "node:path"
 import * as tls from "node:tls"
 
 type NodeHttpWithEnvProxy = typeof http & {
@@ -56,6 +58,7 @@ async function start(command: StartCommand) {
     ensureLoopbackNoProxy()
     useSystemCertificates()
     useEnvProxy()
+    useCompileCache(command.userDataPath)
     const { Server } = await import("virtual:tenon-server")
 
     listener = await Server.listen({
@@ -66,6 +69,7 @@ async function start(command: StartCommand) {
       cors: ["oc://renderer"],
     })
     parentPort.postMessage({ type: "ready" })
+    saveCompileCache()
   } catch (error) {
     parentPort.postMessage({ type: "error", error: serializeError(error) })
     setImmediate(() => process.exit(1))
@@ -126,6 +130,25 @@ function useEnvProxy() {
     ;(http as NodeHttpWithEnvProxy).setGlobalProxyFromEnv()
   } catch (error) {
     console.warn("failed to load proxy environment", error)
+  }
+}
+
+// V8 code for the server bundle, so later launches skip parsing it. A failure only costs that saving.
+function useCompileCache(userDataPath: string) {
+  try {
+    const result = enableCompileCache(join(userDataPath, "compile-cache"))
+    const enabled = result.status === constants.compileCacheStatus.ENABLED
+    if (!enabled) console.warn("compile cache not enabled", result.status, result.message)
+  } catch (error) {
+    console.warn("failed to enable compile cache", error)
+  }
+}
+
+function saveCompileCache() {
+  try {
+    flushCompileCache()
+  } catch (error) {
+    console.warn("failed to save compile cache", error)
   }
 }
 

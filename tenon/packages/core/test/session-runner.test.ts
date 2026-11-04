@@ -42,12 +42,7 @@ import { AgentV2 } from "@tenon/core/agent"
 import { Config } from "@tenon/core/config"
 import { ConfigCompaction } from "@tenon/core/config/compaction"
 import { Tool } from "@tenon/core/tool/tool"
-import {
-  SessionContextEpochTable,
-  SessionInputTable,
-  SessionMessageTable,
-  SessionTable,
-} from "@tenon/core/session/sql"
+import { SessionContextEpochTable, SessionInputTable, SessionMessageTable, SessionTable } from "@tenon/core/session/sql"
 import { SessionStore } from "@tenon/core/session/store"
 import { SystemContext } from "@tenon/core/system-context"
 import { SystemContextRegistry } from "@tenon/core/system-context/registry"

@@ -58,7 +58,10 @@ function heal(text: string) {
 
 export function stream(text: string, live: boolean): Block[] {
   if (!live) return completedProjection(text).blocks
-  const defs = definitions(text)
+  return liveBlocks(text, definitions(text))
+}
+
+function liveBlocks(text: string, defs: string): Block[] {
   const withDefs = (src: string) => withDefinitions(src, defs)
   const tokens = marked.lexer(text)
   const tail = tokens.findLastIndex((token) => token.type !== "space")
@@ -114,17 +117,31 @@ export function project(previous: Projection | undefined, text: string, live: bo
   if (!previous || !text.startsWith(previous.text)) return { text, blocks: stream(text, live) }
   const tail = previous.blocks.at(-1)
   const suffix = text.slice(previous.text.length)
-  if (!suffix || tail?.mode !== "code" || tail.complete || closesFence(tail.raw, suffix))
-    return { text, blocks: stream(text, live) }
-  return {
-    text,
-    blocks: [
-      ...previous.blocks.slice(0, -1),
-      {
-        ...tail,
-        raw: tail.raw + suffix,
-        src: tail.src + suffix,
-      },
-    ],
-  }
+  if (!suffix || !tail || tail.mode === "full") return { text, blocks: stream(text, live) }
+  // Until its first line ends, a fence's suffix is still its language, not code.
+  if (tail.mode === "code" && !tail.complete && tail.raw.includes("\n") && !closesFence(tail.raw, suffix))
+    return {
+      text,
+      blocks: [
+        ...previous.blocks.slice(0, -1),
+        {
+          ...tail,
+          raw: tail.raw + suffix,
+          src: tail.src + suffix,
+        },
+      ],
+    }
+  // The lexer rewrites line endings and drops repeated reference definitions, and definitions reach every block,
+  // so either one means the blocks can't be taken from the text by offset.
+  if (text.includes("\r") || text.includes("]:")) return { text, blocks: stream(text, live) }
+  // Only the last line grows, so frozen blocks keep their bounds, except that a line can turn out to continue
+  // the block before it ("1. a\n\n2" then ". b"). Lexing from that block gives the same blocks as the whole text.
+  // A block's raw can differ from the text (the lexer ends some blockquotes with a newline), so check the offset.
+  const relexed = previous.blocks
+    .slice(-4)
+    .map((block) => block.raw)
+    .join("")
+  if (!previous.text.endsWith(relexed)) return { text, blocks: stream(text, live) }
+  const start = previous.text.length - relexed.length
+  return { text, blocks: [...previous.blocks.slice(0, -4), ...liveBlocks(text.slice(start), "")] }
 }

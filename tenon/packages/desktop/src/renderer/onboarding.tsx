@@ -12,9 +12,7 @@ export function DesktopFirstLaunchOnboarding(props: { initialUrl: string; onLoad
 
   async function runFirstLaunchOnboarding() {
     try {
-      await Promise.all(
-        [server.ready.promise, drafts.ready.promise].map((p) => p ?? Promise.resolve()),
-      )
+      await Promise.all([server.ready.promise, drafts.ready.promise].map((p) => p ?? Promise.resolve()))
       const existingInstall = await window.api.isOldLayoutEligible()
       settings.general.initializeAgentVisibility(existingInstall)
       if (!server.isLocal()) return

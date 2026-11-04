@@ -1,6 +1,16 @@
 import { describe, expect, test } from "bun:test"
 import type { TimelineItem } from "./client"
-import { monthGrid, newPagePath, shiftMonth, timelineCounts, timelineLayout } from "./notes-timeline"
+import {
+  bodyAfterSave,
+  dueDatePatch,
+  matchProjects,
+  monthGrid,
+  newPagePath,
+  restoreItem,
+  shiftMonth,
+  timelineCounts,
+  timelineLayout,
+} from "./notes-timeline"
 
 const items: TimelineItem[] = [
   { id: "auth", title: "Auth", kind: "task", status: "doing", start: "2026-11-02", end: "2026-11-08" },
@@ -53,4 +63,39 @@ test("monthGrid lays a month out from Monday with tasks on every day they span",
   expect(on("2026-11-20")).toEqual([])
   expect(shiftMonth("2026-12", 1)).toBe("2027-01")
   expect(shiftMonth("2026-01", -1)).toBe("2025-12")
+})
+
+test("bodyAfterSave leaves the editor alone when the server only added a final newline", () => {
+  expect(bodyAfterSave("typed", "typed", "typed\n")).toEqual({ body: "typed", baseBody: "typed" })
+  // Typed during the save: stays, and stays unsaved.
+  expect(bodyAfterSave("typed more", "typed", "typed\n")).toEqual({ body: "typed more", baseBody: "typed" })
+  // A real change on the server is adopted.
+  expect(bodyAfterSave("typed", "typed", "merged\n")).toEqual({ body: "merged\n", baseBody: "merged\n" })
+})
+
+test("dueDatePatch moves a task's end and a milestone's start", () => {
+  const task = items[0]
+  expect(dueDatePatch(task, "2026-11-09")).toEqual({ end: "2026-11-09" })
+  // Never leaves a due day before the start.
+  expect(dueDatePatch(task, "2026-10-01")).toEqual({ start: undefined, end: "2026-10-01" })
+  expect(dueDatePatch(task, undefined)).toEqual({ start: undefined, end: undefined })
+  expect(dueDatePatch(items[2], "2026-12-01")).toEqual({ start: "2026-12-01" })
+})
+
+test("restoreItem rebuilds from the latest list", () => {
+  const removed = items[1]
+  const latest = [items[0], items[2]]
+  expect(restoreItem(latest, removed, 1).map((item) => item.id)).toEqual(["auth", "hooks", "launch"])
+  expect(restoreItem([], removed, 3).map((item) => item.id)).toEqual(["hooks"])
+  expect(restoreItem(items, removed, 0)).toBe(items)
+})
+
+test("matchProjects searches names and outcomes", () => {
+  const projects = [
+    { name: "Acme API", outcome: "Ship the gateway" },
+    { name: "Website", outcome: "New landing page" },
+  ]
+  expect(matchProjects(projects, " acme ").map((project) => project.name)).toEqual(["Acme API"])
+  expect(matchProjects(projects, "landing").map((project) => project.name)).toEqual(["Website"])
+  expect(matchProjects(projects, "  ")).toEqual([])
 })

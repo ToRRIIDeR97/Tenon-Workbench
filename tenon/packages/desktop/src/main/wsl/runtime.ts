@@ -1,7 +1,6 @@
 import { spawn } from "node:child_process"
 import { existsSync } from "node:fs"
 import { join } from "node:path"
-import * as pty from "@lydell/node-pty"
 import type { WslDistroProbe, WslInstalledDistro, WslOnlineDistro, WslRuntimeCheck } from "../../preload/types"
 import { wslTerminalArgs } from "./policy"
 import { nativeT } from "../native-translations"
@@ -119,7 +118,14 @@ function runCommand(command: string, args: string[], opts: RunWslOptions = {}) {
   })
 }
 
-function runInteractiveCommand(command: string, args: string[], opts: RunWslOptions = {}, defaultTimeoutMs: number) {
+async function runInteractiveCommand(
+  command: string,
+  args: string[],
+  opts: RunWslOptions = {},
+  defaultTimeoutMs: number,
+) {
+  // A native module used only by interactive WSL commands, so it stays out of the startup graph.
+  const pty = await import("@lydell/node-pty")
   return new Promise<WslCommandResult>((resolve, reject) => {
     const child = pty.spawn(command, args, {
       name: "xterm-color",

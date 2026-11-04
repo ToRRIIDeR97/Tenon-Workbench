@@ -1,12 +1,10 @@
-import { createHash } from "node:crypto"
-import { createWriteStream, existsSync } from "node:fs"
-import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises"
+import { existsSync } from "node:fs"
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
-import { Readable } from "node:stream"
-import { pipeline } from "node:stream/promises"
-import { app, shell, systemPreferences } from "electron"
+import { app, net, shell, systemPreferences } from "electron"
 import { createDictation, dictationPermissionHelp, DictationError, type MicrophoneAccess } from "./dictation"
-import { DICTATION_MODELS, dictationEngineFile, dictationModelURL, type DictationModelID } from "./dictation-models"
+import { downloadModel, DictationDownloadError, type DictationDownloadCode } from "./dictation-download"
+import { DICTATION_MODELS, dictationEngineFile, type DictationModelID } from "./dictation-models"
 import { write as writeLog } from "./logging"
 
 export type DictationFailure = { code: string; help?: { key: string; url: string } }
@@ -16,6 +14,7 @@ export type DictationModelState = {
   models: { id: DictationModelID; name: string; size: number; downloaded: boolean }[]
 }
 export type DictationDownloadProgress = { id: DictationModelID; received: number; total: number }
+export type DictationDownloadResult = { error?: DictationDownloadCode }
 
 /**
  * The desktop dictation feature: model files under the app data folder, the active model choice,
@@ -25,9 +24,10 @@ export function createDictationService() {
   const folder = join(app.getPath("userData"), "dictation", "models")
   const settingsFile = join(app.getPath("userData"), "dictation", "settings.json")
   const engine = engineCommand()
-  const downloads = new Map<DictationModelID, Promise<void>>()
+  const downloads = new Map<DictationModelID, { task: Promise<DictationDownloadResult>; controller: AbortController }>()
   let active: DictationModelID | undefined
   let levelTarget: ((rms: number) => void) | undefined
+  let limitTarget: (() => void) | undefined
 
   const modelPath = (id: DictationModelID) => join(folder, modelFile(id))
   const activePath = () => (active && existsSync(modelPath(active)) ? modelPath(active) : undefined)
@@ -37,6 +37,7 @@ export function createDictationService() {
     model: activePath,
   })
   dictation.onLevel((rms) => levelTarget?.(rms))
+  dictation.onLimit(() => limitTarget?.())
   app.once("will-quit", () => dictation.dispose())
 
   const ready = readFile(settingsFile, "utf8")
@@ -54,7 +55,7 @@ export function createDictationService() {
   }
 
   const service = {
-    async start(onLevel: (rms: number) => void): Promise<{ error?: DictationFailure }> {
+    async start(onLevel: (rms: number) => void, onLimit: () => void): Promise<{ error?: DictationFailure }> {
       await ready
       if (!existsSync(engine)) return { error: { code: "engine_unavailable" } }
       if (!activePath()) return { error: { code: "no_model" } }
@@ -62,6 +63,7 @@ export function createDictationService() {
       const help = dictationPermissionHelp(process.platform, access)
       if (help) return { error: { code: "permission_denied", help } }
       levelTarget = onLevel
+      limitTarget = onLimit
       return dictation.start().then(
         () => ({}),
         (error: unknown) => ({ error: failure(error) }),
@@ -97,25 +99,45 @@ export function createDictationService() {
       active = id
       await mkdir(join(settingsFile, ".."), { recursive: true })
       await writeFile(settingsFile, JSON.stringify({ active }))
-      await dictation
-        .reload()
-        .catch((error: unknown) =>
-          writeLog("dictation", "model reload failed", {
-            code: error instanceof DictationError ? error.code : "unknown",
-          }),
-        )
+      await dictation.reload().catch((error: unknown) =>
+        writeLog("dictation", "model reload failed", {
+          code: error instanceof DictationError ? error.code : "unknown",
+        }),
+      )
     },
     download(id: unknown, onProgress: (progress: DictationDownloadProgress) => void) {
       if (!isModelID(id)) return Promise.reject(new Error("Unknown dictation model"))
       const running = downloads.get(id)
-      if (running) return running
-      const task = downloadModel(id, modelPath(id), onProgress).finally(() => downloads.delete(id))
-      downloads.set(id, task)
-      return task.then(async () => {
-        // The first model someone downloads becomes the one dictation uses.
-        await ready
-        if (!active || !existsSync(modelPath(active))) await service.setActive(id)
+      if (running) return running.task
+      const model = DICTATION_MODELS.find((entry) => entry.id === id)!
+      const controller = new AbortController()
+      const task = downloadModel({
+        model,
+        target: modelPath(id),
+        // net.fetch follows the system proxy and certificate store, like mail and calendar.
+        fetch: (url, init) => net.fetch(url, init),
+        signal: controller.signal,
+        onProgress: (received) => onProgress({ id, received, total: model.size }),
       })
+        .finally(() => downloads.delete(id))
+        .then(
+          async (): Promise<DictationDownloadResult> => {
+            // The first model someone downloads becomes the one dictation uses.
+            await ready
+            if (!active || !existsSync(modelPath(active))) await service.setActive(id)
+            return {}
+          },
+          (error: unknown) => {
+            if (error instanceof DictationDownloadError) return { error: error.code }
+            throw error
+          },
+        )
+      downloads.set(id, { task, controller })
+      return task
+    },
+    cancelDownload(id: unknown) {
+      if (!isModelID(id)) throw new Error("Unknown dictation model")
+      downloads.get(id)?.controller.abort()
     },
     async remove(id: unknown) {
       if (!isModelID(id)) throw new Error("Unknown dictation model")
@@ -156,38 +178,4 @@ function modelFile(id: DictationModelID) {
 
 function isModelID(value: unknown): value is DictationModelID {
   return DICTATION_MODELS.some((model) => model.id === value)
-}
-
-/** Streams the model to a `.part` file, checks its size and SHA-256, then moves it into place. */
-async function downloadModel(
-  id: DictationModelID,
-  target: string,
-  onProgress: (progress: DictationDownloadProgress) => void,
-) {
-  const model = DICTATION_MODELS.find((entry) => entry.id === id)!
-  const partial = `${target}.part`
-  await mkdir(join(target, ".."), { recursive: true })
-  const response = await fetch(dictationModelURL(model))
-  if (!response.ok || !response.body) throw new Error(`Model download failed (${response.status})`)
-  const hash = createHash("sha256")
-  let received = 0
-  let reported = 0
-  const body = Readable.fromWeb(response.body as import("node:stream/web").ReadableStream<Uint8Array>)
-  body.on("data", (chunk: Buffer) => {
-    hash.update(chunk)
-    received += chunk.length
-    if (received - reported < 1_000_000 && received < model.size) return
-    reported = received
-    onProgress({ id, received, total: model.size })
-  })
-  await pipeline(body, createWriteStream(partial)).catch(async (error: unknown) => {
-    await rm(partial, { force: true })
-    throw error
-  })
-  const size = (await stat(partial)).size
-  if (size !== model.size || hash.digest("hex") !== model.sha256) {
-    await rm(partial, { force: true })
-    throw new Error("The downloaded model did not match its checksum")
-  }
-  await rename(partial, target)
 }

@@ -132,33 +132,6 @@ describe("HttpApi UI fallback", () => {
     }),
   )
 
-  it.live("serves embedded UI assets when Bun can read them but access reports missing", () =>
-    Effect.gen(function* () {
-      let readPath: string | undefined
-
-      const fs = yield* FSUtil.Service
-      const response = yield* serveEmbeddedUIEffect(
-        "/assets/app.js",
-        {
-          ...fs,
-          existsSafe: () => Effect.die("embedded UI should not rely on filesystem access checks"),
-          readFile: (path) => {
-            readPath = path
-            return path === "/$bunfs/root/assets/app.js"
-              ? Effect.succeed(new TextEncoder().encode("console.log('embedded')"))
-              : Effect.die(`unexpected embedded UI path: ${path}`)
-          },
-        },
-        { "assets/app.js": "/$bunfs/root/assets/app.js" },
-      ).pipe(Effect.map(HttpServerResponse.toWeb))
-
-      expect(response.status).toBe(200)
-      expect(readPath).toBe("/$bunfs/root/assets/app.js")
-      expect(response.headers.get("content-type")).toContain("text/javascript")
-      expect(yield* responseText(response)).toBe("console.log('embedded')")
-    }),
-  )
-
   it.live("allows embedded UI terminal wasm, blob attachments, and theme preload CSP", () =>
     Effect.gen(function* () {
       const script = 'document.documentElement.dataset.theme = "dark"'

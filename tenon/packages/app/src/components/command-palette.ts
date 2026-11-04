@@ -8,8 +8,11 @@ import { useFile } from "@/context/file"
 import { useGlobal } from "@/context/global"
 import { useLanguage } from "@/context/language"
 import { useLayout, type LocalProject } from "@/context/layout"
+import { usePlatform } from "@/context/platform"
 import { ServerConnection } from "@/context/server"
 import { useServerSDK } from "@/context/server-sdk"
+import { listProjects, listVaultPages, type ProjectRecord } from "@/features/second-brain/client"
+import { matchProjects } from "@/features/second-brain/notes-timeline"
 import { displayName, projectForSession } from "@/pages/layout/helpers"
 import { createSessionTabs } from "@/pages/session/helpers"
 import { useSessionLayout } from "@/pages/session/session-layout"
@@ -19,12 +22,14 @@ import { useNavigate } from "@solidjs/router"
 
 export type CommandPaletteEntry = {
   id: string
-  type: "command" | "file" | "session"
+  type: "command" | "file" | "session" | "page" | "project"
   title: string
   description?: string
   keybind?: string
   category: string
   option?: CommandOption
+  /** Where a page or Project opens. */
+  href?: string
   path?: string
   directory?: string
   sessionID?: string
@@ -35,6 +40,10 @@ export type CommandPaletteEntry = {
 }
 
 const ENTRY_LIMIT = 5
+// Each vault search reads every page in the workspace.
+const VAULT_SEARCH_DELAY = 250
+// The server returns up to 1,000 matches; the session search here asks for 50.
+const VAULT_PAGE_LIMIT = 50
 const COMMON_COMMAND_IDS = [
   "session.new",
   "workspace.new",
@@ -151,6 +160,7 @@ export function createCommandPaletteModel(props: { filesOnly?: () => boolean; on
     untitled: () => language.t("command.session.new"),
     category: () => language.t("command.category.session"),
   })
+  const vault = createVaultEntries(() => serverSDK.server)
 
   const highlight = (item: CommandPaletteEntry | undefined) => {
     state.cleanup?.()
@@ -166,6 +176,10 @@ export function createCommandPaletteModel(props: { filesOnly?: () => boolean; on
     dialog.close()
     if (item.type === "command") {
       item.option?.onSelect?.("palette")
+      return
+    }
+    if (item.href) {
+      navigate(item.href, { state: { fromNotes: true } })
       return
     }
     if (item.type === "session") {
@@ -195,6 +209,7 @@ export function createCommandPaletteModel(props: { filesOnly?: () => boolean; on
     recentFileEntries,
     rootFileEntries,
     sessions,
+    vault,
     highlight,
     select,
     close: () => dialog.close(),
@@ -210,6 +225,69 @@ export function createCommandPaletteCommandEntry(option: CommandOption, category
     keybind: option.keybind,
     category,
     option,
+  }
+}
+
+/**
+ * The selected workspace's Projects and pages for the palette, the same ones the Projects page shows. Projects load
+ * once per palette and filter here; pages are searched on the server, behind a delay so typing doesn't read the vault
+ * on every keystroke.
+ */
+export function createVaultEntries(server: () => ServerConnection.Any) {
+  const language = useLanguage()
+  const layout = useLayout()
+  const platform = usePlatform()
+  let abort: AbortController | undefined
+  let projects: Promise<ProjectRecord[]> | undefined
+
+  onCleanup(() => abort?.abort())
+
+  return async (text: string): Promise<CommandPaletteEntry[]> => {
+    abort?.abort()
+    const search = text.trim()
+    const directory = layout.home.workspace()
+    if (!search || !directory) return []
+    const current = new AbortController()
+    abort = current
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, VAULT_SEARCH_DELAY)
+      current.signal.addEventListener(
+        "abort",
+        () => {
+          clearTimeout(timer)
+          resolve()
+        },
+        { once: true },
+      )
+    })
+    if (current.signal.aborted) return []
+    const client = { server: server(), fetch: platform.fetch, target: { directory } }
+    projects ??= listProjects(client).catch(() => [])
+    const [records, pages] = await Promise.all([projects, listVaultPages(client, { search }).catch(() => [])])
+    if (current.signal.aborted) return []
+    const names = new Map(records.map((record) => [record.id, record.name]))
+    return [
+      ...matchProjects(records, search).map(
+        (record): CommandPaletteEntry => ({
+          id: "project:" + record.id,
+          type: "project",
+          title: record.name,
+          description: record.outcome,
+          category: language.t("secondBrain.vault.projects"),
+          href: `/projects?project=${encodeURIComponent(record.id)}`,
+        }),
+      ),
+      ...pages.slice(0, VAULT_PAGE_LIMIT).map(
+        (page): CommandPaletteEntry => ({
+          id: "page:" + page.path,
+          type: "page",
+          title: page.title,
+          description: page.projectId ? names.get(page.projectId) : undefined,
+          category: language.t("secondBrain.vault.tree"),
+          href: `/projects?page=${encodeURIComponent(page.path)}`,
+        }),
+      ),
+    ]
   }
 }
 

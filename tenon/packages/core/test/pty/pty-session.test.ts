@@ -108,6 +108,19 @@ describe("pty", () => {
     }),
   )
 
+  it.live("fails with a spawn error naming cwd, and starts nothing, when the folder is gone", () =>
+    Effect.gen(function* () {
+      const pty = yield* Pty.Service
+      const cwd = path.join(os.tmpdir(), "tenon-missing-folder")
+      const result = yield* pty.create({ cwd }).pipe(Effect.exit)
+
+      expect(Exit.isFailure(result)).toBe(true)
+      if (Exit.isFailure(result))
+        expect(Cause.squash(result.cause)).toMatchObject({ _tag: "Pty.SpawnError", field: "cwd" })
+      expect(yield* pty.list()).toEqual([])
+    }),
+  )
+
   // npm installs CLIs on Windows as .cmd shims, which a PTY can't start directly.
   ;(process.platform === "win32" ? it.live : it.live.skip)("runs a .cmd shim found on PATH", () =>
     Effect.gen(function* () {

@@ -3,14 +3,14 @@ import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Dialog, DialogBody, DialogHeader, DialogTitle } from "@tenon/ui/v2/dialog-v2"
 import { createResource, For, Show } from "solid-js"
 import { useLanguage } from "@/context/language"
-import type { SidebarController, SidebarProjectItem } from "@/components/sidebar/sidebar-controller"
+import type { SidebarController } from "@/components/sidebar/sidebar-controller"
 import { sessionTitle } from "@/utils/session-title"
 import { showToast } from "@/utils/toast"
 import { errorMessage } from "@/pages/layout/helpers"
 
-export function DialogArchivedThreads(props: { ctrl: SidebarController; project: SidebarProjectItem }) {
+export function DialogArchivedThreads(props: { ctrl: SidebarController; directory: string }) {
   const language = useLanguage()
-  const [threads, { mutate }] = createResource(() => props.ctrl.listArchivedThreads(props.project))
+  const [threads, { mutate }] = createResource(() => props.ctrl.listArchivedThreads(props.directory))
 
   const unarchive = (session: Session) =>
     props.ctrl

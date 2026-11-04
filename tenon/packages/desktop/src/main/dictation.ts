@@ -3,7 +3,8 @@ import { createInterface } from "node:readline"
 
 // Supervises the tenon-dictation engine (tenon/packages/dictation) over its JSON-lines stdio
 // protocol. The engine is spawned on the first start, respawned on the next start after it exits
-// (like superviseSidecar, with a restart limit), and loads the active model on every spawn.
+// (like superviseSidecar, with a restart limit), and loads the active model on every spawn. It exits
+// after a quiet spell so a loaded model doesn't stay in memory for the rest of the app session.
 
 export type DictationStatus = "idle" | "starting" | "recording" | "transcribing"
 export type DictationErrorCode =
@@ -43,6 +44,13 @@ const READY_TIMEOUT = 20_000
 const LOAD_TIMEOUT = 60_000
 const MAX_RESTARTS = 5
 const RESTART_WINDOW = 10 * 60_000
+// Samples cost about 64 KB a second in the engine, so a forgotten mic stops at about 115 MB.
+const MAX_RECORDING = 30 * 60_000
+// Generous, so only a wedged engine trips it: a slow CPU with a large model runs well under ten
+// times the length of the audio. A click on the button gives up sooner.
+const TRANSCRIBE_TIMEOUT = 2 * 60_000
+const TRANSCRIBE_TIMEOUT_FACTOR = 10
+const IDLE_TIMEOUT = 10 * 60_000
 
 export function createDictation(input: {
   command: string
@@ -52,8 +60,15 @@ export function createDictation(input: {
   model?: () => string | undefined
   /** How long a model load may take before the engine is treated as hung; tests shorten it. */
   loadTimeout?: number
+  /** The base allowance for a transcription, before the part proportional to the recording; tests shorten it. */
+  transcribeTimeout?: number
+  /** How long a recording may run before it stops itself; tests shorten it. */
+  maxRecording?: number
+  /** How long an unused engine stays loaded; tests shorten it. */
+  idleTimeout?: number
 }) {
   const levels = new Set<(rms: number) => void>()
+  const limits = new Set<() => void>()
   const failures = new Set<(error: DictationError) => void>()
   const pending = new Map<string, Pending>()
   let engine: Engine | undefined
@@ -64,8 +79,22 @@ export function createDictation(input: {
   let nextID = 0
   let crashes: number[] = []
   let readyWaiter: { resolve: () => void; reject: (error: DictationError) => void } | undefined
+  let recordingStarted = 0
+  let limitTimer: ReturnType<typeof setTimeout> | undefined
+  let idleTimer: ReturnType<typeof setTimeout> | undefined
+  // The transcript of a recording the length limit stopped, until stop() collects it.
+  let limited: Promise<string> | undefined
 
   const id = () => String(++nextID)
+  // discard() marks the engine exited first, so its late exit can't touch a start that has begun since.
+  const armIdle = () => {
+    clearTimeout(idleTimer)
+    if (!engine || status !== "idle") return
+    idleTimer = setTimeout(() => {
+      if (engine && status === "idle") discard(engine, false)
+    }, input.idleTimeout ?? IDLE_TIMEOUT)
+    idleTimer.unref?.()
+  }
   const send = (current: Engine, request: Record<string, unknown>) => {
     if (current.exited || !current.child.stdin.writable) return
     current.child.stdin.write(JSON.stringify(request) + "\n")
@@ -104,6 +133,8 @@ export function createDictation(input: {
       // The recording never began (no microphone, access denied): the next stop() reports why.
       recordingError = error
       status = "idle"
+      clearTimeout(limitTimer)
+      armIdle()
       return failures.forEach((listener) => listener(error))
     }
     fail(error)
@@ -147,6 +178,7 @@ export function createDictation(input: {
     if (current.exited) return
     current.exited = true
     if (engine === current) engine = undefined
+    clearTimeout(limitTimer)
     const error = new DictationError("engine_exited", "The dictation engine stopped")
     input.log("dictation engine exited", { code })
     readyWaiter?.reject(error)
@@ -178,15 +210,43 @@ export function createDictation(input: {
   }
 
   // An engine that never got ready or never finished a load is killed and forgotten, so the next start
-  // spawns a fresh one instead of reusing it (or answering already_recording) forever. It counts as a crash.
-  const discard = (current: Engine) => {
+  // spawns a fresh one instead of reusing it (or answering already_recording) forever. It counts as a
+  // crash unless the person chose to stop it.
+  const discard = (current: Engine, crash = true) => {
     if (current.exited) return
     current.exited = true
     if (engine === current) engine = undefined
     readyWaiter = undefined
-    crashes = [...crashes.filter((at) => Date.now() - at < RESTART_WINDOW), Date.now()]
-    input.log("dictation engine timed out")
+    if (crash) crashes = [...crashes.filter((at) => Date.now() - at < RESTART_WINDOW), Date.now()]
+    input.log(crash ? "dictation engine timed out" : "dictation engine stopped")
     current.child.kill()
+  }
+
+  // Ends a transcription the engine may never answer. discard() makes onExit return early, so the
+  // waiter is rejected here. The worker holds the session for the whole run, so the engine has to go.
+  const abandon = (current: Engine, error: DictationError, crash: boolean) => {
+    discard(current, crash)
+    pending.forEach((waiter) => waiter.reject(error))
+    pending.clear()
+    status = "idle"
+  }
+
+  const transcribe = (current: Engine) => {
+    clearTimeout(limitTimer)
+    status = "transcribing"
+    const request = id()
+    const timer = setTimeout(
+      () => abandon(current, new DictationError("transcribe_timeout", "The transcription took too long"), true),
+      (input.transcribeTimeout ?? TRANSCRIBE_TIMEOUT) + (Date.now() - recordingStarted) * TRANSCRIBE_TIMEOUT_FACTOR,
+    )
+    return new Promise<string>((resolve, reject) => {
+      pending.set(request, { resolve, reject })
+      send(current, { id: request, type: "stop" })
+    }).finally(() => {
+      clearTimeout(timer)
+      if (status === "transcribing") status = "idle"
+      armIdle()
+    })
   }
 
   // `ready` answers a load; an error carrying the request id rejects it. No answer in time rejects it too.
@@ -214,60 +274,91 @@ export function createDictation(input: {
       if (status !== "idle") throw new DictationError("already_recording", "Dictation is already running")
       status = "starting"
       recordingError = undefined
+      limited = undefined
+      clearTimeout(idleTimer)
       const current = await ensureEngine().catch((error: unknown) => {
         status = "idle"
+        armIdle()
         throw error
       })
       startID = id()
       status = "recording"
+      recordingStarted = Date.now()
       send(current, { id: startID, type: "start" })
+      limitTimer = setTimeout(() => {
+        if (status !== "recording" || recordingError) return
+        const transcript = transcribe(current)
+        // The renderer may be gone, so nobody may ever collect this.
+        transcript.catch(() => undefined)
+        limited = transcript
+        limits.forEach((listener) => listener())
+      }, input.maxRecording ?? MAX_RECORDING)
+      limitTimer.unref?.()
     },
     stop() {
+      if (limited) {
+        const transcript = limited
+        limited = undefined
+        return transcript
+      }
       const error = recordingError
       recordingError = undefined
       if (error) {
         // A microphone that failed mid-recording leaves the engine's recorder open; release it.
         if (engine && status === "recording") send(engine, { id: id(), type: "cancel" })
+        clearTimeout(limitTimer)
         status = "idle"
+        armIdle()
         return Promise.reject(error)
       }
       const current = engine
       if (status !== "recording" || !current)
         return Promise.reject(new DictationError("not_recording", "Dictation is not recording"))
-      status = "transcribing"
-      const request = id()
-      return new Promise<string>((resolve, reject) => {
-        pending.set(request, { resolve, reject })
-        send(current, { id: request, type: "stop" })
-      }).finally(() => {
-        if (status === "transcribing") status = "idle"
-      })
+      return transcribe(current)
     },
+    /** Drops the recording, or gives up on a transcription (stop() then rejects with `cancelled`). */
     cancel() {
       recordingError = undefined
+      limited = undefined
+      clearTimeout(limitTimer)
+      if (status === "transcribing") {
+        if (engine) abandon(engine, new DictationError("cancelled", "Dictation was cancelled"), false)
+        return
+      }
       if (engine && (status === "recording" || status === "starting")) send(engine, { id: id(), type: "cancel" })
-      if (status !== "transcribing") status = "idle"
+      status = "idle"
+      armIdle()
     },
     /** Loads `model` into a running engine now; a stopped engine loads it on its next spawn. */
     async reload() {
       const model = input.model?.()
       const current = engine
       if (!current || current.exited || !model || status !== "idle") return
-      await load(current, model).catch((error: unknown) => {
-        if (error instanceof DictationError && error.code === "engine_unavailable") discard(current)
-        throw error
-      })
+      clearTimeout(idleTimer)
+      await load(current, model)
+        .catch((error: unknown) => {
+          if (error instanceof DictationError && error.code === "engine_unavailable") discard(current)
+          throw error
+        })
+        .finally(armIdle)
     },
     status: () => status,
     onLevel(listener: (rms: number) => void) {
       levels.add(listener)
       return () => void levels.delete(listener)
     },
+    /** Fires when a recording reaches its length limit and stops itself; stop() then collects the transcript. */
+    onLimit(listener: () => void) {
+      limits.add(listener)
+      return () => void limits.delete(listener)
+    },
     onError(listener: (error: DictationError) => void) {
       failures.add(listener)
       return () => void failures.delete(listener)
     },
     dispose() {
+      clearTimeout(limitTimer)
+      clearTimeout(idleTimer)
       const current = engine
       engine = undefined
       if (current && !current.exited) current.child.kill()

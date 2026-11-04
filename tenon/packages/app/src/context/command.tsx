@@ -118,6 +118,18 @@ export function addCommandRegistration(registrations: CommandRegistration[], ent
   return [entry, ...registrations]
 }
 
+/** Every active command, one per ID. The newest registration of an ID wins, so a page shadows the sidebar's default. */
+export function resolveCommandOptions(registrations: CommandRegistration[], onDuplicate?: (id: string) => void) {
+  const seen = new Set<string>()
+  return activeCommandRegistrations(registrations)
+    .flatMap((registration) => registration.options())
+    .filter((option) => {
+      if (!seen.has(option.id)) return seen.add(option.id)
+      onDuplicate?.(option.id)
+      return false
+    })
+}
+
 export function activeCommandRegistrations(registrations: CommandRegistration[]) {
   const keys = new Set<string>()
   return registrations.filter((entry) => {
@@ -289,26 +301,14 @@ export const { use: useCommand, provider: CommandProvider } = createSimpleContex
       return config
     }
 
-    const registered = createMemo(() => {
-      const seen = new Set<string>()
-      const all: CommandOption[] = []
-
-      for (const reg of activeCommandRegistrations(store.registrations)) {
-        for (const opt of reg.options()) {
-          if (seen.has(opt.id)) {
-            if (import.meta.env.DEV && !warnedDuplicates.has(opt.id)) {
-              warnedDuplicates.add(opt.id)
-              console.warn(`[command] duplicate command id "${opt.id}" registered; keeping first entry`)
-            }
-            continue
-          }
-          seen.add(opt.id)
-          all.push(opt)
-        }
-      }
-
-      return all
-    })
+    const registered = createMemo(() =>
+      resolveCommandOptions(store.registrations, (id) => {
+        // Pages shadow the sidebar's default palette on purpose.
+        if (!import.meta.env.DEV || id === PALETTE_ID || warnedDuplicates.has(id)) return
+        warnedDuplicates.add(id)
+        console.warn(`[command] duplicate command id "${id}" registered; keeping first entry`)
+      }),
+    )
 
     createEffect(() => {
       if (!catalogReady()) return

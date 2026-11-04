@@ -1,4 +1,4 @@
-import { bundledLanguagesInfo } from "shiki"
+import { bundledLanguagesInfo } from "shiki/langs"
 import { getFilename } from "@tenon/core/util/path"
 import type { FilePart } from "@opencode-ai/sdk/v2"
 
@@ -14,7 +14,7 @@ export function kind(part: FilePart) {
   return part.mime.startsWith("image/") ? "image" : "file"
 }
 
-// language metadata only; grammars stay behind shiki's lazy imports
+// shiki/langs is metadata only: the root entry would pull the engine onto every page with a composer
 const LANGUAGE_NAMES = new Map<string, string>(
   bundledLanguagesInfo.flatMap((info) =>
     [info.id, ...(info.aliases ?? [])].map((alias) => [alias, info.name] as [string, string]),

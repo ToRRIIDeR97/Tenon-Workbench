@@ -4,6 +4,7 @@ import { type QueryClient, useQueries, useQuery, useQueryClient } from "@tanstac
 import { createComputed, createEffect, createMemo, createResource, on, onCleanup, onMount } from "solid-js"
 import { createStore, produce, reconcile } from "solid-js/store"
 import { makeEventListener } from "@solid-primitives/event-listener"
+import { createSimpleContext } from "@tenon/ui/context"
 import { useDirectoryPicker } from "@/components/directory-picker"
 import { outsideEditable, useCommand } from "@/context/command"
 import { useDrafts } from "@/context/drafts"
@@ -26,6 +27,7 @@ import {
   updateProject,
   type ProjectThreads,
 } from "@/features/second-brain/client"
+import { invalidateVaultPages } from "@/features/second-brain/vault-pages"
 import {
   attentionCards,
   cardSummary,
@@ -104,7 +106,10 @@ export function useProjectThreads() {
           target: { directory: directory ?? "" },
         }),
       staleTime: 30_000,
+      refetchOnMount: true,
       retry: false,
+      // The server is usually local, so a lost connection is no reason to pause.
+      networkMode: "always" as const,
     }
   })
 }
@@ -164,14 +169,27 @@ export function createSidebarController() {
   )
   const refreshProjects = () => invalidateProjectThreads(queryClient, server.key)
 
+  // Agents write pages without going through the Projects page's list.
+  createEffect(() => {
+    const unsubscribe = serverSDK().event.listen((e) => {
+      const event = e.details as { type: string; properties?: { phase?: string } }
+      if (event.type === "agent.write" && event.properties?.phase === "done")
+        void invalidateVaultPages(queryClient, server.key)
+    })
+    onCleanup(unsubscribe)
+  })
+
   const workspaces = () => layout.projects.list()
   const selectWorkspace = (directory: string) => layout.home.setSelection({ server: server.key, directory })
 
   // A workspace whose folder was moved or deleted: the server answers its requests with a typed 404,
-  // and the sidebar offers to locate the folder or remove the workspace instead of failing.
+  // and the sidebar offers to locate the folder or remove the workspace instead of failing. Each check boots
+  // the workspace's server instance, so the others wait until the switcher that shows their state opens.
+  const [switcher, setSwitcher] = createStore({ open: false })
   const folderQueries = useQueries(() => ({
     queries: workspaces().map((workspace) => ({
       queryKey: ["workspace-folder", server.key, workspace.worktree] as const,
+      enabled: switcher.open || workspace.worktree === brainDirectory(),
       queryFn: () =>
         serverSDK()
           .client.file.list({ directory: workspace.worktree, path: "." })
@@ -675,11 +693,14 @@ export function createSidebarController() {
       .catch(requestFailed)
   }
 
-  /** Archived threads in a Project's thread folder, newest first, within the list limit. */
-  const listArchivedThreads = (project: SidebarProjectItem) =>
+  /**
+   * Archived threads in one folder, newest first, within the list limit. The server matches the folder
+   * exactly, so the workspace folder's list never includes threads from a Project's folder.
+   */
+  const listArchivedThreads = (directory: string) =>
     serverSDK()
       .client.experimental.session.list(
-        { directory: project.threadDirectory, archived: true, limit: ARCHIVED_THREAD_LIMIT },
+        { directory, archived: true, limit: ARCHIVED_THREAD_LIMIT },
         { throwOnError: true },
       )
       .then((result) => result.data.filter((session) => !!session.time.archived) as Session[])
@@ -860,6 +881,7 @@ export function createSidebarController() {
     brainDirectory,
     workspaces,
     selectWorkspace,
+    setSwitcherOpen: (open: boolean) => setSwitcher("open", open),
     folderMissing,
     locateWorkspace,
     removeWorkspace,
@@ -891,6 +913,7 @@ export function createSidebarController() {
     archiveThread,
     unarchiveThread,
     deleteThread,
+    threadHidden: (sessionID: string) => !!local.hidden[sessionID],
     setThreadPinned,
     listArchivedThreads,
     forkThread,
@@ -901,3 +924,10 @@ export function createSidebarController() {
 }
 
 export type SidebarController = ReturnType<typeof createSidebarController>
+
+/** One controller for the sidebar and the pages that run its thread actions, so they share the undo queue. */
+export const { use: useSidebarController, provider: SidebarControllerProvider } = createSimpleContext({
+  name: "SidebarController",
+  gate: false,
+  init: createSidebarController,
+})

@@ -2278,9 +2278,13 @@ export default function Page() {
                   collapseThreshold={50}
                   onResize={(height) => {
                     size.touch()
-                    layout.terminal.resize(height)
+                    layout.terminal.preview(height)
                   }}
-                  onCollapse={() => view().terminal.close()}
+                  onResizeEnd={(height) => layout.terminal.resize(height)}
+                  onCollapse={() => {
+                    layout.terminal.preview(undefined)
+                    view().terminal.close()
+                  }}
                 />
               </div>
             </Show>

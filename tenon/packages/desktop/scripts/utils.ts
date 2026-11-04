@@ -1,7 +1,10 @@
 import { $ } from "bun"
-import { chmod, copyFile, mkdtemp, rm } from "node:fs/promises"
+import { createHash } from "node:crypto"
+import { existsSync } from "node:fs"
+import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { archiveFolder, archiveName, archiveURL, PLATFORM, VERSION } from "../../core/src/ripgrep/release"
 
 const CLI_VERSION = "0.0.0-next-16350"
 
@@ -71,8 +74,11 @@ export function getCurrentCli(target = RUST_TARGET ?? nativeTarget()) {
 
 export async function downloadCliToResources() {
   const cli = getCurrentCli()
-  const directory = await mkdtemp(join(tmpdir(), "opencode-cli-"))
   const dest = windowsify("resources/opencode-cli")
+  const sentinel = Bun.file("resources/opencode-cli.version")
+  const wanted = `${cli.package}@${CLI_VERSION}`
+  if (existsSync(dest) && (await sentinel.exists()) && (await sentinel.text()) === wanted) return
+  const directory = await mkdtemp(join(tmpdir(), "opencode-cli-"))
   try {
     await $`bun install --no-save --cwd ${directory} ${`${cli.package}@${CLI_VERSION}`} ${`--os=${cli.os}`} ${`--cpu=${cli.cpu}`}`
     await copyFile(
@@ -87,8 +93,43 @@ export async function downloadCliToResources() {
     await $`pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File ../../script/sign-windows.ps1 ${dest}`
   }
   if (process.platform === "darwin") await $`codesign --force --sign - ${dest}`
+  await Bun.write(sentinel, wanted)
 
   console.log(`Copied ${cli.package} to ${dest}`)
+}
+
+/** Puts the pinned, checksum-verified ripgrep for the build target in resources/ripgrep for electron-builder. */
+export async function downloadRipgrepToResources() {
+  const cli = getCurrentCli()
+  const key = `${cli.cpu}-${cli.os}`
+  if (!(key in PLATFORM)) throw new Error(`ripgrep is not available for ${key}`)
+  const config = PLATFORM[key as keyof typeof PLATFORM]
+  const binary = cli.os === "win32" ? "rg.exe" : "rg"
+  const stamp = "resources/ripgrep/.version"
+  if ((await readFile(stamp, "utf8").catch(() => "")) === `${VERSION}-${key}`) return
+
+  const response = await fetch(archiveURL(config), { signal: AbortSignal.timeout(120_000) })
+  if (!response.ok) throw new Error(`ripgrep download failed (${response.status})`)
+  const bytes = new Uint8Array(await response.arrayBuffer())
+  if (createHash("sha256").update(bytes).digest("hex") !== config.sha256)
+    throw new Error(`ripgrep checksum mismatch for ${archiveName(config)}`)
+
+  const directory = await mkdtemp(join(tmpdir(), "tenon-ripgrep-"))
+  try {
+    const archive = join(directory, archiveName(config))
+    await writeFile(archive, bytes)
+    if (config.extension === "zip")
+      await $`powershell -NoProfile -NonInteractive -Command ${`Expand-Archive -LiteralPath '${archive.replaceAll("'", "''")}' -DestinationPath '${directory.replaceAll("'", "''")}' -Force`}`
+    else await $`tar -xzf ${archive} -C ${directory}`
+    await rm("resources/ripgrep", { recursive: true, force: true })
+    await mkdir("resources/ripgrep", { recursive: true })
+    await copyFile(join(directory, archiveFolder(config), binary), join("resources/ripgrep", binary))
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+  if (cli.os !== "win32") await chmod(join("resources/ripgrep", binary), 0o755)
+  await writeFile(stamp, `${VERSION}-${key}`)
+  console.log(`Copied ripgrep ${VERSION} (${key}) to resources/ripgrep`)
 }
 
 export function windowsify(path: string) {

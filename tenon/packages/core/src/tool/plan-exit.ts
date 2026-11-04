@@ -60,7 +60,11 @@ const layer = Layer.effectDiscard(
           ],
           execute: (_input, context) =>
             Effect.gen(function* () {
-              const source = { type: "tool" as const, messageID: context.assistantMessageID, callID: context.toolCallID }
+              const source = {
+                type: "tool" as const,
+                messageID: context.assistantMessageID,
+                callID: context.toolCallID,
+              }
               yield* permission
                 .assert({ action: name, resources: ["*"], sessionID: context.sessionID, agent: context.agent, source })
                 .pipe(Tool.mapError(() => new ToolFailure({ message: `Permission denied: ${name}` })))

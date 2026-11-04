@@ -91,7 +91,6 @@ export async function mockTenonServer(page: Page, config: MockServerConfig) {
           threads.map((entry) => (entry as { project: unknown }).project),
         )
       if (path === "/second-brain/calendar") return json(route, { version: 2, revision: "e2e", events: [], tasks: [] })
-      if (path === "/second-brain/notes") return json(route, [])
       if (path === "/second-brain/projects/scan")
         return json(route, { folders: threads.length, created: 0, missing: [] })
     }

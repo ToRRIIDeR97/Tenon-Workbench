@@ -426,6 +426,24 @@ describe("FileMutation", () => {
     ),
   )
 
+  it.live("retries a remove the target briefly refuses", () =>
+    withTmp((directory) =>
+      Effect.gen(function* () {
+        const targetPath = path.join(directory, "held.txt")
+        yield* Effect.promise(() => fs.writeFile(targetPath, "held"))
+        let refusals = 2
+        const flaky = overrideFilesystem((real) => ({
+          remove: (target, options) => (refusals-- > 0 ? Effect.fail(busy(target)) : real.remove(target, options)),
+        }))
+        yield* Effect.gen(function* () {
+          const target = yield* (yield* LocationMutation.Service).resolve({ path: "held.txt" })
+          expect((yield* (yield* FileMutation.Service).remove({ target })).existed).toBe(true)
+        }).pipe(provide(directory, flaky))
+        expect(yield* Effect.promise(() => fs.readdir(directory))).toEqual([])
+      }),
+    ),
+  )
+
   it.live("retries a rename the target briefly refuses, then gives up and removes the temp file", () =>
     withTmp((directory) =>
       Effect.gen(function* () {

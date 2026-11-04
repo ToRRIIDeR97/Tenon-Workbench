@@ -12,6 +12,7 @@ part of this repository.
 | transcribe-cpp (and transcribe-cpp-sys) | GGUF Whisper and Parakeet inference | MIT | https://github.com/handy-computer/transcribe.cpp |
 | handy-recorder | Microphone capture | MIT | https://github.com/handy-computer/handy-recorder |
 | earshot | Voice activity detection | MIT OR Apache-2.0 | https://github.com/pykeio/earshot |
+| ripgrep | File and text search in the desktop app (not part of the dictation engine) | Unlicense OR MIT | https://github.com/BurntSushi/ripgrep |
 | ggml (vendored by transcribe-cpp-sys) | Tensor runtime | MIT | https://github.com/ggml-org/ggml |
 
 ## Handy
@@ -97,6 +98,13 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## ripgrep
+
+Binary `rg` 15.1.0, https://github.com/BurntSushi/ripgrep, by Andrew Gallant, shipped unmodified
+in the desktop app under `resources/ripgrep/` and used under the MIT licence of its
+`Unlicense OR MIT` dual licence. The MIT terms are the permission notice reproduced above,
+with copyright held by Andrew Gallant.
 
 ## earshot
 

@@ -109,7 +109,9 @@ test("AC-7.3 Ctrl/Cmd+J toggles the slim strip; Esc hides it; Open full goes to 
   expect(closed).toBeLessThanOrEqual(24)
   await toggleStrip(page)
   await expect(strip(page)).toHaveAttribute("data-state", "open")
-  await expect.poll(() => strip(page).evaluate((element) => element.getBoundingClientRect().height)).toBeLessThanOrEqual(90)
+  await expect
+    .poll(() => strip(page).evaluate((element) => element.getBoundingClientRect().height))
+    .toBeLessThanOrEqual(90)
   await expect(strip(page).getByRole("textbox")).toBeVisible()
   await page.keyboard.press("Escape")
   await expect(strip(page)).toHaveAttribute("data-state", "closed")
@@ -163,7 +165,12 @@ test("AC-7.7 a Command Centre thread shows its writes as inline cards in the thr
       },
     },
   })
-  await start(page, [write("a", "note", "started"), write("a", "note", "done"), write("b", "tasks", "started"), write("b", "tasks", "done")])
+  await start(page, [
+    write("a", "note", "started"),
+    write("a", "note", "done"),
+    write("b", "tasks", "started"),
+    write("b", "tasks", "done"),
+  ])
   // Open the thread view first: on any other page these writes would rightly show the top pill.
   await page.goto(`/${base64Encode(commandDirectory)}/session/${commandThread.id}`)
   await expect(page).toHaveURL(threadURL)

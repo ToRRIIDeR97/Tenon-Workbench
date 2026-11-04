@@ -17,7 +17,7 @@ import type { DesktopMenuAction } from "@tenon/app/desktop-menu"
 import type { GoogleCalendarPlatform } from "@tenon/app"
 import { parseDesktopNativeBundle, type DesktopNativeBundle } from "@tenon/app/i18n/desktop-native"
 
-import type { FatalRendererError, ServerReadyData, TitlebarTheme } from "../preload/types"
+import type { FatalRendererError, ServerReadyData, StartupMilestone, TitlebarTheme } from "../preload/types"
 import { resolveAppPath } from "./apps"
 import { runDesktopMenuAction } from "./desktop-menu-actions"
 import { setForceFocus } from "./debug"
@@ -31,8 +31,10 @@ import {
   getWindowID,
   openExternalURL,
   openLocalFileURL,
+  confirmQuit,
   setPinchZoomEnabled,
   setTitlebar,
+  setWindowUnsaved,
   updateTitlebar,
 } from "./windows"
 import type { UpdaterController } from "./updater-controller"
@@ -110,6 +112,7 @@ type Deps = {
   setBackgroundColor: (color: string) => void
   exportDebugLogs: () => Promise<string>
   recordFatalRendererError: (error: FatalRendererError) => Promise<void> | void
+  recordStartupMilestone: (name: StartupMilestone, sinceNavigation: number) => void
   setNativeTranslations: (bundle: DesktopNativeBundle) => void
   dictation: DictationService
   mail: MailService
@@ -183,12 +186,19 @@ export function registerIpcHandlers(deps: Deps) {
   trustedHandle("google-task-write", (_event, input: Parameters<GoogleCalendarPlatform["writeTask"]>[0]) =>
     deps.googleCalendar.writeTask(input),
   )
+  trustedHandle("google-calendar-discard-conflict", (_event, input: { idempotencyKey?: unknown }) => {
+    if (typeof input?.idempotencyKey !== "string") throw new Error("google_idempotency_invalid")
+    return deps.googleCalendar.discardConflict({ idempotencyKey: input.idempotencyKey })
+  })
   trustedHandle("google-calendar-disconnect", (_event, input: Parameters<GoogleCalendarPlatform["disconnect"]>[0]) =>
     deps.googleCalendar.disconnect(typeof input?.accountId === "string" ? { accountId: input.accountId } : undefined),
   )
   // Dictation: the renderer starts and stops recordings and manages model files by id only.
   trustedHandle("dictation-start", (event) =>
-    deps.dictation.start((rms) => !event.sender.isDestroyed() && event.sender.send("dictation-level", rms)),
+    deps.dictation.start(
+      (rms) => !event.sender.isDestroyed() && event.sender.send("dictation-level", rms),
+      () => !event.sender.isDestroyed() && event.sender.send("dictation-limit"),
+    ),
   )
   trustedHandle("dictation-stop", () => deps.dictation.stop())
   trustedHandle("dictation-cancel", () => deps.dictation.cancel())
@@ -201,6 +211,7 @@ export function registerIpcHandlers(deps: Deps) {
       (progress) => !event.sender.isDestroyed() && event.sender.send("dictation-download-progress", progress),
     ),
   )
+  trustedHandle("dictation-cancel-download", (_event, id: unknown) => deps.dictation.cancelDownload(id))
   trustedHandle("dictation-open-permission-settings", () => deps.dictation.openPermissionSettings())
   trustedHandle("mail-available", () => deps.mail.available())
   trustedHandle("mail-accounts", () => deps.mail.accounts())
@@ -228,6 +239,11 @@ export function registerIpcHandlers(deps: Deps) {
   trustedHandle("record-fatal-renderer-error", (_event: IpcMainInvokeEvent, error: FatalRendererError) =>
     deps.recordFatalRendererError(error),
   )
+  trustedHandle("record-startup-milestone", (_event, name: unknown, sinceNavigation: unknown) => {
+    if (name !== "first-route" && name !== "bootstrap-settled") return
+    if (typeof sinceNavigation !== "number" || !Number.isFinite(sinceNavigation)) return
+    deps.recordStartupMilestone(name, sinceNavigation)
+  })
   trustedHandle("set-native-translations", (_event: IpcMainInvokeEvent, value: unknown) => {
     const bundle = parseDesktopNativeBundle(value)
     if (!bundle) throw new Error("Invalid native translation bundle")
@@ -502,6 +518,11 @@ export function registerIpcHandlers(deps: Deps) {
 
   trustedOn("relaunch", () => {
     deps.relaunch()
+  })
+  trustedHandle("confirm-quit", () => confirmQuit())
+  trustedOn("set-unsaved-changes", (event, unsaved: unknown) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (win) setWindowUnsaved(win, unsaved === true)
   })
 
   trustedHandle("get-zoom-factor", (event: IpcMainInvokeEvent) => event.sender.getZoomFactor())

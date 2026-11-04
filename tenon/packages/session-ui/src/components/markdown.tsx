@@ -395,6 +395,15 @@ export function Markdown(
   const owner = createUniqueId()
   const activeCodeKeys = new Set<string>()
   const completedCode = new Map<string, Extract<RenderedBlock, { mode: "code" }>>()
+  // Most blocks are unchanged between streamed updates, and comparing them is far cheaper than hashing.
+  const hashes = new Map<string, { src: string; hash: string | undefined }>()
+  const blockHash = (key: string, src: string) => {
+    const known = hashes.get(key)
+    if (known?.src === src) return known.hash
+    const hash = checksum(src)
+    hashes.set(key, { src, hash })
+    return hash
+  }
   let streamed = false
   const [projection] = createResource(
     () => {
@@ -468,7 +477,7 @@ export function Markdown(
             return rendered
           }
 
-          const hash = checksum(block.src)
+          const hash = blockHash(blockKey, block.src)
           if (key) {
             const cached = getCachedMarkdown(key)
             if (cached?.raw === block.raw && cached.hash === hash) {
