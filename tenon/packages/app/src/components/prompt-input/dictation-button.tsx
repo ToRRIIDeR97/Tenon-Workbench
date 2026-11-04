@@ -91,10 +91,14 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
     })
   }
 
-  const toggle = async () => {
+  const toggle = async (clicks: number) => {
     if (state.phase === "starting") return
-    // Gives up on a transcription that is taking too long; finish() ends quietly.
-    if (state.phase === "transcribing") return void props.dictation.cancel()
+    // Gives up on a transcription that is taking too long; finish() ends quietly. The second click of
+    // a double-click on stop is not a cancel: it would throw the recording away.
+    if (state.phase === "transcribing") {
+      if (clicks < 2) void props.dictation.cancel()
+      return
+    }
     if (state.phase === "idle") {
       thread = params.id
       setState("phase", "starting")
@@ -128,7 +132,7 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
         aria-pressed={state.phase === "recording"}
         aria-busy={state.phase === "starting" || state.phase === "transcribing"}
         state={state.phase === "recording" ? "pressed" : undefined}
-        onClick={() => void toggle()}
+        onClick={(event) => void toggle(event.detail)}
         icon={<MicIcon level={state.phase === "recording" ? state.level : undefined} />}
       />
     </TooltipV2>
