@@ -159,6 +159,11 @@ Baseline failure, not caused by this work: `session-timeline.spec.ts:320` fails 
 Diagrams match the diff. The parent-link rollup sits inside the proposed grouping box, and the implementation view's
 `threadState` and `nodeState` take the optional `linked` argument.
 
+After verification, `b3c7b16e` evened the margins and `6c7e3702` set folder cards to 300ms both ways with the new
+Reveal variant `even`. Frame sampling showed both directions take 300ms, with the chevron in step. At `6c7e3702`,
+`bun run check`, `bun run test:routes` and `sidebar-cards.spec.ts` (12 passed) pass. The verifier hasn't reviewed these
+two commits.
+
 Not verified, or left open:
 
 - **M-1 mostly done on 2026-11-04,** in the installed app at `b3c7b16e`, which adds the alignment fix and merges `main`
