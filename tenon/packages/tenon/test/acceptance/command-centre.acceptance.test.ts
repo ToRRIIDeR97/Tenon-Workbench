@@ -184,6 +184,17 @@ describe("Command Centre", () => {
       )) as Result
       expect(refused.isError).toBe(true)
       expect(yield* Effect.promise(() => readdir(busy))).toEqual(["keep.txt"])
+
+      // A folder that can't be listed is refused, not treated as missing and later removed.
+      const file = path.join(test.directory, "a-file")
+      yield* Effect.promise(() => writeFile(file, "mine"))
+      const unreadable = (yield* AgentAppTools.call(
+        "project_setup",
+        { workspace: test.directory, name: "Unreadable", folder: file },
+        { sessionID: command.id },
+      )) as Result
+      expect(unreadable.isError).toBe(true)
+      expect(yield* Effect.promise(() => readFile(file, "utf8"))).toBe("mine")
     }),
   )
 })

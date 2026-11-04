@@ -1,6 +1,6 @@
 import { afterEach, describe, expect } from "bun:test"
 import { NodeHttpServer, NodeServices } from "@effect/platform-node"
-import { mkdir, readdir, rm, symlink, writeFile } from "node:fs/promises"
+import { mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { Config, Effect, Layer } from "effect"
 import { HttpClient, HttpClientRequest, HttpClientResponse, HttpRouter, HttpServer } from "effect/unstable/http"
@@ -9,8 +9,11 @@ import { AppNodeBuilder } from "@tenon/core/effect/app-node-builder"
 import { LayerNode } from "@tenon/core/effect/layer-node"
 import { CrossSpawnSpawner } from "@tenon/core/cross-spawn-spawner"
 import { Database } from "@tenon/core/database/database"
+import { FSUtil } from "@tenon/core/fs-util"
+import { Global } from "@tenon/core/global"
 import { Ripgrep } from "@tenon/core/ripgrep"
 import { Workspace } from "../../src/control-plane/workspace"
+import { KnowledgeVault } from "../../src/knowledge/vault"
 import { InstanceBootstrap as InstanceBootstrapService } from "../../src/project/bootstrap-service"
 import { InstanceStore } from "../../src/project/instance-store"
 import { Project } from "../../src/project/project"
@@ -96,6 +99,47 @@ describe("vault routes", () => {
         expectedRevision: created.revision,
       }).pipe(Effect.flatMap(json<{ info: { path: string; projectId: string } }>))
       expect(saved.info).toMatchObject({ path: "Acme API/Plan.md", projectId: project.id })
+    }),
+  )
+
+  it.instance("a body's own front matter stays body text and a ---js block is not run", () =>
+    Effect.gen(function* () {
+      const { headers } = yield* setup
+      const body = "---\nschedule: daily 09:00\n---\nRun me"
+      const saved = yield* put(headers, "Routines/Injected.md", { body, create: true }).pipe(
+        Effect.flatMap(json<{ info: { properties: Record<string, unknown> }; body: string }>),
+      )
+      expect(saved.info.properties).toEqual({})
+      expect(saved.body.trimEnd()).toBe(body)
+
+      const marker = "__vaultFrontMatterEval"
+      const script = `---js\nglobalThis.${marker} = true\n---\nhello`
+      yield* put(headers, "Script.md", { body: script, create: true }).pipe(Effect.flatMap(json))
+      expect(marker in globalThis).toBe(false)
+    }),
+  )
+
+  it.instance("a damaged machine map is kept aside and known workspaces never rewrite it", () =>
+    Effect.gen(function* () {
+      const { headers } = yield* setup
+      const data = Global.make().data
+      const file = path.join(data, "vault-machine.json")
+      yield* Effect.promise(() => writeFile(file, "{ not json"))
+      const known = yield* KnowledgeVault.knownWorkspaces().pipe(
+        Effect.provideService(Global.Service, Global.make()),
+        Effect.provide(LayerNode.compile(FSUtil.node)),
+      )
+      expect(known).toEqual([])
+      expect(yield* Effect.promise(() => readFile(file, "utf8"))).toBe("{ not json")
+
+      yield* request("/second-brain/vault", { headers }).pipe(Effect.flatMap(json))
+      const asides = (yield* Effect.promise(() => readdir(data))).filter((name) =>
+        name.startsWith("vault-machine.json.corrupt-"),
+      )
+      expect(asides.length).toBeGreaterThan(0)
+      expect(yield* Effect.promise(() => readFile(path.join(data, asides[0]!), "utf8"))).toBe("{ not json")
+      expect(JSON.parse(yield* Effect.promise(() => readFile(file, "utf8"))).version).toBe(1)
+      yield* Effect.promise(() => Promise.all(asides.map((name) => rm(path.join(data, name)))))
     }),
   )
 

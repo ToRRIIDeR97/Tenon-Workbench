@@ -230,7 +230,8 @@ export const open = Effect.fn("KnowledgeVault.open")(function* (workspace: Works
  * repository has no project record of its own, so this is how the server finds it again.
  */
 export const knownWorkspaces = Effect.fn("KnowledgeVault.knownWorkspaces")(function* () {
-  const machine = yield* readMachine()
+  const { machine } = yield* loadMachine()
+  if (machine === undefined) return []
   return [...new Set(Object.values(machine.roots).flatMap((directories) => Object.keys(directories)))]
 })
 
@@ -632,23 +633,40 @@ const WorkspaceFile = Schema.Struct({
 
 const ProjectFile = Schema.Struct({ version: Schema.Literal(1), id: Schema.String, name: Schema.String })
 
-const readMachine = Effect.fnUntraced(function* () {
+/** The stored map, without writing. Only a missing file reads as absent; other read errors fail, since a reset would lose it. */
+const loadMachine = Effect.fnUntraced(function* () {
   const fs = yield* FSUtil.Service
   const global = yield* Global.Service
   const file = path.join(global.data, "vault-machine.json")
-  const source = yield* fs.readFileStringSafe(file).pipe(Effect.orElseSucceed(() => undefined))
+  const source = yield* fs
+    .readFileString(file)
+    .pipe(Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed(undefined)))
   const decoded =
     source === undefined ? Option.none() : Schema.decodeUnknownOption(Schema.fromJsonString(Machine))(source)
-  if (Option.isSome(decoded) && machinePattern.test(decoded.value.machine)) return decoded.value
+  const machine = Option.isSome(decoded) && machinePattern.test(decoded.value.machine) ? decoded.value : undefined
+  return { file, damaged: source !== undefined && machine === undefined, machine }
+})
+
+const readMachine = Effect.fnUntraced(function* () {
+  const fs = yield* FSUtil.Service
+  const stored = yield* loadMachine()
+  if (stored.machine !== undefined) return stored.machine
+  if (stored.damaged) {
+    yield* Effect.logWarning("Keeping a damaged vault machine map aside")
+    yield* fs
+      .rename(stored.file, `${stored.file}.corrupt-${Date.now()}`)
+      .pipe(Effect.catchReason("PlatformError", "NotFound", () => Effect.void))
+  }
   const machine: Machine = { version: 1, machine: machineName(os.hostname()), roots: {} }
   yield* writeMachine(machine)
   return machine
 })
 
 const writeMachine = Effect.fnUntraced(function* (machine: Machine) {
-  const fs = yield* FSUtil.Service
+  const files = yield* FileMutation.Service
   const global = yield* Global.Service
-  yield* fs.writeWithDirs(path.join(global.data, "vault-machine.json"), JSON.stringify(machine, null, 2) + "\n")
+  const canonical = path.join(global.data, "vault-machine.json")
+  yield* files.write({ target: { canonical, resource: canonical }, content: JSON.stringify(machine, null, 2) + "\n" })
 })
 
 const machinePattern = /^[A-Za-z0-9-]{1,60}$/
@@ -871,7 +889,13 @@ function encode(
   bom: boolean,
 ) {
   const rest = Object.fromEntries(Object.entries(properties).filter(([key]) => !reservedKeys.has(key)))
-  const source = matter.stringify(body, { id: head.id, title: head.title, ...rest, updated_at: head.updatedAt }, {})
+  // An object, not a string: gray-matter parses a string first, so a body opening with its own front
+  // matter would merge into the page's properties, and a `---js` block would be evaluated.
+  const source = matter.stringify(
+    { content: body },
+    { id: head.id, title: head.title, ...rest, updated_at: head.updatedAt },
+    {},
+  )
   return bom ? `﻿${source}` : source
 }
 
