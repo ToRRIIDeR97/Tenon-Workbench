@@ -388,7 +388,7 @@ const isCommandSession = (sessionID: string) =>
     const sessions = yield* Session.Service
     const id = Option.getOrUndefined(Schema.decodeUnknownOption(SessionID)(sessionID))
     const session = id ? yield* sessions.get(id).pipe(Effect.orElseSucceed(() => undefined)) : undefined
-    if (!session || !CommandMemory.isCommandDirectory(session.directory)) return false
+    if (!session || !(yield* CommandMemory.isCommandDirectoryResolved(session.directory))) return false
     commandSessions.add(sessionID)
     return true
   })
@@ -449,6 +449,7 @@ export const layer = Layer.effectDiscard(
     yield* Effect.acquireRelease(
       Effect.sync(() => {
         state.context = context
+        void CommandMemory.resolveFolders()
         const uninstall = HarnessAppTools.install({
           catalog: catalog(),
           catalogFor,

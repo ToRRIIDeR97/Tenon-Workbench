@@ -1,6 +1,6 @@
 import { afterEach, describe, expect } from "bun:test"
 import { NodeHttpServer, NodeServices } from "@effect/platform-node"
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises"
+import { mkdir, readFile, readdir, realpath, symlink, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { Config, Effect, Layer } from "effect"
 import { HttpClient, HttpClientRequest, HttpClientResponse, HttpRouter, HttpServer } from "effect/unstable/http"
@@ -114,6 +114,28 @@ describe("Command Centre", () => {
 
       const again = yield* CommandMemory.compact({ now, days: 45, summarize: () => Effect.succeed("x") })
       expect(again).toMatchObject({ summarised: 0, deleted: 0 })
+    }),
+  )
+
+  it.instance("an earlier root reached through a link matches once its real path is known", () =>
+    Effect.gen(function* () {
+      const { headers } = yield* setup
+      yield* request("/second-brain/vault", { headers }).pipe(Effect.flatMap(json))
+      const file = path.join(Global.make().data, "vault-machine.json")
+      const before = yield* Effect.promise(() => readFile(file, "utf8"))
+      const target = yield* tmpdirScoped()
+      const parent = yield* tmpdirScoped()
+      const link = path.join(parent, "earlier-root")
+      const real = path.join(yield* Effect.promise(() => realpath(target)), ".command-centre")
+      yield* Effect.promise(() => mkdir(real, { recursive: true }))
+      yield* Effect.promise(() => symlink(target, link, "junction"))
+      const machine = JSON.parse(before)
+      yield* Effect.promise(() => writeFile(file, JSON.stringify({ ...machine, roots: { ...machine.roots, [link]: {} } })))
+      yield* Effect.gen(function* () {
+        expect(CommandMemory.isCommandDirectory(path.join(link, ".command-centre"))).toBe(true)
+        expect(CommandMemory.isCommandDirectory(real)).toBe(false)
+        expect(yield* CommandMemory.isCommandDirectoryResolved(real)).toBe(true)
+      }).pipe(Effect.ensuring(Effect.promise(() => writeFile(file, before))))
     }),
   )
 
