@@ -345,9 +345,10 @@ or workspace (`{ error: "inside_workspace" }`).
   create a folder with `vault_unavailable: <file>` while the folder may be behind
   that file, so an outage never forks the vault into `Name (2)`. This applies to
   a workspace with a mapped id or a repository id, and to any new Project folder.
-  The Projects page names the file.
+  The Projects page names the file and offers a retry.
 - Folder and page names compare with `foldName` (NFC plus lower case). Existing
-  files keep their spelling on disk; new folders and pages are created in NFC,
+  files keep their spelling on disk. New workspace and Project folders and new
+  page file names are NFC; other folders in a page path keep the spelling given,
   and a new page in an existing Project folder takes that folder's spelling.
 - Page lists and searches reuse parsed pages from a bounded in-memory cache
   (`pageCache`: 5,000 entries, 32 MB of search text, least recently used first)

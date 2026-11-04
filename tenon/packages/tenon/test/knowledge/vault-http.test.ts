@@ -241,12 +241,18 @@ describe("vault routes", () => {
       yield* Effect.promise(() => utimes(file, time, new Date(time.getTime() + 5_000)))
       expect(yield* list("?search=gamma")).toEqual(["Two"])
 
-      // The same file, reached through a link out of the vault, is not listed from the cache.
-      const outside = yield* tmpdirScoped()
-      yield* Effect.promise(() => cp(path.join(folder, "Kept"), path.join(outside, "Kept"), { recursive: true }))
-      yield* Effect.promise(() => rm(path.join(folder, "Kept"), { recursive: true }))
-      yield* Effect.promise(() => symlink(path.join(outside, "Kept"), path.join(folder, "Kept"), "junction"))
-      expect(yield* list()).toEqual([])
+      // A link to the same bytes and time out of the vault: the cached entry must not be served. Glob doesn't
+      // walk into linked folders, so only a file link reaches the cache; Windows may refuse to make one.
+      const outside = path.join(yield* tmpdirScoped(), "Cached.md")
+      yield* Effect.promise(() => cp(file, outside, { preserveTimestamps: true }))
+      yield* Effect.promise(() => rm(file))
+      const linked = yield* Effect.promise(() =>
+        symlink(outside, file, "file").then(
+          () => true,
+          () => false,
+        ),
+      )
+      if (linked) expect(yield* list()).toEqual([])
     }),
   )
 

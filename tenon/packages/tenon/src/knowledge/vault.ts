@@ -918,16 +918,19 @@ function insideFolder(relative: string, folder: string) {
 }
 
 /**
- * The path a new page is created at, or undefined when refused: NFC, keeping an existing Project folder's
- * spelling. A stem ending in a dot or space is refused because `.history/<stem>` would become a folder name
- * Windows tools mishandle; such a page already on disk stays listed and writable.
+ * The path a new page is created at, or undefined when refused. The file name is stored in NFC. Folders keep
+ * the spelling given, so a page lands in the folder a listing named instead of an NFC sibling on NTFS, and a
+ * Project folder takes its spelling on disk. A stem ending in a dot or space is refused because
+ * `.history/<stem>` would become a folder name Windows tools mishandle; such a page already on disk stays
+ * listed and writable.
  */
 export function newPagePath(value: string, projects: ReadonlyMap<string, string>) {
-  const normal = value.normalize("NFC")
-  if (!isPagePath(normal) || /[. ]$/.test(normal.slice(0, -3))) return undefined
-  const [top] = normal.split("/")
-  const folder = [...projects.values()].find((item) => foldName(item) === foldName(top))
-  return folder !== undefined && normal.includes("/") ? insideFolder(normal, folder) : normal
+  const folders = value.split("/")
+  const name = folders.pop()!.normalize("NFC")
+  const normal = [...folders, name].join("/")
+  if (!isPagePath(normal) || /[. ]$/.test(name.slice(0, -3))) return undefined
+  const folder = [...projects.values()].find((item) => foldName(item) === foldName(folders[0] ?? ""))
+  return folder === undefined ? normal : insideFolder(normal, folder)
 }
 
 /** Listed pages skip machine logs and sync conflict copies (shown by `conflicts`). */

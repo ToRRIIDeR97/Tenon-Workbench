@@ -545,6 +545,13 @@ export default function ProjectsPage() {
                 title={language.t(
                   misplaced() ? "secondBrain.vault.misplaced.title" : "secondBrain.vault.unavailable.title",
                 )}
+                action={
+                  unreadable() ? (
+                    <ButtonV2 size="small" variant="outline" onClick={() => void pagesActions.refetch()}>
+                      {language.t("secondBrain.state.retry")}
+                    </ButtonV2>
+                  ) : undefined
+                }
               >
                 {misplaced()
                   ? language.t("secondBrain.vault.misplaced.body")

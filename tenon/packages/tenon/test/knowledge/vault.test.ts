@@ -73,6 +73,8 @@ describe("KnowledgeVault", () => {
     // A new page in a Project folder keeps the folder's spelling on disk, so NTFS gets no sibling folder.
     expect(KnowledgeVault.newPagePath(`${nfc}/${nfd}.md`, projects)).toBe(`${nfd}/${nfc}.md`)
     expect(KnowledgeVault.newPagePath(`${nfd}.md`, projects)).toBe(`${nfc}.md`)
+    // Any other folder keeps the spelling given, so the page lands in the folder a listing named.
+    expect(KnowledgeVault.newPagePath(`${nfd}/${nfd}.md`, new Map())).toBe(`${nfd}/${nfc}.md`)
   })
 
   test("a new page cannot have a stem whose .history folder would end in a dot or space", () => {
