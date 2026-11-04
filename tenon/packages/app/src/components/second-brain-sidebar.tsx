@@ -124,7 +124,7 @@ export function SecondBrainSidebar() {
         <Show when={panel.mounted()}>
           <div
             data-sidebar-section="projects"
-            class="flex min-h-0 w-[256px] flex-1 flex-col overflow-y-auto pb-3 pr-2 pt-1"
+            class="flex min-h-0 w-[256px] flex-1 flex-col overflow-y-auto px-2 pb-3 pt-1"
           >
             <WorkspaceHeader ctrl={ctrl} />
             <Show
@@ -267,7 +267,7 @@ function WorkspaceHeader(props: { ctrl: SidebarController }) {
     return item?.name || directory.split(/[\\/]/).filter(Boolean).pop() || directory
   }
   return (
-    <div class="flex h-10 shrink-0 items-center gap-1 pl-1 pr-0.5">
+    <div class="flex h-10 shrink-0 items-center gap-1">
       <MenuV2 gutter={4} modal={false} placement="bottom-start">
         <MenuV2.Trigger
           as="button"
@@ -539,12 +539,12 @@ function ProjectGroup(props: { ctrl: SidebarController; project: SidebarProjectI
       summary={summary()}
     >
       <div
-        class={`${rowClass} grid-cols-[1fr_auto]`}
+        class={`${rowClass} grid-cols-[1fr]`}
         data-selected={props.ctrl.activeProjectID() === props.project.id && !open() ? "" : undefined}
       >
         <button
           type="button"
-          class="flex h-9 min-w-0 items-center gap-1.5 pl-3 text-left focus-visible:outline-none"
+          class="flex h-9 min-w-0 items-center gap-1.5 pl-3 pr-3 text-left focus-visible:outline-none"
           aria-expanded={open()}
           onClick={() => props.ctrl.toggleExpanded(props.project.id)}
         >
@@ -555,9 +555,12 @@ function ProjectGroup(props: { ctrl: SidebarController; project: SidebarProjectI
           >
             {props.project.name}
           </span>
-          <CardMarks summary={summary()} />
+          <span class="flex shrink-0 items-center gap-1.5 group-hover/row:opacity-0">
+            <CardMarks summary={summary()} />
+          </span>
         </button>
-        <div class="flex items-center gap-0.5 pr-0.5 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 motion-reduce:transition-none">
+        {/* Over the row, not beside it, so hidden actions don't push the marks away from the row marks below. */}
+        <div class="absolute inset-y-0 right-0.5 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 motion-reduce:transition-none">
           <TooltipV2 placement="right" value={language.t("secondBrain.sidebar.newThread")}>
             <IconButtonV2
               type="button"
@@ -637,20 +640,22 @@ function ThreadGroup(props: {
   const summary = () => props.ctrl.card(props.id)?.summary
   return (
     <SidebarCard data-sidebar-group={props.id} cardID={props.id} label={props.label} summary={summary()}>
-      <div class={`${rowClass} grid-cols-[1fr_auto]`}>
+      <div class={`${rowClass} grid-cols-[1fr]`}>
         <button
           type="button"
-          class="flex h-9 min-w-0 items-center gap-1.5 pl-3 text-left focus-visible:outline-none"
+          class="flex h-9 min-w-0 items-center gap-1.5 pl-3 pr-3 text-left focus-visible:outline-none"
           aria-expanded={open()}
           onClick={() => props.ctrl.toggleExpanded(props.id)}
         >
           <Chevron open={open()} />
           <span class="min-w-0 flex-1 truncate [font-weight:600]">{props.label}</span>
-          <CardMarks summary={summary()} />
+          <span class="flex shrink-0 items-center gap-1.5 group-hover/row:opacity-0">
+            <CardMarks summary={summary()} />
+          </span>
         </button>
         <Show when={props.onNewThread}>
           {(run) => (
-            <div class="flex items-center pr-0.5 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 motion-reduce:transition-none">
+            <div class="absolute inset-y-0 right-0.5 flex items-center opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 motion-reduce:transition-none">
               <TooltipV2 placement="right" value={language.t("secondBrain.sidebar.newThread")}>
                 <IconButtonV2
                   type="button"
@@ -684,7 +689,7 @@ function ThreadList(props: { ctrl: SidebarController; threads: ThreadNode<Sessio
           <button
             type="button"
             data-sidebar-new-thread
-            class={`${rowClass} grid-cols-[1fr] pl-8 text-v2-text-text-faint`}
+            class={`${rowClass} grid-cols-[1fr] pl-[34px] text-v2-text-text-faint`}
             onClick={run()}
           >
             <span class="flex min-w-0 items-center gap-1.5">
@@ -752,7 +757,7 @@ function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; 
         data-sidebar-thread={session().id}
         data-selected={active() ? "" : undefined}
         class={`${rowClass} grid-cols-[1fr_auto] ${props.enter ? "animate-enter" : ""}`}
-        style={{ "padding-left": `${24 + props.depth * 12}px` }}
+        style={{ "padding-left": `${26 + props.depth * 12}px` }}
       >
         <Show
           when={editing()}
