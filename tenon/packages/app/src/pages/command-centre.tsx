@@ -1,17 +1,24 @@
 import { A, useNavigate, useSearchParams } from "@solidjs/router"
-import { createEffect, createResource, For, Show } from "solid-js"
+import { useDialog } from "@tenon/ui/context/dialog"
+import { ButtonV2 } from "@tenon/ui/v2/button-v2"
+import { Icon } from "@tenon/ui/v2/icon"
+import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
+import { MenuV2 } from "@tenon/ui/v2/menu-v2"
+import { createEffect, createResource, createSignal, For, onMount, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { PageEmpty, PageHeader, pagePanelClass, pageRowClass } from "@/components/page"
 import { ComposerBox } from "@/components/prompt-input/composer-box"
 import { createComposerController } from "@/components/prompt-input/composer-controller"
 import { ComposerModelPill, createComposerHarness } from "@/components/prompt-input/composer-harness"
+import { DialogArchivedThreads } from "@/components/sidebar/dialog-archived-threads"
+import { useSidebarController } from "@/components/sidebar/sidebar-controller"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
 import { useServer } from "@/context/server"
 import { useServerSDK } from "@/context/server-sdk"
 import { useSettings } from "@/context/settings"
-import { useCommandCentre } from "@/features/command-centre/command-centre"
+import { useCommandCentre, type CommandThread } from "@/features/command-centre/command-centre"
 import { searchCommandMemory } from "@/features/second-brain/client"
 import { sessionHref } from "@/utils/session-route"
 import { getRelativeTime } from "@/utils/time"
@@ -31,6 +38,10 @@ export default function CommandCentrePage() {
   const serverSDK = useServerSDK()
   const settings = useSettings()
   const centre = useCommandCentre()
+  const ctrl = useSidebarController()
+  const dialog = useDialog()
+  // The provider outlives this page, so catch up on what changed while it was closed.
+  onMount(() => void centre.refetch())
   const [search] = useSearchParams<{ thread?: string }>()
   const [state, setState] = createStore({ memory: "", query: "", hit: -1 })
   const open = (sessionID: string) => navigate(sessionHref(server.key, sessionID))
@@ -46,7 +57,10 @@ export default function CommandCentrePage() {
       searchCommandMemory(
         { server: serverSDK().server, fetch: platform.fetch, target: { directory: input.workspace } },
         input.query,
-      ).catch(() => []),
+      ).then(
+        (items) => ({ items, failed: false }),
+        () => ({ items: [], failed: true }),
+      ),
   )
 
   // The pill starts on Settings › Command Centre's harness and model.
@@ -61,6 +75,7 @@ export default function CommandCentrePage() {
     },
   })
   const composer = createComposerController({
+    persist: "command",
     // Each request from here is a fresh thread; it opens once started. A failed send keeps the text.
     send: async (text) => {
       const id = await centre.send(text, null, {
@@ -83,12 +98,25 @@ export default function CommandCentrePage() {
           id="command-centre-title"
           title={language.t("secondBrain.commandCentre.title")}
           actions={
-            <A
-              href="/routines"
-              class="rounded-full px-3 py-1.5 text-[13px] text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base motion-reduce:transition-none"
-            >
-              {language.t("secondBrain.routines.title")}
-            </A>
+            <>
+              <Show when={centre.directory()}>
+                {(directory) => (
+                  <ButtonV2
+                    size="small"
+                    variant="ghost"
+                    onClick={() => dialog.show(() => <DialogArchivedThreads ctrl={ctrl} directory={directory()} />)}
+                  >
+                    {language.t("secondBrain.sidebar.archivedThreads")}
+                  </ButtonV2>
+                )}
+              </Show>
+              <A
+                href="/routines"
+                class="rounded-full px-3 py-1.5 text-[13px] text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base motion-reduce:transition-none"
+              >
+                {language.t("secondBrain.routines.title")}
+              </A>
+            </>
           }
         />
         <div class="flex min-h-0 flex-1 gap-2 px-3 pb-3">
@@ -105,7 +133,10 @@ export default function CommandCentrePage() {
                 placeholder={language.t("secondBrain.commandCentre.memory.placeholder")}
                 aria-label={language.t("secondBrain.commandCentre.memory.label")}
                 value={state.memory}
-                onInput={(event) => setState("memory", event.currentTarget.value)}
+                onInput={(event) => {
+                  const memory = event.currentTarget.value
+                  setState(memory.trim() ? { memory } : { memory, query: "", hit: -1 })
+                }}
               />
             </form>
             <Show when={state.query}>
@@ -119,10 +150,10 @@ export default function CommandCentrePage() {
               >
                 <ul class="flex flex-col gap-1" aria-label={language.t("secondBrain.commandCentre.memory.results")}>
                   <For
-                    each={hits() ?? []}
+                    each={hits()?.items ?? []}
                     fallback={
-                      <li class="px-3 text-[12px] text-v2-text-text-faint">
-                        {language.t("secondBrain.commandCentre.memory.empty")}
+                      <li role={hits()?.failed ? "alert" : undefined} class="px-3 text-[12px] text-v2-text-text-faint">
+                        {language.t(hits()?.failed ? "common.requestFailed" : "secondBrain.commandCentre.memory.empty")}
                       </li>
                     }
                   >
@@ -162,29 +193,12 @@ export default function CommandCentrePage() {
               }
             >
               <ul class="flex flex-col gap-0.5" aria-label={language.t("secondBrain.commandCentre.threads")}>
-                <For each={centre.threads()}>
-                  {(thread) => (
-                    <li>
-                      <A href={sessionHref(server.key, thread.id)} class={pageRowClass}>
-                        <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base">
-                          {centre.label(thread) || language.t("secondBrain.commandCentre.threads.untitled")}
-                        </span>
-                        <Show
-                          when={centre.working(thread.id)}
-                          fallback={
-                            <span class="shrink-0 text-[11px] text-v2-text-text-faint">
-                              {getRelativeTime(new Date(thread.updated).toISOString(), language.t)}
-                            </span>
-                          }
-                        >
-                          <span
-                            class="size-2 shrink-0 rounded-full bg-v2-icon-icon-accent running-pulse"
-                            role="img"
-                            aria-label={language.t("secondBrain.commandCentre.working")}
-                          />
-                        </Show>
-                      </A>
-                    </li>
+                {/* By ID: a refresh rebuilds the thread objects, which must not end a rename in progress. */}
+                <For each={centre.threads().flatMap((thread) => (ctrl.threadHidden(thread.id) ? [] : [thread.id]))}>
+                  {(id) => (
+                    <Show when={centre.threads().find((thread) => thread.id === id)}>
+                      {(thread) => <ThreadRow thread={thread()} href={sessionHref(server.key, id)} />}
+                    </Show>
                   )}
                 </For>
               </ul>
@@ -212,5 +226,95 @@ export default function CommandCentrePage() {
         </div>
       </div>
     </section>
+  )
+}
+
+/** A Command Centre thread: opens on click, with the sidebar's rename, archive and delete in a "…" menu. */
+function ThreadRow(props: { thread: CommandThread; href: string }) {
+  const language = useLanguage()
+  const centre = useCommandCentre()
+  const ctrl = useSidebarController()
+  const [editing, setEditing] = createSignal(false)
+  const label = () => centre.label(props.thread)
+  let input: HTMLInputElement | undefined
+  // The menu stays mounted during an edit: the input takes focus when the menu closes, and closing returns focus
+  // to the "…" trigger, which would blur an already focused input and end the edit straight away.
+  const finish = (value: string | undefined) => {
+    if (!editing()) return
+    setEditing(false)
+    if (value !== undefined) void ctrl.renameThread(props.thread.session, value)
+  }
+
+  return (
+    <li class="group/row relative">
+      <Show
+        when={!editing()}
+        fallback={
+          <input
+            ref={input}
+            class="h-9 w-full min-w-0 rounded-full bg-v2-background-bg-base pl-3 pr-9 text-[13px] text-v2-text-text-base outline-none [box-shadow:inset_0_0_0_0.5px_var(--v2-border-border-muted)] focus:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)]"
+            value={label()}
+            aria-label={language.t("secondBrain.sidebar.renameThread")}
+            onKeyDown={(event) => {
+              event.stopPropagation()
+              if (event.key === "Enter") finish(event.currentTarget.value)
+              if (event.key === "Escape") finish(undefined)
+            }}
+            onBlur={(event) => finish(event.currentTarget.value)}
+          />
+        }
+      >
+        <A href={props.href} class={pageRowClass}>
+          <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base">
+            {label() || language.t("secondBrain.commandCentre.threads.untitled")}
+          </span>
+          <Show
+            when={centre.working(props.thread.id)}
+            fallback={
+              <span class="shrink-0 text-[11px] text-v2-text-text-faint group-hover/row:opacity-0">
+                {getRelativeTime(new Date(props.thread.updated).toISOString(), language.t)}
+              </span>
+            }
+          >
+            <span
+              class="size-2 shrink-0 rounded-full bg-v2-icon-icon-accent running-pulse group-hover/row:opacity-0"
+              role="img"
+              aria-label={language.t("secondBrain.commandCentre.working")}
+            />
+          </Show>
+        </A>
+      </Show>
+      <div class="absolute inset-y-0 right-1 flex items-center opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 motion-reduce:transition-none">
+        <MenuV2 gutter={4} modal={false} placement="bottom-start">
+          <MenuV2.Trigger
+            as={IconButtonV2}
+            variant="ghost-muted"
+            size="small"
+            icon={<Icon name="outline-dots" size="small" />}
+            aria-label={language.t("secondBrain.sidebar.threadActions")}
+          />
+          <MenuV2.Portal>
+            <MenuV2.Content
+              onCloseAutoFocus={() => {
+                // Kobalte focuses the trigger right after this handler, so the input takes focus in a microtask.
+                if (!editing()) return
+                queueMicrotask(() => {
+                  input?.focus()
+                  input?.select()
+                })
+              }}
+            >
+              <MenuV2.Item onSelect={() => setEditing(true)}>{language.t("common.rename")}</MenuV2.Item>
+              <MenuV2.Item onSelect={() => void ctrl.archiveThread(props.thread.session)}>
+                {language.t("common.archive")}
+              </MenuV2.Item>
+              <MenuV2.Item onSelect={() => ctrl.deleteThread(props.thread.session)}>
+                {language.t("common.delete")}
+              </MenuV2.Item>
+            </MenuV2.Content>
+          </MenuV2.Portal>
+        </MenuV2>
+      </div>
+    </li>
   )
 }

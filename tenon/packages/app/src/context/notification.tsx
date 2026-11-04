@@ -8,13 +8,17 @@ import { usePlatform } from "@/context/platform"
 import { useLanguage } from "@/context/language"
 import { useSettings } from "@/context/settings"
 import { base64Encode } from "@tenon/core/util/encode"
+import { getFilename } from "@tenon/core/util/path"
 import { EventSessionError } from "@opencode-ai/sdk/v2"
+import type { PermissionRequest } from "@opencode-ai/sdk/v2/client"
 import { Persist, persisted } from "@/utils/persist"
 import { playSoundById } from "@/utils/sound"
 import { useGlobal } from "./global"
 import { ServerConnection, useServer } from "./server"
 import { useDrafts } from "./drafts"
-import { requireServerKey } from "@/utils/session-route"
+import { needsAttention, notificationTrigger, type NotificationTrigger } from "./notification-events"
+import { usePermission } from "./permission"
+import { requireServerKey, sessionHref } from "@/utils/session-route"
 import type { ServerScope } from "@/utils/server-scope"
 
 type NotificationBase = {
@@ -121,6 +125,7 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
     const platform = usePlatform()
     const settings = useSettings()
     const language = useLanguage()
+    const permission = usePermission()
     const owner = getOwner()
     const states = new Map<ServerScope, { dispose: () => void; state: NotificationState }>()
 
@@ -146,6 +151,7 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
         (dispose) => ({
           dispose,
           state: createServerNotificationState({
+            server: key,
             sdk: ctx.sdk,
             sync: ctx.sync,
             active: () => server.scope(activeServer()) === ctx.sdk.scope,
@@ -155,6 +161,7 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
             settings,
             language,
             navigate,
+            autoResponds: (request, directory) => permission.ensureServerState(key).autoResponds(request, directory),
           }),
         }),
         owner ?? undefined,
@@ -211,6 +218,7 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
 type NotificationState = ReturnType<typeof createServerNotificationState>
 
 function createServerNotificationState(input: {
+  server: ServerConnection.Key
   sdk: ServerSDK
   sync: ServerSync
   active: Accessor<boolean>
@@ -220,6 +228,7 @@ function createServerNotificationState(input: {
   settings: ReturnType<typeof useSettings>
   language: ReturnType<typeof useLanguage>
   navigate: (href: string) => void
+  autoResponds: (request: PermissionRequest, directory: string) => boolean
 }) {
   const serverSDK = () => input.sdk
   const serverSync = () => input.sync
@@ -240,7 +249,7 @@ function createServerNotificationState(input: {
   )
   const [index, setIndex] = createStore<NotificationIndex>(buildNotificationIndex(store.list))
 
-  const meta = { pruned: false, disposed: false }
+  const meta = { pruned: false, disposed: false, failed: new Set<string>() }
 
   const updateUnseen = (scope: "session" | "project", key: string, unseen: Notification[]) => {
     setIndex(scope, "unseen", key, unseen)
@@ -335,8 +344,7 @@ function createServerNotificationState(input: {
     return sessionID === activeSession
   }
 
-  const handleSessionIdle = (directory: string, event: { properties: { sessionID?: string } }, time: number) => {
-    const sessionID = event.properties.sessionID
+  const handleTurnComplete = (directory: string, sessionID: string | undefined, time: number) => {
     void lookup(directory, sessionID).then((session) => {
       if (meta.disposed) return
       if (!session) return
@@ -354,10 +362,9 @@ function createServerNotificationState(input: {
         session: sessionID,
       })
 
-      const href = `/${base64Encode(directory)}/session/${sessionID}`
-      if (settings.notifications.agent()) {
+      if (settings.notifications.agent() && sessionID) {
         void platform.notify(language.t("notification.session.responseReady.title"), session.title ?? sessionID, () =>
-          input.navigate(href),
+          input.navigate(sessionHref(input.server, sessionID)),
         )
       }
     })
@@ -365,10 +372,11 @@ function createServerNotificationState(input: {
 
   const handleSessionError = (
     directory: string,
-    event: { properties: { sessionID?: string; error?: EventSessionError["properties"]["error"] } },
+    trigger: Extract<NotificationTrigger, { type: "error" }>,
     time: number,
   ) => {
-    const sessionID = event.properties.sessionID
+    const sessionID = trigger.sessionID
+    const error = trigger.error
     void lookup(directory, sessionID).then((session) => {
       if (meta.disposed) return
       if (session?.parentID) return
@@ -377,7 +385,6 @@ function createServerNotificationState(input: {
         void playSoundById(settings.sounds.errors())
       }
 
-      const error = "error" in event.properties ? event.properties.error : undefined
       append({
         directory,
         time,
@@ -389,24 +396,46 @@ function createServerNotificationState(input: {
       const description =
         session?.title ??
         (typeof error === "string" ? error : language.t("notification.session.error.fallbackDescription"))
-      const href = sessionID ? `/${base64Encode(directory)}/session/${sessionID}` : `/${base64Encode(directory)}`
+      const href = sessionID ? sessionHref(input.server, sessionID) : `/${base64Encode(directory)}`
       if (settings.notifications.errors()) {
         void platform.notify(language.t("notification.session.error.title"), description, () => input.navigate(href))
       }
     })
   }
 
+  // Questions share the Permissions toggle and sound: both mean a turn is blocked on the user.
+  const handleAttention = (
+    directory: string,
+    trigger: Extract<NotificationTrigger, { type: "permission" | "question" }>,
+  ) => {
+    const sessionID = trigger.sessionID
+    void lookup(directory, sessionID).then((session) => {
+      if (meta.disposed || !sessionID) return
+      if (!needsAttention(trigger, session, (request) => input.autoResponds(request, directory))) return
+
+      if (settings.sounds.permissionsEnabled()) {
+        void playSoundById(settings.sounds.permissions())
+      }
+
+      if (settings.notifications.permissions()) {
+        const names = { sessionTitle: session?.title ?? sessionID, projectName: getFilename(directory) }
+        const [title, description] =
+          trigger.type === "permission"
+            ? [language.t("notification.permission.title"), language.t("notification.permission.description", names)]
+            : [language.t("notification.question.title"), language.t("notification.question.description", names)]
+        void platform.notify(title, description, () => input.navigate(sessionHref(input.server, sessionID)))
+      }
+    })
+  }
+
   const unsub = serverSDK().event.listen((e) => {
-    const event = e.details
-    if (event.type !== "session.idle" && event.type !== "session.error") return
+    const trigger = notificationTrigger(e.details, meta.failed)
+    if (!trigger) return
 
     const directory = e.name
-    const time = Date.now()
-    if (event.type === "session.idle") {
-      handleSessionIdle(directory, event, time)
-      return
-    }
-    handleSessionError(directory, event, time)
+    if (trigger.type === "turn-complete") return handleTurnComplete(directory, trigger.sessionID, Date.now())
+    if (trigger.type === "error") return handleSessionError(directory, trigger, Date.now())
+    handleAttention(directory, trigger)
   })
   onCleanup(() => {
     meta.disposed = true

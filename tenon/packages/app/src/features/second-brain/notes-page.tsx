@@ -1,5 +1,6 @@
 import { useDialog } from "@tenon/ui/context/dialog"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
+import { CheckboxV2 } from "@tenon/ui/v2/checkbox-v2"
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { KeybindV2 } from "@tenon/ui/v2/keybind-v2"
@@ -273,8 +274,8 @@ export function NotesPageView(props: {
     </>
   )
 
-  // Front matter properties: text and dates edit in place, `status` picks a timeline status; lists, numbers and
-  // other values show as read-only text. Edits save with the page.
+  // Front matter properties: text and dates edit in place, booleans tick, `status` picks a timeline status; lists,
+  // numbers and other values show as read-only text. Edits save with the page.
   const properties = () => (
     <Show when={Object.keys(state.properties).length > 0}>
       <dl
@@ -284,7 +285,7 @@ export function NotesPageView(props: {
         <For each={Object.keys(state.properties)}>
           {(key) => {
             const value = () => state.properties[key]
-            const set = (next: string) => setState("properties", key, next)
+            const set = (next: string | boolean) => setState("properties", key, next)
             return (
               <>
                 <dt class="min-w-0 truncate text-[12px] text-v2-text-text-muted" title={key}>
@@ -301,6 +302,11 @@ export function NotesPageView(props: {
                       </span>
                     }
                   >
+                    <Match when={typeof value() === "boolean"}>
+                      <span class="flex h-7 items-center px-2">
+                        <CheckboxV2 hideLabel label={key} checked={value() === true} onChange={set} />
+                      </span>
+                    </Match>
                     <Match when={key === "status" && typeof value() === "string"}>
                       <select
                         class={propertyField}

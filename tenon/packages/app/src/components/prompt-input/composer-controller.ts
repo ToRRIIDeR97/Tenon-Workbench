@@ -1,4 +1,5 @@
 import { createStore } from "solid-js/store"
+import { Persist, persisted } from "@/utils/persist"
 
 /**
  * The text and send state behind `ComposerBox`. Home, the Command Centre page and the command strip each
@@ -22,26 +23,30 @@ export function createComposerController(input: {
   /** Typing is allowed but sending waits, e.g. while the harness list loads. */
   blocked?: () => boolean
   initial?: string
+  /** Keeps unsent text in this window under this name, for pages that unmount when the user navigates away. */
+  persist?: string
 }): ComposerController {
-  const [state, setState] = createStore({ value: input.initial ?? "", busy: false })
+  const initial = createStore({ value: input.initial ?? "" })
+  const [text, setText] = input.persist ? persisted(Persist.window(`composer.${input.persist}`), initial) : initial
+  const [state, setState] = createStore({ busy: false })
   const disabled = () => input.disabled?.() ?? false
-  const canSend = () => !!state.value.trim() && !state.busy && !disabled() && !input.blocked?.()
+  const canSend = () => !!text.value.trim() && !state.busy && !disabled() && !input.blocked?.()
 
   const send = async () => {
     if (!canSend()) return false
-    const text = state.value.trim()
+    const sending = text.value.trim()
     setState("busy", true)
     // The page's send starts now; a synchronous throw becomes a rejection, which keeps the text.
-    const sent = await new Promise<boolean>((resolve) => resolve(input.send(text))).catch(() => false)
+    const sent = await new Promise<boolean>((resolve) => resolve(input.send(sending))).catch(() => false)
     // Text typed while the send was in flight stays.
-    if (sent) setState("value", (current) => (current.trim() === text ? "" : current))
+    if (sent) setText("value", (current) => (current.trim() === sending ? "" : current))
     setState("busy", false)
     return sent
   }
 
   return {
-    value: () => state.value,
-    setValue: (text) => setState("value", text),
+    value: () => text.value,
+    setValue: (value) => setText("value", value),
     busy: () => state.busy,
     disabled,
     canSend,

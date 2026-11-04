@@ -5,7 +5,8 @@ import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { KeybindV2 } from "@tenon/ui/v2/keybind-v2"
 import { Reveal, RevealShow } from "@tenon/ui/v2/reveal"
 import { PathTooltip, TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
-import { createEffect, createMemo, For, Show } from "solid-js"
+import { makeEventListener } from "@solid-primitives/event-listener"
+import { createEffect, createMemo, createResource, createSignal, For, Show } from "solid-js"
 import { useLanguage } from "@/context/language"
 import { createFreshItems } from "@/utils/fresh-items"
 import { useLayout } from "@/context/layout"
@@ -17,18 +18,17 @@ import { useCommand } from "@/context/command"
 import { useDialog } from "@tenon/ui/context/dialog"
 import { DialogHarnessSetup } from "@/components/settings-v2/harness-setup"
 import { PageEmpty, PageFrame, PageSection, pageRowClass } from "@/components/page"
-import { localDateKey } from "@/features/second-brain/calendar-domain"
+import { eventCoversDay, localDateKey } from "@/features/second-brain/calendar-domain"
 import { createCalendarResource } from "@/features/second-brain/calendar-cache"
+import { TaskCheck } from "@/features/second-brain/calendar-peek"
+import { createTaskActions } from "@/features/second-brain/task-actions"
 import { type CalendarEvent, type PlannerTask } from "@/features/second-brain/client"
 import { useBrainProjects } from "@/components/sidebar/sidebar-controller"
 import { createHomeController } from "@/pages/home/home-controller"
 import { createHomeSessionsController } from "@/pages/home/home-sessions-controller"
 import { agentRunStatus } from "@/pages/activity-runs"
 import { Harness } from "@tenon/schema/harness"
-import {
-  harnessAssistantDirectory,
-  listHarnessSetup,
-} from "@/utils/server"
+import { harnessAssistantDirectory, listHarnessSetup } from "@/utils/server"
 import { ComposerBox } from "@/components/prompt-input/composer-box"
 import { createComposerController } from "@/components/prompt-input/composer-controller"
 import { ComposerModelPill, createComposerHarness } from "@/components/prompt-input/composer-harness"
@@ -38,6 +38,12 @@ import { NEW_SESSION_CONTENT_WIDTH } from "@/pages/session/new-session-layout"
 import { useServerSync } from "@/context/server-sync"
 import { getFilename } from "@tenon/core/util/path"
 import { useSettings } from "@/context/settings"
+import { settled } from "@/utils/resource"
+import { sessionTitle } from "@/utils/session-title"
+import { getRelativeTime } from "@/utils/time"
+
+const TODAY_LIMIT = 8
+const RESUME_LIMIT = 5
 
 type TodayItem = { kind: "event"; value: CalendarEvent } | { kind: "task"; value: PlannerTask; overdue: boolean }
 
@@ -91,7 +97,18 @@ export default function BrainHomePage() {
   const projects = useBrainProjects()
   // Cached per workspace, so Today paints at launch and a background sync updates it in place.
   const calendar = createCalendarResource(() => directory() || undefined, client)
-  const today = localDateKey(new Date())
+  // A window left open overnight moves to the new day when it next takes focus.
+  const [today, setToday] = createSignal(localDateKey(new Date()))
+  makeEventListener(window, "focus", () => setToday(localDateKey(new Date())))
+  const [google, googleActions] = createResource(async () => platform.googleCalendar?.status())
+  const tasks = createTaskActions({
+    directory,
+    client,
+    snapshot: calendar.snapshot,
+    mutate: calendar.mutate,
+    connection: () => settled(google),
+    refreshConnection: () => googleActions.refetch(),
+  })
   const activeProjects = createMemo(() =>
     (projects.list() ?? [])
       .filter((project) => project.status === "active")
@@ -99,27 +116,27 @@ export default function BrainHomePage() {
       .slice(0, 5),
   )
   const projectNames = createMemo(() => new Map((projects.list() ?? []).map((project) => [project.id, project.name])))
-  const todayItems = createMemo<TodayItem[]>(() => {
+  const allToday = createMemo<TodayItem[]>(() => {
     // A failure shows inline below instead.
     const snapshot = calendar.snapshot()
+    const day = today()
     const events = (snapshot?.events ?? [])
-      .filter((event) => event.date === today)
+      .filter((event) => eventCoversDay(event, day))
       .map((value): TodayItem => ({ kind: "event", value }))
-    const tasks = (snapshot?.tasks ?? [])
+    const open = (snapshot?.tasks ?? [])
       .filter(
         (task) =>
           !task.completedAt &&
-          (task.scheduledDate === today || task.dueDate === today || (!!task.dueDate && task.dueDate < today)),
+          (task.scheduledDate === day || task.dueDate === day || (!!task.dueDate && task.dueDate < day)),
       )
-      .map((value): TodayItem => ({ kind: "task", value, overdue: !!value.dueDate && value.dueDate < today }))
-    return [...events, ...tasks]
-      .sort((left, right) => {
-        const leftTime = left.kind === "event" ? (left.value.start ?? "") : (left.value.start ?? "")
-        const rightTime = right.kind === "event" ? (right.value.start ?? "") : (right.value.start ?? "")
-        return leftTime.localeCompare(rightTime) || left.value.title.localeCompare(right.value.title)
-      })
-      .slice(0, 8)
+      .map((value): TodayItem => ({ kind: "task", value, overdue: !!value.dueDate && value.dueDate < day }))
+    return [...events, ...open].sort((left, right) => {
+      const leftTime = left.kind === "event" ? (left.value.start ?? "") : (left.value.start ?? "")
+      const rightTime = right.kind === "event" ? (right.value.start ?? "") : (right.value.start ?? "")
+      return leftTime.localeCompare(rightTime) || left.value.title.localeCompare(right.value.title)
+    })
   })
+  const todayItems = createMemo(() => allToday().slice(0, TODAY_LIMIT))
   const freshRun = createFreshItems()
   const runningSessions = createMemo(() => {
     const data = tenonHome.server.focusedSync().session.data
@@ -131,7 +148,17 @@ export default function BrainHomePage() {
       )
   })
 
+  // Recent threads that aren't already under Running work, from every open folder.
+  const resumeSessions = createMemo(() => {
+    const running = new Set(runningSessions().map((record) => record.session.id))
+    return tenonSessions.data
+      .records()
+      .filter((record) => !record.session.parentID && !running.has(record.session.id))
+      .slice(0, RESUME_LIMIT)
+  })
+
   const composer = createComposerController({
+    persist: "home",
     // The draft page sends the prompt as soon as its composer is ready.
     send: async (prompt) => {
       await drafts.create(
@@ -321,7 +348,7 @@ export default function BrainHomePage() {
                       const overdue = item.kind === "task" && item.overdue
                       const project = () => (value.projectId ? projectNames().get(value.projectId) : undefined)
                       return (
-                        <li>
+                        <li class="relative">
                           <button
                             type="button"
                             class={pageRowClass}
@@ -332,21 +359,10 @@ export default function BrainHomePage() {
                             }
                           >
                             <span class="flex w-12 shrink-0 justify-center">
-                              <Show
-                                when={item.kind === "task"}
-                                fallback={
-                                  <span class="text-[12px] tabular-nums text-v2-text-text-muted">
-                                    {value.start || language.t("secondBrain.home.kind.event")}
-                                  </span>
-                                }
-                              >
-                                <span
-                                  classList={{
-                                    "size-4 rounded-full border-[1.5px]": true,
-                                    "border-v2-state-fg-danger": overdue,
-                                    "border-v2-border-border-base": !overdue,
-                                  }}
-                                />
+                              <Show when={item.kind === "event"}>
+                                <span class="text-[12px] tabular-nums text-v2-text-text-muted">
+                                  {value.start || language.t("secondBrain.home.kind.event")}
+                                </span>
                               </Show>
                             </span>
                             <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base [font-weight:400]">
@@ -365,9 +381,56 @@ export default function BrainHomePage() {
                               )}
                             </Show>
                           </button>
+                          {/* Beside the row's button, since a checkbox can't sit inside one. */}
+                          <Show when={item.kind === "task" && item.value}>
+                            {(task) => (
+                              <span class="absolute inset-y-0 left-3 flex w-12 items-center justify-center">
+                                <TaskCheck small task={task()} onToggle={tasks.toggle} />
+                              </span>
+                            )}
+                          </Show>
                         </li>
                       )
                     }}
+                  </For>
+                  <Show when={allToday().length > TODAY_LIMIT}>
+                    <li>
+                      <button
+                        type="button"
+                        class={`${pageRowClass} text-[13px] text-v2-text-text-muted`}
+                        onClick={() => navigate("/calendar")}
+                      >
+                        {language.t("secondBrain.home.more", { count: allToday().length - TODAY_LIMIT })}
+                      </button>
+                    </li>
+                  </Show>
+                </ul>
+              </PageSection>
+            </Show>
+
+            <Show when={resumeSessions().length > 0}>
+              <PageSection id="brain-home-resume" title={language.t("secondBrain.home.resume")}>
+                <ul class="flex flex-col">
+                  <For each={resumeSessions()}>
+                    {(record) => (
+                      <li>
+                        <button
+                          type="button"
+                          class={pageRowClass}
+                          onClick={() => tenonSessions.session.open(record.session)}
+                        >
+                          <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base [font-weight:400]">
+                            {sessionTitle(record.session.title) || record.session.id}
+                          </span>
+                          <span class="max-w-40 shrink-0 truncate text-[12px] text-v2-text-text-faint">
+                            {record.projectName}
+                          </span>
+                          <span class="shrink-0 text-[12px] text-v2-text-text-faint">
+                            {getRelativeTime(new Date(record.session.time.updated).toISOString(), language.t)}
+                          </span>
+                        </button>
+                      </li>
+                    )}
                   </For>
                 </ul>
               </PageSection>

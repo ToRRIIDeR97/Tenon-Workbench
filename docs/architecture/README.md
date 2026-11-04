@@ -182,7 +182,9 @@ timeline, the question and permission docks grow in as the composer folds away,
 and the queued and rolled-back docks keep removed rows closing in place with
 `createExitList` (`pages/session/composer/exit-list.ts`).
 
-The sidebar's controller (`components/sidebar/sidebar-controller.ts`) reads
+The sidebar's controller (`components/sidebar/sidebar-controller.ts`, provided by
+`SidebarControllerProvider` in `pages/layout-new.tsx` so the Command Centre page
+shares its thread actions and undo queue) reads
 `GET /second-brain/project-threads`, loads each expanded Project's threads
 (and General's, when expanded) with
 `serverSync().project.loadSessions(threadDirectory)` (kept live by
@@ -217,7 +219,8 @@ Calendar and Projects read `layout.home.workspace` and have no picker of their
 own; Notes keeps an open page with unsaved edits in its workspace until it is
 saved or discarded. Home, Notes and the Projects page's thread folders read the
 same cached project-threads query as the sidebar (`useProjectThreads` and
-`useBrainProjects` in `sidebar-controller.ts`, 30 seconds of freshness); the
+`useBrainProjects` in `sidebar-controller.ts`, 30 seconds of freshness, used by
+Project Overview and Calendar too); the
 Projects page keeps its own card list for editing. The controller
 scans each workspace once per app session (`POST /second-brain/projects/scan`)
 and on **Scan for projects**. The automatic scan reloads the Project list only
@@ -440,6 +443,10 @@ to it.
 - Settings › General › Tenon vault (desktop only, through the platform's
   `getVaultFolder` and `chooseVaultFolder`) shows the folder and picks another;
   a folder inside a workspace is refused, and a new one asks for a restart.
+- The page list is one cached query (`useVaultPages` in
+  `features/second-brain/vault-pages.ts`, 30 seconds of freshness). Page saves
+  update it and a finished `agent.write` invalidates it, so a page changed
+  outside the app can show up to 30 seconds late on a revisit.
 - The Projects page Map and `/projects/overview` list vault pages (as note
   summaries without links) and open them at `/notes?page=`.
 
@@ -533,7 +540,9 @@ assistant that spans workspaces, with its own threads, memory and routines.
   `features/command-centre/command-centre.tsx` (`CommandCentreProvider`,
   mounted in `pages/layout-new.tsx`) holds the thread list, the latest reply
   and `send`, which prompts the open thread, else the latest one, else creates
-  one with the harness and model from Settings › Command Centre.
+  one with the harness and model from Settings › Command Centre. The list
+  refreshes when the page opens and, debounced, on `session.created/updated/deleted`
+  events for that folder, so archives, deletes and routine runs show up.
 - **K3 strip.** `features/command-centre/command-strip.tsx`
   (`[data-command-strip]`) sits inside `<main>` on every page except
   `/command`: a 20 px handle while closed, an 84 px strip when open with the
@@ -627,8 +636,10 @@ These threads are unattended, Run now included: `CommandThreads.refusePrompts`
 answers every permission prompt no, the model carries on without it, and the
 row names what was refused.
 The Routines page (`/routines`, `app/src/pages/routines.tsx`, linked from the
-Command Centre) lists schedule, last run and next run with Run now, or Approve
-when the page needs approval.
+Command Centre) lists schedule, last run and next run with Run now, whose toast
+links to the new thread, or Approve when the page needs approval. A row's switch
+rewrites the routine page's `enabled` property (read, then `PUT` with its
+revision, since a write replaces all properties), and its name opens the page.
 
 | Route | Behaviour |
 | --- | --- |
@@ -673,9 +684,30 @@ Open Workspace buttons run the sidebar's open-folder flow. Home renders its shel
 metrics, and the harness selector have local loading boundaries. Harness
 availability uses the renderer query cache, keyed by server and workspace
 directory, with 30 seconds of freshness and background refresh on stale
-re-entry. Project cards come from the shared project-threads query; calendar
-data still reloads on each visit. The Projects page loads notes and the
-calendar only when its Map or Plan view first opens.
+re-entry. Project cards come from the shared project-threads query; the
+calendar paints from its cached snapshot and refreshes on each visit. Today
+ticks tasks through `features/second-brain/task-actions.ts`, the same Google
+outbox and Undo path as Calendar. Resume lists recent threads from every open
+folder that aren't running. Home and Command Centre composers keep unsent text
+per window (`composer.<scope>` under `Persist.window`). The Projects page loads
+notes and the calendar only when its Map or Plan view first opens.
+
+Pages read `resource.latest` through `utils/resource.ts` (`settled`), because a
+direct read before the first value suspends the fallback-less `Suspense` in
+`pages/layout-new.tsx` and holds the old page until the list request returns.
+
+## Alerts
+
+`context/notification.tsx` turns server events into sounds, OS notifications and
+unseen marks; `context/notification-events.ts` decides which. Composer turns run
+on core's runner and publish only V2 events: `session.next.step.ended` with a
+finish other than `tool-calls` is a finished turn, and `session.next.step.failed`
+is a failure unless it carries the runner's Stop message. Routine and command
+threads on the legacy runner publish `session.idle` and `session.error`. An error
+or Stop silences that turn's closing event; a context overflow raises nothing,
+because auto-compaction carries the turn on. `permission.asked` and `question.asked`
+raise the Permissions sound and notification for root threads, unless auto-accept
+answers the request. Child threads stay silent. Links use the alert's own server.
 
 Page content renders inside an error boundary in `pages/layout-new.tsx`: a page
 that throws shows a retryable message in the page area while the sidebar stays

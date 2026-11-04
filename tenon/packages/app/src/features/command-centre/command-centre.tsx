@@ -1,6 +1,7 @@
 import { createSimpleContext } from "@tenon/ui/context"
 import { readPartText } from "@tenon/session-ui/message-part-text"
 import { Harness } from "@tenon/schema/harness"
+import { debounce } from "@solid-primitives/scheduled"
 import { createEffect, createMemo, createResource, on, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLayout } from "@/context/layout"
@@ -11,8 +12,17 @@ import { useSettings } from "@/context/settings"
 import { commandDirectory, compactCommandMemory, readVault, type ModelChoice } from "@/features/second-brain/client"
 import { useAgentWrites, type AgentWrite } from "@/features/agent-writes/store"
 import { Identifier } from "@/utils/id"
+import { settled } from "@/utils/resource"
+import { normalizeSessionInfo } from "@/utils/session"
 
-export type CommandThread = { id: string; title: string; directory: string; updated: number }
+export type CommandThread = {
+  id: string
+  title: string
+  directory: string
+  updated: number
+  /** The server's session, for the thread actions the sidebar controller runs. */
+  session: ReturnType<typeof normalizeSessionInfo>
+}
 export type CommandMessage = { id: string; role: "user" | "assistant"; text: string; done: boolean }
 /** What a new thread runs on, from the composer's model pill; without it the Settings default applies. */
 export type CommandChoice = {
@@ -117,27 +127,52 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
       const root = vault()?.root
       return root ? commandDirectoryFor(root) : undefined
     })
-    const [threads, { refetch }] = createResource(directory, async (folder) => {
-      const result = await serverSDK().api.session.list({ directory: folder, parentID: null, limit: 100 })
+    const [threads, { refetch }] = createResource<CommandThread[], string>(directory, async (folder, info) => {
+      const result = await serverSDK()
+        .api.session.list({ directory: folder, parentID: null, limit: 100 })
+        // A failed refresh keeps the last list; reading a failed resource would throw into the page.
+        .catch(() => undefined)
+      if (!result) return info.value ?? []
       // Filter here too: an older server answers this list without the directory filter.
       return (result.data ?? [])
-        .filter((session) => sameDirectory(session.location?.directory, folder))
+        // The server's list keeps archived sessions.
+        .filter((session) => sameDirectory(session.location?.directory, folder) && !session.time.archived)
         .map(
           (session): CommandThread => ({
             id: session.id,
             title: session.title,
             directory: session.location?.directory ?? folder,
             updated: session.time.updated,
+            session: normalizeSessionInfo(session),
           }),
         )
         .sort((left, right) => right.updated - left.updated)
     })
-    // The synced session info carries the title the server sets after the first reply.
+    // Threads also change outside this client's sends: archives, deletes and routine runs. Debounced, because
+    // a running turn updates its session often.
+    const refresh = debounce(() => void refetch(), 500)
+    onCleanup(() => refresh.clear())
+    createEffect(() => {
+      const unsubscribe = serverSDK().event.listen((e) => {
+        const event = e.details
+        if (event.type !== "session.created" && event.type !== "session.updated" && event.type !== "session.deleted")
+          return
+        if (sameDirectory(event.properties.info.directory, directory())) refresh()
+      })
+      onCleanup(unsubscribe)
+    })
+    // The synced session info carries the title the server sets after the first reply and the latest activity.
     const list = () =>
-      (threads.latest ?? []).map((thread) => ({
-        ...thread,
-        title: serverSync().session.get(thread.id)?.title ?? thread.title,
-      }))
+      (settled(threads) ?? [])
+        .map((thread) => {
+          const info = serverSync().session.get(thread.id)
+          return {
+            ...thread,
+            title: info?.title ?? thread.title,
+            updated: Math.max(thread.updated, info?.time.updated ?? 0),
+          }
+        })
+        .sort((left, right) => right.updated - left.updated)
     const latest = () => list()[0]
 
     const messages = (sessionID: string | undefined): CommandMessage[] => {
@@ -271,6 +306,7 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
           .replace(/\s+/g, " ") ?? "",
       sending: () => state.sending,
       error: () => state.error,
+      clearError: () => setState("error", ""),
       send,
       refetch,
     }

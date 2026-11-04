@@ -100,9 +100,11 @@ Pins are stored on the thread (`metadata.pinned`, the pin time) so they survive
 restarts. Pinned threads sort first inside their own group (a Project or
 General); pinning a child thread does not move it out of its parent.
 
-**Archived threads** opens a dialog listing the Project's archived threads
-(threads in its thread directory, up to the 500 most recently updated), each
-with **Unarchive**.
+**Archived threads** opens a dialog listing a folder's archived threads (up to
+the 500 most recently updated), each with **Unarchive**. It is on a Project's
+menu (its thread directory), the General row's menu (the workspace folder
+itself, so threads archived in its non-Project subfolders are not listed) and
+the Command Centre page.
 
 ### Undo
 
@@ -206,8 +208,8 @@ folder as a workspace and selects it) and `tenon://new-session?directory=<path>&
 
 ## Pages
 
-- **Home** is a dashboard: start a Run, today's events and tasks, active
-  Projects, resume and running threads. With no Projects, **Create Project**
+- **Home** is a dashboard: start a Run, today's events and tasks (tick a task
+  in place, as on Calendar), active Projects, resume and running threads. With no Projects, **Create Project**
   opens the Projects page's create form (`/projects?new=1`). Sending from Home's composer opens
   the new thread and sends the message in one step.
 - **Projects** (Notes and the old Projects page, merged 2026-11-03; one page
@@ -254,8 +256,9 @@ folder as a workspace and selects it) and `tenon://new-session?directory=<path>&
   the title's letters and digits in any script. If a save finds the note
   changed on disk, **Reload from disk** replaces the edits with the saved copy.
 - **Command Centre** replaced Activity. It lists only its own threads (never
-  Project threads), shows the open thread with a composer, searches memory and
-  links to **Routines**. On every other page a handle above the bottom edge
+  Project threads) with rename, archive and delete on each row, searches memory,
+  opens **Archived threads** and links to **Routines**, whose rows switch a
+  routine on or off, open its page and run it now. On every other page a handle above the bottom edge
   opens the K3 strip (also `mod+j`; Esc closes it) with the latest reply, a
   composer and **Open full**.
 - **Settings** contains General, Shortcuts, Servers, Providers, Models and
