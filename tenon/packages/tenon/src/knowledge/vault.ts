@@ -315,15 +315,16 @@ export const listPages = Effect.fn("KnowledgeVault.listPages")(function* (
   const files = yield* fs.glob("**/*.md", { cwd: vault.directory, absolute: false, include: "file", dot: false })
   const query = filter.search?.trim().toLowerCase() ?? ""
   const pages = yield* Effect.forEach(
-    files.map((file) => file.replaceAll("\\", "/")).filter((file) => isListedPage(file, projects)),
+    files
+      .map((file) => file.replaceAll("\\", "/"))
+      .filter(
+        (file) =>
+          isListedPage(file, projects) &&
+          (filter.project === undefined || projectOf(file, projects) === filter.project),
+      ),
     (file) =>
-      readPageFile(vault, file, projects).pipe(
-        Effect.map((page) => {
-          if (filter.project !== undefined && page.info.projectId !== filter.project) return undefined
-          if (!query) return page.info
-          const text = [page.info.title, page.info.path, page.body].join("\n").toLowerCase()
-          return text.includes(query) ? page.info : undefined
-        }),
+      listedPage(vault, file, projects, query !== "").pipe(
+        Effect.map((page) => (!query || page.text?.includes(query) ? page.info : undefined)),
         Effect.catch((error) =>
           Effect.logWarning("Skipping unreadable vault page", { path: file, error: error._tag }).pipe(
             Effect.as(undefined),
@@ -381,6 +382,7 @@ export const writePage = Effect.fn("KnowledgeVault.writePage")(function* (
       .pipe(
         Effect.catchTag("FileMutation.TargetExistsError", () => Effect.fail(new ConflictError({ reason: "exists" }))),
       )
+    forgetPage(target.canonical)
     return decode(full, source, projects)
   }
 
@@ -402,6 +404,7 @@ export const writePage = Effect.fn("KnowledgeVault.writePage")(function* (
   yield* files
     .writeIfUnchanged({ target, content: source, expected: current.bytes })
     .pipe(Effect.catchTag("FileMutation.StaleContentError", () => Effect.fail(new ConflictError({ reason: "stale" }))))
+  forgetPage(target.canonical)
   return decode(full, source, projects)
 })
 
@@ -431,7 +434,9 @@ export const removePage = Effect.fn("KnowledgeVault.removePage")(function* (
   const current = yield* readPageFile(vault, relative, yield* projectFolders(vault))
   if (current.revision !== expectedRevision) return yield* new ConflictError({ reason: "stale" })
   yield* keepVersion(vault, relative, current)
-  yield* files.remove({ target: yield* resolveInside(vault, relative) })
+  const target = yield* resolveInside(vault, relative)
+  yield* files.remove({ target })
+  forgetPage(target.canonical)
 })
 
 /** Earlier versions of a page, newest first. */
@@ -960,15 +965,71 @@ const readPageFile = Effect.fnUntraced(function* (
   return { ...page, bytes }
 })
 
+// Parsed pages for listing and search, keyed by canonical path (so each workspace has its own entries) and
+// reused while the file's size and modification time are unchanged. `relative` is checked too, since two links
+// can share a canonical path. Bounded by count and by search text; the least recently used entries go first.
+const pageCache = new Map<string, { relative: string; mtime: number; size: number; info: PageInfo; text?: string }>()
+const pageCacheLimit = 5_000
+const pageTextLimit = 32 * 1024 * 1024
+let pageTextSize = 0
+
+function forgetPage(canonical: string) {
+  pageTextSize -= pageCache.get(canonical)?.text?.length ?? 0
+  pageCache.delete(canonical)
+}
+
+/**
+ * A listed page's info and, for a search, its lowercased text. Containment runs on every call, so a page
+ * swapped for a link out of the vault stops listing even with a cached entry. `projectId` is worked out here
+ * rather than cached: it depends on the workspace's `project.json` files, not on this file. A file with no
+ * usable modification time is always read, and the stat comes before the read, so a change in between only
+ * costs a miss next time.
+ */
+const listedPage = Effect.fnUntraced(function* (
+  vault: Vault,
+  relative: string,
+  projects: ReadonlyMap<string, string>,
+  search: boolean,
+) {
+  const fs = yield* FSUtil.Service
+  const target = yield* resolveInside(vault, relative)
+  const stat = yield* fs.stat(target.canonical).pipe(Effect.orElseSucceed(() => undefined))
+  const mtime = stat === undefined ? 0 : Option.match(stat.mtime, { onNone: () => 0, onSome: (date) => date.getTime() })
+  const size = Number(stat?.size ?? 0)
+  const cached = pageCache.get(target.canonical)
+  const entry =
+    cached &&
+    stat?.type === "File" &&
+    mtime > 0 &&
+    cached.relative === relative &&
+    cached.mtime === mtime &&
+    cached.size === size &&
+    (!search || cached.text !== undefined)
+      ? cached
+      : yield* readPageFile(vault, relative, projects).pipe(
+          Effect.map((page) => ({
+            relative,
+            mtime,
+            size,
+            info: page.info,
+            text: search ? [page.info.title, page.info.path, page.body].join("\n").toLowerCase() : undefined,
+          })),
+        )
+  forgetPage(target.canonical)
+  pageCache.set(target.canonical, entry)
+  pageTextSize += entry.text?.length ?? 0
+  for (const key of pageCache.keys()) {
+    if (key === target.canonical || (pageCache.size <= pageCacheLimit && pageTextSize <= pageTextLimit)) break
+    forgetPage(key)
+  }
+  return { info: { ...entry.info, projectId: projectOf(relative, projects) }, text: entry.text }
+})
+
 function decode(relative: string, raw: string, projects: ReadonlyMap<string, string>): PageFile {
   const bom = raw.startsWith("﻿")
   // Untrusted Markdown: never evaluates `---js` front matter and caps its size.
   const parsed = Frontmatter.parse(bom ? raw.slice(1) : raw)
   const data = { ...(parsed.data as Record<string, unknown>) }
-  const top = relative.split("/")[0].toLowerCase()
-  const projectId = relative.includes("/")
-    ? ([...projects].find(([, folder]) => folder.toLowerCase() === top)?.[0] ?? null)
-    : null
   const title = typeof data.title === "string" ? data.title.trim() : ""
   return {
     info: {
@@ -978,7 +1039,7 @@ function decode(relative: string, raw: string, projects: ReadonlyMap<string, str
       title: [...(title || titleFromBody(parsed.content) || path.posix.basename(relative, ".md"))]
         .slice(0, titleLimit)
         .join(""),
-      projectId,
+      projectId: projectOf(relative, projects),
       properties: Object.fromEntries(
         Object.entries(data)
           .filter(([key]) => !reservedKeys.has(key))
