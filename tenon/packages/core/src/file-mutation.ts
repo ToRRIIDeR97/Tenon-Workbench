@@ -216,7 +216,9 @@ const layer = Layer.effect(
     const remove = Effect.fn("FileMutation.remove")((input: RemoveInput) =>
       withTargetLock(input.target)(
         Effect.gen(function* () {
-          const existed = yield* fs.remove(input.target.canonical).pipe(
+          // Windows refuses a delete while an indexer, antivirus or sync client briefly holds the file.
+          const existed = yield* Effect.suspend(() => fs.remove(input.target.canonical)).pipe(
+            Effect.retry({ while: isTransientLock, schedule: Schedule.exponential("25 millis"), times: 4 }),
             Effect.as(true),
             Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed(false)),
           )

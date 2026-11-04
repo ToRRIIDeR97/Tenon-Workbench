@@ -146,6 +146,13 @@ ${path}`
     const error = vault.error()
     return error instanceof SecondBrainRequestError && error.reason === "vault_inside_workspace"
   }
+  // A file the vault needs could not be read (a sync lock, an offline placeholder); `reason` names it.
+  const unreadable = () => {
+    const error = vault.error()
+    return error instanceof SecondBrainRequestError && error.reason?.startsWith("vault_unavailable: ")
+      ? error.reason.slice("vault_unavailable: ".length)
+      : undefined
+  }
 
   const pagePath = () => search.page ?? search.note ?? ""
   const projectId = () => (pagePath() ? "" : (search.project ?? ""))
@@ -602,10 +609,24 @@ ${path}`
           }
         >
           <Show
-            when={!misplaced()}
+            when={!misplaced() && !unreadable()}
             fallback={
-              <PageEmpty error title={language.t("secondBrain.vault.misplaced.title")}>
-                {language.t("secondBrain.vault.misplaced.body")}
+              <PageEmpty
+                error
+                title={language.t(
+                  misplaced() ? "secondBrain.vault.misplaced.title" : "secondBrain.vault.unavailable.title",
+                )}
+                action={
+                  unreadable() ? (
+                    <ButtonV2 size="small" variant="outline" onClick={() => void pagesActions.refetch()}>
+                      {language.t("secondBrain.state.retry")}
+                    </ButtonV2>
+                  ) : undefined
+                }
+              >
+                {misplaced()
+                  ? language.t("secondBrain.vault.misplaced.body")
+                  : language.t("secondBrain.vault.unavailable.body", { file: unreadable() ?? "" })}
               </PageEmpty>
             }
           >

@@ -64,6 +64,37 @@ describe("KnowledgeVault", () => {
     ])
   })
 
+  test("names compare across letter case and Unicode forms, and new names are stored in NFC", () => {
+    const nfc = "Caf\u00e9"
+    const nfd = "Cafe\u0301"
+    expect(KnowledgeVault.uniqueFolder(nfc, [nfd.toUpperCase()])).toBe(`${nfc} (2)`)
+    expect(KnowledgeVault.uniqueFolder(nfd, [])).toBe(nfc)
+    const projects = new Map([["project_1", nfd]])
+    // A new page in a Project folder keeps the folder's spelling on disk, so NTFS gets no sibling folder.
+    expect(KnowledgeVault.newPagePath(`${nfc}/${nfd}.md`, projects)).toBe(`${nfd}/${nfc}.md`)
+    expect(KnowledgeVault.newPagePath(`${nfd}.md`, projects)).toBe(`${nfc}.md`)
+    // Any other folder keeps the spelling given, so the page lands in the folder a listing named.
+    expect(KnowledgeVault.newPagePath(`${nfd}/${nfd}.md`, new Map())).toBe(`${nfd}/${nfc}.md`)
+  })
+
+  test("a new page cannot have a stem whose .history folder would end in a dot or space", () => {
+    for (const refused of ["Plan .md", "Plan..md", "a/Plan .md"]) {
+      expect(KnowledgeVault.newPagePath(refused, new Map())).toBeUndefined()
+      // Pages already on disk stay valid, so they keep listing.
+      expect(KnowledgeVault.isPagePath(refused)).toBe(true)
+    }
+  })
+
+  test("a moved vault keeps workspaces whose id reached the new root, on both platforms", () => {
+    for (const [from, to, one, two] of [
+      ["C:\\Old", "D:\\New", "C:\\dev\\one", "C:\\dev\\two"],
+      ["/Users/ana/Old", "/Volumes/New", "/Users/ana/dev/one", "/Users/ana/dev/two"],
+    ]) {
+      const roots = { [from]: { [one]: "workspace_1", [two]: "workspace_2" }, [to]: { elsewhere: "workspace_3" } }
+      expect(KnowledgeVault.workspacesUnder(roots, to, new Set(["workspace_1"]))).toEqual([one, "elsewhere"])
+    }
+  })
+
   test("machine ids are file-safe and differ per call", () => {
     const first = KnowledgeVault.machineName("Ana's MacBook Pro.local")
     expect(first).toMatch(/^Ana-s-MacBook-Pro-local-[0-9a-f]{6}$/)

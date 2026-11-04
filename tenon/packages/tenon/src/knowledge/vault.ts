@@ -11,7 +11,8 @@ import { ProjectV2 } from "@tenon/core/project"
 import { Effect, Option, Schema } from "effect"
 import matter from "gray-matter"
 import { createHash, randomBytes } from "node:crypto"
-import { lstat, rmdir } from "node:fs/promises"
+import { readFileSync } from "node:fs"
+import { lstat, readdir, readFile, rmdir } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { ulid } from "ulid"
@@ -54,6 +55,11 @@ const oneDriveConflict = /-(?:DESKTOP|LAPTOP)-[A-Z0-9]{4,}(?:-\d+)?(?=\.[^.]+$|$
 const isConflictCopy = (name: string) => conflictPattern.test(name) || oneDriveConflict.test(name)
 const utf8 = new TextDecoder("utf-8", { ignoreBOM: true })
 const locks = KeyedMutex.makeUnsafe<string>()
+/**
+ * Folder and page names as compared, never as stored: a synced Mac folder can arrive in NFD while a typed
+ * path is NFC, and existing files keep the spelling they have on disk.
+ */
+const foldName = (value: string) => value.normalize("NFC").toLowerCase()
 
 export const WorkspaceInfo = Schema.Struct({ id: Schema.String, name: Schema.String, folder: Schema.String })
 export const Info = Schema.Struct({ root: Schema.String, workspace: WorkspaceInfo })
@@ -202,7 +208,8 @@ export const open = Effect.fn("KnowledgeVault.open")(function* (workspace: Works
       yield* fs.ensureDir(root)
       const machine = yield* readMachine()
       const mapped = machine.roots[root]?.[workspace.directory]
-      const folders = yield* workspaceFolders(root)
+      const scan = yield* workspaceFolders(root)
+      const folders = scan.found
       // A vault moved to a new root (Settings copies it) keeps its workspace ids, so the id this
       // directory had under an earlier root still finds its folder.
       const known =
@@ -213,6 +220,12 @@ export const open = Effect.fn("KnowledgeVault.open")(function* (workspace: Works
       const found =
         folders.find((item) => known !== undefined && item.id === known) ??
         (workspace.repository ? folders.find((item) => item.repository === workspace.repository) : undefined)
+      // This workspace may well have a folder, behind a file that could not be read (a sync lock, an offline
+      // placeholder, a half-synced file). A new folder would fork the vault; a really deleted one lists clean.
+      const expected =
+        workspace.repository !== undefined ||
+        Object.values(machine.roots).some((directories) => directories[workspace.directory] !== undefined)
+      if (found === undefined && expected && scan.unreadable.length > 0) return yield* unavailable(scan.unreadable[0])
       const entry = found ?? (yield* createWorkspaceFolder(root, workspace, known, folders))
       if (mapped !== entry.id)
         yield* writeMachine({
@@ -234,6 +247,51 @@ export const knownWorkspaces = Effect.fn("KnowledgeVault.knownWorkspaces")(funct
   if (machine === undefined) return []
   return [...new Set(Object.values(machine.roots).flatMap((directories) => Object.keys(directories)))]
 })
+
+/**
+ * The stored roots (vault root → workspace directory → workspace id), read directly for callers that have
+ * no Effect services or must stay synchronous. A missing or damaged map reads as empty.
+ */
+export function machineRoots(data: string): Machine["roots"] {
+  try {
+    const decoded = Schema.decodeUnknownOption(Schema.fromJsonString(Machine))(
+      readFileSync(path.join(data, "vault-machine.json"), "utf8"),
+    )
+    return Option.isSome(decoded) ? decoded.value.roots : {}
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * Workspace directories with a vault folder under `root`. Settings copies the vault to a new root and each
+ * directory is only mapped there when next opened, so an earlier root's entry counts while its id is among
+ * `ids`, the workspace ids found under `root`.
+ */
+export function workspacesUnder(roots: Machine["roots"], root: string, ids: ReadonlySet<string>) {
+  const directories = Object.entries(roots).flatMap(([key, mapped]) =>
+    Object.entries(mapped)
+      .filter(([, id]) => key === root || ids.has(id))
+      .map(([directory]) => directory),
+  )
+  return [...new Set(directories)]
+}
+
+/** `workspacesUnder` for the current root, with plain fs: the scheduler and app tools run under Node. */
+export async function currentWorkspaces(root: string, data: string) {
+  const entries = await readdir(root, { withFileTypes: true }).catch(() => [])
+  const ids = await Promise.all(
+    entries
+      .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
+      .map((entry) =>
+        readFile(path.join(root, entry.name, "workspace.json"), "utf8")
+          .then((source) => Schema.decodeUnknownOption(Schema.fromJsonString(WorkspaceFile))(source))
+          .then((file) => (Option.isSome(file) ? file.value.id : undefined))
+          .catch(() => undefined),
+      ),
+  )
+  return workspacesUnder(machineRoots(data), root, new Set(ids.filter((id) => id !== undefined)))
+}
 
 /** The vault's view of an opened instance: its directory, a display name and, for a repository, its id. */
 export function workspaceFor(context: { directory: string; project: { id: string; name?: string } }): Workspace {
@@ -257,15 +315,16 @@ export const listPages = Effect.fn("KnowledgeVault.listPages")(function* (
   const files = yield* fs.glob("**/*.md", { cwd: vault.directory, absolute: false, include: "file", dot: false })
   const query = filter.search?.trim().toLowerCase() ?? ""
   const pages = yield* Effect.forEach(
-    files.map((file) => file.replaceAll("\\", "/")).filter((file) => isListedPage(file, projects)),
+    files
+      .map((file) => file.replaceAll("\\", "/"))
+      .filter(
+        (file) =>
+          isListedPage(file, projects) &&
+          (filter.project === undefined || projectOf(file, projects) === filter.project),
+      ),
     (file) =>
-      readPageFile(vault, file, projects).pipe(
-        Effect.map((page) => {
-          if (filter.project !== undefined && page.info.projectId !== filter.project) return undefined
-          if (!query) return page.info
-          const text = [page.info.title, page.info.path, page.body].join("\n").toLowerCase()
-          return text.includes(query) ? page.info : undefined
-        }),
+      listedPage(vault, file, projects, query !== "").pipe(
+        Effect.map((page) => (!query || page.text?.includes(query) ? page.info : undefined)),
         Effect.catch((error) =>
           Effect.logWarning("Skipping unreadable vault page", { path: file, error: error._tag }).pipe(
             Effect.as(undefined),
@@ -293,11 +352,10 @@ export const writePage = Effect.fn("KnowledgeVault.writePage")(function* (
   const files = yield* FileMutation.Service
   const relative = yield* pagePath(input)
   const project = write.projectId === undefined ? undefined : yield* ensureProjectFolder(vault, write.projectId)
-  const full =
-    project === undefined || relative.toLowerCase().startsWith(`${project.toLowerCase()}/`)
-      ? relative
-      : yield* pagePath(`${project}/${relative}`)
+  const inside = project === undefined ? relative : yield* pagePath(insideFolder(relative, project))
   const projects = yield* projectFolders(vault)
+  const full = write.create ? newPagePath(inside, projects) : inside
+  if (full === undefined) return yield* new InvalidError({ reason: "invalid_path" })
   if (!isWritablePage(full, projects)) return yield* new InvalidError({ reason: "reserved_path" })
   if (Buffer.byteLength(write.body, "utf8") > maxBytes) return yield* new InvalidError({ reason: "too_large" })
   const properties = write.properties === undefined ? undefined : validProperties(write.properties)
@@ -324,6 +382,7 @@ export const writePage = Effect.fn("KnowledgeVault.writePage")(function* (
       .pipe(
         Effect.catchTag("FileMutation.TargetExistsError", () => Effect.fail(new ConflictError({ reason: "exists" }))),
       )
+    forgetPage(target.canonical)
     return decode(full, source, projects)
   }
 
@@ -345,6 +404,7 @@ export const writePage = Effect.fn("KnowledgeVault.writePage")(function* (
   yield* files
     .writeIfUnchanged({ target, content: source, expected: current.bytes })
     .pipe(Effect.catchTag("FileMutation.StaleContentError", () => Effect.fail(new ConflictError({ reason: "stale" }))))
+  forgetPage(target.canonical)
   return decode(full, source, projects)
 })
 
@@ -360,8 +420,7 @@ export const projectPagePath = Effect.fn("KnowledgeVault.projectPagePath")(funct
   const relative = yield* pagePath(input)
   const folder = yield* existingProjectFolder(vault, projectId)
   if (folder === undefined) return yield* new NotFoundError({ path: relative })
-  if (relative.toLowerCase().startsWith(`${folder.toLowerCase()}/`)) return relative
-  return yield* pagePath(`${folder}/${relative}`)
+  return yield* pagePath(insideFolder(relative, folder))
 })
 
 /** Remove a page while it still has `expectedRevision`, keeping the removed version in its history. */
@@ -377,7 +436,9 @@ export const removePage = Effect.fn("KnowledgeVault.removePage")(function* (
   const current = yield* readPageFile(vault, relative, projects)
   if (current.revision !== expectedRevision) return yield* new ConflictError({ reason: "stale" })
   yield* keepVersion(vault, relative, current)
-  yield* files.remove({ target: yield* resolveInside(vault, relative) })
+  const target = yield* resolveInside(vault, relative)
+  yield* files.remove({ target })
+  forgetPage(target.canonical)
 })
 
 /** Earlier versions of a page, newest first. */
@@ -427,6 +488,14 @@ export const writeTimeline = Effect.fn("KnowledgeVault.writeTimeline")(function*
   if (input.expectedRevision !== undefined && input.expectedRevision !== file.revision)
     return yield* new ConflictError({ reason: "stale" })
   const source = JSON.stringify({ version: 1, items }, null, 2) + "\n"
+  // A damaged file read as empty, and it may be nearly complete after a bad sync: keep its bytes beside it.
+  if (file.damaged && file.bytes !== undefined) {
+    const copy = yield* resolveInside(vault, `${folder}/timeline.json.corrupt-${Date.now()}`)
+    yield* files
+      .create({ target: copy, content: file.bytes })
+      .pipe(Effect.catchTag("FileMutation.TargetExistsError", () => Effect.void))
+    yield* Effect.logWarning("Kept a damaged vault timeline aside", { folder })
+  }
   yield* file.bytes === undefined
     ? files
         .create({ target: file.target, content: source })
@@ -455,7 +524,15 @@ export const readLog = Effect.fn("KnowledgeVault.readLog")(function* (vault: Vau
         const target = yield* resolveInside(vault, `${folder}/log/${entry.name}`)
         const bytes = yield* readSmall(target.canonical, maxBytes)
         return bytes === undefined ? [] : parseLog(utf8.decode(bytes), entry.name.slice(0, -3))
-      }).pipe(Effect.orElseSucceed(() => [])),
+      }).pipe(
+        // Above the read cap a machine's whole log drops out of the list while appends continue.
+        Effect.catch((error) =>
+          Effect.logWarning("Skipping unreadable vault log", {
+            file: entry.name,
+            error: error._tag === "KnowledgeVault.InvalidError" ? error.reason : error._tag,
+          }).pipe(Effect.as([])),
+        ),
+      ),
     { concurrency: 8 },
   )
   return parsed
@@ -683,23 +760,47 @@ export function machineName(host: string) {
   return `${base}-${randomBytes(3).toString("hex")}`
 }
 
-const workspaceFolders = Effect.fnUntraced(function* (root: string) {
+/**
+ * Read `name` from each visible folder of `directory`. A folder without the file is simply not one of ours;
+ * anything else (a read error, a body `decode` refuses, a failed listing) lands in `unreadable`, relative to
+ * `directory`, so a caller never takes a failure for "no such folder here".
+ */
+const scanFolders = Effect.fnUntraced(function* <A>(
+  directory: string,
+  name: string,
+  decode: (source: string, folder: string) => A | undefined,
+) {
   const fs = yield* FSUtil.Service
-  const entries = yield* fs.readDirectoryEntries(root).pipe(Effect.orElseSucceed(() => []))
-  const folders = yield* Effect.forEach(
+  const entries = yield* fs.readDirectoryEntries(directory).pipe(Effect.orElseSucceed(() => undefined))
+  if (entries === undefined) return { found: [] as A[], unreadable: [path.basename(directory)] }
+  const results = yield* Effect.forEach(
     entries.filter((entry) => entry.type === "directory" && !entry.name.startsWith(".")),
-    (entry) =>
-      readIdFile(path.join(root, entry.name, "workspace.json")).pipe(
-        Effect.map((source) => {
-          if (source === undefined) return undefined
-          const file = Schema.decodeUnknownOption(Schema.fromJsonString(WorkspaceFile))(source)
-          return Option.isSome(file) ? { folder: entry.name, ...file.value } : undefined
+    (entry) => {
+      const unreadable = `${entry.name}/${name}`
+      return readIdFile(path.join(directory, entry.name, name)).pipe(
+        Effect.map((source): { value?: A; unreadable?: string } => {
+          if (source === undefined) return {}
+          const value = decode(source, entry.name)
+          return value === undefined ? { unreadable } : { value }
         }),
-      ),
+        Effect.orElseSucceed((): { value?: A; unreadable?: string } => ({ unreadable })),
+      )
+    },
     { concurrency: 8 },
   )
-  return folders.filter((folder) => folder !== undefined)
+  return {
+    found: results.flatMap((result) => (result.value === undefined ? [] : [result.value])),
+    unreadable: results.flatMap((result) => (result.unreadable === undefined ? [] : [result.unreadable])),
+  }
 })
+
+const unavailable = (file: string) => new InvalidError({ reason: `vault_unavailable: ${file}` })
+
+const workspaceFolders = (root: string) =>
+  scanFolders(root, "workspace.json", (source, folder) => {
+    const file = Schema.decodeUnknownOption(Schema.fromJsonString(WorkspaceFile))(source)
+    return Option.isSome(file) ? { folder, ...file.value } : undefined
+  })
 
 const createWorkspaceFolder = Effect.fnUntraced(function* (
   root: string,
@@ -727,36 +828,25 @@ const createWorkspaceFolder = Effect.fnUntraced(function* (
   return { folder, ...content }
 })
 
-function uniqueFolder(base: string, taken: ReadonlyArray<string>) {
-  const lower = new Set(taken.map((name) => name.toLowerCase()))
+export function uniqueFolder(base: string, taken: ReadonlyArray<string>) {
+  const folded = new Set(taken.map(foldName))
+  const name = base.normalize("NFC")
   for (let index = 1; ; index++) {
-    const candidate = index === 1 ? base : `${base} (${index})`
-    if (!lower.has(candidate.toLowerCase())) return candidate
+    const candidate = index === 1 ? name : `${name} (${index})`
+    if (!folded.has(foldName(candidate))) return candidate
   }
 }
 
 // ---- Project folders ----
 
+const scanProjects = (vault: Vault) =>
+  scanFolders(vault.directory, "project.json", (source, folder) => {
+    const file = Schema.decodeUnknownOption(Schema.fromJsonString(ProjectFile))(source)
+    return Option.isSome(file) && projectPattern.test(file.value.id) ? ([file.value.id, folder] as const) : undefined
+  })
+
 /** Project id → folder name, from each top-level folder's `project.json`. */
-const projectFolders = Effect.fnUntraced(function* (vault: Vault) {
-  const fs = yield* FSUtil.Service
-  const entries = yield* fs.readDirectoryEntries(vault.directory).pipe(Effect.orElseSucceed(() => []))
-  const found = yield* Effect.forEach(
-    entries.filter((entry) => entry.type === "directory" && !entry.name.startsWith(".")),
-    (entry) =>
-      readIdFile(path.join(vault.directory, entry.name, "project.json")).pipe(
-        Effect.map((source) => {
-          if (source === undefined) return undefined
-          const file = Schema.decodeUnknownOption(Schema.fromJsonString(ProjectFile))(source)
-          return Option.isSome(file) && projectPattern.test(file.value.id)
-            ? ([file.value.id, entry.name] as const)
-            : undefined
-        }),
-      ),
-    { concurrency: 8 },
-  )
-  return new Map(found.filter((item) => item !== undefined))
-})
+const projectFolders = (vault: Vault) => scanProjects(vault).pipe(Effect.map((scan) => new Map(scan.found)))
 
 const existingProjectFolder = Effect.fnUntraced(function* (vault: Vault, projectId: string) {
   if (!projectPattern.test(projectId)) return yield* new InvalidError({ reason: "invalid_project" })
@@ -775,8 +865,11 @@ const ensureProjectFolder = Effect.fnUntraced(function* (vault: Vault, projectId
     Effect.gen(function* () {
       const fs = yield* FSUtil.Service
       const files = yield* FileMutation.Service
-      const again = (yield* projectFolders(vault)).get(projectId)
+      const scan = yield* scanProjects(vault)
+      const again = new Map(scan.found).get(projectId)
       if (again !== undefined) return again
+      // The Project's folder may be the one that could not be read; a new one would fork it.
+      if (scan.unreadable.length > 0) return yield* unavailable(scan.unreadable[0])
       const entries = yield* fs.readDirectoryEntries(vault.directory).pipe(Effect.orElseSucceed(() => []))
       const folder = uniqueFolder(
         BrainProject.folderName(project.name),
@@ -817,6 +910,31 @@ export function isPagePath(value: string) {
 const pagePath = (value: string) =>
   isPagePath(value) ? Effect.succeed(value) : Effect.fail(new InvalidError({ reason: "invalid_path" }))
 
+/**
+ * `relative` inside the top-level `folder`, in the folder's spelling on disk; a path already inside it is
+ * not nested again.
+ */
+function insideFolder(relative: string, folder: string) {
+  const [top, ...rest] = relative.split("/")
+  return rest.length > 0 && foldName(top) === foldName(folder) ? [folder, ...rest].join("/") : `${folder}/${relative}`
+}
+
+/**
+ * The path a new page is created at, or undefined when refused. The file name is stored in NFC. Folders keep
+ * the spelling given, so a page lands in the folder a listing named instead of an NFC sibling on NTFS, and a
+ * Project folder takes its spelling on disk. A stem ending in a dot or space is refused because
+ * `.history/<stem>` would become a folder name Windows tools mishandle; such a page already on disk stays
+ * listed and writable.
+ */
+export function newPagePath(value: string, projects: ReadonlyMap<string, string>) {
+  const folders = value.split("/")
+  const name = folders.pop()!.normalize("NFC")
+  const normal = [...folders, name].join("/")
+  if (!isPagePath(normal) || /[. ]$/.test(name.slice(0, -3))) return undefined
+  const folder = [...projects.values()].find((item) => foldName(item) === foldName(folders[0] ?? ""))
+  return folder === undefined ? normal : insideFolder(normal, folder)
+}
+
 /** Listed pages skip machine logs and sync conflict copies (shown by `conflicts`). */
 function isListedPage(file: string, projects: ReadonlyMap<string, string>) {
   return isPagePath(file) && isWritablePage(file, projects) && !isConflictCopy(path.posix.basename(file))
@@ -824,8 +942,15 @@ function isListedPage(file: string, projects: ReadonlyMap<string, string>) {
 
 function isWritablePage(file: string, projects: ReadonlyMap<string, string>) {
   const segments = file.split("/")
-  const folders = new Set([...projects.values()].map((folder) => folder.toLowerCase()))
-  return !(segments.length > 2 && folders.has(segments[0].toLowerCase()) && segments[1].toLowerCase() === "log")
+  const folders = new Set([...projects.values()].map(foldName))
+  return !(segments.length > 2 && folders.has(foldName(segments[0])) && segments[1].toLowerCase() === "log")
+}
+
+/** The Project whose top-level folder holds the page, matched as `isWritablePage` matches it. */
+function projectOf(relative: string, projects: ReadonlyMap<string, string>) {
+  if (!relative.includes("/")) return null
+  const top = foldName(relative.split("/")[0])
+  return [...projects].find(([, folder]) => foldName(folder) === top)?.[0] ?? null
 }
 
 type PageFile = Page & { data: Record<string, unknown>; bom: boolean }
@@ -845,15 +970,71 @@ const readPageFile = Effect.fnUntraced(function* (
   return { ...page, bytes }
 })
 
+// Parsed pages for listing and search, keyed by canonical path (so each workspace has its own entries) and
+// reused while the file's size and modification time are unchanged. `relative` is checked too, since two links
+// can share a canonical path. Bounded by count and by search text; the least recently used entries go first.
+const pageCache = new Map<string, { relative: string; mtime: number; size: number; info: PageInfo; text?: string }>()
+const pageCacheLimit = 5_000
+const pageTextLimit = 32 * 1024 * 1024
+let pageTextSize = 0
+
+function forgetPage(canonical: string) {
+  pageTextSize -= pageCache.get(canonical)?.text?.length ?? 0
+  pageCache.delete(canonical)
+}
+
+/**
+ * A listed page's info and, for a search, its lowercased text. Containment runs on every call, so a page
+ * swapped for a link out of the vault stops listing even with a cached entry. `projectId` is worked out here
+ * rather than cached: it depends on the workspace's `project.json` files, not on this file. A file with no
+ * usable modification time is always read, and the stat comes before the read, so a change in between only
+ * costs a miss next time.
+ */
+const listedPage = Effect.fnUntraced(function* (
+  vault: Vault,
+  relative: string,
+  projects: ReadonlyMap<string, string>,
+  search: boolean,
+) {
+  const fs = yield* FSUtil.Service
+  const target = yield* resolveInside(vault, relative)
+  const stat = yield* fs.stat(target.canonical).pipe(Effect.orElseSucceed(() => undefined))
+  const mtime = stat === undefined ? 0 : Option.match(stat.mtime, { onNone: () => 0, onSome: (date) => date.getTime() })
+  const size = Number(stat?.size ?? 0)
+  const cached = pageCache.get(target.canonical)
+  const entry =
+    cached &&
+    stat?.type === "File" &&
+    mtime > 0 &&
+    cached.relative === relative &&
+    cached.mtime === mtime &&
+    cached.size === size &&
+    (!search || cached.text !== undefined)
+      ? cached
+      : yield* readPageFile(vault, relative, projects).pipe(
+          Effect.map((page) => ({
+            relative,
+            mtime,
+            size,
+            info: page.info,
+            text: search ? [page.info.title, page.info.path, page.body].join("\n").toLowerCase() : undefined,
+          })),
+        )
+  forgetPage(target.canonical)
+  pageCache.set(target.canonical, entry)
+  pageTextSize += entry.text?.length ?? 0
+  for (const key of pageCache.keys()) {
+    if (key === target.canonical || (pageCache.size <= pageCacheLimit && pageTextSize <= pageTextLimit)) break
+    forgetPage(key)
+  }
+  return { info: { ...entry.info, projectId: projectOf(relative, projects) }, text: entry.text }
+})
+
 function decode(relative: string, raw: string, projects: ReadonlyMap<string, string>): PageFile {
   const bom = raw.startsWith("﻿")
   // Untrusted Markdown: never evaluates `---js` front matter and caps its size.
   const parsed = Frontmatter.parse(bom ? raw.slice(1) : raw)
   const data = { ...(parsed.data as Record<string, unknown>) }
-  const top = relative.split("/")[0].toLowerCase()
-  const projectId = relative.includes("/")
-    ? ([...projects].find(([, folder]) => folder.toLowerCase() === top)?.[0] ?? null)
-    : null
   const title = typeof data.title === "string" ? data.title.trim() : ""
   return {
     info: {
@@ -863,7 +1044,7 @@ function decode(relative: string, raw: string, projects: ReadonlyMap<string, str
       title: [...(title || titleFromBody(parsed.content) || path.posix.basename(relative, ".md"))]
         .slice(0, titleLimit)
         .join(""),
-      projectId,
+      projectId: projectOf(relative, projects),
       properties: Object.fromEntries(
         Object.entries(data)
           .filter(([key]) => !reservedKeys.has(key))
@@ -951,14 +1132,19 @@ const keepVersion = Effect.fnUntraced(function* (
   yield* files
     .create({ target, content: current.bytes })
     .pipe(Effect.catchTag("FileMutation.TargetExistsError", () => Effect.void))
-  const old = (yield* versions(vault, relative)).slice(historyLimit)
-  yield* Effect.forEach(
-    old,
-    (version) =>
-      resolveInside(vault, `${historyFolder(relative)}/${version}.md`).pipe(
-        Effect.flatMap((stale) => files.remove({ target: stale })),
+  // Housekeeping never fails the save it comes with; the next save prunes again.
+  yield* versions(vault, relative).pipe(
+    Effect.flatMap((all) =>
+      Effect.forEach(
+        all.slice(historyLimit),
+        (version) =>
+          resolveInside(vault, `${historyFolder(relative)}/${version}.md`).pipe(
+            Effect.flatMap((stale) => files.remove({ target: stale })),
+          ),
+        { discard: true },
       ),
-    { discard: true },
+    ),
+    Effect.catch((error) => Effect.logWarning("Could not prune page history", { path: relative, error: error._tag })),
   )
 })
 
@@ -969,13 +1155,14 @@ const TimelineFile = Schema.Struct({ version: Schema.Literal(1), items: Schema.A
 const timelineFile = Effect.fnUntraced(function* (vault: Vault, folder: string) {
   const target = yield* resolveInside(vault, `${folder}/timeline.json`)
   const bytes = yield* readSmall(target.canonical, maxBytes)
-  if (bytes === undefined) return { target, bytes, revision: "new", items: [] as TimelineItem[] }
+  if (bytes === undefined) return { target, bytes, damaged: false, revision: "new", items: [] as TimelineItem[] }
   const decoded = Schema.decodeUnknownOption(Schema.fromJsonString(TimelineFile))(utf8.decode(bytes))
-  // A damaged file reads as empty; its revision still guards it, so a save replaces it knowingly.
+  // A damaged file reads as empty; its revision still guards it, and a save keeps a copy before replacing it.
   if (Option.isNone(decoded)) yield* Effect.logWarning("Unreadable vault timeline", { folder })
   return {
     target,
     bytes,
+    damaged: Option.isNone(decoded),
     revision: hash(utf8.decode(bytes)),
     items: Option.match(decoded, { onNone: () => [], onSome: (file) => [...file.items] }),
   }
@@ -1123,12 +1310,9 @@ const readSmall = Effect.fnUntraced(function* (file: string, limit: number) {
   return yield* fs.readFile(file).pipe(Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed(undefined)))
 })
 
-/** A small id file's text, or undefined when it is missing or unreadable. */
+/** A small id file's text, or undefined only when it is missing; any other failure stays an error. */
 const readIdFile = (file: string) =>
-  readSmall(file, smallFileLimit).pipe(
-    Effect.map((bytes) => (bytes === undefined ? undefined : utf8.decode(bytes))),
-    Effect.orElseSucceed(() => undefined),
-  )
+  readSmall(file, smallFileLimit).pipe(Effect.map((bytes) => (bytes === undefined ? undefined : utf8.decode(bytes))))
 
 function hash(source: string) {
   return createHash("sha256").update(source).digest("hex")

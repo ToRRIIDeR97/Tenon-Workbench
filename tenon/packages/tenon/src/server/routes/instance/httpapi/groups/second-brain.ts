@@ -82,6 +82,7 @@ export const SecondBrainPaths = {
   routineRun: "/second-brain/routines/:id/run",
   routineApprove: "/second-brain/routines/:id/approve",
   commandDirectory: "/command-centre/directory",
+  commandFolders: "/command-centre/folders",
   commandMemory: "/command-centre/memory",
   commandMemoryCompact: "/command-centre/memory/compact",
 } as const
@@ -291,6 +292,14 @@ export const SecondBrainApi = HttpApi.make("secondBrain").add(
       HttpApiEndpoint.post("commandDirectory", SecondBrainPaths.commandDirectory, {
         query: Schema.Struct(WorkspaceRoutingQueryFields),
         success: described(Schema.Struct({ directory: Schema.String }), "Where Command Centre threads run"),
+        error: errors,
+      }),
+      HttpApiEndpoint.get("commandFolders", SecondBrainPaths.commandFolders, {
+        query: Schema.Struct(WorkspaceRoutingQueryFields),
+        success: described(
+          Schema.Struct({ folders: Schema.Array(Schema.String) }),
+          "Every Command Centre folder on this machine, the current root's first",
+        ),
         error: errors,
       }),
       HttpApiEndpoint.get("searchCommandMemory", SecondBrainPaths.commandMemory, {

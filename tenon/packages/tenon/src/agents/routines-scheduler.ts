@@ -9,8 +9,7 @@ import { Session } from "@/session/session"
 import { Global } from "@tenon/core/global"
 import { LocationServiceMap } from "@tenon/core/location-services"
 import { Effect, Layer, Schedule, Scope } from "effect"
-import { readFile, stat } from "node:fs/promises"
-import path from "node:path"
+import { stat } from "node:fs/promises"
 import { CommandThreads } from "./command-threads"
 import { Routines } from "./routines"
 
@@ -22,24 +21,21 @@ import { Routines } from "./routines"
  * starts it, never the in-process test routes.
  */
 
-/** Workspace directories with a vault folder under the current root, from `vault-machine.json`. */
+/** Workspace directories with a vault folder under the current root that still exist on this machine. */
 const workspaces = Effect.promise(async () => {
-  const source = await readFile(path.join(Global.make().data, "vault-machine.json"), "utf8").catch(() => undefined)
-  if (!source) return [] as string[]
-  try {
-    const machine = JSON.parse(source) as { roots?: Record<string, Record<string, string>> }
-    const directories = Object.keys(machine.roots?.[KnowledgeVault.rootFor(process.env, Global.make().home)] ?? {})
-    const present = await Promise.all(
-      directories.map((directory) =>
-        stat(directory)
-          .then((info) => info.isDirectory())
-          .catch(() => false),
-      ),
-    )
-    return directories.filter((_, index) => present[index])
-  } catch {
-    return [] as string[]
-  }
+  const global = Global.make()
+  const directories = await KnowledgeVault.currentWorkspaces(
+    KnowledgeVault.rootFor(process.env, global.home),
+    global.data,
+  )
+  const present = await Promise.all(
+    directories.map((directory) =>
+      stat(directory)
+        .then((info) => info.isDirectory())
+        .catch(() => false),
+    ),
+  )
+  return directories.filter((_, index) => present[index])
 })
 
 /** `provider/model` from a routine's `model` property. */

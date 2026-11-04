@@ -7,8 +7,7 @@ import { Global } from "@tenon/core/global"
 import { HarnessAppTools } from "@tenon/core/harness/app-tools"
 import { sql } from "drizzle-orm"
 import { Effect, Schema, Semaphore } from "effect"
-import { realpathSync } from "node:fs"
-import { mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises"
+import { mkdir, readdir, readFile, realpath, rename, writeFile } from "node:fs/promises"
 import path from "node:path"
 import COMMAND_AGENT from "./command-agent.md" with { type: "text" }
 
@@ -74,34 +73,79 @@ const fold = (value: string) => {
   return process.platform === "win32" ? resolved.toLowerCase() : resolved
 }
 
-/** Whether a session directory is the Command Centre's. */
-export function isCommandDirectory(value: string, base = root()) {
+/**
+ * Every Command Centre folder this machine has used, the current root's first. A session row keeps the
+ * folder it started in, so a thread from before a vault move still runs in its earlier root's folder.
+ */
+export const folders = (roots = KnowledgeVault.machineRoots(Global.make().data)) =>
+  [...new Set([root(), ...Object.keys(roots)])].map((item) => path.join(item, HarnessAppTools.COMMAND_CENTRE_FOLDER))
+
+// Each folder's real path, kept for the process. An earlier root can sit on an offline share, so only async
+// fs touches these paths, and a failed lookup isn't kept: the folder may appear or come back later.
+const reals = new Map<string, string>()
+const resolving = new Map<string, Promise<void>>()
+
+/** Looks up the real path of every Command Centre folder, off the event loop. */
+export const resolveFolders = (list = folders()) =>
+  Promise.all(
+    list.map((folder) => {
+      if (reals.has(folder)) return undefined
+      const running =
+        resolving.get(folder) ??
+        realpath(folder)
+          .then(
+            (real) => void reals.set(folder, real),
+            () => undefined,
+          )
+          .finally(() => resolving.delete(folder))
+      resolving.set(folder, running)
+      return running
+    }),
+  )
+
+// An offline root must not hold up a search or a tool call, so waiting for the lookups is bounded.
+const resolved = Effect.promise(() => resolveFolders()).pipe(Effect.timeoutOption("2 seconds"))
+
+const spellings = (folder: string) => [...new Set([folder, path.resolve(folder), reals.get(folder) ?? folder])]
+
+const isCommandFolderName = (value: string) => path.basename(path.resolve(value)) === HarnessAppTools.COMMAND_CENTRE_FOLDER
+
+/**
+ * Whether a session directory is a Command Centre folder, of this root or an earlier one. Called on every
+ * session update, so any other folder stops at its name, and it never waits on a root: a folder reached through
+ * a link only matches once its lookup is done. A miss starts that lookup; `isCommandDirectoryResolved` waits for it.
+ */
+export function isCommandDirectory(value: string) {
+  if (!isCommandFolderName(value)) return false
   const target = fold(value)
-  return spellings(path.join(base, HarnessAppTools.COMMAND_CENTRE_FOLDER)).some((spelling) => fold(spelling) === target)
+  const known = folders()
+  if (known.some((folder) => spellings(folder).some((spelling) => fold(spelling) === target))) return true
+  void resolveFolders(known)
+  return false
 }
 
-const spellings = (folder: string) => {
-  const real = (() => {
-    try {
-      return realpathSync(folder)
-    } catch {
-      return folder
-    }
-  })()
-  return [...new Set([folder, path.resolve(folder), real])]
-}
+/** `isCommandDirectory` for callers that can wait for the folders' real paths. */
+export const isCommandDirectoryResolved = Effect.fnUntraced(function* (value: string) {
+  if (isCommandDirectory(value)) return true
+  if (!isCommandFolderName(value)) return false
+  yield* resolved
+  return isCommandDirectory(value)
+})
 
 /** Root Command Centre threads, newest first; archived ones included. */
 export const threads = Effect.fn("CommandMemory.threads")(function* () {
-  const folder = yield* directory()
+  yield* directory()
+  yield* resolved
   const sessions = yield* Session.Service
-  const found = yield* Effect.forEach(spellings(folder), (spelling) =>
+  const known = [...new Set(folders().flatMap(spellings))]
+  const found = yield* Effect.forEach(known, (spelling) =>
     sessions.listGlobal({ directory: spelling, roots: true, archived: true, limit: threadLimit }),
   )
+  const targets = new Set(known.map(fold))
   const seen = new Set<string>()
   return found
     .flat()
-    .filter((session) => isCommandDirectory(session.directory) && !seen.has(session.id) && seen.add(session.id))
+    .filter((session) => targets.has(fold(session.directory)) && !seen.has(session.id) && seen.add(session.id))
     .sort((left, right) => right.time.updated - left.time.updated)
 })
 
@@ -115,7 +159,7 @@ const threadText = Effect.fnUntraced(function* (sessionID: Session.Info["id"]) {
     .join("\n\n")
 })
 
-const memoryFolder = () => path.join(root(), ".command-centre", "memory")
+const memoryFolder = () => path.join(root(), HarnessAppTools.COMMAND_CENTRE_FOLDER, "memory")
 
 type MemoryEntry = { id: string; text: string; at: number }
 

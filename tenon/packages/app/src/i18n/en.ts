@@ -1554,6 +1554,9 @@ export const dict = {
   "secondBrain.vault.moved.other": "Moved {{count}} notes into the Tenon vault",
   "secondBrain.vault.misplaced.title": "The Tenon vault can't be inside a workspace or Project folder",
   "secondBrain.vault.misplaced.body": "Choose another folder in Settings.",
+  "secondBrain.vault.unavailable.title": "The Tenon vault can't be read right now",
+  "secondBrain.vault.unavailable.body":
+    "{{file}} could not be read. Check that it has finished syncing and is valid, then try again.",
   "secondBrain.vault.settings.title": "Tenon vault",
   "secondBrain.vault.settings.choose": "Choose folder…",
   "secondBrain.vault.settings.inside":

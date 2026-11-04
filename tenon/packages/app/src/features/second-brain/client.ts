@@ -138,7 +138,10 @@ export function requestErrorReason(body: unknown) {
   if (!body || typeof body !== "object" || !("data" in body)) return undefined
   const data = body.data
   if (!data || typeof data !== "object" || !("message" in data) || typeof data.message !== "string") return undefined
-  return /^[a-z0-9_]{1,64}$/.test(data.message) ? data.message : undefined
+  // `vault_unavailable` alone carries a detail: the vault-relative file that could not be read.
+  return /^[a-z0-9_]{1,64}$/.test(data.message) || data.message.startsWith("vault_unavailable: ")
+    ? data.message
+    : undefined
 }
 
 async function request<T>(client: Client, path: string, init?: RequestInit): Promise<T> {
@@ -386,6 +389,9 @@ export const approveRoutine = (client: Client, id: string, hash: string) =>
 /** Creates the vault's `.command-centre` folder when missing and returns it. */
 export const commandDirectory = (client: Client) =>
   request<{ directory: string }>(client, "/command-centre/directory", { method: "POST" })
+
+/** Every Command Centre folder on this machine; a moved vault's threads stay in the earlier root's folder. */
+export const commandFolders = (client: Client) => request<{ folders: string[] }>(client, "/command-centre/folders")
 
 export const searchCommandMemory = (client: Client, search: string) =>
   request<MemoryHit[]>(client, `/command-centre/memory?search=${encodeURIComponent(search)}`)

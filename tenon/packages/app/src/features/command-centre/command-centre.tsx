@@ -9,7 +9,13 @@ import { usePlatform } from "@/context/platform"
 import { useServerSDK } from "@/context/server-sdk"
 import { useServerSync } from "@/context/server-sync"
 import { useSettings } from "@/context/settings"
-import { commandDirectory, compactCommandMemory, readVault, type ModelChoice } from "@/features/second-brain/client"
+import {
+  commandDirectory,
+  commandFolders,
+  compactCommandMemory,
+  readVault,
+  type ModelChoice,
+} from "@/features/second-brain/client"
 import { useAgentWrites, type AgentWrite } from "@/features/agent-writes/store"
 import { Identifier } from "@/utils/id"
 import { settled } from "@/utils/resource"
@@ -128,15 +134,32 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
       return root ? commandDirectoryFor(root) : undefined
     })
     const [threads, { refetch }] = createResource<CommandThread[], string>(directory, async (folder, info) => {
-      const result = await serverSDK()
-        .api.session.list({ directory: folder, parentID: null, limit: 100 })
-        // A failed refresh keeps the last list; reading a failed resource would throw into the page.
-        .catch(() => undefined)
-      if (!result) return info.value ?? []
+      // Threads from before a vault move stay in the earlier root's folder. An older server has no such route.
+      const target = workspace()
+      const known = target
+        ? await commandFolders({ ...client(target), target: { directory: target, header: true } }).then(
+            (result) => result.folders,
+            () => [],
+          )
+        : []
+      const folders = [folder, ...known.filter((item) => !sameDirectory(item, folder))]
+      const results = await Promise.all(
+        folders.map((item, index) => {
+          const listed = serverSDK().api.session.list({ directory: item, parentID: null, limit: 100 })
+          // An earlier root may be gone or offline; that must not hide the current root's threads.
+          return index === 0 ? listed.catch(() => undefined) : listed.catch(() => ({ data: [] }))
+        }),
+      )
+      // A failed refresh keeps the last list; reading a failed resource would throw into the page.
+      if (!results[0]) return info.value ?? []
       // Filter here too: an older server answers this list without the directory filter.
-      return (result.data ?? [])
+      return results
+        .flatMap((result) => result?.data ?? [])
         // The server's list keeps archived sessions.
-        .filter((session) => sameDirectory(session.location?.directory, folder) && !session.time.archived)
+        .filter(
+          (session) =>
+            folders.some((item) => sameDirectory(session.location?.directory, item)) && !session.time.archived,
+        )
         .map(
           (session): CommandThread => ({
             id: session.id,
@@ -245,7 +268,9 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
         const harnessID = choice?.harnessID ?? Harness.InstanceID.make(current.harnessID ?? Harness.OpenCode)
         const harness = harnessID !== Harness.OpenCode
         const harnessModel = choice ? choice.harnessModel : current.modelID ? { id: current.modelID } : undefined
-        const existing = sessionID === null ? undefined : (sessionID ?? latest()?.id)
+        // The default target stays in the current folder: an earlier root's folder may be gone by now.
+        const newest = list().find((thread) => sameDirectory(thread.directory, folder))
+        const existing = sessionID === null ? undefined : (sessionID ?? newest?.id)
         const create = async () => {
           // The server creates the vault's .command-centre folder; an older server without the route is fine.
           await commandDirectory(client(target)).catch(() => undefined)

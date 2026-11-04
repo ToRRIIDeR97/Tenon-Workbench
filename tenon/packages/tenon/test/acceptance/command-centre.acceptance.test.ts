@@ -1,6 +1,6 @@
 import { afterEach, describe, expect } from "bun:test"
 import { NodeHttpServer, NodeServices } from "@effect/platform-node"
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises"
+import { mkdir, readFile, readdir, realpath, symlink, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { Config, Effect, Layer } from "effect"
 import { HttpClient, HttpClientRequest, HttpClientResponse, HttpRouter, HttpServer } from "effect/unstable/http"
@@ -9,6 +9,7 @@ import { AppNodeBuilder } from "@tenon/core/effect/app-node-builder"
 import { LayerNode } from "@tenon/core/effect/layer-node"
 import { CrossSpawnSpawner } from "@tenon/core/cross-spawn-spawner"
 import { Database } from "@tenon/core/database/database"
+import { Global } from "@tenon/core/global"
 import { Ripgrep } from "@tenon/core/ripgrep"
 import { Workspace } from "../../src/control-plane/workspace"
 import { InstanceBootstrap as InstanceBootstrapService } from "../../src/project/bootstrap-service"
@@ -113,6 +114,56 @@ describe("Command Centre", () => {
 
       const again = yield* CommandMemory.compact({ now, days: 45, summarize: () => Effect.succeed("x") })
       expect(again).toMatchObject({ summarised: 0, deleted: 0 })
+    }),
+  )
+
+  it.instance("an earlier root reached through a link matches once its real path is known", () =>
+    Effect.gen(function* () {
+      const { headers } = yield* setup
+      yield* request("/second-brain/vault", { headers }).pipe(Effect.flatMap(json))
+      const file = path.join(Global.make().data, "vault-machine.json")
+      const before = yield* Effect.promise(() => readFile(file, "utf8"))
+      const target = yield* tmpdirScoped()
+      const parent = yield* tmpdirScoped()
+      const link = path.join(parent, "earlier-root")
+      const real = path.join(yield* Effect.promise(() => realpath(target)), ".command-centre")
+      yield* Effect.promise(() => mkdir(real, { recursive: true }))
+      yield* Effect.promise(() => symlink(target, link, "junction"))
+      const machine = JSON.parse(before)
+      yield* Effect.promise(() => writeFile(file, JSON.stringify({ ...machine, roots: { ...machine.roots, [link]: {} } })))
+      yield* Effect.gen(function* () {
+        expect(CommandMemory.isCommandDirectory(path.join(link, ".command-centre"))).toBe(true)
+        expect(CommandMemory.isCommandDirectory(real)).toBe(false)
+        expect(yield* CommandMemory.isCommandDirectoryResolved(real)).toBe(true)
+      }).pipe(Effect.ensuring(Effect.promise(() => writeFile(file, before))))
+    }),
+  )
+
+  it.instance("threads from before a vault move still count as Command Centre threads", () =>
+    Effect.gen(function* () {
+      const { root, headers } = yield* setup
+      yield* request("/second-brain/vault", { headers }).pipe(Effect.flatMap(json))
+      const file = path.join(Global.make().data, "vault-machine.json")
+      const before = yield* Effect.promise(() => readFile(file, "utf8"))
+      const earlier = yield* tmpdirScoped()
+      const folder = path.join(earlier, ".command-centre")
+      yield* Effect.promise(() => mkdir(folder, { recursive: true }))
+      const machine = JSON.parse(before)
+      yield* Effect.promise(() =>
+        writeFile(file, JSON.stringify({ ...machine, roots: { ...machine.roots, [earlier]: {} } })),
+      )
+      const moved = yield* Session.use.create({ title: "Vault move notes" }).pipe(provideInstanceEffect(folder))
+      yield* Effect.gen(function* () {
+        expect(CommandMemory.isCommandDirectory(folder)).toBe(true)
+        expect(CommandMemory.isCommandDirectory(root)).toBe(false)
+        const hits = yield* CommandMemory.search("vault move")
+        expect(hits.some((hit) => hit.sessionID === moved.id)).toBe(true)
+        const listed = yield* request("/command-centre/folders", { headers }).pipe(
+          Effect.flatMap(json<{ folders: string[] }>),
+        )
+        expect(listed.folders[0]).toBe(path.join(root, ".command-centre"))
+        expect(listed.folders).toContain(folder)
+      }).pipe(Effect.ensuring(Effect.promise(() => writeFile(file, before))))
     }),
   )
 
