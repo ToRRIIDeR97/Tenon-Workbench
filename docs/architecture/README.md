@@ -542,6 +542,9 @@ assistant that spans workspaces, with its own threads, memory and routines.
   `AgentAppTools.catalogFor`): the `.command-centre` folder gets the Command
   Centre tools, every other folder only the app tools. A call outside the
   thread's list still fails with "… is only available in the Command Centre."
+  In that folder the built-in agents also ask before `bash`, `webfetch`,
+  `websearch` and `edit` (`core/src/plugin/agent.ts`, `tenon/src/agent/agent.ts`),
+  and the K3 strip says when the latest thread is waiting on a prompt.
 - **Pill.** The Command Centre page marks its open thread as focused
   (`useAgentWrites().focus`), so the top pill leaves that thread's writes to
   the step list.
@@ -560,25 +563,33 @@ properties carry `schedule` (`daily HH:MM`, `weekdays HH:MM`,
 (default true), `harness`, `model` (`provider/model`) and `tools`; the body is
 the prompt (`tenon/src/agents/routines.ts`). `Routines.nextRun(schedule, after)`
 gives the next local time. `Routines.runDue({ now, run })` runs each enabled
-routine at most once when a scheduled time fell after its last run (or, never
-run, after the first `runDue` that saw it) and at or before `now`, however many
-were missed. A run's reply is appended to the workspace's `Inbox.md` vault page
+approved routine at most once when a scheduled time fell after its last run
+(or, never run, after the first `runDue` that saw it, or after it was last
+enabled, disabled or approved) and at or before `now`, however many were missed. A run's reply is appended to the workspace's `Inbox.md` vault page
 under `## <routine> · <time>` and `GlobalBus` emits `routine.finished
-{ routineId, threadId }`. When each routine last ran is machine-local state in
-`routines-state.json` in the server data folder, never in the vault.
+{ routineId, threadId }`. When each routine last ran, the permissions its last
+run was refused and the SHA-256 of the approved content are machine-local state
+in `routines-state.json` in the server data folder, never in the vault. A page
+whose content doesn't match the approved hash shows Needs approval, with a link
+to read it, and doesn't run until approved.
 
 A listening server (`Server.listen` → `createRoutes(..., { background: true })`)
 starts `RoutinesScheduler.layer` (`agents/routines-scheduler.ts`): at start and
 every minute it checks each workspace that has a vault folder on this machine
 (`vault-machine.json`) and runs due routines as Command Centre threads
 (`CommandThreads.start`). The in-process routes that tests use don't start it.
+These threads are unattended, Run now included: `CommandThreads.refusePrompts`
+answers every permission prompt no, the model carries on without it, and the
+row names what was refused.
 The Routines page (`/routines`, `app/src/pages/routines.tsx`, linked from the
-Command Centre) lists schedule, last run and next run with Run now.
+Command Centre) lists schedule, last run and next run with Run now, or Approve
+when the page needs approval.
 
 | Route | Behaviour |
 | --- | --- |
-| `GET /second-brain/routines` | `[{ id, name, path, schedule, enabled, nextRun, lastRun, lastStatus }]` (`id` is the page id) |
-| `POST /second-brain/routines/<id>/run` | `{ model? }` → `{ threadId }` once the thread exists; the reply is filed in the background |
+| `GET /second-brain/routines` | `[{ id, name, path, schedule, enabled, nextRun, lastRun, lastStatus, unsupported, hash, needsApproval, denied }]` (`id` is the page id) |
+| `POST /second-brain/routines/<id>/run` | `{ model? }` → `{ threadId }` once the thread exists; the reply is filed in the background; 409 when the page needs approval |
+| `POST /second-brain/routines/<id>/approve` | `{ hash }` (from the list) → `{ approved: true }`; 409 when the page changed since |
 
 ### Mail accounts
 
@@ -2111,7 +2122,9 @@ main process with a bearer token passed in the server's environment
 (`TENON_BROWSER_URL`, `TENON_BROWSER_TOKEN`; harness processes don't get it).
 An agent call brings the matching tab forward and logs the step in it.
 `browser_navigate` to a site other than localhost asks the user in a native
-dialog first.
+dialog first. While a browser tool is in flight, a page's own link, redirect or
+`window.open` to a host not yet allowed gets the same dialog
+(`desktop/src/main/browser-policy.ts`).
 
 `render_svg` rides the same bridge so agents can check a diagram before
 sending it (`desktop/src/main/svg-render.ts`). The main process loads the SVG

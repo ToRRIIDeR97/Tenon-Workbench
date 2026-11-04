@@ -5,6 +5,7 @@ import { define } from "./internal"
 import { Effect } from "effect"
 import { AgentV2 } from "../agent"
 import { Global } from "../global"
+import { HarnessAppTools } from "../harness/app-tools"
 import { Location } from "../location"
 import { PermissionV2 } from "../permission"
 
@@ -116,7 +117,13 @@ export const Plugin = define({
       { action: "read", resource: "*.env", effect: "ask" },
       { action: "read", resource: "*.env.*", effect: "ask" },
       { action: "read", resource: "*.env.example", effect: "allow" },
+      { action: "tenon_write", resource: "*", effect: "ask" },
     ]
+    // Command Centre threads read untrusted mail, so what can act on it or send it out asks first. Each agent
+    // lists only what it would otherwise allow: an ask must not widen a deny. Config rules still come after.
+    const commandCentre = path.basename(location.directory) === HarnessAppTools.COMMAND_CENTRE_FOLDER
+    const commandAsks = (...actions: string[]) =>
+      commandCentre ? actions.map((action): PermissionV2.Rule => ({ action, resource: "*", effect: "ask" })) : []
 
     yield* ctx.agent.transform((draft) => {
       draft.update(AgentV2.defaultID, (item) => {
@@ -127,6 +134,7 @@ export const Plugin = define({
           ...PermissionV2.merge(defaults, [
             { action: "question", resource: "*", effect: "allow" },
             { action: "plan_enter", resource: "*", effect: "allow" },
+            ...commandAsks("bash", "webfetch", "websearch", "edit"),
           ]),
         )
       })
@@ -147,6 +155,7 @@ export const Plugin = define({
               resource: path.relative(worktree, path.join(Global.Path.data, "plans", "*.md")),
               effect: "allow",
             },
+            ...commandAsks("bash", "webfetch", "websearch"),
           ]),
         )
       })
@@ -155,7 +164,12 @@ export const Plugin = define({
         item.description =
           "General-purpose agent for researching complex questions and executing multi-step tasks. Use this agent to execute multiple units of work in parallel."
         item.mode = "subagent"
-        item.permissions.push(...PermissionV2.merge(defaults, [{ action: "todowrite", resource: "*", effect: "deny" }]))
+        item.permissions.push(
+          ...PermissionV2.merge(defaults, [
+            { action: "todowrite", resource: "*", effect: "deny" },
+            ...commandAsks("bash", "webfetch", "websearch", "edit"),
+          ]),
+        )
       })
 
       draft.update(AgentV2.ID.make("explore"), (item) => {
@@ -173,6 +187,7 @@ export const Plugin = define({
               { action: "webfetch", resource: "*", effect: "allow" },
               { action: "websearch", resource: "*", effect: "allow" },
               { action: "read", resource: "*", effect: "allow" },
+              ...commandAsks("webfetch", "websearch"),
             ],
             readonlyExternalDirectory,
           ),

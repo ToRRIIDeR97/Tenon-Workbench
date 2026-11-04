@@ -17,6 +17,7 @@ import PROMPT_TITLE from "./prompt/title.txt"
 import { Permission } from "@/permission"
 import { mergeDeep, pipe, sortBy, values } from "remeda"
 import { Global } from "@tenon/core/global"
+import { HarnessAppTools } from "@tenon/core/harness/app-tools"
 import path from "path"
 import { Plugin } from "@/plugin"
 import { Skill } from "../skill"
@@ -133,7 +134,14 @@ const layer = Layer.effect(
             "*.env.*": "ask",
             "*.env.example": "allow",
           },
+          tenon_write: "ask",
         })
+
+        // Command Centre threads read untrusted mail, so what can act on it or send it out asks first. Each
+        // agent lists only what it would otherwise allow: an ask must not widen a deny. User rules still win.
+        const commandCentre = path.basename(ctx.directory) === HarnessAppTools.COMMAND_CENTRE_FOLDER
+        const commandAsks = (...permissions: string[]) =>
+          commandCentre ? permissions.map((permission) => ({ permission, pattern: "*", action: "ask" as const })) : []
 
         const user = Permission.fromConfig(cfg.permission ?? {})
 
@@ -148,6 +156,7 @@ const layer = Layer.effect(
                 question: "allow",
                 plan_enter: "allow",
               }),
+              commandAsks("bash", "webfetch", "websearch", "edit"),
               user,
             ),
             mode: "primary",
@@ -175,6 +184,7 @@ const layer = Layer.effect(
                   [path.relative(ctx.worktree, path.join(Global.Path.data, path.join("plans", "*.md")))]: "allow",
                 },
               }),
+              commandAsks("bash", "webfetch", "websearch"),
               user,
             ),
             mode: "primary",
@@ -188,6 +198,7 @@ const layer = Layer.effect(
               Permission.fromConfig({
                 todowrite: "deny",
               }),
+              commandAsks("bash", "webfetch", "websearch", "edit"),
               user,
             ),
             options: {},
@@ -209,6 +220,7 @@ const layer = Layer.effect(
                 read: "allow",
                 external_directory: readonlyExternalDirectory,
               }),
+              commandAsks("bash", "webfetch", "websearch"),
               user,
             ),
             description: `Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns (eg. "src/components/**/*.tsx"), search code for keywords (eg. "API endpoints"), or answer questions about the codebase (eg. "how do API endpoints work?"). When calling this agent, specify the desired thoroughness level: "quick" for basic searches, "medium" for moderate exploration, or "very thorough" for comprehensive analysis across multiple locations and naming conventions.`,
@@ -275,7 +287,7 @@ const layer = Layer.effect(
             item = agents[key] = {
               name: key,
               mode: "all",
-              permission: Permission.merge(defaults, user),
+              permission: Permission.merge(defaults, commandAsks("bash", "webfetch", "websearch", "edit"), user),
               options: {},
               native: false,
             }

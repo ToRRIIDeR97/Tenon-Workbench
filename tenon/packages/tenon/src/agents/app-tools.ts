@@ -25,6 +25,7 @@ import { ulid } from "ulid"
 import { CommandMemory } from "./command-memory"
 import { CommandSetup } from "./command-setup"
 import { MailTools } from "./mail-tools"
+import { Routines } from "./routines"
 
 /**
  * Tenon app tools for agents: notes in the vault, a Project's timeline and log, the workspace
@@ -477,6 +478,7 @@ type Scope = {
   /** The workspace (Brain) directory whose vault and calendar the thread uses. */
   readonly workspace: string
   readonly project?: BrainProject.Info
+  readonly command?: boolean
 }
 
 const execute = Effect.fnUntraced(function* (
@@ -499,6 +501,7 @@ const execute = Effect.fnUntraced(function* (
   const scope: Scope = {
     ...(command ? yield* commandScope(sessionID, input) : yield* scopeOf(sessionID)),
     origin,
+    command,
   }
   const parse = <S extends Schema.Decoder<unknown>>(schema: S) => {
     const decoded = Schema.decodeUnknownOption(schema)(input)
@@ -539,6 +542,9 @@ const notesRead = Effect.fnUntraced(function* (scope: Scope, args: typeof Args.n
 const notesWrite = Effect.fnUntraced(function* (scope: Scope, args: typeof Args.notes_write.Type) {
   const projectId = yield* writableProject(scope, "notes_write", args.projectId)
   if (!KnowledgeVault.isPagePath(args.path)) return yield* new ToolError({ message: "Invalid request: invalid_path" })
+  // A workspace thread reads repositories; it can't queue a routine for approval or pause an approved one.
+  if (!projectId && !scope.command && Routines.isRoutinePath(args.path))
+    return yield* new ToolError({ message: "notes_write can't change Routines/ outside the Command Centre." })
   const write = begin(scope, "note", targetName(scope), {
     title: args.title ?? pageTitle(args.path, args.body),
     text: preview(args.body),
@@ -1009,9 +1015,7 @@ const scopeOf = Effect.fnUntraced(function* (sessionID: string) {
     ...ancestors,
     ...known.map((project) => canonicalDirectory(project.worktree)),
     ...opened.map((directory) => canonicalDirectory(directory)),
-  ].filter(
-    (directory, index, all) => all.findIndex((other) => key(other) === key(directory)) === index,
-  )
+  ].filter((directory, index, all) => all.findIndex((other) => key(other) === key(directory)) === index)
   const brains = yield* Effect.filter(candidates, (directory) =>
     Effect.promise(() => isDirectory(path.join(directory, ".tenon", "projects"))),
   )

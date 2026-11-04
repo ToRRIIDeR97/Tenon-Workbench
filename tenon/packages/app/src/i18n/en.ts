@@ -928,6 +928,7 @@ export const dict = {
   "secondBrain.commandCentre.strip.toggle": "Toggle the Command Centre strip",
   "secondBrain.commandCentre.strip.open": "Open the Command Centre strip",
   "secondBrain.commandCentre.strip.openFull": "Open full",
+  "secondBrain.commandCentre.strip.waiting": "Waiting for your approval. Open the thread to answer.",
   "secondBrain.commandCentre.strip.empty": "No replies yet",
   "secondBrain.commandCentre.settings.tab": "Command Centre",
   "secondBrain.commandCentre.settings.title": "Command Centre",
@@ -945,6 +946,10 @@ export const dict = {
   "secondBrain.routines.never": "Never",
   "secondBrain.routines.disabled": "Off",
   "secondBrain.routines.failed": "Failed",
+  "secondBrain.routines.needsApproval": "Needs approval",
+  "secondBrain.routines.review": "Review page",
+  "secondBrain.routines.approve": "Approve",
+  "secondBrain.routines.denied": "Last run couldn't use these, as nobody was there to approve: {{permissions}}",
   "secondBrain.routines.new": "New routine",
   "secondBrain.routines.new.name": "New routine",
   "secondBrain.routines.new.body":

@@ -1,6 +1,8 @@
 export * as RoutinesScheduler from "./routines-scheduler"
 
+import { EventV2Bridge } from "@/event-v2-bridge"
 import { KnowledgeVault } from "@/knowledge/vault"
+import { Permission } from "@/permission"
 import { InstanceStore } from "@/project/instance-store"
 import { SessionPrompt } from "@/session/prompt"
 import { Session } from "@/session/session"
@@ -53,6 +55,8 @@ export const layer = Layer.effectDiscard(
     const sessions = yield* Session.Service
     const prompts = yield* SessionPrompt.Service
     const locations = yield* LocationServiceMap.Service
+    const events = yield* EventV2Bridge.Service
+    const permission = yield* Permission.Service
     const scope = yield* Scope.Scope
     const provide = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
       effect.pipe(
@@ -60,14 +64,15 @@ export const layer = Layer.effectDiscard(
         Effect.provideService(Session.Service, sessions),
         Effect.provideService(SessionPrompt.Service, prompts),
         Effect.provideService(LocationServiceMap.Service, locations),
+        Effect.provideService(EventV2Bridge.Service, events),
+        Effect.provideService(Permission.Service, permission),
       )
     // The routine's own model first, then the Command Centre's default model.
     const run: Routines.Run<unknown> = (routine) =>
       Effect.gen(function* () {
         const model = modelChoice(routine.model) ?? (yield* Routines.defaultModel)
         const started = yield* provide(CommandThreads.start({ prompt: routine.prompt, title: routine.name, model }))
-        const text = yield* provide(started.reply)
-        return { threadId: started.threadId, text }
+        return { threadId: started.threadId, ...(yield* provide(started.reply)) }
       })
     yield* Routines.recoverInterrupted.pipe(
       Effect.catchCause((cause) => Effect.logWarning("Routines recovery failed", { cause })),

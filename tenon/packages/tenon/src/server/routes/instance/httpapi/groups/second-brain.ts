@@ -80,6 +80,7 @@ export const SecondBrainPaths = {
   undoWrite: "/second-brain/writes/:undo/undo",
   routines: "/second-brain/routines",
   routineRun: "/second-brain/routines/:id/run",
+  routineApprove: "/second-brain/routines/:id/approve",
   commandDirectory: "/command-centre/directory",
   commandMemory: "/command-centre/memory",
   commandMemoryCompact: "/command-centre/memory/compact",
@@ -270,6 +271,16 @@ export const SecondBrainApi = HttpApi.make("secondBrain").add(
         query: Schema.Struct(WorkspaceRoutingQueryFields),
         payload: Schema.Struct({ model: Schema.optional(CommandThreads.ModelChoice) }),
         success: described(Routines.RunResult, "The Command Centre thread the run started"),
+        error: errors,
+      }),
+      HttpApiEndpoint.post("approveRoutine", SecondBrainPaths.routineApprove, {
+        params: { id: Schema.String },
+        query: Schema.Struct(WorkspaceRoutingQueryFields),
+        payload: Schema.Struct({ hash: Schema.String }),
+        success: described(
+          Schema.Struct({ approved: Schema.Literal(true) }),
+          "The routine may run; 409 when the page changed since it was listed",
+        ),
         error: errors,
       }),
       HttpApiEndpoint.post("commandDirectory", SecondBrainPaths.commandDirectory, {

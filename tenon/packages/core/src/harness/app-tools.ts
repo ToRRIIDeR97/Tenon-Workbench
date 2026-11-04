@@ -7,6 +7,9 @@ export * as HarnessAppTools from "./app-tools"
  * set than a workspace thread.
  */
 
+/** The folder Command Centre threads run in. They read untrusted mail, so their tools ask before acting. */
+export const COMMAND_CENTRE_FOLDER = ".command-centre"
+
 export interface Tool {
   readonly name: string
   readonly description: string

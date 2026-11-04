@@ -14,8 +14,12 @@ import { InstanceStore } from "../../src/project/instance-store"
 import { Project } from "../../src/project/project"
 import { HttpApiApp } from "../../src/server/routes/instance/httpapi/server"
 import { GlobalBus, type GlobalEvent } from "../../src/bus/global"
+import { CommandThreads } from "../../src/agents/command-threads"
 import { Routines } from "../../src/agents/routines"
+import { EventV2Bridge } from "@/event-v2-bridge"
+import { Permission } from "@/permission"
 import { Session } from "@/session/session"
+import { PermissionV1 } from "@tenon/core/v1/permission"
 import { resetDatabase } from "../fixture/db"
 import { disposeAllInstances, TestInstance, tmpdirScoped } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
@@ -23,7 +27,16 @@ import { testEffect } from "../lib/effect"
 // P9 · Routines (implementations/notes-command-centre/implementation.md, AC-9.1 … AC-9.4)
 
 const appLayer = AppNodeBuilder.build(
-  LayerNode.group([InstanceStore.node, Project.node, Session.node, Workspace.node, Database.node, Ripgrep.node]),
+  LayerNode.group([
+    InstanceStore.node,
+    Project.node,
+    Session.node,
+    Workspace.node,
+    Database.node,
+    Ripgrep.node,
+    Permission.node,
+    EventV2Bridge.node,
+  ]),
   [[InstanceStore.bootstrapNode, Layer.succeed(InstanceBootstrapService.Service, InstanceBootstrapService.Service.of({ run: Effect.void }))]],
 )
 const servedRoutes: Layer.Layer<never, Config.ConfigError, HttpServer.HttpServer> = HttpRouter.serve(HttpApiApp.routes, {
@@ -74,7 +87,18 @@ const setup = Effect.gen(function* () {
       headers,
       body: JSON.stringify({ body: `Prompt for ${name}`, properties, ...(create ? { create: true } : {}) }),
     }).pipe(Effect.flatMap(json<unknown>))
-  return { test, headers, write }
+  // Pages run only once approved; approve what is there, as the Routines page does.
+  const approveAll = Effect.gen(function* () {
+    const routines = yield* request("/second-brain/routines", { headers }).pipe(Effect.flatMap(json<Routines.Info[]>))
+    yield* Effect.forEach(routines, (routine) =>
+      request(`/second-brain/routines/${routine.id}/approve`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ hash: routine.hash }),
+      }).pipe(Effect.flatMap(json<unknown>)),
+    )
+  })
+  return { test, headers, write, approveAll }
 })
 
 afterEach(async () => {
@@ -99,9 +123,10 @@ describe("Routines", () => {
 
   it.instance("AC-9.3 missed runs catch up once; disabled routines never run", () =>
     Effect.gen(function* () {
-      const { write } = yield* setup
+      const { write, approveAll } = yield* setup
       yield* write("Daily", { schedule: "daily 08:00" })
       yield* write("Off", { schedule: "daily 08:00", enabled: false })
+      yield* approveAll
       const ran: string[] = []
       const run = (routine: { id: string; name: string }) =>
         Effect.sync(() => {
@@ -123,8 +148,9 @@ describe("Routines", () => {
 
   it.instance("AC-9.4 results land in the Inbox page and announce routine.finished", () =>
     Effect.gen(function* () {
-      const { headers, write } = yield* setup
+      const { headers, write, approveAll } = yield* setup
       yield* write("Brief", { schedule: "daily 08:00" })
+      yield* approveAll
       const events: GlobalEvent[] = []
       const listen = (event: GlobalEvent) => {
         if (event.payload?.type === "routine.finished") events.push(event)
@@ -146,8 +172,9 @@ describe("Routines", () => {
 
   it.instance("an interrupted run is marked failed at scheduler start and runs again", () =>
     Effect.gen(function* () {
-      const { headers, write } = yield* setup
+      const { headers, write, approveAll } = yield* setup
       yield* write("Slow", { schedule: "daily 08:00" })
+      yield* approveAll
       yield* Routines.runDue({ now: local(2026, 11, 2, 7, 0), run: () => Effect.die("not due") })
       const started = yield* Deferred.make<void>()
       // The process "stops" mid-run: the run never answers and its fiber is interrupted.
@@ -175,9 +202,10 @@ describe("Routines", () => {
 
   it.instance("due routines run concurrently, and a routine in flight is not started twice", () =>
     Effect.gen(function* () {
-      const { write } = yield* setup
+      const { write, approveAll } = yield* setup
       yield* write("A", { schedule: "daily 08:00" })
       yield* write("B", { schedule: "daily 08:00" })
+      yield* approveAll
       yield* Routines.runDue({ now: local(2026, 11, 2, 7, 0), run: () => Effect.die("not due") })
       const bDone = yield* Deferred.make<void>()
       const release = yield* Deferred.make<void>()
@@ -205,8 +233,9 @@ describe("Routines", () => {
 
   it.instance("re-enabling a routine moves its baseline, so it doesn't catch up at once", () =>
     Effect.gen(function* () {
-      const { write } = yield* setup
+      const { write, approveAll } = yield* setup
       yield* write("Toggle", { schedule: "daily 08:00" })
+      yield* approveAll
       const ran: string[] = []
       const run = (routine: { name: string }) =>
         Effect.sync(() => {
@@ -222,6 +251,74 @@ describe("Routines", () => {
       const next = yield* Routines.runDue({ now: local(2026, 11, 6, 8, 1), run })
       expect(next.ran).toHaveLength(1)
       expect(ran).toEqual(["Toggle"])
+    }),
+  )
+
+  it.instance("a page runs only once approved, and an edit needs approving again", () =>
+    Effect.gen(function* () {
+      const { headers, write, approveAll } = yield* setup
+      yield* write("Brief", { schedule: "daily 08:00" })
+      const ran: string[] = []
+      const run = (routine: { name: string }) =>
+        Effect.sync(() => {
+          ran.push(routine.name)
+          return { threadId: "ses_b", text: "ok", denied: ["bash"] }
+        })
+      const list = () => request("/second-brain/routines", { headers }).pipe(Effect.flatMap(json<Routines.Info[]>))
+      const [listed] = yield* list()
+      expect(listed.needsApproval).toBe(true)
+      yield* Routines.runDue({ now: local(2026, 11, 2, 7, 0), run })
+      yield* Routines.runDue({ now: local(2026, 11, 3, 9, 0), run })
+      expect(ran).toEqual([])
+      const runNow = yield* request(`/second-brain/routines/${listed.id}/run`, {
+        method: "POST",
+        headers,
+        body: "{}",
+      })
+      expect(runNow.status).toBe(409)
+
+      yield* write("Brief", { schedule: "daily 09:00" }, false)
+      const stale = yield* request(`/second-brain/routines/${listed.id}/approve`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ hash: listed.hash }),
+      })
+      expect(stale.status).toBe(409)
+
+      // Approving takes the next check as the baseline, so a missed time doesn't run at once.
+      yield* approveAll
+      expect((yield* list())[0].needsApproval).toBe(false)
+      yield* Routines.runDue({ now: local(2026, 11, 4, 8, 0), run })
+      expect(ran).toEqual([])
+      yield* Routines.runDue({ now: local(2026, 11, 4, 9, 5), run })
+      expect(ran).toEqual(["Brief"])
+      expect((yield* list())[0].denied).toEqual(["bash"])
+
+      yield* write("Brief", { schedule: "daily 09:00", enabled: false }, false)
+      expect((yield* list())[0].needsApproval).toBe(false)
+      yield* write("Brief", { schedule: "daily 09:30" }, false)
+      expect((yield* list())[0].needsApproval).toBe(true)
+    }),
+  )
+
+  it.instance("an unattended run answers no to its thread's and subagents' prompts, and only those", () =>
+    Effect.gen(function* () {
+      const sessions = yield* Session.Service
+      const permission = yield* Permission.Service
+      const thread = yield* sessions.create({ title: "run" })
+      const child = yield* sessions.create({ title: "subagent", parentID: thread.id })
+      const other = yield* sessions.create({ title: "someone else's" })
+      const ask = (sessionID: typeof thread.id, name: string) =>
+        permission.ask({ sessionID, permission: name, patterns: ["*"], metadata: {}, always: [], ruleset: [] })
+      const watch = yield* CommandThreads.refusePrompts(thread.id)
+      expect((yield* ask(thread.id, "bash").pipe(Effect.flip))).toBeInstanceOf(PermissionV1.CorrectedError)
+      expect((yield* ask(child.id, "webfetch").pipe(Effect.flip))).toBeInstanceOf(PermissionV1.CorrectedError)
+      const untouched = yield* ask(other.id, "edit").pipe(Effect.forkChild)
+      yield* Effect.yieldNow
+      expect((yield* permission.list()).map((item) => item.permission)).toEqual(["edit"])
+      expect([...watch.denied]).toEqual(["bash", "webfetch"])
+      yield* watch.stop
+      yield* Fiber.interrupt(untouched)
     }),
   )
 })

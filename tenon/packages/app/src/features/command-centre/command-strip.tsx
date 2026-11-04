@@ -120,7 +120,9 @@ export function CommandStrip() {
             >
               {centre.error()
                 ? language.t("common.requestFailed")
-                : centre.lastReply() || language.t("secondBrain.commandCentre.strip.empty")}
+                : centre.waiting()
+                  ? language.t("secondBrain.commandCentre.strip.waiting")
+                  : centre.lastReply() || language.t("secondBrain.commandCentre.strip.empty")}
             </p>
             {/* Undo for the latest reply's last write; after it the button reports how that went. */}
             <Show when={centre.lastWrite()} keyed>
