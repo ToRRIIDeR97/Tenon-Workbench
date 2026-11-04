@@ -725,7 +725,8 @@ location, so it has its own containment instead of `LocationMutation`:
   `/`-separated `.md` names: absolute and drive paths, backslashes, `..`, empty
   or hidden segments (so `.history` and `.backups` are unreachable as pages),
   characters Windows refuses, reserved device names and a Project's `log/`
-  folder are refused with 400. History revisions must match
+  folder are refused with 400, for deletes as for writes. A delete needs the
+  page's current revision and keeps the removed version in `.history`. History revisions must match
   `<13 digits>-<16 hex>`; Project ids must match `project_<id>` and exist.
 - Each target's nearest existing entry (found with `lstat`, so a dangling link
   counts) is resolved with `realpath` and must stay inside the workspace's vault
@@ -1203,6 +1204,9 @@ fix lands.
   `event.senderFrame` against the trusted main frame through the shared
   `trustedHandle`/`trustedOn` wrappers in `ipc.ts`. Before the 2026-10
   desktop IPC hardening, the WSL handlers used raw `ipcMain.handle`.
+- `set-unsaved-changes` takes a boolean for the sender's own window and
+  `confirm-quit` takes no arguments. A page can delay a quit only by asking the
+  person; it can't cancel one or read another window's state.
 - WSL distro names from the renderer must match `^[A-Za-z0-9][A-Za-z0-9._-]*$`
   (`wsl/policy.ts`); probe lists skip names that don't. The "open terminal" action still goes through
   `cmd.exe /c start` to get its own console window, so the allowlist is what

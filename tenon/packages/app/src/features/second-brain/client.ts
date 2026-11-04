@@ -232,6 +232,7 @@ export type VaultPageInfo = {
   updatedAt: string
 }
 export type VaultPage = { info: VaultPageInfo; body: string; revision: string }
+export type VaultPageVersion = { revision: string; updatedAt: string }
 export type TimelineItem = {
   id: string
   title: string
@@ -281,6 +282,24 @@ export const writeVaultPage = (
       create: input.create,
     }),
   })
+
+/** The file stays in the page's history. A 409 means the page changed since `revision`. */
+export const removeVaultPage = (client: Client, path: string, revision: string) =>
+  request<{ removed: true }>(
+    client,
+    `/second-brain/vault/page?path=${encodeURIComponent(path)}&expectedRevision=${encodeURIComponent(revision)}`,
+    { method: "DELETE" },
+  )
+
+/** Earlier saved versions of a page, newest first. */
+export const listVaultPageVersions = (client: Client, path: string) =>
+  request<VaultPageVersion[]>(client, `/second-brain/vault/page/history?path=${encodeURIComponent(path)}`)
+
+export const readVaultPageVersion = (client: Client, path: string, revision: string) =>
+  request<{ revision: string; body: string }>(
+    client,
+    `/second-brain/vault/page/history?path=${encodeURIComponent(path)}&revision=${encodeURIComponent(revision)}`,
+  )
 
 export const readTimeline = (client: Client, projectId: string) =>
   request<Timeline>(client, `/second-brain/vault/timeline?project=${encodeURIComponent(projectId)}`)

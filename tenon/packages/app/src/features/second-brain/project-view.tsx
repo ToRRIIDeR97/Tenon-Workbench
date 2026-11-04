@@ -1,16 +1,20 @@
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { CheckboxV2 } from "@tenon/ui/v2/checkbox-v2"
 import { Icon } from "@tenon/ui/v2/icon"
+import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
+import { MenuV2 } from "@tenon/ui/v2/menu-v2"
 import { RevealShow } from "@tenon/ui/v2/reveal"
 import { SegmentedControlItemV2, SegmentedControlV2 } from "@tenon/ui/v2/segmented-control-v2"
 import { createEffect, createMemo, For, on, Show, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLanguage } from "@/context/language"
 import { PageEmpty } from "@/components/page"
+import { focusWhenConnected } from "@/utils/focus-when-connected"
 import { getRelativeTime } from "@/utils/time"
+import { showToast } from "@/utils/toast"
 import type { LogEntry, ProjectRecord, Timeline, TimelineItem, VaultPageInfo } from "./client"
-import { timelineCounts, timelineLayout } from "./notes-timeline"
-import { dayLabel, DateChip, KindSwitch, StatusMenu } from "./project-controls"
+import { dueDatePatch, restoreItem, timelineCounts, timelineLayout } from "./notes-timeline"
+import { DateChip, KindSwitch, StatusMenu } from "./project-controls"
 
 export const projectSections = ["tasks", "pages", "threads", "log", "settings"] as const
 export type ProjectSection = (typeof projectSections)[number]
@@ -45,6 +49,8 @@ export function ProjectView(props: {
   onPage: (path: string) => void
   onNewPage: () => void
   creatingPage: boolean
+  /** Why the last New page failed. */
+  pageError: string
   /** Saves the whole item list over the loaded revision; resolves to an error message, or "" when saved. */
   onSaveItems: (items: ReadonlyArray<TimelineItem>) => Promise<string>
   threads: ReadonlyArray<ProjectThread>
@@ -63,6 +69,8 @@ export function ProjectView(props: {
     saving: false,
     error: "",
     draft: { title: "", kind: "task" as TimelineItem["kind"], date: undefined as string | undefined },
+    /** The item whose title is being edited in its row. */
+    renaming: "",
     settingsOpen: props.section === "settings",
   })
   const items = () => props.timeline.value?.items ?? []
@@ -94,8 +102,32 @@ export function ProjectView(props: {
     setState({ saving: false, error })
     return !error
   }
+  // Saves replace the whole list, so every change and Undo starts from the latest items, not a captured array.
   const update = (id: string, patch: Partial<TimelineItem>) =>
-    void save(items().map((item) => (item.id === id ? { ...item, ...patch } : item)))
+    save(items().map((item) => (item.id === id ? { ...item, ...patch } : item)))
+  const undoToast = (description: string, undo: () => void) =>
+    showToast({ description, actions: [{ label: language.t("secondBrain.sidebar.undo"), onClick: undo }] })
+  const setStatus = async (item: TimelineItem, status: TimelineItem["status"]) => {
+    const { id, title, status: previous } = item
+    if (!(await update(id, { status })) || status !== "done") return
+    undoToast(language.t("secondBrain.tasks.completed", { title }), () => void update(id, { status: previous }))
+  }
+  const remove = async (item: TimelineItem) => {
+    const removed = { ...item }
+    const index = items().findIndex((entry) => entry.id === item.id)
+    if (!(await save(items().filter((entry) => entry.id !== item.id)))) return
+    undoToast(language.t("secondBrain.project.itemDeleted", { title: removed.title }), () => {
+      void save(restoreItem(items(), removed, index))
+    })
+  }
+  const finishRename = (item: TimelineItem, value: string | undefined) => {
+    if (state.renaming !== item.id) return
+    setState("renaming", "")
+    const title = value?.trim()
+    if (title && title !== item.title) void update(item.id, { title })
+  }
+  // A rename picked from the menu shows its input once the menu has closed: closing returns focus to the trigger.
+  let renameFromMenu = ""
   const add = async (event: SubmitEvent) => {
     event.preventDefault()
     const title = state.draft.title.trim()
@@ -245,7 +277,7 @@ export function ProjectView(props: {
                       <Show
                         when={item.kind === "task"}
                         fallback={
-                          <span aria-hidden="true" class="flex w-4 justify-center text-v2-icon-icon-accent">
+                          <span aria-hidden="true" class="flex w-4 shrink-0 justify-center text-v2-icon-icon-accent">
                             ◆
                           </span>
                         }
@@ -255,27 +287,75 @@ export function ProjectView(props: {
                           label={item.title}
                           checked={item.status === "done"}
                           disabled={state.saving}
-                          onChange={(checked) => update(item.id, { status: checked ? "done" : "todo" })}
+                          onChange={(checked) => void setStatus(item, checked ? "done" : "todo")}
                         />
                       </Show>
-                      <span
-                        classList={{
-                          "min-w-0 flex-1 truncate text-[13px]": true,
-                          "text-v2-text-text-faint line-through": item.status === "done",
-                          "text-v2-text-text-base": item.status !== "done",
-                        }}
+                      <Show
+                        when={state.renaming === item.id}
+                        fallback={
+                          <span
+                            title={item.title}
+                            classList={{
+                              "min-w-0 flex-1 truncate text-[13px]": true,
+                              "text-v2-text-text-faint line-through": item.status === "done",
+                              "text-v2-text-text-base": item.status !== "done",
+                            }}
+                            onDblClick={() => setState("renaming", item.id)}
+                          >
+                            {item.title}
+                          </span>
+                        }
                       >
-                        {item.title}
-                      </span>
+                        <input
+                          ref={focusWhenConnected}
+                          class="h-7 min-w-0 flex-1 rounded-full bg-v2-background-bg-base px-2 text-[13px] text-v2-text-text-base outline-none [box-shadow:inset_0_0_0_0.5px_var(--v2-border-border-muted)] focus:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)]"
+                          aria-label={language.t("secondBrain.project.renameItem", { title: item.title })}
+                          maxLength={200}
+                          value={item.title}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") finishRename(item, event.currentTarget.value)
+                            if (event.key === "Escape") finishRename(item, undefined)
+                          }}
+                          onBlur={(event) => finishRename(item, event.currentTarget.value)}
+                        />
+                      </Show>
                       <StatusMenu
                         value={item.status}
                         label={language.t("secondBrain.project.statusOf", { title: item.title })}
                         disabled={state.saving}
-                        onChange={(status) => update(item.id, { status })}
+                        onChange={(status) => void setStatus(item, status)}
                       />
-                      <span class="w-24 shrink-0 text-right text-[12px] tabular-nums text-v2-text-text-faint">
-                        {dayLabel(dueOf(item), language.intl())}
-                      </span>
+                      <DateChip
+                        value={dueOf(item)?.slice(0, 10)}
+                        label={language.t("secondBrain.project.dueDateOf", { title: item.title })}
+                        disabled={state.saving}
+                        onChange={(date) => void update(item.id, dueDatePatch(item, date))}
+                      />
+                      <MenuV2 gutter={4} modal={false} placement="bottom-end">
+                        <MenuV2.Trigger
+                          as={IconButtonV2}
+                          variant="ghost-muted"
+                          size="small"
+                          disabled={state.saving}
+                          icon={<Icon name="outline-dots" size="small" />}
+                          aria-label={language.t("secondBrain.project.itemActions", { title: item.title })}
+                        />
+                        <MenuV2.Portal>
+                          <MenuV2.Content
+                            onCloseAutoFocus={() => {
+                              if (renameFromMenu !== item.id) return
+                              renameFromMenu = ""
+                              // Kobalte focuses the trigger right after this handler, so the input opens after it.
+                              queueMicrotask(() => setState("renaming", item.id))
+                            }}
+                          >
+                            <MenuV2.Item onSelect={() => (renameFromMenu = item.id)}>
+                              {language.t("common.rename")}
+                            </MenuV2.Item>
+                            <MenuV2.Item onSelect={() => void remove(item)}>{language.t("common.delete")}</MenuV2.Item>
+                          </MenuV2.Content>
+                        </MenuV2.Portal>
+                      </MenuV2>
                     </li>
                   )}
                 </For>
@@ -342,7 +422,9 @@ export function ProjectView(props: {
                       props.onPage(page.path)
                     }}
                   >
-                    <span class="truncate text-[13px] text-v2-text-text-base [font-weight:500]">{page.title}</span>
+                    <span class="truncate text-[13px] text-v2-text-text-base [font-weight:500]" title={page.title}>
+                      {page.title}
+                    </span>
                     {/* A hand-edited `updated_at` may not parse; the server then sends "". */}
                     <Show when={Number.isFinite(Date.parse(page.updatedAt))}>
                       <span class="mt-auto text-[12px] tabular-nums text-v2-text-text-faint">
@@ -354,6 +436,13 @@ export function ProjectView(props: {
               )}
             </For>
           </ul>
+          <RevealShow when={props.pageError}>
+            {(error) => (
+              <p role="alert" class="px-1 text-[12px] text-v2-text-text-critical">
+                {error()}
+              </p>
+            )}
+          </RevealShow>
         </section>
 
         <section id="project-threads" aria-labelledby="project-threads-title" class="flex scroll-mt-16 flex-col gap-3">
@@ -460,9 +549,10 @@ export function ProjectView(props: {
               }}
             />
           </button>
-          <Show when={state.settingsOpen}>
-            <div id="project-settings-body">{props.settings}</div>
-          </Show>
+          {/* Hidden, not unmounted: collapsing must keep unsaved edits and the guard that protects them. */}
+          <div id="project-settings-body" hidden={!state.settingsOpen}>
+            {props.settings}
+          </div>
         </section>
       </div>
     </div>
@@ -502,7 +592,9 @@ function TimelineGrid(props: { items: ReadonlyArray<TimelineItem>; dateLabel: (v
               data-status={row.item.status}
               class="grid h-9 grid-cols-[200px_minmax(0,1fr)] items-center"
             >
-              <span class="min-w-0 truncate pr-3 text-[13px] text-v2-text-text-base">{row.item.title}</span>
+              <span class="min-w-0 truncate pr-3 text-[13px] text-v2-text-text-base" title={row.item.title}>
+                {row.item.title}
+              </span>
               <div class="relative h-full" style={grid()}>
                 <Show
                   when={row.left !== undefined}

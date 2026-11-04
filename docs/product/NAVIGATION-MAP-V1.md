@@ -217,8 +217,9 @@ folder as a workspace and selects it) and `tenon://new-session?directory=<path>&
   and **New Project**. A Project is one scrolling page:
   - a sticky bar jumps to **Tasks**, **Pages**, **Threads**, **Log** and
     **Settings**, and holds **Start work**;
-  - **Tasks** has an Open/All switch, a checkbox and a status pill (a menu)
-    per task, an "Add a task" line with a date chip and a Task/Milestone
+  - **Tasks** has an Open/All switch, a checkbox, a status pill (a menu), a
+    date chip and a row menu (Rename, Delete) per task, with Undo after a tick
+    or delete, an "Add a task" line with a date chip and a Task/Milestone
     switch, and the timeline;
   - **Pages** has a **New page** card, and **Threads** has **New thread**;
   - **Settings** (folded) holds progress, next milestone, blocker, settings,

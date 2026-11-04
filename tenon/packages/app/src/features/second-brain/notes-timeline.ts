@@ -99,6 +99,36 @@ export function newPagePath(title: string, folder: string, pages: ReadonlyArray<
   return name(index ?? Date.now())
 }
 
+/**
+ * The text a page keeps after a save. The server ends the file with a newline, and that alone must not replace the
+ * text in the editor: a new value would read as a loaded page, dropping the caret and switching to Preview. Text
+ * typed while the request ran stays unsaved.
+ */
+export function bodyAfterSave(current: string, sent: string, saved: string) {
+  const baseBody = saved.trimEnd() === sent.trimEnd() ? sent : saved
+  return { body: current === sent ? baseBody : current, baseBody }
+}
+
+/** The change that gives an item its date: a task's due day (its end), a milestone's day (its start). */
+export function dueDatePatch(item: TimelineItem, date: string | undefined): Partial<TimelineItem> {
+  if (item.kind === "milestone") return { start: date }
+  if (!date) return { start: undefined, end: undefined }
+  return item.start && item.start.slice(0, 10) > date ? { start: undefined, end: date } : { end: date }
+}
+
+/** Puts a removed item back near where it was, in the latest list; one that came back meanwhile stays as it is. */
+export function restoreItem(items: ReadonlyArray<TimelineItem>, item: TimelineItem, index: number) {
+  if (items.some((entry) => entry.id === item.id)) return items
+  return [...items.slice(0, index), item, ...items.slice(index)]
+}
+
+/** Projects whose name or outcome holds `query`, ignoring case. */
+export function matchProjects<T extends { name: string; outcome: string }>(projects: ReadonlyArray<T>, query: string) {
+  const text = query.trim().toLowerCase()
+  if (!text) return []
+  return projects.filter((project) => `${project.name}\n${project.outcome}`.toLowerCase().includes(text))
+}
+
 function calendarDay(value?: string) {
   const match = value?.match(/^(\d{4})-(\d{2})-(\d{2})/)
   if (!match) return undefined
