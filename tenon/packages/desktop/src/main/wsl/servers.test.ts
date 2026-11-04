@@ -1,16 +1,6 @@
 import { expect, test } from "bun:test"
-import {
-  clearWslDistroState,
-  requireWslDistro,
-  requireWslIpcString,
-  validWslDistros,
-  wslTerminalArgs,
-} from "./policy"
-import {
-  pendingRestartAfterWslInstall,
-  pollWslHealth,
-  wslServerIdsToStartOnInitialize,
-} from "./startup"
+import { clearWslDistroState, requireWslDistro, requireWslIpcString, validWslDistros, wslTerminalArgs } from "./policy"
+import { pendingRestartAfterWslInstall, pollWslHealth, wslServerIdsToStartOnInitialize } from "./startup"
 import { createWslServersController, type WslServerConfig } from "./servers"
 
 let persistedServers: WslServerConfig[] = []
