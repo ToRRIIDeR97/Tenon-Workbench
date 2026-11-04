@@ -79,6 +79,15 @@ const PACKAGE_NAMES = {
   prod: "tenon-workbench",
 } as const
 
+// Chromium's UI languages (Windows and Linux `.pak` names) that an app locale can detect, because
+// navigator.languages only offers a language whose pack is present. Trimmed: af, fil, gu, he, kn, ml,
+// mr, sw, ta and te, which have no app translation. electron-builder.config.test.ts keeps this in step
+// with DESKTOP_NATIVE_LOCALE_TAGS.
+const CHROMIUM_LOCALES = [
+  ..."am ar bg bn ca cs da de el en-GB en-US es es-419 et fa fi fr hi hr hu id it ja ko lt lv ms nb nl pl".split(" "),
+  ..."pt-BR pt-PT ro ru sk sl sr sv th tr uk ur vi zh-CN zh-TW".split(" "),
+]
+
 const getBase = (appId: string): Configuration => ({
   artifactName: "tenon-workbench-${os}-${arch}.${ext}",
   // Release candidates are uploaded as artifacts. No automatic publishing or upstream update feed.
@@ -96,7 +105,17 @@ const getBase = (appId: string): Configuration => ({
     name: PACKAGE_NAMES[channel],
     desktopName: `${appId}.desktop`,
   },
-  files: ["out/**/*", "!out/**/*.map", "resources/**/*", "!resources/opencode-cli*"],
+  // Only `dist` of effect is loaded. Keep drizzle's dialect folders: `_relations.js` imports `pg-core`
+  // at runtime even under the SQLite driver.
+  electronLanguages: CHROMIUM_LOCALES,
+  files: [
+    "out/**/*",
+    "!out/**/*.map",
+    "!**/node_modules/**/*.map",
+    "!**/node_modules/effect/src/**",
+    "resources/**/*",
+    "!resources/opencode-cli*",
+  ],
   // Packaged builds cannot be turned into a general Node runtime or debugger by environment
   // variables or flags, and only load the integrity-checked app.asar. The sidecar runs through
   // utilityProcess and nothing spawns the app binary with ELECTRON_RUN_AS_NODE, so runAsNode is off.
@@ -123,6 +142,8 @@ const getBase = (appId: string): Configuration => ({
   ],
   mac: {
     category: "public.app-category.developer-tools",
+    // `.lproj` folders spell regions with an underscore, and English is plain `en`.
+    electronLanguages: ["en", ...CHROMIUM_LOCALES.map((locale) => locale.replace("-", "_"))],
     icon: `resources/icons/icon.icns`,
     hardenedRuntime: true,
     gatekeeperAssess: false,
