@@ -110,10 +110,18 @@ export const run = Effect.fn("CommandSetup.run")(function* (input: Input) {
   )
   if (folder === workspace) return yield* new SetupError({ reason: "folder_is_workspace" })
 
-  const existing = yield* Effect.promise(() => readdir(folder).catch(() => undefined))
+  // Only a missing folder counts as absent: any other read error says nothing about what is inside.
+  const existing = yield* Effect.tryPromise({
+    try: () =>
+      readdir(folder).catch((error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return undefined
+        throw error
+      }),
+    catch: () => new SetupError({ reason: "folder_unreadable" }),
+  })
   if (existing && existing.length > 0) return yield* new SetupError({ reason: "folder_not_empty" })
-  const created = existing === undefined
-  yield* Effect.promise(() => mkdir(folder, { recursive: true }))
+  // mkdir reports a path only when it made one, so the rollback below can't touch an existing folder.
+  const created = (yield* Effect.promise(() => mkdir(folder, { recursive: true }))) !== undefined
 
   const files = Effect.gen(function* () {
     yield* gitInit(folder)

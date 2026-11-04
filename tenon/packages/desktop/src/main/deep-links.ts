@@ -34,7 +34,8 @@ export function parseDeepLink(value: string, isDirectory: (directory: string) =>
 }
 
 function isLocalDirectory(directory: string, isDirectory: (directory: string) => boolean) {
-  if (directory.startsWith("\\\\") || directory.startsWith("//")) return false
+  // Any two leading separators: Windows also reads /\host\share as a UNC path.
+  if (/^[\\/]{2}/.test(directory)) return false
   if (/^file:/i.test(directory)) return false
   if (!path.isAbsolute(directory)) return false
   if (directory.split(/[\\/]/).includes("..")) return false

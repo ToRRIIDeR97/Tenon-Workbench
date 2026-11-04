@@ -343,7 +343,8 @@ export function encode(info: Info, previous: Record<string, unknown>, body: stri
       previous.tags !== undefined && sameList(lenientTags(previous.tags), info.tags) ? previous.tags : [...info.tags],
     updated_at: info.updatedAt,
   }
-  const source = matter.stringify(body, data, {})
+  // An object, not a string: gray-matter would parse a string body, evaluating a `---js` block in it.
+  const source = matter.stringify({ content: body }, data, {})
   return bom ? `\uFEFF${source}` : source
 }
 

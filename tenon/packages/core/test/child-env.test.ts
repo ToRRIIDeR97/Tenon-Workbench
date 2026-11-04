@@ -50,6 +50,21 @@ describe("ChildEnv.from", () => {
       ).toEqual({ PATH: "/usr/bin", OPENAI_API_KEY: "user-key" })
     }),
   )
+
+  it.effect(
+    "removes the mail and browser bridge variables but keeps the delegation token",
+    Effect.sync(() => {
+      expect(
+        ChildEnv.from({
+          TENON_MAIL_URL: "http://127.0.0.1:1",
+          TENON_MAIL_TOKEN: "mail",
+          TENON_BROWSER_URL: "http://127.0.0.1:2",
+          tenon_browser_token: "browser",
+          TENON_DELEGATION_TOKEN: "delegate",
+        }),
+      ).toEqual({ TENON_DELEGATION_TOKEN: "delegate" })
+    }),
+  )
 })
 
 describe("CrossSpawnSpawner", () => {

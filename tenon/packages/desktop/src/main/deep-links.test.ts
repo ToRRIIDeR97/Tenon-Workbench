@@ -25,6 +25,8 @@ test("refuses UNC, protocol-relative, file:, relative, traversal and missing fol
   for (const directory of [
     "\\\\host\\share",
     "//host/x",
+    "/\\host\\share",
+    "\\/host/share",
     "file:///work/repo",
     "../x",
     "work/repo",

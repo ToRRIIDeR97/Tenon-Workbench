@@ -63,7 +63,8 @@ same way session responses already return `directory`.
 `tenon://open-project` and `tenon://new-session` deep links are validated
 first in the Electron main process (`tenon/packages/desktop/src/main/deep-links.ts`):
 only those two hosts are accepted, the `directory` must be an existing local
-absolute folder (UNC `\\host\share`, protocol-relative `//host`, `file:`,
+absolute folder (UNC `\\host\share` and any other path that opens with two
+separators, such as `/\host\share`, protocol-relative `//host`, `file:`,
 relative and `..` paths are refused before any filesystem call), and the user
 confirms a native dialog that shows the folder. The renderer receives a link
 rebuilt from the checked values, and the log records only `tenon://<host>`,
@@ -77,7 +78,9 @@ folder dialog is initialized when empty.
 Markdown front matter in notes, Project cards, skills and agent configs is
 parsed through `Frontmatter.parse` (`tenon/packages/core/src/frontmatter.ts`),
 which refuses gray-matter's `---js` engine (it would `eval` the block) and any
-front matter over 64 KiB. Cards and the manifest over 1 MiB, notes over 5 MiB
+front matter over 64 KiB. Writers pass the body to gray-matter as an object, so
+a body is never parsed (a string body would merge its own front matter into
+the page and run a `---js` block). Cards and the manifest over 1 MiB, notes over 5 MiB
 and the calendar over 16 MiB are refused after a `stat`, before they are read.
 The calendar lives at `.tenon/calendar-v1.json` inside the workspace, resolved
 through `LocationMutation` like the other Second Brain files; a file left at the
@@ -736,7 +739,9 @@ location, so it has its own containment instead of `LocationMutation`:
   `Frontmatter.parse`.
 - The vault never stores an absolute machine path. The workspace directory to
   vault folder map and the machine id are kept in `vault-machine.json` in the
-  server data folder. `workspace.json` holds a workspace id, a display name
+  server data folder, written atomically. A file that can't be decoded is kept
+  as `vault-machine.json.corrupt-<time>` and any other read error fails the
+  request, so neither resets the map. `workspace.json` holds a workspace id, a display name
   and the git root commit; log files are named by the machine id, which
   includes the host name. Because the folder is matched by that root commit,
   two checkouts (or forks) with the same root commit share one vault folder and
@@ -857,8 +862,8 @@ is an assistant whose threads span workspaces.
   rest. Hits carry at most 600 characters of text.
 - **Project setup.** `CommandSetup.run` writes only into a folder that does
   not exist or is empty (a non-empty folder is refused untouched), runs
-  `git init` from PATH without a shell, and removes a folder it created when
-  setup fails. It writes fixed templates; no tool argument is interpolated
+  `git init` from PATH without a shell, and removes a folder only when its own
+  `mkdir` created it. A folder it can't read is refused. It writes fixed templates; no tool argument is interpolated
   except the Project name.
 - **Routines.** A routine is a vault page under `Routines/`; its body is sent
   as a prompt to a new Command Centre thread on its schedule, so anyone who can
@@ -896,7 +901,8 @@ Mail lives in the desktop main process (`desktop/src/main/mail/`; see
   port and needs `Authorization: Bearer <32 random bytes>` (compared in
   constant time); requests with an `Origin` header are refused. Only the
   server process receives the URL and token (`TENON_MAIL_URL`,
-  `TENON_MAIL_TOKEN`). Routes are `/search`, `/thread` and `/draft`; bodies
+  `TENON_MAIL_TOKEN`); `ChildEnv.from` removes them, and the browser bridge's
+  pair, from every child it builds. Routes are `/search`, `/thread` and `/draft`; bodies
   are capped at 256 KiB. Logs record the route and error message, never mail
   content.
 - **Mail is data.** Message text reaches the model only as tool results in
