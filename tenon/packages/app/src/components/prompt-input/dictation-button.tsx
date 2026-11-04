@@ -1,3 +1,4 @@
+import { useParams } from "@solidjs/router"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { createStore } from "solid-js/store"
@@ -6,12 +7,18 @@ import type { DictationFailure, DictationPlatform } from "@/context/platform"
 import { useLanguage } from "@/context/language"
 import { showToast } from "@/utils/toast"
 
+// Toasts have a fixed height, so a long transcript would push Copy out of reach. Copy takes all of it.
+const TRANSCRIPT_PREVIEW = 300
+
 /**
  * The composer's mic: click to record through the desktop dictation engine, click again to stop
  * and insert the transcript at the caret. Rendered only when the platform exposes dictation.
  */
 export function PromptDictationButton(props: { dictation: DictationPlatform; restoreFocus: () => void }) {
   const language = useLanguage()
+  const params = useParams()
+  // The composer stays mounted across threads in the same folder, so a recording remembers its own.
+  let thread: string | undefined
   const [state, setState] = createStore({
     phase: "idle" as "idle" | "starting" | "recording" | "transcribing",
     level: 0,
@@ -67,13 +74,13 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
     if (result.error?.code === "cancelled") return
     if (result.error) return report(result.error)
     if (!result.text) return
-    if (!disposed) return insertAtCaret(result.text, props.restoreFocus)
-    // The composer is gone, and typing into whatever has focus now could reach a note or another thread.
+    if (!disposed && params.id === thread) return insertAtCaret(result.text, props.restoreFocus)
+    // The composer is gone or shows another thread, and typing there could reach a note or the wrong draft.
     const text = result.text
     showToast({
       persistent: true,
       title: language.t("dictation.transcript.title"),
-      description: text,
+      description: text.length > TRANSCRIPT_PREVIEW ? `${text.slice(0, TRANSCRIPT_PREVIEW)}…` : text,
       actions: [
         {
           label: language.t("dictation.transcript.copy"),
@@ -89,6 +96,7 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
     // Gives up on a transcription that is taking too long; finish() ends quietly.
     if (state.phase === "transcribing") return void props.dictation.cancel()
     if (state.phase === "idle") {
+      thread = params.id
       setState("phase", "starting")
       const result = await props.dictation.start()
       if (disposed) {
