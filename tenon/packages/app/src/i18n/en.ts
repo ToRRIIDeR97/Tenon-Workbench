@@ -833,6 +833,7 @@ export const dict = {
   "terminal.title": "Terminal",
   "terminal.title.numbered": "Terminal {{number}}",
   "terminal.close": "Close terminal",
+  "terminal.startFailed.title": "The terminal didn't start",
   "terminal.connectionLost.title": "Connection Lost",
   "terminal.connectionLost.abnormalClose": "WebSocket closed abnormally: {{code}}",
   "terminal.connectionLost.description":

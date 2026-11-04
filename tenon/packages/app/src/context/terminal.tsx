@@ -7,8 +7,11 @@ import type { Platform } from "./platform"
 import { useServerSDK } from "./server-sdk"
 import { base64Encode } from "@tenon/core/util/encode"
 import { defaultTitle, titleNumber } from "./terminal-title"
+import { useLanguage } from "@/context/language"
 import { Persist, persisted, removePersisted } from "@/utils/persist"
+import { formatServerError } from "@/utils/server-errors"
 import { ScopedKey, ServerScope, type ServerScope as ServerScopeValue } from "@/utils/server-scope"
+import { showToast } from "@/utils/toast"
 
 export type LocalPTY = {
   id: string
@@ -149,7 +152,16 @@ function createWorkspaceTerminalSession(
   scope: ServerScopeValue,
   legacySessionID?: string,
 ) {
+  const language = useLanguage()
   const location = { directory: sdk.directory }
+  // The client throws a declared error body as a plain object, so the server's sentence is read off it.
+  const reportStartFailure = (error: unknown) =>
+    showToast({
+      variant: "error",
+      title: language.t("terminal.startFailed.title"),
+      description:
+        (!(error instanceof Error) && record(error) && text(error.message)) || formatServerError(error, language.t),
+    })
   const legacy = scope === ServerScope.local ? getLegacyTerminalStorageKeys(dir, legacySessionID) : []
 
   const [store, setStore, _, ready] = persisted(
@@ -287,7 +299,7 @@ function createWorkspaceTerminalSession(
         })
       ).data
     })().catch((error: unknown) => {
-      console.error("Failed to clone terminal", error)
+      reportStartFailure(error)
       return undefined
     })
     if (!data?.id) return
@@ -353,7 +365,7 @@ function createWorkspaceTerminalSession(
         })
         .catch((error: unknown) => {
           if (focusRequest !== undefined) cancelFocus(focusRequest)
-          console.error("Failed to create terminal", error)
+          reportStartFailure(error)
         })
     },
     update(pty: Partial<LocalPTY> & { id: string }) {
