@@ -471,6 +471,14 @@ export const writeTimeline = Effect.fn("KnowledgeVault.writeTimeline")(function*
   if (input.expectedRevision !== undefined && input.expectedRevision !== file.revision)
     return yield* new ConflictError({ reason: "stale" })
   const source = JSON.stringify({ version: 1, items }, null, 2) + "\n"
+  // A damaged file read as empty, and it may be nearly complete after a bad sync: keep its bytes beside it.
+  if (file.damaged && file.bytes !== undefined) {
+    const copy = yield* resolveInside(vault, `${folder}/timeline.json.corrupt-${Date.now()}`)
+    yield* files
+      .create({ target: copy, content: file.bytes })
+      .pipe(Effect.catchTag("FileMutation.TargetExistsError", () => Effect.void))
+    yield* Effect.logWarning("Kept a damaged vault timeline aside", { folder })
+  }
   yield* file.bytes === undefined
     ? files
         .create({ target: file.target, content: source })
@@ -499,7 +507,15 @@ export const readLog = Effect.fn("KnowledgeVault.readLog")(function* (vault: Vau
         const target = yield* resolveInside(vault, `${folder}/log/${entry.name}`)
         const bytes = yield* readSmall(target.canonical, maxBytes)
         return bytes === undefined ? [] : parseLog(utf8.decode(bytes), entry.name.slice(0, -3))
-      }).pipe(Effect.orElseSucceed(() => [])),
+      }).pipe(
+        // Above the read cap a machine's whole log drops out of the list while appends continue.
+        Effect.catch((error) =>
+          Effect.logWarning("Skipping unreadable vault log", {
+            file: entry.name,
+            error: error._tag === "KnowledgeVault.InvalidError" ? error.reason : error._tag,
+          }).pipe(Effect.as([])),
+        ),
+      ),
     { concurrency: 8 },
   )
   return parsed
@@ -995,14 +1011,19 @@ const keepVersion = Effect.fnUntraced(function* (
   yield* files
     .create({ target, content: current.bytes })
     .pipe(Effect.catchTag("FileMutation.TargetExistsError", () => Effect.void))
-  const old = (yield* versions(vault, relative)).slice(historyLimit)
-  yield* Effect.forEach(
-    old,
-    (version) =>
-      resolveInside(vault, `${historyFolder(relative)}/${version}.md`).pipe(
-        Effect.flatMap((stale) => files.remove({ target: stale })),
+  // Housekeeping never fails the save it comes with; the next save prunes again.
+  yield* versions(vault, relative).pipe(
+    Effect.flatMap((all) =>
+      Effect.forEach(
+        all.slice(historyLimit),
+        (version) =>
+          resolveInside(vault, `${historyFolder(relative)}/${version}.md`).pipe(
+            Effect.flatMap((stale) => files.remove({ target: stale })),
+          ),
+        { discard: true },
       ),
-    { discard: true },
+    ),
+    Effect.catch((error) => Effect.logWarning("Could not prune page history", { path: relative, error: error._tag })),
   )
 })
 
@@ -1013,13 +1034,14 @@ const TimelineFile = Schema.Struct({ version: Schema.Literal(1), items: Schema.A
 const timelineFile = Effect.fnUntraced(function* (vault: Vault, folder: string) {
   const target = yield* resolveInside(vault, `${folder}/timeline.json`)
   const bytes = yield* readSmall(target.canonical, maxBytes)
-  if (bytes === undefined) return { target, bytes, revision: "new", items: [] as TimelineItem[] }
+  if (bytes === undefined) return { target, bytes, damaged: false, revision: "new", items: [] as TimelineItem[] }
   const decoded = Schema.decodeUnknownOption(Schema.fromJsonString(TimelineFile))(utf8.decode(bytes))
-  // A damaged file reads as empty; its revision still guards it, so a save replaces it knowingly.
+  // A damaged file reads as empty; its revision still guards it, and a save keeps a copy before replacing it.
   if (Option.isNone(decoded)) yield* Effect.logWarning("Unreadable vault timeline", { folder })
   return {
     target,
     bytes,
+    damaged: Option.isNone(decoded),
     revision: hash(utf8.decode(bytes)),
     items: Option.match(decoded, { onNone: () => [], onSome: (file) => [...file.items] }),
   }
