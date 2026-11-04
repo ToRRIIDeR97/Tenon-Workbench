@@ -582,7 +582,10 @@ every minute it checks each workspace that has a vault folder on this machine
 (`vault-machine.json`) and runs due routines as Command Centre threads
 (`CommandThreads.start`). The in-process routes that tests use don't start it.
 The Routines page (`/routines`, `app/src/pages/routines.tsx`, linked from the
-Command Centre) lists schedule, last run and next run with Run now.
+Command Centre) lists schedule, last run and next run with Run now, whose toast
+links to the new thread. A row's switch rewrites the routine page's `enabled`
+property (read, then `PUT` with its revision, since a write replaces all
+properties), and its name opens the page.
 
 | Route | Behaviour |
 | --- | --- |

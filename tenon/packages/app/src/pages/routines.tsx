@@ -1,11 +1,14 @@
 import { A, useNavigate } from "@solidjs/router"
+import { useQueryClient } from "@tanstack/solid-query"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
+import { Switch } from "@tenon/ui/v2/switch-v2"
 import { createResource, For, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { PageEmpty, PageFrame, PageHeader } from "@/components/page"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
+import { useServer } from "@/context/server"
 import { useServerSDK } from "@/context/server-sdk"
 import { useSettings } from "@/context/settings"
 import { modelChoice } from "@/features/command-centre/command-centre"
@@ -13,23 +16,36 @@ import {
   listRoutines,
   runRoutine,
   SecondBrainRequestError,
+  setRoutineEnabled,
   writeVaultPage,
   type Routine,
 } from "@/features/second-brain/client"
+import { invalidateVaultPages } from "@/features/second-brain/vault-pages"
+import { settled } from "@/utils/resource"
+import { sessionHref } from "@/utils/session-route"
+import { showToast } from "@/utils/toast"
 
 /**
  * Routines: vault pages under `Routines/` with a `schedule` property. Each row shows the schedule, last and
  * next run, and Run now starts a Command Centre thread with the routine's prompt. New routine writes a
- * `Routines/` page from a template (switched off until edited) and opens it in Notes.
+ * `Routines/` page from a template (switched off until ready) and opens it on the Projects page. A row's name
+ * opens its page and its switch turns the schedule on or off.
  */
 export default function RoutinesPage() {
   const language = useLanguage()
   const layout = useLayout()
   const platform = usePlatform()
+  const server = useServer()
   const serverSDK = useServerSDK()
   const settings = useSettings()
   const navigate = useNavigate()
-  const [state, setState] = createStore({ running: {} as Record<string, boolean>, failed: false, creating: false })
+  const queryClient = useQueryClient()
+  const [state, setState] = createStore({
+    running: {} as Record<string, boolean>,
+    toggling: {} as Record<string, boolean>,
+    failed: false,
+    creating: false,
+  })
   const client = (directory: string) => ({ server: serverSDK().server, fetch: platform.fetch, target: { directory } })
   const workspace = () => layout.home.workspace() ?? undefined
   // A failed list shows inline instead of throwing into the error boundary.
@@ -39,21 +55,47 @@ export default function RoutinesPage() {
       () => ({ items: [] as Routine[], failed: true }),
     ),
   )
-  const items = (): ReadonlyArray<Routine & { unsupported?: ReadonlyArray<string> }> => routines.latest?.items ?? []
+  const items = (): ReadonlyArray<Routine & { unsupported?: ReadonlyArray<string> }> => settled(routines)?.items ?? []
   const time = (value: string | null) =>
     value
       ? new Date(value).toLocaleString(language.intl(), { dateStyle: "medium", timeStyle: "short" })
       : language.t("secondBrain.routines.never")
 
-  const run = async (id: string) => {
+  const run = async (routine: Routine) => {
     const directory = workspace()
     if (!directory) return
     setState({ failed: false })
-    setState("running", id, true)
-    await runRoutine(client(directory), id, modelChoice(settings.commandCentre.current().modelID))
-      .then(() => refetch())
+    setState("running", routine.id, true)
+    await runRoutine(client(directory), routine.id, modelChoice(settings.commandCentre.current().modelID))
+      .then((result) => {
+        showToast({
+          title: language.t("secondBrain.routines.started"),
+          description: routine.name,
+          actions: [
+            {
+              label: language.t("secondBrain.routines.openThread"),
+              onClick: () => navigate(sessionHref(server.key, result.threadId)),
+            },
+          ],
+        })
+        return refetch()
+      })
       .catch(() => setState("failed", true))
-    setState("running", id, false)
+    setState("running", routine.id, false)
+  }
+
+  const setEnabled = async (routine: Routine, enabled: boolean) => {
+    const directory = workspace()
+    if (!directory) return
+    setState({ failed: false })
+    setState("toggling", routine.id, true)
+    await setRoutineEnabled(client(directory), routine.path, enabled)
+      .then(() => {
+        void invalidateVaultPages(queryClient, server.key)
+        return refetch()
+      })
+      .catch(() => setState("failed", true))
+    setState("toggling", routine.id, false)
   }
 
   // Routines are pages under `Routines/` whose properties carry a `schedule`; the template starts switched off.
@@ -113,7 +155,7 @@ export default function RoutinesPage() {
         }
       />
       <div class="px-6 pb-6">
-        <Show when={state.failed || routines.latest?.failed}>
+        <Show when={state.failed || settled(routines)?.failed}>
           <p role="alert" class="pb-2 text-[12px] text-v2-text-text-critical">
             {language.t("common.requestFailed")}
           </p>
@@ -121,7 +163,7 @@ export default function RoutinesPage() {
         <Show
           when={items().length > 0}
           fallback={
-            <Show when={!routines.loading && !routines.latest?.failed}>
+            <Show when={!routines.loading && !settled(routines)?.failed}>
               <PageEmpty title={language.t("secondBrain.routines.empty.title")}>
                 {language.t("secondBrain.routines.empty.body")}
               </PageEmpty>
@@ -145,7 +187,9 @@ export default function RoutinesPage() {
                 {(routine) => (
                   <tr class="text-v2-text-text-base" data-routine={routine.id}>
                     <td class="px-3 py-2">
-                      {routine.name}
+                      <A href={`/projects?page=${encodeURIComponent(routine.path)}`} class="hover:underline">
+                        {routine.name}
+                      </A>
                       <Show when={!routine.enabled}>
                         <span class="ml-2 text-[11px] text-v2-text-text-faint">
                           {language.t("secondBrain.routines.disabled")}
@@ -168,15 +212,26 @@ export default function RoutinesPage() {
                       </Show>
                     </td>
                     <td class="px-3 py-2 text-v2-text-text-muted">{routine.enabled ? time(routine.nextRun) : "—"}</td>
-                    <td class="px-3 py-2 text-right">
-                      <ButtonV2
-                        size="small"
-                        variant="tonal"
-                        disabled={state.running[routine.id] === true}
-                        onClick={() => void run(routine.id)}
-                      >
-                        {language.t("secondBrain.routines.runNow")}
-                      </ButtonV2>
+                    <td class="px-3 py-2">
+                      <div class="flex items-center justify-end gap-3">
+                        <Switch
+                          hideLabel
+                          size="small"
+                          checked={routine.enabled}
+                          disabled={state.toggling[routine.id] === true}
+                          onChange={(enabled) => void setEnabled(routine, enabled)}
+                        >
+                          {language.t("secondBrain.routines.enable", { name: routine.name })}
+                        </Switch>
+                        <ButtonV2
+                          size="small"
+                          variant="tonal"
+                          disabled={state.running[routine.id] === true}
+                          onClick={() => void run(routine)}
+                        >
+                          {language.t("secondBrain.routines.runNow")}
+                        </ButtonV2>
+                      </div>
                     </td>
                   </tr>
                 )}

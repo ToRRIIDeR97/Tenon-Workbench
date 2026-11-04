@@ -948,7 +948,10 @@ export const dict = {
   "secondBrain.routines.new": "New routine",
   "secondBrain.routines.new.name": "New routine",
   "secondBrain.routines.new.body":
-    "Describe what this routine should do. It runs as a Command Centre thread on its schedule; set enabled to true when it's ready.",
+    "Describe what this routine should do. It runs as a Command Centre thread on its schedule; switch it on in Routines when it's ready.",
+  "secondBrain.routines.enable": "Run {{name}} on its schedule",
+  "secondBrain.routines.started": "Routine started",
+  "secondBrain.routines.openThread": "Open thread",
   "secondBrain.routines.unsupported": "Not supported yet, ignored: {{fields}}",
   "secondBrain.routines.column.name": "Routine",
   "secondBrain.routines.column.schedule": "Schedule",
@@ -957,7 +960,7 @@ export const dict = {
   "secondBrain.routines.column.actions": "Actions",
   "secondBrain.routines.empty.title": "No routines yet",
   "secondBrain.routines.empty.body":
-    'Add a page under Routines/ in Notes with a schedule property, such as "weekdays 08:30".',
+    'Use New routine, or add a page under Routines/ with a schedule property, such as "weekdays 08:30".',
   "secondBrain.mail.settings.tab": "Accounts",
   "secondBrain.mail.settings.title": "Accounts",
   "secondBrain.mail.settings.description": "Mail accounts the Command Centre can search, read and save drafts in.",

@@ -282,6 +282,18 @@ export const writeVaultPage = (
     }),
   })
 
+/** Switch a routine on or off. The server replaces all properties, so this sends the page's others back. */
+export const setRoutineEnabled = async (client: Client, path: string, enabled: boolean) => {
+  const page = await readVaultPage(client, path)
+  return writeVaultPage(client, {
+    path,
+    body: page.body,
+    title: page.info.title,
+    properties: { ...page.info.properties, enabled },
+    expectedRevision: page.revision,
+  })
+}
+
 export const readTimeline = (client: Client, projectId: string) =>
   request<Timeline>(client, `/second-brain/vault/timeline?project=${encodeURIComponent(projectId)}`)
 
