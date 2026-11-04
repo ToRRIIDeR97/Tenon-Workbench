@@ -31,6 +31,7 @@ import { AcpHarness } from "./harness/acp"
 import {
   make as makeCodexClient,
   ProtocolError,
+  watchExit,
   type Client as CodexClient,
   type ServerRequest,
 } from "./harness/codex-app-server"
@@ -66,7 +67,6 @@ export interface Driver {
 }
 
 export interface CompleteInput {
-  readonly directory: string
   readonly request: LLMRequest
   readonly model?: Harness.ModelSelection
 }
@@ -99,7 +99,8 @@ export interface Interface {
   ) => Stream.Stream<LLMEvent, LLMError>
   /**
    * Runs one prompt in a fresh native session of the harness and returns the reply text. The session
-   * is not tied to any thread, tool requests are refused, and it closes when the reply ends.
+   * is not tied to any thread, tool requests are refused, and it closes when the reply ends. It runs in the
+   * discovery folder at the model's lowest listed effort, so it stays out of the project and its CLI history.
    */
   readonly complete: (
     input: CompleteInput & { readonly instanceID: Harness.InstanceID },
@@ -147,6 +148,7 @@ interface CodexRuntime {
   readonly client: CodexClient
   readonly scope: Scope.Closeable
   readonly threadID: string
+  readonly name: string
   readonly workspace?: TenonContext.Workspace
   /** The `tenon` MCP server, and with it `ask_user`, is attached to this thread. */
   readonly askUser: boolean
@@ -154,6 +156,8 @@ interface CodexRuntime {
   readonly endTurn?: Effect.Effect<void>
   /** Starts a turn: approvals asked from now on are withdrawn when it ends. */
   readonly beginTurn: () => void
+  /** An approval or question is waiting on the user, so the agent's silence means nothing. */
+  readonly waiting: () => boolean
   handoff: Handoff
 }
 
@@ -167,6 +171,8 @@ interface AcpRuntime {
   readonly endTurn: Effect.Effect<void>
   /** Starts a turn: approvals asked from now on are withdrawn when it ends. */
   readonly beginTurn: () => void
+  /** An approval or question is waiting on the user, so the agent's silence means nothing. */
+  readonly waiting: () => boolean
   handoff: Handoff
 }
 
@@ -475,7 +481,7 @@ const layer = Layer.effect(
           settings,
           input.directory,
           (request) =>
-            handleCodexRequest(request, input, permissions, questions, gate.guard).pipe(
+            handleCodexRequest(request, input, permissions, askInDock(asker), gate.guard).pipe(
               Effect.provideService(Location.Service, location),
             ),
           delegation,
@@ -507,11 +513,13 @@ const layer = Layer.effect(
           client: opened.client,
           scope: runtimeScope,
           threadID,
+          name: instance.name,
           workspace: yield* workspaceOf(input.directory),
           // Every endpoint here carries `ask_user`, because the runtime always has the question service.
           askUser: delegation !== undefined,
           endTurn: asker.endTurn.pipe(Effect.andThen(gate.end)),
           beginTurn: gate.begin,
+          waiting: () => gate.pending() || asker.pending(),
           // A failed resume starts a fresh thread, which gets the bounded full history.
           handoff: thread.resumed && continuation ? continuation.handoff : "full",
         } satisfies CodexRuntime
@@ -572,10 +580,7 @@ const layer = Layer.effect(
         directory: input.directory,
         continuation: continuation?.nativeID,
         mcpServers: delegation ? [HarnessDelegation.acpServer(delegation)] : [],
-        ask: (prompts) =>
-          Effect.promise(() => asker.ask(prompts, HarnessAskUser.ELICITATION_WAIT_SECONDS)).pipe(
-            Effect.map((outcome) => (outcome.type === "answered" ? outcome.answers : undefined)),
-          ),
+        ask: askInDock(asker),
         onCommands: (reported) =>
           Effect.sync(() => {
             commands.set(instance.id, reported)
@@ -630,6 +635,7 @@ const layer = Layer.effect(
         askUser: delegation !== undefined && session.mcpAttached,
         endTurn: asker.endTurn.pipe(Effect.andThen(gate.end)),
         beginTurn: gate.begin,
+        waiting: () => gate.pending() || asker.pending(),
         handoff: session.resumed && continuation ? continuation.handoff : "full",
       } satisfies AcpRuntime
     })
@@ -663,7 +669,8 @@ const layer = Layer.effect(
       Stream.unwrap(
         getAcpRuntime(instance, settings, input).pipe(
           Effect.map((runtime) => {
-            const text = renderHarnessPrompt(input.request, runtime.handoff, runtime)
+            const handoff = runtime.handoff
+            const text = renderHarnessPrompt(input.request, handoff, runtime)
             runtime.handoff = "none"
             runtime.beginTurn()
             return onTurnSuccess(
@@ -674,6 +681,7 @@ const layer = Layer.effect(
                   model: input.model?.id,
                   reasoningEffort: input.model?.reasoningEffort,
                   steer: input.steer,
+                  watch: { name: instance.name, waiting: runtime.waiting },
                 })
                 .pipe(
                   // However the turn ends, a question it left open in the dock has nobody waiting.
@@ -683,9 +691,13 @@ const layer = Layer.effect(
                   ),
                 ),
               markSeen(instance, input, runtime.session.sessionId),
+              // A refused model switch or a failed prompt keeps the process, so the next turn must still hand over.
+              Effect.sync(() => {
+                runtime.handoff = handoff
+              }),
             )
           }),
-          Effect.mapError((error) => llmError("AcpHarness", "stream", errorMessage(error))),
+          Effect.mapError((error) => llmError("AcpHarness", "stream", AcpHarness.turnError(error))),
         ),
       )
 
@@ -694,13 +706,13 @@ const layer = Layer.effect(
       Effect.gen(function* () {
         const scope = yield* Scope.make()
         return yield* Effect.gen(function* () {
-          const opened = yield* openCodex(process, settings, input.directory)
+          const opened = yield* openCodex(process, settings, discoveryDirectory)
           const thread = yield* opened.client.request(
             "thread/start",
             {
               model: input.model?.id,
-              cwd: input.directory,
-              runtimeWorkspaceRoots: [input.directory],
+              cwd: discoveryDirectory,
+              runtimeWorkspaceRoots: [discoveryDirectory],
               approvalPolicy: "never",
               sandbox: "read-only",
               ephemeral: true,
@@ -714,15 +726,17 @@ const layer = Layer.effect(
             client: opened.client,
             scope,
             threadID,
+            name: "Codex",
             askUser: false,
             handoff: "none",
             beginTurn: () => {},
+            waiting: () => false,
           }
           const request = { ...input.request, system: [], messages: [Message.user(oneShotPrompt(input.request))] }
           return yield* replyText(
             codexStream(Effect.succeed(runtime), {
               sessionID: SessionID.make("ses_title"),
-              directory: input.directory,
+              directory: discoveryDirectory,
               request,
               model: input.model,
             }),
@@ -807,6 +821,14 @@ const layer = Layer.effect(
             ? cachedProbe(instance, (known, rediscover) =>
                 (known && !rediscover ? Effect.void : discoverAcpModels(instance, settings)).pipe(
                   Effect.andThen(AcpHarness.probe(process, instance, settings, location.directory, known)),
+                  Effect.flatMap((result) =>
+                    acpSignIn(instance).pipe(
+                      Effect.map((authenticated) => ({
+                        ...result,
+                        instance: Harness.Instance.make({ ...result.instance, authenticated }),
+                      })),
+                    ),
+                  ),
                 ),
               )
             : unavailable(instance, "Disabled in configuration.", AcpHarness.configuredModels(settings.models)),
@@ -822,7 +844,7 @@ const layer = Layer.effect(
               Effect.gen(function* () {
                 const session = yield* AcpHarness.open(process, {
                   settings,
-                  directory: input.directory,
+                  directory: discoveryDirectory,
                   approve: () => Effect.succeed(false),
                 })
                 return yield* replyText(
@@ -995,8 +1017,9 @@ const layer = Layer.effect(
         HarnessUsage.isCommandCode(AcpHarness.decodeSettings(instance.config)?.command)
       )
         return HarnessUsage.readCommandCodeKey().pipe(
-          Effect.flatMap((key): Effect.Effect<HarnessUsage.Result, Error> =>
-            key ? HarnessUsage.fetchCommandCodeUsage(key) : Effect.succeed({ status: "signed-out", windows: [] }),
+          Effect.flatMap(
+            (key): Effect.Effect<HarnessUsage.Result, Error> =>
+              key ? HarnessUsage.fetchCommandCodeUsage(key) : Effect.succeed({ status: "signed-out", windows: [] }),
           ),
         )
       // OpenCode Go is a plan on an OpenCode key: the built-in agent reads the app's own keys, the OpenCode
@@ -1148,9 +1171,16 @@ const layer = Layer.effect(
           Effect.flatMap((current) => {
             const instance = current.find((item) => item.id === input.instanceID)
             const complete = instance?.enabled ? driverFor(instance).complete : undefined
-            return complete
-              ? complete(input)
-              : Effect.fail(llmError("HarnessRuntime", "complete", `${input.instanceID} can't run a one-off prompt.`))
+            if (!instance || !complete)
+              return Effect.fail(
+                llmError("HarnessRuntime", "complete", `${input.instanceID} can't run a one-off prompt.`),
+              )
+            const model = input.model
+            const listed = catalogs.get(instanceKey(instance))?.models.find((item) => item.id === model?.id)
+            return complete({
+              ...input,
+              model: model && { id: model.id, reasoningEffort: lowestEffort(listed?.reasoningEfforts ?? []) },
+            })
           }),
         ),
       titleAgent: () => HarnessRegistry.titleAgent(global.config),
@@ -1217,6 +1247,19 @@ export const node = makeLocationNode({
     FSUtil.node,
   ],
 })
+
+/**
+ * Whether a built-in ACP harness looks signed in, for a hint beside it: the handshake works without a login, so the
+ * check alone would report it ready. The login files can't show Bedrock, Vertex or a key in the shell, so this never
+ * blocks sending. A key the app passes to the process counts. Undefined when there is no recipe to read.
+ */
+function acpSignIn(instance: InstanceConfig): Effect.Effect<boolean | undefined> {
+  const item = HarnessSetup.recipe(instance.id)
+  if (!item) return Effect.succeed(undefined)
+  const env = isRecord(instance.config.env) ? instance.config.env : {}
+  if (item.apiKeys.some((option) => option.env && env[option.env])) return Effect.succeed(true)
+  return HarnessSetup.signedIn(item).pipe(Effect.map((auth) => auth !== "signed-out"))
+}
 
 /** Harnesses as Settings lists them, in picker order, labeled by where each one is defined. */
 export function settingsEntries(
@@ -1374,24 +1417,28 @@ function openCodex(
 ) {
   return Effect.gen(function* () {
     const args = [...(delegation ? HarnessDelegation.codexArgs(delegation) : []), "app-server"]
-    const handle = yield* process.spawn(
-      ChildProcess.make(settings.binaryPath?.trim() || "codex", [...args, ...(settings.launchArgs ?? [])], {
-        cwd: directory,
-        env: harnessEnvironment({
-          CODEX_HOME: settings.homePath ? expandHome(settings.homePath) : undefined,
-          ...settings.env,
-          ...(delegation ? { [HarnessDelegation.TOKEN_ENV]: delegation.token } : {}),
+    const command = settings.binaryPath?.trim() || "codex"
+    const handle = yield* process
+      .spawn(
+        ChildProcess.make(command, [...args, ...(settings.launchArgs ?? [])], {
+          cwd: directory,
+          env: harnessEnvironment({
+            CODEX_HOME: settings.homePath ? expandHome(settings.homePath) : undefined,
+            ...settings.env,
+            ...(delegation ? { [HarnessDelegation.TOKEN_ENV]: delegation.token } : {}),
+          }),
+          extendEnv: false,
+          forceKillAfter: "2 seconds",
+          stdin: { stream: "pipe", endOnDone: false },
         }),
-        extendEnv: false,
-        forceKillAfter: "2 seconds",
-        stdin: { stream: "pipe", endOnDone: false },
-      }),
-    )
-    yield* HarnessPids.track(handle.pid, settings.binaryPath?.trim() || "codex")
-    yield* Stream.runDrain(handle.stderr).pipe(Effect.ignore, Effect.forkScoped)
+      )
+      .pipe(Effect.mapError((cause) => AcpHarness.startError(command, cause)))
+    yield* HarnessPids.track(handle.pid, command)
+    const exit = yield* watchExit(handle)
     const client = yield* makeCodexClient({
       connection: { stdout: handle.stdout, stdin: handle.stdin },
       handleRequest,
+      exit,
     })
     const initialize = yield* client.request(
       "initialize",
@@ -1519,7 +1566,7 @@ function appendCustomModels(models: ReadonlyArray<Harness.Model>, configured: Re
   return [...models, ...customModels(configured).filter((model) => !known.has(model.id))]
 }
 
-function codexStream(
+export function codexStream(
   runtime: Effect.Effect<CodexRuntime, unknown>,
   input: StreamInput,
   onFailure: (runtime: CodexRuntime) => Effect.Effect<void> = () => Effect.void,
@@ -1539,15 +1586,19 @@ function codexStream(
         }).pipe(
           Effect.flatMap((prompt) =>
             runtime.client
-              .request("turn/start", {
-                threadId: runtime.threadID,
-                input: codexInputItems(prompt, latestMedia(input.request)),
-                cwd: input.directory,
-                runtimeWorkspaceRoots: [input.directory],
-                model: input.model?.id,
-                effort: input.model?.reasoningEffort,
-                serviceTier: input.model?.serviceTier,
-              })
+              .request(
+                "turn/start",
+                {
+                  threadId: runtime.threadID,
+                  input: codexInputItems(prompt, latestMedia(input.request)),
+                  cwd: input.directory,
+                  runtimeWorkspaceRoots: [input.directory],
+                  model: input.model?.id,
+                  effort: input.model?.reasoningEffort,
+                  serviceTier: input.model?.serviceTier,
+                },
+                THREAD_SETUP_TIMEOUT,
+              )
               .pipe(
                 Effect.tapError(() => onFailure(runtime)),
                 Effect.map((response) => {
@@ -1555,10 +1606,22 @@ function codexStream(
                   if (!turnID) return Stream.fail(new ProtocolError("Codex did not return a turn ID."))
                   const state = codexState()
                   const output = AcpHarness.stopOnSteer(
-                    runtime.client.notifications.pipe(
-                      Stream.filter((notification) => notificationBelongsToTurn(notification, runtime.threadID, turnID)),
-                      Stream.takeUntil((notification) => notification.method === "turn/completed"),
-                      Stream.flatMap((notification) => Stream.fromIterable(parseCodexNotification(notification, state))),
+                    AcpHarness.failOnSilence(
+                      (heard) =>
+                        runtime.client.notifications.pipe(
+                          Stream.filter((notification) =>
+                            notificationBelongsToTurn(notification, runtime.threadID, turnID),
+                          ),
+                          Stream.tap(() => heard),
+                          Stream.takeUntil((notification) => notification.method === "turn/completed"),
+                          Stream.flatMap((notification) =>
+                            Stream.fromIterable(parseCodexNotification(notification, state)),
+                          ),
+                        ),
+                      () => runtime.waiting() || state.openItems.size > 0,
+                      new ProtocolError(
+                        `${runtime.name} stopped responding for ${AcpHarness.SILENCE_LIMIT_MINUTES} minutes.`,
+                      ),
                     ),
                     input.steer,
                     runtime.client.request("turn/interrupt", { threadId: runtime.threadID, turnId: turnID }),
@@ -1569,8 +1632,13 @@ function codexStream(
                         state.finished
                           ? Effect.void
                           : runtime.client
-                              .request("turn/interrupt", { threadId: runtime.threadID, turnId: turnID })
-                              .pipe(Effect.ignore),
+                              .request(
+                                "turn/interrupt",
+                                { threadId: runtime.threadID, turnId: turnID },
+                                INTERRUPT_TIMEOUT,
+                              )
+                              // Stream.catch below doesn't run on interrupt, and a wedged process must not hold Stop.
+                              .pipe(Effect.catch(() => onFailure(runtime))),
                       ),
                     ),
                     // However the turn ends, a question it left open in the dock has nobody waiting.
@@ -1584,12 +1652,12 @@ function codexStream(
         ),
       ),
       Effect.mapError((error) =>
-        error instanceof LLMError ? error : llmError("CodexHarness", "stream", errorMessage(error)),
+        error instanceof LLMError ? error : llmError("CodexHarness", "stream", AcpHarness.turnError(error)),
       ),
     ),
   ).pipe(
     Stream.mapError((error) =>
-      error instanceof LLMError ? error : llmError("CodexHarness", "stream", errorMessage(error)),
+      error instanceof LLMError ? error : llmError("CodexHarness", "stream", AcpHarness.turnError(error)),
     ),
   )
 }
@@ -1600,8 +1668,12 @@ export interface CodexState {
   readonly startedReasoning: Set<string>
   readonly emittedReasoning: Set<string>
   readonly startedTools: Set<string>
+  /** Items at work between their start and completion: commands, file changes, tool calls and the like. */
+  readonly openItems: Set<string>
   /** Plan updates shown so far this turn; each becomes its own todo call. */
   plans: number
+  /** Codex's latest notice that it hit an error and will retry. Not shown yet. */
+  retry?: string
   /** The thread's cumulative token counts before this turn, from its first usage update. */
   usageBase?: Record<string, number>
   usage?: ReturnType<typeof normalizeUsage>
@@ -1615,6 +1687,7 @@ export const codexState = (): CodexState => ({
   startedReasoning: new Set(),
   emittedReasoning: new Set(),
   startedTools: new Set(),
+  openItems: new Set(),
   plans: 0,
   finished: false,
   failed: false,
@@ -1646,6 +1719,7 @@ export function parseCodexNotification(
   if (notification.method === "item/started" || notification.method === "item/completed") {
     const item = isRecord(params.item) ? params.item : undefined
     if (!item) return []
+    trackOpenItem(notification.method, item, state)
     return codexItemEvents(notification.method, item, state)
   }
   if (notification.method === "thread/tokenUsage/updated") {
@@ -1672,10 +1746,16 @@ export function parseCodexNotification(
     return usage && contextUsed !== undefined ? [LLMEvent.stepUsage({ usage })] : []
   }
   if (notification.method === "error") {
-    if (params.willRetry === true) return []
-    state.failed = true
     const error = isRecord(params.error) ? params.error : undefined
-    return [LLMEvent.providerError({ message: string(error?.message) ?? "Codex failed." })]
+    if (params.willRetry === true) {
+      state.retry = string(error?.message)
+      return []
+    }
+    state.failed = true
+    const message = string(error?.message) ?? "Codex failed."
+    return [
+      LLMEvent.providerError({ message: AcpHarness.signInHint(message, error?.codexErrorInfo === "unauthorized") }),
+    ]
   }
   if (notification.method === "turn/plan/updated") {
     const plan = Array.isArray(params.plan) ? params.plan.filter(isRecord) : []
@@ -1693,13 +1773,22 @@ export function parseCodexNotification(
     const failed = turn?.status === "failed"
     state.failed = state.failed || failed
     const error = isRecord(turn?.error) ? string(turn.error.message) : undefined
+    const unauthorized = isRecord(turn?.error) && turn.error.codexErrorInfo === "unauthorized"
     return [
-      ...(failed && error ? [LLMEvent.providerError({ message: error })] : []),
+      ...(failed && error ? [LLMEvent.providerError({ message: AcpHarness.signInHint(error, unauthorized) })] : []),
       LLMEvent.stepFinish({ index: 0, reason: state.failed ? "error" : "stop", usage: state.usage }),
       LLMEvent.finish({ reason: state.failed ? "error" : "stop", usage: state.usage }),
     ]
   }
   return []
+}
+
+// Text and reasoning are the model talking, which the silence check should see; the rest can run long unannounced.
+function trackOpenItem(method: string, item: Record<string, unknown>, state: CodexState) {
+  const id = string(item.id)
+  if (!id || item.type === "agentMessage" || item.type === "reasoning") return
+  if (method === "item/started") state.openItems.add(id)
+  if (method === "item/completed") state.openItems.delete(id)
 }
 
 function codexItemEvents(method: "item/started" | "item/completed", item: Record<string, unknown>, state: CodexState) {
@@ -1760,7 +1849,7 @@ export function handleCodexRequest(
   request: { readonly method: string; readonly params?: unknown },
   input: StreamInput,
   permissions: PermissionV2.Interface,
-  questions: QuestionV2.Interface,
+  askUser: (questions: ReadonlyArray<QuestionV2.Prompt>) => Effect.Effect<ReadonlyArray<QuestionV2.Answer> | undefined>,
   guard: TurnGate["guard"],
 ): Effect.Effect<unknown, ProtocolError> {
   const { sessionID, directory } = input
@@ -1854,18 +1943,21 @@ export function handleCodexRequest(
         },
       ]
     })
-    return Effect.exit(questions.ask({ sessionID, questions: items.map((item) => item.info) })).pipe(
-      Effect.map((exit) => ({
-        answers: Object.fromEntries(
-          items.map((item, index) => [
-            item.id,
-            { answers: Exit.isSuccess(exit) ? [...(exit.value[index] ?? [])] : [] },
-          ]),
-        ),
+    return askUser(items.map((item) => item.info)).pipe(
+      Effect.map((answers) => ({
+        answers: Object.fromEntries(items.map((item, index) => [item.id, { answers: [...(answers?.[index] ?? [])] }])),
       })),
     )
   }
   return Effect.fail(new ProtocolError(`Unsupported Codex app-server request: ${request.method}`, { code: -32601 }))
+}
+
+/** Asks through the runtime's asker, whose question the end of the turn withdraws; undefined when it was declined. */
+function askInDock(asker: HarnessAskUser.Asker) {
+  return (prompts: ReadonlyArray<QuestionV2.Prompt>) =>
+    Effect.promise(() => asker.ask(prompts, HarnessAskUser.ELICITATION_WAIT_SECONDS)).pipe(
+      Effect.map((outcome) => (outcome.type === "answered" ? outcome.answers : undefined)),
+    )
 }
 
 function approve(
@@ -2052,13 +2144,24 @@ export type TurnGate = ReturnType<typeof turnGate>
  */
 export function turnGate() {
   let ended = Deferred.makeUnsafe<void>()
+  let open = 0
   return {
+    pending: () => open > 0,
     begin: () => {
       ended = Deferred.makeUnsafe<void>()
     },
     end: Effect.suspend(() => Deferred.succeed(ended, undefined)).pipe(Effect.asVoid),
     guard: <A, E, R>(effect: Effect.Effect<A, E, R>, fallback: A) =>
-      Effect.suspend(() => Effect.raceFirst(effect, Deferred.await(ended).pipe(Effect.as(fallback)))),
+      Effect.suspend(() => {
+        open += 1
+        return Effect.raceFirst(effect, Deferred.await(ended).pipe(Effect.as(fallback))).pipe(
+          Effect.ensuring(
+            Effect.sync(() => {
+              open -= 1
+            }),
+          ),
+        )
+      }),
   }
 }
 
@@ -2322,17 +2425,33 @@ function latestMedia(request: LLMRequest): ReadonlyArray<AcpHarness.Media> {
  * Codex `turn/start` input: the prompt text, then each image attachment, a pasted one (`data:image/…`) as `image`
  * and a local file as `localImage`. Codex takes no other attachment types; the text still names them.
  */
-export function codexInputItems(prompt: string, media: ReadonlyArray<AcpHarness.Media>) {
+export function codexInputItems(
+  prompt: string,
+  media: ReadonlyArray<AcpHarness.Media>,
+  windows = process.platform === "win32",
+) {
   return [
     { type: "text", text: prompt, text_elements: [] },
     ...media.flatMap((item): Record<string, unknown>[] => {
       if (!item.mediaType.startsWith("image/")) return []
       if (item.data.startsWith("data:image/")) return [{ type: "image", url: item.data }]
-      if (item.data.startsWith("file://") && URL.canParse(item.data))
-        return [{ type: "localImage", path: decodeURIComponent(new URL(item.data).pathname) }]
-      return []
+      const file = item.data.startsWith("file://") ? localFilePath(item.data, windows) : undefined
+      return file ? [{ type: "localImage", path: file }] : []
     }),
   ]
+}
+
+/**
+ * A `file://` URL as a path on the given platform: on Windows `file:///D:/a.png` is `D:\a.png`, not URL.pathname's
+ * `/D:/a.png`. Written out because Bun's fileURLToPath ignores its `windows` option.
+ */
+function localFilePath(url: string, windows: boolean) {
+  if (!URL.canParse(url)) return undefined
+  const parsed = new URL(url)
+  const decoded = Option.getOrUndefined(Option.liftThrowable(decodeURIComponent)(parsed.pathname))
+  if (!decoded || !windows) return decoded
+  const drive = /^\/[a-zA-Z]:/.test(decoded) ? decoded.slice(1) : decoded
+  return path.win32.normalize(parsed.hostname ? `//${parsed.hostname}${drive}` : drive)
 }
 
 function responseThreadID(value: unknown) {
@@ -2391,6 +2510,12 @@ function expandHome(input: string) {
   return path.resolve(value)
 }
 
+const EFFORTS_LOW_TO_HIGH = ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+
+/** The cheapest of a model's levels; undefined leaves the agent's default when none is a level we can rank. */
+export const lowestEffort = (efforts: ReadonlyArray<string>) =>
+  EFFORTS_LOW_TO_HIGH.find((effort) => efforts.includes(effort))
+
 /** A one-off prompt for a harness with no system channel: instructions first, then the request. */
 function oneShotPrompt(request: LLMRequest) {
   return [...harnessSystem(request), renderCodexPrompt(request)].filter(Boolean).join("\n\n")
@@ -2416,7 +2541,7 @@ function llmError(module: string, method: string, message: string) {
 }
 
 function errorMessage(error: unknown) {
-  return error instanceof Error && error.message ? error.message : "Codex process failed."
+  return error instanceof Error && error.message ? error.message : "The harness process failed."
 }
 
 function json(value: unknown) {
@@ -2439,24 +2564,37 @@ function number(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined
 }
 
-// Runs `effect` once the turn stream ends without a provider error or an error finish.
-function onTurnSuccess<E, R, E2, R2>(stream: Stream.Stream<LLMEvent, E, R>, effect: Effect.Effect<void, E2, R2>) {
+// Runs `effect` once the turn stream ends without a provider error or an error finish, and `onSilentFailure` when
+// it ends with one and no text or tool event, so nothing suggests the agent took the turn in.
+export function onTurnSuccess<E, R, E2, R2>(
+  stream: Stream.Stream<LLMEvent, E, R>,
+  effect: Effect.Effect<void, E2, R2>,
+  onSilentFailure: Effect.Effect<void> = Effect.void,
+) {
   return Stream.suspend(() => {
-    const state = { failed: false }
+    const state = { failed: false, output: false }
     return stream.pipe(
       Stream.tap((event) =>
         Effect.sync(() => {
           if (LLMEvent.is.providerError(event) || (event.type === "finish" && event.reason === "error"))
             state.failed = true
+          if (event.type === "text-delta" || event.type === "tool-call") state.output = true
         }),
       ),
-      Stream.onEnd(Effect.suspend(() => (state.failed ? Effect.void : effect))),
+      Stream.onEnd(
+        Effect.suspend(() => {
+          if (!state.failed) return effect
+          return state.output ? Effect.void : onSilentFailure
+        }),
+      ),
     )
   })
 }
 
 // A cold Codex start can be slow, but thread setup that never answers must not hang the turn forever.
 const THREAD_SETUP_TIMEOUT = "60 seconds"
+// A healthy Codex answers at once; past this the process is replaced and the thread resumes on the next message.
+const INTERRUPT_TIMEOUT = "5 seconds"
 
 export function withProviderIdleTimeout<A, E, R>(stream: Stream.Stream<A, E, R>) {
   return stream.pipe(

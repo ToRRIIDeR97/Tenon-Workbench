@@ -3,7 +3,6 @@ import { Effect } from "effect"
 import { handleCodexRequest, turnGate, type StreamInput } from "../src/harness"
 import { handleRequest, type PermissionRequest } from "../src/harness/acp"
 import type { PermissionV2 } from "../src/permission"
-import type { QuestionV2 } from "../src/question"
 import { SessionID } from "@tenon/schema/session-id"
 
 const sessionID = SessionID.make("ses_permission_source")
@@ -25,12 +24,32 @@ describe("harness approvals", () => {
         { method: "item/commandExecution/requestApproval", params: { itemId: "item_7", command: "ls" } },
         input,
         permissions,
-        {} as QuestionV2.Interface,
+        () => Effect.succeed(undefined),
         turnGate().guard,
       ),
     )
     expect(result).toEqual({ decision: "accept" })
     expect(asserted[0]?.source).toEqual({ type: "tool", messageID: "msg_1", callID: "item_7" })
+  })
+
+  test("ask a Codex question through the withdrawable asker, and answer nothing once it is withdrawn", async () => {
+    const asked: unknown[] = []
+    const request = (answers: ReadonlyArray<ReadonlyArray<string>> | undefined) =>
+      Effect.runPromise<unknown, unknown>(
+        handleCodexRequest(
+          {
+            method: "item/tool/requestUserInput",
+            params: { questions: [{ id: "q1", header: "Pick", question: "Which?", options: [{ label: "A" }] }] },
+          },
+          { sessionID, directory: "/work", request: {} as StreamInput["request"] },
+          {} as PermissionV2.Interface,
+          (prompts) => Effect.sync(() => asked.push(...prompts)).pipe(Effect.as(answers)),
+          turnGate().guard,
+        ),
+      )
+    expect(await request([["A"]])).toEqual({ answers: { q1: { answers: ["A"] } } })
+    expect(await request(undefined)).toEqual({ answers: { q1: { answers: [] } } })
+    expect(asked[0]).toMatchObject({ header: "Pick", question: "Which?" })
   })
 
   test("pass the ACP toolCallId with the permission request", async () => {

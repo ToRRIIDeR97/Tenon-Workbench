@@ -13,15 +13,23 @@ export interface ServerRequest extends Notification {
 export class ProtocolError extends Error {
   readonly code?: number
   readonly data?: unknown
+  /** The peer didn't answer in time, so the process may be wedged: callers replace it rather than reuse it. */
+  readonly timedOut?: boolean
 
   constructor(
     message: string,
-    options?: { readonly code?: number; readonly data?: unknown; readonly cause?: unknown },
+    options?: {
+      readonly code?: number
+      readonly data?: unknown
+      readonly cause?: unknown
+      readonly timedOut?: boolean
+    },
   ) {
     super(message, options?.cause === undefined ? undefined : { cause: options.cause })
     this.name = "CodexProtocolError"
     this.code = options?.code
     this.data = options?.data
+    this.timedOut = options?.timedOut
   }
 }
 
@@ -46,6 +54,62 @@ export interface Connection {
   readonly stdin: Sink.Sink<void, Uint8Array, never, PlatformError>
 }
 
+const STDERR_TAIL = 8_192
+const STDERR_SHOWN = 300
+
+/**
+ * Reads a CLI's stderr so it can't block, keeping only its end in memory. The result is the rest of the "exited"
+ * sentence for `make`'s `exit`, such as ` (code 1): bad flag`. It ends up in the thread and the stored session
+ * error, so it is one capped, redacted line; the tail itself is never logged.
+ */
+export const watchExit = Effect.fn("CodexAppServer.watchExit")(function* (handle: {
+  readonly stderr: Stream.Stream<Uint8Array, PlatformError>
+  readonly exitCode: Effect.Effect<number, PlatformError>
+}) {
+  const state = { tail: "" }
+  yield* handle.stderr.pipe(
+    Stream.decodeText,
+    Stream.runForEach((text) =>
+      Effect.sync(() => {
+        state.tail = `${state.tail}${text}`.slice(-STDERR_TAIL)
+      }),
+    ),
+    Effect.ignore,
+    Effect.forkScoped,
+  )
+  // The output closes a moment before the process reports its exit code.
+  return handle.exitCode.pipe(
+    Effect.timeout("1 second"),
+    Effect.option,
+    Effect.map((code) => exitDetail(Option.getOrUndefined(code), state.tail)),
+  )
+})
+
+function exitDetail(code: number | undefined, stderr: string) {
+  const line = stderr
+    .replace(/\u001b\[[0-9;]*[A-Za-z]/g, "")
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .findLast(Boolean)
+  const status = code === undefined ? "" : ` (code ${code})`
+  return line ? `${status}: ${redact(line).slice(0, STDERR_SHOWN)}` : `${status}.`
+}
+
+const SECRETS = [
+  /\b(?:bearer|basic)\s+\S+/gi,
+  /\b([\w-]*(?:api[_-]?key|token|secret|password)[\w-]*["']?\s*[=:]\s*)\S+/gi,
+  /\b(?:sk|pk|rk|gh[pousr]|xox[a-z])[-_][\w-]{8,}/g,
+  /\beyJ[\w-]+\.[\w-]+\.[\w-]*/g,
+  /\b[A-Za-z0-9_-]{32,}\b/g,
+]
+
+function redact(line: string) {
+  return SECRETS.reduce(
+    (text, secret) => text.replace(secret, (_, key) => `${typeof key === "string" ? key : ""}[redacted]`),
+    line,
+  )
+}
+
 type Pending = {
   readonly method: string
   readonly deferred: Deferred.Deferred<unknown, ProtocolError>
@@ -60,6 +124,8 @@ export const make = Effect.fn("CodexAppServer.make")(function* (input: {
   // Peers such as ACP agents require the JSON-RPC 2.0 envelope; Codex app-server omits it.
   readonly jsonrpc?: boolean
   readonly label?: string
+  // Finishes the "exited" sentence once the process's output ends; see `watchExit`.
+  readonly exit?: Effect.Effect<string>
   // Receives notifications in wire order before any later response resolves. Replaces `notifications`.
   readonly onNotification?: (notification: Notification) => Effect.Effect<void>
 }) {
@@ -158,7 +224,10 @@ export const make = Effect.fn("CodexAppServer.make")(function* (input: {
   const handleLine = (line: string) => {
     if (!line.trim()) return Effect.void
     const value = Option.getOrUndefined(decode(line))
-    return value === undefined ? Effect.fail(new ProtocolError(`${label} emitted invalid JSON.`)) : route(value)
+    // A CLI can print a banner or an update notice to stdout; one such line must not end a healthy process.
+    return value === undefined
+      ? Effect.logWarning(`${label} printed a line that isn't JSON`, { length: line.length })
+      : route(value)
   }
 
   yield* Stream.fromQueue(outgoing).pipe(
@@ -178,7 +247,10 @@ export const make = Effect.fn("CodexAppServer.make")(function* (input: {
     ),
     Effect.matchEffect({
       onFailure: fail,
-      onSuccess: () => fail(new ProtocolError(`${label} exited.`)),
+      onSuccess: () =>
+        (input.exit ?? Effect.succeed(".")).pipe(
+          Effect.flatMap((detail) => fail(new ProtocolError(`${label} exited${detail}`))),
+        ),
     }),
     Effect.forkScoped,
   )
@@ -212,6 +284,7 @@ export const make = Effect.fn("CodexAppServer.make")(function* (input: {
             Effect.fail(
               new ProtocolError(
                 `${label} did not answer ${method} within ${Duration.format(Duration.fromInputUnsafe(timeout))}.`,
+                { timedOut: true },
               ),
             ),
         }),

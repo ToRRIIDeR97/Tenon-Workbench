@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { Effect, Fiber, Option, Queue, Sink, Stream } from "effect"
-import { make } from "../src/harness/codex-app-server"
+import { make, watchExit } from "../src/harness/codex-app-server"
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -43,6 +43,33 @@ describe("Codex app-server client", () => {
             id: "approval_1",
             result: { decision: "accept" },
           })
+        }),
+      ),
+    )
+  })
+
+  test("skips a stray stdout line, and says why the process ended without showing a secret", async () => {
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const exit = yield* watchExit({
+            stderr: Stream.make(encoder.encode("starting\n\u001b[31mfatal: bad flag, token=abc123\u001b[0m\n\n")),
+            exitCode: Effect.sleep("5 millis").pipe(Effect.as(1)),
+          })
+          const client = yield* make({
+            connection: {
+              stdout: Stream.make(
+                encoder.encode("A new version is available\n"),
+                encoder.encode(`${JSON.stringify({ method: "turn/started" })}\n`),
+              ),
+              stdin: Sink.drain,
+            },
+            exit,
+          })
+          const notification = yield* Stream.runHead(client.notifications)
+          expect(Option.getOrUndefined(notification)).toMatchObject({ method: "turn/started" })
+          const error = yield* client.request("model/list").pipe(Effect.flip)
+          expect(error.message).toBe("Codex app-server exited (code 1): fatal: bad flag, token=[redacted]")
         }),
       ),
     )

@@ -45,6 +45,8 @@ export interface Asker {
    * turn asking the same questions asks afresh.
    */
   readonly endTurn: Effect.Effect<void>
+  /** True while a question waits on the user. */
+  readonly pending: () => boolean
 }
 
 interface Open {
@@ -112,7 +114,7 @@ export const make = Effect.fn("HarnessAskUser.make")(function* (
     state.open = undefined
     return withdraw(open)
   })
-  return { ask, endTurn } satisfies Asker
+  return { ask, endTurn, pending: () => !!state.open && !state.open.settled } satisfies Asker
 })
 
 /** The tool result the agent reads, in the native `question` tool's wording when answered. */

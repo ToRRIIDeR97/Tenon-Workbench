@@ -1,10 +1,16 @@
 import { describe, expect, test } from "bun:test"
-import { LLM, Message, Model, ToolCallPart, ToolResultPart } from "@tenon/llm"
+import { Effect, Fiber, Scope, Stream } from "effect"
+import { LLM, LLMEvent, Message, Model, ToolCallPart, ToolResultPart } from "@tenon/llm"
 import { route } from "@tenon/llm/protocols/openai-chat"
 import { Harness } from "@tenon/schema/harness"
+import { SessionID } from "@tenon/schema/session-id"
 import {
+  codexInputItems,
   codexState,
+  codexStream,
   continuationFor,
+  lowestEffort,
+  onTurnSuccess,
   parseCodexNotification,
   renderCodexInstructions,
   renderCodexPrompt,
@@ -12,6 +18,8 @@ import {
   renderHarnessPrompt,
 } from "@tenon/core/harness"
 import { ChatDisplay } from "@tenon/core/chat-display"
+import { AcpHarness } from "@tenon/core/harness/acp"
+import { ProtocolError } from "@tenon/core/harness/codex-app-server"
 import { Token } from "@tenon/core/util/token"
 
 describe("Codex harness", () => {
@@ -51,6 +59,113 @@ describe("Codex harness", () => {
     expect(started({ id: "reasoning_1", type: "reasoning" })).toEqual([])
     expect(started({ id: "tool_1", type: "commandExecution", command: "ls" })).toEqual(["tool-call"])
     expect(started({ id: "tool_1", type: "commandExecution", command: "ls" })).toEqual([])
+  })
+
+  test("gives up on an unanswered interrupt so Stop can't hang, and replaces the process", async () => {
+    const steps: string[] = []
+    const client = {
+      request: (method: string, _params?: unknown, timeout?: unknown) => {
+        if (method === "turn/start") return Effect.succeed({ turn: { id: "turn_1" } })
+        return timeout === undefined ? Effect.never : Effect.fail(new ProtocolError("no answer", { timedOut: true }))
+      },
+      notify: () => Effect.void,
+      notifications: Stream.never,
+      closed: Effect.succeed(false),
+    }
+    const runtime = {
+      client,
+      scope: Scope.makeUnsafe(),
+      threadID: "thread_1",
+      name: "Codex",
+      askUser: false,
+      handoff: "none" as const,
+      beginTurn: () => {},
+      waiting: () => false,
+      endTurn: Effect.sync(() => void steps.push("end turn")),
+    }
+    const fiber = Effect.runFork(
+      Stream.runDrain(
+        codexStream(
+          Effect.succeed(runtime),
+          {
+            sessionID: SessionID.make("ses_stop"),
+            directory: "/work",
+            request: LLM.request({ model, messages: [user("u1", "Go")] }),
+          },
+          () => Effect.sync(() => void steps.push("discard")),
+        ),
+      ),
+    )
+    await Bun.sleep(20)
+    await Effect.runPromise(Fiber.interrupt(fiber))
+    expect(steps).toEqual(["discard", "end turn"])
+  })
+
+  test("keeps long items open for the silence check, and records a retry without failing", () => {
+    const state = codexState()
+    const item = { id: "tool_1", type: "commandExecution", command: "bun test" }
+    parseCodexNotification({ method: "item/started", params: { item } }, state)
+    parseCodexNotification({ method: "item/started", params: { item: { id: "m1", type: "agentMessage" } } }, state)
+    expect([...state.openItems]).toEqual(["tool_1"])
+    parseCodexNotification({ method: "item/completed", params: { item } }, state)
+    expect(state.openItems.size).toBe(0)
+    const retry = { method: "error", params: { willRetry: true, error: { message: "Reconnecting 2/5" } } }
+    expect(parseCodexNotification(retry, state)).toEqual([])
+    expect(state).toMatchObject({ retry: "Reconnecting 2/5", failed: false })
+  })
+
+  test("says where to sign in when Codex reports it is unauthorized", () => {
+    const events = parseCodexNotification(
+      { method: "error", params: { error: { message: "401", codexErrorInfo: "unauthorized" } } },
+      codexState(),
+    )
+    expect(events[0]).toMatchObject({ message: expect.stringContaining("Settings → Harnesses") })
+  })
+
+  test("reads a local image as a path on Windows and macOS", () => {
+    const image = (data: string, windows: boolean) =>
+      codexInputItems("Look", [{ mediaType: "image/png", data }], windows).slice(1)
+    expect(image("file:///D:/My%20Shots/a.png", true)).toEqual([{ type: "localImage", path: "D:\\My Shots\\a.png" }])
+    expect(image("file://server/share/a.png", true)).toEqual([{ type: "localImage", path: "\\\\server\\share\\a.png" }])
+    expect(image("file:///Users/me/My%20Shots/a.png", false)).toEqual([
+      { type: "localImage", path: "/Users/me/My Shots/a.png" },
+    ])
+    expect(image("file:///a%zz.png", false)).toEqual([])
+  })
+
+  test("picks the lowest listed effort for a one-off prompt", () => {
+    expect(lowestEffort(["high", "low", "medium"])).toBe("low")
+    expect(lowestEffort(["turbo"])).toBeUndefined()
+  })
+
+  test("restores what a turn consumed only when it failed before any output", async () => {
+    const failure = [LLMEvent.providerError({ message: "refused" }), LLMEvent.finish({ reason: "error" })]
+    const run = async (events: ReadonlyArray<LLMEvent>) => {
+      const ran: string[] = []
+      await Effect.runPromise(
+        Stream.runDrain(
+          onTurnSuccess(
+            Stream.fromIterable(events),
+            Effect.sync(() => void ran.push("seen")),
+            Effect.sync(() => void ran.push("restore")),
+          ),
+        ),
+      )
+      return ran
+    }
+    expect(await run(failure)).toEqual(["restore"])
+    expect(await run([LLMEvent.textDelta({ id: "t", text: "Hi" }), ...failure])).toEqual([])
+    expect(await run([LLMEvent.finish({ reason: "stop" })])).toEqual(["seen"])
+  })
+
+  test("names the fix for a CLI that can't start, and leaves other failures as they are", () => {
+    const failed = (_tag: "NotFound" | "PermissionDenied" | "Unknown") =>
+      AcpHarness.startError("codex", { reason: { _tag } } as Parameters<typeof AcpHarness.startError>[1]).message
+    expect(failed("NotFound")).toContain("isn't installed")
+    expect(failed("PermissionDenied")).toContain("isn't allowed")
+    expect(failed("Unknown")).toBe("Could not start codex.")
+    expect(AcpHarness.turnError(new ProtocolError("nope", { code: -32000 }))).toContain("isn't signed in")
+    expect(AcpHarness.turnError(new Error("Disk full"))).toBe("Disk full")
   })
 
   test("normalizes turn usage and completes the stream", () => {

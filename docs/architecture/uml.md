@@ -200,6 +200,11 @@ JSON-RPC protocol (`thread/start` or `thread/resume`, `turn/start`,
 `turn/interrupt`) instead of ACP. Its approvals come from
 `item/*/requestApproval` requests.
 
+A stopped ACP turn leaves its `session/prompt` open in the runtime's scope; the
+next turn waits for that answer before it clears the queue and prompts again
+(not drawn in the diagram). See the harness section of the
+[architecture document](README.md) for the turn deadlines.
+
 Before `session/prompt` (not drawn in the diagram), the ACP driver switches the
 model and then the reasoning effort (`thought_level` option) when they differ
 from the session's, through `session/set_model` or `session/set_config_option`.
