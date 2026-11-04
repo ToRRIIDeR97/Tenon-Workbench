@@ -35,6 +35,7 @@ type PluralKey =
   | "session.followupDock.summary"
   | "session.revertDock.summary"
   | "secondBrain.sessionTab.messages"
+  | "secondBrain.sidebar.cardRunning"
   | "secondBrain.turnSteps.failed"
   | "secondBrain.turnSteps.laneSteps"
   | "secondBrain.vault.moved"

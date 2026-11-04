@@ -181,7 +181,25 @@ threads outside any Project folder, and groups them with
 `features/second-brain/sidebar-threads.ts` into Projects (the deepest Project
 folder holding the thread) and General (the rest of the workspace folder).
 Threads outside the selected workspace and its Project folders are left out.
-The active Project is derived from the route's thread or draft directory. The
+`features/second-brain/sidebar-grouping.ts` (pure) turns those groups into the
+cards of the **Group by** switch, which is saved with the rest of the sidebar's
+window state (`grouping` in the `sidebar` key; an unknown value reads as
+Project). Project mode has a card per Project and one for General. Attention
+has Needs you, Running and Other threads, and Recent has Today, Yesterday and
+Earlier by local calendar day; both leave out empty cards and list what the
+groups already hold, newest first. A thread's state comes from
+`agentRunStatus` (`session_status` and `permission`), with retrying counted as
+running, and a root takes the most urgent state in its subtree. The
+recent-session index keeps only roots, so a collapsed Project's roots have no
+child nodes. The index therefore also keeps child-to-parent links, read from
+the same session list and updated by the same session events, and
+`linkedStates` carries each working child's state up through them with no
+per-directory request. Home's root list doesn't use the links. A card shows its
+marks and, while `summary.running` is above zero, the top line
+(`.sidebar-card-line`, animated with `transform` only and still under reduced
+motion). The view keys cards by ID and rows by thread node, because card objects
+are rebuilt on every status change. Previous and next thread walk the open cards
+in order. The active Project is derived from the route's thread or draft directory. The
 header is the workspace dropdown (`layout.home.selection`, resolved by
 `layout.home.workspace` to the selected or first open folder). Home, Notes,
 Calendar and Projects read `layout.home.workspace` and have no picker of their

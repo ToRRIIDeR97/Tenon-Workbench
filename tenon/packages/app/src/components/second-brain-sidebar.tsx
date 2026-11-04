@@ -1,11 +1,12 @@
 import { THREAD_DRAG_PREFIX } from "@/utils/thread-reference"
 import type { Session } from "@opencode-ai/sdk/v2/client"
 import { useNavigate } from "@solidjs/router"
-import { createSignal, For, Show } from "solid-js"
+import { createSignal, For, Match, Show, splitProps, Switch, type ComponentProps } from "solid-js"
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { MenuV2 } from "@tenon/ui/v2/menu-v2"
 import { createReveal, Reveal } from "@tenon/ui/v2/reveal"
+import { SegmentedControlItemV2, SegmentedControlV2 } from "@tenon/ui/v2/segmented-control-v2"
 import { PathTooltip, TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { useDialog } from "@tenon/ui/context/dialog"
 import { formatKeybind } from "@/context/command"
@@ -23,6 +24,7 @@ import { DialogArchivedThreads } from "@/components/sidebar/dialog-archived-thre
 import { DialogInstructions } from "@/components/sidebar/dialog-instructions"
 import { DialogAddProject, DialogRemoveProject } from "@/components/sidebar/dialog-project-folder"
 import { useServer } from "@/context/server"
+import { parseGrouping, type CardSummary, type ThreadState } from "@/features/second-brain/sidebar-grouping"
 import type { ThreadNode } from "@/features/second-brain/sidebar-threads"
 import { createFreshItems } from "@/utils/fresh-items"
 import { sessionPinnedAt } from "@/utils/session"
@@ -32,6 +34,15 @@ import { sessionTitle } from "@/utils/session-title"
 // main button (a direct child) has focus.
 const rowClass =
   "group/row relative grid h-9 w-full min-w-0 shrink-0 cursor-default items-center overflow-hidden rounded-full bg-transparent text-left text-[13px] text-v2-text-text-muted [font-weight:400] transition-[background-color,color,border-radius] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base active:rounded-[12px] data-[selected]:bg-v2-background-bg-accent-container data-[selected]:text-v2-text-text-on-accent-container data-[selected]:[font-weight:530] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus has-[>button:focus-visible]:outline has-[>button:focus-visible]:outline-2 has-[>button:focus-visible]:-outline-offset-2 has-[>button:focus-visible]:outline-v2-border-border-focus motion-reduce:transition-none"
+
+const groupedCardLabel = {
+  "attention:needs": "secondBrain.sidebar.needsYou",
+  "attention:running": "secondBrain.sidebar.running",
+  "attention:other": "secondBrain.sidebar.otherThreads",
+  "recent:today": "secondBrain.sidebar.today",
+  "recent:yesterday": "secondBrain.sidebar.yesterday",
+  "recent:earlier": "secondBrain.sidebar.earlier",
+} as const
 
 export function SecondBrainSidebar() {
   const language = useLanguage()
@@ -128,38 +139,42 @@ export function SecondBrainSidebar() {
                 <MissingFolder ctrl={ctrl} directory={ctrl.brainDirectory()!} />
               </Show>
               <Show when={ctrl.folderMissing(ctrl.brainDirectory()!) !== true}>
-                {/* Keyed by the Project, not its group: a group is rebuilt on every thread change. */}
-                <For each={ctrl.projects()}>
-                  {(project) => (
-                    <ProjectGroup ctrl={ctrl} project={project} threads={ctrl.projectThreads().get(project.id) ?? []} />
-                  )}
-                </For>
-                <Show when={ctrl.failed()}>
-                  <div class="flex items-center gap-1 px-3 py-1">
-                    <p role="alert" class="min-w-0 flex-1 text-[12px] text-v2-text-text-critical">
-                      {language.t("common.requestFailed")}
-                    </p>
-                    <button
-                      type="button"
-                      class="shrink-0 rounded-full px-2 py-0.5 text-[12px] text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base motion-reduce:transition-none"
-                      onClick={ctrl.retryProjects}
-                    >
-                      {language.t("secondBrain.error.retry")}
-                    </button>
-                  </div>
-                </Show>
-                <Show when={!ctrl.loading() && !ctrl.failed() && ctrl.projects().length === 0}>
-                  <p class="px-3 py-1 text-[12px] text-v2-text-text-faint">
-                    {language.t("secondBrain.sidebar.noProjectFolders")}
-                  </p>
-                </Show>
-                <ThreadGroup
-                  ctrl={ctrl}
-                  id={BRAIN_GROUP}
-                  label={language.t("secondBrain.sidebar.workspaceThreads")}
-                  threads={ctrl.groups().workspace}
-                  onNewThread={ctrl.newBrainThread}
-                />
+                <GroupBySwitch ctrl={ctrl} />
+                <div class="flex flex-col gap-2">
+                  <Show
+                    when={ctrl.grouping() === "project"}
+                    fallback={
+                      <>
+                        <ProjectsFailed ctrl={ctrl} />
+                        <GroupedCards ctrl={ctrl} />
+                      </>
+                    }
+                  >
+                    {/* Keyed by the Project, not its group: a group is rebuilt on every thread change. */}
+                    <For each={ctrl.projects()}>
+                      {(project) => (
+                        <ProjectGroup
+                          ctrl={ctrl}
+                          project={project}
+                          threads={ctrl.projectThreads().get(project.id) ?? []}
+                        />
+                      )}
+                    </For>
+                    <ProjectsFailed ctrl={ctrl} />
+                    <Show when={!ctrl.loading() && !ctrl.failed() && ctrl.projects().length === 0}>
+                      <p class="px-3 py-1 text-[12px] text-v2-text-text-faint">
+                        {language.t("secondBrain.sidebar.noProjectFolders")}
+                      </p>
+                    </Show>
+                    <ThreadGroup
+                      ctrl={ctrl}
+                      id={BRAIN_GROUP}
+                      label={language.t("secondBrain.sidebar.workspaceThreads")}
+                      threads={ctrl.groups().workspace}
+                      onNewThread={ctrl.newBrainThread}
+                    />
+                  </Show>
+                </div>
               </Show>
             </Show>
           </div>
@@ -353,6 +368,153 @@ function WorkspaceHeader(props: { ctrl: SidebarController }) {
   )
 }
 
+function ProjectsFailed(props: { ctrl: SidebarController }) {
+  const language = useLanguage()
+  return (
+    <Show when={props.ctrl.failed()}>
+      <div class="flex items-center gap-1 px-3 py-1">
+        <p role="alert" class="min-w-0 flex-1 text-[12px] text-v2-text-text-critical">
+          {language.t("common.requestFailed")}
+        </p>
+        <button
+          type="button"
+          class="shrink-0 rounded-full px-2 py-0.5 text-[12px] text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base motion-reduce:transition-none"
+          onClick={props.ctrl.retryProjects}
+        >
+          {language.t("secondBrain.error.retry")}
+        </button>
+      </div>
+    </Show>
+  )
+}
+
+function GroupBySwitch(props: { ctrl: SidebarController }) {
+  const language = useLanguage()
+  return (
+    <SegmentedControlV2
+      class="segmented-control-v2--full-width mb-2 shrink-0"
+      aria-label={language.t("secondBrain.sidebar.groupBy")}
+      value={props.ctrl.grouping()}
+      onChange={(value) => props.ctrl.setGrouping(parseGrouping(value))}
+    >
+      <SegmentedControlItemV2 value="project">
+        {language.t("secondBrain.sidebar.groupByProject")}
+      </SegmentedControlItemV2>
+      <SegmentedControlItemV2 value="attention">
+        {language.t("secondBrain.sidebar.groupByAttention")}
+      </SegmentedControlItemV2>
+      <SegmentedControlItemV2 value="recent">{language.t("secondBrain.sidebar.groupByRecent")}</SegmentedControlItemV2>
+    </SegmentedControlV2>
+  )
+}
+
+/** One mark for rows and card headers. Shape carries the state, so colour is never the only signal. */
+function ThreadStatusMark(props: { state: ThreadState }) {
+  const language = useLanguage()
+  return (
+    <Switch>
+      <Match when={props.state === "approval"}>
+        <span
+          data-sidebar-status="approval"
+          class="flex shrink-0 items-center text-v2-state-fg-warning"
+          role="img"
+          aria-label={language.t("secondBrain.activity.run.approval")}
+        >
+          <Icon name="warning" size="small" />
+        </span>
+      </Match>
+      <Match when={props.state === "running"}>
+        <span
+          data-sidebar-status="running"
+          class="size-2 shrink-0 rounded-full bg-v2-icon-icon-accent"
+          role="img"
+          aria-label={language.t("secondBrain.sidebar.running")}
+        />
+      </Match>
+    </Switch>
+  )
+}
+
+function CardMarks(props: { summary?: CardSummary }) {
+  return (
+    <>
+      <Show when={props.summary?.approvals}>
+        <ThreadStatusMark state="approval" />
+      </Show>
+      <Show when={props.summary?.running}>
+        <ThreadStatusMark state="running" />
+      </Show>
+    </>
+  )
+}
+
+/** The rounded surface every group of threads sits on. It clips the top line to its corners. */
+function SidebarCard(props: ComponentProps<"div"> & { cardID: string; label: string; summary?: CardSummary }) {
+  const language = useLanguage()
+  const [local, rest] = splitProps(props, ["cardID", "label", "summary", "children"])
+  const running = () => local.summary?.running ?? 0
+  return (
+    <div
+      {...rest}
+      data-sidebar-card={local.cardID}
+      role="group"
+      aria-label={
+        running() > 0
+          ? language.plural("secondBrain.sidebar.cardRunning", running(), { name: local.label, count: running() })
+          : local.label
+      }
+      class="relative flex shrink-0 flex-col overflow-hidden rounded-[16px] bg-v2-background-bg-layer-01 p-1"
+    >
+      <Show when={running() > 0}>
+        <span aria-hidden="true" class="sidebar-card-line" />
+      </Show>
+      {local.children}
+    </div>
+  )
+}
+
+/** Attention and Recent. Keyed by card ID: cards are rebuilt on every status change, and their rows must stay. */
+function GroupedCards(props: { ctrl: SidebarController }) {
+  const language = useLanguage()
+  return (
+    <For
+      each={props.ctrl.cards().map((card) => card.id)}
+      fallback={
+        <p class="px-3 py-1 text-[12px] text-v2-text-text-faint">{language.t("secondBrain.sidebar.noThreads")}</p>
+      }
+    >
+      {(id) => <GroupedCard ctrl={props.ctrl} id={id as keyof typeof groupedCardLabel} />}
+    </For>
+  )
+}
+
+function GroupedCard(props: { ctrl: SidebarController; id: keyof typeof groupedCardLabel }) {
+  const language = useLanguage()
+  const card = () => props.ctrl.card(props.id)
+  const open = () => props.ctrl.expanded(props.id)
+  const label = () => language.t(groupedCardLabel[props.id])
+  return (
+    <SidebarCard cardID={props.id} label={label()} summary={card()?.summary}>
+      <div class={`${rowClass} grid-cols-[1fr]`}>
+        <button
+          type="button"
+          class="flex h-9 min-w-0 items-center gap-1.5 pl-3 pr-3 text-left focus-visible:outline-none"
+          aria-expanded={open()}
+          onClick={() => props.ctrl.toggleExpanded(props.id)}
+        >
+          <Chevron open={open()} />
+          <span class="min-w-0 flex-1 truncate [font-weight:600]">{label()}</span>
+          <CardMarks summary={card()?.summary} />
+          <span class="shrink-0 text-[12px] text-v2-text-text-faint">{card()?.summary.total ?? 0}</span>
+        </button>
+      </div>
+      <Reveal open={open()}>
+        <ThreadList ctrl={props.ctrl} threads={card()?.threads ?? []} />
+      </Reveal>
+    </SidebarCard>
+  )
+}
+
 function Chevron(props: { open: boolean }) {
   return (
     <span
@@ -368,8 +530,14 @@ function ProjectGroup(props: { ctrl: SidebarController; project: SidebarProjectI
   const language = useLanguage()
   const dialog = useDialog()
   const open = () => props.ctrl.expanded(props.project.id)
+  const summary = () => props.ctrl.card(props.project.id)?.summary
   return (
-    <div data-sidebar-project={props.project.id} class="flex flex-col">
+    <SidebarCard
+      data-sidebar-project={props.project.id}
+      cardID={props.project.id}
+      label={props.project.name}
+      summary={summary()}
+    >
       <div
         class={`${rowClass} grid-cols-[1fr_auto]`}
         data-selected={props.ctrl.activeProjectID() === props.project.id && !open() ? "" : undefined}
@@ -382,11 +550,12 @@ function ProjectGroup(props: { ctrl: SidebarController; project: SidebarProjectI
         >
           <Chevron open={open()} />
           <span
-            class="min-w-0 truncate"
+            class="min-w-0 flex-1 truncate [font-weight:600]"
             classList={{ "text-v2-text-text-base": props.ctrl.activeProjectID() === props.project.id }}
           >
             {props.project.name}
           </span>
+          <CardMarks summary={summary()} />
         </button>
         <div class="flex items-center gap-0.5 pr-0.5 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 motion-reduce:transition-none">
           <TooltipV2 placement="right" value={language.t("secondBrain.sidebar.newThread")}>
@@ -452,7 +621,7 @@ function ProjectGroup(props: { ctrl: SidebarController; project: SidebarProjectI
       <Reveal open={open()}>
         <ThreadList ctrl={props.ctrl} threads={props.threads} onNewThread={() => props.ctrl.newThread(props.project)} />
       </Reveal>
-    </div>
+    </SidebarCard>
   )
 }
 
@@ -465,8 +634,9 @@ function ThreadGroup(props: {
 }) {
   const language = useLanguage()
   const open = () => props.ctrl.expanded(props.id)
+  const summary = () => props.ctrl.card(props.id)?.summary
   return (
-    <div data-sidebar-group={props.id} class="mt-2 flex flex-col">
+    <SidebarCard data-sidebar-group={props.id} cardID={props.id} label={props.label} summary={summary()}>
       <div class={`${rowClass} grid-cols-[1fr_auto]`}>
         <button
           type="button"
@@ -475,7 +645,8 @@ function ThreadGroup(props: {
           onClick={() => props.ctrl.toggleExpanded(props.id)}
         >
           <Chevron open={open()} />
-          <span class="min-w-0 truncate">{props.label}</span>
+          <span class="min-w-0 flex-1 truncate [font-weight:600]">{props.label}</span>
+          <CardMarks summary={summary()} />
         </button>
         <Show when={props.onNewThread}>
           {(run) => (
@@ -497,7 +668,7 @@ function ThreadGroup(props: {
       <Reveal open={open()}>
         <ThreadList ctrl={props.ctrl} threads={props.threads} onNewThread={props.onNewThread} />
       </Reveal>
-    </div>
+    </SidebarCard>
   )
 }
 
@@ -615,14 +786,7 @@ function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; 
                   <Icon name="pin" size="small" />
                 </span>
               </Show>
-              <Show when={props.ctrl.working(session().id)}>
-                <span
-                  data-sidebar-running
-                  class="size-2 shrink-0 rounded-full bg-v2-icon-icon-accent running-pulse"
-                  role="status"
-                  aria-label={language.t("secondBrain.sidebar.running")}
-                />
-              </Show>
+              <ThreadStatusMark state={props.ctrl.subtreeState(props.node)} />
             </button>
           }
         >

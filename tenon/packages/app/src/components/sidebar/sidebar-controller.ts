@@ -272,8 +272,9 @@ export function createSidebarController() {
     isLinked(project) ? unlinkProject(project) : archiveProject(project)
 
   // Per-directory thread lists, kept live by session.created/updated/deleted events. Only expanded
-  // groups render their threads, so collapsed Projects skip the list request and their per-directory
-  // stores; the recent-thread index below still covers their root threads.
+  // Projects load a list, whatever the Group by mode, so collapsed ones skip the request and their
+  // per-directory stores. The recent-thread index below still covers their root threads, and its
+  // parent links carry their child threads' state up to those roots.
   const directories = createMemo(() => {
     const brain = brainDirectory()
     const all = [
@@ -443,6 +444,8 @@ export function createSidebarController() {
     const id = activeProjectID() ?? state.current
     return projects().find((project) => project.id === id)
   })
+
+  const cardByID = createMemo(() => new Map(cards().map((card) => [card.id, card] as const)))
 
   const expanded = (id: string) => state.expanded[id] ?? isGroupingCard(id)
   const toggleExpanded = (id: string) => setState("expanded", id, !expanded(id))
@@ -867,6 +870,7 @@ export function createSidebarController() {
     projects,
     groups,
     cards,
+    card: (id: string) => cardByID().get(id),
     grouping,
     setGrouping: (value: ThreadGrouping) => setState("grouping", value),
     stateOf,
@@ -880,7 +884,6 @@ export function createSidebarController() {
     activeProjectID,
     expanded,
     toggleExpanded,
-    working: (sessionID: string) => serverSync().session.data.session_working(sessionID),
     openThread,
     newThread,
     newBrainThread,
