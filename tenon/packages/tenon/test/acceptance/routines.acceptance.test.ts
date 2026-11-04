@@ -163,7 +163,7 @@ describe("Routines", () => {
 
   it.instance("an interrupted run is marked failed at scheduler start and runs again", () =>
     Effect.gen(function* () {
-      const { headers, write } = yield* setup
+      const { write } = yield* setup
       yield* write("Slow", { schedule: "daily 08:00" })
       yield* Routines.runDue({ now: local(2026, 11, 2, 7, 0), run: () => Effect.die("not due") })
       const started = yield* Deferred.make<void>()
@@ -173,10 +173,8 @@ describe("Routines", () => {
         run: () => Deferred.succeed(started, undefined).pipe(Effect.andThen(Effect.never)),
       }).pipe(Effect.forkChild)
       yield* Deferred.await(started)
-      const list = () =>
-        request("/second-brain/routines", { headers }).pipe(
-          Effect.flatMap(json<{ lastRun: string | null; lastStatus: string | null }[]>),
-        )
+      // Read at the run's own time: from today's clock this run would be past its limit.
+      const list = () => Routines.list(local(2026, 11, 2, 8, 6))
       expect((yield* list())[0]).toMatchObject({ lastRun: null, lastStatus: "running" })
       yield* Fiber.interrupt(fiber)
       yield* Routines.recoverInterrupted
@@ -290,6 +288,9 @@ describe("Routines", () => {
       yield* Deferred.await(started)
       yield* Fiber.interrupt(fiber)
       const run = () => Effect.succeed({ threadId: "ses_next", text: "Done" })
+      const statusAt = (now: Date) => Routines.list(now).pipe(Effect.map((items) => items[0]?.lastStatus))
+      expect(yield* statusAt(local(2026, 11, 2, 9, 0))).toBe("running")
+      expect(yield* statusAt(local(2026, 11, 2, 11, 0))).toBe("failed")
       expect((yield* Routines.runDue({ now: local(2026, 11, 2, 9, 0), run })).ran).toEqual([])
       expect((yield* Routines.runDue({ now: local(2026, 11, 2, 11, 0), run })).ran).toHaveLength(1)
     }),

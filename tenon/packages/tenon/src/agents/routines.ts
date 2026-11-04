@@ -198,7 +198,7 @@ function safeNextRun(schedule: string, after: Date) {
 type State = {
   /** Schedule baseline: when the routine was first seen, or last enabled or disabled. */
   firstSeen?: number
-  /** The start of the last finished run (done or failed). */
+  /** The start of the last finished run, however it ended. */
   lastRun?: number
   lastStatus?: "running" | "done" | "failed" | "unfiled"
   /** The start of the run in flight. */
@@ -254,17 +254,19 @@ const updateState = (key: string, change: (current: State) => State) =>
 const timeoutOf = (routine: Routine) => (routine.timeout ?? defaultTimeout) * 60_000
 
 /**
- * Mark a run started when `due` holds on the current state; false when it doesn't or one is in flight. A run
- * past `limit` is a run that never ended (its timeout should have ended it), so it no longer blocks a new one.
+ * A run past its limit never ended (its timeout should have ended it), so it no longer counts as in flight.
  * The extra minute lets a timeout that is firing right now record its own result first.
  */
+const inFlight = (state: State, limit: number, now: Date) =>
+  state.lastStatus === "running" && now.getTime() - (state.startedAt ?? 0) <= limit + 60_000
+
+/** Mark a run started when `due` holds on the current state; false when it doesn't or one is in flight. */
 const claim = (key: string, now: Date, limit: number, due: (current: State) => boolean) =>
   stateLock.withPermits(1)(
     Effect.gen(function* () {
       const state = yield* readState
       const current = state.routines[key] ?? {}
-      const inFlight = current.lastStatus === "running" && now.getTime() - (current.startedAt ?? 0) <= limit + 60_000
-      if (inFlight || !due(current)) return false
+      if (inFlight(current, limit, now) || !due(current)) return false
       state.routines[key] = { ...current, startedAt: now.getTime(), lastStatus: "running" }
       yield* writeState(state)
       return true
@@ -347,7 +349,11 @@ const describe = (routine: Routine, state: State, now: Date): Info => {
     enabled: routine.enabled,
     nextRun: next ? next.toISOString() : null,
     lastRun: state.lastRun === undefined ? null : new Date(state.lastRun).toISOString(),
-    lastStatus: state.lastStatus ?? null,
+    // A run that never ended reads as failed, so Run now is offered again.
+    lastStatus:
+      state.lastStatus === "running" && !inFlight(state, timeoutOf(routine), now)
+        ? "failed"
+        : (state.lastStatus ?? null),
     unsupported: [
       routine.harness && routine.harness !== "opencode" ? "harness" : undefined,
       routine.tools ? "tools" : undefined,

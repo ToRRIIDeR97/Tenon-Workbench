@@ -576,7 +576,8 @@ Past 1 MB the Inbox's entries move to `Inbox/<YYYY-MM>.md` (`-2`, `-3` when a
 month fills more than one). A reply that still can't be filed stays in its
 thread and the routine's status is `unfiled`. A run past its timeout is
 interrupted, its thread cancelled and its status `failed`; one left `running`
-past that limit no longer blocks a new run. When each routine last ran is
+past that limit no longer blocks a new run and
+lists as `failed`. When each routine last ran is
 machine-local state in `routines-state.json` in the server data folder, never
 in the vault, and it is rewritten only when something changed.
 
