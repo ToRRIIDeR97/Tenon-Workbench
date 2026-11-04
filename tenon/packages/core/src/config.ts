@@ -231,6 +231,11 @@ const layer = Layer.effect(
     })
 
     const globalDirectory = AbsolutePath.make(global.config)
+    // A folder with no repository walks up past the home folder, and `~/.tenon` is the user's own.
+    const userDirectories = new Set<string>([
+      global.config,
+      ...ConfigNames.directories.map((name) => path.join(global.home, name)),
+    ])
     const locationIsGlobal = path.resolve(location.directory) === path.resolve(global.config)
     // Read configuration once when this location opens. Later calls reuse these
     // values until the location is reopened.
@@ -257,8 +262,8 @@ const layer = Layer.effect(
       Effect.orDie,
       Effect.map((configs) => configs.filter((config): config is Document => config !== undefined)),
     )
-    const supplementary = yield* Effect.forEach(directories, (directory, index) =>
-      loadDirectory(directory, index > 0),
+    const supplementary = yield* Effect.forEach(directories, (directory) =>
+      loadDirectory(directory, !userDirectories.has(directory)),
     ).pipe(Effect.orDie)
     // Apply general settings first and more specific settings last:
     // global config, project files, then `.tenon` (or legacy `.opencode`) files.

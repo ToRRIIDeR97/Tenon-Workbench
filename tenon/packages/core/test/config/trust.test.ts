@@ -35,6 +35,8 @@ describe("ConfigTrust", () => {
     expect(ConfigTrust.loosens("read", "*.env", "allow")).toBe(true)
     expect(ConfigTrust.loosens("read", "src/*", "allow")).toBe(true)
     expect(ConfigTrust.loosens("read", "*v", "allow")).toBe(true)
+    expect(ConfigTrust.loosens("read", "deep/er/.e?v", "allow")).toBe(true)
+    expect(ConfigTrust.loosens("read", "*.production", "allow")).toBe(true)
   })
 
   test("keeps rules that don't", () => {

@@ -47,7 +47,7 @@ function mergeConfig(target: Info, source: Info): Info {
 
 // A folder's own config can't turn on auto-sharing or choose the share server.
 function withoutSharing(config: Info): Info {
-  const { share: _share, enterprise: _enterprise, ...rest } = config
+  const { share: _share, autoshare: _autoshare, enterprise: _enterprise, ...rest } = config
   return rest
 }
 
@@ -241,23 +241,31 @@ const layer = Layer.effect(
 
     const loadConfig = Effect.fnUntraced(function* (
       text: string,
-      options: { path: string; untrusted?: boolean } | { dir: string; source: string },
+      options: { path: string; untrusted?: () => void } | { dir: string; source: string },
       env?: Record<string, string>,
     ) {
       const source = "path" in options ? options.path : options.source
-      const untrusted = "path" in options && options.untrusted
-      const expanded = untrusted
-        ? text
-        : yield* Effect.promise(() =>
-            ConfigVariable.substitute(
-              "path" in options
-                ? { text, type: "path", path: options.path, env }
-                : { text, type: "virtual", ...options, env },
-            ),
-          )
-      const parsed = ConfigParse.jsonc(expanded, source)
-      const data = ConfigParse.schema(ConfigV1.Info, normalizeLoadedConfig(parsed), source)
-      if (!("path" in options) || untrusted) return data
+      const decode = (input: string) =>
+        ConfigParse.schema(ConfigV1.Info, normalizeLoadedConfig(ConfigParse.jsonc(input, source)), source)
+      if ("path" in options && options.untrusted) {
+        if (!/\{(env|file):/.test(text)) return decode(text)
+        options.untrusted()
+        // A value such as a number may be valid only once its variable expands. An error here would
+        // fail the folder before the app could ask, so the file waits for approval instead.
+        return yield* Effect.try({ try: () => decode(text), catch: (cause) => cause }).pipe(
+          Effect.orElseSucceed(() => ({}) as Info),
+        )
+      }
+      const data = decode(
+        yield* Effect.promise(() =>
+          ConfigVariable.substitute(
+            "path" in options
+              ? { text, type: "path", path: options.path, env }
+              : { text, type: "virtual", ...options, env },
+          ),
+        ),
+      )
+      if (!("path" in options)) return data
 
       yield* Effect.promise(() => resolveLoadedPlugins(data, options.path))
       if (!data.$schema) {
@@ -268,7 +276,11 @@ const layer = Layer.effect(
       return data
     })
 
-    const loadFile = Effect.fnUntraced(function* (filepath: string, env?: Record<string, string>, untrusted = false) {
+    const loadFile = Effect.fnUntraced(function* (
+      filepath: string,
+      env?: Record<string, string>,
+      untrusted?: () => void,
+    ) {
       yield* Effect.logInfo("loading", { path: filepath })
       const text = yield* readConfigFile(filepath)
       if (!text) return {} as Info
@@ -359,10 +371,9 @@ const layer = Layer.effect(
         // Until the folder is approved nothing in its config runs or reads a secret, and nothing is written back.
         const loadProject = Effect.fnUntraced(function* (filepath: string) {
           const trusted = ConfigTrust.covers(approved, filepath)
-          const loaded = yield* loadFile(filepath, authEnv, !trusted)
+          const loaded = yield* loadFile(filepath, authEnv, trusted ? undefined : () => withheld.add("variables"))
           const limited = ConfigTrust.projectV1(withoutSharing(loaded), trusted)
           limited.withheld.forEach((key) => withheld.add(key))
-          if (!trusted && /\{(env|file):/.test(JSON.stringify(loaded))) withheld.add("variables")
           return limited.config
         })
 

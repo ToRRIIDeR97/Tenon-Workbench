@@ -733,15 +733,20 @@ it.instance("handles command configuration", () =>
 )
 
 it.instance("migrates autoshare to share field", () =>
+  withGlobalConfig({ config: { autoshare: true } }, () =>
+    Effect.gen(function* () {
+      const config = yield* Config.use.get()
+      expect(config.share).toBe("auto")
+      expect(config.autoshare).toBe(true)
+    }),
+  ),
+)
+
+it.instance("ignores autoshare in a project's own config", () =>
   Effect.gen(function* () {
     const test = yield* TestInstance
-    yield* writeConfigEffect(test.directory, {
-      $schema: "https://opencode.ai/config.json",
-      autoshare: true,
-    })
-    const config = yield* Config.use.get()
-    expect(config.share).toBe("auto")
-    expect(config.autoshare).toBe(true)
+    yield* writeConfigEffect(test.directory, { autoshare: true })
+    expect((yield* Config.use.get()).share).toBeUndefined()
   }),
 )
 
@@ -2145,6 +2150,18 @@ it.instance("keeps an unapproved folder's config off until it is approved", () =
       expect(ConfigTrust.parse(yield* FSUtil.use.readFileString(ConfigTrust.file(Global.Path.data)))).toEqual([
         test.directory,
       ])
+    }),
+  ),
+)
+
+it.instance("still asks about a folder whose config only decodes once its variables expand", () =>
+  unapproved(
+    Effect.gen(function* () {
+      const test = yield* TestInstance
+      yield* writeConfigEffect(test.directory, { model: "test/model", subagent_depth: "{env:DEPTH}" })
+
+      expect((yield* Config.use.get()).model).toBeUndefined()
+      expect(yield* Config.use.trust()).toMatchObject({ trusted: false, withheld: ["variables"] })
     }),
   ),
 )

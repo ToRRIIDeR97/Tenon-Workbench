@@ -1202,12 +1202,16 @@ folder stays unapproved. Until a folder is approved:
   `references` and `skills` are dropped, and `instructions` entries that are
   absolute, home-relative or climb with `..` are dropped.
 - `{env:}` and `{file:}` stay as literal text, so a config can't put a secret
-  in a URL or header.
+  in a URL or header. A file that only decodes once its variables expand, such
+  as one with a number supplied by `{env:}`, is skipped until approval, so its
+  error can't stop the app from asking.
 - Nothing is written into the folder: no `$schema` line, `.gitignore` or
   dependency install.
 
-Other keys, such as `model`, and markdown agents and commands still apply. When
-something was withheld, `GET /config/trust` names it and the app asks once per
+Other keys, such as `model`, `experimental.policies` (provider access only, and
+user rules override it), and markdown agents and commands still apply. The
+user's own `~/.tenon` and `~/.opencode` are never project folders, even when a
+folder with no repository walks up past them. When something was withheld, `GET /config/trust` names it and the app asks once per
 run. Approving reloads the instance, which reopens the location too.
 
 Approval doesn't lift every limit. In any folder, a project permission entry
@@ -1215,7 +1219,7 @@ that allows `external_directory`, or allows reads that could reach a `.env`
 file, is refused (`ConfigTrust.loosens`). That covers wildcard keys such as
 `"*": "allow"`, the legacy `tools` map, per-agent `permission` blocks and
 markdown agents. A `read` allow pattern is refused if it ends in a wildcard,
-names `env`, or matches a sample `.env` path, so a repository that sets
+names `env`, or its last segment matches a sample `.env` name, so a repository that sets
 `"*": "deny"` can't reopen all reads from its own config. Deny and ask entries
 stay, and user config isn't limited.
 
@@ -1230,8 +1234,9 @@ before `PATH` on Windows, so `git rev-parse` in a folder holding `git.cmd` would
 run that file on open. `resolveWin32` in `core/src/util/which.ts` walks absolute
 `PATH` entries and `PATHEXT` only, and `spawnTarget` applies it to bare names
 at `core/src/cross-spawn-spawner.ts`, `tenon/src/util/process.ts` and MCP
-`connectLocal`, whose SDK transport has its own `cross-spawn`. With no match the
-spawn fails with ENOENT; it never falls back to the bare name. A checked-in tool
+`connectLocal`, whose SDK transport has its own `cross-spawn`. App execution
+aliases in `WindowsApps` count as matches, though `stat` refuses them. With no
+match the spawn fails with ENOENT; it never falls back to the bare name. A checked-in tool
 needs an explicit path such as `./tool.cmd`. macOS needs none of this: its
 spawn doesn't search the working directory.
 
