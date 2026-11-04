@@ -133,6 +133,7 @@ export function createDictation(input: {
       // The recording never began (no microphone, access denied): the next stop() reports why.
       recordingError = error
       status = "idle"
+      clearTimeout(limitTimer)
       armIdle()
       return failures.forEach((listener) => listener(error))
     }
