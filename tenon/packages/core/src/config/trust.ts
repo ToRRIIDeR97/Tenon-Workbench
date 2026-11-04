@@ -36,7 +36,7 @@ export const root = (directory: string, worktree: string) => (worktree === "/" ?
 export const add = (approved: readonly string[], folder: string) =>
   JSON.stringify([...new Set([...approved, folder])], null, 2)
 
-const ENV_FILES = [".env", ".env.local", ".env.development", ".env.production"]
+const ENV_FILES = [".env", ".env.local", ".env.development", ".env.production", ".env.staging", ".env.test"]
 
 /** Whether one project permission rule would widen `external_directory` or reads of `.env` files. */
 export function loosens(action: string, resource: string, effect: string) {
@@ -44,7 +44,7 @@ export function loosens(action: string, resource: string, effect: string) {
   if (Wildcard.match("external_directory", action)) return true
   if (!Wildcard.match("read", action)) return false
   // A pattern that ends in a wildcard or names env could reach a `.env` file wherever it is.
-  const name = resource.split(/[\/]/).at(-1) ?? ""
+  const name = resource.split(/[\\/]/).at(-1) ?? ""
   return /env/i.test(resource) || /[*?]$/.test(resource) || ENV_FILES.some((file) => Wildcard.match(file, name))
 }
 

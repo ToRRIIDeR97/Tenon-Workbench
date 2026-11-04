@@ -33,6 +33,7 @@ describe("ConfigTrust", () => {
     expect(ConfigTrust.loosens("*", "*", "allow")).toBe(true)
     expect(ConfigTrust.loosens("read", "*", "allow")).toBe(true)
     expect(ConfigTrust.loosens("read", "*.env", "allow")).toBe(true)
+    expect(ConfigTrust.loosens("read", "src\\.e*v", "allow")).toBe(true)
     expect(ConfigTrust.loosens("read", "src/*", "allow")).toBe(true)
     expect(ConfigTrust.loosens("read", "*v", "allow")).toBe(true)
     expect(ConfigTrust.loosens("read", "deep/er/.e?v", "allow")).toBe(true)
