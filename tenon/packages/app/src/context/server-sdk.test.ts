@@ -7,6 +7,7 @@ import {
   enqueueServerEvent,
   reconnectDelay,
   resumeStreamAfterPageShow,
+  type QueuedServerEvent,
 } from "./server-sdk"
 import type { OpenCodeEvent } from "@opencode-ai/client/promise"
 import type { Event } from "@opencode-ai/sdk/v2/client"
@@ -192,6 +193,56 @@ describe("coalesceServerEvents", () => {
     const result = coalesceServerEvents([first, other, last])
 
     expect(result.map((event) => event.payload.id)).toEqual(["1", "2", "3"])
+  })
+
+  describe("deltas from sessions that stream together", () => {
+    const text = (sessionID: string, value: string, messageID = "msg") => ({
+      directory: "/repo",
+      payload: adaptServerEvent({
+        id: `evt_${sessionID}_${value}`,
+        created: 1,
+        type: "session.text.delta",
+        location: { directory: "/repo" },
+        data: { sessionID, assistantMessageID: messageID, ordinal: 0, delta: value },
+      } as OpenCodeEvent),
+    })
+    const status = (sessionID?: string) => ({
+      directory: "/repo",
+      payload: { type: "session.status", properties: { sessionID, status: { type: "idle" } } } as unknown as Event,
+    })
+    const summary = (events: { payload: Event }[]) =>
+      events.map((event) => (event.payload.properties as { delta?: string }).delta ?? event.payload.type)
+
+    const cases: { name: string; events: QueuedServerEvent[]; expected: string[] }[] = [
+      {
+        name: "merge across each other",
+        events: [text("a", "1"), text("b", "2"), text("a", "3"), text("b", "4")],
+        expected: ["13", "24"],
+      },
+      {
+        name: "stop at the session's own event",
+        events: [text("a", "1"), status("a"), text("a", "2")],
+        expected: ["1", "session.status", "2"],
+      },
+      {
+        name: "pass another session's event",
+        events: [text("a", "1"), status("b"), text("a", "2")],
+        expected: ["12", "session.status"],
+      },
+      {
+        name: "stop at an event with no session",
+        events: [text("a", "1"), status(), text("a", "2")],
+        expected: ["1", "session.status", "2"],
+      },
+      {
+        name: "stay in order within a session",
+        events: [text("a", "1"), text("a", "2", "other"), text("a", "3")],
+        expected: ["1", "2", "3"],
+      },
+    ]
+    for (const { name, events, expected } of cases) {
+      test(name, () => expect(summary(coalesceServerEvents(events))).toEqual(expected))
+    }
   })
 })
 
