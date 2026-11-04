@@ -52,6 +52,9 @@ const allowlist = [
   "LANG",
   "LC_ALL",
   "TMPDIR",
+  // Windows keeps the temp folder here; without them Node falls back to the machine-shared %SystemRoot%\temp.
+  "TEMP",
+  "TMP",
   "TERM",
   "XDG_CONFIG_HOME",
   "XDG_DATA_HOME",
@@ -60,11 +63,19 @@ const allowlist = [
   "APPDATA",
   "LOCALAPPDATA",
   "PROGRAMFILES",
+  "ProgramFiles(x86)",
+  "ProgramW6432",
+  "ProgramData",
   "SystemRoot",
+  "WINDIR",
   "SystemDrive",
   "COMSPEC",
   "PATHEXT",
   "USERPROFILE",
+  "HOMEDRIVE",
+  "HOMEPATH",
+  "PROCESSOR_ARCHITECTURE",
+  "NUMBER_OF_PROCESSORS",
 ]
 
 export function harnessEnvironment(

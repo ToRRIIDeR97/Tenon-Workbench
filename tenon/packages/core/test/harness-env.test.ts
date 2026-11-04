@@ -29,6 +29,22 @@ describe("harnessEnvironment", () => {
     expect(env).toEqual({ PATH: "/usr/bin", LANG: "en_US.UTF-8", ACME_KEY: "configured" })
   })
 
+  test("passes Windows folders and machine facts, which are not secrets", () => {
+    const windows = {
+      TEMP: "C:\\Users\\me\\Temp",
+      TMP: "C:\\Users\\me\\Temp",
+      HOMEDRIVE: "C:",
+      HOMEPATH: "\\Users\\me",
+      ProgramData: "C:\\ProgramData",
+      "ProgramFiles(x86)": "C:\\Program Files (x86)",
+      ProgramW6432: "C:\\Program Files",
+      PROCESSOR_ARCHITECTURE: "AMD64",
+      NUMBER_OF_PROCESSORS: "8",
+      WINDIR: "C:\\Windows",
+    }
+    expect(harnessEnvironment({}, { ...windows, SECRET: "x" })).toEqual(windows)
+  })
+
   test("passes the user name keychain-backed sign-ins look up", () => {
     const env = harnessEnvironment({}, { PATH: "/usr/bin", USER: "me", LOGNAME: "me", USERNAME: "me", SECRET: "x" })
     expect(env).toEqual({ PATH: "/usr/bin", USER: "me", LOGNAME: "me", USERNAME: "me" })
