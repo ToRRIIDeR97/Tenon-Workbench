@@ -508,7 +508,7 @@ function GroupedCard(props: { ctrl: SidebarController; id: keyof typeof groupedC
           <span class="shrink-0 text-[12px] text-v2-text-text-faint">{card()?.summary.total ?? 0}</span>
         </button>
       </div>
-      <Reveal open={open()}>
+      <Reveal open={open()} variant="even">
         <ThreadList ctrl={props.ctrl} threads={card()?.threads ?? []} />
       </Reveal>
     </SidebarCard>
@@ -518,7 +518,7 @@ function GroupedCard(props: { ctrl: SidebarController; id: keyof typeof groupedC
 function Chevron(props: { open: boolean }) {
   return (
     <span
-      class="flex size-4 items-center justify-center text-v2-icon-icon-muted transition-transform duration-short ease-standard motion-reduce:transition-none"
+      class="flex size-4 items-center justify-center text-v2-icon-icon-muted transition-transform duration-medium ease-standard motion-reduce:transition-none"
       classList={{ "-rotate-90": !props.open }}
     >
       <Icon name="chevron-down" size="small" />
@@ -621,7 +621,7 @@ function ProjectGroup(props: { ctrl: SidebarController; project: SidebarProjectI
           </MenuV2>
         </div>
       </div>
-      <Reveal open={open()}>
+      <Reveal open={open()} variant="even">
         <ThreadList ctrl={props.ctrl} threads={props.threads} onNewThread={() => props.ctrl.newThread(props.project)} />
       </Reveal>
     </SidebarCard>
@@ -670,7 +670,7 @@ function ThreadGroup(props: {
           )}
         </Show>
       </div>
-      <Reveal open={open()}>
+      <Reveal open={open()} variant="even">
         <ThreadList ctrl={props.ctrl} threads={props.threads} onNewThread={props.onNewThread} />
       </Reveal>
     </SidebarCard>

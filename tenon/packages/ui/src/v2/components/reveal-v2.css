@@ -56,6 +56,13 @@
   }
 }
 
+/* Variant even (a folder opened and closed by hand): medium + ease-standard both ways. */
+[data-component="reveal-v2"][data-variant="even"],
+[data-component="reveal-v2"][data-variant="even"][data-phase="opening"] {
+  transition-duration: var(--v2-duration-medium);
+  transition-timing-function: var(--v2-ease-standard);
+}
+
 /* Variant inline (an item in a row): the same timing as line, through grid columns instead of rows. */
 [data-component="reveal-v2"][data-variant="inline"] {
   grid-template-rows: none;
