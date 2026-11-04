@@ -453,6 +453,30 @@ describe("MessageV2.parts", () => {
   )
 })
 
+describe("MessageV2.fromMessage", () => {
+  it.instance("stops at the page holding the message and keeps the order", () =>
+    withSession(({ sessionID }) =>
+      Effect.gen(function* () {
+        const ids = yield* fill(sessionID, 120)
+
+        const result = yield* MessageV2.fromMessage({ sessionID, messageID: ids[60] })
+        expect(result.map((item) => item.info.id)).toEqual(ids.slice(20))
+      }),
+    ),
+  )
+
+  it.instance("keeps a skewed message dated before the target when both share a page", () =>
+    withSession(({ sessionID }) =>
+      Effect.gen(function* () {
+        const ids = yield* fill(sessionID, 2, (i: number) => 1_000 - i)
+
+        const result = yield* MessageV2.fromMessage({ sessionID, messageID: ids[0] })
+        expect(result.map((item) => item.info.id)).toEqual([ids[1], ids[0]])
+      }),
+    ),
+  )
+})
+
 describe("MessageV2.get", () => {
   it.instance("returns message with hydrated parts", () =>
     withSession(({ sessionID }) =>

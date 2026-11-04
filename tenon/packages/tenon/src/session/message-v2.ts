@@ -489,6 +489,21 @@ export function stream(sessionID: SessionID) {
   })
 }
 
+// Page newest-first and stop at the page holding messageID. Returns everything from that message on, oldest first,
+// plus whatever older messages share its page.
+export const fromMessage = Effect.fnUntraced(function* (input: { sessionID: SessionID; messageID: MessageID }) {
+  const result = [] as WithParts[]
+  let before: string | undefined
+  while (true) {
+    const next = yield* page({ sessionID: input.sessionID, limit: 50, before })
+    result.unshift(...next.items)
+    if (next.items.some((item) => item.info.id === input.messageID)) break
+    if (!next.more || !next.cursor) break
+    before = next.cursor
+  }
+  return result
+})
+
 export function parts(messageID: MessageID) {
   return Effect.gen(function* () {
     const { db } = yield* Database.Service

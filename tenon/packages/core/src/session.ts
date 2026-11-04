@@ -641,7 +641,7 @@ function legacyThreadItems(db: Database.Interface["db"], sessionID: SessionSchem
     .select({ messageID: MessageTable.id, message: MessageTable.data, part: PartTable.data })
     .from(PartTable)
     .innerJoin(MessageTable, eq(PartTable.message_id, MessageTable.id))
-    .where(eq(PartTable.session_id, sessionID))
+    .where(eq(MessageTable.session_id, sessionID))
     .orderBy(asc(MessageTable.time_created), asc(PartTable.id))
     .all()
     .pipe(
