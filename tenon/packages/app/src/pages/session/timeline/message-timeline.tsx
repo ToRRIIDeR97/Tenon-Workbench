@@ -1523,7 +1523,7 @@ export function MessageTimeline(props: {
                             </MenuV2.Item>
                             <MenuV2.Separator />
                             <MenuV2.Item
-                              class="[--menu-v2-fg:var(--v2-text-text-critical)]"
+                              critical
                               onSelect={() => dialog.show(() => <DialogDeleteSession sessionID={id} />)}
                             >
                               {language.t("common.delete")}...

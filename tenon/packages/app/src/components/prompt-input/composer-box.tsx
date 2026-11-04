@@ -61,7 +61,7 @@ export function ComposerBox(props: {
       class={props.class}
       classList={{
         "flex min-w-0 overflow-hidden bg-v2-background-bg-base transition-shadow duration-short ease-standard motion-reduce:transition-none": true,
-        "flex-col shadow-[0_0_0_1px_var(--v2-border-border-base),0_8px_24px_-12px_rgb(0_0_0/0.18)] focus-within:shadow-[0_0_0_1px_var(--v2-border-border-focus),0_8px_24px_-12px_rgb(0_0_0/0.18)]":
+        "flex-col shadow-[0_0_0_1px_var(--v2-border-border-strong),0_8px_24px_-12px_rgb(0_0_0/0.18)] focus-within:shadow-[0_0_0_1px_var(--v2-border-border-focus),0_8px_24px_-12px_rgb(0_0_0/0.18)]":
           size() !== "compact",
         "rounded-[28px]": size() === "large",
         "rounded-[20px]": size() === "medium",

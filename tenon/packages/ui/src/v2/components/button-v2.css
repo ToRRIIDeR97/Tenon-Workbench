@@ -319,7 +319,7 @@
 [data-component="button-v2"][data-variant="contrast"] {
   background-image: none;
   background-color: var(--v2-background-bg-accent);
-  color: #ffffff;
+  color: var(--v2-text-text-contrast);
   text-shadow: none;
   box-shadow: none;
 }
