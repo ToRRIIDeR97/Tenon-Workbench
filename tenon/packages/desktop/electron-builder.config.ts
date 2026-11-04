@@ -110,12 +110,13 @@ const getBase = (appId: string): Configuration => ({
   },
   extraResources: [
     ...dictationResources,
-    ...(channel === "dev"
+    // The v2 sidecar's 184 MB CLI is opt-in; see src/main/index.ts.
+    ...(channel === "dev" && process.env.TENON_BUNDLE_CLI === "1"
       ? [
           {
             from: "resources/",
             to: "",
-            filter: ["opencode-cli*"],
+            filter: ["opencode-cli", "opencode-cli.exe"],
           },
         ]
       : []),

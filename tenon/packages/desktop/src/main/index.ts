@@ -3,7 +3,7 @@ import "./legacy-env"
 import { blockBrowserOrigin, startBrowserBridge } from "./browser"
 import { registerFileViewerProtocol } from "./file-viewer"
 import { randomUUID } from "node:crypto"
-import { mkdirSync, rmSync, statSync } from "node:fs"
+import { existsSync, mkdirSync, rmSync, statSync } from "node:fs"
 import * as http from "node:http"
 import { createServer } from "node:net"
 import { homedir, tmpdir } from "node:os"
@@ -58,7 +58,7 @@ import { spawnWslSidecar } from "./wsl/sidecar"
 import { migrateUserData } from "./user-data-migration"
 import { cleanupStoreFiles } from "./store-cleanup"
 import { renameLegacyStoreFiles } from "./store-rename"
-import { startBackgroundCli } from "./background-cli"
+import { bundledCliPath, startBackgroundCli } from "./background-cli"
 import { nativeT, setNativeTranslations } from "./native-translations"
 
 // Everything imported above has finished loading here, so this is the cost of the static import graph.
@@ -78,10 +78,10 @@ const APP_IDS: Record<string, string> = {
 }
 const LEGACY_DEV_APP_ID = "ai.opencode.desktop.dev"
 const TEST_ONBOARDING = process.env.TENON_TEST_ONBOARDING === "1"
-// The opt-in v2 sidecar is upstream's `opencode-cli` background service. Only the dev channel bundles
-// that CLI, and the service is meant to outlive the app (`opencode-cli service stop` ends it).
+// The opt-in v2 sidecar is upstream's `opencode-cli` background service. Only dev-channel builds made
+// with TENON_BUNDLE_CLI=1 carry that CLI, and the service is meant to outlive the app
+// (`opencode-cli service stop` ends it).
 const SIDECAR_V2_REQUESTED = process.env.TENON_SIDECAR_V2 === "1"
-const SIDECAR_VERSION = SIDECAR_V2_REQUESTED && CHANNEL === "dev" ? "v2" : "v1"
 const jsCallStackFeature = "DocumentPolicyIncludeJSCallStacksInCrashReports"
 // Covers the sidecar's own graceful stop (6 s) before it is killed.
 const QUIT_STOP_TIMEOUT = 8_000
@@ -478,15 +478,18 @@ const main = Effect.gen(function* () {
   app.once("will-quit", () => clearInterval(updateTimer))
 
   const loadingTask = yield* Effect.gen(function* () {
-    logger.log("sidecar connection started", { version: SIDECAR_VERSION })
-    if (SIDECAR_V2_REQUESTED && SIDECAR_VERSION === "v1")
-      logger.log("v2 sidecar ignored: this channel does not bundle opencode-cli", { channel: CHANNEL })
+    const sidecarVersion = SIDECAR_V2_REQUESTED && CHANNEL === "dev" && existsSync(bundledCliPath()) ? "v2" : "v1"
+    logger.log("sidecar connection started", { version: sidecarVersion })
+    if (SIDECAR_V2_REQUESTED && sidecarVersion === "v1")
+      logger.warn("v2 sidecar requested but this build has no opencode-cli; build it with TENON_BUNDLE_CLI=1", {
+        channel: CHANNEL,
+      })
 
     const env = yield* Effect.promise(() => shellEnv)
     ensureLoopbackNoProxy()
     useEnvProxy()
 
-    if (SIDECAR_VERSION === "v2") {
+    if (sidecarVersion === "v2") {
       logger.log("spawning v2 sidecar")
       const sidecar = yield* Effect.promise(() => startBackgroundCli(logger, env?.XDG_STATE_HOME))
       yield* Deferred.succeed(serverReady, {
