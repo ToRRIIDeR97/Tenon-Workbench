@@ -365,8 +365,9 @@ type OutboxWriteKind = "create" | "update" | "delete"
  * keep editing an item that is queued or failed. The Google ID and etag stay those of the original
  * operation: a new etag would hide a conflict. A create stays a create, and a queued delete gives
  * way to an edit. Undefined means the operation can be dropped: it deletes a create that Google has
- * no record of. `reached` is true when an earlier attempt may have got there, so a create is then
- * deleted by its ID; tasks have no ID until Google assigns one and always pass false.
+ * no record of. `reached` is true when the operation began as a create that an earlier attempt may
+ * have got to Google, so it is then deleted by its ID, and an edit of that delete goes back to a
+ * create; tasks have no ID until Google assigns one and always pass false.
  */
 export function mergeQueuedWrite<T extends { providerId: string; etag?: string }>(
   queued: { kind: OutboxWriteKind; item: T; reached: boolean },
@@ -378,7 +379,10 @@ export function mergeQueuedWrite<T extends { providerId: string; etag?: string }
     providerId: queued.item.providerId,
     ...(queued.item.etag ? { etag: queued.item.etag } : {}),
   } as T
-  if (next.kind !== "delete") return { kind: queued.kind === "delete" ? ("update" as const) : queued.kind, item }
+  if (next.kind !== "delete") {
+    const restored = queued.reached ? ("create" as const) : ("update" as const)
+    return { kind: queued.kind === "delete" ? restored : queued.kind, item }
+  }
   if (queued.kind === "create" && !queued.reached) return undefined
   return { kind: "delete" as const, item }
 }

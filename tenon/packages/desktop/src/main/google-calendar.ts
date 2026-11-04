@@ -77,7 +77,7 @@ type StoredOutbox = {
   createdAt: string
   lastError?: string
   result?: GoogleCalendarProviderEvent | null
-  /** The input was edited after an attempt that may have reached Google. */
+  /** This began as a create that was attempted before an edit, so Google may have it. */
   reached?: boolean
 }
 
@@ -242,7 +242,7 @@ export function createGoogleCalendarService(): GoogleCalendarPlatform {
       } satisfies StoredOutbox)
     if (!existing) persistOutbox([...outbox, operation])
     if (existing && edited) {
-      const reached = Boolean(existing.reached) || existing.attempts > 0
+      const reached = Boolean(existing.reached) || (existing.input.kind === "create" && existing.attempts > 0)
       const merged = mergeQueuedWrite(
         { kind: existing.input.kind, item: existing.input.event, reached },
         { kind: request.kind, item: request.event },

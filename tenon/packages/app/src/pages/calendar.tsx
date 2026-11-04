@@ -805,7 +805,7 @@ export default function CalendarPage() {
     setState({ saving: true, error: "" })
     try {
       const deleting = state.googleConfirm === "delete"
-      // Saving an edit over a queued delete keeps the event, so the operation becomes an update.
+      // Saving an edit over a queued delete keeps the event; the outbox makes it a create again if it began as one.
       const operationKind: "create" | "update" | "delete" = deleting
         ? "delete"
         : state.draft.outboxKind === "delete"

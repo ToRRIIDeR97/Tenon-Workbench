@@ -421,15 +421,20 @@ describe("Google outbox", () => {
       kind: "create",
       item: expected,
     })
-    expect(mergeQueuedWrite({ kind: "update", item: queued, reached: true }, { kind: "update", item: edit })).toEqual({
+    expect(mergeQueuedWrite({ kind: "update", item: queued, reached: false }, { kind: "update", item: edit })).toEqual({
       kind: "update",
       item: expected,
     })
+    expect(mergeQueuedWrite({ kind: "delete", item: queued, reached: false }, { kind: "update", item: edit })).toEqual({
+      kind: "update",
+      item: expected,
+    })
+    // A delete that replaced a create Google may not have goes back to a create when it is edited.
     expect(mergeQueuedWrite({ kind: "delete", item: queued, reached: true }, { kind: "update", item: edit })).toEqual({
-      kind: "update",
+      kind: "create",
       item: expected,
     })
-    expect(mergeQueuedWrite({ kind: "update", item: queued, reached: true }, { kind: "delete", item: edit })).toEqual({
+    expect(mergeQueuedWrite({ kind: "update", item: queued, reached: false }, { kind: "delete", item: edit })).toEqual({
       kind: "delete",
       item: expected,
     })
