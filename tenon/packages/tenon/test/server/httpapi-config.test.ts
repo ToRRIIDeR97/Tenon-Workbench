@@ -31,6 +31,27 @@ afterEach(async () => {
 
 describe("config HttpApi", () => {
   it.live(
+    "approves the instance's folder and reloads it",
+    Effect.gen(function* () {
+      const tmp = yield* tmpdirEffect({ config: { formatter: false, lsp: false } })
+      const disposed = yield* waitDisposed(tmp.path).pipe(Effect.forkScoped({ startImmediately: true }))
+
+      const response = yield* Effect.promise(() =>
+        Promise.resolve(
+          app().request("/config/trust", {
+            method: "POST",
+            headers: { "x-opencode-directory": tmp.path },
+          }),
+        ),
+      )
+
+      expect(response.status).toBe(200)
+      expect(yield* Effect.promise(() => response.json())).toEqual({ root: tmp.path, trusted: true, withheld: [] })
+      yield* Fiber.join(disposed)
+    }),
+  )
+
+  it.live(
     "serves config update through the default server app",
     Effect.gen(function* () {
       const tmp = yield* tmpdirEffect({ config: { formatter: false, lsp: false } })

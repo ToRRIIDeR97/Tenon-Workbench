@@ -1,6 +1,7 @@
 import { Config } from "@/config/config"
 import { ConfigV1 } from "@tenon/core/v1/config/config"
 import { Provider } from "@/provider/provider"
+import { Schema } from "effect"
 import { HttpApi, HttpApiEndpoint, HttpApiError, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
 import { Authorization } from "../middleware/authorization"
 import { InstanceContextMiddleware } from "../middleware/instance-context"
@@ -8,6 +9,12 @@ import { WorkspaceRoutingMiddleware, WorkspaceRoutingQuery } from "../middleware
 import { described } from "./metadata"
 
 const root = "/config"
+
+const TrustStatus = Schema.Struct({
+  root: Schema.String,
+  trusted: Schema.Boolean,
+  withheld: Schema.Array(Schema.String),
+}).annotate({ identifier: "ConfigTrustStatus" })
 
 export const ConfigApi = HttpApi.make("config")
   .add(
@@ -43,6 +50,26 @@ export const ConfigApi = HttpApi.make("config")
             identifier: "config.providers",
             summary: "List config providers",
             description: "Get a list of all configured AI providers and their default models.",
+          }),
+        ),
+        HttpApiEndpoint.get("trust", `${root}/trust`, {
+          query: WorkspaceRoutingQuery,
+          success: described(TrustStatus, "Trust status of the folder"),
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "config.trust",
+            summary: "Get folder trust",
+            description: "Whether this folder is approved, and what its config asks for that stays off until it is.",
+          }),
+        ),
+        HttpApiEndpoint.post("approveFolder", `${root}/trust`, {
+          query: WorkspaceRoutingQuery,
+          success: described(TrustStatus, "The folder was approved"),
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "config.approveFolder",
+            summary: "Approve this folder",
+            description: "Add this folder to the trusted list and reload it, so its project config takes effect.",
           }),
         ),
       )

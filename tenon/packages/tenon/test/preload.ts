@@ -90,3 +90,8 @@ process.env["TENON_DB"] = ":memory:"
 const { initProjectors } = await import("../src/server/projectors")
 
 initProjectors()
+
+// Test folders live under the temp folder. A test of the gate itself empties this list.
+const { Global } = await import("@tenon/core/global")
+const { ConfigTrust } = await import("@tenon/core/config/trust")
+await fs.writeFile(ConfigTrust.file(Global.Path.data), JSON.stringify([await fs.realpath(os.tmpdir())]))

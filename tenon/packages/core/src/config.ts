@@ -25,6 +25,7 @@ import { ConfigPlugin } from "./config/plugin"
 import { ConfigProvider } from "./config/provider"
 import { ConfigReference } from "./config/reference"
 import { ConfigToolOutput } from "./config/tool-output"
+import { ConfigTrust } from "./config/trust"
 import { ConfigWatcher } from "./config/watcher"
 import { ConfigV1 } from "./v1/config/config"
 import { ConfigMigrateV1 } from "./v1/config/migrate"
@@ -121,6 +122,10 @@ export class Document extends Schema.Class<Document>("Config.Document")({
 export class Directory extends Schema.Class<Directory>("Config.Directory")({
   type: Schema.Literal("directory"),
   path: AbsolutePath,
+  /** A folder found by walking up from the opened folder, not the user's own config. */
+  project: Schema.Boolean.pipe(Schema.optional),
+  /** A project folder the user hasn't approved: its plugins and skills stay off. */
+  untrusted: Schema.Boolean.pipe(Schema.optional),
 }) {}
 
 export type Entry = Document | Directory
@@ -129,6 +134,37 @@ export function latest<K extends keyof Info>(entries: readonly Entry[], key: K):
   return entries
     .filter((entry): entry is Document => entry.type === "document")
     .findLast((entry) => entry.info[key] !== undefined)?.info[key]
+}
+
+const GATED = ["plugins", "mcp", "lsp", "formatter", "providers", "shell", "references", "skills"] as const
+
+/** Refuses project permission rules that widen `external_directory` or `.env` reads, even in an approved folder. */
+export function limitPermissions(info: Info) {
+  const allowed = (rules: Permission.Ruleset) =>
+    rules.filter((rule) => !ConfigTrust.loosens(rule.action, rule.resource, rule.effect))
+  return new Info({
+    ...info,
+    ...(info.permissions ? { permissions: allowed(info.permissions) } : {}),
+    ...(info.agents
+      ? {
+          agents: Object.fromEntries(
+            Object.entries(info.agents).map(([id, agent]) => [
+              id,
+              agent.permissions ? new ConfigAgent.Info({ ...agent, permissions: allowed(agent.permissions) }) : agent,
+            ]),
+          ),
+        }
+      : {}),
+  })
+}
+
+function limitProject(info: Info, trusted: boolean) {
+  const limited = limitPermissions(info)
+  if (trusted) return limited
+  return new Info({
+    ...Object.fromEntries(Object.entries(limited).filter(([key]) => !GATED.some((item) => item === key))),
+    ...(limited.instructions ? { instructions: limited.instructions.filter(ConfigTrust.localInstruction) } : {}),
+  })
 }
 
 export interface Interface {
@@ -167,12 +203,30 @@ const layer = Layer.effect(
       return new Document({ type: "document", path: filepath, info })
     })
 
-    const loadDirectory = Effect.fnUntraced(function* (directory: AbsolutePath) {
+    // Read fresh for each location: an approval reopens the location.
+    const approved = ConfigTrust.parse(
+      yield* fs.readFileStringSafe(ConfigTrust.file(global.data)).pipe(Effect.orElseSucceed(() => undefined)),
+    )
+
+    const loadProjectFile = Effect.fnUntraced(function* (filepath: string) {
+      const document = yield* loadFile(filepath)
+      if (!document) return
+      return new Document({
+        ...document,
+        info: limitProject(document.info, ConfigTrust.covers(approved, filepath)),
+      })
+    })
+
+    const loadDirectory = Effect.fnUntraced(function* (directory: AbsolutePath, project: boolean) {
       return [
-        ...(yield* Effect.forEach(names, (file) => loadFile(path.join(directory, file))).pipe(
-          Effect.map((configs) => configs.filter((config): config is Document => config !== undefined)),
-        )),
-        new Directory({ type: "directory", path: directory }),
+        ...(yield* Effect.forEach(names, (file) =>
+          (project ? loadProjectFile : loadFile)(path.join(directory, file)),
+        ).pipe(Effect.map((configs) => configs.filter((config): config is Document => config !== undefined)))),
+        new Directory({
+          type: "directory",
+          path: directory,
+          ...(project ? { project, untrusted: !ConfigTrust.covers(approved, directory) } : {}),
+        }),
       ]
     })
 
@@ -199,11 +253,13 @@ const layer = Layer.effect(
     // A config closer to the opened directory should win over one higher up.
     // Search starts nearby, so reverse the results before applying them.
     const directPaths = discovered.filter((item) => !ConfigNames.isDirectory(path.basename(item))).toReversed()
-    const direct = yield* Effect.forEach(directPaths, loadFile).pipe(
+    const direct = yield* Effect.forEach(directPaths, loadProjectFile).pipe(
       Effect.orDie,
       Effect.map((configs) => configs.filter((config): config is Document => config !== undefined)),
     )
-    const supplementary = yield* Effect.forEach(directories, loadDirectory).pipe(Effect.orDie)
+    const supplementary = yield* Effect.forEach(directories, (directory, index) =>
+      loadDirectory(directory, index > 0),
+    ).pipe(Effect.orDie)
     // Apply general settings first and more specific settings last:
     // global config, project files, then `.tenon` (or legacy `.opencode`) files.
     const configs = [...(supplementary[0] ?? []), ...direct, ...supplementary.slice(1).flat()]
