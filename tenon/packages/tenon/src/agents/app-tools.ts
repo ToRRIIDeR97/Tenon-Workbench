@@ -1009,9 +1009,7 @@ const scopeOf = Effect.fnUntraced(function* (sessionID: string) {
     ...ancestors,
     ...known.map((project) => canonicalDirectory(project.worktree)),
     ...opened.map((directory) => canonicalDirectory(directory)),
-  ].filter(
-    (directory, index, all) => all.findIndex((other) => key(other) === key(directory)) === index,
-  )
+  ].filter((directory, index, all) => all.findIndex((other) => key(other) === key(directory)) === index)
   const brains = yield* Effect.filter(candidates, (directory) =>
     Effect.promise(() => isDirectory(path.join(directory, ".tenon", "projects"))),
   )

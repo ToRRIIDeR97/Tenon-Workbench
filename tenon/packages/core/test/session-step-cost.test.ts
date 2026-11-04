@@ -17,7 +17,10 @@ describe("step cost from catalog prices", () => {
   })
 
   test("uses the largest context tier the prompt exceeds", () => {
-    const pricing = [base, { tier: { type: "context" as const, size: 200_000 }, input: 6, output: 22.5, cache: { read: 0.6, write: 7.5 } }]
+    const pricing = [
+      base,
+      { tier: { type: "context" as const, size: 200_000 }, input: 6, output: 22.5, cache: { read: 0.6, write: 7.5 } },
+    ]
     expect(pricedCost(pricing, used(100_000, 0))).toBeCloseTo(0.3)
     expect(pricedCost(pricing, used(300_000, 0))).toBeCloseTo(1.8)
   })

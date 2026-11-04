@@ -103,9 +103,9 @@ export const HarnessHandler = HttpApiBuilder.group(Api, "server.harness", (handl
       "harness.setTitleAgent",
       Effect.fn(function* (ctx) {
         const harnesses = yield* HarnessRuntime.Service
-        return yield* response(
-          harnesses.setTitleAgent(ctx.payload.id).pipe(Effect.as({ id: ctx.payload.id })),
-        ).pipe(Effect.mapError(httpError))
+        return yield* response(harnesses.setTitleAgent(ctx.payload.id).pipe(Effect.as({ id: ctx.payload.id }))).pipe(
+          Effect.mapError(httpError),
+        )
       }),
     )
     .handle(

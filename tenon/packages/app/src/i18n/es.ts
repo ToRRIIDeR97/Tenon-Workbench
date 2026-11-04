@@ -1281,8 +1281,10 @@ export const dict = {
   "secondBrain.vault.tab.log": "Registro",
   "secondBrain.vault.tab.details": "Detalles",
   "secondBrain.vault.progress": "Progreso {{percent}} % · {{done}} de {{total}} tareas hechas",
-  "secondBrain.vault.progressNext": "Progreso {{percent}} % · {{done}} de {{total}} tareas hechas · siguiente: {{title}}",
-  "secondBrain.vault.progressNextDate": "Progreso {{percent}} % · {{done}} de {{total}} tareas hechas · siguiente: {{title}}, {{date}}",
+  "secondBrain.vault.progressNext":
+    "Progreso {{percent}} % · {{done}} de {{total}} tareas hechas · siguiente: {{title}}",
+  "secondBrain.vault.progressNextDate":
+    "Progreso {{percent}} % · {{done}} de {{total}} tareas hechas · siguiente: {{title}}, {{date}}",
   "secondBrain.vault.status.todo": "Por hacer",
   "secondBrain.vault.status.doing": "En curso",
   "secondBrain.vault.status.done": "Hecho",
@@ -1323,17 +1325,20 @@ export const dict = {
   "secondBrain.vault.exists": "Ya existe una página con este nombre",
   "secondBrain.vault.unsaved": "Guarda o descarta los cambios antes de salir de esta página",
   "secondBrain.vault.conflicts.title": "La sincronización creó copias en conflicto de estas páginas",
-  "secondBrain.vault.conflicts.body": "Abre cada copia, pasa lo que necesites al original y luego elimina la copia de la carpeta de la bóveda.",
+  "secondBrain.vault.conflicts.body":
+    "Abre cada copia, pasa lo que necesites al original y luego elimina la copia de la carpeta de la bóveda.",
   "secondBrain.vault.search": "Buscar páginas",
   "secondBrain.vault.results": "Resultados de la búsqueda",
   "secondBrain.vault.noMatches": "No hay páginas que coincidan",
   "secondBrain.vault.moved.one": "Se movió {{count}} nota a la bóveda de Tenon",
   "secondBrain.vault.moved.other": "Se movieron {{count}} notas a la bóveda de Tenon",
-  "secondBrain.vault.misplaced.title": "La bóveda de Tenon no puede estar dentro de un espacio de trabajo ni de la carpeta de un proyecto",
+  "secondBrain.vault.misplaced.title":
+    "La bóveda de Tenon no puede estar dentro de un espacio de trabajo ni de la carpeta de un proyecto",
   "secondBrain.vault.misplaced.body": "Elige otra carpeta en Ajustes.",
   "secondBrain.vault.settings.title": "Bóveda de Tenon",
   "secondBrain.vault.settings.choose": "Elegir carpeta…",
-  "secondBrain.vault.settings.inside": "Esa carpeta está dentro de un espacio de trabajo o de un proyecto. Elige una carpeta fuera de tu código.",
+  "secondBrain.vault.settings.inside":
+    "Esa carpeta está dentro de un espacio de trabajo o de un proyecto. Elige una carpeta fuera de tu código.",
   "secondBrain.vault.settings.restart": "Reinicia Tenon para usar la nueva carpeta.",
   "secondBrain.vault.settings.notEmpty":
     "Esa carpeta ya contiene otros archivos. Elige una carpeta vacía o una bóveda de Tenon existente.",

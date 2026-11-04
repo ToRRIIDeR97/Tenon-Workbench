@@ -10,7 +10,7 @@
     "dev:desktop": "bun --cwd packages/desktop dev",
     "dev:web": "bun --cwd packages/app dev",
     "lint": "oxlint",
-    "format:check": "prettier --check packages/tenon/src/knowledge packages/tenon/src/planner packages/tenon/src/project/brain.ts packages/tenon/src/server/routes/instance/httpapi/handlers/second-brain.ts packages/tenon/test/knowledge packages/tenon/test/planner packages/tenon/test/project/brain.test.ts packages/app/src/features/second-brain packages/app/src/pages/calendar.tsx packages/desktop/src/main/google-calendar.ts packages/desktop/src/main/google-calendar-domain.ts packages/desktop/src/main/google-calendar-domain.test.ts packages/desktop/src/main/deep-links.ts packages/desktop/src/main/deep-links.test.ts packages/core/src/frontmatter.ts packages/core/src/workspace-instructions.ts",
+    "format:check": "prettier --check packages",
     "typecheck": "bun turbo typecheck",
     "postinstall": "bun run --cwd packages/core fix-node-pty",
     "prepare": "cd .. && husky tenon/.husky",
@@ -96,7 +96,8 @@
   "license": "MIT",
   "prettier": {
     "semi": false,
-    "printWidth": 120
+    "printWidth": 120,
+    "endOfLine": "auto"
   },
   "trustedDependencies": [
     "esbuild",

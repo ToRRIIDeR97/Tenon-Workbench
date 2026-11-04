@@ -16,7 +16,11 @@ const b64url = (text: string) => Buffer.from(text, "utf8").toString("base64url")
 function fakeFetch(routes: (call: Call) => unknown) {
   const calls: Call[] = []
   const fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    const call = { url: String(input), method: init?.method ?? "GET", body: typeof init?.body === "string" ? init.body : undefined }
+    const call = {
+      url: String(input),
+      method: init?.method ?? "GET",
+      body: typeof init?.body === "string" ? init.body : undefined,
+    }
     calls.push(call)
     return Response.json(routes(call) ?? {})
   }) as typeof globalThis.fetch
@@ -37,7 +41,13 @@ describe("Gmail", () => {
         id: "m1",
         threadId: "t1",
         snippet: "Webhook signing secret rotates",
-        payload: { headers: [{ name: "Subject", value: "Secret rotation" }, { name: "From", value: "Stripe <no-reply@stripe.com>" }, { name: "Date", value: "Mon, 2 Nov 2026 09:00:00 +0000" }] },
+        payload: {
+          headers: [
+            { name: "Subject", value: "Secret rotation" },
+            { name: "From", value: "Stripe <no-reply@stripe.com>" },
+            { name: "Date", value: "Mon, 2 Nov 2026 09:00:00 +0000" },
+          ],
+        },
       }
     if (call.url.includes("/threads/t1"))
       return {
@@ -46,7 +56,11 @@ describe("Gmail", () => {
           {
             id: "m1",
             payload: {
-              headers: [{ name: "From", value: "Stripe <no-reply@stripe.com>" }, { name: "To", value: "me@acme.dev" }, { name: "Date", value: "Mon, 2 Nov 2026 09:00:00 +0000" }],
+              headers: [
+                { name: "From", value: "Stripe <no-reply@stripe.com>" },
+                { name: "To", value: "me@acme.dev" },
+                { name: "Date", value: "Mon, 2 Nov 2026 09:00:00 +0000" },
+              ],
               mimeType: "text/html",
               body: { data: b64url("<p>Your secret <b>rotates</b> on 20 Nov.</p>") },
             },
@@ -58,12 +72,20 @@ describe("Gmail", () => {
   const provider = createGmailProvider({ fetch: gmail.fetch, accessToken: async () => "token" })
 
   test("AC-8.2 asks for read and compose scopes only", () => {
-    expect([...GMAIL_SCOPES].sort()).toEqual(["https://www.googleapis.com/auth/gmail.compose", "https://www.googleapis.com/auth/gmail.readonly"])
+    expect([...GMAIL_SCOPES].sort()).toEqual([
+      "https://www.googleapis.com/auth/gmail.compose",
+      "https://www.googleapis.com/auth/gmail.readonly",
+    ])
   })
 
   test("AC-8.3 search returns summaries", async () => {
     const results = await provider.search("secret")
-    expect(results[0]).toMatchObject({ id: "t1", subject: "Secret rotation", from: expect.stringContaining("stripe.com"), snippet: expect.stringContaining("signing secret") })
+    expect(results[0]).toMatchObject({
+      id: "t1",
+      subject: "Secret rotation",
+      from: expect.stringContaining("stripe.com"),
+      snippet: expect.stringContaining("signing secret"),
+    })
   })
 
   test("AC-8.3 threads come back as text, not HTML", async () => {
@@ -118,7 +140,11 @@ describe("Microsoft Graph", () => {
 
   test("AC-8.3 search and thread parsing", async () => {
     const results = await provider.search("invoice")
-    expect(results[0]).toMatchObject({ id: "c1", subject: "Invoice", from: expect.stringContaining("billing@vendor.com") })
+    expect(results[0]).toMatchObject({
+      id: "c1",
+      subject: "Invoice",
+      from: expect.stringContaining("billing@vendor.com"),
+    })
     const thread = await provider.readThread("c1")
     expect(thread.messages[0].text).toContain("Pay by Friday")
   })

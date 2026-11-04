@@ -256,7 +256,10 @@ test("an archived Project restores from the Archived fold and its Pages open", a
   await page.getByRole("button", { name: "Restore Project", exact: true }).click()
   await expect(page.getByRole("button", { name: "Pause Project", exact: true })).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath("project-pages.png"), fullPage: true })
-  await page.getByRole("region", { name: "Pages" }).getByRole("link", { name: /Beta Updated/ }).click()
+  await page
+    .getByRole("region", { name: "Pages" })
+    .getByRole("link", { name: /Beta Updated/ })
+    .click()
   await expect(page.getByRole("heading", { name: "Beta body" })).toBeVisible()
 })
 

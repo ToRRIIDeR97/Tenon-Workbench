@@ -1,13 +1,5 @@
 import { describe, expect } from "bun:test"
-import {
-  LLMClient,
-  LLMError,
-  LLMEvent,
-  Model,
-  TransportReason,
-  type LLMClientShape,
-  type LLMRequest,
-} from "@tenon/llm"
+import { LLMClient, LLMError, LLMEvent, Model, TransportReason, type LLMClientShape, type LLMRequest } from "@tenon/llm"
 import * as OpenAIChat from "@tenon/llm/protocols/openai-chat"
 import { Harness } from "@tenon/schema/harness"
 import { AgentV2 } from "@tenon/core/agent"
@@ -97,8 +89,7 @@ const otherHarnessID = Harness.InstanceID.make("other-acp")
 const harnessTitles: Array<HarnessRuntime.CompleteInput & { readonly instanceID: Harness.InstanceID }> = []
 let preferredTitleAgent: Harness.InstanceID | undefined
 const harnesses = Layer.mock(HarnessRuntime.Service, {
-  driver: (id) =>
-    id === harnessID || id === otherHarnessID ? Harness.DriverKind.make("acp") : Harness.OpenCodeDriver,
+  driver: (id) => (id === harnessID || id === otherHarnessID ? Harness.DriverKind.make("acp") : Harness.OpenCodeDriver),
   stream: () => Stream.fromIterable(turn),
   complete: (input) =>
     Effect.sync(() => {

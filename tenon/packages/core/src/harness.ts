@@ -995,8 +995,9 @@ const layer = Layer.effect(
         HarnessUsage.isCommandCode(AcpHarness.decodeSettings(instance.config)?.command)
       )
         return HarnessUsage.readCommandCodeKey().pipe(
-          Effect.flatMap((key): Effect.Effect<HarnessUsage.Result, Error> =>
-            key ? HarnessUsage.fetchCommandCodeUsage(key) : Effect.succeed({ status: "signed-out", windows: [] }),
+          Effect.flatMap(
+            (key): Effect.Effect<HarnessUsage.Result, Error> =>
+              key ? HarnessUsage.fetchCommandCodeUsage(key) : Effect.succeed({ status: "signed-out", windows: [] }),
           ),
         )
       // OpenCode Go is a plan on an OpenCode key: the built-in agent reads the app's own keys, the OpenCode
@@ -1556,9 +1557,13 @@ function codexStream(
                   const state = codexState()
                   const output = AcpHarness.stopOnSteer(
                     runtime.client.notifications.pipe(
-                      Stream.filter((notification) => notificationBelongsToTurn(notification, runtime.threadID, turnID)),
+                      Stream.filter((notification) =>
+                        notificationBelongsToTurn(notification, runtime.threadID, turnID),
+                      ),
                       Stream.takeUntil((notification) => notification.method === "turn/completed"),
-                      Stream.flatMap((notification) => Stream.fromIterable(parseCodexNotification(notification, state))),
+                      Stream.flatMap((notification) =>
+                        Stream.fromIterable(parseCodexNotification(notification, state)),
+                      ),
                     ),
                     input.steer,
                     runtime.client.request("turn/interrupt", { threadId: runtime.threadID, turnId: turnID }),

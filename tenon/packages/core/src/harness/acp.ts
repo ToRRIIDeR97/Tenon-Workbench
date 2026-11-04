@@ -92,7 +92,7 @@ export const stopOnSteer = <A, E>(
 ) =>
   steer
     ? events.pipe(
-        Stream.merge(Stream.fromEffectDrain(steer.pipe(Effect.andThen(stop), Effect.ignore)), { haltStrategy: "left" })
+        Stream.merge(Stream.fromEffectDrain(steer.pipe(Effect.andThen(stop), Effect.ignore)), { haltStrategy: "left" }),
       )
     : events
 
@@ -236,20 +236,19 @@ export const discover = (process: Process, settings: Settings, directory: string
       // its others have them (476 switches take well under a second). A switch can fail without saying anything
       // about levels (Claude Code checks some models with its server first), so a failed switch keeps the active
       // model's levels rather than none.
-      const models =
-        configId
-          ? yield* Effect.forEach(selector.models, (model) =>
-              model.isDefault
-                ? Effect.succeed(model)
-                : client
-                    .request("session/set_config_option", { sessionId: session.sessionId, configId, value: model.id })
-                    .pipe(
-                      Effect.map((response) => levels(sessionModels(response).effort)),
-                      Effect.catch(() => Effect.succeed(levels(selector.effort))),
-                      Effect.map((reasoningEfforts) => Harness.Model.make({ ...model, reasoningEfforts })),
-                    ),
-            )
-          : selector.models
+      const models = configId
+        ? yield* Effect.forEach(selector.models, (model) =>
+            model.isDefault
+              ? Effect.succeed(model)
+              : client
+                  .request("session/set_config_option", { sessionId: session.sessionId, configId, value: model.id })
+                  .pipe(
+                    Effect.map((response) => levels(sessionModels(response).effort)),
+                    Effect.catch(() => Effect.succeed(levels(selector.effort))),
+                    Effect.map((reasoningEfforts) => Harness.Model.make({ ...model, reasoningEfforts })),
+                  ),
+          )
+        : selector.models
       return { ...agentInfo(initialize), models }
     }),
   ).pipe(

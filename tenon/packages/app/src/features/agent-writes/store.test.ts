@@ -37,7 +37,9 @@ describe("agent writes", () => {
   })
 
   test("opens the written page, Project or calendar", () => {
-    expect(openHref({ kind: "note", open: { page: "Acme/Plan.md" }, preview: {} })).toBe("/projects?page=Acme%2FPlan.md")
+    expect(openHref({ kind: "note", open: { page: "Acme/Plan.md" }, preview: {} })).toBe(
+      "/projects?page=Acme%2FPlan.md",
+    )
     expect(openHref({ kind: "timeline", preview: { projectId: "project_1" } })).toBe("/projects?project=project_1")
     expect(openHref({ kind: "tasks", preview: {} })).toBe("/calendar")
     expect(openHref({ kind: "note", open: { projectId: "project_1" }, preview: {} })).toBe(

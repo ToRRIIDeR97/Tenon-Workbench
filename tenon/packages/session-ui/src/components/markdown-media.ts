@@ -38,8 +38,7 @@ export function restrictStyle(node: StyledElement) {
   if (!style || !node.hasAttribute("style")) return
   const properties = Array.from({ length: style.length }, (_, index) => style[index])
   for (const property of properties) {
-    if (!allowedStyle.test(property) || /url\(/i.test(style.getPropertyValue(property)))
-      style.removeProperty(property)
+    if (!allowedStyle.test(property) || /url\(/i.test(style.getPropertyValue(property))) style.removeProperty(property)
   }
   if (!style.length) node.removeAttribute("style")
 }

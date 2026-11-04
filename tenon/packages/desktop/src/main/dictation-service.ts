@@ -97,13 +97,11 @@ export function createDictationService() {
       active = id
       await mkdir(join(settingsFile, ".."), { recursive: true })
       await writeFile(settingsFile, JSON.stringify({ active }))
-      await dictation
-        .reload()
-        .catch((error: unknown) =>
-          writeLog("dictation", "model reload failed", {
-            code: error instanceof DictationError ? error.code : "unknown",
-          }),
-        )
+      await dictation.reload().catch((error: unknown) =>
+        writeLog("dictation", "model reload failed", {
+          code: error instanceof DictationError ? error.code : "unknown",
+        }),
+      )
     },
     download(id: unknown, onProgress: (progress: DictationDownloadProgress) => void) {
       if (!isModelID(id)) return Promise.reject(new Error("Unknown dictation model"))

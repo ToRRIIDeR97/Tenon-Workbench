@@ -25,10 +25,7 @@ import { createHomeController } from "@/pages/home/home-controller"
 import { createHomeSessionsController } from "@/pages/home/home-sessions-controller"
 import { agentRunStatus } from "@/pages/activity-runs"
 import { Harness } from "@tenon/schema/harness"
-import {
-  harnessAssistantDirectory,
-  listHarnessSetup,
-} from "@/utils/server"
+import { harnessAssistantDirectory, listHarnessSetup } from "@/utils/server"
 import { ComposerBox } from "@/components/prompt-input/composer-box"
 import { createComposerController } from "@/components/prompt-input/composer-controller"
 import { ComposerModelPill, createComposerHarness } from "@/components/prompt-input/composer-harness"

@@ -242,7 +242,10 @@ describe("vault", () => {
       expect(own).toBeDefined()
       // Another machine's log, synced in.
       yield* Effect.promise(() =>
-        writeFile(path.join(path.dirname(own!), "other-machine.md"), "- 2020-01-01T00:00:00.000Z · you · from elsewhere\n"),
+        writeFile(
+          path.join(path.dirname(own!), "other-machine.md"),
+          "- 2020-01-01T00:00:00.000Z · you · from elsewhere\n",
+        ),
       )
       yield* request(`/second-brain/vault/log?project=${project.id}`, {
         method: "POST",
@@ -331,9 +334,7 @@ describe("vault", () => {
         "Plan-LAPTOP-9F2K1-2.md",
       ])
       for (const item of conflicts) expect(path.posix.basename(item.original)).toBe("Plan.md")
-      const pages = yield* request("/second-brain/vault/pages", { headers }).pipe(
-        Effect.flatMap(json<Page["info"][]>),
-      )
+      const pages = yield* request("/second-brain/vault/pages", { headers }).pipe(Effect.flatMap(json<Page["info"][]>))
       expect(pages.map((page) => page.path).sort()).toEqual(["Desktop-setup.md", "Plan.md"])
     }),
   )

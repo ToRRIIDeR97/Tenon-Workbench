@@ -37,17 +37,17 @@ already-loaded config until then.
 
 ## Where files live
 
-| Scope                         | Path                                                                                                                      |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Scope                         | Path                                                                                                                                                               |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Project config                | `./tenon.json`, `./tenon.jsonc`, or `.tenon/tenon.json` (the older `tenon.json` and `.tenon/` names still load) (Tenon walks up from the cwd to the worktree root) |
-| Global config                 | `~/.config/tenon-workbench/tenon.json` or `~/.config/tenon-workbench/tenon.jsonc` (NOT `~/.tenon/`)                            |
-| Project agents                | `.tenon/agent/<name>.md` or `.tenon/agents/<name>.md`                                                               |
-| Global agents                 | `~/.config/tenon-workbench/agent(s)/<name>.md`                                                                                   |
-| Project commands              | `.tenon/command/<name>.md` or `.tenon/commands/<name>.md`                                                           |
-| Global commands               | `~/.config/tenon-workbench/command(s)/<name>.md`                                                                                 |
-| Project skills                | `.tenon/skill(s)/<name>/SKILL.md`                                                                                      |
-| Global skills                 | `~/.config/tenon-workbench/skill(s)/<name>/SKILL.md`                                                                             |
-| External skills (auto-loaded) | `~/.claude/skills/<name>/SKILL.md`, `~/.agents/skills/<name>/SKILL.md`                                                    |
+| Global config                 | `~/.config/tenon-workbench/tenon.json` or `~/.config/tenon-workbench/tenon.jsonc` (NOT `~/.tenon/`)                                                                |
+| Project agents                | `.tenon/agent/<name>.md` or `.tenon/agents/<name>.md`                                                                                                              |
+| Global agents                 | `~/.config/tenon-workbench/agent(s)/<name>.md`                                                                                                                     |
+| Project commands              | `.tenon/command/<name>.md` or `.tenon/commands/<name>.md`                                                                                                          |
+| Global commands               | `~/.config/tenon-workbench/command(s)/<name>.md`                                                                                                                   |
+| Project skills                | `.tenon/skill(s)/<name>/SKILL.md`                                                                                                                                  |
+| Global skills                 | `~/.config/tenon-workbench/skill(s)/<name>/SKILL.md`                                                                                                               |
+| External skills (auto-loaded) | `~/.claude/skills/<name>/SKILL.md`, `~/.agents/skills/<name>/SKILL.md`                                                                                             |
 
 Configs from each scope are deep-merged. Project overrides global. Unknown
 top-level keys in `tenon.json` are rejected with `ConfigInvalidError`.
