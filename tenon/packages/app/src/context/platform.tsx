@@ -333,6 +333,9 @@ type PlatformBase = {
 
   /** Record a fatal renderer error in platform logs (desktop only) */
   recordFatalRendererError?(error: FatalRendererErrorLog): Promise<void>
+
+  /** Log one startup milestone with its time since this page began loading, once per page (desktop only) */
+  recordStartupMilestone?(name: "first-route" | "bootstrap-settled"): void
 }
 
 export type Platform = PlatformBase &

@@ -9,7 +9,7 @@ import { app, BrowserWindow, dialog, net, nativeImage, nativeTheme, protocol, sh
 import { dirname, isAbsolute, join, relative, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import type { TitlebarTheme } from "../preload/types"
-import { exportDebugLogs, write as writeLog } from "./logging"
+import { exportDebugLogs, sinceProcessStart, write as writeLog } from "./logging"
 import { getStore, removeStoreFile, rendererStore } from "./store"
 import { PINCH_ZOOM_ENABLED_KEY, WINDOW_IDS_KEY } from "./store-keys"
 import { createUnresponsiveSampler } from "./unresponsive"
@@ -229,6 +229,7 @@ export function createMainWindow(id: string = randomUUID()) {
   wireZoom(win)
 
   win.once("ready-to-show", () => {
+    writeLog("main", "window ready to show", { sinceProcessStart: sinceProcessStart() })
     win.show()
   })
 

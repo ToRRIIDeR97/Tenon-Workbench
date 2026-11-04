@@ -25,7 +25,7 @@ import { forwardInitializationFailure } from "./initialization"
 import { createGoogleCalendarService } from "./google-calendar"
 import { createDictationService } from "./dictation-service"
 import { createMailService, startMailEndpoint } from "./mail/service"
-import { exportDebugLogs, initCrashReporter, initLogging, write as writeLog } from "./logging"
+import { exportDebugLogs, initCrashReporter, initLogging, sinceProcessStart, write as writeLog } from "./logging"
 import { createMenu } from "./menu"
 import {
   finishFirstLaunchOnboarding,
@@ -60,6 +60,9 @@ import { cleanupStoreFiles } from "./store-cleanup"
 import { renameLegacyStoreFiles } from "./store-rename"
 import { startBackgroundCli } from "./background-cli"
 import { nativeT, setNativeTranslations } from "./native-translations"
+
+// Everything imported above has finished loading here, so this is the cost of the static import graph.
+const modulesLoadedAt = Date.now()
 
 const APP_NAMES: Record<string, string> = {
   dev: "Tenon Workbench Dev",
@@ -324,6 +327,8 @@ const main = Effect.gen(function* () {
     version: app.getVersion(),
     packaged: app.isPackaged,
     onboardingTest: Boolean(onboardingTestRoot),
+    modulesLoaded: sinceProcessStart(modulesLoadedAt),
+    sinceProcessStart: sinceProcessStart(),
   })
 
   ensureLoopbackNoProxy()
@@ -457,6 +462,8 @@ const main = Effect.gen(function* () {
     setBackgroundColor: (color) => setBackgroundColor(color),
     exportDebugLogs: () => exportDebugLogs(),
     recordFatalRendererError: (error) => writeLog("renderer", "fatal renderer error", { ...error }, "error"),
+    recordStartupMilestone: (name, sinceNavigation) =>
+      writeLog("main", "startup milestone", { name, sinceNavigation, sinceProcessStart: sinceProcessStart() }),
     setNativeTranslations: (bundle) => {
       if (setNativeTranslations(bundle)) createMenu(menuDeps)
     },

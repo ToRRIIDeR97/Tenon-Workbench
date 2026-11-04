@@ -682,7 +682,12 @@ with the pill.
    starts workspace services. Server readiness precedes this work. Startup
    phase logs in `packages/tenon/src/project/bootstrap.ts` distinguish it
    from initial server launch.
-4. Notes, projects, and local calendar requests resolve the selected location
+4. The main process log records the launch timeline for each window: module
+   load and `app starting` as time since the OS created the process, then
+   `window ready to show`, the sidecar milestones, and renderer `first-route`
+   and `bootstrap-settled` marks (`record-startup-milestone` IPC, a fixed name
+   and a number, nothing from the page).
+5. Notes, projects, and local calendar requests resolve the selected location
    before reading or mutating files. Google operations use the desktop bridge.
 
 The packaged desktop disables embedded web UI fallback. The server serves only

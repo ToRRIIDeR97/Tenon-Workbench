@@ -170,6 +170,8 @@ const api: ElectronAPI = {
   exportDebugLogs: () => ipcRenderer.invoke("export-debug-logs"),
   setForceFocus: (enabled) => ipcRenderer.invoke("set-force-focus", enabled),
   recordFatalRendererError: (error) => ipcRenderer.invoke("record-fatal-renderer-error", error),
+  recordStartupMilestone: (name, sinceNavigation) =>
+    ipcRenderer.invoke("record-startup-milestone", name, sinceNavigation),
   setNativeTranslations: (bundle) => ipcRenderer.invoke("set-native-translations", bundle),
   dictation: {
     start: () => ipcRenderer.invoke("dictation-start"),

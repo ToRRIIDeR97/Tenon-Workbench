@@ -18,6 +18,12 @@ let run = ""
 let logger: MainLogger
 export const getLogger = () => logger
 
+/** Milliseconds since the OS created this process; `undefined` where Electron can't tell. */
+export function sinceProcessStart(at = Date.now()) {
+  const created = process.getCreationTime()
+  return created === null ? undefined : Math.round(at - created)
+}
+
 export function initLogging() {
   initRunDirectory()
   log.transports.file.maxSize = 5 * 1024 * 1024

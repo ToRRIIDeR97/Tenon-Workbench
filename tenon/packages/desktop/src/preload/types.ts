@@ -44,6 +44,8 @@ export type FatalRendererError = {
   os?: string
 }
 
+export type StartupMilestone = "first-route" | "bootstrap-settled"
+
 export type ElectronAPI = {
   killSidecar: () => Promise<void>
   awaitInitialization: () => Promise<ServerReadyData>
@@ -131,6 +133,7 @@ export type ElectronAPI = {
   exportDebugLogs: () => Promise<string>
   setForceFocus: (enabled: boolean) => Promise<void>
   recordFatalRendererError: (error: FatalRendererError) => Promise<void>
+  recordStartupMilestone: (name: StartupMilestone, sinceNavigation: number) => Promise<void>
   setNativeTranslations: (bundle: DesktopNativeBundle) => Promise<void>
   dictation: DictationPlatform
   mail: MailPlatform
