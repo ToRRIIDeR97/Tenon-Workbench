@@ -77,6 +77,8 @@ export interface StreamInput {
   readonly request: LLMRequest
   readonly model?: Harness.ModelSelection
   readonly revision?: number
+  /** Finishes when a steer is waiting. External harnesses end their turn early on it; the in-process loop ignores it. */
+  readonly steer?: Effect.Effect<void>
   /** Links an approval to the tool call it gates, by the call ID the harness's tool events use. */
   readonly permissionSource?: (callID: string) => Effect.Effect<PermissionV2.Source>
 }
@@ -671,6 +673,7 @@ const layer = Layer.effect(
                   media: latestMedia(input.request),
                   model: input.model?.id,
                   reasoningEffort: input.model?.reasoningEffort,
+                  steer: input.steer,
                 })
                 .pipe(
                   // However the turn ends, a question it left open in the dock has nobody waiting.
@@ -1551,10 +1554,14 @@ function codexStream(
                   const turnID = responseTurnID(response)
                   if (!turnID) return Stream.fail(new ProtocolError("Codex did not return a turn ID."))
                   const state = codexState()
-                  const output = runtime.client.notifications.pipe(
-                    Stream.filter((notification) => notificationBelongsToTurn(notification, runtime.threadID, turnID)),
-                    Stream.takeUntil((notification) => notification.method === "turn/completed"),
-                    Stream.flatMap((notification) => Stream.fromIterable(parseCodexNotification(notification, state))),
+                  const output = AcpHarness.stopOnSteer(
+                    runtime.client.notifications.pipe(
+                      Stream.filter((notification) => notificationBelongsToTurn(notification, runtime.threadID, turnID)),
+                      Stream.takeUntil((notification) => notification.method === "turn/completed"),
+                      Stream.flatMap((notification) => Stream.fromIterable(parseCodexNotification(notification, state))),
+                    ),
+                    input.steer,
+                    runtime.client.request("turn/interrupt", { threadId: runtime.threadID, turnId: turnID }),
                   )
                   const turn = Stream.concat(Stream.make(LLMEvent.stepStart({ index: 0 })), output).pipe(
                     Stream.ensuring(
