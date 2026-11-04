@@ -351,11 +351,10 @@ export const writePage = Effect.fn("KnowledgeVault.writePage")(function* (
   const files = yield* FileMutation.Service
   const relative = yield* pagePath(input)
   const project = write.projectId === undefined ? undefined : yield* ensureProjectFolder(vault, write.projectId)
-  const full =
-    project === undefined || relative.toLowerCase().startsWith(`${project.toLowerCase()}/`)
-      ? relative
-      : yield* pagePath(`${project}/${relative}`)
+  const inside = project === undefined ? relative : yield* pagePath(insideFolder(relative, project))
   const projects = yield* projectFolders(vault)
+  const full = write.create ? newPagePath(inside, projects) : inside
+  if (full === undefined) return yield* new InvalidError({ reason: "invalid_path" })
   if (!isWritablePage(full, projects)) return yield* new InvalidError({ reason: "reserved_path" })
   if (Buffer.byteLength(write.body, "utf8") > maxBytes) return yield* new InvalidError({ reason: "too_large" })
   const properties = write.properties === undefined ? undefined : validProperties(write.properties)
@@ -418,8 +417,7 @@ export const projectPagePath = Effect.fn("KnowledgeVault.projectPagePath")(funct
   const relative = yield* pagePath(input)
   const folder = yield* existingProjectFolder(vault, projectId)
   if (folder === undefined) return yield* new NotFoundError({ path: relative })
-  if (relative.toLowerCase().startsWith(`${folder.toLowerCase()}/`)) return relative
-  return yield* pagePath(`${folder}/${relative}`)
+  return yield* pagePath(insideFolder(relative, folder))
 })
 
 /** Remove a page while it still has `expectedRevision`, keeping the removed version in its history. */
@@ -905,6 +903,28 @@ export function isPagePath(value: string) {
 const pagePath = (value: string) =>
   isPagePath(value) ? Effect.succeed(value) : Effect.fail(new InvalidError({ reason: "invalid_path" }))
 
+/**
+ * `relative` inside the top-level `folder`, in the folder's spelling on disk; a path already inside it is
+ * not nested again.
+ */
+function insideFolder(relative: string, folder: string) {
+  const [top, ...rest] = relative.split("/")
+  return rest.length > 0 && foldName(top) === foldName(folder) ? [folder, ...rest].join("/") : `${folder}/${relative}`
+}
+
+/**
+ * The path a new page is created at, or undefined when refused: NFC, keeping an existing Project folder's
+ * spelling. A stem ending in a dot or space is refused because `.history/<stem>` would become a folder name
+ * Windows tools mishandle; such a page already on disk stays listed and writable.
+ */
+export function newPagePath(value: string, projects: ReadonlyMap<string, string>) {
+  const normal = value.normalize("NFC")
+  if (!isPagePath(normal) || /[. ]$/.test(normal.slice(0, -3))) return undefined
+  const [top] = normal.split("/")
+  const folder = [...projects.values()].find((item) => foldName(item) === foldName(top))
+  return folder !== undefined && normal.includes("/") ? insideFolder(normal, folder) : normal
+}
+
 /** Listed pages skip machine logs and sync conflict copies (shown by `conflicts`). */
 function isListedPage(file: string, projects: ReadonlyMap<string, string>) {
   return isPagePath(file) && isWritablePage(file, projects) && !isConflictCopy(path.posix.basename(file))
@@ -912,8 +932,15 @@ function isListedPage(file: string, projects: ReadonlyMap<string, string>) {
 
 function isWritablePage(file: string, projects: ReadonlyMap<string, string>) {
   const segments = file.split("/")
-  const folders = new Set([...projects.values()].map((folder) => folder.toLowerCase()))
-  return !(segments.length > 2 && folders.has(segments[0].toLowerCase()) && segments[1].toLowerCase() === "log")
+  const folders = new Set([...projects.values()].map(foldName))
+  return !(segments.length > 2 && folders.has(foldName(segments[0])) && segments[1].toLowerCase() === "log")
+}
+
+/** The Project whose top-level folder holds the page, matched as `isWritablePage` matches it. */
+function projectOf(relative: string, projects: ReadonlyMap<string, string>) {
+  if (!relative.includes("/")) return null
+  const top = foldName(relative.split("/")[0])
+  return [...projects].find(([, folder]) => foldName(folder) === top)?.[0] ?? null
 }
 
 type PageFile = Page & { data: Record<string, unknown>; bom: boolean }
