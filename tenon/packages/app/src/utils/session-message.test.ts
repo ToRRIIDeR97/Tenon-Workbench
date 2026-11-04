@@ -2,6 +2,55 @@ import { describe, expect, test } from "bun:test"
 import type { SessionMessageInfo } from "@opencode-ai/client/promise"
 import { isTurnStart, normalizeSessionMessages } from "./session-message"
 
+describe("normalizeSessionMessages partsFor", () => {
+  test("builds only the requested parts but still carries the turn's model to its user", () => {
+    const { messages, parts } = normalizeSessionMessages(
+      "ses_1",
+      [
+        { id: "msg_1", type: "user", text: "hi", time: { created: 1 } },
+        {
+          id: "msg_2",
+          type: "assistant",
+          agent: "build",
+          model: { id: "next", providerID: "provider" },
+          content: [{ type: "text", text: "answer" }],
+          time: { created: 2 },
+        },
+      ] as SessionMessageInfo[],
+      0,
+      new Set(["msg_2"]),
+    )
+
+    expect([...parts.keys()]).toEqual(["msg_2"])
+    expect(messages[0]).toMatchObject({ id: "msg_1", model: { modelID: "next" } })
+  })
+})
+
+describe("streaming tool input", () => {
+  const input = (raw: string) =>
+    normalizeSessionMessages("ses_1", [
+      { id: "msg_1", type: "user", text: "hi", time: { created: 1 } },
+      {
+        id: "msg_2",
+        type: "assistant",
+        agent: "build",
+        model: { id: "model", providerID: "provider" },
+        content: [
+          { type: "tool", id: "call", name: "write", state: { status: "streaming", input: raw }, time: { created: 2 } },
+        ],
+        time: { created: 2 },
+      },
+    ] as SessionMessageInfo[]).parts.get("msg_2")?.[0] as { state: { input: unknown } }
+
+  test.each([
+    ['{"content":"par', {}],
+    ['{"content":"}', {}],
+    ['{"content":"done"}  ', { content: "done" }],
+  ])("%s", (raw, expected) => {
+    expect(input(raw).state.input).toEqual(expected)
+  })
+})
+
 describe("normalizeSessionMessages", () => {
   test("projects current turns into stable legacy rendering records", () => {
     const source = [

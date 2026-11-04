@@ -63,10 +63,17 @@ export function isTurnStart(message: SessionMessageInfo) {
 /**
  * `from`, when set, must be a turn start (see `isTurnStart`). Entries before it only carry the agent and
  * model forward, so streaming can normalize the active turn instead of the whole session.
+ * `partsFor`, when set, limits the parts built to those messages; every entry is still walked.
  */
-export function normalizeSessionMessages(sessionID: string, source: readonly SessionMessageInfo[], from = 0) {
+export function normalizeSessionMessages(
+  sessionID: string,
+  source: readonly SessionMessageInfo[],
+  from = 0,
+  partsFor?: ReadonlySet<string>,
+) {
   const messages: Message[] = []
   const parts = new Map<string, Part[]>()
+  const wanted = (messageID: string) => !partsFor || partsFor.has(messageID)
   let agent = ""
   let model = emptyModel
   let parentID: string | undefined
@@ -92,7 +99,7 @@ export function normalizeSessionMessages(sessionID: string, source: readonly Ses
     if (message.type === "user") {
       parentID = message.id
       messages.push(userMessage(sessionID, message, agent, model))
-      parts.set(message.id, userParts(sessionID, message))
+      if (wanted(message.id)) parts.set(message.id, userParts(sessionID, message))
       return
     }
     if (message.type === "synthetic" && message.description?.trim()) {
@@ -105,13 +112,13 @@ export function normalizeSessionMessages(sessionID: string, source: readonly Ses
         agent,
         model: { providerID: model.providerID, modelID: model.id, variant: model.variant },
       })
-      parts.set(message.id, [textPart(sessionID, message.id, 0, message.description, true)])
+      if (wanted(message.id)) parts.set(message.id, [textPart(sessionID, message.id, 0, message.description, true)])
       return
     }
     if (message.type === "shell") {
       messages.push(...shellMessages(sessionID, message, agent, model))
-      parts.set(message.id, [textPart(sessionID, message.id, 0, message.command)])
-      parts.set(`${message.id}:assistant`, [shellPart(sessionID, message)])
+      if (wanted(message.id)) parts.set(message.id, [textPart(sessionID, message.id, 0, message.command)])
+      if (wanted(`${message.id}:assistant`)) parts.set(`${message.id}:assistant`, [shellPart(sessionID, message)])
       parentID = undefined
       return
     }
@@ -129,10 +136,10 @@ export function normalizeSessionMessages(sessionID: string, source: readonly Ses
         }
       }
       messages.push(assistantMessage(sessionID, parentID, message))
-      parts.set(message.id, assistantParts(sessionID, message))
+      if (wanted(message.id)) parts.set(message.id, assistantParts(sessionID, message))
       return
     }
-    if (message.type !== "compaction" || !parentID) return
+    if (message.type !== "compaction" || !parentID || !wanted(parentID)) return
     parts.set(parentID, [
       ...(parts.get(parentID) ?? []),
       {
@@ -364,7 +371,10 @@ function toolPart(sessionID: string, messageID: string, tool: SessionMessageAssi
   const start = tool.time.ran ?? tool.time.created
   const state = (() => {
     if (tool.state.status === "streaming") {
-      const value = Option.getOrUndefined(decodeToolInput(tool.state.input))
+      // Input arrives a fragment at a time and only a whole object ends in }, so skip parsing the rest.
+      const value = tool.state.input.trimEnd().endsWith("}")
+        ? Option.getOrUndefined(decodeToolInput(tool.state.input))
+        : undefined
       const input = normalizeToolInput(tool.name, record(value) ? value : {})
       return { status: "pending" as const, input, raw: tool.state.input }
     }

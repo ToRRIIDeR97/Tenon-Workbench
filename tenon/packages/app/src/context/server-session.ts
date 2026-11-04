@@ -1,6 +1,11 @@
 import { Binary } from "@tenon/core/util/binary"
 import { retry } from "@tenon/core/util/retry"
-import type { OpenCodeEvent, SessionApi, SessionMessageInfo } from "@opencode-ai/client/promise"
+import type {
+  OpenCodeEvent,
+  SessionApi,
+  SessionMessageAssistant,
+  SessionMessageInfo,
+} from "@opencode-ai/client/promise"
 import type {
   Message,
   OpencodeClient,
@@ -259,7 +264,8 @@ export function createServerSession(
 
   const indexLegacyMessage = (message: Message) => {
     const current = data.session_message[message.sessionID] ?? []
-    if (current.some((item) => item.id === message.id)) return
+    // Streaming re-sends the newest messages, so the scan starts from the end.
+    if (current.findLast((item) => item.id === message.id)) return
     setData(
       "session_message",
       message.sessionID,
@@ -540,17 +546,26 @@ export function createServerSession(
         .map(([sessionID]) => sessionID),
     ])
 
-  const touch = (sessionID: string) =>
+  // Runs for every event, so the protected set is only worked out once there is something to evict.
+  const touch = (sessionID: string) => {
+    seen.delete(sessionID)
+    seen.add(sessionID)
+    if (seen.size <= SESSION_CACHE_LIMIT) return
     evict(
       pickSessionCacheEvictions({ seen, keep: sessionID, limit: SESSION_CACHE_LIMIT, preserve: protectedSessions() }),
     )
+  }
 
   const fetchMessages = async (sessionID: string, limit: number, before?: string, onAttempt?: () => void) => {
     if (messageApi && (await options?.protocol) !== "v1") {
+      // The route rejects anything over one history page, and loaded threads can hold more than that.
+      const size = Math.min(limit, historyMessagePageSize)
       const request = (cursor?: string) =>
         (options?.retry ?? retry)(() => {
           onAttempt?.()
-          return messageApi.list(cursor ? { sessionID, limit, cursor } : { sessionID, limit, order: "desc" })
+          return messageApi.list(
+            cursor ? { sessionID, limit: size, cursor } : { sessionID, limit: size, order: "desc" },
+          )
         })
       const first = await request(before)
       const pages = [first]
@@ -686,6 +701,7 @@ export function createServerSession(
     load: MessageLoadState | undefined,
     preserveUnfetched: boolean | ((message: Message) => boolean),
     cleanupOrphans: boolean,
+    keepPaging = false,
   ) => {
     const source = page.source
       ? (() => {
@@ -734,14 +750,28 @@ export function createServerSession(
         }
         orphanParts.delete(sessionID)
       }
-      setMeta("limit", sessionID, messages.length)
-      setMeta("cursor", sessionID, merged.cursor)
-      setMeta("complete", sessionID, merged.complete)
+      if (!keepPaging) {
+        setMeta("limit", sessionID, messages.length)
+        setMeta("cursor", sessionID, merged.cursor)
+        setMeta("complete", sessionID, merged.complete)
+      }
       setMeta("at", sessionID, Date.now())
     })
   }
 
-  const loadMessages = async (sessionID: string, limit: number, before?: string, mode?: "replace" | "prepend") => {
+  const overlapsLoaded = (sessionID: string, page: Message[]) => {
+    const loaded = new Set(data.message[sessionID]?.map((message) => message.id))
+    return page.some((message) => loaded.has(message.id))
+  }
+
+  // `revalidate` merges the newest page into a cached thread on the V2 route instead of fetching `limit`. Paged-in
+  // older history stays, along with the cursor that continues it, so messages changed further back wait for a reload.
+  const loadMessages = async (
+    sessionID: string,
+    limit: number,
+    before?: string,
+    mode?: "replace" | "prepend" | "revalidate",
+  ) => {
     if (meta.loading[sessionID]) return
     const active = generation(sessionID)
     const load: MessageLoadState = {
@@ -761,12 +791,20 @@ export function createServerSession(
     setMeta("loading", sessionID, true)
     let applied = false
     try {
-      const page = await fetchMessages(sessionID, limit, before, () => resetMessageLoad(sessionID, load))
+      const attempt = () => resetMessageLoad(sessionID, load)
+      const revalidate = mode === "revalidate" && !!messageApi && (await options?.protocol) !== "v1"
+      let page = await fetchMessages(sessionID, revalidate ? initialMessagePageSize : limit, before, attempt)
+      if (generations.get(sessionID) !== active) return
+      // A page with no cached message in it would leave a gap in the history, so reload all that was loaded.
+      // At or under a page, that's the page just fetched, and a thread cached empty has a limit of 0.
+      if (revalidate && limit > initialMessagePageSize && !page.complete && !overlapsLoaded(sessionID, page.session)) {
+        page = await fetchMessages(sessionID, limit, before, attempt)
+        if (generations.get(sessionID) !== active) return
+      }
       const first = page.session.reduce<Message | undefined>(
         (oldest, message) => (!oldest || compareMessages(message, oldest) < 0 ? message : oldest),
         undefined,
       )
-      if (generations.get(sessionID) !== active) return
 
       const parents = [] as Awaited<ReturnType<typeof fetchMessage>>[]
       if (mode !== "prepend") {
@@ -822,12 +860,19 @@ export function createServerSession(
       const preserveUnfetched =
         mode === "prepend" ||
         (!result.complete && (!first || ((message: Message) => compareMessages(message, first) < 0)))
+      const keepPaging =
+        revalidate &&
+        !result.complete &&
+        !!first &&
+        overlapsLoaded(sessionID, page.session) &&
+        data.message[sessionID]!.some((message) => compareMessages(message, first) < 0)
       applyMessagePage(
         sessionID,
         result,
         messageLoads.get(sessionID) === load ? load : undefined,
         preserveUnfetched,
         mode !== "prepend",
+        keepPaging,
       )
       applied = true
     } finally {
@@ -854,7 +899,12 @@ export function createServerSession(
         resolve(sessionID, options),
         cached && !options?.force
           ? Promise.resolve()
-          : loadMessages(sessionID, options?.messageLimit ?? meta.limit[sessionID] ?? initialMessagePageSize),
+          : loadMessages(
+              sessionID,
+              options?.messageLimit ?? meta.limit[sessionID] ?? initialMessagePageSize,
+              undefined,
+              cached && options?.messageLimit === undefined ? "revalidate" : undefined,
+            ),
       ])
     })
   }
@@ -881,6 +931,18 @@ export function createServerSession(
     )
       return
     await runInflight(inflight, sessionID, () => loadMessages(sessionID, limit))
+  }
+
+  // A user row shows its turn's agent and model, so a streamed reply only re-projects it when those change.
+  const parentOutdated = (sessionID: string, parentID: string, message: SessionMessageAssistant) => {
+    const parent = data.message[sessionID]?.findLast((item) => item.id === parentID)
+    return (
+      parent?.role !== "user" ||
+      parent.agent !== message.agent ||
+      parent.model?.providerID !== message.model.providerID ||
+      parent.model?.modelID !== message.model.id ||
+      parent.model?.variant !== message.model.variant
+    )
   }
 
   const eventSessionID = (event: { type: string; properties?: unknown }) => {
@@ -922,11 +984,17 @@ export function createServerSession(
         if (touched.has(message.id)) touched.add(`${message.id}:assistant`)
         parentID = undefined
       }
-      if (message.type === "assistant" && touched.has(message.id) && parentID) touched.add(parentID)
+      if (
+        message.type === "assistant" &&
+        touched.has(message.id) &&
+        parentID &&
+        parentOutdated(reduction.sessionID, parentID, message)
+      )
+        touched.add(parentID)
       if (message.type === "compaction" && touched.has(message.id) && parentID) touched.add(parentID)
     }
 
-    const normalized = normalizeSessionMessages(reduction.sessionID, reduction.messages, Math.max(from, 0))
+    const normalized = normalizeSessionMessages(reduction.sessionID, reduction.messages, Math.max(from, 0), touched)
     batch(() => {
       for (const message of normalized.messages) {
         if (!touched.has(message.id)) continue
@@ -1175,7 +1243,7 @@ export function createServerSession(
         if (SKIP_PARTS.has(part.type)) return
         const messages = data.message[part.sessionID]
         const load = messageLoads.get(part.sessionID)
-        const missing = !messages?.some((message) => message.id === part.messageID)
+        const missing = !messages?.findLast((message) => message.id === part.messageID)
         // Outside a page load, accepting a part without its ordered parent event would create an unbounded orphan.
         if (
           missing &&
@@ -1209,10 +1277,12 @@ export function createServerSession(
         deltaBases.delete(part.id)
         trackPartChange(part.sessionID, part.messageID, part.id)
         confirmOptimisticPart(part.sessionID, part.messageID, part)
-        setData(
-          "part_text_accum_delta",
-          produce((draft) => void delete draft[part.id]),
-        )
+        // Deleting fires the key's signal even when it is absent, which would wake every reader of unchanged parts.
+        if (data.part_text_accum_delta[part.id] !== undefined)
+          setData(
+            "part_text_accum_delta",
+            produce((draft) => void delete draft[part.id]),
+          )
         const parts = data.part[part.messageID]
         if (!parts) {
           setData("part", part.messageID, [part])
