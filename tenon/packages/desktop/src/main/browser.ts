@@ -206,7 +206,11 @@ const SNAPSHOT = `(() => {
   return { url: location.href, title: document.title, headings, elements, text: (document.body?.innerText || "").slice(0, 8000) }
 })()`
 
-async function runTool(name: string, args: Record<string, unknown>): Promise<{ text?: string; image?: string }> {
+async function runTool(
+  name: string,
+  args: Record<string, unknown>,
+  signal: AbortSignal,
+): Promise<{ text?: string; image?: string }> {
   if (name.startsWith("device_")) return runDeviceTool(name, args)
   if (name === "render_svg") return renderSvg(String(args.svg ?? ""))
   const window = state.window ?? BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
@@ -230,8 +234,9 @@ async function runTool(name: string, args: Record<string, unknown>): Promise<{ t
         ],
         defaultId: 1,
         cancelId: 1,
+        signal,
       })
-      if (choice.response !== 0) throw new Error(`The user didn't allow opening ${parsed.host}.`)
+      if (choice.response !== 0 || signal.aborted) throw new Error(`The user didn't allow opening ${parsed.host}.`)
     }
     await contents.loadURL(url).catch(() => undefined)
     sendState()
@@ -283,8 +288,13 @@ export function startBrowserBridge() {
       // Only the server process holds the token; a web page can't set this header cross-origin.
       if (request.method !== "POST" || request.headers.authorization !== `Bearer ${token}` || request.headers.origin)
         return answer(403, { error: "Forbidden" })
+      // An agent that gave up must not leave a dialog open that could still navigate the panel later.
+      const abandoned = new AbortController()
+      response.once("close", () => {
+        if (!response.writableFinished) abandoned.abort()
+      })
       void readJSON(request)
-        .then((args) => runTool((request.url ?? "").replace(/^\//, ""), args))
+        .then((args) => runTool((request.url ?? "").replace(/^\//, ""), args, abandoned.signal))
         .then(
           (result) =>
             answer(
