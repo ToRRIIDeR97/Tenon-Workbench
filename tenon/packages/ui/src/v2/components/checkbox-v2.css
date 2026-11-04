@@ -59,6 +59,11 @@
     left: 0;
     top: calc(50% - 18px / 2);
     border-radius: 6px;
+
+    [data-shape="round"] & {
+      border-radius: 9999px;
+    }
+
     border: none;
     box-shadow: inset 0 0 0 2px var(--v2-icon-icon-muted);
     background: transparent;

@@ -80,7 +80,8 @@ export function CommandStrip() {
       data-command-strip
       data-state={state.open ? "open" : "closed"}
       // Only the handle and the open card take the pointer; the rest of the band stays the page's.
-      class="pointer-events-none absolute bottom-2 left-1/2 z-30 h-5 w-[min(680px,calc(100%-32px))] -translate-x-1/2"
+      // On a thread the composer owns the page's bottom edge, so the strip sits on top of it.
+      class="pointer-events-none absolute bottom-[calc(0.5rem+var(--command-strip-lift,0px))] left-1/2 z-(--z-command-strip) h-5 w-[min(680px,calc(100%-32px))] -translate-x-1/2"
     >
       <button
         type="button"

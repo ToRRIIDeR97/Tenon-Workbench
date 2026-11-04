@@ -45,6 +45,28 @@ test("opens and searches project files inline", async ({ page }) => {
         time: { created: 1700000000000, updated: 1700000000000 },
       },
     ],
+    // Reported usage is what puts the context ring on the composer.
+    pageMessages: () => ({
+      items: [
+        {
+          info: {
+            id: "msg_review_open_file",
+            sessionID,
+            role: "assistant",
+            time: { created: 1700000001000 },
+            parentID: "msg_review_open_file_user",
+            modelID: "test",
+            providerID: "opencode",
+            mode: "build",
+            agent: "build",
+            path: { cwd: directory, root: directory },
+            cost: 0.01,
+            tokens: { input: 100, output: 200, reasoning: 0, cache: { read: 0, write: 0 } },
+          },
+          parts: [],
+        },
+      ],
+    }),
     vcsDiff: [fileDiff("src/changed.ts")],
     fileList: (path) => {
       if (path) return []
@@ -58,7 +80,6 @@ test("opens and searches project files inline", async ({ page }) => {
       searches.push(input)
       return input.query === "nested" ? ["src/nested.ts"] : []
     },
-    pageMessages: () => ({ items: [] }),
   })
   await page.addInitScript(
     ({ directory }) => {
@@ -88,18 +109,18 @@ test("opens and searches project files inline", async ({ page }) => {
   const panel = page.locator("#review-panel")
   const sidebar = panel.locator('[data-slot="session-review-v2-sidebar"]')
   const sidebarToggle = panel.getByRole("button", { name: "Toggle file tree" })
-  const contextButton = page.getByRole("button", { name: "View context usage" })
-  // The context usage button sits in the side rail, which shows while the panel is hidden; opening the
-  // context reopens the panel on its Session tab.
-  await panel.getByRole("button", { name: "Hide panel" }).click()
-  await contextButton.click()
-  await expect(panel.getByRole("tab", { name: "Session" })).toHaveAttribute("data-selected", "")
+  const contextRing = page.locator('[data-action="context-ring"]')
+  // The composer's context ring stays while the panel is hidden; its menu reopens the panel on Details.
+  await panel.getByRole("button", { name: "Hide review" }).click()
+  await contextRing.click()
+  await page.getByRole("button", { name: "View context usage" }).click()
+  await expect(panel.getByRole("tab", { name: "Details" })).toHaveAttribute("data-selected", "")
   await panel.getByRole("button", { name: "Open file" }).click()
   await expect(panel.getByRole("tab", { name: "Open file" })).toHaveAttribute("data-selected", "")
   await expect(sidebarToggle).toBeDisabled()
   await expect(sidebar).toBeVisible()
-  await panel.getByRole("tab", { name: "Session" }).click()
-  await expect(panel.getByRole("tab", { name: "Session" })).toHaveAttribute("data-selected", "")
+  await panel.getByRole("tab", { name: "Details" }).click()
+  await expect(panel.getByRole("tab", { name: "Details" })).toHaveAttribute("data-selected", "")
   await expect(sidebar).toBeHidden()
   await panel.getByRole("button", { name: "Open file" }).click()
   const filter = panel.getByRole("combobox", { name: "Filter files" })

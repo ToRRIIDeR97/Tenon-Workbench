@@ -6,6 +6,7 @@ import { SegmentedControlItemV2, SegmentedControlV2 } from "@tenon/ui/v2/segment
 import { SelectV2 } from "@tenon/ui/v2/select-v2"
 import { Switch } from "@tenon/ui/v2/switch-v2"
 import { TextInputV2 } from "@tenon/ui/v2/text-input-v2"
+import { formatKeybind } from "@/context/command"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
 import { useUpdaterAction } from "../updater-action"
@@ -92,7 +93,7 @@ const DeliverySetting = () => {
   return (
     <SettingsRowV2
       title={language.t("secondBrain.composer.delivery.title")}
-      description={language.t("secondBrain.composer.delivery.description")}
+      description={language.t("secondBrain.composer.delivery.description", { key: formatKeybind("mod+enter", language.t) })}
     >
       <SelectV2
         appearance="inline"

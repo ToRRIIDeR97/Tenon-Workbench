@@ -42,7 +42,7 @@ test("preserves the draft when a populated command menu triggers a built-in", as
   await expectAppVisible(composer)
 
   await input.fill("keep me")
-  await composer.getByRole("button", { name: "Add images and files" }).click()
+  await composer.getByRole("button", { name: "Add or insert" }).click()
   await page.getByRole("menuitem", { name: "Commands" }).click()
   await page.locator('[data-suggestion-id="model.choose"]').click()
 

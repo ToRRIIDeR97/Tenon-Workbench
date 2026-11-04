@@ -10,7 +10,8 @@ import { usePlatform } from "@/context/platform"
  * The composer for Home, the Command Centre page and the command strip: a text box that grows with its
  * text, Enter to send (Shift+Enter for a new line), dictation when the platform has it, and a send button.
  * `large` and `medium` stack the text above a control row; `compact` keeps everything on one line.
- * Thread composers use `PromptInputV2Composer`, which adds attachments, history and skills.
+ * Thread composers use `PromptInputV2Composer`, which adds attachments, history and skills. With `onExpand`, the box
+ * hands off to that composer: its + button, or typing a / or @ trigger, moves the text there.
  */
 export function ComposerBox(props: {
   controller: ComposerController
@@ -24,6 +25,9 @@ export function ComposerBox(props: {
   header?: JSX.Element
   /** Controls at the start of the bottom row, such as the model pill. */
   controls?: JSX.Element
+  /** Moves the text to the full composer. Needs `expandLabel`. */
+  onExpand?: (text: string) => void
+  expandLabel?: string
   ref?: (element: HTMLTextAreaElement) => void
   class?: string
 }) {
@@ -86,7 +90,11 @@ export function ComposerBox(props: {
           "max-h-40 min-h-11 px-4 pt-3 text-[13px] leading-5": size() === "medium",
           "max-h-20 flex-1 px-3 py-1.5 text-[13px] leading-5": size() === "compact",
         }}
-        onInput={(event) => props.controller.setValue(event.currentTarget.value)}
+        onInput={(event) => {
+          const text = event.currentTarget.value
+          props.controller.setValue(text)
+          if (/(^|\s)[/@]$/.test(text)) props.onExpand?.(text)
+        }}
         onKeyDown={(event) => {
           if (!composerKeySends(event)) return
           event.preventDefault()
@@ -95,6 +103,20 @@ export function ComposerBox(props: {
       />
       <Show when={size() !== "compact"} fallback={actions}>
         <div class="flex min-w-0 items-center gap-1 pb-2 pl-2.5 pr-2">
+          <Show when={props.onExpand}>
+            {(expand) => (
+              <TooltipV2 placement="top" value={props.expandLabel}>
+                <IconButtonV2
+                  type="button"
+                  variant="ghost-muted"
+                  size="large"
+                  aria-label={props.expandLabel}
+                  icon={<Icon name="plus" size="small" />}
+                  onClick={() => expand()(props.controller.value())}
+                />
+              </TooltipV2>
+            )}
+          </Show>
           {props.controls}
           <span class="flex-1" />
           {actions}

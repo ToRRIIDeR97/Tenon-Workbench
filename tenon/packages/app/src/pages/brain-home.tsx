@@ -19,6 +19,7 @@ import { DialogHarnessSetup } from "@/components/settings-v2/harness-setup"
 import { PageEmpty, PageFrame, PageSection, pageRowClass } from "@/components/page"
 import { localDateKey } from "@/features/second-brain/calendar-domain"
 import { createCalendarResource } from "@/features/second-brain/calendar-cache"
+import { TaskCheck } from "@/features/second-brain/calendar-peek"
 import { type CalendarEvent, type PlannerTask } from "@/features/second-brain/client"
 import { useBrainProjects } from "@/components/sidebar/sidebar-controller"
 import { createHomeController } from "@/pages/home/home-controller"
@@ -168,7 +169,7 @@ export default function BrainHomePage() {
             size="large"
             class="!size-9"
             aria-label={language.t("secondBrain.home.openWorkspace")}
-            icon={<Icon name="folder-add-left" />}
+            icon={<Icon name="folder-open" />}
             onClick={() => command.trigger("project.open")}
           />
         </TooltipV2>
@@ -202,6 +203,16 @@ export default function BrainHomePage() {
               label={language.t("secondBrain.home.ask")}
               placeholder={language.t("secondBrain.home.askPlaceholder")}
               sendLabel={language.t("secondBrain.home.start")}
+              expandLabel={language.t("ui.promptInput.add")}
+              onExpand={(text) =>
+                void drafts.create(
+                  { server: server.key, directory: directory() },
+                  text,
+                  harness.builtInModel(),
+                  harness.harnessID(),
+                  { harnessModel: harness.harnessModel() },
+                )
+              }
               header={
                 <div class="flex h-10 min-w-0 items-center gap-0.5 border-b border-v2-border-border-muted pl-2.5 pr-2">
                   <PathTooltip
@@ -321,7 +332,7 @@ export default function BrainHomePage() {
                       const overdue = item.kind === "task" && item.overdue
                       const project = () => (value.projectId ? projectNames().get(value.projectId) : undefined)
                       return (
-                        <li>
+                        <li class="relative">
                           <button
                             type="button"
                             class={pageRowClass}
@@ -340,13 +351,7 @@ export default function BrainHomePage() {
                                   </span>
                                 }
                               >
-                                <span
-                                  classList={{
-                                    "size-4 rounded-full border-[1.5px]": true,
-                                    "border-v2-state-fg-danger": overdue,
-                                    "border-v2-border-border-base": !overdue,
-                                  }}
-                                />
+                                <span class="size-4" />
                               </Show>
                             </span>
                             <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base [font-weight:400]">
@@ -365,6 +370,19 @@ export default function BrainHomePage() {
                               )}
                             </Show>
                           </button>
+                          {/* Beside the row, not in it: a button can't hold a checkbox. Calendar owns task writes,
+                              Google tasks included, so completing goes through it and keeps its Undo. */}
+                          <Show when={item.kind === "task" ? item.value : undefined}>
+                            {(task) => (
+                              <span class="absolute inset-y-0 flex w-12 items-center justify-center [inset-inline-start:12px]">
+                                <TaskCheck
+                                  small
+                                  task={task()}
+                                  onToggle={async (target) => navigate(`/calendar?complete=${encodeURIComponent(target.id)}`)}
+                                />
+                              </span>
+                            )}
+                          </Show>
                         </li>
                       )
                     }}

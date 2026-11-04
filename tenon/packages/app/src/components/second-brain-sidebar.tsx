@@ -319,20 +319,18 @@ function WorkspaceHeader(props: { ctrl: SidebarController }) {
                   <MenuV2.Item onSelect={() => navigate("/projects?new=1")}>
                     {language.t("secondBrain.projects.new")}
                   </MenuV2.Item>
+                  <MenuV2.Item onSelect={addProject}>{language.t("secondBrain.sidebar.addProject")}</MenuV2.Item>
                   <MenuV2.Item onSelect={props.ctrl.scanFolders}>
                     {language.t("secondBrain.sidebar.scanProjects")}
                   </MenuV2.Item>
-                  <MenuV2.Item onSelect={addProject}>{language.t("secondBrain.sidebar.addProject")}</MenuV2.Item>
+                  <MenuV2.Separator />
+                  <MenuV2.Item onSelect={() => navigate("/projects/overview")}>
+                    {language.t("secondBrain.projects.overview.title")}
+                  </MenuV2.Item>
                   <MenuV2.Item
                     onSelect={() => dialog.show(() => <DialogInstructions workspaceDirectory={directory()} />)}
                   >
                     {language.t("secondBrain.sidebar.workspaceInstructions")}
-                  </MenuV2.Item>
-                  <MenuV2.Item onSelect={() => navigate("/projects/overview")}>
-                    {language.t("secondBrain.projects.overview.title")}
-                  </MenuV2.Item>
-                  <MenuV2.Item onSelect={() => navigate("/projects")}>
-                    {language.t("secondBrain.sidebar.manageProjects")}
                   </MenuV2.Item>
                 </>
               )}
@@ -342,7 +340,7 @@ function WorkspaceHeader(props: { ctrl: SidebarController }) {
       </MenuV2>
       <div class="flex-1" />
       <Show when={present()}>
-        <TooltipV2 placement="right" value={language.t("secondBrain.sidebar.addProject")}>
+        <TooltipV2 placement="bottom" value={language.t("secondBrain.sidebar.addProject")}>
           <IconButtonV2
             type="button"
             data-sidebar-item="add-project"
@@ -353,12 +351,12 @@ function WorkspaceHeader(props: { ctrl: SidebarController }) {
             onClick={addProject}
           />
         </TooltipV2>
-        <TooltipV2 placement="right" value={language.t("secondBrain.sidebar.scanProjects")}>
+        <TooltipV2 placement="bottom" value={language.t("secondBrain.sidebar.scanProjects")}>
           <IconButtonV2
             type="button"
             variant="ghost-muted"
             size="large"
-            icon={<Icon name="reset" size="small" />}
+            icon={<Icon name="refresh" size="small" />}
             aria-label={language.t("secondBrain.sidebar.scanProjects")}
             onClick={props.ctrl.scanFolders}
           />
@@ -572,18 +570,17 @@ function ProjectGroup(props: { ctrl: SidebarController; project: SidebarProjectI
             />
           </TooltipV2>
           <MenuV2 gutter={4} modal={false} placement="bottom-start">
-            <MenuV2.Trigger
-              as={IconButtonV2}
-              variant="ghost-muted"
-              size="small"
-              icon={<Icon name="outline-dots" size="small" />}
-              aria-label={language.t("secondBrain.sidebar.projectActions")}
-            />
+            <TooltipV2 placement="right" value={language.t("secondBrain.sidebar.projectActions")}>
+              <MenuV2.Trigger
+                as={IconButtonV2}
+                variant="ghost-muted"
+                size="small"
+                icon={<Icon name="outline-dots" size="small" />}
+                aria-label={language.t("secondBrain.sidebar.projectActions")}
+              />
+            </TooltipV2>
             <MenuV2.Portal>
               <MenuV2.Content>
-                <MenuV2.Item onSelect={() => props.ctrl.newThread(props.project)}>
-                  {language.t("secondBrain.sidebar.newThread")}
-                </MenuV2.Item>
                 <MenuV2.Item onSelect={() => props.ctrl.openProjectCard(props.project)}>
                   {language.t("secondBrain.sidebar.openProjectCard")}
                 </MenuV2.Item>
@@ -605,6 +602,7 @@ function ProjectGroup(props: { ctrl: SidebarController; project: SidebarProjectI
                 </MenuV2.Item>
                 <MenuV2.Separator />
                 <MenuV2.Item
+                  class="[--menu-v2-fg:var(--v2-text-text-critical)]"
                   onSelect={() =>
                     dialog.show(() => (
                       <DialogRemoveProject
@@ -813,13 +811,15 @@ function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; 
         </Show>
         <div class="flex items-center pr-0.5 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 motion-reduce:transition-none">
           <MenuV2 gutter={4} modal={false} placement="bottom-start" open={menuOpen()} onOpenChange={setMenuOpen}>
-            <MenuV2.Trigger
-              as={IconButtonV2}
-              variant="ghost-muted"
-              size="small"
-              icon={<Icon name="outline-dots" size="small" />}
-              aria-label={language.t("secondBrain.sidebar.threadActions")}
-            />
+            <TooltipV2 placement="right" value={language.t("secondBrain.sidebar.threadActions")}>
+              <MenuV2.Trigger
+                as={IconButtonV2}
+                variant="ghost-muted"
+                size="small"
+                icon={<Icon name="outline-dots" size="small" />}
+                aria-label={language.t("secondBrain.sidebar.threadActions")}
+              />
+            </TooltipV2>
             <MenuV2.Portal>
               <MenuV2.Content
                 onKeyDown={(event) => {
@@ -855,7 +855,7 @@ function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; 
                 <MenuV2.Item onSelect={run.archive} shortcut={hint("archive")}>
                   {language.t("common.archive")}
                 </MenuV2.Item>
-                <MenuV2.Item onSelect={run.delete} shortcut={hint("delete")}>
+                <MenuV2.Item class="[--menu-v2-fg:var(--v2-text-text-critical)]" onSelect={run.delete} shortcut={hint("delete")}>
                   {language.t("common.delete")}
                 </MenuV2.Item>
               </MenuV2.Content>

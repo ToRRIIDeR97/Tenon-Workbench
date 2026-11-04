@@ -88,7 +88,7 @@ test("Home remains usable during loading and reuses fresh harness availability",
     return route.fallback()
   })
   const home = page.getByRole("heading", { name: "Home", exact: true })
-  const prompt = page.getByRole("textbox", { name: "Start a Run", exact: true })
+  const prompt = page.getByRole("textbox", { name: "Start a thread", exact: true })
   const selector = page.locator('[data-action="prompt-model-pill"]')
   // The pill's text is the model; its Harness row names the harness.
   const expectHarness = async (name: string) => {
@@ -97,7 +97,7 @@ test("Home remains usable during loading and reuses fresh harness availability",
     await page.keyboard.press("Escape")
     await expect(page.locator('[data-component="prompt-model-pill-panel"]')).toHaveCount(0)
   }
-  const start = page.getByRole("button", { name: "Start", exact: true })
+  const start = page.getByRole("button", { name: "Send", exact: true })
   try {
     await page.goto("/")
     await expect(home).toBeVisible()

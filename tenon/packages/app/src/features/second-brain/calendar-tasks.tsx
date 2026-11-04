@@ -15,6 +15,7 @@ import { localDateKey } from "./calendar-domain"
 import { CalendarPeek, TaskCheck } from "./calendar-peek"
 import type { PlannerTask, ProjectRecord } from "./client"
 import { revealSidePanel, SidePanel, sidePanelGridClass } from "./side-panel"
+import { DateChip } from "./project-controls"
 
 export type CalendarTaskFilter = "today" | "upcoming" | "unscheduled" | "completed"
 type TaskErrorKey =
@@ -466,28 +467,22 @@ export function CalendarTasks(props: {
                 }
               />
             </label>
-            <label class="flex flex-col gap-1.5 text-[12px] text-v2-text-text-muted" for="task-due">
+            <div class="flex flex-col gap-1.5 text-[12px] text-v2-text-text-muted">
               {language.t("secondBrain.tasks.due")}
-              <input
-                id="task-due"
-                type="date"
-                class={dateInputClass}
-                value={state.draft.dueDate}
-                onInput={(event) => setState("draft", "dueDate", event.currentTarget.value)}
+              <DateChip
+                label={language.t("secondBrain.tasks.due")}
+                value={state.draft.dueDate || undefined}
+                onChange={(value) => setState("draft", "dueDate", value ?? "")}
               />
-            </label>
-            <label class="flex flex-col gap-1.5 text-[12px] text-v2-text-text-muted" for="task-scheduled">
+            </div>
+            <div class="flex flex-col gap-1.5 text-[12px] text-v2-text-text-muted">
               {language.t("secondBrain.tasks.scheduled")}
-              <input
-                id="task-scheduled"
-                type="date"
-                class={dateInputClass}
-                aria-invalid={state.errorField === "scheduled" ? true : undefined}
-                aria-describedby={state.errorField === "scheduled" ? "task-error" : undefined}
-                value={state.draft.scheduledDate}
-                onInput={(event) => setState("draft", "scheduledDate", event.currentTarget.value)}
+              <DateChip
+                label={language.t("secondBrain.tasks.scheduled")}
+                value={state.draft.scheduledDate || undefined}
+                onChange={(value) => setState("draft", "scheduledDate", value ?? "")}
               />
-            </label>
+            </div>
             <div class="grid grid-cols-2 gap-3">
               <label class="flex flex-col gap-1.5 text-[12px] text-v2-text-text-muted" for="task-start">
                 {language.t("secondBrain.calendar.start")}

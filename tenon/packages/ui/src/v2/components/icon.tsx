@@ -141,6 +141,22 @@ const icons = {
     viewBox: "0 0 16 16",
     body: `<path d="M13.5554 10.4445V13.5556C13.5554 13.5556 12.7599 13.5556 11.7777 13.5556H4.22211C3.23989 13.5556 2.44434 13.5556 2.44434 13.5556V10.4445M4.88878 5.55557L7.99989 2.44446L11.111 5.55557M7.99989 2.44446L7.99989 9.11112" stroke="currentColor"/>`,
   },
+  refresh: {
+    viewBox: "0 0 20 20",
+    body: `<path d="M16.5 8.5C15.8 5.6 13.2 3.5 10 3.5C7.6 3.5 5.5 4.8 4.4 6.7M3.5 11.5C4.2 14.4 6.8 16.5 10 16.5C12.4 16.5 14.5 15.2 15.6 13.3M4 3.5V7H7.5M16 16.5V13H12.5" stroke="currentColor" stroke-linecap="square"/>`,
+  },
+  "folder-open": {
+    viewBox: "0 0 16 16",
+    body: `<path d="M2 12.5V3H6.5L8 4.5H13V6.5M2 12.5L3.5 6.5H14.5L13 12.5H2Z" stroke="currentColor" stroke-miterlimit="10" stroke-linecap="square"/>`,
+  },
+  "panel-bottom": {
+    viewBox: "0 0 16 16",
+    body: `<path d="M1.5 2.5H14.5V13.5H1.5V2.5ZM1.5 10H14.5" stroke="currentColor"/>`,
+  },
+  "pencil-line": {
+    viewBox: "0 0 16 16",
+    body: `<path d="M9.5 4L12 6.5M3 13L3.5 10L10.5 3L13 5.5L6 12.5L3 13Z" stroke="currentColor" stroke-linecap="square"/>`,
+  },
   reset: {
     viewBox: "0 0 20 20",
     body: `<path d="M5.83333 4.16406L2.5 7.4974L5.83333 10.8307M3.33333 7.4974H17.9167V15.4141H10" stroke="currentColor" stroke-linecap="square"/>`,

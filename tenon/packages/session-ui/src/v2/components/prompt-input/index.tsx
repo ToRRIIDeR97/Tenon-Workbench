@@ -147,13 +147,15 @@ export function PromptInputV2(props: PromptInputV2Props) {
       <form
         data-component="prompt-input-v2"
         data-dock-border-underlay={props.borderUnderlay ? "v2" : undefined}
-        class="group/prompt-input relative min-h-[96px] w-full overflow-clip rounded-[28px] bg-v2-background-bg-base"
+        class="group/prompt-input relative min-h-[96px] w-full overflow-clip rounded-[28px] bg-v2-background-bg-base focus-within:[--prompt-input-edge:var(--v2-border-border-focus)]"
         classList={{
-          "shadow-[0_0_0_0.5px_var(--v2-border-border-muted),0_8px_24px_-12px_rgb(0_0_0/0.18)]": !props.borderUnderlay,
+          "shadow-[0_0_0_1px_var(--prompt-input-edge,var(--v2-border-border-base)),0_8px_24px_-12px_rgb(0_0_0/0.18)]":
+            !props.borderUnderlay,
           "border border-v2-border-border-focus border-dashed": state.drag === "active",
         }}
         style={{
-          "--dock-shell-visual-shadow": "0 0 0 0.5px var(--v2-border-border-muted), 0 8px 24px -12px rgb(0 0 0 / 0.18)",
+          "--dock-shell-visual-shadow":
+            "0 0 0 1px var(--prompt-input-edge, var(--v2-border-border-base)), 0 8px 24px -12px rgb(0 0 0 / 0.18)",
         }}
         onSubmit={(event) => {
           event.preventDefault()
@@ -255,6 +257,18 @@ export function PromptInputV2(props: PromptInputV2Props) {
         </div>
 
         <div class="flex h-12 items-center gap-1 pb-1.5 pl-2.5 pr-1.5">
+          <Show when={state.mode === "shell"}>
+            <button
+              type="button"
+              data-action="prompt-shell-exit"
+              aria-label={i18n.t("ui.common.close")}
+              class="flex h-7 shrink-0 items-center gap-1 rounded-full bg-v2-background-bg-layer-02 pl-3 pr-2 text-[12px] text-v2-text-text-base [font-weight:500]"
+              onClick={() => props.controller.dispatch({ type: "mode.normal" })}
+            >
+              {i18n.t("ui.promptInput.shell")}
+              <IconV2 name="close" size="small" class="text-v2-icon-icon-muted" />
+            </button>
+          </Show>
           <div
             class="flex min-w-0 flex-1 items-center gap-1"
             data-slot="prompt-input-controls"
@@ -850,7 +864,7 @@ export function PromptInputV2SubmitButton(props: {
         tabIndex={props.mode === "normal" ? undefined : -1}
         icon={props.stopping ? "stop" : props.mode === "shell" ? "arrow-undo-down" : "arrow-up"}
         variant="primary"
-        class="size-9 rounded-full p-[9px] !bg-v2-background-bg-accent [&_[data-slot=icon-svg]]:!text-white transition-[border-radius,opacity] duration-short ease-standard enabled:hover:opacity-90 active:rounded-[12px] disabled:opacity-40 motion-reduce:transition-none"
+        class="size-9 rounded-full p-[9px] enabled:!bg-v2-background-bg-accent enabled:[&_[data-slot=icon-svg]]:!text-white disabled:!bg-v2-background-bg-layer-02 disabled:[&_[data-slot=icon-svg]]:!text-v2-icon-icon-muted transition-[border-radius,opacity] duration-short ease-standard enabled:hover:opacity-90 active:rounded-[12px] motion-reduce:transition-none"
         aria-label={props.stopping ? props.stopLabel : props.sendLabel}
         onClick={(event) => {
           event.preventDefault()

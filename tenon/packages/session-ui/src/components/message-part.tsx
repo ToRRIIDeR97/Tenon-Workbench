@@ -220,7 +220,7 @@ export interface MessagePartProps {
 
 function MessageActionButton(
   props: Pick<ComponentProps<"button">, "disabled" | "onMouseDown" | "onClick" | "aria-label"> & {
-    icon: "check" | "copy" | "reset"
+    icon: "check" | "copy" | "pencil-line"
     label: JSX.Element
     useV2?: boolean
     /** Render as the trigger of an enclosing DropdownMenu. */
@@ -1427,7 +1427,7 @@ export function UserMessageDisplay(props: {
           <Show when={props.actions?.revert}>
             <DropdownMenu gutter={4} placement="bottom-end">
               <MessageActionButton
-                icon="reset"
+                icon="pencil-line"
                 menu
                 label={i18n.t("ui.message.revertMessage")}
                 useV2={props.useV2Actions}

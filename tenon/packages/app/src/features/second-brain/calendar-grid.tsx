@@ -81,7 +81,7 @@ export function CalendarGrid(props: {
               <span
                 classList={{
                   "flex size-8 items-center justify-center rounded-full text-[15px]": true,
-                  "bg-v2-icon-icon-accent text-v2-icon-icon-contrast [font-weight:600]": day.today,
+                  "bg-v2-background-bg-accent text-v2-text-text-contrast [font-weight:600]": day.today,
                   "text-v2-text-text-base [font-weight:500]": !day.today,
                 }}
               >
@@ -102,7 +102,7 @@ export function CalendarGrid(props: {
                         type="button"
                         classList={{
                           "h-6 w-full min-w-0 truncate rounded-[8px] px-2 text-left text-[12px] [font-weight:500] focus-visible:outline-offset-[-2px]": true,
-                          "bg-v2-icon-icon-accent text-v2-icon-icon-contrast": props.selected === event.id,
+                          "bg-v2-background-bg-accent text-v2-text-text-contrast": props.selected === event.id,
                           "bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container hover:brightness-95":
                             props.selected !== event.id,
                         }}
@@ -175,7 +175,7 @@ export function CalendarGrid(props: {
                         type="button"
                         classList={{
                           "flex size-full flex-col gap-px overflow-hidden rounded-[8px] px-2 py-1 text-left text-[12px] leading-4 transition-[filter] duration-short ease-standard hover:brightness-110 focus-visible:outline-offset-[-2px] motion-reduce:transition-none": true,
-                          "bg-v2-icon-icon-accent text-v2-icon-icon-contrast": props.selected === block.event.id,
+                          "bg-v2-background-bg-accent text-v2-text-text-contrast": props.selected === block.event.id,
                           "bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container":
                             props.selected !== block.event.id,
                         }}

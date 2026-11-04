@@ -100,6 +100,14 @@ export function SessionSidePanel(props: {
   const shown = settings.visibility.fileTree
 
   const reviewOpen = createMemo(() => isDesktop() && (view().reviewPanel.opened() || !!props.closing))
+  // Under 1100px the thread can't share the page with both the Projects panel and this one.
+  const narrow = createMediaQuery("(max-width: 1099px)")
+  createEffect(
+    on(
+      () => view().reviewPanel.opened(),
+      (open) => open && narrow() && layout.sidebar.close(),
+    ),
+  )
   const fileOpen = createMemo(
     () =>
       isDesktop() &&

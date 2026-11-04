@@ -32,6 +32,7 @@ import { DiffChanges } from "@tenon/ui/v2/diff-changes-v2"
 import { FileIcon } from "@tenon/ui/file-icon"
 import { Icon as IconV2 } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
+import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { MenuV2 } from "@tenon/ui/v2/menu-v2"
 import { DialogFooter, DialogHeader, DialogTitleGroup, DialogV2 } from "@tenon/ui/v2/dialog-v2"
 import { InlineInput } from "@tenon/ui/inline-input"
@@ -1485,14 +1486,16 @@ export function MessageTimeline(props: {
                           if (open) return
                         }}
                       >
-                        <MenuV2.Trigger
-                          as={IconButtonV2}
-                          icon={<IconV2 name="outline-dots" />}
-                          variant="ghost-muted"
-                          size="large"
-                          aria-label={language.t("common.moreOptions")}
-                          aria-expanded={title.menuOpen}
-                        />
+                        <TooltipV2 placement="bottom" value={language.t("common.moreOptions")}>
+                          <MenuV2.Trigger
+                            as={IconButtonV2}
+                            icon={<IconV2 name="outline-dots" />}
+                            variant="ghost-muted"
+                            size="large"
+                            aria-label={language.t("common.moreOptions")}
+                            aria-expanded={title.menuOpen}
+                          />
+                        </TooltipV2>
                         <MenuV2.Portal>
                           <MenuV2.Content
                             style={{ width: "120px", "min-width": "120px" }}
@@ -1519,7 +1522,10 @@ export function MessageTimeline(props: {
                               {language.t("common.archive")}
                             </MenuV2.Item>
                             <MenuV2.Separator />
-                            <MenuV2.Item onSelect={() => dialog.show(() => <DialogDeleteSession sessionID={id} />)}>
+                            <MenuV2.Item
+                              class="[--menu-v2-fg:var(--v2-text-text-critical)]"
+                              onSelect={() => dialog.show(() => <DialogDeleteSession sessionID={id} />)}
+                            >
                               {language.t("common.delete")}...
                             </MenuV2.Item>
                           </MenuV2.Content>

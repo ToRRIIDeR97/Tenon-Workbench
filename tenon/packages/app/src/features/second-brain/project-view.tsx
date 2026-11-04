@@ -252,6 +252,7 @@ export function ProjectView(props: {
                       >
                         <CheckboxV2
                           hideLabel
+                          shape="round"
                           label={item.title}
                           checked={item.status === "done"}
                           disabled={state.saving}

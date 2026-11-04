@@ -21,6 +21,17 @@
   outline: none;
 }
 
+/* A 24px hit area around the 20px button, without moving its neighbours. */
+[data-component="icon-button-v2"][data-size="small"] {
+  position: relative;
+}
+
+[data-component="icon-button-v2"][data-size="small"]::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+}
+
 [data-component="icon-button-v2"]:is(:focus-visible, [data-state="focus"]):not(:disabled) {
   outline: 2px solid var(--v2-border-border-focus);
   outline-offset: 2.5px;
@@ -103,7 +114,9 @@
 }
 
 [data-component="icon-button-v2"][data-variant="contrast"]:is(:disabled, [data-state="disabled"]) {
-  opacity: 0.4;
+  background: var(--v2-background-bg-layer-02);
+  color: var(--v2-icon-icon-muted);
+  box-shadow: none;
   cursor: not-allowed;
 }
 

@@ -8,6 +8,7 @@ import { TextareaV2 } from "@tenon/ui/v2/textarea-v2"
 import { TextInputV2 } from "@tenon/ui/v2/text-input-v2"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { ViewSwitch } from "@tenon/ui/v2/view-switch"
+import { createMediaQuery } from "@solid-primitives/media"
 import { createEffect, createMemo, createResource, For, on, Show } from "solid-js"
 import { createCalendarResource } from "@/features/second-brain/calendar-cache"
 import { createStore } from "solid-js/store"
@@ -32,6 +33,7 @@ import {
 } from "@/features/second-brain/calendar-domain"
 import { CalendarGrid, type CalendarGridDay } from "@/features/second-brain/calendar-grid"
 import { CalendarPeek, TaskCheck } from "@/features/second-brain/calendar-peek"
+import { DateChip } from "@/features/second-brain/project-controls"
 import { CalendarTasks, type CalendarTaskFilter } from "@/features/second-brain/calendar-tasks"
 import { revealSidePanel, SidePanel, sidePanelGridClass } from "@/features/second-brain/side-panel"
 import { focusWhenConnected } from "@/utils/focus-when-connected"
@@ -146,6 +148,8 @@ export default function CalendarPage() {
     google?: string
     event?: string
     task?: string
+    /** A task to complete on arrival, from Home's task check. */
+    complete?: string
     /** YYYY-MM-DD to show, e.g. from an agent write's Open. */
     date?: string
   }>()
@@ -675,6 +679,19 @@ export default function CalendarPage() {
     })
   }
 
+  let completed: string | undefined
+  createEffect(
+    on(
+      () => [search.complete, snapshot()] as const,
+      ([id, current]) => {
+        const task = current?.tasks.find((item) => item.id === id)
+        if (!task || completed === id) return
+        completed = id
+        if (!task.completedAt) void toggleTask(task)
+      },
+    ),
+  )
+
   const projectName = (id?: string) =>
     id ? (brainProjects.latest?.find((project) => project.id === id)?.name ?? id) : undefined
 
@@ -705,6 +722,9 @@ export default function CalendarPage() {
   })
 
   const panelOpen = () => state.googlePanel || state.editing || Boolean(peekView())
+  // Under 1100px the week can't share the page with both the Projects panel and this one.
+  const narrow = createMediaQuery("(max-width: 1099px)")
+  createEffect(on(panelOpen, (open) => open && narrow() && layout.sidebar.close(), { defer: true }))
   const panelView = () => (state.googlePanel ? "google" : state.editing ? "edit" : `peek:${state.peek}`)
 
   const peekView = createMemo(() => {
@@ -1173,7 +1193,7 @@ export default function CalendarPage() {
                                           <span
                                             classList={{
                                               "mt-1 flex size-9 items-center justify-center rounded-full text-[17px]": true,
-                                              "bg-v2-icon-icon-accent text-v2-icon-icon-contrast [font-weight:600]":
+                                              "bg-v2-background-bg-accent text-v2-text-text-contrast [font-weight:600]":
                                                 day.today,
                                               "text-v2-text-text-base [font-weight:500]": !day.today,
                                             }}
@@ -1242,7 +1262,7 @@ export default function CalendarPage() {
                                     type="button"
                                     classList={{
                                       "mx-auto mb-1 flex size-7 shrink-0 items-center justify-center rounded-full text-[12px] transition-colors duration-short ease-standard motion-reduce:transition-none": true,
-                                      "bg-v2-icon-icon-accent text-v2-icon-icon-contrast [font-weight:600]": day.today,
+                                      "bg-v2-background-bg-accent text-v2-text-text-contrast [font-weight:600]": day.today,
                                       "hover:bg-v2-overlay-simple-overlay-hover": !day.today,
                                       "text-v2-text-text-faint": !day.inMonth && !day.today,
                                       "text-v2-text-text-muted": day.inMonth && !day.today,
@@ -1641,31 +1661,22 @@ export default function CalendarPage() {
                       />
                     </label>
                     <div class="grid grid-cols-2 gap-3">
-                      <label class={fieldClass} for="calendar-event-date">
+                      <div class={fieldClass}>
                         {language.t("secondBrain.calendar.date")}
-                        <input
-                          id="calendar-event-date"
-                          type="date"
-                          class={dateInputClass}
-                          aria-invalid={state.errorField === "date" ? true : undefined}
-                          aria-describedby={state.errorField === "date" ? "calendar-event-error" : undefined}
-                          value={state.draft.date}
-                          onInput={(event) => setState("draft", "date", event.currentTarget.value)}
+                        <DateChip
+                          label={language.t("secondBrain.calendar.date")}
+                          value={state.draft.date || undefined}
+                          onChange={(value) => setState("draft", "date", value ?? "")}
                         />
-                      </label>
-                      <label class={fieldClass} for="calendar-event-end-date">
+                      </div>
+                      <div class={fieldClass}>
                         {language.t("secondBrain.calendar.endDate")}
-                        <input
-                          id="calendar-event-end-date"
-                          type="date"
-                          min={state.draft.date}
-                          class={dateInputClass}
-                          aria-invalid={state.errorField === "endDate" ? true : undefined}
-                          aria-describedby={state.errorField === "endDate" ? "calendar-event-error" : undefined}
-                          value={state.draft.endDate}
-                          onInput={(event) => setState("draft", "endDate", event.currentTarget.value)}
+                        <DateChip
+                          label={language.t("secondBrain.calendar.endDate")}
+                          value={state.draft.endDate || undefined}
+                          onChange={(value) => setState("draft", "endDate", value ?? "")}
                         />
-                      </label>
+                      </div>
                     </div>
                     <div class="grid grid-cols-2 gap-3">
                       <label class={fieldClass} for="calendar-event-start">

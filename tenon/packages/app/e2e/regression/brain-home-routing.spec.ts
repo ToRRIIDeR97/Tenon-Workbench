@@ -90,10 +90,6 @@ test("the sidebar is the only navigation", async ({ page }) => {
     await sidebar(page).locator(`[data-sidebar-item="${item}"]`).click()
     await expect(page).toHaveURL(path)
   }
-  // The Projects page is reached from the workspace menu.
-  await sidebar(page).getByRole("button", { name: "Switch workspace" }).click()
-  await page.getByRole("menuitem", { name: "Manage projects" }).click()
-  await expect(page).toHaveURL(/\/projects$/)
 })
 
 test("the cross-project overview opens from the workspace menu and the Projects page", async ({ page }) => {
