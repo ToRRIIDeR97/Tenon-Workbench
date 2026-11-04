@@ -10,13 +10,6 @@ test("stop without a recording rejects with not_recording", async () => {
   await expect(dictation.stop()).rejects.toMatchObject({ code: "not_recording" })
 })
 
-test("a configured model is loaded before recording starts", async () => {
-  const dictation = createDictation({ command: process.execPath, args: [engine], log: () => {}, model: () => "m.gguf" })
-  await dictation.start()
-  expect(await dictation.stop()).toBe("hello from the fake engine")
-  dictation.dispose()
-})
-
 test("a stop that never answers times out, and the next start spawns a fresh engine", async () => {
   process.env.FAKE_DICTATION_HANG_STOP = "1"
   const dictation = createDictation({

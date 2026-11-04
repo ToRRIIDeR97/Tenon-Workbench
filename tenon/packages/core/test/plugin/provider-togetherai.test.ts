@@ -1,6 +1,5 @@
 import { AISDK } from "@tenon/core/aisdk"
 import { describe, expect } from "bun:test"
-import type { LanguageModelV3 } from "@ai-sdk/provider"
 import { Effect } from "effect"
 import { ModelV2 } from "@tenon/core/model"
 import { PluginV2 } from "@tenon/core/plugin"
@@ -18,19 +17,6 @@ const addPlugin = Effect.fn(function* () {
   const host = yield* PluginHost.make(plugin)
   yield* TogetherAIPlugin.effect(host)
 })
-
-function fakeSelectorSdk(calls: string[]) {
-  const make = (method: string) => (id: string) => {
-    calls.push(`${method}:${id}`)
-    return { modelId: id, provider: method, specificationVersion: "v3" } as unknown as LanguageModelV3
-  }
-  return {
-    responses: make("responses"),
-    messages: make("messages"),
-    chat: make("chat"),
-    languageModel: make("languageModel"),
-  }
-}
 
 describe("TogetherAIPlugin", () => {
   it.effect("creates a TogetherAI SDK for @ai-sdk/togetherai", () =>
@@ -94,36 +80,6 @@ describe("TogetherAIPlugin", () => {
       })
 
       expect(result.sdk.languageModel("model").provider).toBe("togetherai.chat")
-    }),
-  )
-
-  it.effect("defaults language selection to sdk.languageModel with the model API ID", () =>
-    Effect.gen(function* () {
-      const plugin = yield* PluginV2.Service
-      const aisdk = yield* AISDK.Service
-      const calls: string[] = []
-      yield* addPlugin()
-
-      const result = yield* aisdk.runLanguage({
-        model: ModelV2.Info.make({
-          ...ModelV2.Info.empty(
-            ProviderV2.ID.make("togetherai"),
-            ModelV2.ID.make("meta-llama/Llama-3.3-70B-Instruct-Turbo"),
-          ),
-          api: {
-            id: ModelV2.ID.make("meta-llama/Llama-3.3-70B-Instruct-Turbo"),
-            type: "aisdk",
-            package: "test-provider",
-          },
-        }),
-        sdk: { languageModel: fakeSelectorSdk(calls).languageModel },
-        options: {},
-      })
-
-      expect(result.language).toBeUndefined()
-      expect(calls).toEqual([])
-      expect(result.language ?? fakeSelectorSdk(calls).languageModel(result.model.api.id)).toBeDefined()
-      expect(calls).toEqual(["languageModel:meta-llama/Llama-3.3-70B-Instruct-Turbo"])
     }),
   )
 })

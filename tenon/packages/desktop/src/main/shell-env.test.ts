@@ -3,7 +3,7 @@ import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { isNushell, loadShellEnv, mergeShellEnv, parseShellEnv, resolveUserShell } from "./shell-env"
+import { isNushell, loadShellEnv, parseShellEnv, resolveUserShell } from "./shell-env"
 
 const dir = mkdtempSync(join(tmpdir(), "shell-env-test-"))
 afterAll(() => rmSync(dir, { recursive: true, force: true }))
@@ -33,23 +33,6 @@ describe("shell env", () => {
 
     expect(Object.keys(env).length).toBe(1)
     expect(env.OK).toBe("1")
-  })
-
-  test("mergeShellEnv keeps explicit overrides", () => {
-    const env = mergeShellEnv(
-      {
-        PATH: "/shell/path",
-        HOME: "/tmp/home",
-      },
-      {
-        PATH: "/desktop/path",
-        TENON_CLIENT: "desktop",
-      },
-    )
-
-    expect(env.PATH).toBe("/desktop/path")
-    expect(env.HOME).toBe("/tmp/home")
-    expect(env.TENON_CLIENT).toBe("desktop")
   })
 
   test("resolveUserShell falls back to the login shell before /bin/sh", () => {

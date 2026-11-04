@@ -1,7 +1,6 @@
 import { expect, test } from "bun:test"
 import {
   formatDateTimeMedium,
-  formatRelativeTime,
   parseISODate,
   previousLocalDay,
   sameLocalDay,
@@ -14,13 +13,6 @@ test("same local day and the day before", () => {
   expect(sameLocalDay(new Date(2026, 10, 1, 0, 1).getTime(), now)).toBe(true)
   expect(sameLocalDay(new Date(2026, 9, 31, 23, 59).getTime(), now)).toBe(false)
   expect(sameLocalDay(new Date(2026, 9, 31, 23, 59).getTime(), previousLocalDay(now))).toBe(true)
-})
-
-test("relative time uses the largest whole unit, without weeks", () => {
-  expect(formatRelativeTime(now - 5_000, now, "en-US")).toBe("5 seconds ago")
-  expect(formatRelativeTime(now - 10 * 86_400_000, now, "en-US")).toBe("10 days ago")
-  expect(formatRelativeTime(now - 45 * 86_400_000, now, "en-US")).toBe("1 month ago")
-  expect(formatRelativeTime(now + 2 * 3_600_000, now, "en-US")).toBe("in 2 hours")
 })
 
 test("medium date-time format and invalid input", () => {

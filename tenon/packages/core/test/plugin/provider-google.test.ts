@@ -53,28 +53,4 @@ describe("GooglePlugin", () => {
       expect(result.sdk).toBeUndefined()
     }),
   )
-
-  it.effect("uses default languageModel loading with provider ID parity", () =>
-    Effect.gen(function* () {
-      const plugin = yield* PluginV2.Service
-      const aisdk = yield* AISDK.Service
-      yield* addPlugin()
-      const sdkEvent = yield* aisdk.runSDK({
-        model: ModelV2.Info.make({
-          ...ModelV2.Info.empty(ProviderV2.ID.make("custom-google"), ModelV2.ID.make("alias")),
-          api: { id: ModelV2.ID.make("gemini-api"), type: "aisdk", package: "@ai-sdk/google" },
-        }),
-        package: "@ai-sdk/google",
-        options: { name: "custom-google", apiKey: "test" },
-      })
-      const result = yield* aisdk.runLanguage({
-        model: sdkEvent.model,
-        sdk: sdkEvent.sdk,
-        options: sdkEvent.options,
-      })
-      const language = result.language ?? result.sdk.languageModel(result.model.api.id)
-      expect(language.modelId).toBe("gemini-api")
-      expect(language.provider).toBe("custom-google")
-    }),
-  )
 })

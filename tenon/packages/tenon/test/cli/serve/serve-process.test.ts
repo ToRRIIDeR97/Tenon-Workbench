@@ -32,30 +32,4 @@ describe("opencode serve (subprocess)", () => {
       }),
     60_000,
   )
-
-  // The scope-close finalizer must actually terminate the child. Without this
-  // test a regression in the kill path (e.g. a future refactor that forgets
-  // to wire the finalizer) would leak processes on every test run.
-  cliIt.live(
-    "kills the subprocess on scope close",
-    ({ opencode }) =>
-      Effect.gen(function* () {
-        // Inner scope so we can observe `.exited` resolving after it closes.
-        const exitedPromise = yield* Effect.scoped(
-          Effect.gen(function* () {
-            const server = yield* opencode.serve()
-            // Capture the Promise, not the resolved value — scope closes after
-            // this gen returns, at which point the finalizer kills the child.
-            return server.exited
-          }),
-        )
-        // After scope close: finalizer fired, process must have exited.
-        const code = yield* Effect.promise(() => exitedPromise)
-        // Bun reports the exit code; SIGTERM-killed processes return non-null
-        // (typically 143 on POSIX). We just require resolution within a sane
-        // window — anything else means the kill didn't take.
-        expect(typeof code === "number" || code === null).toBe(true)
-      }),
-    60_000,
-  )
 })

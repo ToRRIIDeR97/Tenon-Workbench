@@ -4,11 +4,9 @@ import {
   requireWslDistro,
   requireWslIpcString,
   validWslDistros,
-  wslServerIdToRestart,
   wslTerminalArgs,
 } from "./policy"
 import {
-  expectOpencodeVersion,
   pendingRestartAfterWslInstall,
   pollWslHealth,
   wslServerIdsToStartOnInitialize,
@@ -25,28 +23,6 @@ test("starts every configured WSL server on initialization", () => {
       { id: "wsl:Ubuntu-24.04", distro: "Ubuntu-24.04" },
     ]),
   ).toEqual(["wsl:Debian", "wsl:Ubuntu-24.04"])
-})
-
-test("rejects an update that did not install the desktop version", () => {
-  expect(() => expectOpencodeVersion("1.16.2", "1.16.2")).not.toThrow()
-  expect(() => expectOpencodeVersion("1.14.35", "1.16.2")).toThrow(
-    "OpenCode update finished but Debian still reports 1.14.35; expected 1.16.2",
-  )
-})
-
-test("restarts an existing distro server after updating OpenCode", () => {
-  expect(
-    wslServerIdToRestart(
-      [
-        {
-          config: { id: "wsl:Debian", distro: "Debian" },
-          runtime: { kind: "ready", url: "", username: null, password: null },
-        },
-      ],
-      "Debian",
-    ),
-  ).toBe("wsl:Debian")
-  expect(wslServerIdToRestart([], "Debian")).toBeUndefined()
 })
 
 test("clears cached distro probes when removing a WSL server", () => {

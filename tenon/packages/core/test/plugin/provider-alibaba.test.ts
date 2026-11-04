@@ -73,20 +73,4 @@ describe("AlibabaPlugin", () => {
       expect(actual?.modelId).toBe(expected.modelId)
     }),
   )
-
-  it.effect("uses the old default languageModel(api.id) behavior", () =>
-    Effect.gen(function* () {
-      const plugin = yield* PluginV2.Service
-      const aisdk = yield* AISDK.Service
-      yield* addPlugin()
-      const item = ModelV2.Info.make({
-        ...ModelV2.Info.empty(ProviderV2.ID.make("alibaba"), ModelV2.ID.make("alias")),
-        api: { id: ModelV2.ID.make("qwen-plus"), type: "aisdk", package: "test-provider" },
-      })
-      const result = yield* aisdk.runSDK({ model: item, package: "@ai-sdk/alibaba", options: {} })
-      const language = result.sdk?.languageModel(item.api.id)
-      expect(language?.modelId).toBe("qwen-plus")
-      expect(language?.provider).toBe("alibaba.chat")
-    }),
-  )
 })

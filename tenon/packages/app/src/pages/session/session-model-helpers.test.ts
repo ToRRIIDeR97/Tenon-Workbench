@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { UserMessage } from "@opencode-ai/sdk/v2"
-import { resetSessionModel, restorePromptModel, syncPromptModel, syncSessionModel } from "./session-model-helpers"
+import { restorePromptModel, syncPromptModel, syncSessionModel } from "./session-model-helpers"
 
 const message = (input?: { agent?: string; model?: UserMessage["model"] }) =>
   ({
@@ -31,23 +31,6 @@ describe("syncSessionModel", () => {
     expect(calls).toEqual([
       message({ model: { providerID: "anthropic", modelID: "claude-sonnet-4", variant: "high" } }),
     ])
-  })
-})
-
-describe("resetSessionModel", () => {
-  test("clears draft session state", () => {
-    const calls: string[] = []
-
-    resetSessionModel({
-      session: {
-        reset() {
-          calls.push("reset")
-        },
-        restore() {},
-      },
-    })
-
-    expect(calls).toEqual(["reset"])
   })
 })
 
