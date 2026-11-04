@@ -398,7 +398,7 @@
     --v2-avatar-border-gray: #3a3a3aff;
   }
 
-  /* Explicit dark mode via data attribute (Storybook toggle, runtime JS) */
+  /* Explicit dark mode via data attribute (runtime JS) */
   [data-color-scheme="dark"] {
     color-scheme: dark;
 
