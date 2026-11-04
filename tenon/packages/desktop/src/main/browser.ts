@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto"
 import { createServer, type IncomingMessage } from "node:http"
 import { BrowserWindow, dialog, session, WebContentsView } from "electron"
+import { isBlockedRequest, isLocal, needsAgentConsent } from "./browser-policy"
 import { nativeT } from "./native-translations"
 import { renderSvg } from "./svg-render"
 import { deviceInput, deviceLogs, deviceScreenshot, deviceStatus, installApp, launchApp } from "./device"
@@ -11,6 +12,9 @@ import { deviceInput, deviceLogs, deviceScreenshot, deviceStatus, installApp, la
 // HTTP bridge guarded by a bearer token (TENON_BROWSER_URL / TENON_BROWSER_TOKEN in the server's env).
 const PARTITION = "persist:tenon-browser"
 const MAX_LOG = 100
+// How long after a browser tool returns its page-driven navigation still counts as the agent's: a click
+// reports done before the navigation it started reaches this process, and a meta refresh follows the load.
+const AGENT_SETTLE_MS = 1000
 
 type Bounds = { x: number; y: number; width: number; height: number }
 type LogEntry = { level: string; text: string }
@@ -23,10 +27,11 @@ const state = {
   log: [] as LogEntry[],
   // The app's own server; the browser never loads it, so pages can't reach its API.
   blocked: new Set<string>(),
+  // Agent browser tools in flight, the hosts the user allowed for them, and the hosts being asked about now.
+  agentCalls: 0,
+  allowedHosts: new Set<string>(),
+  askingHosts: new Set<string>(),
 }
-
-const isLocal = (url: URL) =>
-  ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) || url.hostname.endsWith(".localhost")
 
 function push(entry: LogEntry) {
   state.log.push(entry)
@@ -39,8 +44,7 @@ function ensureView() {
   browserSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
   browserSession.setPermissionCheckHandler(() => false)
   browserSession.webRequest.onBeforeRequest((details, callback) => {
-    const origin = URL.canParse(details.url) ? new URL(details.url).origin : ""
-    callback({ cancel: state.blocked.has(origin) })
+    callback({ cancel: URL.canParse(details.url) && isBlockedRequest(new URL(details.url), state.blocked) })
   })
   browserSession.webRequest.onErrorOccurred((details) => {
     if (details.error !== "net::ERR_ABORTED") push({ level: "network", text: `${details.error} ${details.url}` })
@@ -49,12 +53,30 @@ function ensureView() {
     webPreferences: { partition: PARTITION, sandbox: true, contextIsolation: true, nodeIntegration: false },
   })
   const contents = view.webContents
+  // While an agent's tool is in flight, a page-driven hop to a new site is held for the same dialog as
+  // browser_navigate, then loaded again if the user says yes. Returns whether it was held.
+  const holdForConsent = (url: string) => {
+    const window = state.window
+    if (!window || !URL.canParse(url) || !needsAgentConsent(new URL(url), state.agentCalls, state.allowedHosts))
+      return false
+    const host = new URL(url).host
+    if (state.askingHosts.has(host)) return true
+    state.askingHosts.add(host)
+    void askAgentHost(window, host)
+      .then((allowed) => (allowed ? contents.loadURL(url) : undefined))
+      .catch(() => undefined)
+      .finally(() => state.askingHosts.delete(host))
+    return true
+  }
   contents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:/.test(url)) void contents.loadURL(url)
+    if (/^https?:/.test(url) && !holdForConsent(url)) void contents.loadURL(url)
     return { action: "deny" }
   })
   contents.on("will-navigate", (event, url) => {
-    if (!/^https?:/.test(url)) event.preventDefault()
+    if (!/^https?:/.test(url) || holdForConsent(url)) event.preventDefault()
+  })
+  contents.on("will-redirect", (event) => {
+    if (event.isMainFrame && holdForConsent(event.url)) event.preventDefault()
   })
   contents.on("console-message", (event) => push({ level: event.level, text: event.message }))
   for (const name of [
@@ -206,6 +228,22 @@ const SNAPSHOT = `(() => {
   return { url: location.href, title: document.title, headings, elements, text: (document.body?.innerText || "").slice(0, 8000) }
 })()`
 
+async function askAgentHost(window: BrowserWindow, host: string) {
+  const choice = await dialog.showMessageBox(window, {
+    type: "question",
+    title: nativeT("secondBrain.desktop.browser.agentNavigate.title"),
+    message: nativeT("secondBrain.desktop.browser.agentNavigate.message", { host }),
+    buttons: [
+      nativeT("secondBrain.desktop.browser.agentNavigate.allow"),
+      nativeT("secondBrain.desktop.browser.agentNavigate.deny"),
+    ],
+    defaultId: 1,
+    cancelId: 1,
+  })
+  if (choice.response === 0) state.allowedHosts.add(host)
+  return choice.response === 0
+}
+
 async function runTool(name: string, args: Record<string, unknown>): Promise<{ text?: string; image?: string }> {
   if (name.startsWith("device_")) return runDeviceTool(name, args)
   if (name === "render_svg") return renderSvg(String(args.svg ?? ""))
@@ -219,20 +257,8 @@ async function runTool(name: string, args: Record<string, unknown>): Promise<{ t
     const url = normalizeURL(String(args.url ?? ""))
     if (!url) throw new Error("browser_navigate needs an http(s) URL.")
     const parsed = new URL(url)
-    if (!isLocal(parsed)) {
-      const choice = await dialog.showMessageBox(window, {
-        type: "question",
-        title: nativeT("secondBrain.desktop.browser.agentNavigate.title"),
-        message: nativeT("secondBrain.desktop.browser.agentNavigate.message", { host: parsed.host }),
-        buttons: [
-          nativeT("secondBrain.desktop.browser.agentNavigate.allow"),
-          nativeT("secondBrain.desktop.browser.agentNavigate.deny"),
-        ],
-        defaultId: 1,
-        cancelId: 1,
-      })
-      if (choice.response !== 0) throw new Error(`The user didn't allow opening ${parsed.host}.`)
-    }
+    if (!isLocal(parsed) && !(await askAgentHost(window, parsed.host)))
+      throw new Error(`The user didn't allow opening ${parsed.host}.`)
     await contents.loadURL(url).catch(() => undefined)
     sendState()
     return { text: JSON.stringify({ url: contents.getURL(), title: contents.getTitle() }) }
@@ -284,7 +310,12 @@ export function startBrowserBridge() {
       if (request.method !== "POST" || request.headers.authorization !== `Bearer ${token}` || request.headers.origin)
         return answer(403, { error: "Forbidden" })
       void readJSON(request)
-        .then((args) => runTool((request.url ?? "").replace(/^\//, ""), args))
+        .then((args) => {
+          const name = (request.url ?? "").replace(/^\//, "")
+          if (!name.startsWith("browser_")) return runTool(name, args)
+          state.agentCalls++
+          return runTool(name, args).finally(() => setTimeout(() => state.agentCalls--, AGENT_SETTLE_MS))
+        })
         .then(
           (result) =>
             answer(

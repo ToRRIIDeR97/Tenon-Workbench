@@ -19,9 +19,29 @@ test("reveals Windows executables and shell launchers instead of opening them", 
   expect(localFileAction("C:\\x\\notes.md", file, "win32", ".EXE")).toBe("open")
 })
 
+test("reveals the rest of the Windows launchers and any alternate data stream", () => {
+  for (const name of [
+    "C:\\x\\a.pif",
+    "C:\\x\\a.CPL",
+    "C:\\x\\a.jar",
+    "C:\\x\\a.chm",
+    "C:\\x\\a.application",
+    "C:\\x\\a.appinstaller",
+    "C:\\x\\a.msix",
+    "C:\\x\\a.settingcontent-ms",
+    "C:\\x\\notepad.exe::$DATA",
+    "C:\\x\\notes.md:hidden",
+  ])
+    expect(localFileAction(name, file, "win32", ".EXE")).toBe("reveal")
+  // The drive's colon is not part of the file name.
+  expect(localFileAction("C:\\x\\report.pdf", file, "win32", ".EXE")).toBe("open")
+})
+
 test("reveals macOS bundles and scripts", () => {
   for (const name of ["/Applications/X.app", "/tmp/run.command", "/tmp/a.terminal", "/tmp/a.workflow"])
     expect(localFileAction(name, { isDirectory: name.endsWith(".app"), mode: 0o755 }, "darwin")).toBe("reveal")
+  for (const name of ["/tmp/a.fileloc", "/tmp/a.webloc", "/tmp/a.inetloc", "/tmp/a.scptd", "/tmp/a.mobileconfig"])
+    expect(localFileAction(name, file, "darwin")).toBe("reveal")
   expect(localFileAction("/tmp/report.pdf", file, "darwin")).toBe("open")
 })
 

@@ -34,6 +34,14 @@ const oc2Background = {
 }
 const documentPolicyHeader = "Document-Policy"
 const jsCallStacksDocumentPolicy = "include-js-call-stacks-in-crash-reports"
+// No script-src: a srcdoc design frame inherits this policy and runs its own inline scripts. These three
+// don't touch scripts, and design frames already meet them.
+const contentPolicyHeader = "Content-Security-Policy"
+const contentPolicy = "object-src 'none'; base-uri 'none'; form-action 'none'"
+// Observed, not enforced: Chromium logs what would break to the console, the check to do before img-src and
+// media-src can back the Markdown no-beacon rule.
+const contentPolicyReportHeader = "Content-Security-Policy-Report-Only"
+const contentPolicyReport = `img-src 'self' data: blob: ${fileViewerScheme.scheme}:; media-src 'self' data: blob: ${fileViewerScheme.scheme}:`
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -499,6 +507,8 @@ function addDocumentPolicy(response: Response, file: string) {
   if (!file.toLowerCase().endsWith(".html")) return response
   const headers = new Headers(response.headers)
   headers.set(documentPolicyHeader, jsCallStacksDocumentPolicy)
+  headers.set(contentPolicyHeader, contentPolicy)
+  headers.set(contentPolicyReportHeader, contentPolicyReport)
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers })
 }
 
@@ -547,7 +557,10 @@ function isTrustedRendererUrl(value?: string) {
 function addRendererHeaders(value: string, headers: Record<string, any>) {
   upsertKeyValue(headers, "Access-Control-Allow-Origin", ["*"])
   upsertKeyValue(headers, "Access-Control-Allow-Headers", ["*"])
-  if (isRendererUrl(value, true)) upsertKeyValue(headers, documentPolicyHeader, [jsCallStacksDocumentPolicy])
+  if (!isRendererUrl(value, true)) return
+  upsertKeyValue(headers, documentPolicyHeader, [jsCallStacksDocumentPolicy])
+  upsertKeyValue(headers, contentPolicyHeader, [contentPolicy])
+  upsertKeyValue(headers, contentPolicyReportHeader, [contentPolicyReport])
 }
 
 function isRendererUrl(value?: string, html = false) {
