@@ -12,6 +12,7 @@ import { useSettings } from "@/context/settings"
 import { commandDirectory, compactCommandMemory, readVault, type ModelChoice } from "@/features/second-brain/client"
 import { useAgentWrites, type AgentWrite } from "@/features/agent-writes/store"
 import { Identifier } from "@/utils/id"
+import { settled } from "@/utils/resource"
 import { normalizeSessionInfo } from "@/utils/session"
 
 export type CommandThread = {
@@ -161,7 +162,7 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
     })
     // The synced session info carries the title the server sets after the first reply and the latest activity.
     const list = () =>
-      (threads.latest ?? [])
+      (settled(threads) ?? [])
         .map((thread) => {
           const info = serverSync().session.get(thread.id)
           return {

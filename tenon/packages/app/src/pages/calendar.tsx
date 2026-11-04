@@ -9,6 +9,8 @@ import { TextInputV2 } from "@tenon/ui/v2/text-input-v2"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { ViewSwitch } from "@tenon/ui/v2/view-switch"
 import { createEffect, createMemo, createResource, For, on, Show } from "solid-js"
+import { useBrainProjects } from "@/components/sidebar/sidebar-controller"
+import { settled } from "@/utils/resource"
 import { createCalendarResource } from "@/features/second-brain/calendar-cache"
 import { createStore } from "solid-js/store"
 import { RevealShow } from "@tenon/ui/v2/reveal"
@@ -37,7 +39,6 @@ import { revealSidePanel, SidePanel, sidePanelGridClass } from "@/features/secon
 import { focusWhenConnected } from "@/utils/focus-when-connected"
 import { calendarSync, providerTask, syncGoogleCalendar } from "@/features/second-brain/calendar-sync"
 import {
-  listProjects,
   SecondBrainRequestError,
   writeCalendar,
   type CalendarEvent,
@@ -207,22 +208,19 @@ export default function CalendarPage() {
   // shown inline with a retry.
   const events = createCalendarResource(() => directory() || undefined, client)
   const snapshot = events.snapshot
-  const [brainProjects] = createResource(
-    () => directory() || undefined,
-    (directory) => listProjects(client(directory)),
-  )
+  const brainProjects = useBrainProjects()
   const [googleConnection, googleActions] = createResource(async () =>
     platform.googleCalendar ? platform.googleCalendar.status() : unavailableGoogle,
   )
   // Items saved before multiple accounts carry no account. They came from the one account then connected,
   // which the desktop migration keeps first in the list.
-  const itemAccount = (accountId: string | undefined, connection = googleConnection.latest) =>
+  const itemAccount = (accountId: string | undefined, connection = settled(googleConnection)) =>
     accountId ?? connection?.accounts[0]?.id
   const googleWriteAccounts = createMemo(() =>
-    (googleConnection.latest?.accounts ?? []).filter((account) => account.access === "write"),
+    (settled(googleConnection)?.accounts ?? []).filter((account) => account.access === "write"),
   )
   const googleAccountLabel = (accountId: string) =>
-    googleConnection.latest?.accounts.find((account) => account.id === accountId)?.label ??
+    settled(googleConnection)?.accounts.find((account) => account.id === accountId)?.label ??
     language.t("secondBrain.calendar.google.accountFallback")
   const days = createMemo(() => monthGrid(state.cursor))
   const monthTitle = createMemo(() =>
@@ -469,7 +467,7 @@ export default function CalendarPage() {
   }
 
   // Typed credentials are needed unless the build ships its own client and the user hasn't opted out of it.
-  const googleTypedClient = () => !googleConnection.latest?.builtInClient || state.googleOwnClient
+  const googleTypedClient = () => !settled(googleConnection)?.builtInClient || state.googleOwnClient
 
   let connectAttempt = 0
   const connectGoogle = async () => {
@@ -541,7 +539,7 @@ export default function CalendarPage() {
     if (!google || !target) return
     setState({ googleBusy: true, googleError: "" })
     try {
-      const before = googleConnection.latest
+      const before = settled(googleConnection)
       const connection = await google.disconnect({ accountId })
       googleActions.mutate(connection)
       if (directory() !== target) return
@@ -601,7 +599,7 @@ export default function CalendarPage() {
     if (removed && changed) throw new Error("google_multiple_task_writes")
 
     let next = [...tasks]
-    const connected = googleConnection.latest?.connected && googleConnection.latest?.access === "write"
+    const connected = settled(googleConnection)?.connected && settled(googleConnection)?.access === "write"
     // Without a Google connection a removed Google task is only dropped from the planner.
     const target = removed && !connected ? changed : (removed ?? changed)
     if (target) {
@@ -676,7 +674,7 @@ export default function CalendarPage() {
   }
 
   const projectName = (id?: string) =>
-    id ? (brainProjects.latest?.find((project) => project.id === id)?.name ?? id) : undefined
+    id ? (brainProjects.list()?.find((project) => project.id === id)?.name ?? id) : undefined
 
   // Day and Week: the shown days with timed events, all-day events and open tasks.
   const gridDays = createMemo<CalendarGridDay[]>(() => {
@@ -742,7 +740,7 @@ export default function CalendarPage() {
   })
 
   const googleStatus = () => {
-    const connection = googleConnection.latest
+    const connection = settled(googleConnection)
     if (!connection?.connected) return language.t("secondBrain.calendar.google.connect")
     if (!connection.lastSyncedAt) return language.t("secondBrain.calendar.google.connected")
     const synced = new Date(connection.lastSyncedAt)
@@ -836,7 +834,7 @@ export default function CalendarPage() {
 
   const remove = async () => {
     if (!state.draft.id) return
-    if (state.draft.source === "google" && googleConnection.latest?.connected) {
+    if (state.draft.source === "google" && settled(googleConnection)?.connected) {
       setState({
         googleConfirm: "delete",
         googleWriteKey: state.draft.outboxKey || state.googleWriteKey || crypto.randomUUID(),
@@ -1049,12 +1047,12 @@ export default function CalendarPage() {
             <SelectV2
               aria-label={language.t("secondBrain.calendar.filterProject")}
               class="!h-8 !w-auto max-w-44"
-              options={["__all__", ...(brainProjects.latest ?? []).map((project) => project.id)]}
+              options={["__all__", ...(brainProjects.list() ?? []).map((project) => project.id)]}
               current={state.projectFilter || "__all__"}
               label={(projectID) =>
                 projectID === "__all__"
                   ? language.t("secondBrain.calendar.allProjects")
-                  : (brainProjects.latest?.find((project) => project.id === projectID)?.name ?? projectID)
+                  : (brainProjects.list()?.find((project) => project.id === projectID)?.name ?? projectID)
               }
               onSelect={(projectID) => setState("projectFilter", projectID === "__all__" ? "" : (projectID ?? ""))}
             />
@@ -1096,7 +1094,7 @@ export default function CalendarPage() {
             {(filter) => (
               <CalendarTasks
                 tasks={snapshot()?.tasks ?? []}
-                projects={brainProjects.latest ?? []}
+                projects={brainProjects.list() ?? []}
                 onSave={persistTasks}
                 onToggle={toggleTask}
                 filter={filter}
@@ -1186,7 +1184,7 @@ export default function CalendarPage() {
                                             {(item) => (
                                               <ScheduleRow
                                                 item={item}
-                                                projects={brainProjects.latest ?? []}
+                                                projects={brainProjects.list() ?? []}
                                                 selected={
                                                   state.peek ===
                                                   (item.kind === "event" ? item.event.id : `task:${item.task.id}`)
@@ -1349,7 +1347,7 @@ export default function CalendarPage() {
                       fallback={<p class="text-[12px] text-v2-text-text-faint">{language.t("common.loading")}</p>}
                     >
                       <Show
-                        when={googleConnection.latest?.available}
+                        when={settled(googleConnection)?.available}
                         fallback={
                           <p role="status" class={noteClass}>
                             {platform.platform === "desktop"
@@ -1359,7 +1357,7 @@ export default function CalendarPage() {
                         }
                       >
                         <Show
-                          when={googleConnection.latest?.connected && !state.googleAdding}
+                          when={settled(googleConnection)?.connected && !state.googleAdding}
                           fallback={
                             <form
                               class="flex flex-col gap-3"
@@ -1422,7 +1420,7 @@ export default function CalendarPage() {
                                       ? language.t("secondBrain.calendar.google.openBrowser")
                                       : language.t("secondBrain.calendar.google.signIn")}
                               </ButtonV2>
-                              <Show when={googleConnection.latest?.builtInClient}>
+                              <Show when={settled(googleConnection)?.builtInClient}>
                                 <ButtonV2
                                   type="button"
                                   variant="ghost"
@@ -1435,7 +1433,7 @@ export default function CalendarPage() {
                                     : language.t("secondBrain.calendar.google.ownClient")}
                                 </ButtonV2>
                               </Show>
-                              <Show when={googleConnection.latest?.connected}>
+                              <Show when={settled(googleConnection)?.connected}>
                                 <ButtonV2
                                   type="button"
                                   variant="ghost"
@@ -1453,7 +1451,7 @@ export default function CalendarPage() {
                               class="flex flex-col gap-2"
                               aria-label={language.t("secondBrain.calendar.google.accounts")}
                             >
-                              <For each={googleConnection.latest?.accounts ?? []}>
+                              <For each={settled(googleConnection)?.accounts ?? []}>
                                 {(account) => (
                                   <li class="flex flex-col gap-2 rounded-[12px] bg-v2-background-bg-base p-3">
                                     <div class="flex items-center gap-2">
@@ -1628,12 +1626,12 @@ export default function CalendarPage() {
                         id="calendar-event-project"
                         aria-label={language.t("secondBrain.calendar.project")}
                         class="!h-8 !w-full"
-                        options={["__none__", ...(brainProjects.latest ?? []).map((project) => project.id)]}
+                        options={["__none__", ...(brainProjects.list() ?? []).map((project) => project.id)]}
                         current={state.draft.projectId || "__none__"}
                         label={(projectID) =>
                           projectID === "__none__"
                             ? language.t("secondBrain.calendar.noProject")
-                            : (brainProjects.latest?.find((project) => project.id === projectID)?.name ?? projectID)
+                            : (brainProjects.list()?.find((project) => project.id === projectID)?.name ?? projectID)
                         }
                         onSelect={(projectID) =>
                           setState("draft", "projectId", projectID === "__none__" ? "" : (projectID ?? ""))

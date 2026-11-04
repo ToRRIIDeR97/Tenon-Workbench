@@ -27,6 +27,7 @@ import {
   updateProject,
   type ProjectThreads,
 } from "@/features/second-brain/client"
+import { invalidateVaultPages } from "@/features/second-brain/vault-pages"
 import {
   attentionCards,
   cardSummary,
@@ -105,6 +106,7 @@ export function useProjectThreads() {
           target: { directory: directory ?? "" },
         }),
       staleTime: 30_000,
+      refetchOnMount: true,
       retry: false,
     }
   })
@@ -165,14 +167,27 @@ export function createSidebarController() {
   )
   const refreshProjects = () => invalidateProjectThreads(queryClient, server.key)
 
+  // Agents write pages without going through the Projects page's list.
+  createEffect(() => {
+    const unsubscribe = serverSDK().event.listen((e) => {
+      const event = e.details as { type: string; properties?: { phase?: string } }
+      if (event.type === "agent.write" && event.properties?.phase === "done")
+        void invalidateVaultPages(queryClient, server.key)
+    })
+    onCleanup(unsubscribe)
+  })
+
   const workspaces = () => layout.projects.list()
   const selectWorkspace = (directory: string) => layout.home.setSelection({ server: server.key, directory })
 
   // A workspace whose folder was moved or deleted: the server answers its requests with a typed 404,
-  // and the sidebar offers to locate the folder or remove the workspace instead of failing.
+  // and the sidebar offers to locate the folder or remove the workspace instead of failing. Each check boots
+  // the workspace's server instance, so the others wait until the switcher that shows their state opens.
+  const [switcher, setSwitcher] = createStore({ open: false })
   const folderQueries = useQueries(() => ({
     queries: workspaces().map((workspace) => ({
       queryKey: ["workspace-folder", server.key, workspace.worktree] as const,
+      enabled: switcher.open || workspace.worktree === brainDirectory(),
       queryFn: () =>
         serverSDK()
           .client.file.list({ directory: workspace.worktree, path: "." })
@@ -864,6 +879,7 @@ export function createSidebarController() {
     brainDirectory,
     workspaces,
     selectWorkspace,
+    setSwitcherOpen: (open: boolean) => setSwitcher("open", open),
     folderMissing,
     locateWorkspace,
     removeWorkspace,

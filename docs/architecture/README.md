@@ -171,7 +171,9 @@ timeline, the question and permission docks grow in as the composer folds away,
 and the queued and rolled-back docks keep removed rows closing in place with
 `createExitList` (`pages/session/composer/exit-list.ts`).
 
-The sidebar's controller (`components/sidebar/sidebar-controller.ts`) reads
+The sidebar's controller (`components/sidebar/sidebar-controller.ts`, provided by
+`SidebarControllerProvider` in `pages/layout-new.tsx` so the Command Centre page
+shares its thread actions and undo queue) reads
 `GET /second-brain/project-threads`, loads each expanded Project's threads
 (and General's, when expanded) with
 `serverSync().project.loadSessions(threadDirectory)` (kept live by
@@ -206,7 +208,8 @@ Calendar and Projects read `layout.home.workspace` and have no picker of their
 own; Notes keeps an open page with unsaved edits in its workspace until it is
 saved or discarded. Home, Notes and the Projects page's thread folders read the
 same cached project-threads query as the sidebar (`useProjectThreads` and
-`useBrainProjects` in `sidebar-controller.ts`, 30 seconds of freshness); the
+`useBrainProjects` in `sidebar-controller.ts`, 30 seconds of freshness, used by
+Project Overview and Calendar too); the
 Projects page keeps its own card list for editing. The controller
 scans each workspace once per app session (`POST /second-brain/projects/scan`)
 and on **Scan for projects**. The automatic scan reloads the Project list only
@@ -414,6 +417,10 @@ to it.
 - Settings › General › Tenon vault (desktop only, through the platform's
   `getVaultFolder` and `chooseVaultFolder`) shows the folder and picks another;
   a folder inside a workspace is refused, and a new one asks for a restart.
+- The page list is one cached query (`useVaultPages` in
+  `features/second-brain/vault-pages.ts`, 30 seconds of freshness). Page saves
+  update it and a finished `agent.write` invalidates it, so a page changed
+  outside the app can show up to 30 seconds late on a revisit.
 - The Projects page Map and `/projects/overview` list vault pages (as note
   summaries without links) and open them at `/notes?page=`.
 
@@ -489,7 +496,9 @@ assistant that spans workspaces, with its own threads, memory and routines.
   `features/command-centre/command-centre.tsx` (`CommandCentreProvider`,
   mounted in `pages/layout-new.tsx`) holds the thread list, the latest reply
   and `send`, which prompts the open thread, else the latest one, else creates
-  one with the harness and model from Settings › Command Centre.
+  one with the harness and model from Settings › Command Centre. The list
+  refreshes when the page opens and, debounced, on `session.created/updated/deleted`
+  events for that folder, so archives, deletes and routine runs show up.
 - **K3 strip.** `features/command-centre/command-strip.tsx`
   (`[data-command-strip]`) sits inside `<main>` on every page except
   `/command`: a 20 px handle while closed, an 84 px strip when open with the

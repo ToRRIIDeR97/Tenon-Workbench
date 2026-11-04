@@ -17,7 +17,6 @@ import { useServerSync } from "@/context/server-sync"
 import {
   listVaultConflicts,
   listVaultPages,
-  migrateVault,
   readProjectLog,
   readTimeline,
   SecondBrainRequestError,
@@ -33,6 +32,8 @@ import { ProjectCreate, ProjectDetails, projectWorkPrompt } from "@/features/sec
 import { ProjectView, sectionFromTab } from "@/features/second-brain/project-view"
 import { PageEmpty, pagePanelClass, pageRowClass } from "@/components/page"
 import { useBrainProjects } from "@/components/sidebar/sidebar-controller"
+import { useVaultPages, vaultMigration } from "@/features/second-brain/vault-pages"
+import { settled } from "@/utils/resource"
 import { sessionHref } from "@/utils/session-route"
 
 /**
@@ -93,20 +94,16 @@ export default function ProjectsPage() {
     setState({ directory: next, error: "", moved: 0, search: "", query: "" })
   })
 
-  // The first visit to a workspace moves its pre-vault notes in, then lists the vault.
-  const [pages, pagesActions] = createResource(
-    () => directory() || undefined,
-    async (target) => {
-      const moved = await migrateOnce(client(target), target)
-      if (moved > 0 && target === state.directory) setState("moved", moved)
-      return listVaultPages(client(target))
-    },
-  )
+  // The first read of a workspace's vault moves its pre-vault notes in.
+  const vault = useVaultPages(() => directory() || undefined)
+  createEffect(() => {
+    if (vault.moved() > 0) setState("moved", vault.moved())
+  })
   // Waits for the move above, which the server would otherwise make (and report) on this first vault read.
   const [conflicts] = createResource(
     () => directory() || undefined,
     async (target) => {
-      await migrating.get(target)
+      await vaultMigration(target)
       return listVaultConflicts(client(target)).catch(() => [])
     },
   )
@@ -125,14 +122,16 @@ export default function ProjectsPage() {
     () => (directory() && state.query ? ([directory(), state.query] as const) : undefined),
     ([target, query]) => listVaultPages(client(target), { search: query }),
   )
-  const pageList = () => (pages.error ? [] : (pages.latest ?? []))
+  const pageList = () => vault.pages() ?? []
   const projects = () => (held() ? [] : (brainProjects.list() ?? []))
   const known = createMemo(() => new Set(projects().map((item) => item.id)))
   // Pages tied to no Project this workspace lists.
   const generalPages = () => pageList().filter((page) => !page.projectId || !known().has(page.projectId))
   // The vault refuses to live inside a workspace or Project folder; say so instead of a generic failure.
-  const misplaced = () =>
-    pages.error instanceof SecondBrainRequestError && pages.error.reason === "vault_inside_workspace"
+  const misplaced = () => {
+    const error = vault.error()
+    return error instanceof SecondBrainRequestError && error.reason === "vault_inside_workspace"
+  }
 
   const pagePath = () => search.page ?? search.note ?? ""
   const projectId = () => (pagePath() ? "" : (search.project ?? ""))
@@ -146,7 +145,7 @@ export default function ProjectsPage() {
   // Saves the Project's items over the revision on screen; a stale save reloads the timeline instead.
   const saveItems = async (items: ReadonlyArray<TimelineItem>) => {
     const key = projectKey()
-    const current = timeline.error ? undefined : timeline.latest
+    const current = settled(timeline)
     if (!key || !current) return language.t("secondBrain.error.request")
     const result = await writeTimeline(client(key[0]), key[1], { items, expectedRevision: current.revision }).then(
       (saved) => ({ saved, error: undefined }),
@@ -199,9 +198,6 @@ export default function ProjectsPage() {
       }))
   })
 
-  const storePage = (info: VaultPageInfo) =>
-    pagesActions.mutate((items) => (items ? [info, ...items.filter((item) => item.path !== info.path)] : items))
-
   // A new page goes into `owner` (a Project), else the workspace's General pages; it opens right away.
   const createPage = async (owner?: string) => {
     const target = directory()
@@ -229,7 +225,7 @@ export default function ProjectsPage() {
       return setState("error", language.t(exists ? "secondBrain.vault.exists" : "secondBrain.error.request"))
     }
     if (target !== directory()) return
-    storePage(result.page.info)
+    vault.store(result.page.info)
     openPage(result.page.info.path)
   }
 
@@ -265,7 +261,7 @@ export default function ProjectsPage() {
 
   // Only Markdown copies open as pages; others (a sync copy of `project.json`, an image) are named only.
   const conflictCopies = () => (
-    <RevealShow when={(conflicts.latest ?? []).length > 0 && conflicts.latest} class="shrink-0">
+    <RevealShow when={(settled(conflicts) ?? []).length > 0 && settled(conflicts)} class="shrink-0">
       {(list) => (
         <div
           role="status"
@@ -414,7 +410,7 @@ export default function ProjectsPage() {
               fallback={<p class="px-3 text-[12px] text-v2-text-text-faint">{language.t("common.loading")}</p>}
             >
               <Show
-                when={(matches.error ? [] : (matches.latest ?? [])).length > 0}
+                when={(settled(matches) ?? []).length > 0}
                 fallback={
                   <PageEmpty error={!!matches.error}>
                     {language.t(matches.error ? "common.requestFailed" : "secondBrain.vault.noMatches")}
@@ -422,7 +418,7 @@ export default function ProjectsPage() {
                 }
               >
                 <ul class="flex flex-col gap-px" aria-label={language.t("secondBrain.vault.results")}>
-                  <For each={matches.error ? [] : matches.latest}>{(page) => pageRow(page)}</For>
+                  <For each={settled(matches)}>{(page) => pageRow(page)}</For>
                 </ul>
               </Show>
             </Show>
@@ -484,13 +480,13 @@ export default function ProjectsPage() {
           <section aria-labelledby="projects-general-title" class="flex flex-col gap-1">
             {sectionTitle("projects-general-title", language.t("secondBrain.vault.general"))}
             <Show
-              when={!pages.error}
+              when={!vault.error()}
               fallback={
                 <PageEmpty
                   error
                   title={language.t("secondBrain.state.error.title")}
                   action={
-                    <ButtonV2 size="small" variant="outline" onClick={() => void pagesActions.refetch()}>
+                    <ButtonV2 size="small" variant="outline" onClick={vault.retry}>
                       {language.t("secondBrain.state.retry")}
                     </ButtonV2>
                   }
@@ -503,7 +499,7 @@ export default function ProjectsPage() {
                 when={generalPages().length > 0}
                 fallback={
                   <p class="px-3 py-2 text-[13px] text-v2-text-text-faint">
-                    {pages.loading ? language.t("common.loading") : language.t("secondBrain.project.generalEmpty")}
+                    {vault.loading() ? language.t("common.loading") : language.t("secondBrain.project.generalEmpty")}
                   </p>
                 }
               >
@@ -586,13 +582,13 @@ export default function ProjectsPage() {
                               project={item()}
                               section={section()}
                               timeline={{
-                                value: timeline.error ? undefined : timeline.latest,
+                                value: settled(timeline),
                                 loading: timeline.loading,
                                 failed: !!timeline.error,
                                 retry: () => void timelineActions.refetch(),
                               }}
                               log={{
-                                value: log.error ? undefined : log.latest,
+                                value: settled(log),
                                 loading: log.loading,
                                 failed: !!log.error,
                                 retry: () => void logActions.refetch(),
@@ -633,7 +629,7 @@ export default function ProjectsPage() {
                     projects={projects()}
                     onBack={back}
                     onOpen={openPage}
-                    onSaved={storePage}
+                    onSaved={vault.store}
                     onDirty={(dirty) => setState("dirty", dirty)}
                     held={held()}
                   />
@@ -645,42 +641,4 @@ export default function ProjectsPage() {
       </div>
     </section>
   )
-}
-
-const migratedKey = "tenon.notes.migrated:"
-const migrated = new Set<string>()
-/** The migration request in flight per workspace, so other vault reads can wait for it. */
-const migrating = new Map<string, Promise<number>>()
-
-/**
- * Ask the server once per workspace to move pre-vault notes in (it backs them up and a repeat moves nothing).
- * A failed call is retried on the next visit; the page list then reports any lasting failure. The server also
- * moves them on its first vault request, so this call mainly reports how many moved.
- */
-function migrateOnce(client: Parameters<typeof migrateVault>[0], directory: string) {
-  if (migrated.has(directory) || storedFlag(directory)) return Promise.resolve(0)
-  const running = migrating.get(directory)
-  if (running) return running.then(() => 0)
-  const request = migrateVault(client)
-    .then((result) => {
-      migrated.add(directory)
-      try {
-        localStorage.setItem(migratedKey + directory, "1")
-      } catch {
-        // Blocked storage only costs one repeat request next launch, which moves nothing.
-      }
-      return result.moved
-    })
-    .catch(() => 0)
-    .finally(() => migrating.delete(directory))
-  migrating.set(directory, request)
-  return request
-}
-
-function storedFlag(directory: string) {
-  try {
-    return localStorage.getItem(migratedKey + directory) === "1"
-  } catch {
-    return false
-  }
 }

@@ -301,7 +301,7 @@ function WorkspaceHeader(props: { ctrl: SidebarController }) {
   }
   return (
     <div class="flex h-10 shrink-0 items-center gap-1">
-      <MenuV2 gutter={4} modal={false} placement="bottom-start">
+      <MenuV2 gutter={4} modal={false} placement="bottom-start" onOpenChange={props.ctrl.setSwitcherOpen}>
         <MenuV2.Trigger
           as="button"
           type="button"
