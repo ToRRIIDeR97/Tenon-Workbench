@@ -7,8 +7,8 @@
   "license": "MIT",
   "homepage": "https://github.com/ToRRIIDeR97/Tenon-Workbench",
   "author": {
-    "name": "OpenCode",
-    "email": "hello@opencode.ai"
+    "name": "ToRRIIDeR97",
+    "email": "ToRRIIDeR97@users.noreply.github.com"
   },
   "scripts": {
     "test": "bun test --only-failures && node --experimental-strip-types --test src/main/draft-store.node-test.ts",
