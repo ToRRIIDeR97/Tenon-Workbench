@@ -12,6 +12,7 @@ import type { TitlebarTheme } from "../preload/types"
 import { exportDebugLogs, sinceProcessStart, write as writeLog } from "./logging"
 import { getStore, removeStoreFile, rendererStore } from "./store"
 import { PINCH_ZOOM_ENABLED_KEY, WINDOW_IDS_KEY } from "./store-keys"
+import { answersWithin } from "./renderer-probe"
 import { createUnresponsiveSampler } from "./unresponsive"
 import { nativeT } from "./native-translations"
 import { createUnloadGuard } from "./unload-guard"
@@ -96,6 +97,7 @@ const unloadGuard = createUnloadGuard<BrowserWindow>({
     )
   },
 })
+const rendererProbeTimeout = 3000
 const titlebarHeight = 40
 const maxZoomLevel = 10
 const minZoomLevel = 0.2
@@ -543,7 +545,17 @@ function wireWindowRecovery(win: BrowserWindow, name: string) {
   win.on("unresponsive", () => {
     writeLog("window", "renderer unresponsive", { window: name, currentURL: safeWindowURL(win) }, "error")
     sampler.start()
-    void show(nativeT("desktop.recovery.unresponsive"), nativeT("desktop.recovery.unresponsive.detail"), true)
+    // Chromium also reports a page that sat behind a beforeunload prompt, as the unsaved-changes dialog leaves it,
+    // so ask the page itself before offering a relaunch that would throw away what it still holds.
+    void answersWithin(() => win.webContents.executeJavaScript("true"), rendererProbeTimeout).then((answered) => {
+      if (win.isDestroyed()) return
+      if (answered) {
+        writeLog("window", "renderer answered after unresponsive report", { window: name }, "error")
+        sampler.stopAndFlush()
+        return
+      }
+      void show(nativeT("desktop.recovery.unresponsive"), nativeT("desktop.recovery.unresponsive.detail"), true)
+    })
   })
   win.on("responsive", () => {
     writeLog("window", "renderer responsive", { window: name, currentURL: safeWindowURL(win) }, "error")

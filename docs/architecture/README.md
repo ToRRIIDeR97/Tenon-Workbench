@@ -447,6 +447,8 @@ to it.
   workspace (a sidebar switch waits). `unsaved-guard.tsx`, shared with
   `ProjectDetails`, turns leaving into Save / Discard / Keep editing and then
   finishes the navigation, and reports the edits to the desktop shell.
+  Windows answers a held `beforeunload` with a false `unresponsive` report after Stay, so
+  `windows.ts` asks the page itself (`renderer-probe.ts`) before offering Relaunch.
 - A page's menu holds Version history (`page-versions.tsx`: preview a version,
   restore it as a normal save over the current revision; unsaved text isn't
   covered, and only the body is restored) and Delete page, which hides the page
