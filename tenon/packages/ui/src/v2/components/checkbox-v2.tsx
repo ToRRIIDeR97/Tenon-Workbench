@@ -7,14 +7,17 @@ export interface CheckboxV2Props extends ComponentProps<typeof Kobalte> {
   label: JSX.Element
   description?: JSX.Element
   hideLabel?: boolean
+  /** `round` is the task check used across Projects, Calendar and Home. */
+  shape?: "round"
 }
 
 export function CheckboxV2(props: CheckboxV2Props) {
-  const [local, others] = splitProps(props, ["class", "classList", "label", "description", "hideLabel"])
+  const [local, others] = splitProps(props, ["class", "classList", "label", "description", "hideLabel", "shape"])
   return (
     <Kobalte
       {...others}
       data-slot="checkbox-v2"
+      data-shape={local.shape}
       classList={{
         ...local.classList,
         [local.class ?? ""]: !!local.class,

@@ -4,7 +4,6 @@ import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { KeybindV2 } from "@tenon/ui/v2/keybind-v2"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { pagePanelClass } from "@/components/page"
-import { SessionContextUsage } from "@/components/session-context-usage"
 import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
 import { useSessionLayout } from "@/pages/session/session-layout"
@@ -57,7 +56,6 @@ export function SessionSideRail(props: { reviewCount: number; hasReview: boolean
           </Show>
         </div>
       </TooltipV2>
-      <SessionContextUsage buttonAppearance="v2" placement="left" />
     </nav>
   )
 }

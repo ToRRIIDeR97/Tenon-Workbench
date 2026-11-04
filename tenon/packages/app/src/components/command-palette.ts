@@ -13,6 +13,7 @@ import { ServerConnection } from "@/context/server"
 import { useServerSDK } from "@/context/server-sdk"
 import { listProjects, listVaultPages, type ProjectRecord } from "@/features/second-brain/client"
 import { matchProjects } from "@/features/second-brain/notes-timeline"
+import { sessionTitle } from "@/utils/session-title"
 import { displayName, projectForSession } from "@/pages/layout/helpers"
 import { createSessionTabs } from "@/pages/session/helpers"
 import { useSessionLayout } from "@/pages/session/session-layout"
@@ -340,7 +341,7 @@ export function createServerSessionEntries(props: {
             return {
               id: `session:${props.server}:${session.id}`,
               type: "session" as const,
-              title: session.title || props.untitled(),
+              title: sessionTitle(session.title) || props.untitled(),
               description: project ? displayName(project) : getFilename(session.directory),
               category: props.category(),
               directory: session.directory,

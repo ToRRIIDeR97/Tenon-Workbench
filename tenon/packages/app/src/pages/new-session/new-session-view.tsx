@@ -38,9 +38,8 @@ export function NewSessionView(props: {
       <div data-component="session-new-design" class={`relative flex-1 min-h-0 overflow-hidden ${pagePanelClass}`}>
         <div class="absolute inset-0 flex items-center justify-center px-6 pb-[12vh]">
           <div class={NEW_SESSION_CONTENT_WIDTH}>
-            {/* The composer's own 0.5px border-muted edge vanishes on the dark panel; give it a 1px ring here. The
-                editor's height follows the window like the rest of the screen. */}
-            <div class="flex flex-col gap-[clamp(16px,3.2vh,40px)] [&_[data-component=prompt-input-v2]]:shadow-[0_0_0_1px_var(--v2-border-border-base),0_8px_24px_-12px_rgb(0_0_0/0.18)] [&_[data-component=prompt-input]]:min-h-[clamp(60px,9vh,112px)]">
+            {/* The editor's height follows the window like the rest of the screen. */}
+            <div class="flex flex-col gap-[clamp(16px,3.2vh,40px)] [&_[data-component=prompt-input]]:min-h-[clamp(60px,9vh,112px)]">
               <Greeting />
               <PromptInputV2Composer
                 controller={props.input}

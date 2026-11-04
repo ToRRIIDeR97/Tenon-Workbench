@@ -2,6 +2,7 @@ import { Component, createMemo, createSignal, Show, startTransition } from "soli
 import { Dialog } from "@tenon/ui/v2/dialog-v2"
 import { TabsV2 } from "@tenon/ui/v2/tabs-v2"
 import { Icon } from "@tenon/ui/v2/icon"
+import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
 import { SettingsGeneralV2 } from "./general"
@@ -50,6 +51,14 @@ export const DialogSettings: Component<{
 
   return (
     <Dialog size="x-large" variant="settings" class="settings-v2-dialog">
+      <IconButtonV2
+        type="button"
+        variant="ghost-muted"
+        class="absolute right-3 top-3 z-10"
+        aria-label={language.t("common.close")}
+        icon={<Icon name="close" size="small" />}
+        onClick={() => dialog.close()}
+      />
       <TabsV2
         orientation="vertical"
         variant="settings"

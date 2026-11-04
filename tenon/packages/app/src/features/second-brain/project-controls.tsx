@@ -42,7 +42,7 @@ export function dayLabel(value: string | undefined, locale: string) {
 export function monthDays(month: string) {
   const [year, index] = month.split("-").map(Number)
   const count = new Date(year, index, 0).getDate()
-  const lead = (new Date(year, index - 1, 1).getDay() + 6) % 7
+  const lead = new Date(year, index - 1, 1).getDay()
   return [
     ...Array.from({ length: lead }, () => undefined),
     ...Array.from({ length: count }, (_, day) => `${month}-${String(day + 1).padStart(2, "0")}`),
@@ -73,9 +73,9 @@ export function DateChip(props: {
     setState("month", `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`)
   }
   const weekdays = createMemo(() =>
-    // 2026-11-02 is a Monday.
+    // 2026-11-01 is a Sunday, the Calendar's first day of the week.
     Array.from({ length: 7 }, (_, index) =>
-      new Date(2026, 10, 2 + index).toLocaleDateString(language.intl(), { weekday: "narrow" }),
+      new Date(2026, 10, 1 + index).toLocaleDateString(language.intl(), { weekday: "narrow" }),
     ),
   )
   const quick = () => [

@@ -11,6 +11,7 @@ import type { GoogleAccount, GoogleCalendarProviderEvent } from "@/context/platf
 import { focusWhenConnected } from "@/utils/focus-when-connected"
 import { localDateKey } from "./calendar-domain"
 import type { CalendarEvent, ProjectRecord } from "./client"
+import { DateChip } from "./project-controls"
 
 export type CalendarDraft = {
   id: string
@@ -224,31 +225,22 @@ export function CalendarEventForm(props: {
         />
       </label>
       <div class="grid grid-cols-2 gap-3">
-        <label class={fieldClass} for="calendar-event-date">
+        <div class={fieldClass}>
           {language.t("secondBrain.calendar.date")}
-          <input
-            id="calendar-event-date"
-            type="date"
-            class={dateInputClass}
-            aria-invalid={props.state.errorField === "date" ? true : undefined}
-            aria-describedby={props.state.errorField === "date" ? "calendar-event-error" : undefined}
-            value={props.state.draft.date}
-            onInput={(event) => props.onDraft({ date: event.currentTarget.value })}
+          <DateChip
+            label={language.t("secondBrain.calendar.date")}
+            value={props.state.draft.date || undefined}
+            onChange={(value) => props.onDraft({ date: value ?? "" })}
           />
-        </label>
-        <label class={fieldClass} for="calendar-event-end-date">
+        </div>
+        <div class={fieldClass}>
           {language.t("secondBrain.calendar.endDate")}
-          <input
-            id="calendar-event-end-date"
-            type="date"
-            min={props.state.draft.date}
-            class={dateInputClass}
-            aria-invalid={props.state.errorField === "endDate" ? true : undefined}
-            aria-describedby={props.state.errorField === "endDate" ? "calendar-event-error" : undefined}
-            value={props.state.draft.endDate}
-            onInput={(event) => props.onDraft({ endDate: event.currentTarget.value })}
+          <DateChip
+            label={language.t("secondBrain.calendar.endDate")}
+            value={props.state.draft.endDate || undefined}
+            onChange={(value) => props.onDraft({ endDate: value ?? "" })}
           />
-        </label>
+        </div>
       </div>
       <div class="grid grid-cols-2 gap-3">
         <label class={fieldClass} for="calendar-event-start">

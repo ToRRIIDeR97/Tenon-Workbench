@@ -25,6 +25,7 @@ import { noteLinkLookup, previewNoteLinks } from "./note-links"
 import { bodyAfterSave, newPagePath } from "./notes-timeline"
 import { DialogPageVersions } from "./page-versions"
 import { DialogConfirmReload, useUnsavedGuard } from "./unsaved-guard"
+import { DateChip } from "./project-controls"
 
 type VaultClient = Parameters<typeof readVaultPage>[0]
 
@@ -325,13 +326,7 @@ export function NotesPageView(props: {
                       </select>
                     </Match>
                     <Match when={typeof value() === "string" && /^\d{4}-\d{2}-\d{2}(T|$)/.test(String(value()))}>
-                      <input
-                        type="date"
-                        class={`${propertyField} tabular-nums`}
-                        aria-label={key}
-                        value={String(value()).slice(0, 10)}
-                        onInput={(event) => set(event.currentTarget.value)}
-                      />
+                      <DateChip label={key} value={String(value()).slice(0, 10)} onChange={(next) => set(next ?? "")} />
                     </Match>
                     <Match when={typeof value() === "string"}>
                       <input

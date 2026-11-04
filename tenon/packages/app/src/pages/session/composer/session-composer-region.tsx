@@ -1,4 +1,5 @@
-import { Show, createMemo, untrack, type JSX } from "solid-js"
+import { Show, createMemo, onCleanup, onMount, untrack, type JSX } from "solid-js"
+import { createResizeObserver } from "@solid-primitives/resize-observer"
 import type { PermissionRequest, QuestionRequest } from "@opencode-ai/sdk/v2"
 import { Reveal } from "@tenon/ui/v2/reveal"
 import { useLanguage } from "@/context/language"
@@ -28,12 +29,29 @@ export function SessionComposerRegion(props: {
   // that is ready from the start does not.
   const handedOff = !untrack(controller.promptReady)
 
+  let dock: HTMLDivElement | undefined
+  onMount(() => {
+    if (!dock) return
+    const element = dock
+    const root = document.documentElement
+    createResizeObserver(element, () => {
+      const page = element.closest("main")?.getBoundingClientRect().bottom ?? window.innerHeight
+      root.style.setProperty("--command-strip-lift", `${Math.round(page - element.getBoundingClientRect().top)}px`)
+    })
+    onCleanup(() => root.style.removeProperty("--command-strip-lift"))
+  })
+
   return (
     <div
-      ref={controller.setDockRef}
+      ref={(element) => {
+        dock = element
+        controller.setDockRef(element)
+      }}
       data-component="session-prompt-dock"
-      class="w-full shrink-0 flex flex-col justify-center items-center pb-3 pointer-events-none bg-v2-background-bg-base"
+      class="relative w-full shrink-0 flex flex-col justify-center items-center pb-3 pointer-events-none bg-v2-background-bg-base"
     >
+      {/* The thread fades out above the composer instead of stopping at a hard edge. */}
+      <div class="pointer-events-none absolute inset-x-0 bottom-full h-6 bg-linear-to-t from-v2-background-bg-base to-transparent" />
       <div
         classList={{
           "w-full px-3 pointer-events-auto flex flex-col": true,
@@ -104,7 +122,7 @@ export function SessionComposerRegion(props: {
                   and the composer below them never jumps. */}
               <div
                 classList={{
-                  "relative z-[70]": true,
+                  "relative z-(--z-composer)": true,
                   "animate-in fade-in duration-short ease-standard motion-reduce:animate-none": handedOff,
                 }}
                 style={{ "margin-top": `${-36 * controller.dockProgress()}px` }}

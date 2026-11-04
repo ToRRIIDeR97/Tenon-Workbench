@@ -7,6 +7,7 @@ import { SelectV2 } from "@tenon/ui/v2/select-v2"
 import { TextInputV2 } from "@tenon/ui/v2/text-input-v2"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { ViewSwitch } from "@tenon/ui/v2/view-switch"
+import { createMediaQuery } from "@solid-primitives/media"
 import { createEffect, createMemo, createResource, For, on, Show } from "solid-js"
 import { useBrainProjects } from "@/components/sidebar/sidebar-controller"
 import { settled } from "@/utils/resource"
@@ -587,6 +588,9 @@ export default function CalendarPage() {
   })
 
   const panelOpen = () => state.googlePanel || state.editing || Boolean(peekView())
+  // Under 1100px the week can't share the page with both the Projects panel and this one.
+  const narrow = createMediaQuery("(max-width: 1099px)")
+  createEffect(on(panelOpen, (open) => open && narrow() && layout.sidebar.close(), { defer: true }))
   const panelView = () => (state.googlePanel ? "google" : state.editing ? "edit" : `peek:${state.peek}`)
 
   const peekView = createMemo(() => {
@@ -1043,7 +1047,7 @@ export default function CalendarPage() {
                                           <span
                                             classList={{
                                               "mt-1 flex size-9 items-center justify-center rounded-full text-[17px]": true,
-                                              "bg-v2-icon-icon-accent text-v2-icon-icon-contrast [font-weight:600]":
+                                              "bg-v2-background-bg-accent text-v2-text-text-contrast [font-weight:600]":
                                                 day.today,
                                               "text-v2-text-text-base [font-weight:500]": !day.today,
                                             }}

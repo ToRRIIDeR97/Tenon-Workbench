@@ -31,7 +31,7 @@
     /* ── Text ── */
     --v2-text-text-base: var(--v2-grey-1100);
     --v2-text-text-muted: var(--v2-grey-700);
-    --v2-text-text-faint: var(--v2-grey-600);
+    --v2-text-text-faint: #737373;
     --v2-text-text-inverse: var(--v2-grey-50);
     --v2-text-text-contrast: var(--v2-grey-50);
     --v2-text-text-accent: var(--v2-blue-600);
@@ -70,7 +70,7 @@
     --v2-state-fg-success: var(--v2-green-800);
     --v2-state-border-success: var(--v2-green-300);
     --v2-state-bg-warning: var(--v2-yellow-100);
-    --v2-state-fg-warning: var(--v2-yellow-800);
+    --v2-state-fg-warning: var(--v2-yellow-1100);
     --v2-state-border-warning: var(--v2-yellow-300);
     --v2-state-bg-danger: var(--v2-red-100);
     --v2-state-fg-danger: var(--v2-red-800);
@@ -191,7 +191,7 @@
 
       --v2-text-text-base: var(--v2-grey-200);
       --v2-text-text-muted: var(--v2-grey-500);
-      --v2-text-text-faint: var(--v2-grey-600);
+      --v2-text-text-faint: #969696;
       --v2-text-text-inverse: var(--v2-grey-1000);
       --v2-text-text-contrast: var(--v2-grey-100);
       --v2-text-text-accent: var(--v2-blue-400);
@@ -298,7 +298,7 @@
 
     --v2-text-text-base: var(--v2-grey-1100);
     --v2-text-text-muted: var(--v2-grey-700);
-    --v2-text-text-faint: var(--v2-grey-600);
+    --v2-text-text-faint: #737373;
     --v2-text-text-inverse: var(--v2-grey-50);
     --v2-text-text-contrast: var(--v2-grey-50);
     --v2-text-text-accent: var(--v2-blue-600);
@@ -333,7 +333,7 @@
     --v2-state-fg-success: var(--v2-green-800);
     --v2-state-border-success: var(--v2-green-300);
     --v2-state-bg-warning: var(--v2-yellow-100);
-    --v2-state-fg-warning: var(--v2-yellow-800);
+    --v2-state-fg-warning: var(--v2-yellow-1100);
     --v2-state-border-warning: var(--v2-yellow-300);
     --v2-state-bg-danger: var(--v2-red-100);
     --v2-state-fg-danger: var(--v2-red-800);
@@ -417,7 +417,7 @@
 
     --v2-text-text-base: var(--v2-grey-100);
     --v2-text-text-muted: var(--v2-grey-500);
-    --v2-text-text-faint: var(--v2-grey-600);
+    --v2-text-text-faint: #969696;
     --v2-text-text-inverse: var(--v2-grey-1100);
     --v2-text-text-contrast: var(--v2-grey-50);
     --v2-text-text-accent: var(--v2-blue-400);

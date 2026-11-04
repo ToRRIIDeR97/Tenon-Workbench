@@ -195,7 +195,7 @@ export default function BrainHomePage() {
             size="large"
             class="!size-9"
             aria-label={language.t("secondBrain.home.openWorkspace")}
-            icon={<Icon name="folder-add-left" />}
+            icon={<Icon name="folder-open" />}
             onClick={() => command.trigger("project.open")}
           />
         </TooltipV2>
@@ -229,6 +229,16 @@ export default function BrainHomePage() {
               label={language.t("secondBrain.home.ask")}
               placeholder={language.t("secondBrain.home.askPlaceholder")}
               sendLabel={language.t("secondBrain.home.start")}
+              expandLabel={language.t("ui.promptInput.add")}
+              onExpand={(text) =>
+                void drafts.create(
+                  { server: server.key, directory: directory() },
+                  text,
+                  harness.builtInModel(),
+                  harness.harnessID(),
+                  { harnessModel: harness.harnessModel() },
+                )
+              }
               header={
                 <div class="flex h-10 min-w-0 items-center gap-0.5 border-b border-v2-border-border-muted pl-2.5 pr-2">
                   <PathTooltip

@@ -55,7 +55,8 @@ _Avoid_: Meeting, appointment, time block as general terms
 **Run**:
 One managed execution of an agent with an objective, context, permissions,
 events, approvals, and a result. A Run uses one active Harness at a time and
-may switch Harnesses between turns.
+may switch Harnesses between turns. The UI calls the conversation a **thread**;
+Run stays the term for the execution behind it.
 _Avoid_: Agent session, chat, job
 
 **Harness**:

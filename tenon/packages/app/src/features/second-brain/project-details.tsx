@@ -5,6 +5,7 @@ import { TextareaV2 } from "@tenon/ui/v2/textarea-v2"
 import { TextInputV2 } from "@tenon/ui/v2/text-input-v2"
 import { createEffect, createMemo, on, Show } from "solid-js"
 import { createStore } from "solid-js/store"
+import { Icon } from "@tenon/ui/v2/icon"
 import { invalidateProjectThreads } from "@/components/sidebar/sidebar-controller"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
@@ -174,8 +175,11 @@ export function ProjectDetails(props: {
           />
         </label>
       </div>
-      <details>
-        <summary class={summaryClass}>{language.t("secondBrain.projects.settings")}</summary>
+      <details class="group">
+        <summary class={summaryClass}>
+          <Icon name="chevron-right" size="small" class="transition-transform group-open:rotate-90" />
+          {language.t("secondBrain.projects.settings")}
+        </summary>
         <div class="mt-3 flex flex-col gap-4">
           <label class={labelClass} for="project-settings-name">
             {language.t("secondBrain.projects.name")}
@@ -251,7 +255,7 @@ export function ProjectDetails(props: {
           )}
         </ButtonV2>
         <ButtonV2
-          variant="danger"
+          variant="ghost"
           disabled={state.saving || dirty() || props.project.status === "archived"}
           onClick={() => void setStatus("archived")}
         >
@@ -389,8 +393,11 @@ export function ProjectCreate(props: {
           }
         />
       </label>
-      <details>
-        <summary class={summaryClass}>{language.t("secondBrain.projects.advanced")}</summary>
+      <details class="group">
+        <summary class={summaryClass}>
+          <Icon name="chevron-right" size="small" class="transition-transform group-open:rotate-90" />
+          {language.t("secondBrain.projects.advanced")}
+        </summary>
         <div class="mt-3 flex flex-col gap-4">
           <label class={labelClass} for="project-instructions">
             {language.t("secondBrain.projects.instructions")}
@@ -494,4 +501,4 @@ const labelClass = "flex flex-col gap-1.5 text-[12px] text-v2-text-text-muted"
 const sliderClass =
   "h-4 w-full appearance-none rounded-full outline-none [&::-webkit-slider-thumb]:h-10 [&::-webkit-slider-thumb]:w-1 [&::-webkit-slider-thumb]:cursor-grab [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-v2-background-bg-accent [&::-webkit-slider-thumb]:[box-shadow:0_0_0_5px_var(--v2-background-bg-base)] focus-visible:[&::-webkit-slider-thumb]:[box-shadow:0_0_0_5px_var(--v2-background-bg-base),0_0_0_7px_var(--v2-border-border-focus)] [&::-moz-range-thumb]:h-10 [&::-moz-range-thumb]:w-1 [&::-moz-range-thumb]:cursor-grab [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-v2-background-bg-accent [&::-moz-range-thumb]:[box-shadow:0_0_0_5px_var(--v2-background-bg-base)] focus-visible:[&::-moz-range-thumb]:[box-shadow:0_0_0_5px_var(--v2-background-bg-base),0_0_0_7px_var(--v2-border-border-focus)]"
 const summaryClass =
-  "-ml-3 w-fit rounded-full px-3 py-1.5 text-[13px] text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base motion-reduce:transition-none"
+  "-ml-3 flex w-fit list-none items-center gap-1 rounded-full px-3 py-1.5 text-[13px] [&::-webkit-details-marker]:hidden text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base motion-reduce:transition-none"

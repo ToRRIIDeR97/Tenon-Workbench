@@ -4,7 +4,7 @@
 }
 
 [data-component="progress-circle-v2"] [data-slot="progress-circle-v2-background"] {
-  stroke: var(--v2-background-bg-layer-04);
+  stroke: var(--v2-border-border-strong);
 }
 
 [data-component="progress-circle-v2"] [data-slot="progress-circle-v2-progress"] {

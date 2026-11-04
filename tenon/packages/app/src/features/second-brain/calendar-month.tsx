@@ -65,7 +65,7 @@ export function CalendarMonth(props: {
                     type="button"
                     classList={{
                       "flex size-7 shrink-0 items-center justify-center rounded-full text-[12px] transition-colors duration-short ease-standard motion-reduce:transition-none": true,
-                      "bg-v2-icon-icon-accent text-v2-icon-icon-contrast [font-weight:600]": day.today,
+                      "bg-v2-background-bg-accent text-v2-text-text-contrast [font-weight:600]": day.today,
                       "hover:bg-v2-overlay-simple-overlay-hover": !day.today,
                       "text-v2-text-text-faint": !day.inMonth && !day.today,
                       "text-v2-text-text-muted": day.inMonth && !day.today,

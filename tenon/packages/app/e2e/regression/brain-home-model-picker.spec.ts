@@ -75,8 +75,8 @@ test("Home starts a thread with the model and reasoning picked for its harness",
   await page.keyboard.press("Escape")
   await expect(pill).toHaveText("GPT-5.6 Luna · high")
 
-  await page.getByRole("textbox", { name: "Start a Run", exact: true }).fill("Check the routes.")
-  await page.getByRole("button", { name: "Start", exact: true }).click()
+  await page.getByRole("textbox", { name: "Start a thread", exact: true }).fill("Check the routes.")
+  await page.getByRole("button", { name: "Send", exact: true }).click()
 
   expect(await created.promise).toMatchObject({
     harnessInstanceID: "codex",

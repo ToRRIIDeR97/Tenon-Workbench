@@ -54,9 +54,9 @@ is hidden and the rail remains.
    or Home's composer.
 2. **Workspace** panel. The heading is a dropdown: the opened folders (the
    current one checked), **Open folder as workspace**, **New Project** (opens the
-   Projects page's New Project form, `/projects?new=1`), **Scan for projects**,
-   **Add project…**, **Workspace instructions** (the workspace's
-   default `AGENTS.md`), **All projects** (`/projects/overview`) and **Manage projects** (`/projects`). Next to it, the
+   Projects page's New Project form, `/projects?new=1`), **Add project…**, **Scan for projects**,
+   **Add project…**, **All projects** (`/projects/overview`) and **Workspace
+   instructions** (the workspace's default `AGENTS.md`). The rail's **Projects** opens the Projects page. Next to it, the
    folder button also opens **Add project…** and the other button scans again.
    **Add project…** is a dialog over the current page (no route change): type or
    paste a folder path (folder suggestions from the server), or **Browse…** with
@@ -93,7 +93,7 @@ Row actions:
 
 | Row | Actions |
 |---|---|
-| Project | New thread, open project card (`/projects?project=<id>`), archived threads, instructions, **Remove from workspace…** (after a confirmation: unlinks a linked folder, archives the card of a folder inside the workspace; files are never touched) |
+| Project | Open project (`/projects?project=<id>`), archived threads, instructions, **Remove from workspace…** (after a confirmation: unlinks a linked folder, archives the card of a folder inside the workspace; files are never touched) |
 | Thread | Rename (also double-click), pin / unpin, fork, archive, delete. While the menu has focus, `R`, `P`, `F`, `A` and `Delete` (or `Backspace`) run these items; each item shows its key |
 
 Pins are stored on the thread (`metadata.pinned`, the pin time) so they survive
@@ -208,10 +208,11 @@ folder as a workspace and selects it) and `tenon://new-session?directory=<path>&
 
 ## Pages
 
-- **Home** is a dashboard: start a Run, today's events and tasks (tick a task
+- **Home** is a dashboard: start a thread, today's events and tasks (tick a task
   in place, as on Calendar), active Projects, resume and running threads. With no Projects, **Create Project**
   opens the Projects page's create form (`/projects?new=1`). Sending from Home's composer opens
-  the new thread and sends the message in one step.
+  the new thread and sends the message in one step. Home's box stays usable while its data loads, so it is a plain
+  text box: its **+**, or typing `/` or `@`, moves the text to the full composer on a draft.
 - **Projects** (Notes and the old Projects page, merged 2026-11-03; one page
   per Project since the workshop's variant B). With nothing open it lists
   **Projects** (name, outcome, progress; **All projects** first), **Archived**
@@ -260,7 +261,7 @@ folder as a workspace and selects it) and `tenon://new-session?directory=<path>&
   opens **Archived threads** and links to **Routines**, whose rows switch a
   routine on or off, open its page and run it now. On every other page a handle above the bottom edge
   opens the K3 strip (also `mod+j`; Esc closes it) with the latest reply, a
-  composer and **Open full**.
+  composer and **Open full**. On a thread the strip sits on top of the composer.
 - **Settings** contains General, Shortcuts, Servers, Providers, Models and
   Harnesses. Harnesses has **Set up built-in agents**. It opens the agent
   setup dialog. The dialog lists Codex, Claude Code and OpenCode under
@@ -275,7 +276,7 @@ folder as a workspace and selects it) and `tenon://new-session?directory=<path>&
   "Show all" to open the full list. While the agent reasons, the current step
   reads "Thinking" with the topic it's on, which slides in as the topic
   changes. The
-  side panel has **Review** and **Session** tabs, plus open files. Session
+  side panel has **Review** and **Details** tabs, plus open files. Details
   replaced the Context tab and follows the Thread board's design: four tiles
   (tokens, context used, messages, harness), a context breakdown bar (system,
   messages, tools), then a details list of the session's totals per harness
@@ -285,5 +286,6 @@ folder as a workspace and selects it) and `tenon://new-session?directory=<path>&
   the chat takes the rest. Hide it with the arrow in its tab row, the
   titlebar button, `mod+shift+r`, or by dragging its edge past the minimum.
   While hidden, a slim rail at the right edge shows the changed-file count
-  and context use and reopens the panel. Split diffs need an 800px panel;
+  and reopens the panel; context use lives on the composer's ring, whose menu opens Details. Opening the panel under
+  1100px wide closes the Projects panel, as does opening Calendar's side panel. Split diffs need an 800px panel;
   a narrower panel shows unified diffs.
