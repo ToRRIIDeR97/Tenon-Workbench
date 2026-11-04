@@ -213,6 +213,8 @@ on its own. Removed in the T3 parity Phase 1 cleanup:
 
 Still outbound: the configured LLM providers (including the `opencode` Zen
 provider when the user selects it), the `models.dev` catalog, Google APIs,
+`github.com` for the pinned, SHA-256-checked ripgrep release when neither `PATH`
+nor the app bundle has one (`core/src/ripgrep/release.ts`),
 `huggingface.co` for dictation models the user downloads (see
 [Local dictation](#local-dictation)), the Gmail API, Microsoft identity and
 Graph, and the IMAP servers of connected mail accounts (see

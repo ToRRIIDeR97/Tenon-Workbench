@@ -65,6 +65,9 @@ export async function preferAppEnv(userDataPath: string) {
   // undefined to process.env would store the string "undefined", so it is set only when there is a name.
   const database = stableDatabaseName(CHANNEL, app.isPackaged)
   if (!process.env.TENON_DB && database) process.env.TENON_DB = database
+  // The sidecar falls back to a download when this file is missing (development builds).
+  if (app.isPackaged)
+    process.env.TENON_RIPGREP_PATH = join(process.resourcesPath, "ripgrep", process.platform === "win32" ? "rg.exe" : "rg")
   process.env.TENON_VAULT_DIR = vaultFolder(getStore().get(VAULT_FOLDER_KEY), app.getPath("documents"))
   return shellEnv
 }

@@ -57,6 +57,11 @@ const dictationResources = existsSync(path.join(dictationDir, dictationEngine))
   ? [{ from: dictationDir, to: "dictation", filter: [dictationEngine] }]
   : (console.warn(`tenon-dictation not found in ${dictationDir}; the package will have no dictation engine`), [])
 
+// Downloaded and verified by scripts/prebuild.ts, so search works before the app has network access.
+const ripgrepResources = existsSync(path.join(packageDir, "resources", "ripgrep"))
+  ? [{ from: "resources/ripgrep", to: "ripgrep", filter: ["rg", "rg.exe"] }]
+  : (console.warn("ripgrep not found in resources/ripgrep; the package will download it on first search"), [])
+
 const channel = (() => {
   const raw = process.env.TENON_CHANNEL
   if (raw === "dev" || raw === "beta" || raw === "prod") return raw
@@ -96,7 +101,7 @@ const getBase = (appId: string): Configuration => ({
     name: PACKAGE_NAMES[channel],
     desktopName: `${appId}.desktop`,
   },
-  files: ["out/**/*", "!out/**/*.map", "resources/**/*", "!resources/opencode-cli*"],
+  files: ["out/**/*", "!out/**/*.map", "resources/**/*", "!resources/opencode-cli*", "!resources/ripgrep/**"],
   // Packaged builds cannot be turned into a general Node runtime or debugger by environment
   // variables or flags, and only load the integrity-checked app.asar. The sidecar runs through
   // utilityProcess and nothing spawns the app binary with ELECTRON_RUN_AS_NODE, so runAsNode is off.
@@ -110,6 +115,7 @@ const getBase = (appId: string): Configuration => ({
   },
   extraResources: [
     ...dictationResources,
+    ...ripgrepResources,
     ...(channel === "dev"
       ? [
           {
