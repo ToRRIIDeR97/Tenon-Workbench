@@ -77,8 +77,7 @@ bun run test             # turbo test of packages + Second Brain server tests
 bun run build
 ```
 
-`bun run test` skips the engine packages (`core`, `tenon`) and, until their
-contract fixtures are updated, `client` and `schema`. Also run
+`bun run test` skips the engine packages (`core`, `tenon`). Also run
 `bun run test:engine` when changing `tenon/packages/core` or
 `tenon/packages/tenon`, and `bun run test:routes` when changing
 navigation or routing. `bun install` inside `tenon/` also installs a git
