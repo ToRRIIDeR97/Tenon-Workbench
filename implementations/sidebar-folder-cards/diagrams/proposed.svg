@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="230" viewBox="0 0 680 230" role="img">
+  <title>Proposed: grouping builds cards</title>
+  <desc>Run status and the persisted Group by choice feed a new grouping module. It builds cards with status summaries, and each card shows marks and a running top line.</desc>
+  <style>
+    .b{fill:#F1EFE8;stroke:#888780;stroke-width:.5}.n{fill:#E1F5EE;stroke:#1D9E75;stroke-width:.5}
+    .t{font:500 14px sans-serif;fill:#2C2C2A}.s{font:400 12px sans-serif;fill:#5F5E5A}.a{stroke:#888780;stroke-width:1;fill:none}
+    @media (prefers-color-scheme:dark){.b{fill:#2C2C2A;stroke:#B4B2A9}.n{fill:#04342C;stroke:#5DCAA5}.t{fill:#F1EFE8}.s{fill:#D3D1C7}}
+  </style>
+  <defs><marker id="h" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M2 1L8 5L2 9" fill="none" stroke="#888780" stroke-width="1.5"/></marker></defs>
+  <rect class="b" x="40" y="30" width="170" height="56" rx="8"/><text class="t" x="125" y="52" text-anchor="middle">Sync stores</text><text class="s" x="125" y="70" text-anchor="middle">status, permissions</text>
+  <rect class="n" x="40" y="130" width="170" height="56" rx="8"/><text class="t" x="125" y="152" text-anchor="middle">Group by (new)</text><text class="s" x="125" y="170" text-anchor="middle">persisted choice</text>
+  <rect class="n" x="255" y="30" width="170" height="156" rx="8"/><text class="t" x="340" y="100" text-anchor="middle">sidebar-grouping (new)</text><text class="s" x="340" y="118" text-anchor="middle">states and summaries</text>
+  <rect class="n" x="470" y="30" width="170" height="56" rx="8"/><text class="t" x="555" y="52" text-anchor="middle">Folder card (new)</text><text class="s" x="555" y="70" text-anchor="middle">marks, counts, top line</text>
+  <rect class="b" x="470" y="130" width="170" height="56" rx="8"/><text class="t" x="555" y="152" text-anchor="middle">ThreadRow</text><text class="s" x="555" y="170" text-anchor="middle">still status mark</text>
+  <line class="a" x1="210" y1="58" x2="251" y2="58" marker-end="url(#h)"/><line class="a" x1="210" y1="158" x2="251" y2="158" marker-end="url(#h)"/><line class="a" x1="425" y1="58" x2="466" y2="58" marker-end="url(#h)"/><line class="a" x1="555" y1="86" x2="555" y2="126" marker-end="url(#h)"/>
+</svg>

@@ -17,8 +17,9 @@ export interface RevealProps extends ParentProps {
   open: boolean
   /** `line`: a conditional line (form error, notice, dock label) that opens over swap-in and closes over
    * short + ease-exit, so the content below slides back instead of jumping. `inline`: the same timing, but
-   * it widens and narrows for an item in a row (unsaved dot, Discard button). */
-  variant?: "line" | "inline"
+   * it widens and narrows for an item in a row (unsaved dot, Discard button). `even`: a folder the user opens
+   * and closes by hand, over medium + ease-standard both ways. */
+  variant?: "line" | "inline" | "even"
   class?: string
   onTransitionEnd?: (event: TransitionEvent) => void
   /** Runs when an open or a close has finished, from `transitionend` or the fallback timer (once per phase). */
@@ -36,6 +37,7 @@ export function Reveal(props: RevealProps) {
   const reveal = createReveal(
     () => props.open,
     (phase) => props.onSettled?.(phase),
+    props.variant === "even" ? "medium" : "short",
   )
 
   return (
@@ -86,7 +88,11 @@ export type RevealPhase = "closed" | "opening" | "open" | "closing"
  * element, interrupted style change). `onSettled` hears each finished open or close, including the
  * immediate ones under reduced motion.
  */
-export function createReveal(open: Accessor<boolean>, onSettled?: (phase: "open" | "closed") => void) {
+export function createReveal(
+  open: Accessor<boolean>,
+  onSettled?: (phase: "open" | "closed") => void,
+  closing: "short" | "medium" = "short",
+) {
   const [phase, setPhase] = createSignal<RevealPhase>(open() ? "open" : "closed")
   const timer = { current: undefined as ReturnType<typeof setTimeout> | undefined }
 
@@ -111,7 +117,7 @@ export function createReveal(open: Accessor<boolean>, onSettled?: (phase: "open"
           return
         }
         setPhase(next ? "opening" : "closing")
-        timer.current = setTimeout(settle, motionDuration(next ? "medium" : "short") + 50)
+        timer.current = setTimeout(settle, motionDuration(next ? "medium" : closing) + 50)
       },
       { defer: true },
     ),

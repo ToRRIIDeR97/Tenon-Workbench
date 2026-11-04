@@ -309,3 +309,35 @@
     animation: none;
   }
 }
+
+/* A sidebar card's top line while a thread in it runs. The card clips it, and it moves with transform
+   so it runs on the compositor instead of repainting each frame. */
+.sidebar-card-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 40%;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--v2-icon-icon-accent);
+  pointer-events: none;
+  animation: sidebar-card-line 2.4s var(--v2-ease-standard) infinite;
+}
+
+@keyframes sidebar-card-line {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    /* The line is 40% of the card, so 250% of itself carries it past the far edge. */
+    transform: translateX(250%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Still and full width: running stays visible without the motion. */
+  .sidebar-card-line {
+    width: 100%;
+    animation: none;
+  }
+}

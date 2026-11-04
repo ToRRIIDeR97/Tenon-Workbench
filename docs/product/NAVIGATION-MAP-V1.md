@@ -65,10 +65,20 @@ is hidden and the rail remains.
    it is first shown; if that scan fails, a toast says so and it runs again the
    next time the workspace is shown. If the Project list cannot load, the
    panel shows **Request failed** with **Retry**.
-   - One row per active Project, sorted by name, expandable. Expanding shows
+   - **Group by** switches the list between **Project**, **Attention** and
+     **Recent**, and the choice is remembered for the window. Each group is a
+     rounded card. Attention has **Needs you**, **Running** and **Other
+     threads**; Recent has **Today**, **Yesterday** and **Earlier**. Those cards
+     start open, and empty ones don't show.
+   - A thread waiting for approval shows a warning triangle and a running thread
+     shows an accent dot, on its row and on its card's header. A root shows the
+     most urgent state of itself and its child threads, even when they aren't
+     listed. While a thread in a card runs, even in a collapsed card, a thin
+     line runs along the card's top edge; with reduced motion it stays still.
+   - One card per active Project, sorted by name, expandable. Expanding shows
      **New thread** and the Project's root threads: pinned threads first (most
-     recently pinned first, with a pin icon), then the rest newest first. A
-     running thread shows an accent dot. Child threads (`parentID`) nest under their
+     recently pinned first, with a pin icon), then the rest newest first.
+     Child threads (`parentID`) nest under their
      parent while that parent or one of its children is open.
      A thread belongs to the Project whose folder holds it (the deepest one for
      nested folders).
