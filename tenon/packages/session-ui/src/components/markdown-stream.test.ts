@@ -131,6 +131,45 @@ describe("markdown stream", () => {
     expect(canReusePendingBlock({ mode: "code", raw: "```ts\none" }, { mode: "live", raw: "one", src: "" })).toBe(false)
   })
 
+  test("incremental projection matches a full lex at every step", () => {
+    const fixtures = [
+      "# Plan\n\nFirst paragraph with **bold**.\nStill the same one.\n\nSecond paragraph\n\n",
+      "1. one\n\n2. two\n\n   nested text\n\n3. three\n\nafter the list",
+      "- a\n- b\n\n  continued\n\n- c\n\n* other list\n\n---\n\ntext",
+      "Heading\n===\n\nSub\n---\nnot a heading\n---\n",
+      "| a | b |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |\n\nafter",
+      "para\n| a |\n|---|\n| 1 |\n",
+      "> quote\nlazy\n\n> another\n\n    indented code\n\ntext",
+      "<div>\nhtml\n</div>\n\n<pre>\n\nkept\n</pre>\n\ndone",
+      "before\n\n```ts\nconst x = 1\n```\n\nbetween\n\n~~~\nopen fence\n",
+      "```\na\n```x\nb\n```\n\ntail",
+      'see [docs][1] and [other][2]\n\n[1]: https://example.com\n\nmore\n\n[2]: https://example.org "title"\n\nend',
+      '[a]: /x\n"title"\n\ntext',
+      "  \n\n  leading space\n\n\n\ntrailing blanks\n\n\n",
+      "a\r\nb\r\n\r\nc\r\n",
+    ]
+    for (const text of fixtures) {
+      for (const size of [1, 2, 5, 11]) {
+        let previous: ReturnType<typeof project> | undefined
+        for (let end = size; ; end = Math.min(end + size, text.length)) {
+          const current = text.slice(0, end)
+          previous = project(previous, current, true)
+          expect(previous.blocks).toEqual(stream(current, true))
+          if (end === text.length) break
+        }
+      }
+    }
+  })
+
+  test("keeps frozen blocks when the tail grows", () => {
+    const previous = project(undefined, "# One\n\nTwo\n\nThree\n\nFour\n\nFive\n\nsix", true)
+    const next = project(previous, `${previous.text} and more`, true)
+
+    expect(next.blocks[0]).toBe(previous.blocks[0])
+    expect(next.blocks[1]).toBe(previous.blocks[1])
+    expect(next.blocks).toEqual(stream(next.text, true))
+  })
+
   test("appends plain code deltas without reprojecting frozen blocks", () => {
     const previous = project(undefined, "# Plan\n\n```ts\nconst one = 1\n", true)
     const next = project(previous, `${previous.text}const two = 2\n`, true)
