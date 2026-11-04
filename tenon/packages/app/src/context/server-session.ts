@@ -796,7 +796,8 @@ export function createServerSession(
       let page = await fetchMessages(sessionID, revalidate ? initialMessagePageSize : limit, before, attempt)
       if (generations.get(sessionID) !== active) return
       // A page with no cached message in it would leave a gap in the history, so reload all that was loaded.
-      if (revalidate && !page.complete && !overlapsLoaded(sessionID, page.session)) {
+      // At or under a page, that's the page just fetched, and a thread cached empty has a limit of 0.
+      if (revalidate && limit > initialMessagePageSize && !page.complete && !overlapsLoaded(sessionID, page.session)) {
         page = await fetchMessages(sessionID, limit, before, attempt)
         if (generations.get(sessionID) !== active) return
       }

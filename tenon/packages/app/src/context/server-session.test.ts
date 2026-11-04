@@ -1941,5 +1941,20 @@ describe("server session", () => {
       expect(requests.at(-1)?.limit).toBe(200)
       expect(store.data.message.child?.at(-1)?.id).toBe("msg_300")
     })
+
+    test("does not refetch a thread cached with a page or less", async () => {
+      let newest = 0
+      const { requests, store } = setupPages((input) => {
+        if (!newest) return { data: [] }
+        return { data: range(newest - input.limit + 1, newest), next: "older" }
+      })
+
+      await store.sync("child")
+      newest = 30
+      await store.sync("child", { force: true })
+
+      expect(requests.map((input) => input.limit)).toEqual([20, 20])
+      expect(store.data.message.child?.at(-1)?.id).toBe("msg_030")
+    })
   })
 })
