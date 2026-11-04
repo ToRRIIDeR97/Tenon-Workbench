@@ -356,8 +356,8 @@ GlobalBus.on("event", (event) => {
   if (payload?.type !== "session.created" && payload?.type !== "session.updated") return
   const sessionID = payload.properties?.sessionID
   const directory = payload.properties?.info?.directory
-  if (typeof sessionID === "string" && typeof directory === "string" && CommandMemory.isCommandDirectory(directory))
-    commandSessions.add(sessionID)
+  if (typeof sessionID !== "string" || typeof directory !== "string" || commandSessions.has(sessionID)) return
+  if (CommandMemory.isCommandDirectory(directory)) commandSessions.add(sessionID)
 })
 
 /** Every tool any thread can get, for the in-process loop's registration. Calls still check `list`. */

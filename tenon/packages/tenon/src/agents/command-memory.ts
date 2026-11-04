@@ -80,10 +80,14 @@ const fold = (value: string) => {
 export const folders = (roots = KnowledgeVault.machineRoots(Global.make().data)) =>
   [...new Set([root(), ...Object.keys(roots)])].map((item) => path.join(item, ".command-centre"))
 
-/** Whether a session directory is a Command Centre folder, of this root or an earlier one. */
-export function isCommandDirectory(value: string, known = folders()) {
+/**
+ * Whether a session directory is a Command Centre folder, of this root or an earlier one. Called on every
+ * session update, so any other folder stops at its name, before the machine map is read or a root is touched.
+ */
+export function isCommandDirectory(value: string, known?: ReadonlyArray<string>) {
   const target = fold(value)
-  return known.some((folder) => spellings(folder).some((spelling) => fold(spelling) === target))
+  if (path.basename(target) !== ".command-centre") return false
+  return (known ?? folders()).some((folder) => spellings(folder).some((spelling) => fold(spelling) === target))
 }
 
 const spellings = (folder: string) => {
