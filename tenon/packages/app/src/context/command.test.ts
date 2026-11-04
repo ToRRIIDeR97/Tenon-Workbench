@@ -4,8 +4,10 @@ import {
   addCommandRegistration,
   commandPaletteOptions,
   outsideEditable,
+  resolveCommandOptions,
   resolveKeybindOption,
   type CommandOption,
+  type CommandRegistration,
 } from "./command"
 
 const paletteOptions: CommandOption[] = [
@@ -23,6 +25,18 @@ describe("commandPaletteOptions", () => {
 })
 
 describe("command registrations", () => {
+  test("a page's palette shadows the sidebar default and the default returns when the page leaves", () => {
+    const sidebar = { key: "sidebar.palette", options: () => [{ id: "command.palette", title: "Sidebar" }] }
+    const page = { key: "session-palette", options: () => [{ id: "command.palette", title: "Page" }] }
+    const palette = (registrations: CommandRegistration[]) =>
+      resolveCommandOptions(registrations).find((option) => option.id === "command.palette")?.title
+
+    const mounted = addCommandRegistration([sidebar], page)
+    expect(palette([sidebar])).toBe("Sidebar")
+    expect(palette(mounted)).toBe("Page")
+    expect(palette(mounted.filter((entry) => entry !== page))).toBe("Sidebar")
+  })
+
   test("shadows keyed registrations while retaining the previous owner", () => {
     const one = () => [{ id: "one", title: "One" }]
     const two = () => [{ id: "two", title: "Two" }]

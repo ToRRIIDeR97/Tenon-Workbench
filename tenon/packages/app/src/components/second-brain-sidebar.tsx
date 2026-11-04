@@ -9,7 +9,8 @@ import { createReveal, Reveal } from "@tenon/ui/v2/reveal"
 import { SegmentedControlItemV2, SegmentedControlV2 } from "@tenon/ui/v2/segmented-control-v2"
 import { PathTooltip, TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { useDialog } from "@tenon/ui/context/dialog"
-import { formatKeybind } from "@/context/command"
+import { formatKeybind, useCommand } from "@/context/command"
+import { useGlobal } from "@/context/global"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { useSettingsDialog } from "@/components/settings-dialog"
@@ -28,6 +29,7 @@ import { parseGrouping, type CardSummary, type ThreadState } from "@/features/se
 import type { ThreadNode } from "@/features/second-brain/sidebar-threads"
 import { createFreshItems } from "@/utils/fresh-items"
 import { sessionPinnedAt } from "@/utils/session"
+import { sessionHref } from "@/utils/session-route"
 import { sessionTitle } from "@/utils/session-title"
 
 // Rows clip, so keyboard focus draws an inset ring on the row: when the row is the button, or while its
@@ -50,6 +52,36 @@ export function SecondBrainSidebar() {
   const navigate = useNavigate()
   const openSettings = useSettingsDialog()
   const ctrl = createSidebarController()
+  const command = useCommand()
+  const dialog = useDialog()
+  const global = useGlobal()
+  const server = useServer()
+  // The palette on every page without its own; thread and draft pages register after this and shadow it.
+  command.register("sidebar.palette", () => [
+    {
+      id: "command.palette",
+      title: language.t("command.palette"),
+      hidden: true,
+      onSelect: async () => {
+        const conn = server.current
+        if (!conn) return
+        const ctx = global.ensureServerCtx(conn)
+        const { DialogHomeCommandPaletteV2 } = await import("@/components/dialog-command-palette-v2")
+        void dialog.show(() => (
+          <DialogHomeCommandPaletteV2
+            server={conn}
+            onSelectSession={(entry) => {
+              if (!entry.sessionID || !entry.directory || !entry.server) return
+              const directory = entry.project?.worktree ?? entry.directory
+              ctx.projects.open(directory)
+              ctx.projects.touch(directory)
+              navigate(sessionHref(entry.server, entry.sessionID))
+            }}
+          />
+        ))
+      },
+    },
+  ])
   // The panel keeps its content while its width collapses, so it never closes as an empty column.
   const panel = createReveal(() => layout.sidebar.opened())
   const path = () => ctrl.location.pathname
