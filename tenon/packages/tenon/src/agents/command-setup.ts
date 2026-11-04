@@ -133,12 +133,15 @@ export const run = Effect.fn("CommandSetup.run")(function* (input: Input) {
       })
     }
   })
-  // A failed setup leaves no half-made folder behind (only one it created itself is removed).
-  yield* files.pipe(
-    Effect.onError(() =>
-      created ? Effect.promise(() => rm(folder, { recursive: true, force: true })).pipe(Effect.ignore) : Effect.void,
-    ),
+  // A failed setup leaves no half-made folder behind (only one it created itself is removed). Once the card
+  // is written the folder belongs to that Project, so a later failure keeps it.
+  let carded = false
+  const rollback = Effect.suspend(() =>
+    created && !carded
+      ? Effect.promise(() => rm(folder, { recursive: true, force: true })).pipe(Effect.ignore)
+      : Effect.void,
   )
+  yield* files.pipe(Effect.onError(() => rollback))
 
   const store = yield* InstanceStore.Service
   const location = inside(workspace, folder)
@@ -147,20 +150,23 @@ export const run = Effect.fn("CommandSetup.run")(function* (input: Input) {
         path: path.relative(workspace, folder).split(path.sep).join("/"),
       }
     : { displayPath: folder, path: folder }
-  const project = yield* store.provide(
-    { directory: workspace },
-    Effect.gen(function* () {
-      const card = yield* CommandVault.inFolder(
-        workspace,
-        BrainProject.create({ name, outcome: input.outcome?.trim() || `Set up ${name}.`, location }),
-      )
-      if (!inside(workspace, folder))
-        yield* CommandVault.inFolder(workspace, BrainProject.link({ folder })).pipe(
-          Effect.catch((error) => Effect.logWarning("Linking the new Project folder failed", { error: error._tag })),
+  const project = yield* store
+    .provide(
+      { directory: workspace },
+      Effect.gen(function* () {
+        const card = yield* CommandVault.inFolder(
+          workspace,
+          BrainProject.create({ name, outcome: input.outcome?.trim() || `Set up ${name}.`, location }),
         )
-      yield* CommandVault.withVault((vault) => KnowledgeVault.writeTimeline(vault, card.id, { items: [] }))
-      return card
-    }),
-  )
+        carded = true
+        if (!inside(workspace, folder))
+          yield* CommandVault.inFolder(workspace, BrainProject.link({ folder })).pipe(
+            Effect.catch((error) => Effect.logWarning("Linking the new Project folder failed", { error: error._tag })),
+          )
+        yield* CommandVault.withVault((vault) => KnowledgeVault.writeTimeline(vault, card.id, { items: [] }))
+        return card
+      }),
+    )
+    .pipe(Effect.onError(() => rollback))
   return { project, folder, files: Object.keys(templates(name)) }
 })
