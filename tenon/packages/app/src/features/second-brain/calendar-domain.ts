@@ -1,5 +1,8 @@
 import type { GoogleCalendarProviderEvent } from "@/context/platform"
 import type { CalendarEvent } from "./client"
+import type { CalendarTaskFilter } from "./calendar-tasks"
+
+export type CalendarView = "today" | "week" | "month" | "agenda" | "tasks" | "upcoming" | "unscheduled" | "completed"
 
 export type CalendarDay = { date: string; day: number; inMonth: boolean; today: boolean }
 
@@ -176,4 +179,34 @@ export function shiftDate(cursor: Date, amount: number) {
 export function weekRange(cursor: Date) {
   const start = shiftDate(cursor, -cursor.getDay())
   return { start: localDateKey(start), end: localDateKey(shiftDate(start, 6)) }
+}
+
+/** The view named in `?view=`; anything else opens Today. */
+export function calendarView(value?: string): CalendarView {
+  if (
+    value === "week" ||
+    value === "month" ||
+    value === "agenda" ||
+    value === "tasks" ||
+    value === "upcoming" ||
+    value === "unscheduled" ||
+    value === "completed"
+  ) {
+    return value
+  }
+  return "today"
+}
+
+export function taskFilter(view: CalendarView): CalendarTaskFilter | undefined {
+  if (view === "tasks") return "today"
+  if (view === "upcoming") return "upcoming"
+  if (view === "unscheduled") return "unscheduled"
+  if (view === "completed") return "completed"
+}
+
+export function viewForTaskFilter(filter: CalendarTaskFilter): CalendarView {
+  if (filter === "upcoming") return "upcoming"
+  if (filter === "unscheduled") return "unscheduled"
+  if (filter === "completed") return "completed"
+  return "tasks"
 }

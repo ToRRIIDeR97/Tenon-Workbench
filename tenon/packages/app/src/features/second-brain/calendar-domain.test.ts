@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test"
 import type { CalendarEvent } from "./client"
 import {
+  calendarView,
   dateKeys,
   eventCoversDay,
   eventLastDay,
@@ -12,6 +13,8 @@ import {
   monthGrid,
   shiftDate,
   shiftMonth,
+  taskFilter,
+  viewForTaskFilter,
   weekRange,
 } from "./calendar-domain"
 
@@ -146,4 +149,13 @@ test("a month cell keeps a row for the rest when its items do not all fit", () =
 test("hourSlot stays within the day", () => {
   expect(hourSlot(9)).toEqual({ start: "09:00", end: "10:00" })
   expect(hourSlot(23)).toEqual({ start: "23:00", end: "23:59" })
+})
+
+test("every task view round-trips through its filter, and others have none", () => {
+  for (const view of ["tasks", "upcoming", "unscheduled", "completed"] as const) {
+    expect(viewForTaskFilter(taskFilter(view)!)).toBe(view)
+  }
+  expect(taskFilter("month")).toBeUndefined()
+  expect(calendarView("nonsense")).toBe("today")
+  expect(calendarView("upcoming")).toBe("upcoming")
 })
