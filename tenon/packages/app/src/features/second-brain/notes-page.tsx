@@ -326,11 +326,7 @@ export function NotesPageView(props: {
                       </select>
                     </Match>
                     <Match when={typeof value() === "string" && /^\d{4}-\d{2}-\d{2}(T|$)/.test(String(value()))}>
-                      <DateChip
-                        label={key}
-                        value={String(value()).slice(0, 10)}
-                        onChange={(next) => set(next ?? "")}
-                      />
+                      <DateChip label={key} value={String(value()).slice(0, 10)} onChange={(next) => set(next ?? "")} />
                     </Match>
                     <Match when={typeof value() === "string"}>
                       <input

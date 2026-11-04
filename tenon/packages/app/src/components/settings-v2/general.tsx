@@ -93,7 +93,9 @@ const DeliverySetting = () => {
   return (
     <SettingsRowV2
       title={language.t("secondBrain.composer.delivery.title")}
-      description={language.t("secondBrain.composer.delivery.description", { key: formatKeybind("mod+enter", language.t) })}
+      description={language.t("secondBrain.composer.delivery.description", {
+        key: formatKeybind("mod+enter", language.t),
+      })}
     >
       <SelectV2
         appearance="inline"
