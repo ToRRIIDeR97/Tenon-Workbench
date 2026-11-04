@@ -38,6 +38,10 @@
   overscroll-behavior: contain;
 }
 
+[data-component="menu-v2-item"][data-critical] {
+  --menu-v2-fg: var(--v2-state-fg-danger);
+}
+
 [data-component="menu-v2-item"] {
   --menu-v2-fg: var(--v2-text-text-base);
   --menu-v2-fg-muted: var(--v2-text-text-faint);

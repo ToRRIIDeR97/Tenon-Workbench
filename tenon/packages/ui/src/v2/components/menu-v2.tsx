@@ -47,14 +47,21 @@ function ItemBody(
 }
 
 export interface MenuV2ItemProps extends ComponentProps<typeof DropdownMenu.Item> {
+  /** Marks an action that can't be undone. */
+  critical?: boolean
   shortcut?: JSX.Element | string
   badge?: JSX.Element | string
 }
 
 function MenuV2Item(props: ParentProps<MenuV2ItemProps>) {
-  const [s, r] = splitProps(props, ["class", "classList", "children", "shortcut", "badge"])
+  const [s, r] = splitProps(props, ["class", "classList", "children", "shortcut", "badge", "critical"])
   return (
-    <DropdownMenu.Item {...r} data-component="menu-v2-item" classList={{ ...s.classList, [s.class ?? ""]: !!s.class }}>
+    <DropdownMenu.Item
+      {...r}
+      data-component="menu-v2-item"
+      data-critical={s.critical ? "" : undefined}
+      classList={{ ...s.classList, [s.class ?? ""]: !!s.class }}
+    >
       <ItemBody shortcut={s.shortcut} badge={s.badge}>
         {s.children}
       </ItemBody>

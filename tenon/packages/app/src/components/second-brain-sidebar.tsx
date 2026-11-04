@@ -637,7 +637,7 @@ function ProjectGroup(props: { ctrl: SidebarController; project: SidebarProjectI
                 </MenuV2.Item>
                 <MenuV2.Separator />
                 <MenuV2.Item
-                  class="[--menu-v2-fg:var(--v2-text-text-critical)]"
+                  critical
                   onSelect={() =>
                     dialog.show(() => (
                       <DialogRemoveProject
@@ -917,11 +917,7 @@ function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; 
                 <MenuV2.Item onSelect={run.archive} shortcut={hint("archive")}>
                   {language.t("common.archive")}
                 </MenuV2.Item>
-                <MenuV2.Item
-                  class="[--menu-v2-fg:var(--v2-text-text-critical)]"
-                  onSelect={run.delete}
-                  shortcut={hint("delete")}
-                >
+                <MenuV2.Item critical onSelect={run.delete} shortcut={hint("delete")}>
                   {language.t("common.delete")}
                 </MenuV2.Item>
               </MenuV2.Content>

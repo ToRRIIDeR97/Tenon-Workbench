@@ -50,7 +50,7 @@ export const DialogSettings: Component<{
   }
 
   return (
-    <Dialog size="x-large" variant="settings" class="settings-v2-dialog">
+    <Dialog size="x-large" variant="settings" class="settings-v2-dialog relative">
       <IconButtonV2
         type="button"
         variant="ghost-muted"
