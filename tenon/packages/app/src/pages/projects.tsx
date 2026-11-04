@@ -133,6 +133,11 @@ export default function ProjectsPage() {
   // The vault refuses to live inside a workspace or Project folder; say so instead of a generic failure.
   const misplaced = () =>
     pages.error instanceof SecondBrainRequestError && pages.error.reason === "vault_inside_workspace"
+  // A file the vault needs could not be read (a sync lock, an offline placeholder); `reason` names it.
+  const unreadable = () =>
+    pages.error instanceof SecondBrainRequestError && pages.error.reason?.startsWith("vault_unavailable: ")
+      ? pages.error.reason.slice("vault_unavailable: ".length)
+      : undefined
 
   const pagePath = () => search.page ?? search.note ?? ""
   const projectId = () => (pagePath() ? "" : (search.project ?? ""))
@@ -533,10 +538,17 @@ export default function ProjectsPage() {
           }
         >
           <Show
-            when={!misplaced()}
+            when={!misplaced() && !unreadable()}
             fallback={
-              <PageEmpty error title={language.t("secondBrain.vault.misplaced.title")}>
-                {language.t("secondBrain.vault.misplaced.body")}
+              <PageEmpty
+                error
+                title={language.t(
+                  misplaced() ? "secondBrain.vault.misplaced.title" : "secondBrain.vault.unavailable.title",
+                )}
+              >
+                {misplaced()
+                  ? language.t("secondBrain.vault.misplaced.body")
+                  : language.t("secondBrain.vault.unavailable.body", { file: unreadable() ?? "" })}
               </PageEmpty>
             }
           >

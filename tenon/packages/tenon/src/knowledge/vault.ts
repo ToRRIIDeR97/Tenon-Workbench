@@ -55,6 +55,11 @@ const oneDriveConflict = /-(?:DESKTOP|LAPTOP)-[A-Z0-9]{4,}(?:-\d+)?(?=\.[^.]+$|$
 const isConflictCopy = (name: string) => conflictPattern.test(name) || oneDriveConflict.test(name)
 const utf8 = new TextDecoder("utf-8", { ignoreBOM: true })
 const locks = KeyedMutex.makeUnsafe<string>()
+/**
+ * Folder and page names as compared, never as stored: a synced Mac folder can arrive in NFD while a typed
+ * path is NFC, and existing files keep the spelling they have on disk.
+ */
+const foldName = (value: string) => value.normalize("NFC").toLowerCase()
 
 export const WorkspaceInfo = Schema.Struct({ id: Schema.String, name: Schema.String, folder: Schema.String })
 export const Info = Schema.Struct({ root: Schema.String, workspace: WorkspaceInfo })
@@ -203,7 +208,8 @@ export const open = Effect.fn("KnowledgeVault.open")(function* (workspace: Works
       yield* fs.ensureDir(root)
       const machine = yield* readMachine()
       const mapped = machine.roots[root]?.[workspace.directory]
-      const folders = yield* workspaceFolders(root)
+      const scan = yield* workspaceFolders(root)
+      const folders = scan.found
       // A vault moved to a new root (Settings copies it) keeps its workspace ids, so the id this
       // directory had under an earlier root still finds its folder.
       const known =
@@ -214,6 +220,12 @@ export const open = Effect.fn("KnowledgeVault.open")(function* (workspace: Works
       const found =
         folders.find((item) => known !== undefined && item.id === known) ??
         (workspace.repository ? folders.find((item) => item.repository === workspace.repository) : undefined)
+      // This workspace may well have a folder, behind a file that could not be read (a sync lock, an offline
+      // placeholder, a half-synced file). A new folder would fork the vault; a really deleted one lists clean.
+      const expected =
+        workspace.repository !== undefined ||
+        Object.values(machine.roots).some((directories) => directories[workspace.directory] !== undefined)
+      if (found === undefined && expected && scan.unreadable.length > 0) return yield* unavailable(scan.unreadable[0])
       const entry = found ?? (yield* createWorkspaceFolder(root, workspace, known, folders))
       if (mapped !== entry.id)
         yield* writeMachine({
@@ -743,23 +755,47 @@ export function machineName(host: string) {
   return `${base}-${randomBytes(3).toString("hex")}`
 }
 
-const workspaceFolders = Effect.fnUntraced(function* (root: string) {
+/**
+ * Read `name` from each visible folder of `directory`. A folder without the file is simply not one of ours;
+ * anything else (a read error, a body `decode` refuses, a failed listing) lands in `unreadable`, relative to
+ * `directory`, so a caller never takes a failure for "no such folder here".
+ */
+const scanFolders = Effect.fnUntraced(function* <A>(
+  directory: string,
+  name: string,
+  decode: (source: string, folder: string) => A | undefined,
+) {
   const fs = yield* FSUtil.Service
-  const entries = yield* fs.readDirectoryEntries(root).pipe(Effect.orElseSucceed(() => []))
-  const folders = yield* Effect.forEach(
+  const entries = yield* fs.readDirectoryEntries(directory).pipe(Effect.orElseSucceed(() => undefined))
+  if (entries === undefined) return { found: [] as A[], unreadable: [path.basename(directory)] }
+  const results = yield* Effect.forEach(
     entries.filter((entry) => entry.type === "directory" && !entry.name.startsWith(".")),
-    (entry) =>
-      readIdFile(path.join(root, entry.name, "workspace.json")).pipe(
-        Effect.map((source) => {
-          if (source === undefined) return undefined
-          const file = Schema.decodeUnknownOption(Schema.fromJsonString(WorkspaceFile))(source)
-          return Option.isSome(file) ? { folder: entry.name, ...file.value } : undefined
+    (entry) => {
+      const unreadable = `${entry.name}/${name}`
+      return readIdFile(path.join(directory, entry.name, name)).pipe(
+        Effect.map((source): { value?: A; unreadable?: string } => {
+          if (source === undefined) return {}
+          const value = decode(source, entry.name)
+          return value === undefined ? { unreadable } : { value }
         }),
-      ),
+        Effect.orElseSucceed((): { value?: A; unreadable?: string } => ({ unreadable })),
+      )
+    },
     { concurrency: 8 },
   )
-  return folders.filter((folder) => folder !== undefined)
+  return {
+    found: results.flatMap((result) => (result.value === undefined ? [] : [result.value])),
+    unreadable: results.flatMap((result) => (result.unreadable === undefined ? [] : [result.unreadable])),
+  }
 })
+
+const unavailable = (file: string) => new InvalidError({ reason: `vault_unavailable: ${file}` })
+
+const workspaceFolders = (root: string) =>
+  scanFolders(root, "workspace.json", (source, folder) => {
+    const file = Schema.decodeUnknownOption(Schema.fromJsonString(WorkspaceFile))(source)
+    return Option.isSome(file) ? { folder, ...file.value } : undefined
+  })
 
 const createWorkspaceFolder = Effect.fnUntraced(function* (
   root: string,
@@ -787,36 +823,25 @@ const createWorkspaceFolder = Effect.fnUntraced(function* (
   return { folder, ...content }
 })
 
-function uniqueFolder(base: string, taken: ReadonlyArray<string>) {
-  const lower = new Set(taken.map((name) => name.toLowerCase()))
+export function uniqueFolder(base: string, taken: ReadonlyArray<string>) {
+  const folded = new Set(taken.map(foldName))
+  const name = base.normalize("NFC")
   for (let index = 1; ; index++) {
-    const candidate = index === 1 ? base : `${base} (${index})`
-    if (!lower.has(candidate.toLowerCase())) return candidate
+    const candidate = index === 1 ? name : `${name} (${index})`
+    if (!folded.has(foldName(candidate))) return candidate
   }
 }
 
 // ---- Project folders ----
 
+const scanProjects = (vault: Vault) =>
+  scanFolders(vault.directory, "project.json", (source, folder) => {
+    const file = Schema.decodeUnknownOption(Schema.fromJsonString(ProjectFile))(source)
+    return Option.isSome(file) && projectPattern.test(file.value.id) ? ([file.value.id, folder] as const) : undefined
+  })
+
 /** Project id → folder name, from each top-level folder's `project.json`. */
-const projectFolders = Effect.fnUntraced(function* (vault: Vault) {
-  const fs = yield* FSUtil.Service
-  const entries = yield* fs.readDirectoryEntries(vault.directory).pipe(Effect.orElseSucceed(() => []))
-  const found = yield* Effect.forEach(
-    entries.filter((entry) => entry.type === "directory" && !entry.name.startsWith(".")),
-    (entry) =>
-      readIdFile(path.join(vault.directory, entry.name, "project.json")).pipe(
-        Effect.map((source) => {
-          if (source === undefined) return undefined
-          const file = Schema.decodeUnknownOption(Schema.fromJsonString(ProjectFile))(source)
-          return Option.isSome(file) && projectPattern.test(file.value.id)
-            ? ([file.value.id, entry.name] as const)
-            : undefined
-        }),
-      ),
-    { concurrency: 8 },
-  )
-  return new Map(found.filter((item) => item !== undefined))
-})
+const projectFolders = (vault: Vault) => scanProjects(vault).pipe(Effect.map((scan) => new Map(scan.found)))
 
 const existingProjectFolder = Effect.fnUntraced(function* (vault: Vault, projectId: string) {
   if (!projectPattern.test(projectId)) return yield* new InvalidError({ reason: "invalid_project" })
@@ -835,8 +860,11 @@ const ensureProjectFolder = Effect.fnUntraced(function* (vault: Vault, projectId
     Effect.gen(function* () {
       const fs = yield* FSUtil.Service
       const files = yield* FileMutation.Service
-      const again = (yield* projectFolders(vault)).get(projectId)
+      const scan = yield* scanProjects(vault)
+      const again = new Map(scan.found).get(projectId)
       if (again !== undefined) return again
+      // The Project's folder may be the one that could not be read; a new one would fork it.
+      if (scan.unreadable.length > 0) return yield* unavailable(scan.unreadable[0])
       const entries = yield* fs.readDirectoryEntries(vault.directory).pipe(Effect.orElseSucceed(() => []))
       const folder = uniqueFolder(
         BrainProject.folderName(project.name),
@@ -1189,12 +1217,9 @@ const readSmall = Effect.fnUntraced(function* (file: string, limit: number) {
   return yield* fs.readFile(file).pipe(Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed(undefined)))
 })
 
-/** A small id file's text, or undefined when it is missing or unreadable. */
+/** A small id file's text, or undefined only when it is missing; any other failure stays an error. */
 const readIdFile = (file: string) =>
-  readSmall(file, smallFileLimit).pipe(
-    Effect.map((bytes) => (bytes === undefined ? undefined : utf8.decode(bytes))),
-    Effect.orElseSucceed(() => undefined),
-  )
+  readSmall(file, smallFileLimit).pipe(Effect.map((bytes) => (bytes === undefined ? undefined : utf8.decode(bytes))))
 
 function hash(source: string) {
   return createHash("sha256").update(source).digest("hex")
