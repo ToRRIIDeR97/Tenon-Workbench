@@ -450,6 +450,7 @@ function toApiFailure(operation: string, path: string | undefined, error: unknow
   ) {
     return Effect.fail(new HttpApiError.NotFound({}))
   }
+  if (error instanceof Routines.ConflictError) return Effect.fail(conflict("routine_running"))
   if (
     error instanceof KnowledgeNote.ConflictError ||
     error instanceof KnowledgeVault.ConflictError ||

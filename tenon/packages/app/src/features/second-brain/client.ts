@@ -323,7 +323,7 @@ export type Routine = {
   enabled: boolean
   nextRun: string | null
   lastRun: string | null
-  lastStatus: "running" | "done" | "failed" | null
+  lastStatus: "running" | "done" | "failed" | "unfiled" | null
 }
 export type ModelChoice = { providerID: string; modelID: string }
 export type MemoryHit = { sessionID?: string; text: string; at: number }

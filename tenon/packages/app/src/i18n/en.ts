@@ -945,6 +945,8 @@ export const dict = {
   "secondBrain.routines.never": "Never",
   "secondBrain.routines.disabled": "Off",
   "secondBrain.routines.failed": "Failed",
+  "secondBrain.routines.running": "Running",
+  "secondBrain.routines.unfiled": "Reply not filed in the Inbox; it is in the thread",
   "secondBrain.routines.new": "New routine",
   "secondBrain.routines.new.name": "New routine",
   "secondBrain.routines.new.body":

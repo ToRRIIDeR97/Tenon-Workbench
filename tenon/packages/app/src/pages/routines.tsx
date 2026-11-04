@@ -1,6 +1,6 @@
 import { A, useNavigate } from "@solidjs/router"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
-import { createResource, For, Show } from "solid-js"
+import { createEffect, createResource, For, onCleanup, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { PageEmpty, PageFrame, PageHeader } from "@/components/page"
 import { useLanguage } from "@/context/language"
@@ -40,6 +40,12 @@ export default function RoutinesPage() {
     ),
   )
   const items = (): ReadonlyArray<Routine & { unsupported?: ReadonlyArray<string> }> => routines.latest?.items ?? []
+  // A run ends on the server, so the list is re-read while one is in flight.
+  createEffect(() => {
+    if (!items().some((routine) => routine.lastStatus === "running")) return
+    const timer = setInterval(() => void refetch(), 15_000)
+    onCleanup(() => clearInterval(timer))
+  })
   const time = (value: string | null) =>
     value
       ? new Date(value).toLocaleString(language.intl(), { dateStyle: "medium", timeStyle: "short" })
@@ -51,8 +57,11 @@ export default function RoutinesPage() {
     setState({ failed: false })
     setState("running", id, true)
     await runRoutine(client(directory), id, modelChoice(settings.commandCentre.current().modelID))
+      .catch((error: unknown) => {
+        // Already running: the refreshed row says so.
+        if (!(error instanceof SecondBrainRequestError && error.status === 409)) setState("failed", true)
+      })
       .then(() => refetch())
-      .catch(() => setState("failed", true))
     setState("running", id, false)
   }
 
@@ -166,13 +175,21 @@ export default function RoutinesPage() {
                       <Show when={routine.lastStatus === "failed"}>
                         <span class="ml-2 text-v2-text-text-critical">{language.t("secondBrain.routines.failed")}</span>
                       </Show>
+                      <Show when={routine.lastStatus === "unfiled"}>
+                        <span class="ml-2 text-v2-text-text-critical">
+                          {language.t("secondBrain.routines.unfiled")}
+                        </span>
+                      </Show>
+                      <Show when={routine.lastStatus === "running"}>
+                        <span class="ml-2">{language.t("secondBrain.routines.running")}</span>
+                      </Show>
                     </td>
                     <td class="px-3 py-2 text-v2-text-text-muted">{routine.enabled ? time(routine.nextRun) : "—"}</td>
                     <td class="px-3 py-2 text-right">
                       <ButtonV2
                         size="small"
                         variant="tonal"
-                        disabled={state.running[routine.id] === true}
+                        disabled={state.running[routine.id] === true || routine.lastStatus === "running"}
                         onClick={() => void run(routine.id)}
                       >
                         {language.t("secondBrain.routines.runNow")}

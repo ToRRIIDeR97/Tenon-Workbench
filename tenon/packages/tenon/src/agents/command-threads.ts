@@ -50,6 +50,8 @@ export const start = Effect.fn("CommandThreads.start")(function* (input: {
   const reply = inCommandCentre(
     prompts.prompt({ sessionID: info.id, ...(model ? { model } : {}), parts: [{ type: "text", text: input.prompt }] }),
   ).pipe(
+    // The prompt only waits on the session's run, so stopping the wait has to stop the run too.
+    Effect.onInterrupt(() => inCommandCentre(prompts.cancel(info.id))),
     Effect.map((message) =>
       message.parts.flatMap((part) => (part.type === "text" && !part.synthetic ? [part.text] : [])).join("\n\n"),
     ),

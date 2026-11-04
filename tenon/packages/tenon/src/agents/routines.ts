@@ -6,12 +6,14 @@ import { Global } from "@tenon/core/global"
 import { Effect, Schema, Semaphore } from "effect"
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
 import path from "node:path"
+import { isDeepStrictEqual } from "node:util"
 import { CommandVault } from "./command-vault"
 
 /**
  * Routines: vault pages under the workspace's `Routines/` folder whose properties carry a `schedule`
  * (`daily HH:MM`, `weekdays HH:MM`, `weekly <mon..sun> HH:MM` or a five-field cron) and optionally
- * `enabled`, `harness`, `model` and `tools`. The page body is the prompt a Command Centre thread runs.
+ * `enabled`, `harness`, `model`, `tools` and `timeout` (minutes). The page body is the prompt a Command
+ * Centre thread runs.
  *
  * When each routine last ran lives in this machine's app data (`routines-state.json`), never in the
  * vault: it is a cache, and a lost file only means the next scheduled time is the new baseline. The same
@@ -29,7 +31,8 @@ export const Info = Schema.Struct({
   enabled: Schema.Boolean,
   nextRun: Schema.NullOr(Schema.String),
   lastRun: Schema.NullOr(Schema.String),
-  lastStatus: Schema.NullOr(Schema.Literals(["running", "done", "failed"])),
+  /** `unfiled`: the run finished but its reply stayed in its thread, out of `Inbox.md`. */
+  lastStatus: Schema.NullOr(Schema.Literals(["running", "done", "failed", "unfiled"])),
   /** Front-matter properties the page sets that runs don't honour yet (`harness`, `tools`). */
   unsupported: Schema.Array(Schema.String),
 })
@@ -40,6 +43,14 @@ export const RunResult = Schema.Struct({ threadId: Schema.String })
 export class NotFoundError extends Schema.TaggedErrorClass<NotFoundError>()("Routines.NotFoundError", {
   id: Schema.String,
 }) {}
+
+/** A Run now while the routine's last run is still in flight. */
+export class ConflictError extends Schema.TaggedErrorClass<ConflictError>()("Routines.ConflictError", {
+  id: Schema.String,
+}) {}
+
+/** `routines-state.json` could not be written. */
+export class StateError extends Schema.TaggedErrorClass<StateError>()("Routines.StateError", {}) {}
 
 /** A routine as `run` receives it. */
 export interface Routine {
@@ -52,12 +63,20 @@ export interface Routine {
   readonly harness?: string
   readonly model?: string
   readonly tools?: ReadonlyArray<string>
+  /** Minutes a run may take; a longer run is stopped and marked failed. */
+  readonly timeout?: number
 }
 
 export type Run<E = never, R = never> = (routine: Routine) => Effect.Effect<{ threadId: string; text: string }, E, R>
 
-const folder = "Routines/"
+/** The top-level vault folder routines live in, in any letter case. */
+export const folder = "Routines"
 const inbox = "Inbox.md"
+// Past this size the Inbox's entries move to `Inbox/<YYYY-MM>.md`. A full Inbox would refuse every reply at
+// the 5 MB page limit, and each append keeps a copy in `.history`, so a smaller page is also cheaper.
+const inboxLimit = 1024 * 1024
+const defaultTimeout = 120
+const maxTimeout = 24 * 60
 const days = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]
 
 // ---------------------------------------------------------------------------------------------
@@ -181,7 +200,7 @@ type State = {
   firstSeen?: number
   /** The start of the last finished run (done or failed). */
   lastRun?: number
-  lastStatus?: "running" | "done" | "failed"
+  lastStatus?: "running" | "done" | "failed" | "unfiled"
   /** The start of the run in flight. */
   startedAt?: number
   /** `enabled` as the last check saw it, so a change moves the baseline. */
@@ -191,6 +210,7 @@ type ModelChoice = { providerID: string; modelID: string }
 type StateFile = { version: 1; routines: Record<string, State>; defaultModel?: ModelChoice }
 
 const stateLock = Semaphore.makeUnsafe(1)
+const inboxLock = Semaphore.makeUnsafe(1)
 const stateFile = () => path.join(Global.make().data, "routines-state.json")
 
 const readState = Effect.promise(async (): Promise<StateFile> => {
@@ -205,31 +225,46 @@ const readState = Effect.promise(async (): Promise<StateFile> => {
 })
 
 const writeState = (state: StateFile) =>
-  Effect.promise(async () => {
-    const file = stateFile()
-    await mkdir(path.dirname(file), { recursive: true })
-    const temp = `${file}.${process.pid}.tmp`
-    await writeFile(temp, JSON.stringify(state, null, 2) + "\n")
-    await rename(temp, file)
+  Effect.tryPromise({
+    try: async () => {
+      const file = stateFile()
+      await mkdir(path.dirname(file), { recursive: true })
+      const temp = `${file}.${process.pid}.tmp`
+      await writeFile(temp, JSON.stringify(state, null, 2) + "\n")
+      await rename(temp, file)
+    },
+    catch: () => new StateError(),
   })
 
 const updateState = (key: string, change: (current: State) => State) =>
   stateLock.withPermits(1)(
     Effect.gen(function* () {
       const state = yield* readState
-      state.routines[key] = change(state.routines[key] ?? {})
+      const current = state.routines[key] ?? {}
+      const next = change(current)
+      // Every check of every routine lands here each minute, nearly always with nothing to record.
+      if (isDeepStrictEqual(next, current)) return current
+      state.routines[key] = next
       yield* writeState(state)
-      return state.routines[key]
+      return next
     }),
   )
 
-/** Mark a run started when `due` holds on the current state; false when it doesn't or one is in flight. */
-const claim = (key: string, now: Date, due: (current: State) => boolean) =>
+/** How long a run may take, in milliseconds. */
+const timeoutOf = (routine: Routine) => (routine.timeout ?? defaultTimeout) * 60_000
+
+/**
+ * Mark a run started when `due` holds on the current state; false when it doesn't or one is in flight. A run
+ * past `limit` is a run that never ended (its timeout should have ended it), so it no longer blocks a new one.
+ * The extra minute lets a timeout that is firing right now record its own result first.
+ */
+const claim = (key: string, now: Date, limit: number, due: (current: State) => boolean) =>
   stateLock.withPermits(1)(
     Effect.gen(function* () {
       const state = yield* readState
       const current = state.routines[key] ?? {}
-      if (current.lastStatus === "running" || !due(current)) return false
+      const inFlight = current.lastStatus === "running" && now.getTime() - (current.startedAt ?? 0) <= limit + 60_000
+      if (inFlight || !due(current)) return false
       state.routines[key] = { ...current, startedAt: now.getTime(), lastStatus: "running" }
       yield* writeState(state)
       return true
@@ -287,21 +322,17 @@ function routineFrom(page: KnowledgeVault.Page): Routine | undefined {
     ...(typeof properties.harness === "string" ? { harness: properties.harness } : {}),
     ...(typeof properties.model === "string" ? { model: properties.model } : {}),
     ...(tools ? { tools } : {}),
+    ...(typeof properties.timeout === "number" && properties.timeout > 0
+      ? { timeout: Math.min(properties.timeout, maxTimeout) }
+      : {}),
   }
 }
 
 const routinesIn = Effect.fnUntraced(function* (vault: KnowledgeVault.Vault) {
-  const pages = yield* KnowledgeVault.listPages(vault)
-  const routines = yield* Effect.forEach(
-    pages.filter((page) => page.projectId === null && page.path.toLowerCase().startsWith(folder.toLowerCase())),
-    (info) =>
-      KnowledgeVault.readPage(vault, info.path).pipe(
-        Effect.map(routineFrom),
-        Effect.catch(() => Effect.succeed(undefined)),
-      ),
-    { concurrency: 8 },
-  )
-  return routines
+  const pages = yield* KnowledgeVault.folderPages(vault, folder)
+  return pages
+    .filter((page) => page.info.projectId === null)
+    .map(routineFrom)
     .filter((routine): routine is Routine => routine !== undefined)
     .sort((left, right) => left.name.localeCompare(right.name))
 })
@@ -335,7 +366,28 @@ export const list = Effect.fn("Routines.list")(function* (now: Date = new Date()
   )
 })
 
-/** Append a run's reply to the workspace's `Inbox.md` vault page, creating it when missing. */
+/** Move a full Inbox's text to `Inbox/<YYYY-MM>.md`, or `-2`, `-3`... when a month fills more than one. */
+const archiveInbox = Effect.fnUntraced(function* (vault: KnowledgeVault.Vault, body: string, at: Date) {
+  const month = at.toISOString().slice(0, 7)
+  for (let part = 1; ; part++) {
+    const name = part === 1 ? month : `${month}-${part}`
+    const created = yield* KnowledgeVault.writePage(vault, `Inbox/${name}.md`, {
+      body,
+      title: `Inbox ${name}`,
+      create: true,
+    }).pipe(
+      Effect.as(true),
+      Effect.catchTag("KnowledgeVault.ConflictError", () => Effect.succeed(false)),
+    )
+    if (created) return
+  }
+})
+
+/**
+ * Append a run's reply to the workspace's `Inbox.md` vault page, creating it when missing and first moving
+ * its entries to an archive page when it is full. True once the reply is in. The archive page is written
+ * before the Inbox is emptied, so a failure in between leaves a duplicate, never a gap.
+ */
 const appendInbox = Effect.fnUntraced(function* (
   vault: KnowledgeVault.Vault,
   routine: Routine,
@@ -343,29 +395,36 @@ const appendInbox = Effect.fnUntraced(function* (
   at: Date,
 ) {
   const entry = `## ${routine.name} · ${at.toISOString()}\n\n${text.trim()}\n`
+  const fresh = `# Inbox\n\n${entry}`
   for (let attempt = 0; attempt < 3; attempt++) {
     const current = yield* KnowledgeVault.readPage(vault, inbox).pipe(
       Effect.catchTag("KnowledgeVault.NotFoundError", () => Effect.succeed(undefined)),
     )
+    const full =
+      current !== undefined && Buffer.byteLength(current.body, "utf8") + Buffer.byteLength(entry, "utf8") > inboxLimit
+    if (full) yield* archiveInbox(vault, current.body, at)
     const written = yield* (
       current
         ? KnowledgeVault.writePage(vault, inbox, {
-            body: `${current.body.replace(/\s+$/, "")}\n\n${entry}`,
+            body: full ? fresh : `${current.body.replace(/\s+$/, "")}\n\n${entry}`,
             expectedRevision: current.revision,
           })
-        : KnowledgeVault.writePage(vault, inbox, { body: `# Inbox\n\n${entry}`, title: "Inbox", create: true })
+        : KnowledgeVault.writePage(vault, inbox, { body: fresh, title: "Inbox", create: true })
     ).pipe(
       Effect.as(true),
       Effect.catchTag("KnowledgeVault.ConflictError", () => Effect.succeed(false)),
     )
-    if (written) return
+    if (written) return true
   }
   yield* Effect.logWarning("Routine result was not added to the Inbox after three attempts", { routine: routine.id })
+  return false
 })
 
 /**
  * Run one routine whose start is already recorded (`claim` or `runNow`), then record the run, file its reply
- * in the Inbox and announce it. `lastRun` is written only once the run ends, done or failed.
+ * in the Inbox and announce it. `lastRun` is written only once the run ends, however it ended. A run past
+ * its timeout is interrupted and counts as failed, so a thread stuck on a permission nobody answers can't hold
+ * the routine. A reply that can't be filed stays in its thread and the routine shows `unfiled`.
  */
 const runOne = Effect.fnUntraced(function* <E, R>(
   vault: KnowledgeVault.Vault,
@@ -374,9 +433,20 @@ const runOne = Effect.fnUntraced(function* <E, R>(
   now: Date,
 ) {
   const key = stateKey(vault, routine.id)
-  const finish = (status: "done" | "failed") =>
-    updateState(key, (current) => ({ ...current, lastRun: now.getTime(), lastStatus: status, startedAt: undefined }))
+  // A lost write leaves the run "running" until `claim` calls it stale.
+  const finish = (status: "done" | "failed" | "unfiled") =>
+    updateState(key, (current) => ({
+      ...current,
+      lastRun: now.getTime(),
+      lastStatus: status,
+      startedAt: undefined,
+    })).pipe(
+      Effect.catchTag("Routines.StateError", () =>
+        Effect.logWarning("Routine result was not recorded", { routine: routine.id }),
+      ),
+    )
   const result = yield* run(routine).pipe(
+    Effect.timeout(timeoutOf(routine)),
     Effect.catchCause((cause) =>
       Effect.logWarning("Routine run failed", { routine: routine.id, cause }).pipe(Effect.as(undefined)),
     ),
@@ -385,10 +455,15 @@ const runOne = Effect.fnUntraced(function* <E, R>(
     yield* finish("failed")
     return undefined
   }
-  yield* appendInbox(vault, routine, result.text, now).pipe(
-    Effect.catchCause((cause) => Effect.logWarning("Routine Inbox append failed", { routine: routine.id, cause })),
-  )
-  yield* finish("done")
+  // Serial, so routines finishing together don't use up each other's retries.
+  const filed = yield* inboxLock
+    .withPermits(1)(appendInbox(vault, routine, result.text, now))
+    .pipe(
+      Effect.catchCause((cause) =>
+        Effect.logWarning("Routine Inbox append failed", { routine: routine.id, cause }).pipe(Effect.as(false)),
+      ),
+    )
+  yield* finish(filed ? "done" : "unfiled")
   GlobalBus.emit("event", {
     payload: { type: "routine.finished", properties: { routineId: routine.id, threadId: result.threadId } },
   })
@@ -420,7 +495,7 @@ export const runDue = Effect.fn("Routines.runDue")(function* <E, R>(input: { now
               return { ...current, enabled: routine.enabled, ...(baseline ? { firstSeen: at } : {}) }
             })
             if (baseline || !routine.enabled) return undefined
-            const claimed = yield* claim(key, input.now, (current) => {
+            const claimed = yield* claim(key, input.now, timeoutOf(routine), (current) => {
               const since = Math.max(current.lastRun ?? -Infinity, current.firstSeen ?? -Infinity)
               const next = Number.isFinite(since) ? safeNextRun(routine.schedule, new Date(since)) : undefined
               return next !== undefined && next.getTime() <= at
@@ -428,7 +503,12 @@ export const runDue = Effect.fn("Routines.runDue")(function* <E, R>(input: { now
             if (!claimed) return undefined
             yield* runOne(vault, routine, input.run, input.now)
             return routine.id
-          }),
+          }).pipe(
+            // One routine's state failure leaves the others running.
+            Effect.catchTag("Routines.StateError", () =>
+              Effect.logWarning("Routine check failed", { routine: routine.id }).pipe(Effect.as(undefined)),
+            ),
+          ),
         { concurrency: "unbounded" },
       )
       return { ran: ran.filter((id): id is string => id !== undefined) }
@@ -438,7 +518,8 @@ export const runDue = Effect.fn("Routines.runDue")(function* <E, R>(input: { now
 
 /**
  * Start a routine now. `start` creates the thread and returns its id with the reply still to come; the
- * reply is then filed in the background. Resolves once the thread exists.
+ * reply is then filed in the background. Resolves once the thread exists. Fails with `ConflictError` while
+ * a run of the routine is in flight.
  */
 export const runNow = Effect.fn("Routines.runNow")(function* <E, R, E2, R2>(input: {
   id: string
@@ -450,7 +531,7 @@ export const runNow = Effect.fn("Routines.runNow")(function* <E, R, E2, R2>(inpu
       if (!routine) return yield* new NotFoundError({ id: input.id })
       const key = stateKey(vault, routine.id)
       const now = new Date()
-      yield* updateState(key, (current) => ({ ...current, startedAt: now.getTime(), lastStatus: "running" }))
+      if (!(yield* claim(key, now, timeoutOf(routine), () => true))) return yield* new ConflictError({ id: input.id })
       const started = yield* input.start(routine).pipe(
         Effect.tapCause(() =>
           updateState(key, (current) => ({
@@ -458,7 +539,7 @@ export const runNow = Effect.fn("Routines.runNow")(function* <E, R, E2, R2>(inpu
             lastRun: now.getTime(),
             lastStatus: "failed",
             startedAt: undefined,
-          })),
+          })).pipe(Effect.ignore),
         ),
       )
       yield* runOne(

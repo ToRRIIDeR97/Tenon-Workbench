@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { NodeHttpServer, NodeServices } from "@effect/platform-node"
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises"
+import path from "node:path"
 import { Config, Deferred, Effect, Fiber, Layer } from "effect"
 import { HttpClient, HttpClientRequest, HttpClientResponse, HttpRouter, HttpServer } from "effect/unstable/http"
 import { layerWebSocketConstructorGlobal } from "effect/unstable/socket/Socket"
@@ -7,6 +9,7 @@ import { AppNodeBuilder } from "@tenon/core/effect/app-node-builder"
 import { LayerNode } from "@tenon/core/effect/layer-node"
 import { CrossSpawnSpawner } from "@tenon/core/cross-spawn-spawner"
 import { Database } from "@tenon/core/database/database"
+import { Global } from "@tenon/core/global"
 import { Ripgrep } from "@tenon/core/ripgrep"
 import { Workspace } from "../../src/control-plane/workspace"
 import { InstanceBootstrap as InstanceBootstrapService } from "../../src/project/bootstrap-service"
@@ -15,6 +18,7 @@ import { Project } from "../../src/project/project"
 import { HttpApiApp } from "../../src/server/routes/instance/httpapi/server"
 import { GlobalBus, type GlobalEvent } from "../../src/bus/global"
 import { Routines } from "../../src/agents/routines"
+import { KnowledgeVault } from "../../src/knowledge/vault"
 import { Session } from "@/session/session"
 import { resetDatabase } from "../fixture/db"
 import { disposeAllInstances, TestInstance, tmpdirScoped } from "../fixture/fixture"
@@ -74,8 +78,21 @@ const setup = Effect.gen(function* () {
       headers,
       body: JSON.stringify({ body: `Prompt for ${name}`, properties, ...(create ? { create: true } : {}) }),
     }).pipe(Effect.flatMap(json<unknown>))
-  return { test, headers, write }
+  const list = () =>
+    request("/second-brain/routines", { headers }).pipe(
+      Effect.flatMap(json<{ id: string; name: string; lastRun: string | null; lastStatus: string | null }[]>),
+    )
+  return { test, headers, write, list }
 })
+
+/** The workspace's folder in the vault; a routine must have been written first. */
+const vaultFolder = async () => {
+  const root = process.env.TENON_VAULT_DIR!
+  const [folder] = (await readdir(root, { withFileTypes: true })).filter(
+    (entry) => entry.isDirectory() && !entry.name.startsWith("."),
+  )
+  return path.join(root, folder.name)
+}
 
 afterEach(async () => {
   delete process.env.TENON_VAULT_DIR
@@ -200,6 +217,132 @@ describe("Routines", () => {
       yield* Deferred.succeed(release, undefined)
       const first = yield* Fiber.join(fiber)
       expect(first.ran).toHaveLength(2)
+    }),
+  )
+
+  it.instance("routines are found past the vault's page limit, in only the workspaces that have them", () =>
+    Effect.gen(function* () {
+      const { list, write } = yield* setup
+      yield* write("Recent", { schedule: "daily 08:00" })
+      const folder = yield* Effect.promise(vaultFolder)
+      yield* Effect.promise(async () => {
+        // No updated_at, so a list cut to the newest 1,000 pages would drop it.
+        await writeFile(path.join(folder, "Routines", "Old.md"), "---\nschedule: daily 09:00\n---\nOld prompt\n")
+        await Promise.all(
+          Array.from({ length: 1_001 }, (_, index) =>
+            writeFile(path.join(folder, `page-${index}.md`), "---\nupdated_at: 2026-01-01T00:00:00.000Z\n---\nText\n"),
+          ),
+        )
+      })
+      expect((yield* list()).map((routine) => routine.name)).toEqual(["Old", "Recent"])
+
+      const root = process.env.TENON_VAULT_DIR!
+      const { id } = yield* Effect.promise(async () =>
+        JSON.parse(await readFile(path.join(folder, "workspace.json"), "utf8")),
+      )
+      yield* Effect.promise(async () => {
+        await mkdir(path.join(root, "Other", "routines"), { recursive: true })
+        await writeFile(path.join(root, "Other", "workspace.json"), JSON.stringify({ version: 1, id: "lower", name: "Other" }))
+        await mkdir(path.join(root, "Plain"), { recursive: true })
+        await writeFile(path.join(root, "Plain", "workspace.json"), JSON.stringify({ version: 1, id: "plain", name: "Plain" }))
+      })
+      const found = yield* Effect.promise(() => KnowledgeVault.workspacesWithFolder(root, Routines.folder))
+      expect([...found].sort()).toEqual([id, "lower"].sort())
+    }),
+  )
+
+  it.instance("a check with nothing to record leaves the state file alone", () =>
+    Effect.gen(function* () {
+      const { write } = yield* setup
+      yield* write("Quiet", { schedule: "daily 08:00" })
+      const run = () => Effect.die("not due")
+      yield* Routines.runDue({ now: local(2026, 11, 2, 7, 0), run })
+      const file = path.join(Global.make().data, "routines-state.json")
+      // A trailing space survives only if nothing rewrites the file.
+      const marked = (yield* Effect.promise(() => readFile(file, "utf8"))) + " "
+      yield* Effect.promise(() => writeFile(file, marked))
+      yield* Routines.runDue({ now: local(2026, 11, 2, 7, 1), run })
+      expect(yield* Effect.promise(() => readFile(file, "utf8"))).toBe(marked)
+    }),
+  )
+
+  it.instance("a run past its timeout is marked failed", () =>
+    Effect.gen(function* () {
+      const { list, write } = yield* setup
+      yield* write("Hung", { schedule: "daily 08:00", timeout: 0.001 })
+      yield* Routines.runDue({ now: local(2026, 11, 2, 7, 0), run: () => Effect.die("not due") })
+      const result = yield* Routines.runDue({ now: local(2026, 11, 2, 8, 5), run: () => Effect.never })
+      expect(result.ran).toHaveLength(1)
+      expect((yield* list())[0].lastStatus).toBe("failed")
+    }),
+  )
+
+  it.instance("a run left running past its limit stops blocking the routine", () =>
+    Effect.gen(function* () {
+      const { write } = yield* setup
+      yield* write("Stuck", { schedule: "daily 08:00" })
+      yield* Routines.runDue({ now: local(2026, 11, 2, 7, 0), run: () => Effect.die("not due") })
+      const started = yield* Deferred.make<void>()
+      const fiber = yield* Routines.runDue({
+        now: local(2026, 11, 2, 8, 5),
+        run: () => Deferred.succeed(started, undefined).pipe(Effect.andThen(Effect.never)),
+      }).pipe(Effect.forkChild)
+      yield* Deferred.await(started)
+      yield* Fiber.interrupt(fiber)
+      const run = () => Effect.succeed({ threadId: "ses_next", text: "Done" })
+      expect((yield* Routines.runDue({ now: local(2026, 11, 2, 9, 0), run })).ran).toEqual([])
+      expect((yield* Routines.runDue({ now: local(2026, 11, 2, 11, 0), run })).ran).toHaveLength(1)
+    }),
+  )
+
+  it.instance("Run now refuses a routine already in flight", () =>
+    Effect.gen(function* () {
+      const { headers, list, write } = yield* setup
+      yield* write("Busy", { schedule: "daily 08:00" })
+      const [routine] = yield* list()
+      const release = yield* Deferred.make<void>()
+      yield* Routines.runNow({
+        id: routine.id,
+        start: () => Effect.succeed({ threadId: "ses_now", reply: Deferred.await(release).pipe(Effect.as("Done")) }),
+      })
+      const second = yield* request(`/second-brain/routines/${routine.id}/run`, { method: "POST", headers, body: "{}" })
+      expect(second.status).toBe(409)
+      yield* Deferred.succeed(release, undefined)
+      while ((yield* list())[0].lastStatus === "running") yield* Effect.sleep("10 millis")
+      expect((yield* list())[0].lastStatus).toBe("done")
+    }),
+  )
+
+  it.instance("a full Inbox moves to an archive page, and a reply too big to file shows as unfiled", () =>
+    Effect.gen(function* () {
+      const { headers, list, write } = yield* setup
+      yield* write("Brief", { schedule: "daily 08:00" })
+      const old = "x".repeat(1024 * 1024)
+      yield* request("/second-brain/vault/page?path=Inbox.md", {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({ body: old, create: true }),
+      }).pipe(Effect.flatMap(json<unknown>))
+      const page = (route: string) =>
+        request(`/second-brain/vault/page?path=${encodeURIComponent(route)}`, { headers }).pipe(
+          Effect.flatMap(json<{ body: string }>),
+        )
+      yield* Routines.runDue({ now: local(2026, 11, 2, 7, 0), run: () => Effect.die("not due") })
+      yield* Routines.runDue({
+        now: local(2026, 11, 2, 8, 5),
+        run: () => Effect.succeed({ threadId: "ses_a", text: "Fresh reply" }),
+      })
+      const inbox = yield* page("Inbox.md")
+      expect(inbox.body).toContain("Fresh reply")
+      expect(inbox.body).not.toContain(old)
+      expect((yield* page("Inbox/2026-11.md")).body).toContain(old)
+      expect((yield* list())[0].lastStatus).toBe("done")
+
+      yield* Routines.runDue({
+        now: local(2026, 11, 3, 8, 5),
+        run: () => Effect.succeed({ threadId: "ses_b", text: "y".repeat(6 * 1024 * 1024) }),
+      })
+      expect((yield* list())[0].lastStatus).toBe("unfiled")
     }),
   )
 
