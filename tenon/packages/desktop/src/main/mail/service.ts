@@ -9,6 +9,7 @@ import {
   requestGoogleToken,
 } from "../google-calendar-domain"
 import { write as writeLog } from "../logging"
+import { decryptSecret, encryptSecret } from "../secret-storage"
 import { getStore } from "../store"
 import { createImapClient, verifyImap } from "./imap-client"
 import {
@@ -77,7 +78,7 @@ export function createMailService(): MailService {
     const tokens = await tokenRequest(microsoftToken, {
       client_id: microsoftClientId,
       grant_type: "refresh_token",
-      refresh_token: await decrypt(account.refreshToken),
+      refresh_token: await decrypt(account.refreshToken, (fresh) => replaceRefreshToken(account, fresh)),
       scope: GRAPH_SCOPES.join(" "),
     })
     if (tokens.refresh_token) update(account.id, { refreshToken: await encrypt(tokens.refresh_token) })
@@ -96,14 +97,23 @@ export function createMailService(): MailService {
     if (!account) throw new Error(selector ? "mail_account_not_found" : "mail_no_account")
     if (account.provider === "gmail") {
       if (!googleClient || !account.refreshToken) throw new Error("mail_reconnect_required")
-      const credentials = { accountId: account.id, ...googleClient, refreshToken: await decrypt(account.refreshToken) }
+      const credentials = {
+        accountId: account.id,
+        ...googleClient,
+        refreshToken: await decrypt(account.refreshToken, (fresh) => replaceRefreshToken(account, fresh)),
+      }
       return createGmailProvider({ fetch: netFetch, accessToken: () => googleTokens.get(credentials) })
     }
     if (account.provider === "outlook")
       return createGraphProvider({ fetch: netFetch, accessToken: () => graphToken(account) })
     const password = getStore(storeName).get(`imap-password:${account.id}`)
     if (!account.imap || typeof password !== "string") throw new Error("mail_reconnect_required")
-    return createImapProvider({ client: createImapClient({ ...account.imap, password: await decrypt(password) }) })
+    return createImapProvider({
+      client: createImapClient({
+        ...account.imap,
+        password: await decrypt(password, (fresh) => replaceImapPassword(account.id, password, fresh)),
+      }),
+    })
   }
 
   const connect: MailPlatform["connect"] = async (kind) => {
@@ -451,12 +461,21 @@ function update(id: string, patch: Partial<StoredAccount>) {
   )
 }
 
-async function encrypt(value: string) {
-  return (await safeStorage.encryptStringAsync(value)).toString("base64")
+/** Stores a re-encrypted secret unless the account signed in again in the meantime. */
+function replaceRefreshToken(account: StoredAccount, fresh: string) {
+  if (!read().some((item) => item.id === account.id && item.refreshToken === account.refreshToken)) return
+  update(account.id, { refreshToken: fresh })
 }
 
-// Electron documents that data written by the deprecated `encryptString` decrypts with `decryptStringAsync`,
-// so secrets stored before Electron 45 keep working.
-async function decrypt(value: string) {
-  return (await safeStorage.decryptStringAsync(Buffer.from(value, "base64"))).result
+function replaceImapPassword(accountId: string, previous: string, fresh: string) {
+  const store = getStore(storeName)
+  if (store.get(`imap-password:${accountId}`) === previous) store.set(`imap-password:${accountId}`, fresh)
+}
+
+function encrypt(value: string) {
+  return encryptSecret(safeStorage, value)
+}
+
+function decrypt(value: string, onReEncrypt?: (encrypted: string) => void) {
+  return decryptSecret(safeStorage, value, onReEncrypt)
 }

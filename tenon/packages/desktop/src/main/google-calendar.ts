@@ -10,6 +10,7 @@ import type {
 } from "@tenon/app"
 import { net, safeStorage, shell } from "electron"
 import { write as writeLog } from "./logging"
+import { decryptSecret, encryptSecret } from "./secret-storage"
 import { getStore } from "./store"
 import {
   builtInGoogleClient,
@@ -819,8 +820,12 @@ async function readAccounts(): Promise<Account[]> {
       try {
         return {
           ...account,
-          clientSecret: await decrypt(account.clientSecret),
-          refreshToken: await decrypt(account.refreshToken),
+          clientSecret: await decrypt(account.clientSecret, (fresh) =>
+            replaceSecret(account.id, "clientSecret", account.clientSecret, fresh),
+          ),
+          refreshToken: await decrypt(account.refreshToken, (fresh) =>
+            replaceSecret(account.id, "refreshToken", account.refreshToken, fresh),
+          ),
           access: account.access === "write" ? ("write" as const) : ("read" as const),
         }
       } catch {
@@ -867,6 +872,13 @@ function updateAccount(id: string, patch: Partial<StoredAccount>) {
   )
 }
 
+/** Stores a re-encrypted secret unless the account was saved again in the meantime. */
+function replaceSecret(id: string, field: "clientSecret" | "refreshToken", previous: string, fresh: string) {
+  const accounts = readStoredAccounts()
+  if (!accounts.some((account) => account.id === id && account[field] === previous)) return
+  updateAccount(id, { [field]: fresh })
+}
+
 function accountCredentials(account: Account) {
   return {
     accountId: account.id,
@@ -876,14 +888,12 @@ function accountCredentials(account: Account) {
   }
 }
 
-async function encrypt(value: string) {
-  return (await safeStorage.encryptStringAsync(value)).toString("base64")
+function encrypt(value: string) {
+  return encryptSecret(safeStorage, value)
 }
 
-// Electron documents that data written by the deprecated `encryptString` decrypts with `decryptStringAsync`,
-// so secrets stored before Electron 45 keep working.
-async function decrypt(value: string) {
-  return (await safeStorage.decryptStringAsync(Buffer.from(value, "base64"))).result
+function decrypt(value: string, onReEncrypt?: (encrypted: string) => void) {
+  return decryptSecret(safeStorage, value, onReEncrypt)
 }
 
 function stringValue(value: unknown) {
