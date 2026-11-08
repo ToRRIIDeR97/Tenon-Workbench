@@ -297,7 +297,7 @@ function ChannelIndicator(props: { debugTools?: { visible: boolean; toggle: () =
 
   return (
     <>
-      {["beta", "dev"].includes(channel) && (
+      {channel && ["beta", "dev"].includes(channel) && (
         <div class="bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container font-medium px-2 rounded-full uppercase font-mono">
           {channel.toUpperCase()}
         </div>
