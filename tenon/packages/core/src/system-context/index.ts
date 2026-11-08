@@ -53,7 +53,9 @@ export const SourceSnapshot = Schema.Struct({
 export type SourceSnapshot = typeof SourceSnapshot.Type
 
 /** Durable structured comparison state for one active context generation. */
-export const Snapshot = Schema.Record(Key, SourceSnapshot)
+// Effect 4.1 drops record keys that fail a refined key schema instead of
+// rejecting them, so the namespaced-key rule is a property-name check.
+export const Snapshot = Schema.Record(Schema.String, SourceSnapshot).check(Schema.isPropertyNames(Key))
 export type Snapshot = Readonly<Record<string, SourceSnapshot>>
 
 export interface Generation {
