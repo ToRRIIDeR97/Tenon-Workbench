@@ -15,6 +15,14 @@ const fail = (message: string) => (cause: unknown) => new AuthError({ message, c
 // Serializes the read-modify-write of auth.json so concurrent sets and removes can't drop a key.
 const writeLock = Semaphore.makeUnsafe(1)
 
+// Windows reports a rename over a briefly locked file as EBUSY, EACCES or EPERM. Effect maps the first two
+// to Busy and PermissionDenied but leaves EPERM as Unknown, so that one is read from the errno cause.
+export function isLockedTarget(reason: { readonly _tag: string; readonly cause?: unknown }) {
+  if (reason._tag === "Busy" || reason._tag === "PermissionDenied") return true
+  const cause = reason.cause
+  return typeof cause === "object" && cause !== null && "code" in cause && cause.code === "EPERM"
+}
+
 export class Oauth extends Schema.Class<Oauth>("OAuth")({
   type: Schema.Literal("oauth"),
   refresh: Schema.String,
@@ -98,7 +106,7 @@ const layer = Layer.effect(
           yield* fsys.writeFileString(temp, JSON.stringify(data, null, 2), { flag: "wx", mode: 0o600 })
           yield* Effect.suspend(() => fsys.rename(temp, file)).pipe(
             Effect.retry({
-              while: (error) => error.reason._tag === "PermissionDenied" || error.reason._tag === "Busy",
+              while: (error) => isLockedTarget(error.reason),
               schedule: Schedule.exponential("25 millis"),
               times: 4,
             }),

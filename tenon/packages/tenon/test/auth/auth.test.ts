@@ -1,4 +1,4 @@
-import { describe, expect } from "bun:test"
+import { describe, expect, test } from "bun:test"
 import { LayerNode } from "@tenon/core/effect/layer-node"
 import { Effect } from "effect"
 import fs from "fs/promises"
@@ -118,4 +118,14 @@ describe("Auth", () => {
       expect(entries.filter((entry) => entry.endsWith(".tmp"))).toEqual([])
     }),
   )
+
+  test("a rename over a locked file is retried for EBUSY, EACCES and EPERM only", () => {
+    const errno = (code: string) => Object.assign(new Error(code), { code })
+    expect(Auth.isLockedTarget({ _tag: "Busy", cause: errno("EBUSY") })).toBe(true)
+    expect(Auth.isLockedTarget({ _tag: "PermissionDenied", cause: errno("EACCES") })).toBe(true)
+    // Effect leaves EPERM, which Windows returns for a file another process holds open, as Unknown.
+    expect(Auth.isLockedTarget({ _tag: "Unknown", cause: errno("EPERM") })).toBe(true)
+    expect(Auth.isLockedTarget({ _tag: "Unknown", cause: errno("EXDEV") })).toBe(false)
+    expect(Auth.isLockedTarget({ _tag: "NotFound", cause: errno("ENOENT") })).toBe(false)
+  })
 })
