@@ -191,14 +191,17 @@ describe("IMAP", () => {
       stored[key] = value
     }
     const encrypting = {
-      isEncryptionAvailable: () => true,
-      encryptString: (value: string) => Buffer.from(`enc:${value}`),
+      isAsyncEncryptionAvailable: async () => true,
+      encryptStringAsync: async (value: string) => Buffer.from(`enc:${value}`),
     }
     await saveImapPassword({ safeStorage: encrypting, write }, "acct1", "app-password")
     const saved = Object.values(stored).join("")
     expect(saved).not.toContain("app-password")
 
-    const unavailable = { isEncryptionAvailable: () => false, encryptString: () => Buffer.from("") }
+    const unavailable = {
+      isAsyncEncryptionAvailable: async () => false,
+      encryptStringAsync: async () => Buffer.from(""),
+    }
     await expect(saveImapPassword({ safeStorage: unavailable, write }, "acct2", "app-password")).rejects.toThrow()
     expect(Object.keys(stored)).toHaveLength(1)
   })

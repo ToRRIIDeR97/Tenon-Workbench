@@ -6,6 +6,9 @@ in the repository settings to avoid Actions charges, and `ci.yml` runs only on
 manual dispatch. Root Tauri/Cargo/pnpm commands are retired; the former
 procedure is kept in [the archive](archive/tauri/release-operations.md).
 
+Supported systems (Electron 45): macOS 13 (Ventura) or later and Windows 10 or
+later, 64-bit (x64/arm64) only; Electron 44 dropped macOS 12 and 32-bit Windows.
+
 ![Deployment view: Electron main, renderer and utility-process server on the user machine, optional harness processes and CLI daemon, profile and workspace stores, external services and the build host](diagrams/deployment.svg)
 
 ## Local checks
