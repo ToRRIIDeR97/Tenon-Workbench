@@ -1,12 +1,13 @@
 import { Effect } from "effect"
 import { HttpServerResponse } from "effect/unstable/http"
 import { HttpApiMiddleware } from "effect/unstable/httpapi"
+import { issueSummary } from "@tenon/protocol/middleware/schema-error"
 import { InvalidRequestError } from "../errors"
 
 // Effect's Issue formatter recursively dumps the rejected `actual` value with
 // no truncation, so a 5KB invalid array produces a ~360KB string. Cap to keep
-// 4xx responses small and avoid mirroring entire request payloads (which may
-// contain secrets) into the response body and log file.
+// 4xx responses small. The reason goes back only to the caller that sent the
+// payload; the log keeps issue tags and paths, never the rejected value.
 const REASON_LIMIT = 1024
 function truncateReason(reason: string) {
   if (reason.length <= REASON_LIMIT) return reason
@@ -37,5 +38,7 @@ export const schemaErrorLayer = HttpApiMiddleware.layerSchemaErrorTransform(Sche
           { status: 400 },
         ),
       )
-  return Effect.logWarning("schema rejection", { kind: error.kind, reason }).pipe(Effect.andThen(response))
+  return Effect.logWarning("schema rejection", { kind: error.kind, issues: issueSummary(error.cause.issue) }).pipe(
+    Effect.andThen(response),
+  )
 })

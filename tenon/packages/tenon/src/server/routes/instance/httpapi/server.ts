@@ -119,6 +119,7 @@ import { compressionLayer } from "./middleware/compression"
 import { corsVaryFix } from "./middleware/cors-vary"
 import { errorLayer } from "./middleware/error"
 import { fenceLayer } from "./middleware/fence"
+import { hostGuard } from "./middleware/host-guard"
 import { schemaErrorLayer } from "./middleware/schema-error"
 
 export const context = Context.makeUnsafe<unknown>(new Map())
@@ -276,7 +277,8 @@ const app = LayerNode.group([
 export function createRoutes(
   corsOptions?: CorsOptions,
   // A listening server also runs background schedules (routines); the in-process routes tests use do not.
-  options: { background?: boolean } = {},
+  // `hostname` is the address a listener binds; a loopback one turns on the Host and Origin guard.
+  options: { background?: boolean; hostname?: string } = {},
 ): Layer.Layer<never, EffectConfig.ConfigError, RouteRequirements> {
   const locationServiceMapV2 = buildLocationServiceMap()
 
@@ -297,6 +299,7 @@ export function createRoutes(
       compressionLayer,
       corsVaryFix,
       fenceLayer,
+      hostGuard(options.hostname, corsOptions),
       cors(corsOptions),
       // After cors: the first global middleware registered is outermost, so a 413 still gets CORS headers.
       bodyLimitLayer,

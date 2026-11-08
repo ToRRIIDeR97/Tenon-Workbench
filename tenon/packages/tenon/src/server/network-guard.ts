@@ -16,3 +16,17 @@ export function assertExposureAllowed(hostname: string, password: string | undef
     `Refusing to listen on ${hostname} without authentication; set TENON_SERVER_PASSWORD or use 127.0.0.1.`,
   )
 }
+
+/**
+ * Whether a server listening on the loopback `listening` address answers a request with this `Host`
+ * header. A page on another site can point its own DNS name at 127.0.0.1 (DNS rebinding); its requests
+ * then carry that name, so only loopback names and the listening hostname are accepted, on any port.
+ * A request with no Host header can't come from a browser and is allowed.
+ */
+export function isAllowedHost(host: string | undefined, listening: string) {
+  if (!host) return true
+  const hostname = URL.parse(`http://${host}`)?.hostname
+  if (!hostname) return false
+  const bare = hostname.replace(/^\[(.*)\]$/, "$1")
+  return isLoopback(bare) || bare === listening.toLowerCase().replace(/^\[(.*)\]$/, "$1")
+}

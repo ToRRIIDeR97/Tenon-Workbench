@@ -105,6 +105,19 @@ describe("v2 location HttpApi", () => {
     }
   })
 
+  // The router refuses a path it can't percent-decode before the fs.read handler runs.
+  test("answers a file read path with a malformed percent escape as not found, not a server error", async () => {
+    await using tmp = await tmpdir({ git: true })
+    await Bun.write(`${tmp.path}/100%.txt`, "hello\n")
+
+    const read = await request("/api/fs/read/100%25.txt", tmp.path)
+    expect(read.status).toBe(200)
+    expect(await read.text()).toBe("hello\n")
+
+    const response = await request("/api/fs/read/100%.txt", tmp.path)
+    expect(response.status).toBe(404)
+  })
+
   test("streams native EventV2 payloads across locations", async () => {
     await using subscriber = await tmpdir({ git: true })
     await using publisher = await tmpdir({ git: true })
