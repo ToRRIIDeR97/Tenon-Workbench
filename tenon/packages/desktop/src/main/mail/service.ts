@@ -155,6 +155,8 @@ export function createMailService(): MailService {
   }
 
   const addImap: MailPlatform["addImap"] = async (input) => {
+    // Same keychain check as connect(): Linux's basic_text backend would store the password readable.
+    if (!secure()) throw new Error("mail_secure_storage_unavailable")
     const host = input.host.trim()
     const user = input.user.trim()
     const port = Number(input.port)

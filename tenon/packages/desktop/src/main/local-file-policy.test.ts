@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { localFileAction } from "./local-file-policy"
+import { isOpenWithApp, isUncPath, localFileAction } from "./local-file-policy"
 
 const file = { isDirectory: false, mode: 0o644 }
 
@@ -50,4 +50,57 @@ test("reveals any POSIX file with an execute bit", () => {
   expect(localFileAction("/tmp/tool", { isDirectory: false, mode: 0o700 }, "linux")).toBe("reveal")
   expect(localFileAction("/tmp/readme.txt", file, "linux")).toBe("open")
   expect(localFileAction("/tmp/folder", { isDirectory: true, mode: 0o755 }, "linux")).toBe("open")
+})
+
+test("a custom PATHEXT adds to the Windows defaults instead of replacing them", () => {
+  for (const name of ["C:\\x\\run.bat", "C:\\x\\a.ps1", "C:\\x\\a.vbs", "C:\\x\\tool.py"])
+    expect(localFileAction(name, file, "win32", ".PY")).toBe("reveal")
+  expect(localFileAction("C:\\x\\notes.md", file, "win32", ".PY")).toBe("open")
+})
+
+test("reveals the remaining Windows and macOS launcher formats", () => {
+  for (const extension of [
+    ".rdp",
+    ".scf",
+    ".theme",
+    ".themepack",
+    ".library-ms",
+    ".search-ms",
+    ".inf",
+    ".sct",
+    ".wsc",
+    ".xll",
+    ".diagcab",
+  ])
+    expect(localFileAction(`C:\\x\\a${extension.toUpperCase()}`, file, "win32", ".EXE")).toBe("reveal")
+  for (const name of ["/tmp/a.dmg", "/tmp/a.vncloc", "/tmp/a.rdp"])
+    expect(localFileAction(name, file, "darwin")).toBe("reveal")
+})
+
+test("recognises UNC and device paths written with either separator", () => {
+  for (const value of [
+    "\\\\host\\share",
+    "\\\\?\\C:\\x",
+    "\\\\.\\pipe\\x",
+    "//host/share",
+    "/\\host\\share",
+    "\\/host/share",
+  ])
+    expect(isUncPath(value)).toBe(true)
+  for (const value of ["C:\\work\\repo", "/work/repo", "\\work\\repo", "relative"]) expect(isUncPath(value)).toBe(false)
+})
+
+test("only the applications Open in offers may open a folder", () => {
+  expect(isOpenWithApp("Visual Studio Code", "darwin")).toBe(true)
+  expect(isOpenWithApp("Terminal", "darwin")).toBe(true)
+  expect(isOpenWithApp("code", "win32")).toBe(true)
+  expect(isOpenWithApp("powershell", "win32")).toBe(true)
+  expect(isOpenWithApp("code", "linux")).toBe(true)
+  for (const app of ["python3", "node", "cmd", "bash", "sh", "Code", "Terminal"]) {
+    expect(isOpenWithApp(app, "linux")).toBe(false)
+    expect(isOpenWithApp(app, "win32")).toBe(false)
+  }
+  expect(isOpenWithApp("python3", "darwin")).toBe(false)
+  expect(isOpenWithApp("powershell", "darwin")).toBe(false)
+  expect(isOpenWithApp("code", "freebsd")).toBe(false)
 })

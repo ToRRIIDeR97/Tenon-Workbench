@@ -26,6 +26,8 @@ export const OPEN_APPS = [
 export type OpenApp = (typeof OPEN_APPS)[number]
 export type OpenAppOS = "macos" | "windows" | "linux" | "unknown"
 
+// Main only opens a folder with the `openWith` names below: keep isOpenWithApp in
+// packages/desktop/src/main/local-file-policy.ts in step when adding one.
 export const MAC_OPEN_APPS = [
   {
     id: "vscode",
