@@ -1,6 +1,12 @@
 import { test, expect, describe } from "bun:test"
-import { determineScope } from "@modelcontextprotocol/sdk/client/auth.js"
-import { McpOAuthProvider, OAUTH_CALLBACK_PORT, OAUTH_CALLBACK_PATH } from "../../src/mcp/oauth-provider"
+import { auth, determineScope } from "@modelcontextprotocol/sdk/client/auth.js"
+import { Effect } from "effect"
+import {
+  McpOAuthPendingProvider,
+  McpOAuthProvider,
+  OAUTH_CALLBACK_PORT,
+  OAUTH_CALLBACK_PATH,
+} from "../../src/mcp/oauth-provider"
 import type { McpAuth } from "../../src/mcp/auth"
 
 // Stub auth — only synchronous getters are exercised in these tests
@@ -98,5 +104,134 @@ describe("MCP OAuth scope selection", () => {
         clientMetadata: makeProvider({}).clientMetadata,
       }),
     ).toBe("resource.read")
+  })
+})
+
+// In-memory stand-in for the mcp-auth.json store
+function memoryAuth() {
+  const data: Record<string, McpAuth.Entry> = {}
+  const update = (name: string, patch: Partial<McpAuth.Entry>, serverUrl?: string) =>
+    Effect.sync(() => {
+      data[name] = { ...data[name], ...patch, ...(serverUrl ? { serverUrl } : {}) }
+    })
+  const store = {
+    get: (name: string) => Effect.succeed(data[name]),
+    getForUrl: (name: string, url: string) => Effect.succeed(data[name]?.serverUrl === url ? data[name] : undefined),
+    set: (name: string, entry: McpAuth.Entry, serverUrl?: string) =>
+      Effect.sync(() => {
+        data[name] = serverUrl ? { ...entry, serverUrl } : entry
+      }),
+    remove: (name: string) => Effect.sync(() => void delete data[name]),
+    updateTokens: (name: string, tokens: McpAuth.Tokens, serverUrl?: string) => update(name, { tokens }, serverUrl),
+    updateClientInfo: (name: string, clientInfo: McpAuth.ClientInfo, serverUrl?: string) =>
+      update(name, { clientInfo }, serverUrl),
+    updateCodeVerifier: (name: string, codeVerifier: string) => update(name, { codeVerifier }),
+    updateOAuthState: (name: string, oauthState: string) => update(name, { oauthState }),
+    all: () => Effect.succeed(data),
+    clearCodeVerifier: (name: string) => update(name, { codeVerifier: undefined }),
+    getOAuthState: (name: string) => Effect.succeed(data[name]?.oauthState),
+    clearOAuthState: (name: string) => update(name, { oauthState: undefined }),
+  } satisfies McpAuth.Interface
+  return { data, store }
+}
+
+const serverUrl = "https://mcp.example.com/mcp"
+
+describe("McpOAuthProvider issuer binding", () => {
+  test("stores the issuer the SDK stamps on tokens and registered clients", async () => {
+    const { data, store } = memoryAuth()
+    const provider = new McpOAuthProvider("test-server", serverUrl, {}, { onRedirect: async () => {} }, store)
+    await provider.saveClientInformation({ client_id: "dyn", redirect_uris: [], issuer: "https://as.example.com/" })
+    await provider.saveTokens({
+      access_token: "a",
+      token_type: "Bearer",
+      refresh_token: "r",
+      issuer: "https://as.example.com/",
+    })
+
+    expect((await provider.clientInformation())?.issuer).toBe("https://as.example.com/")
+    expect((await provider.tokens())?.issuer).toBe("https://as.example.com/")
+    expect(data["test-server"].clientInfo?.issuer).toBe("https://as.example.com/")
+  })
+
+  test("binds configured credentials without copying the secret into the store", async () => {
+    const { data, store } = memoryAuth()
+    const config = { clientId: "configured", clientSecret: "secret" }
+    const provider = new McpOAuthProvider("test-server", serverUrl, config, { onRedirect: async () => {} }, store)
+    await provider.saveClientInformation({
+      client_id: "configured",
+      client_secret: "secret",
+      redirect_uris: [],
+      issuer: "https://as.example.com/",
+    })
+    // A registration that would replace the configured client is not stored
+    await provider.saveClientInformation({
+      client_id: "other",
+      redirect_uris: [],
+      issuer: "https://elsewhere.example.com/",
+    })
+
+    expect(data["test-server"].clientInfo).toEqual({ clientId: "configured", issuer: "https://as.example.com/" })
+    expect(await provider.clientInformation()).toEqual({
+      client_id: "configured",
+      client_secret: "secret",
+      issuer: "https://as.example.com/",
+    })
+  })
+
+  test("pending provider commits the issuer with tokens and registered client", async () => {
+    const { data, store } = memoryAuth()
+    const provider = new McpOAuthPendingProvider("test-server", serverUrl, {}, { onRedirect: async () => {} }, store)
+    await provider.saveClientInformation({ client_id: "dyn", redirect_uris: [], issuer: "https://as.example.com/" })
+    await provider.saveTokens({ access_token: "a", token_type: "Bearer", issuer: "https://as.example.com/" })
+    await provider.commit()
+
+    expect(data["test-server"].tokens?.issuer).toBe("https://as.example.com/")
+    expect(data["test-server"].clientInfo?.issuer).toBe("https://as.example.com/")
+  })
+
+  test("does not send a stored refresh token to an authorization server the MCP server now advertises", async () => {
+    const { store } = memoryAuth()
+    const redirects: URL[] = []
+    const provider = new McpOAuthProvider(
+      "test-server",
+      serverUrl,
+      {},
+      { onRedirect: async (url) => void redirects.push(url) },
+      store,
+    )
+    await provider.saveClientInformation({ client_id: "dyn", redirect_uris: [], issuer: "https://as1.example.com/" })
+    await provider.saveTokens({
+      access_token: "a",
+      token_type: "Bearer",
+      refresh_token: "r",
+      issuer: "https://as1.example.com/",
+    })
+
+    const requests: string[] = []
+    const fetchFn = async (input: string | URL, init?: RequestInit) => {
+      const url = new URL(String(input))
+      requests.push(`${init?.method ?? "GET"} ${url.href}`)
+      if (url.pathname.startsWith("/.well-known/oauth-protected-resource"))
+        return Response.json({ resource: serverUrl, authorization_servers: ["https://as2.example.com"] })
+      if (url.pathname === "/.well-known/oauth-authorization-server")
+        return Response.json({
+          issuer: "https://as2.example.com",
+          authorization_endpoint: "https://as2.example.com/authorize",
+          token_endpoint: "https://as2.example.com/token",
+          registration_endpoint: "https://as2.example.com/register",
+          response_types_supported: ["code"],
+          code_challenge_methods_supported: ["S256"],
+        })
+      if (url.pathname === "/register")
+        return Response.json({ redirect_uris: [provider.redirectUrl], client_id: "as2-client" }, { status: 201 })
+      return new Response("unexpected", { status: 500 })
+    }
+
+    expect(await auth(provider, { serverUrl, fetchFn })).toBe("REDIRECT")
+    expect(requests.some((r) => r.includes("/token"))).toBe(false)
+    expect(redirects[0]?.host).toBe("as2.example.com")
+    expect(redirects[0]?.searchParams.get("client_id")).toBe("as2-client")
+    expect((await provider.clientInformation())?.issuer).toBe("https://as2.example.com")
   })
 })

@@ -111,7 +111,10 @@ the git-ignored `tenon/packages/desktop/.env.local`
 an installed app's client secret as non-confidential: anyone with the build can
 read it, and it grants nothing without the user's consent in the browser. The
 renderer only learns whether such a client exists. Keep the values out of git
-and logs. Provider
+and logs. `mcp-auth.json` keeps the `issuer` the MCP SDK stamps on each
+remote MCP server's tokens and registered client, so a server that later
+advertises a different authorization server never receives them; configured
+`oauth.clientId` credentials store only that binding, not the secret. Provider
 credentials (`auth.json`, `mcp-auth.json`) and the session database
 (`tenon.db`) live in the XDG data directory (by default
 `~/.local/share/tenon-workbench/`), outside Electron `userData`. `userData` holds
