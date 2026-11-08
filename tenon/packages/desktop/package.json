@@ -32,9 +32,9 @@
     "electron-context-menu": "4.1.2",
     "electron-log": "^5",
     "electron-store": "11.0.2",
-    "electron-updater": "6.8.9",
+    "electron-updater": "6.8.12",
     "electron-window-state": "^5.0.3",
-    "imapflow": "1.0.191"
+    "imapflow": "1.7.8"
   },
   "devDependencies": {
     "@lydell/node-pty": "catalog:",
@@ -48,8 +48,8 @@
     "@types/bun": "catalog:",
     "@types/node": "catalog:",
     "@typescript/native-preview": "catalog:",
-    "electron": "42.3.3",
-    "electron-builder": "26.15.2",
+    "electron": "42.11.18",
+    "electron-builder": "26.18.1",
     "electron-vite": "^5",
     "solid-js": "catalog:",
     "typescript": "catalog:",

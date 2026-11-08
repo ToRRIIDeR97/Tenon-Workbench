@@ -64,7 +64,7 @@
     "@clack/prompts": "1.0.0-alpha.1",
     "@effect/opentelemetry": "catalog:",
     "@effect/platform-node": "catalog:",
-    "@modelcontextprotocol/sdk": "1.29.0",
+    "@modelcontextprotocol/sdk": "1.32.2",
     "@tenon/codemode": "workspace:*",
     "@tenon/llm": "workspace:*",
     "@opencode-ai/plugin": "workspace:*",
