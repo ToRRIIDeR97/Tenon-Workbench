@@ -39,6 +39,7 @@ type OpenApiSchema = {
   items?: OpenApiSchema
   maximum?: number
   minimum?: number
+  not?: OpenApiSchema
   oneOf?: OpenApiSchema[]
   pattern?: string
   prefixItems?: OpenApiSchema[]
@@ -89,6 +90,9 @@ function matchLegacyOpenApi(input: Record<string, unknown>) {
   // actual schema from any parent union that references them.
   fixSelfReferencingComponents(spec)
 
+  // Effect 4.1 names the encoded side of a class schema `XEncoded` and numbers clashing names `X_1`.
+  restoreComponentNames(spec)
+
   // Effect's Schema.optional emits `anyOf: [T, {type:"null"}]` in OpenAPI,
   // but the legacy SDK expected plain `T` for optional fields. Strip null
   // from all component schemas so both request and response types match.
@@ -100,6 +104,9 @@ function matchLegacyOpenApi(input: Record<string, unknown>) {
   applyLegacySchemaOverrides(spec)
   normalizeComponentDescriptions(spec)
   addLegacyErrorSchemas(spec)
+  // The SDK generator numbers clashing type names in component order. Effect 4.1 lists dotted event names
+  // (`Event.tui.prompt.append`) first; keep them after the plain names, as Effect 4.0 did.
+  if (spec.components?.schemas) spec.components.schemas = dottedNamesLast(spec.components.schemas)
   delete spec.components?.securitySchemes
 
   for (const [path, item] of Object.entries(spec.paths ?? {})) {
@@ -219,6 +226,38 @@ function addLegacyErrorSchemas(spec: OpenApiSpec) {
         },
       },
     },
+  }
+}
+
+function dottedNamesLast(schemas: Record<string, OpenApiSchema>) {
+  const names = Object.keys(schemas)
+  return Object.fromEntries(
+    [...names.filter((name) => !name.includes(".")), ...names.filter((name) => name.includes("."))].map((name) => [
+      name,
+      schemas[name],
+    ]),
+  )
+}
+
+/**
+ * Restores the component names Effect 4.0 produced, which the published SDK's type names come from:
+ * `XEncoded` (and `XEncoded_1`) becomes `X` and `X_1` becomes `X1`. A name that is taken gets the next
+ * free number, as Effect 4.0 did; `collapseDuplicateComponents` later merges numbered copies equal to
+ * the original.
+ */
+function restoreComponentNames(spec: OpenApiSpec) {
+  const schemas = spec.components?.schemas
+  if (!schemas) return
+  for (const name of Object.keys(schemas)) {
+    const match = /^(.+?)(Encoded)?(?:_(\d+))?$/.exec(name)
+    if (!match || (match[2] === undefined && match[3] === undefined)) continue
+    const base = match[1]
+    // `XEncoded_1` can exist without `XEncoded`, so an encoded name tries `X` first.
+    let next = match[2] !== undefined || match[3] === undefined ? base : `${base}${match[3]}`
+    for (let index = 1; next in schemas; index++) next = `${base}${index}`
+    schemas[next] = schemas[name]
+    rewriteRefs(spec, name, next)
+    delete schemas[name]
   }
 }
 
@@ -469,7 +508,7 @@ function stripOptionalNull(schema: OpenApiSchema): OpenApiSchema {
     delete schema.allOf
     return stripOptionalNull({ ...schema, ...constraint })
   }
-  if (isEmptyObjectUnion(schema)) return { type: "object", properties: {} }
+  if (isEmptyObjectUnion(schema) || isEmptyStruct(schema)) return { type: "object", properties: {} }
   const options = flattenOptions(schema.anyOf ?? schema.oneOf)
   if (options) {
     const withoutNull = options.filter((item) => item.type !== "null")
@@ -502,6 +541,12 @@ function stripOptionalNull(schema: OpenApiSchema): OpenApiSchema {
 function isEmptyObjectUnion(schema: OpenApiSchema) {
   const options = schema.anyOf ?? schema.oneOf
   return options?.length === 2 && options.some(isBareObjectSchema) && options.some(isBareArraySchema)
+}
+
+// Effect 4.1 emits an empty Schema.Struct({}) as `{ not: { type: "null" } }`; 4.0 emitted the object/array union.
+function isEmptyStruct(schema: OpenApiSchema) {
+  const not = schema.not
+  return schema.type === undefined && not !== undefined && Object.keys(not).length === 1 && not.type === "null"
 }
 
 function isBareObjectSchema(schema: OpenApiSchema) {

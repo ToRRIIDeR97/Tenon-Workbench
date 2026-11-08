@@ -60,9 +60,10 @@ function componentName(ref: string) {
 function componentNames(response: OpenApiResponse | undefined) {
   const schema = response?.content?.["application/json"]?.schema
   if (!schema) return []
+  // Sorted: a union's member order carries no meaning, and Effect 4.1 keeps the declared error order.
   return [
     ...new Set([schema, ...(schema.anyOf ?? [])].flatMap((item) => (item.$ref ? [componentName(item.$ref)] : []))),
-  ]
+  ].toSorted()
 }
 
 function isBuiltInEndpointError(name: string) {
