@@ -582,8 +582,35 @@ function identifierPart(value: string) {
     .join("")
 }
 
+// The encoded side of `toCodecJson(Schema.Unknown)` is Effect's internal JSON
+// declaration, which carries no `toCode` callback; render it as `Schema.Json`.
+const jsonRepresentations = new Set(["effect/schema/Json", "effect/schema/MutableJson"])
+const jsonCode = () => ({ runtime: "Schema.Json", Type: "Schema.Json" })
+
+function withJsonCode<A>(node: A): A {
+  if (Array.isArray(node)) return node.map(withJsonCode) as A
+  if (typeof node !== "object" || node === null) return node
+  const value = node as Record<string, unknown> & {
+    readonly _tag?: unknown
+    readonly representation?: { readonly id?: unknown }
+    readonly annotations?: Record<string, unknown>
+  }
+  const entries = Object.entries(value).map(([key, item]) => [key, key === "annotations" ? item : withJsonCode(item)])
+  const next = Object.fromEntries(entries) as typeof value
+  if (
+    value._tag === "Declaration" &&
+    typeof value.representation?.id === "string" &&
+    jsonRepresentations.has(value.representation.id) &&
+    value.annotations?.toCode === undefined
+  )
+    return { ...next, annotations: { ...value.annotations, toCode: jsonCode } } as A
+  return next as A
+}
+
 function structuralType(schema: Schema.Top) {
-  const document = SchemaRepresentation.toCodeDocument(SchemaRepresentation.toRepresentations([schema.ast]))
+  const document = SchemaRepresentation.toCodeDocument(
+    withJsonCode(SchemaRepresentation.toRepresentations([schema.ast])),
+  )
   if (
     document.artifacts.some(
       (artifact) =>
@@ -672,6 +699,10 @@ function normalizeTransport(
               : Array.from(rebuilt.error)[0]
   if (normalized === undefined) throw new GenerationError({ reason: `Unportable schema: ${operation}.${source}` })
   if (!sameEncoding(schema.ast, normalized.ast)) return { schema, effectPortable: false } as const
+  // Only `_tag`-keyed error classes can be re-emitted as standalone Effect
+  // code; other classes (for example `name`-keyed errors) need the import.
+  if (isClassDeclaration(schema.ast) && taggedErrorFields(schema) === undefined)
+    return { schema, effectPortable: false } as const
   return { schema: decoded, effectPortable: true } as const
 }
 
@@ -986,15 +1017,8 @@ function annotationsPortable(annotations: Schema.Annotations.Annotations | undef
   if (annotations === undefined) return true
   return Object.entries(annotations).every(([key, value]) => {
     if (
-      [
-        "toCodec",
-        "toCodecJson",
-        "toCodecStringTree",
-        "toArbitrary",
-        "toFormatter",
-        "toEquivalence",
-        "~constructor",
-      ].includes(key)
+      key.startsWith("toCodec") ||
+      ["toArbitrary", "toFormatter", "toEquivalence", "~constructor"].includes(key)
     ) {
       return true
     }
@@ -1010,13 +1034,17 @@ function serializable(value: unknown): boolean {
   return Object.values(value).every(serializable)
 }
 
+function isClassDeclaration(ast: SchemaAST.AST) {
+  return SchemaAST.isDeclaration(ast) && ast.annotations?.["~constructor"] !== undefined
+}
+
 function taggedErrorFields(schema: Schema.Top) {
   const fields = declaredErrorFields(schema)
   return fields?.key === "_tag" ? fields : undefined
 }
 
 function declaredErrorFields(schema: Schema.Top) {
-  if (!SchemaAST.isDeclaration(schema.ast) || schema.ast.annotations?.["~constructor"] === undefined) {
+  if (!SchemaAST.isDeclaration(schema.ast) || !isClassDeclaration(schema.ast)) {
     return undefined
   }
   const fields = schema.ast.typeParameters[0]
