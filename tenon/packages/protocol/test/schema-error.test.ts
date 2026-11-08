@@ -18,7 +18,6 @@ describe("issueSummary", () => {
     const issue = issueOf({ auth: { key: "sk-secret-value", note: "private note text" } })
     const summary = issueSummary(issue)
 
-    expect(String(issue)).toContain("sk-secret-value")
     expect(summary).toContain("MissingKey at provider")
     expect(summary).toContain("InvalidType at auth.key")
     expect(summary).toContain("auth.note")

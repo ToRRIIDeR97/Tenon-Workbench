@@ -230,7 +230,8 @@ export const toDefinitions = (tools: Tools): ReadonlyArray<ToolDefinitionClass> 
   )
 
 const toJsonSchema = (schema: Schema.Top): JsonSchema.JsonSchema => {
-  const document = Schema.toJsonSchemaDocument(schema)
+  // Effect 4.1 leaves objects open by default; keep the closed (additionalProperties: false) output.
+  const document = Schema.toJsonSchemaDocument(schema, { onExcessProperty: "error" })
   if (Object.keys(document.definitions).length === 0) return document.schema
   return { ...document.schema, $defs: document.definitions }
 }

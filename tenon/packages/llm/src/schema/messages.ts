@@ -4,6 +4,11 @@ import { JsonSchema, MessageRole, ProviderMetadata } from "./ids"
 import { CacheHint, CachePolicy, GenerationOptions, HttpOptions, ModelSchema, ProviderOptions } from "./options"
 import { isRecord } from "../utils/record"
 
+// Effect 4.1 schemas expose `make` through a getter without a setter, so
+// Object.assign cannot override it; define the members as own properties.
+const withStatics = <S extends object, M extends object>(schema: S, members: M): S & M =>
+  Object.defineProperties(schema, Object.getOwnPropertyDescriptors(members)) as S & M
+
 const systemPartSchema = Schema.Struct({
   type: Schema.Literal("text"),
   text: Schema.String,
@@ -14,7 +19,7 @@ export type SystemPart = Schema.Schema.Type<typeof systemPartSchema>
 
 const makeSystemPart = (text: string): SystemPart => ({ type: "text", text })
 
-export const SystemPart = Object.assign(systemPartSchema, {
+export const SystemPart = withStatics(systemPartSchema, {
   make: makeSystemPart,
   content: (input?: string | SystemPart | ReadonlyArray<SystemPart>) => {
     if (input === undefined) return []
@@ -47,7 +52,7 @@ const isToolResultValue = (value: unknown): value is ToolResultValue =>
   (value.type === "text" || value.type === "json" || value.type === "error" || value.type === "content") &&
   "value" in value
 
-export const ToolResultValue = Object.assign(
+export const ToolResultValue = withStatics(
   Schema.Union([
     Schema.Struct({
       type: Schema.Literal("json"),
@@ -82,7 +87,7 @@ export interface ToolOutput {
   readonly content: ReadonlyArray<ToolContent>
 }
 
-export const ToolOutput = Object.assign(
+export const ToolOutput = withStatics(
   Schema.Struct({
     structured: Schema.Unknown,
     content: Schema.Array(ToolContent),
@@ -119,7 +124,7 @@ const toolResultText = (value: unknown) => {
   }
 }
 
-export const ToolCallPart = Object.assign(
+export const ToolCallPart = withStatics(
   Schema.Struct({
     type: Schema.Literal("tool-call"),
     id: Schema.String,
@@ -135,7 +140,7 @@ export const ToolCallPart = Object.assign(
 )
 export type ToolCallPart = Schema.Schema.Type<typeof ToolCallPart>
 
-export const ToolResultPart = Object.assign(
+export const ToolResultPart = withStatics(
   Schema.Struct({
     type: Schema.Literal("tool-result"),
     id: Schema.String,

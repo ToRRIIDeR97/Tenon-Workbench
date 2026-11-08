@@ -14,11 +14,12 @@ export const identifierSegment = /^[A-Za-z_$][A-Za-z0-9_$]*$/
 /** Renders a property name as a valid TS object key: bare when an identifier, quoted otherwise. */
 const renderKey = (name: string): string => (identifierSegment.test(name) ? name : JSON.stringify(name))
 
+// Effect 4.0 emitted one enum per sentinel; 4.1 emits them in a single enum.
 const effectNumberSentinel = (schema: JsonSchema) =>
   schema.type === "string" &&
   Array.isArray(schema.enum) &&
-  schema.enum.length === 1 &&
-  (schema.enum[0] === "NaN" || schema.enum[0] === "Infinity" || schema.enum[0] === "-Infinity")
+  schema.enum.length > 0 &&
+  schema.enum.every((value) => value === "NaN" || value === "Infinity" || value === "-Infinity")
 
 const intersection = (members: ReadonlyArray<string>): string => {
   const concrete = members.filter((member) => member !== "unknown")
@@ -198,7 +199,8 @@ const renderSchema = (
 export const toTypeScript = (schema: Schema.Top, decoded = false, pretty = false): string => {
   try {
     const visible = decoded ? Schema.toType(schema) : schema
-    const document = Schema.toJsonSchemaDocument(visible) as {
+    // Effect 4.1 leaves objects open by default; keep the closed (additionalProperties: false) output.
+    const document = Schema.toJsonSchemaDocument(visible, { onExcessProperty: "error" }) as {
       readonly schema: JsonSchema
       readonly definitions?: Readonly<Record<string, JsonSchema>>
     }
@@ -234,7 +236,7 @@ export type InputProperty = {
 export const inputProperties = <R>(definition: Definition<R>): Array<InputProperty> => {
   try {
     const document = isEffectSchema(definition.input)
-      ? (Schema.toJsonSchemaDocument(definition.input) as {
+      ? (Schema.toJsonSchemaDocument(definition.input, { onExcessProperty: "error" }) as {
           readonly schema: JsonSchema
           readonly definitions?: Readonly<Record<string, JsonSchema>>
         })

@@ -8,7 +8,8 @@ type JsonSchema = Record<string, unknown>
 const MODEL_REF = "https://models.dev/model-schema.json#/$defs/Model"
 
 function generateEffect(schema: Schema.Top) {
-  const document = Schema.toJsonSchemaDocument(schema)
+  // Effect 4.1 leaves objects open by default; keep the closed (additionalProperties: false) output.
+  const document = Schema.toJsonSchemaDocument(schema, { onExcessProperty: "error" })
   const normalized = normalize({
     $schema: "https://json-schema.org/draft/2020-12/schema",
     ...document.schema,
