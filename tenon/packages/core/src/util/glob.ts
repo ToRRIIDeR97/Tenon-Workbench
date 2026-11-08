@@ -8,6 +8,8 @@ export namespace Glob {
     include?: "file" | "all"
     dot?: boolean
     symlink?: boolean
+    /** Patterns to skip; one ending in `/**` also stops the walk from entering that folder. */
+    ignore?: string[]
   }
 
   function toGlobOptions(options: Options): GlobOptions {
@@ -17,6 +19,7 @@ export namespace Glob {
       dot: options.dot,
       follow: options.symlink ?? false,
       nodir: options.include !== "all",
+      ignore: options.ignore,
     }
   }
 

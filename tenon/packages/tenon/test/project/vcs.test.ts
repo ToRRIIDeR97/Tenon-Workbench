@@ -333,6 +333,35 @@ describe("Vcs diff", () => {
   )
 
   it.instance(
+    "status() and diff('git') keep sorted order and line counts across many untracked files",
+    () =>
+      Effect.gen(function* () {
+        const test = yield* TestInstance
+        // More untracked files than run side by side, each with its index as its line count.
+        const names = Array.from({ length: 20 }, (_, index) => `new-${String(index).padStart(2, "0")}.txt`)
+        for (const [index, name] of names.entries())
+          yield* write(path.join(test.directory, name), "line\n".repeat(index + 1))
+
+        const vcs = yield* init()
+        const status = (yield* vcs.status()).filter((item) => item.file.startsWith("new-"))
+        const diff = (yield* vcs.diff("git")).filter((item) => item.file.startsWith("new-"))
+
+        const expected = names.map((file, index) => ({
+          file,
+          additions: index + 1,
+          deletions: 0,
+          status: "added" as const,
+        }))
+        expect(status).toEqual(expected)
+        expect(diff.map(({ file, additions, deletions, status }) => ({ file, additions, deletions, status }))).toEqual(
+          expected,
+        )
+      }),
+    { git: true },
+    20_000,
+  )
+
+  it.instance(
     "diff('git') keeps carriage returns inside patch hunks",
     () =>
       Effect.gen(function* () {

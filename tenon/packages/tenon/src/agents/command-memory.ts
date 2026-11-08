@@ -38,6 +38,8 @@ export interface Thread {
 const hitLimit = 20
 const textLimit = 600
 const threadLimit = 2_000
+// Rows per index insert: three bound values each, well under SQLite's variable limit.
+const insertBatch = 200
 const day = 24 * 60 * 60 * 1000
 // One search or thread removal at a time: both change the same rows.
 const lock = Semaphore.makeUnsafe(1)
@@ -233,9 +235,13 @@ export const search = Effect.fn("CommandMemory.search")(function* (query: string
           ),
         )
         return yield* Effect.gen(function* () {
-          for (const row of rows)
+          // A few multi-row inserts instead of one statement per row; each keeps the rows' order.
+          for (let start = 0; start < rows.length; start += insertBatch)
             yield* db.run(
-              sql`INSERT INTO temp.command_memory_fts (session_id, at, body) VALUES (${row.sessionID}, ${row.at}, ${row.text})`,
+              sql`INSERT INTO temp.command_memory_fts (session_id, at, body) VALUES ${sql.join(
+                rows.slice(start, start + insertBatch).map((row) => sql`(${row.sessionID}, ${row.at}, ${row.text})`),
+                sql`, `,
+              )}`,
             )
           const found = yield* db.all<{ session_id: string; at: number; body: string }>(
             sql`SELECT session_id, at, body FROM temp.command_memory_fts WHERE command_memory_fts MATCH ${match} ORDER BY rank LIMIT ${hitLimit}`,

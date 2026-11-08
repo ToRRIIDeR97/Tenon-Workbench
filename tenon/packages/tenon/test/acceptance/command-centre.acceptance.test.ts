@@ -212,6 +212,30 @@ describe("Command Centre", () => {
     }),
   )
 
+  it.instance("memory search indexes every summary when there are more than one insert batch of them", () =>
+    Effect.gen(function* () {
+      const { commandDirectory, command } = yield* setup
+      const folder = path.join(commandDirectory, "memory")
+      yield* Effect.promise(() => mkdir(folder, { recursive: true }))
+      // 450 summaries span three index inserts; the last one written is the only "zebra" match.
+      yield* Effect.promise(() =>
+        Promise.all(
+          Array.from({ length: 450 }, (_, index) =>
+            writeFile(
+              path.join(folder, `old_${index}.md`),
+              `<!-- at: ${1_000 + index} -->\nSummary ${index} about billing${index === 449 ? " zebra" : ""}.\n`,
+            ),
+          ),
+        ),
+      )
+      const zebra = yield* CommandMemory.search("zebra")
+      expect(zebra).toEqual([{ text: "Summary 449 about billing zebra.", at: 1_449 }])
+      const billing = yield* CommandMemory.search("billing")
+      expect(billing).toHaveLength(20)
+      expect(billing.some((hit) => hit.sessionID === command.id)).toBe(true)
+    }),
+  )
+
   it.instance("compaction keeps a thread with no text, and memory search runs during a model call", () =>
     Effect.gen(function* () {
       const { commandDirectory } = yield* setup
