@@ -149,10 +149,10 @@ const all = Effect.fn("BrainProject.all")(function* () {
   const cards = yield* Effect.forEach(
     paths.map((path) => path.replaceAll("\\", "/")),
     (path) =>
-      readCard(path).pipe(
-        Effect.flatMap((card) =>
-          card.info.id === pathId(path)
-            ? Effect.succeed({ path, info: card.info })
+      listedCard(path).pipe(
+        Effect.flatMap((info) =>
+          info.id === pathId(path)
+            ? Effect.succeed({ path, info })
             : Effect.logWarning("Skipping Project card whose id does not match its path", { path }).pipe(
                 Effect.as(undefined),
               ),
@@ -298,7 +298,10 @@ export const update = Effect.fn("BrainProject.update")(function* (id: string, in
       content: encode(info, card.data, card.body),
       expected: card.bytes,
     })
-    .pipe(Effect.catchTag("FileMutation.StaleContentError", () => Effect.fail(new ConflictError({ reason: "stale" }))))
+    .pipe(
+      Effect.catchTag("FileMutation.StaleContentError", () => Effect.fail(new ConflictError({ reason: "stale" }))),
+      Effect.ensuring(Effect.sync(() => cardCache.delete(target.canonical))),
+    )
   return info
 })
 
@@ -763,6 +766,8 @@ export const syncTimelines = Effect.fn("BrainProject.syncTimelines")(function* (
             item.projectId ? [item.projectId] : [],
           ),
         )
+  // No Project had items before or after the save, so no timeline can change: skip listing the cards.
+  if (touched !== undefined && touched.size === 0) return
   const projects = (yield* all()).filter((project) => touched === undefined || touched.has(project.id))
   const mutation = yield* LocationMutation.Service
   const files = yield* FileMutation.Service
@@ -784,7 +789,43 @@ export const syncTimelines = Effect.fn("BrainProject.syncTimelines")(function* (
   )
 })
 
-const readCard = Effect.fn("BrainProject.readCard")(function* (path: string) {
+// Parsed card info for `all()`, keyed by canonical path and reused while the file's size and modification
+// time are unchanged; `path` is checked too, since a card's folder depends on where it was read. Only the
+// list uses it: `readProjectCard` always reads, because its bytes are the baseline for a compare-and-swap
+// save. `update` forgets the entry it rewrites, so a same-size save in the same millisecond is not missed.
+const cardCache = new Map<string, { path: string; mtime: number; size: number; info: Info }>()
+const cardCacheLimit = 2_000
+
+const listedCard = Effect.fnUntraced(function* (path: string) {
+  const { target, stat } = yield* statCard(path)
+  const mtime = Option.match(stat.mtime, { onNone: () => 0, onSome: (date) => date.getTime() })
+  const size = Number(stat.size)
+  const cached = cardCache.get(target.canonical)
+  cardCache.delete(target.canonical)
+  if (
+    cached &&
+    stat.type === "File" &&
+    mtime > 0 &&
+    cached.path === path &&
+    cached.mtime === mtime &&
+    cached.size === size
+  ) {
+    // Re-adding it moves it to the end, so the least recently listed cards are dropped first.
+    cardCache.set(target.canonical, cached)
+    return cached.info
+  }
+  const card = yield* readStatted(path, target, stat)
+  if (mtime > 0) {
+    cardCache.set(target.canonical, { path, mtime, size, info: card.info })
+    for (const key of cardCache.keys()) {
+      if (cardCache.size <= cardCacheLimit) break
+      cardCache.delete(key)
+    }
+  }
+  return card.info
+})
+
+const statCard = Effect.fnUntraced(function* (path: string) {
   const mutation = yield* LocationMutation.Service
   const fs = yield* FSUtil.Service
   const target = yield* mutation.resolve({ path, kind: "file" })
@@ -792,6 +833,20 @@ const readCard = Effect.fn("BrainProject.readCard")(function* (path: string) {
     .stat(target.canonical)
     .pipe(Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed(undefined)))
   if (stat === undefined) return yield* new NotFoundError({ id: pathId(path) ?? path })
+  return { target, stat }
+})
+
+const readCard = Effect.fn("BrainProject.readCard")(function* (path: string) {
+  const { target, stat } = yield* statCard(path)
+  return yield* readStatted(path, target, stat)
+})
+
+const readStatted = Effect.fnUntraced(function* (
+  path: string,
+  target: { canonical: string },
+  stat: { size: number | bigint },
+) {
+  const fs = yield* FSUtil.Service
   // Refuse oversized cards before reading them, so one huge file cannot stall a list.
   if (Number(stat.size) > cardLimit) return yield* new InvalidError({ reason: "too_large" })
   // Only a missing file is "not found"; permission and IO failures must surface.

@@ -388,6 +388,57 @@ describe("BrainProject workspace threads", () => {
     expect(readFileSync(file(beta.id), "utf8")).not.toBe("damaged")
   })
 
+  test("list reuses unchanged cards and syncTimelines skips listing when no Project is touched", async () => {
+    await using tmp = await tmpdir()
+    const alpha = await run(tmp.path, BrainProject.create({ name: "Alpha", outcome: "A" }))
+    await run(tmp.path, BrainProject.create({ name: "Beta", outcome: "B" }))
+    let cardReads = 0
+    // Real file access, counting reads of Project cards.
+    const counting = Layer.effect(
+      FSUtil.Service,
+      Effect.gen(function* () {
+        const fs = yield* FSUtil.Service
+        return FSUtil.Service.of({
+          ...fs,
+          readFile: (file) => {
+            if (file.replaceAll("\\", "/").endsWith("/project.md")) cardReads++
+            return fs.readFile(file)
+          },
+        })
+      }),
+    ).pipe(Layer.provide(LayerNode.compile(FSUtil.node)))
+    const counted = <A, E>(
+      effect: Effect.Effect<A, E, Location.Service | LocationMutation.Service | FSUtil.Service | FileMutation.Service>,
+    ) =>
+      Effect.runPromise(
+        effect.pipe(
+          Effect.provide(LocationMutation.locationLayer),
+          Effect.provideService(Location.Service, {
+            directory: AbsolutePath.make(tmp.path),
+            project: { id: ProjectV2.ID.global, directory: AbsolutePath.make(tmp.path) },
+          }),
+          Effect.provide(counting),
+          Effect.provide(LayerNode.compile(FileMutation.node)),
+        ),
+      )
+
+    expect(await counted(BrainProject.list())).toHaveLength(2)
+    const first = cardReads
+    expect(await counted(BrainProject.list())).toHaveLength(2)
+    // Both cards are unchanged, so the second list reads neither of them.
+    expect(cardReads).toBe(first)
+
+    // A save of the card is seen by the next list, even within the same millisecond.
+    await counted(BrainProject.update(alpha.id, { progressPercent: 40 }))
+    expect((await counted(BrainProject.list())).find((project) => project.id === alpha.id)?.progressPercent).toBe(40)
+
+    // A calendar save with no Project items reads no cards at all.
+    const before = cardReads
+    const empty = { version: 2 as const, revision: "rev_1", events: [], tasks: [] }
+    await counted(BrainProject.syncTimelines({ ...empty, revision: "rev_2" }, empty))
+    expect(cardReads).toBe(before)
+  })
+
   test("threadDirectory ignores a card location that escapes the workspace", async () => {
     await using tmp = await tmpdir()
     const project = await run(tmp.path, BrainProject.create({ name: "Escape", outcome: "E" }))

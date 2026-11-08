@@ -11,6 +11,8 @@ import { VcsEvent } from "@tenon/schema/vcs-event"
 const PATCH_CONTEXT_LINES = 2_147_483_647
 const MAX_PATCH_BYTES = 10_000_000
 const MAX_TOTAL_PATCH_BYTES = 10_000_000
+/** Untracked files whose line counts are read at once, one `git diff --no-index` each. */
+const UNTRACKED_STAT_CONCURRENCY = 8
 type DiffOptions = {
   readonly context?: number
 }
@@ -176,8 +178,18 @@ const files = Effect.fnUntraced(function* (
   let total = 0
   let capped = false
 
-  for (const item of list.toSorted((a, b) => a.file.localeCompare(b.file))) {
-    const stat = map.get(item.file) ?? (item.status === "added" ? yield* git.statUntracked(cwd, item.file) : undefined)
+  const sorted = list.toSorted((a, b) => a.file.localeCompare(b.file))
+  // Untracked files need one `git diff --no-index` each; run those side by side before the ordered pass.
+  const stats = yield* Effect.forEach(
+    sorted,
+    (item) =>
+      map.has(item.file) || item.status !== "added"
+        ? Effect.succeed(map.get(item.file))
+        : git.statUntracked(cwd, item.file),
+    { concurrency: UNTRACKED_STAT_CONCURRENCY },
+  )
+  for (const [index, item] of sorted.entries()) {
+    const stat = stats[index]
     const patch = yield* patchForItem(git, cwd, ref, item, batch, capped, options)
     const result: { patch: string; capped: boolean } = capped
       ? { patch, capped: true }
@@ -382,6 +394,7 @@ const layer: Layer.Layer<Service, never, Git.Service | EventV2Bridge.Service> = 
                 status: item.status,
               } satisfies FileStatus
             }),
+          { concurrency: UNTRACKED_STAT_CONCURRENCY },
         )
       }),
       diff: Effect.fn("Vcs.diff")(function* (mode: Mode, options?: DiffOptions) {

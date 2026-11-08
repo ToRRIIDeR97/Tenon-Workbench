@@ -104,6 +104,11 @@ export class Service extends Context.Service<Service, Interface>()("@tenon/Proje
 
 type GitResult = { code: number; text: string; stderr: string }
 
+// Icon discovery skips dependency, VCS and build output folders, which can hold many thousands of files.
+// Dot folders are already skipped because the glob does not match dot paths.
+const iconIgnore = ["**/node_modules/**", "**/.git/**", "**/dist/**", "**/build/**", "**/out/**", "**/.next/**"]
+const iconMissLimit = 1_000
+
 const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -315,20 +320,29 @@ const layer = Layer.effect(
       return { project: result, sandbox: data.vcs ? data.directory : worktree }
     })
 
+    const iconMisses = new Set<string>()
     const discover = Effect.fn("Project.discover")(function* (input: Info) {
       if (input.vcs !== "git") return
       if (input.icon?.override) return
       if (input.icon?.url) return
+
+      // A worktree already searched without a match is not walked again in this run.
+      if (iconMisses.has(input.worktree)) return
 
       const matches = yield* fs
         .glob("**/favicon.{ico,png,svg,jpg,jpeg,webp}", {
           cwd: input.worktree,
           absolute: true,
           include: "file",
+          ignore: iconIgnore,
         })
         .pipe(Effect.orDie)
       const shortest = matches.sort((a, b) => a.length - b.length)[0]
-      if (!shortest) return
+      if (!shortest) {
+        if (iconMisses.size >= iconMissLimit) iconMisses.clear()
+        iconMisses.add(input.worktree)
+        return
+      }
 
       const buffer = yield* fs.readFile(shortest).pipe(Effect.orDie)
       const base64 = Buffer.from(buffer).toString("base64")
