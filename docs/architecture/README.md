@@ -906,6 +906,16 @@ exist, `Database.adoptLegacyFile` renames the matching pre-rename `opencode*.db`
 (its `-wal` and `-shm` first); pre-migration backups keep their old names. See
 [release operations](../release-operations.md).
 
+The server opens the database through core's own `SqlClient`
+(`core/src/database/sqlite.bun.ts` under Bun, `sqlite.node.ts` under the
+Electron sidecar's Node), which mirrors `@effect/sql-sqlite-bun` and `-node`:
+one connection behind a semaphore, top-level transactions start with
+`BEGIN IMMEDIATE`, nested ones use savepoints, and a failed `COMMIT` is rolled
+back before the connection is reused. Queries use Drizzle's Effect SQLite
+builders (`drizzle-orm/sqlite-core/effect`) through
+`@tenon/effect-drizzle-sqlite`, a small driver and session that run them on any
+`SqlClient`; a transaction's `{ behavior }` only changes its `BEGIN`.
+
 On first start, `LegacyStorage.migrate` (`core/src/legacy-storage.ts`, called
 from `global.ts` before folders are created; skipped when `NODE_ENV=test`)
 copies each legacy `opencode` data, config and state folder to its
