@@ -314,14 +314,17 @@ const live: Layer.Layer<
           topP: prepared.params.topP,
           topK: prepared.params.topK,
           providerOptions: ProviderTransform.providerOptions(input.model, prepared.params.options),
-          activeTools: Object.keys(prepared.tools).filter((x) => x !== "invalid"),
+          // "invalid" is only a repair target. It is hidden from the provider in transformParams
+          // below rather than through activeTools: the AI SDK neither parses nor executes calls
+          // to tools left out of activeTools, which would break experimental_repairToolCall.
           tools: prepared.tools,
           toolChoice: input.toolChoice,
           maxOutputTokens: prepared.params.maxOutputTokens,
           abortSignal: input.abort,
           headers: prepared.headers,
           maxRetries: input.retries ?? 0,
-          // System messages are built by Tenon (agent prompt, instructions), not taken from user content.
+          // Tenon assembles the system messages (agent prompt, instruction files); this only
+          // silences the AI SDK warning about system messages in `messages`.
           allowSystemInMessages: true,
           messages: prepared.messages,
           model: wrapLanguageModel({
@@ -330,6 +333,7 @@ const live: Layer.Layer<
               {
                 specificationVersion: "v3" as const,
                 async transformParams(args) {
+                  args.params.tools = args.params.tools?.filter((tool) => tool.name !== "invalid")
                   if (args.type === "stream") {
                     // @ts-expect-error
                     args.params.prompt = ProviderTransform.message(
