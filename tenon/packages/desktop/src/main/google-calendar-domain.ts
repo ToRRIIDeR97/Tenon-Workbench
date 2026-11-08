@@ -222,7 +222,7 @@ export async function requestGoogleToken(fetch: Fetch, endpoint: string, input: 
 export function createGoogleAccessTokens(input: {
   fetch: Fetch
   endpoint: string
-  onRotate: (accountId: string, refreshToken: string) => void
+  onRotate: (accountId: string, refreshToken: string) => void | Promise<void>
   now?: () => number
 }) {
   const now = input.now ?? Date.now
@@ -242,7 +242,7 @@ export function createGoogleAccessTokens(input: {
       grant_type: "refresh_token",
     })
     if (!tokens.access_token) throw new Error("google_reconnect_required")
-    if (tokens.refresh_token) input.onRotate(config.accountId, tokens.refresh_token)
+    if (tokens.refresh_token) await input.onRotate(config.accountId, tokens.refresh_token)
     // Renew a minute early so a token never expires during a request.
     const lifetime = (tokens.expires_in ?? 0) * 1_000 - 60_000
     if (lifetime > 0) {

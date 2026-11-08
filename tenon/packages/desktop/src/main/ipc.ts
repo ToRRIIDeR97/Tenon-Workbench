@@ -11,7 +11,7 @@ import { fileViewerURL } from "./file-viewer"
 import { execFile } from "node:child_process"
 import { stat } from "node:fs/promises"
 import { basename, isAbsolute, join } from "node:path"
-import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from "electron"
+import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeImage, shell } from "electron"
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
 import type { DesktopMenuAction } from "@tenon/app/desktop-menu"
 import type { GoogleCalendarPlatform } from "@tenon/app"
@@ -19,6 +19,7 @@ import { parseDesktopNativeBundle, type DesktopNativeBundle } from "@tenon/app/i
 
 import type { FatalRendererError, ServerReadyData, StartupMilestone, TitlebarTheme } from "../preload/types"
 import { resolveAppPath } from "./apps"
+import { readClipboardImage } from "./clipboard-image"
 import { runDesktopMenuAction } from "./desktop-menu-actions"
 import { setForceFocus } from "./debug"
 import { assertAttachmentBudget, createPickedFileAuthorizations } from "./attachment-picker"
@@ -483,13 +484,9 @@ export function registerIpcHandlers(deps: Deps) {
     return true
   })
 
-  trustedHandle("read-clipboard-image", () => {
-    const image = clipboard.readImage()
-    if (image.isEmpty()) return null
-    const buffer = image.toPNG().buffer
-    const size = image.getSize()
-    return { buffer, width: size.width, height: size.height }
-  })
+  trustedHandle("read-clipboard-image", () =>
+    readClipboardImage({ clipboard, createFromBuffer: (buffer) => nativeImage.createFromBuffer(buffer) }),
+  )
 
   trustedHandle("get-window-id", (event: IpcMainInvokeEvent) => {
     const win = BrowserWindow.fromWebContents(event.sender)

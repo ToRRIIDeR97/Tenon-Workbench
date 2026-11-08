@@ -10,6 +10,7 @@ import type {
 } from "@tenon/app"
 import { net, safeStorage, shell } from "electron"
 import { write as writeLog } from "./logging"
+import { decryptSecret, encryptSecret } from "./secret-storage"
 import { getStore } from "./store"
 import {
   builtInGoogleClient,
@@ -100,7 +101,7 @@ const netFetch = (input: string, init: RequestInit) => net.fetch(input, init)
 const accessTokens = createGoogleAccessTokens({
   fetch: netFetch,
   endpoint: tokenEndpoint,
-  onRotate: (accountId, refreshToken) => updateAccount(accountId, { refreshToken: encrypt(refreshToken) }),
+  onRotate: async (accountId, refreshToken) => updateAccount(accountId, { refreshToken: await encrypt(refreshToken) }),
 })
 
 export function createGoogleCalendarService(): GoogleCalendarPlatform {
@@ -112,7 +113,7 @@ export function createGoogleCalendarService(): GoogleCalendarPlatform {
   const errors = new Map<string, string>()
 
   const status = async (): Promise<GoogleCalendarConnection> => {
-    if (!secureStorageAvailable()) {
+    if (!(await secureStorageAvailable())) {
       return {
         available: false,
         configured: false,
@@ -124,7 +125,7 @@ export function createGoogleCalendarService(): GoogleCalendarPlatform {
         accounts: [],
       }
     }
-    const accounts = readAccounts()
+    const accounts = await readAccounts()
     const outbox = [...readOutbox(), ...readTaskOutbox()]
     const count = (accountId: string, states: StoredOutbox["state"][]) =>
       outbox.filter((operation) => operation.accountId === accountId && states.includes(operation.state)).length
@@ -146,7 +147,7 @@ export function createGoogleCalendarService(): GoogleCalendarPlatform {
 
   const connect: GoogleCalendarPlatform["connect"] = async (input) => {
     if (busy) throw new Error("google_operation_busy")
-    if (!secureStorageAvailable()) throw new Error("google_secure_storage_unavailable")
+    if (!(await secureStorageAvailable())) throw new Error("google_secure_storage_unavailable")
     const windowId = input.windowId
     if (!Number.isSafeInteger(windowId) || windowId! <= 0) throw new Error("google_window_invalid")
     const client = resolveGoogleClient(input, builtInClient)
@@ -162,11 +163,11 @@ export function createGoogleCalendarService(): GoogleCalendarPlatform {
       const calendar = await providerJson<{ summary?: string; id?: string }>(calendarEndpoint, tokens.access_token)
       // The primary calendar's ID is the account's address, so signing in again renews that account.
       const email = calendar.id?.includes("@") ? calendar.id : undefined
-      const existing = email ? readAccounts().find((account) => account.email === email) : undefined
+      const existing = email ? (await readAccounts()).find((account) => account.email === email) : undefined
       const id = existing?.id ?? randomUUID()
       accessTokens.clear(id)
       errors.delete(id)
-      saveAccount({
+      await saveAccount({
         ...client,
         id,
         ...(email ? { email } : {}),
@@ -183,7 +184,9 @@ export function createGoogleCalendarService(): GoogleCalendarPlatform {
 
   const sync: GoogleCalendarPlatform["sync"] = async () => {
     if (busy) throw new Error("google_operation_busy")
-    const accounts = requireAccounts()
+    const accounts = await requireAccounts()
+    // Decrypting awaits the OS key store, so check again before claiming the guard.
+    if (busy) throw new Error("google_operation_busy")
     busy = true
     try {
       const events: GoogleCalendarProviderEvent[] = []
@@ -218,7 +221,8 @@ export function createGoogleCalendarService(): GoogleCalendarPlatform {
 
   const write: GoogleCalendarPlatform["write"] = async (input) => {
     if (busy) throw new Error("google_operation_busy")
-    const account = requireWriteAccount(input.event.accountId)
+    const account = await requireWriteAccount(input.event.accountId)
+    if (busy) throw new Error("google_operation_busy")
     const { overwrite, ...fields } = input
     const event = overwrite ? withoutEtag(input.event) : input.event
     const request: GoogleCalendarWrite = {
@@ -283,7 +287,8 @@ export function createGoogleCalendarService(): GoogleCalendarPlatform {
 
   const writeTask: GoogleCalendarPlatform["writeTask"] = async (input) => {
     if (busy) throw new Error("google_operation_busy")
-    const account = requireWriteAccount(input.task.accountId)
+    const account = await requireWriteAccount(input.task.accountId)
+    if (busy) throw new Error("google_operation_busy")
     const { overwrite, ...fields } = input
     const request: GoogleTaskWrite = { ...fields, task: overwrite ? withoutEtag(input.task) : input.task }
     const outbox = readTaskOutbox()
@@ -352,7 +357,8 @@ export function createGoogleCalendarService(): GoogleCalendarPlatform {
 
   const disconnect: GoogleCalendarPlatform["disconnect"] = async (input) => {
     if (busy) throw new Error("google_operation_busy")
-    const accounts = readAccounts()
+    const accounts = await readAccounts()
+    if (busy) throw new Error("google_operation_busy")
     const targets = input?.accountId ? accounts.filter((account) => account.id === input.accountId) : accounts
     if (input?.accountId && targets.length === 0) throw new Error("google_account_not_found")
     busy = true
@@ -774,8 +780,8 @@ function rangeDate(days: number) {
   return value.toISOString()
 }
 
-function secureStorageAvailable() {
-  if (!safeStorage.isEncryptionAvailable()) return false
+async function secureStorageAvailable() {
+  if (!(await safeStorage.isAsyncEncryptionAvailable())) return false
   return process.platform !== "linux" || safeStorage.getSelectedStorageBackend() !== "basic_text"
 }
 
@@ -808,42 +814,47 @@ function migrateLegacyStore() {
 }
 
 /** Decrypted accounts; one whose secrets no longer decrypt is skipped rather than failing every account. */
-function readAccounts(): Account[] {
-  return readStoredAccounts().flatMap((account) => {
-    try {
-      return [
-        {
+async function readAccounts(): Promise<Account[]> {
+  const accounts = await Promise.all(
+    readStoredAccounts().map(async (account): Promise<Account | undefined> => {
+      try {
+        return {
           ...account,
-          clientSecret: decrypt(account.clientSecret),
-          refreshToken: decrypt(account.refreshToken),
+          clientSecret: await decrypt(account.clientSecret, (fresh) =>
+            replaceSecret(account.id, "clientSecret", account.clientSecret, fresh),
+          ),
+          refreshToken: await decrypt(account.refreshToken, (fresh) =>
+            replaceSecret(account.id, "refreshToken", account.refreshToken, fresh),
+          ),
           access: account.access === "write" ? ("write" as const) : ("read" as const),
-        },
-      ]
-    } catch {
-      return []
-    }
-  })
+        }
+      } catch {
+        return undefined
+      }
+    }),
+  )
+  return accounts.filter((account): account is Account => account !== undefined)
 }
 
-function requireAccounts() {
-  if (!secureStorageAvailable()) throw new Error("google_secure_storage_unavailable")
-  const accounts = readAccounts()
+async function requireAccounts() {
+  if (!(await secureStorageAvailable())) throw new Error("google_secure_storage_unavailable")
+  const accounts = await readAccounts()
   if (accounts.length === 0) throw new Error("google_not_connected")
   return accounts
 }
 
-function requireWriteAccount(accountId: string) {
-  const account = requireAccounts().find((item) => item.id === accountId)
+async function requireWriteAccount(accountId: string) {
+  const account = (await requireAccounts()).find((item) => item.id === accountId)
   if (!account) throw new Error("google_account_not_found")
   if (account.access !== "write") throw new Error("google_write_consent_required")
   return account
 }
 
-function saveAccount(account: Account) {
+async function saveAccount(account: Account) {
   const stored = {
     ...account,
-    clientSecret: encrypt(account.clientSecret),
-    refreshToken: encrypt(account.refreshToken),
+    clientSecret: await encrypt(account.clientSecret),
+    refreshToken: await encrypt(account.refreshToken),
   }
   const accounts = readStoredAccounts()
   getStore(storeName).set(
@@ -861,6 +872,13 @@ function updateAccount(id: string, patch: Partial<StoredAccount>) {
   )
 }
 
+/** Stores a re-encrypted secret unless the account was saved again in the meantime. */
+function replaceSecret(id: string, field: "clientSecret" | "refreshToken", previous: string, fresh: string) {
+  const accounts = readStoredAccounts()
+  if (!accounts.some((account) => account.id === id && account[field] === previous)) return
+  updateAccount(id, { [field]: fresh })
+}
+
 function accountCredentials(account: Account) {
   return {
     accountId: account.id,
@@ -871,11 +889,11 @@ function accountCredentials(account: Account) {
 }
 
 function encrypt(value: string) {
-  return safeStorage.encryptString(value).toString("base64")
+  return encryptSecret(safeStorage, value)
 }
 
-function decrypt(value: string) {
-  return safeStorage.decryptString(Buffer.from(value, "base64"))
+function decrypt(value: string, onReEncrypt?: (encrypted: string) => void) {
+  return decryptSecret(safeStorage, value, onReEncrypt)
 }
 
 function stringValue(value: unknown) {

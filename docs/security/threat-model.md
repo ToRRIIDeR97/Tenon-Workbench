@@ -979,7 +979,9 @@ Mail lives in the desktop main process (`desktop/src/main/mail/`; see
   `safeStorage` (DPAPI on Windows, Keychain on macOS) in the main-owned
   `tenon.mail` store; adding an account is refused when encryption is not
   available. The renderer sees only account IDs, providers and addresses.
-  Removing an account deletes its stored secret; refresh tokens are not
+  Secrets use the async `safeStorage` API; when Electron reports a rotated
+  key on decrypt, the secret is re-encrypted and stored again (the Google
+  calendar store does the same). Removing an account deletes its stored secret; refresh tokens are not
   revoked at the provider (revoke them in the Google or Microsoft account
   page).
 - **Loopback endpoint.** `startMailEndpoint` listens on `127.0.0.1` at a random
