@@ -2,6 +2,7 @@ import { ProxyUtil } from "@/server/proxy-util"
 import { Effect, Stream } from "effect"
 import { HttpBody, HttpClient, HttpClientRequest, HttpServerRequest, HttpServerResponse } from "effect/http"
 import * as Socket from "effect/socket/Socket"
+import { runRaw } from "@tenon/core/util/socket"
 import { WebSocketTracker } from "../websocket-tracker"
 
 function requestBody(request: HttpServerRequest.HttpServerRequest) {
@@ -33,14 +34,12 @@ export function websocket(
             )
           : (effect) => effect,
       )
-      const writeInbound = yield* inbound.writer
-      const writeOutbound = yield* outbound.writer
+      const { write: writeInbound } = yield* inbound.writer
+      const { write: writeOutbound } = yield* outbound.writer
       const closeSocket = (socket: Socket.Socket, write: (event: Socket.CloseEvent) => Effect.Effect<void, unknown>) =>
-        socket
-          .runRaw(() => Effect.void, {
-            onOpen: write(WebSocketTracker.SERVER_CLOSING_EVENT()).pipe(Effect.catch(() => Effect.void)),
-          })
-          .pipe(
+        runRaw(socket, () => Effect.void, {
+          onOpen: write(WebSocketTracker.SERVER_CLOSING_EVENT()).pipe(Effect.catch(() => Effect.void)),
+        }).pipe(
             Effect.timeout("1 second"),
             Effect.catchReason("SocketError", "SocketCloseError", () => Effect.void),
             Effect.catch(() => Effect.void),
@@ -63,9 +62,7 @@ export function websocket(
         return HttpServerResponse.empty()
       }
 
-      yield* outbound
-        .runRaw((message) => writeInbound(message))
-        .pipe(
+      yield* runRaw(outbound, (message) => writeInbound(message)).pipe(
           Effect.catchReason("SocketError", "SocketCloseError", (reason) =>
             writeInbound(new Socket.CloseEvent(reason.code, reason.closeReason)).pipe(Effect.catch(() => Effect.void)),
           ),
@@ -75,11 +72,9 @@ export function websocket(
           Effect.forkScoped,
         )
 
-      yield* inbound
-        .runRaw((message) => {
-          return writeOutbound(typeof message === "string" ? message : message.slice())
-        })
-        .pipe(
+      yield* runRaw(inbound, (message) => {
+        return writeOutbound(typeof message === "string" ? message : message.slice())
+      }).pipe(
           Effect.catch(() => Effect.void),
           Effect.ensuring(writeOutbound(new Socket.CloseEvent()).pipe(Effect.catch(() => Effect.void))),
         )

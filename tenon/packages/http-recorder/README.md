@@ -100,24 +100,20 @@ import { HttpRecorder } from "@tenon/http-recorder"
 
 const echo = Effect.gen(function* () {
   const socket = yield* Socket.Socket
-  const write = yield* socket.writer
+  const { write } = yield* socket.writer
+  // Acquiring the reader opens the connection; `pull` returns the next frames.
+  const pull = yield* Socket.readerString(socket)
 
-  yield* socket.runString(
-    (message) =>
-      Effect.gen(function* () {
-        assert.strictEqual(message, "hello")
-        yield* write(new Socket.CloseEvent(1000))
-      }),
-    { onOpen: write("hello") },
-  )
-})
+  yield* write("hello")
+  const [message] = yield* pull
+  assert.strictEqual(message, "hello")
+  yield* write(new Socket.CloseEvent(1000))
+  // The socket reports every close, including a normal one, as a SocketCloseError.
+  yield* pull.pipe(Effect.catchReason("SocketError", "SocketCloseError", () => Effect.succeed([])))
+}).pipe(Effect.scoped)
 
 const recordedSocket = HttpRecorder.socket("echo/hello").pipe(
-  Layer.provide(
-    NodeSocket.layerWebSocket("wss://ws.postman-echo.com/raw", {
-      closeCodeIsError: (code) => code !== 1000,
-    }),
-  ),
+  Layer.provide(NodeSocket.layerWebSocket("wss://ws.postman-echo.com/raw")),
 )
 
 it.effect("exchanges WebSocket frames", () => echo.pipe(Effect.provide(recordedSocket)))

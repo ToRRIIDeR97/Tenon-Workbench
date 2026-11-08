@@ -25,6 +25,7 @@ import { InstanceHttpApi } from "../api"
 import * as ApiError from "../errors"
 import { CursorQuery, PtyConnectApi } from "../groups/pty"
 import { WebSocketTracker } from "../websocket-tracker"
+import { runRaw } from "@tenon/core/util/socket"
 
 function validOrigin(request: HttpServerRequest.HttpServerRequest, opts: CorsOptions | undefined) {
   return isAllowedRequestOrigin(request.headers.origin, request.headers.host, opts)
@@ -211,11 +212,9 @@ export const ptyConnectHandlers = HttpApiBuilder.group(PtyConnectApi, "pty-conne
             ? parsedCursor
             : undefined
         const socket = yield* Effect.orDie(ctx.request.upgrade)
-        const write = yield* socket.writer
+        const { write } = yield* socket.writer
         const closeAccepted = (event: Socket.CloseEvent) =>
-          socket
-            .runRaw(() => Effect.void, { onOpen: write(event).pipe(Effect.catch(() => Effect.void)) })
-            .pipe(
+          runRaw(socket, () => Effect.void, { onOpen: write(event).pipe(Effect.catch(() => Effect.void)) }).pipe(
               Effect.timeout("1 second"),
               Effect.catchReason("SocketError", "SocketCloseError", () => Effect.void),
               Effect.catch(() => Effect.void),
@@ -275,7 +274,7 @@ export const ptyConnectHandlers = HttpApiBuilder.group(PtyConnectApi, "pty-conne
         // connection and the attachment is always released.
         yield* Effect.race(
           drain,
-          socket.runRaw((message) => {
+          runRaw(socket, (message) => {
             const decoded = PtyProtocol.decodeInput(message)
             if (decoded !== undefined) attachment.write(decoded)
           }),

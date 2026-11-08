@@ -36,6 +36,7 @@ import { resetDatabase } from "../fixture/db"
 import { workspaceLayerWithRuntimeFlags } from "../fixture/workspace"
 import { tmpdirScoped } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
+import { runRaw } from "@tenon/core/util/socket"
 
 const testStateLayer = Layer.effectDiscard(
   Effect.gen(function* () {
@@ -207,14 +208,12 @@ const listenRemoteWebSocket = () =>
 const echoWebSocket = (request: HttpServerRequest.HttpServerRequest) =>
   Effect.gen(function* () {
     const socket = yield* Effect.orDie(request.upgrade)
-    const write = yield* socket.writer
-    yield* socket
-      .runRaw((message) => write(`echo:${String(message)}`), {
-        onOpen: write(`protocol:${request.headers["sec-websocket-protocol"] ?? "none"}`).pipe(
-          Effect.catch(() => Effect.void),
-        ),
-      })
-      .pipe(Effect.catch(() => Effect.void))
+    const { write } = yield* socket.writer
+    yield* runRaw(socket, (message) => write(`echo:${String(message)}`), {
+      onOpen: write(`protocol:${request.headers["sec-websocket-protocol"] ?? "none"}`).pipe(
+        Effect.catch(() => Effect.void),
+      ),
+    }).pipe(Effect.catch(() => Effect.void))
     return HttpServerResponse.empty()
   })
 
@@ -432,14 +431,13 @@ describe("HttpApi workspace routing middleware", () => {
 
       const socket = yield* Socket.makeWebSocket(
         `${(yield* serverUrl).replace(/^http/, "ws")}/probe?workspace=${workspace.id}`,
-        {
-          closeCodeIsError: () => false,
-          protocols: "chat",
-        },
+        { protocols: "chat" },
       )
       const messages = yield* Queue.unbounded<string>()
-      yield* socket.runRaw((message) => Queue.offer(messages, String(message))).pipe(Effect.forkScoped)
-      const write = yield* socket.writer
+      yield* runRaw(socket, (message) => Queue.offer(messages, String(message)), {
+        closeCodeIsError: () => false,
+      }).pipe(Effect.forkScoped)
+      const { write } = yield* socket.writer
 
       expect(yield* Queue.take(messages)).toBe("protocol:chat")
       yield* write("hello")
