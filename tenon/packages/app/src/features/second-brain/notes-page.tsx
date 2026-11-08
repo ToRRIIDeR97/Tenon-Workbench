@@ -463,7 +463,7 @@ export function NotesPageView(props: {
             <NoteEditor
               value={state.body}
               onOpenNote={props.onOpen}
-              previewText={previewNoteLinks(state.body, linkLookup())}
+              preview={(text) => previewNoteLinks(text, linkLookup())}
               loading={page.loading}
               onChange={(value) => setState("body", value)}
               onSave={() => void save()}

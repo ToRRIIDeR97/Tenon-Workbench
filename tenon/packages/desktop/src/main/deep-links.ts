@@ -1,5 +1,6 @@
 import path from "node:path"
 import { DEEP_LINK_SCHEME } from "./constants"
+import { isUncPath } from "./local-file-policy"
 
 export type DeepLink =
   | { kind: "open-project"; directory: string; url: string }
@@ -34,8 +35,7 @@ export function parseDeepLink(value: string, isDirectory: (directory: string) =>
 }
 
 function isLocalDirectory(directory: string, isDirectory: (directory: string) => boolean) {
-  // Any two leading separators: Windows also reads /\host\share as a UNC path.
-  if (/^[\\/]{2}/.test(directory)) return false
+  if (isUncPath(directory)) return false
   if (/^file:/i.test(directory)) return false
   if (!path.isAbsolute(directory)) return false
   if (directory.split(/[\\/]/).includes("..")) return false

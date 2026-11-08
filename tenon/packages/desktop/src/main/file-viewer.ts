@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto"
-import { stat } from "node:fs/promises"
-import { basename, isAbsolute, relative, resolve } from "node:path"
+import { realpath, stat } from "node:fs/promises"
+import { basename, isAbsolute, posix, resolve, win32 } from "node:path"
 import { pathToFileURL } from "node:url"
 import { net, protocol } from "electron"
+import { isUncPath } from "./local-file-policy"
 
 // The Workbench panel shows PDFs, videos and Office files that are too large to pass around as data
 // URLs. The renderer asks for a file by folder and relative path; main checks the path stays inside
@@ -19,18 +20,31 @@ export const fileViewerScheme = {
   privileges: { secure: true, standard: true, supportFetchAPI: true, stream: true, corsEnabled: true },
 } as const
 
-/** The file `path` inside `directory`, or undefined when it escapes the folder or is relative. */
+/** The file `path` inside `directory`, or undefined when it escapes the folder, is relative or is a UNC path. */
 export function resolveInside(directory: string, path: string) {
-  if (!isAbsolute(directory)) return
+  if (!isAbsolute(directory) || isUncPath(directory)) return
   const file = resolve(directory, path)
-  const rel = relative(resolve(directory), file)
-  if (!rel || rel.startsWith("..") || isAbsolute(rel)) return
-  return file
+  return isInside(resolve(directory), file) ? file : undefined
+}
+
+/**
+ * Whether `file` lies strictly inside `root`, both absolute. Windows and macOS (APFS by default)
+ * compare names case-insensitively, so `C:\Work` contains `c:\work\a.pdf`.
+ */
+export function isInside(root: string, file: string, platform: NodeJS.Platform = process.platform) {
+  const paths = platform === "win32" ? win32 : posix
+  const fold = platform === "win32" || platform === "darwin"
+  const rel = paths.relative(fold ? root.toLowerCase() : root, fold ? file.toLowerCase() : file)
+  return Boolean(rel) && !rel.startsWith("..") && !paths.isAbsolute(rel)
 }
 
 export async function fileViewerURL(directory: string, path: string) {
-  const file = resolveInside(directory, path)
-  if (!file) return
+  const lexical = resolveInside(directory, path)
+  if (!lexical) return
+  // The lexical check alone would follow a symlink in the folder out to ~/.ssh/id_rsa: resolve
+  // links on both sides and check again. The issued URL serves the resolved file.
+  const [root, file] = await Promise.all([realpath(directory), realpath(lexical)]).catch(() => [])
+  if (!root || !file || !isInside(root, file)) return
   const info = await stat(file).catch(() => undefined)
   if (!info?.isFile()) return
   const token = randomUUID()

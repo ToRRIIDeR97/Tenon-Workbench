@@ -7,6 +7,7 @@ import { usePrompt } from "@/context/prompt"
 import type { ImageAttachmentPart } from "@/context/prompt-state"
 import { createBlobReference } from "@/utils/draft-store"
 import { uuid } from "@/utils/uuid"
+import { createVisibleInterval } from "@/utils/visible-interval"
 
 // The screen refreshes this often while the tab is open; adb screencap takes a few hundred ms.
 const FRAME_MS = 700
@@ -65,11 +66,10 @@ export function SessionDeviceTab() {
         produce((list) => void list.push(`${new Date().toLocaleTimeString()}  ${event.tool}`)),
       ),
     )
-    // Emulators take a while to boot; keep the list current.
-    const poll = setInterval(() => void refetch(), 5_000)
+    // Emulators take a while to boot; keep the list current while the window is shown.
+    createVisibleInterval(() => void refetch(), 5_000)
     onCleanup(() => {
       clearInterval(timer)
-      clearInterval(poll)
       off()
     })
   })

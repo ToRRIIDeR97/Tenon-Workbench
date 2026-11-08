@@ -522,20 +522,21 @@ const main = Effect.gen(function* () {
     const password = randomUUID()
     // Restarts after a crash reuse the port and password, so renderers reconnect to the same URL.
     // Agents reach the Workbench browser through this bridge; the server process gets its address.
-    const bridge = yield* Effect.promise(() =>
-      startBrowserBridge().catch((error: unknown) => {
-        logger.error("browser bridge failed", String(error))
-        return undefined
-      }),
+    // The server's mail tools (Command Centre only) reach the accounts through the mail endpoint.
+    // Both listen on their own loopback port, so they start side by side.
+    const [bridge, mailEndpoint] = yield* Effect.promise(() =>
+      Promise.all([
+        startBrowserBridge().catch((error: unknown) => {
+          logger.error("browser bridge failed", String(error))
+          return undefined
+        }),
+        startMailEndpoint(mail).catch((error: unknown) => {
+          logger.error("mail endpoint failed", String(error))
+          return undefined
+        }),
+      ]),
     )
     if (bridge) Object.assign(process.env, { TENON_BROWSER_URL: bridge.url, TENON_BROWSER_TOKEN: bridge.token })
-    // The server's mail tools (Command Centre only) reach the accounts through this endpoint.
-    const mailEndpoint = yield* Effect.promise(() =>
-      startMailEndpoint(mail).catch((error: unknown) => {
-        logger.error("mail endpoint failed", String(error))
-        return undefined
-      }),
-    )
     if (mailEndpoint)
       Object.assign(process.env, { TENON_MAIL_URL: mailEndpoint.url, TENON_MAIL_TOKEN: mailEndpoint.token })
     const startSidecar = (port: number) =>

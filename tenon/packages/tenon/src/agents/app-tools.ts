@@ -1036,10 +1036,14 @@ const projectFor = Effect.fnUntraced(function* (
     Effect.gen(function* () {
       const cards = yield* BrainProject.list()
       const linked = yield* BrainProject.linkedFolders()
-      return yield* Effect.forEach(cards, (card) =>
-        BrainProject.threadDirectory(card, workspaces, linked).pipe(
-          Effect.map((thread) => ({ card, directory: thread.directory })),
-        ),
+      // Each card's folder is its own, so the checks can overlap; results keep the cards' order.
+      return yield* Effect.forEach(
+        cards,
+        (card) =>
+          BrainProject.threadDirectory(card, workspaces, linked).pipe(
+            Effect.map((thread) => ({ card, directory: thread.directory })),
+          ),
+        { concurrency: 8 },
       )
     }),
   ).pipe(Effect.orElseSucceed(() => []))

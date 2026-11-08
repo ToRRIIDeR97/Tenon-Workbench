@@ -474,6 +474,26 @@ describe("Project.discover", () => {
     }),
   )
 
+  it.live("skips dependency and build folders and remembers a miss for the run", () =>
+    Effect.gen(function* () {
+      const project = yield* Project.Service
+      const tmp = yield* tmpdirScoped({ git: true })
+      const result = yield* project.fromDirectory(tmp)
+
+      const pngData = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+      for (const folder of ["node_modules/pkg", "dist", "build", "out"])
+        yield* Effect.promise(() => Bun.write(path.join(tmp, folder, "favicon.png"), pngData))
+
+      yield* project.discover(result.project)
+      expect((yield* project.get(result.project.id))!.icon).toBeUndefined()
+
+      // The worktree was searched without a match, so a favicon added later waits for the next run.
+      yield* Effect.promise(() => Bun.write(path.join(tmp, "favicon.png"), pngData))
+      yield* project.discover(result.project)
+      expect((yield* project.get(result.project.id))!.icon).toBeUndefined()
+    }),
+  )
+
   it.live("should not discover favicon when override is set", () =>
     Effect.gen(function* () {
       const project = yield* Project.Service
