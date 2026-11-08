@@ -163,11 +163,13 @@ they flag on a candidate before enforcing them, because that is what would back
 the Markdown rule above.
 
 `file://` links (terminal output, Markdown) open with the default app only for
-documents. Executables (Windows `PATHEXT` plus shell launchers such as `.lnk`,
-`.hta`, `.msi`, `.scr`, `.cpl`, `.jar`, `.chm` and `.msix`, and any file name with
+documents. Executables (the default Windows `PATHEXT` and the user's own, which
+adds to it, plus shell launchers such as `.lnk`, `.hta`, `.msi`, `.scr`, `.cpl`,
+`.jar`, `.chm`, `.msix`, `.rdp`, `.scf`, `.inf`, `.library-ms`, `.search-ms`,
+`.xll` and `.diagcab`, and any file name with
 a colon, which names an alternate data stream; macOS bundles and scripts such as
-`.app`, `.command`, `.terminal`, `.workflow`, `.fileloc`, `.webloc` and
-`.mobileconfig`; any POSIX file with an execute bit) and anything that cannot be
+`.app`, `.command`, `.terminal`, `.workflow`, `.fileloc`, `.webloc`,
+`.mobileconfig`, `.dmg` and `.vncloc`; any POSIX file with an execute bit) and anything that cannot be
 inspected are revealed in the file manager instead
 (`desktop/src/main/local-file-policy.ts`). A file name ending in a dot or space
 is not handled: `stat` fails on it on Windows, so it is revealed.
@@ -1151,7 +1153,9 @@ message and shows in a toast. It doesn't run outside git.
 ## Workbench panel tools
 
 - **`tenon-file://`.** The renderer names a folder and a relative path; main
-  refuses paths that leave the folder and non-files, then issues an opaque URL.
+  refuses UNC folders, paths that leave the folder (checked again after
+  resolving symlinks on both sides, case-insensitively on Windows and macOS)
+  and non-files, then issues an opaque URL for the resolved file.
   The protocol serves only issued URLs (the most recent 500), read-only, and
   sub-frames may load only those URLs and Chromium's PDF viewer. `plugins: true`
   is set on app windows for that viewer. Word documents are converted to HTML
@@ -1339,8 +1343,11 @@ fix lands.
   `reveal-path` reveals any existing absolute path. Neither uses a workspace ID
   or validated relative path. As of the 2026-10 batch-1 hardening, `open-path` no longer
   executes renderer-supplied application paths (main resolves an application
-  name through the registered-application lookup), and both handlers require
-  absolute paths. Without an app, `open-path` applies the local-file policy
+  name through the registered-application lookup, and only names on the
+  "Open in" list for that platform, `isOpenWithApp` in `local-file-policy.ts`),
+  and both handlers require absolute paths and refuse UNC and device paths
+  (`\\host\share`, `\\?\`, `//host`) on every platform, so a stat cannot make
+  Windows authenticate to a remote host. Without an app, `open-path` applies the local-file policy
   (`localFileAction`): an executable is revealed in the file manager, never
   opened. With an app, the path must be a directory. Opening other files from a
   compromised main-frame renderer remains possible until the workspace-ID

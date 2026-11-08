@@ -386,7 +386,15 @@ export function registerRendererProtocol() {
       return new Response("Not found", { status: 404 })
     }
 
-    const file = resolve(rendererRoot, `.${decodeURIComponent(url.pathname)}`)
+    let pathname: string
+    try {
+      pathname = decodeURIComponent(url.pathname)
+    } catch {
+      // A malformed % escape would otherwise throw out of the handler.
+      writeLog("protocol", "rejected path", { url: redactURL(request.url) }, "warn")
+      return new Response("Bad request", { status: 400 })
+    }
+    const file = resolve(rendererRoot, `.${pathname}`)
     const rel = relative(rendererRoot, file)
     if (rel.startsWith("..") || isAbsolute(rel)) {
       writeLog("protocol", "rejected path", { url: redactURL(request.url), file }, "warn")

@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto"
+import { randomBytes, timingSafeEqual } from "node:crypto"
 import { createServer, type IncomingMessage } from "node:http"
 import { BrowserWindow, dialog, session, WebContentsView } from "electron"
 import { isBlockedRequest, isLocal, needsAgentConsent } from "./browser-policy"
@@ -306,6 +306,7 @@ async function runTool(
 /** Starts the agent bridge and returns its URL and token for the server process's environment. */
 export function startBrowserBridge() {
   const token = randomBytes(32).toString("base64url")
+  const expected = Buffer.from(`Bearer ${token}`)
   return new Promise<{ url: string; token: string }>((resolve, reject) => {
     const server = createServer((request, response) => {
       const answer = (status: number, body: unknown) => {
@@ -313,7 +314,13 @@ export function startBrowserBridge() {
         response.end(JSON.stringify(body))
       }
       // Only the server process holds the token; a web page can't set this header cross-origin.
-      if (request.method !== "POST" || request.headers.authorization !== `Bearer ${token}` || request.headers.origin)
+      const given = Buffer.from(request.headers.authorization ?? "")
+      if (
+        request.method !== "POST" ||
+        request.headers.origin ||
+        given.length !== expected.length ||
+        !timingSafeEqual(given, expected)
+      )
         return answer(403, { error: "Forbidden" })
       // An agent that gave up must not leave a dialog open that could still navigate the panel later.
       const abandoned = new AbortController()

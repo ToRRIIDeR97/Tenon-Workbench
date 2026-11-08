@@ -39,7 +39,7 @@ import {
 } from "./windows"
 import type { UpdaterController } from "./updater-controller"
 import { createUpdaterSubscriptions } from "./updater-subscriptions"
-import { localFileAction } from "./local-file-policy"
+import { isOpenWithApp, isUncPath, localFileAction } from "./local-file-policy"
 import { createDesktopDraftStore, requireDraftBlob, requireDraftKey, requireDraftValue } from "./draft-store"
 import { write as writeLog } from "./logging"
 import { saveSessionExport } from "./session-export"
@@ -442,11 +442,15 @@ export function registerIpcHandlers(deps: Deps) {
     typeof directory === "string" && typeof path === "string" ? fileViewerURL(directory, path) : undefined,
   )
 
-  // The renderer may only name an application, never hand over a path to
-  // execute: main resolves the name through the registered-application lookup
-  // so a compromised renderer cannot run an arbitrary binary (issue #23).
+  // The renderer may only name an application from the "Open in" list, never
+  // hand over a path to execute: main resolves the name through the
+  // registered-application lookup so a compromised renderer cannot run an
+  // arbitrary binary (issue #23). UNC paths are refused before stat.
   trustedHandle("open-path", async (_event: IpcMainInvokeEvent, path: string, app?: string) => {
-    if (!isAbsolute(path)) throw new Error("open-path requires an absolute path")
+    if (typeof path !== "string" || !isAbsolute(path) || isUncPath(path))
+      throw new Error("open-path requires a local absolute path")
+    // Only the apps "Open in" offers; a name such as python3 or node would run against the folder.
+    if (app && (typeof app !== "string" || !isOpenWithApp(app))) throw new Error("Unknown application")
     const info = await stat(path)
     if (!app) {
       // Same policy as local file links: an executable is revealed in the file manager, never run.
@@ -456,7 +460,6 @@ export function registerIpcHandlers(deps: Deps) {
     }
     // "Open in" passes a project folder; a file handed to an app such as Terminal could run.
     if (!info.isDirectory()) throw new Error("open-path with an application requires a directory")
-    if (!/^[\w][\w .()-]*$/.test(app)) throw new Error("Invalid application name")
     if (process.platform === "darwin") {
       return await new Promise<void>((resolve, reject) => {
         execFile("open", ["-a", app, path], (err) => (err ? reject(err) : resolve()))
@@ -470,7 +473,7 @@ export function registerIpcHandlers(deps: Deps) {
   })
 
   trustedHandle("reveal-path", async (_event: IpcMainInvokeEvent, path: string) => {
-    if (!isAbsolute(path)) return false
+    if (typeof path !== "string" || !isAbsolute(path) || isUncPath(path)) return false
     const exists = await stat(path).then(
       () => true,
       () => false,
