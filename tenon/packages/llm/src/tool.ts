@@ -232,9 +232,44 @@ export const toDefinitions = (tools: Tools): ReadonlyArray<ToolDefinitionClass> 
 const toJsonSchema = (schema: Schema.Top): JsonSchema.JsonSchema => {
   // Effect 4.1 leaves objects open by default; keep the closed (additionalProperties: false) output.
   const document = Schema.toJsonSchemaDocument(schema, { onExcessProperty: "error" })
-  if (Object.keys(document.definitions).length === 0) return document.schema
-  return { ...document.schema, $defs: document.definitions }
+  const result =
+    Object.keys(document.definitions).length === 0
+      ? document.schema
+      : { ...document.schema, $defs: document.definitions }
+  return emptyStructsAsObjects(result, { additionalProperties: false }) as JsonSchema.JsonSchema
 }
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+
+/**
+ * Effect 4.1 emits an empty `Schema.Struct({})` as `{ not: { type: "null" } }` (any non-nullish value).
+ * Tool providers need an object schema for tool parameters, so rewrite those nodes, at any depth, as an
+ * object with no properties. `additionalProperties` is set when given (closed tool schemas use `false`).
+ */
+export const emptyStructsAsObjects = (value: unknown, options: { additionalProperties?: boolean } = {}): unknown => {
+  if (Array.isArray(value)) return value.map((item) => emptyStructsAsObjects(item, options))
+  if (!isRecord(value)) return value
+  const { not, ...rest } = value
+  if (isRecord(not) && Object.keys(not).length === 1 && not.type === "null" && rest.type === undefined)
+    return {
+      ...rest,
+      type: "object",
+      properties: {},
+      ...(options.additionalProperties === undefined ? {} : { additionalProperties: options.additionalProperties }),
+    }
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [
+      key,
+      // Keyed by property or definition name, so the map itself is never a schema.
+      schemaMaps.has(key) && isRecord(item)
+        ? Object.fromEntries(Object.entries(item).map(([name, entry]) => [name, emptyStructsAsObjects(entry, options)]))
+        : emptyStructsAsObjects(item, options),
+    ]),
+  )
+}
+
+const schemaMaps = new Set(["properties", "patternProperties", "$defs", "definitions", "dependentSchemas"])
 
 const project = (
   toModelOutput: ((input: ToolModelOutputInput<any, any>) => ReadonlyArray<ToolContent>) | undefined,

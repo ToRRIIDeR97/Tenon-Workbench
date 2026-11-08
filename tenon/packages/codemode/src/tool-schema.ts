@@ -125,6 +125,8 @@ const renderSchema = (
       renderSchema({ ...schema, $ref: undefined }, nested, depth + 1, seen),
     ])
   }
+  // Effect 4.1 emits an empty Schema.Struct({}) as `{ not: { type: "null" } }` (any non-nullish value).
+  if (schema.type === undefined && isNotNull(schema.not)) return "{}"
   if (schema.const !== undefined) return renderLiteral(schema.const)
   if (schema.enum) return schema.enum.map(renderLiteral).join(" | ")
   const alternatives = schema.anyOf ?? schema.oneOf
@@ -195,6 +197,9 @@ const renderSchema = (
   }
   return "unknown"
 }
+
+const isNotNull = (schema: JsonSchema | undefined) =>
+  schema !== undefined && Object.keys(schema).length === 1 && schema.type === "null"
 
 export const toTypeScript = (schema: Schema.Top, decoded = false, pretty = false): string => {
   try {

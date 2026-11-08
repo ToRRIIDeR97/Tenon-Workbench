@@ -1,4 +1,5 @@
 import type { JSONSchema7 } from "@ai-sdk/provider"
+import { emptyStructsAsObjects } from "@tenon/llm"
 import { JsonSchema, Schema } from "effect"
 import type * as Tool from "./tool"
 
@@ -11,11 +12,13 @@ export function fromSchema(schema: Schema.Top): JSONSchema7 {
 
   // Effect 4.1 leaves object schemas open (additionalProperties: true) by default.
   const document = Schema.toJsonSchemaDocument(schema)
-  const result = normalize({
-    $schema: JsonSchema.META_SCHEMA_URI_DRAFT_2020_12,
-    ...document.schema,
-    ...(Object.keys(document.definitions).length > 0 ? { $defs: document.definitions } : {}),
-  })
+  const result = normalize(
+    emptyStructsAsObjects({
+      $schema: JsonSchema.META_SCHEMA_URI_DRAFT_2020_12,
+      ...document.schema,
+      ...(Object.keys(document.definitions).length > 0 ? { $defs: document.definitions } : {}),
+    }),
+  )
   const inlined = dropDefinitionsIfResolved(inlineLocalReferences(result))
   if (!isJsonSchema(inlined)) throw new Error("tool JSON Schema helper produced a non-schema value")
   cache.set(schema, inlined)
