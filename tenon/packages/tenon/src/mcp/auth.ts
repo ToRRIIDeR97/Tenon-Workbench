@@ -11,6 +11,8 @@ export const Tokens = Schema.Struct({
   refreshToken: Schema.mutableKey(Schema.optional(Schema.String)),
   expiresAt: Schema.mutableKey(Schema.optional(Schema.Number)),
   scope: Schema.mutableKey(Schema.optional(Schema.String)),
+  // Authorization server the tokens were issued by; the MCP SDK never sends them to another one.
+  issuer: Schema.mutableKey(Schema.optional(Schema.String)),
 })
 export type Tokens = Schema.Schema.Type<typeof Tokens>
 
@@ -19,6 +21,8 @@ export const ClientInfo = Schema.Struct({
   clientSecret: Schema.mutableKey(Schema.optional(Schema.String)),
   clientIdIssuedAt: Schema.mutableKey(Schema.optional(Schema.Number)),
   clientSecretExpiresAt: Schema.mutableKey(Schema.optional(Schema.Number)),
+  // Authorization server the client is registered with; the MCP SDK never presents it to another one.
+  issuer: Schema.mutableKey(Schema.optional(Schema.String)),
 })
 export type ClientInfo = Schema.Schema.Type<typeof ClientInfo>
 

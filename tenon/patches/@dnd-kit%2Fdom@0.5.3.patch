@@ -1,10 +1,9 @@
 --- a/index.js
 +++ b/index.js
-@@ -2195,6 +2195,17 @@
-       sensors,
+@@ -2360,6 +2360,17 @@
        modifiers
      }));
-+  }
+   }
 +  get plugins() {
 +    return super.plugins;
 +  }
@@ -15,16 +14,16 @@
 +      StyleInjector,
 +      ...plugins
 +    ];
-   }
++  }
  };
  var _element_dec, _handle_dec, _c, _init5, _handle, _element;
+ var Draggable = class extends (_c = Draggable$1, _handle_dec = [reactive], _element_dec = [reactive], _c) {
 --- a/index.cjs
 +++ b/index.cjs
-@@ -2196,6 +2196,17 @@
-       sensors,
+@@ -2361,6 +2361,17 @@
        modifiers
      }));
-+  }
+   }
 +  get plugins() {
 +    return super.plugins;
 +  }
@@ -35,6 +34,7 @@
 +      StyleInjector,
 +      ...plugins
 +    ];
-   }
++  }
  };
  var _element_dec, _handle_dec, _c, _init5, _handle, _element;
+ var Draggable = class extends (_c = abstract.Draggable, _handle_dec = [state.reactive], _element_dec = [state.reactive], _c) {
