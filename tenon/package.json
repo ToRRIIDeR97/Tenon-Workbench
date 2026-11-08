@@ -35,7 +35,7 @@
       "@kobalte/core": "0.13.11",
       "@corvu/drawer": "0.2.4",
       "@types/node": "24.12.2",
-      "@tsconfig/node22": "22.0.2",
+      "@tsconfig/node24": "24.0.3",
       "@tsconfig/bun": "1.0.9",
       "@pierre/diffs": "1.2.10",
       "@solid-primitives/storage": "4.3.3",
