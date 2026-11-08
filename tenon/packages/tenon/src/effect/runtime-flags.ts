@@ -1,15 +1,15 @@
 import { Config, ConfigProvider, Context, Effect, Layer, Option } from "effect"
 import { ConfigService } from "@/effect/config-service"
 
-const bool = (name: string) => Config.boolean(name).pipe(Config.withDefault(false))
+const bool = (name: string) => Config.Boolean(name).pipe(Config.withDefault(false))
 const positiveInteger = (name: string) =>
-  Config.number(name).pipe(
+  Config.Number(name).pipe(
     Config.map((value) => (Number.isInteger(value) && value > 0 ? value : undefined)),
     Config.orElse(() => Config.succeed(undefined)),
   )
 const experimental = bool("TENON_EXPERIMENTAL")
 const enabledByExperimental = (name: string) =>
-  Config.all({ experimental, enabled: Config.boolean(name).pipe(Config.option) }).pipe(
+  Config.all({ experimental, enabled: Config.Boolean(name).pipe(Config.option) }).pipe(
     Config.map((flags) => Option.getOrElse(flags.enabled, () => flags.experimental)),
   )
 
@@ -53,7 +53,7 @@ export class Service extends ConfigService.Service<Service>()("@tenon/RuntimeFla
   bashDefaultTimeoutMs: positiveInteger("TENON_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS"),
   experimentalNativeLlm: bool("TENON_EXPERIMENTAL_NATIVE_LLM"),
   experimentalWebSockets: bool("TENON_EXPERIMENTAL_WEBSOCKETS"),
-  client: Config.string("TENON_CLIENT").pipe(Config.withDefault("cli")),
+  client: Config.String("TENON_CLIENT").pipe(Config.withDefault("cli")),
 }) {}
 
 export type Info = Context.Service.Shape<typeof Service>

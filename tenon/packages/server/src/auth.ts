@@ -29,8 +29,8 @@ export class Config extends Context.Service<Config, Info>()("@tenon/ServerAuthCo
       Effect.gen(function* () {
         return Config.of(
           yield* EffectConfig.all({
-            password: EffectConfig.string("TENON_SERVER_PASSWORD").pipe(EffectConfig.option),
-            username: EffectConfig.string("TENON_SERVER_USERNAME").pipe(EffectConfig.withDefault("opencode")),
+            password: EffectConfig.String("TENON_SERVER_PASSWORD").pipe(EffectConfig.option),
+            username: EffectConfig.String("TENON_SERVER_USERNAME").pipe(EffectConfig.withDefault("opencode")),
           }),
         )
       }),

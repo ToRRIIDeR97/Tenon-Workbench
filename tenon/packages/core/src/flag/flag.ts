@@ -34,8 +34,8 @@ export const Flag = {
   TENON_DISABLE_FFF: fff === undefined ? process.platform === "win32" : truthy("TENON_DISABLE_FFF"),
 
   // Experimental
-  TENON_EXPERIMENTAL_FILEWATCHER: Config.boolean("TENON_EXPERIMENTAL_FILEWATCHER").pipe(Config.withDefault(false)),
-  TENON_EXPERIMENTAL_DISABLE_FILEWATCHER: Config.boolean("TENON_EXPERIMENTAL_DISABLE_FILEWATCHER").pipe(
+  TENON_EXPERIMENTAL_FILEWATCHER: Config.Boolean("TENON_EXPERIMENTAL_FILEWATCHER").pipe(Config.withDefault(false)),
+  TENON_EXPERIMENTAL_DISABLE_FILEWATCHER: Config.Boolean("TENON_EXPERIMENTAL_DISABLE_FILEWATCHER").pipe(
     Config.withDefault(false),
   ),
   TENON_EXPERIMENTAL_DISABLE_COPY_ON_SELECT:
