@@ -1,7 +1,7 @@
 import { Session } from "@tenon/schema/session"
 import { SessionMessage } from "@tenon/schema/session-message"
 import { Schema } from "effect"
-import { HttpApiEndpoint, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
+import { HttpApiEndpoint, HttpApiGroup, OpenApi } from "effect/http-api"
 import { InvalidCursorError, SessionNotFoundError, UnknownError } from "../errors"
 
 export const SessionMessagesQuery = Schema.Struct({

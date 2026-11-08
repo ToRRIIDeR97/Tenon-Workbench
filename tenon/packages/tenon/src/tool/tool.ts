@@ -21,7 +21,7 @@ export type DynamicDescription = (agent: Agent.Info) => Effect.Effect<string>
  * error class makes it matchable upstream, and its `message` getter produces
  * the model-facing prose that the AI SDK feeds back as the tool result.
  */
-export class InvalidArgumentsError extends Schema.TaggedErrorClass<InvalidArgumentsError>()(
+export class InvalidArgumentsError extends Schema.TaggedError<InvalidArgumentsError>()(
   "ToolInvalidArgumentsError",
   {
     tool: Schema.String,

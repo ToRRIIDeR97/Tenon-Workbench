@@ -1,9 +1,9 @@
 import { EventV2 } from "@tenon/core/event"
 import { TenonEvent } from "@tenon/protocol/groups/event"
 import { Effect, Option, Result, Schema, Stream } from "effect"
-import { HttpServerResponse } from "effect/unstable/http"
-import { HttpApiBuilder } from "effect/unstable/httpapi"
-import * as Sse from "effect/unstable/encoding/Sse"
+import { HttpServerResponse } from "effect/http"
+import { HttpApiBuilder } from "effect/http-api"
+import * as Sse from "effect/encoding/Sse"
 import { Api } from "../api"
 
 const subscriberCapacity = 256

@@ -1,6 +1,6 @@
 import { describe, expect } from "bun:test"
 import { Effect } from "effect"
-import { HttpClient, HttpClientResponse } from "effect/unstable/http"
+import { HttpClient, HttpClientResponse } from "effect/http"
 import { Catalog } from "@tenon/core/catalog"
 import { Credential } from "@tenon/core/credential"
 import { EventV2 } from "@tenon/core/event"

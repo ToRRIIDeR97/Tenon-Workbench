@@ -28,7 +28,7 @@ import { ProjectV2 } from "@tenon/core/project"
 import { Effect, Layer } from "effect"
 import { PlatformError } from "effect/PlatformError"
 import path from "node:path"
-import { HttpApiBuilder, HttpApiError } from "effect/unstable/httpapi"
+import { HttpApiBuilder, HttpApiError } from "effect/http-api"
 import { InstanceHttpApi } from "../api"
 import { SecondBrainConflictError, SecondBrainInvalidError } from "../groups/second-brain"
 

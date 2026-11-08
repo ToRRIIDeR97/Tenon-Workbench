@@ -3,8 +3,8 @@ import { LocationServiceMap } from "@tenon/core/location-services"
 import { AbsolutePath } from "@tenon/core/schema"
 import { WorkspaceV2 } from "@tenon/core/workspace"
 import { Effect, Layer } from "effect"
-import { HttpServerRequest } from "effect/unstable/http"
-import { HttpApiMiddleware } from "effect/unstable/httpapi"
+import { HttpServerRequest } from "effect/http"
+import { HttpApiMiddleware } from "effect/http-api"
 
 export type LocationServices = Layer.Success<ReturnType<(typeof LocationServiceMap.Service)["get"]>>
 

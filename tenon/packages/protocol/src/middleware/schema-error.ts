@@ -1,5 +1,5 @@
 import type { SchemaIssue } from "effect"
-import { HttpApiMiddleware } from "effect/unstable/httpapi"
+import { HttpApiMiddleware } from "effect/http-api"
 import { InvalidRequestError } from "../errors"
 
 export class SchemaErrorMiddleware extends HttpApiMiddleware.Service<SchemaErrorMiddleware>()(

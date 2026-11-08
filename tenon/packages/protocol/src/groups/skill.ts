@@ -1,18 +1,18 @@
 import { Skill } from "@tenon/schema/skill"
 import { Location } from "@tenon/schema/location"
 import { Schema } from "effect"
-import { HttpApiEndpoint, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
+import { HttpApiEndpoint, HttpApiGroup, OpenApi } from "effect/http-api"
 import { LocationQuery, locationQueryOpenApi } from "./location"
 
 const errorFields = { reason: Schema.String, message: Schema.String }
 
-export class SkillNotFoundError extends Schema.TaggedErrorClass<SkillNotFoundError>()(
+export class SkillNotFoundError extends Schema.TaggedError<SkillNotFoundError>()(
   "SkillNotFoundError",
   errorFields,
   { httpApiStatus: 404 },
 ) {}
 
-export class SkillToggleWriteError extends Schema.TaggedErrorClass<SkillToggleWriteError>()(
+export class SkillToggleWriteError extends Schema.TaggedError<SkillToggleWriteError>()(
   "SkillToggleWriteError",
   errorFields,
   { httpApiStatus: 500 },

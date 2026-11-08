@@ -1,7 +1,7 @@
 import { Buffer } from "node:buffer"
 import { Effect, Schema, Stream } from "effect"
-import * as Sse from "effect/unstable/encoding/Sse"
-import { Headers, HttpClientRequest } from "effect/unstable/http"
+import * as Sse from "effect/encoding/Sse"
+import { Headers, HttpClientRequest } from "effect/http"
 import {
   InvalidProviderOutputReason,
   InvalidRequestReason,

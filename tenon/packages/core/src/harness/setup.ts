@@ -2,7 +2,7 @@ export * as HarnessSetup from "./setup"
 
 import { Harness } from "@tenon/schema/harness"
 import { Effect, Option, Schema, Semaphore } from "effect"
-import { ChildProcess } from "effect/unstable/process"
+import { ChildProcess } from "effect/process"
 import fs from "fs/promises"
 import { parse } from "jsonc-parser"
 import os from "os"
@@ -60,7 +60,7 @@ export const recipes: ReadonlyArray<Recipe> = [
 
 export const recipe = (id: string) => recipes.find((item) => item.id === id)
 
-export class SetupError extends Schema.TaggedErrorClass<SetupError>()("HarnessSetup.SetupError", {
+export class SetupError extends Schema.TaggedError<SetupError>()("HarnessSetup.SetupError", {
   reason: Schema.Literals(["not-found", "invalid-input", "install-failed", "sign-in-failed", "write-failed"]),
   message: Schema.String,
 }) {}
@@ -220,7 +220,7 @@ async function readJson(file: string) {
   return Option.getOrUndefined(decodeJson(await fs.readFile(file, "utf8").catch(() => "")))
 }
 
-const decodeJson = Schema.decodeUnknownOption(Schema.UnknownFromJsonString)
+const decodeJson = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Unknown))
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)

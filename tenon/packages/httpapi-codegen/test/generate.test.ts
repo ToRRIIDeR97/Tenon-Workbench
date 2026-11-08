@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { Effect, FileSystem, Schema, SchemaAST, SchemaGetter } from "effect"
-import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiMiddleware, HttpApiSchema } from "effect/unstable/httpapi"
+import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiMiddleware, HttpApiSchema } from "effect/http-api"
 import { format } from "prettier"
 import {
   compile as compileContract,
@@ -212,7 +212,7 @@ describe("HttpApiCodegen.generate", () => {
   })
 
   test("preserves optional keys in Promise error types", () => {
-    class OptionalError extends Schema.TaggedErrorClass<OptionalError>()(
+    class OptionalError extends Schema.TaggedError<OptionalError>()(
       "OptionalError",
       { message: Schema.String, detail: Schema.String.pipe(Schema.optional) },
       { httpApiStatus: 400 },
@@ -227,7 +227,7 @@ describe("HttpApiCodegen.generate", () => {
   })
 
   test("supports name-discriminated Promise errors", () => {
-    class NamedError extends Schema.ErrorClass<NamedError>("NamedError")(
+    class NamedError extends Schema.Error<NamedError>("NamedError")(
       { name: Schema.Literal("NamedError"), message: Schema.String },
       { httpApiStatus: 400 },
     ) {}
@@ -243,7 +243,7 @@ describe("HttpApiCodegen.generate", () => {
   })
 
   test("preserves reflected default error statuses", () => {
-    class MissingStatus extends Schema.TaggedErrorClass<MissingStatus>()("MissingStatus", {
+    class MissingStatus extends Schema.TaggedError<MissingStatus>()("MissingStatus", {
       message: Schema.String,
     }) {}
     const output = emitPromise(
@@ -881,7 +881,7 @@ describe("HttpApiCodegen.generate", () => {
   })
 
   test("preserves errors from server-only middleware", () => {
-    class Unauthorized extends Schema.TaggedErrorClass<Unauthorized>()("Unauthorized", {}) {}
+    class Unauthorized extends Schema.TaggedError<Unauthorized>()("Unauthorized", {}) {}
     class Authorization extends HttpApiMiddleware.Service<Authorization>()("Authorization", {
       error: Unauthorized,
     }) {}
@@ -892,12 +892,12 @@ describe("HttpApiCodegen.generate", () => {
 
     expect(output.operations[0]).toBeDefined()
     expect(output.files.find((file) => file.path === "session.ts")?.content).toContain(
-      'extends Schema.TaggedErrorClass<Endpoint0Error0Class>("Unauthorized")',
+      'extends Schema.TaggedError<Endpoint0Error0Class>("Unauthorized")',
     )
   })
 
   test("preserves tagged error response statuses", () => {
-    class Missing extends Schema.TaggedErrorClass<Missing>()("Missing", {}) {}
+    class Missing extends Schema.TaggedError<Missing>()("Missing", {}) {}
     const output = compile(
       api(
         HttpApiEndpoint.get("get", "/session", {

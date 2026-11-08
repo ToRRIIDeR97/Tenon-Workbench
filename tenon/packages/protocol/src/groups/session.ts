@@ -7,7 +7,7 @@ import { Project } from "@tenon/schema/project"
 import { AbsolutePath, NonNegativeInt, PositiveInt, RelativePath, statics } from "@tenon/schema/schema"
 import { Workspace } from "@tenon/schema/workspace"
 import { Context, Effect, Encoding, Result, Schema, Struct } from "effect"
-import { HttpApiEndpoint, HttpApiGroup, HttpApiMiddleware, HttpApiSchema, OpenApi } from "effect/unstable/httpapi"
+import { HttpApiEndpoint, HttpApiGroup, HttpApiMiddleware, HttpApiSchema, OpenApi } from "effect/http-api"
 import {
   ConflictError,
   InvalidCursorError,

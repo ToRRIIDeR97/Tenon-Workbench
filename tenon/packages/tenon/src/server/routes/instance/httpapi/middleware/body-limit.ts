@@ -1,5 +1,5 @@
 import { Effect, FileSystem } from "effect"
-import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
+import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http"
 
 // Largest request body the server buffers. Prompts carry image attachments as base64 JSON, so the
 // cap matches the 32 MiB session export limit instead of a smaller API-only value.

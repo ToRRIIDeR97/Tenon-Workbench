@@ -141,15 +141,15 @@ export const MigrateResult = Schema.Struct({
 })
 export type MigrateResult = typeof MigrateResult.Type
 
-export class InvalidError extends Schema.TaggedErrorClass<InvalidError>()("KnowledgeVault.InvalidError", {
+export class InvalidError extends Schema.TaggedError<InvalidError>()("KnowledgeVault.InvalidError", {
   reason: Schema.String,
 }) {}
 
-export class NotFoundError extends Schema.TaggedErrorClass<NotFoundError>()("KnowledgeVault.NotFoundError", {
+export class NotFoundError extends Schema.TaggedError<NotFoundError>()("KnowledgeVault.NotFoundError", {
   path: Schema.String,
 }) {}
 
-export class ConflictError extends Schema.TaggedErrorClass<ConflictError>()("KnowledgeVault.ConflictError", {
+export class ConflictError extends Schema.TaggedError<ConflictError>()("KnowledgeVault.ConflictError", {
   reason: Schema.String,
 }) {}
 

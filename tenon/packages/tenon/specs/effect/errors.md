@@ -11,7 +11,7 @@ For the migration architecture and queue, see
 
 - Expected service failures live on the Effect error channel.
 - Service interfaces expose those failures in their return types.
-- Domain errors are authored with `Schema.TaggedErrorClass`.
+- Domain errors are authored with `Schema.TaggedError`.
 - `Effect.die(...)` is reserved for defects: bugs, impossible states,
   violated invariants, and final unknown-boundary fallbacks.
 - HTTP status codes and public wire bodies are handled at HTTP route
@@ -22,7 +22,7 @@ For the migration architecture and queue, see
 ## Service Error Shape
 
 ```ts
-export class SessionBusyError extends Schema.TaggedErrorClass<SessionBusyError>()("SessionBusyError", {
+export class SessionBusyError extends Schema.TaggedError<SessionBusyError>()("SessionBusyError", {
   sessionID: SessionID,
   message: Schema.String,
 }) {}
@@ -36,7 +36,7 @@ export interface Interface {
 
 Rules:
 
-- Use `Schema.TaggedErrorClass` for expected domain failures.
+- Use `Schema.TaggedError` for expected domain failures.
 - Export a domain-level `Error` union from each service module.
 - Put expected errors in service method signatures.
 - Use `yield* new DomainError(...)` for direct early failures in
@@ -73,7 +73,7 @@ equivalent HttpApi schema annotation.
 Effect's own HttpApi examples follow this pattern:
 
 ```ts
-export class Unauthorized extends Schema.TaggedErrorClass<Unauthorized>()(
+export class Unauthorized extends Schema.TaggedError<Unauthorized>()(
   "Unauthorized",
   { message: Schema.String },
   { httpApiStatus: 401 },
@@ -93,7 +93,7 @@ export class Authorization extends HttpApiMiddleware.Service<
 Endpoint-level errors use the same idea:
 
 ```ts
-export class ConfigApiError extends Schema.ErrorClass<ConfigApiError>("ConfigApiError")(
+export class ConfigApiError extends Schema.Error<ConfigApiError>("ConfigApiError")(
   {
     name: Schema.Union(Schema.Literal("ConfigInvalidError"), Schema.Literal("ConfigJsonError")),
     data: Schema.Struct({ message: Schema.optional(Schema.String), path: Schema.String }),
@@ -129,9 +129,9 @@ contract.
   breaking API change.
 - Use built-in `HttpApiError.*` only when its generated body and SDK
   surface are intentionally the public contract.
-- Prefer `Schema.ErrorClass` for public HTTP error bodies whose wire shape is
+- Prefer `Schema.Error` for public HTTP error bodies whose wire shape is
   not the same as the internal domain error shape.
-- Prefer `Schema.TaggedErrorClass` for service/domain errors and middleware
+- Prefer `Schema.TaggedError` for service/domain errors and middleware
   errors that are naturally tagged by `_tag`.
 - If preserving a legacy `{ name, data }` body, model that shape explicitly in
   the public API error schema instead of relying on `NamedError.toObject()` in
@@ -185,7 +185,7 @@ middleware should never see them.
 Prefer small vertical slices:
 
 1. Fix rendering at one user-visible boundary.
-2. Convert one service domain to `Schema.TaggedErrorClass` errors.
+2. Convert one service domain to `Schema.TaggedError` errors.
 3. Map those errors at the affected HTTP handlers.
 4. Remove the corresponding name-based middleware branch if possible.
 5. Add or update focused tests for both service error tags and HTTP wire

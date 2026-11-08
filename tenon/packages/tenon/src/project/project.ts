@@ -12,7 +12,7 @@ import { which } from "@tenon/core/util/which"
 import { Command } from "@/command"
 import { InstanceState } from "@/effect/instance-state"
 import { Effect, Layer, Scope, Context, Stream, Types, Schema } from "effect"
-import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
+import { ChildProcess, ChildProcessSpawner } from "effect/process"
 import { FSUtil } from "@tenon/core/fs-util"
 import { AppProcess } from "@tenon/core/process"
 import { ProjectV2 } from "@tenon/core/project"
@@ -73,7 +73,7 @@ export const UpdatePayload = Schema.Struct({
 }).annotate({ identifier: "ProjectUpdateInput" })
 export type UpdatePayload = Types.DeepMutable<Schema.Schema.Type<typeof UpdatePayload>>
 
-export class NotFoundError extends Schema.TaggedErrorClass<NotFoundError>()("Project.NotFoundError", {
+export class NotFoundError extends Schema.TaggedError<NotFoundError>()("Project.NotFoundError", {
   projectID: ProjectV2.ID,
 }) {}
 

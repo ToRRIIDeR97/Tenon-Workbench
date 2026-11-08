@@ -2,7 +2,7 @@ import { Question } from "@tenon/schema/question"
 import { Location } from "@tenon/schema/location"
 import { Session } from "@tenon/schema/session"
 import { Context, Schema } from "effect"
-import { HttpApiEndpoint, HttpApiGroup, HttpApiMiddleware, HttpApiSchema, OpenApi } from "effect/unstable/httpapi"
+import { HttpApiEndpoint, HttpApiGroup, HttpApiMiddleware, HttpApiSchema, OpenApi } from "effect/http-api"
 import { QuestionNotFoundError, SessionNotFoundError } from "../errors"
 import { LocationQuery, locationQueryOpenApi } from "./location"
 

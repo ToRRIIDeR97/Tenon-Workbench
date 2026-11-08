@@ -290,12 +290,12 @@ export const SwitchBranchInput = Schema.Struct({
 })
 export type SwitchBranchInput = Schema.Schema.Type<typeof SwitchBranchInput>
 
-export class BranchSwitchError extends Schema.TaggedErrorClass<BranchSwitchError>()("VcsBranchSwitchError", {
+export class BranchSwitchError extends Schema.TaggedError<BranchSwitchError>()("VcsBranchSwitchError", {
   message: Schema.String,
   reason: Schema.Literals(["non-git", "unknown-branch", "failed"]),
 }) {}
 
-export class PatchApplyError extends Schema.TaggedErrorClass<PatchApplyError>()("VcsPatchApplyError", {
+export class PatchApplyError extends Schema.TaggedError<PatchApplyError>()("VcsPatchApplyError", {
   message: Schema.String,
   reason: Schema.Literals(["non-git", "not-clean"]),
 }) {}

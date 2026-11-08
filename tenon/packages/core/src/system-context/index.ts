@@ -79,7 +79,7 @@ export interface ReplacementBlocked {
 export type ReplacementResult = ReplacementReady | ReplacementBlocked
 export type ReconcileResult = { readonly _tag: "Unchanged" } | Updated | ReplacementResult
 
-export class InitializationBlocked extends Schema.TaggedErrorClass<InitializationBlocked>()(
+export class InitializationBlocked extends Schema.TaggedError<InitializationBlocked>()(
   "SystemContext.InitializationBlocked",
   { keys: Schema.Array(Key) },
 ) {
@@ -88,7 +88,7 @@ export class InitializationBlocked extends Schema.TaggedErrorClass<Initializatio
   }
 }
 
-export class DuplicateKeyError extends Schema.TaggedErrorClass<DuplicateKeyError>()("SystemContext.DuplicateKeyError", {
+export class DuplicateKeyError extends Schema.TaggedError<DuplicateKeyError>()("SystemContext.DuplicateKeyError", {
   key: Key,
 }) {
   override get message() {

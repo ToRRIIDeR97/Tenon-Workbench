@@ -1,7 +1,7 @@
 import { LayerNode } from "@tenon/core/effect/layer-node"
 import { AppProcess } from "@tenon/core/process"
 import { Effect, Layer, Context, Stream } from "effect"
-import { ChildProcess } from "effect/unstable/process"
+import { ChildProcess } from "effect/process"
 
 const cfg = [
   "--no-optional-locks",

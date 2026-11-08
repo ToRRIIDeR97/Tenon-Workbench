@@ -2,7 +2,7 @@ import { afterEach, describe, expect } from "bun:test"
 import { SessionV1 } from "@tenon/core/v1/session"
 import { LayerNode } from "@tenon/core/effect/layer-node"
 import { Effect, Layer } from "effect"
-import { HttpClientResponse } from "effect/unstable/http"
+import { HttpClientResponse } from "effect/http"
 import { Session as SessionNs } from "@/session/session"
 import { MessageV2 } from "../../src/session/message-v2"
 

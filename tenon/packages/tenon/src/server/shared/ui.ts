@@ -1,6 +1,6 @@
 import { FSUtil } from "@tenon/core/fs-util"
 import { Effect } from "effect"
-import { HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
+import { HttpServerRequest, HttpServerResponse } from "effect/http"
 import { createHash } from "node:crypto"
 
 let embeddedUIPromise: Promise<Record<string, string> | null> | undefined

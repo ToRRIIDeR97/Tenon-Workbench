@@ -4,7 +4,7 @@ This package vendors a Drizzle Effect SQLite adapter for this repo.
 
 - Keep this package generic: Drizzle + Effect + SQLite only.
 - Do not add Tenon-specific tables, paths, migrations, post-commit hooks, or domain storage APIs here.
-- Runtime code should depend on generic `effect/unstable/sql/SqlClient`, not a specific SQLite driver.
+- Runtime code should depend on generic `effect/sql/SqlClient`, not a specific SQLite driver.
 - Concrete SQLite clients such as `@effect/sql-sqlite-bun` belong in tests or examples unless this package intentionally adds a driver-specific helper.
 - Preserve Drizzle adapter naming and behavior where possible so this can be replaced by upstream `drizzle-orm/effect-sqlite` later.
 - If touching copied Drizzle internals, compare with current `drizzle-orm@1.0.0-rc.2` declarations and runtime JS.

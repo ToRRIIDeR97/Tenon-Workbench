@@ -28,10 +28,10 @@ const Payload = Schema.Struct({
 })
 ```
 
-Use `Schema.TaggedErrorClass` for expected domain errors:
+Use `Schema.TaggedError` for expected domain errors:
 
 ```ts
-export class NotFoundError extends Schema.TaggedErrorClass<NotFoundError>()("FooNotFoundError", {
+export class NotFoundError extends Schema.TaggedError<NotFoundError>()("FooNotFoundError", {
   id: FooID,
 }) {}
 ```

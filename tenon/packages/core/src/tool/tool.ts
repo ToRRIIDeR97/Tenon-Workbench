@@ -29,7 +29,7 @@ export type AnyTool = Definition<any, any>
 export const Failure = ToolFailure
 export type Failure = ToolFailure
 
-export class RegistrationError extends Schema.TaggedErrorClass<RegistrationError>()("Tool.RegistrationError", {
+export class RegistrationError extends Schema.TaggedError<RegistrationError>()("Tool.RegistrationError", {
   name: Schema.String,
   message: Schema.String,
 }) {}

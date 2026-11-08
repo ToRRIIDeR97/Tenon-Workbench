@@ -7,14 +7,14 @@ wire contracts stable.
 
 ```text
 Domain/service error
-  Schema.TaggedErrorClass
+  Schema.TaggedError
   - catchable with catchTag / catchTags
   - appears in service method error type
   - no HTTP status
   - no toObject()
 
 HTTP public error
-  Schema.ErrorClass / TaggedErrorClass with httpApiStatus
+  Schema.Error / TaggedError with httpApiStatus
   - endpoint-declared public contract
   - owns legacy { name, data } only when that is the SDK wire shape
 
@@ -56,7 +56,7 @@ Problems:
 After:
 
 ```ts
-export class ModelNotFoundError extends Schema.TaggedErrorClass<ModelNotFoundError>()("ProviderModelNotFoundError", {
+export class ModelNotFoundError extends Schema.TaggedError<ModelNotFoundError>()("ProviderModelNotFoundError", {
   providerID: ProviderID,
   modelID: ModelID,
   suggestions: Schema.optional(Schema.Array(Schema.String)),
@@ -184,7 +184,7 @@ Purpose:
 
 ### Remaining `NamedError.create(...)` Service Errors
 
-These should become `Schema.TaggedErrorClass` when touched:
+These should become `Schema.TaggedError` when touched:
 
 - [ ] `src/provider/provider.ts` — `ProviderInitError`.
 - [ ] `src/storage/db.ts` — database `NotFoundError`.
@@ -218,7 +218,7 @@ objects for model-visible/session-visible output.
 - [x] Provider model not found renders from both old `{ name, data }` and
       new `_tag` shapes.
 - [ ] Add typed render cases as more `NamedError.create(...)` domains move
-      to `Schema.TaggedErrorClass`.
+      to `Schema.TaggedError`.
 - [ ] Eventually remove old-shape compatibility branches when no callers can
       produce them.
 
@@ -226,7 +226,7 @@ objects for model-visible/session-visible output.
 
 For each migrated error:
 
-- [ ] Domain error is `Schema.TaggedErrorClass`.
+- [ ] Domain error is `Schema.TaggedError`.
 - [ ] Service method exposes the typed error in its error channel.
 - [ ] No service error has `toObject()` just for compatibility.
 - [ ] CLI, HTTP, and session/message adapters each own their output shape.

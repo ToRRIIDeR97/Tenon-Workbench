@@ -2,7 +2,7 @@ import { Location } from "@tenon/core/location"
 import { ProjectCopy } from "@tenon/core/project/copy"
 import { Git } from "@tenon/core/git"
 import { Effect } from "effect"
-import { HttpApiBuilder, HttpApiSchema } from "effect/unstable/httpapi"
+import { HttpApiBuilder, HttpApiSchema } from "effect/http-api"
 import { Api } from "../api"
 import { ProjectCopyError } from "@tenon/protocol/groups/project-copy"
 

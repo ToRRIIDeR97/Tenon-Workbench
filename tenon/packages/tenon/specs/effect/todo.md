@@ -43,7 +43,7 @@ P6  OA
 
 - `ERR` Typed errors — replace legacy `NamedError.create(...)` and
   `Effect.die(...)` for expected service failures with
-  `Schema.TaggedErrorClass` errors on the Effect error channel.
+  `Schema.TaggedError` errors on the Effect error channel.
   Shrinks: [`NamedError`](../../../core/src/util/error.ts) usage.
 - `RENDER` User-visible error rendering — preserve structured typed-error
   details at CLI, HTTP, and tool boundaries.
@@ -105,7 +105,7 @@ shapes and sometimes collapse rich errors into opaque strings.
 
 ### Target Shape
 
-- Services define expected failures with `Schema.TaggedErrorClass`.
+- Services define expected failures with `Schema.TaggedError`.
 - Services export an `Error` union and include it in method return types.
 - Expected failures stay on the Effect error channel.
 - `Effect.die(...)` is reserved for defects: bugs, impossible states,

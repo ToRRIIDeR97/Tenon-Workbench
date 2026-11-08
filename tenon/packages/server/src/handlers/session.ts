@@ -1,6 +1,6 @@
 import { SessionV2 } from "@tenon/core/session"
 import { DateTime, Effect, Stream } from "effect"
-import { HttpApiBuilder, HttpApiSchema } from "effect/unstable/httpapi"
+import { HttpApiBuilder, HttpApiSchema } from "effect/http-api"
 import { Api } from "../api"
 import { SessionsCursor } from "@tenon/protocol/groups/session"
 import {

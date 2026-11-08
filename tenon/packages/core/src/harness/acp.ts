@@ -4,7 +4,7 @@ import { LLMError, LLMEvent, TransportReason, type FinishReason } from "@tenon/l
 import { Harness } from "@tenon/schema/harness"
 import { Clock, Deferred, Effect, Exit, Option, Queue, Schema, Stream } from "effect"
 import type { PlatformError } from "effect/PlatformError"
-import { ChildProcess } from "effect/unstable/process"
+import { ChildProcess } from "effect/process"
 import os from "os"
 import path from "path"
 import { ConfigHarness } from "../config/harness"

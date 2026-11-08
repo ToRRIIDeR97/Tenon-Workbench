@@ -3,7 +3,7 @@ import { EventManifest } from "@tenon/schema/event-manifest"
 import { Location } from "@tenon/schema/location"
 import type { Definition } from "@tenon/schema/event"
 import { Schema } from "effect"
-import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from "effect/unstable/httpapi"
+import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from "effect/http-api"
 
 const fields = {
   id: Event.ID,

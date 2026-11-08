@@ -406,7 +406,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
-const decodeJson = Schema.decodeUnknownOption(Schema.UnknownFromJsonString)
+const decodeJson = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Unknown))
 
 // Credential files are a few hundred bytes of JSON; anything bigger, or not a regular file, counts as missing.
 const MAX_CREDENTIAL_BYTES = 64 * 1024

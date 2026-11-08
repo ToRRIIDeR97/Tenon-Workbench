@@ -8,7 +8,7 @@ import { Git } from "@/git"
 
 type Migration = (dir: string, fs: FSUtil.Interface, git: Git.Interface) => Effect.Effect<void, FSUtil.Error>
 
-export class NotFoundError extends Schema.TaggedErrorClass<NotFoundError>()("NotFoundError", {
+export class NotFoundError extends Schema.TaggedError<NotFoundError>()("NotFoundError", {
   message: Schema.String,
 }) {
   static isInstance(input: unknown): input is NotFoundError {

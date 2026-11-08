@@ -15,7 +15,7 @@ export const CALENDAR_PATH = ".tenon/calendar-v1.json"
 const LEGACY_CALENDAR_PATH = ".second-brain/calendar-v1.json"
 const CALENDAR_LIMIT = 16 * 1024 * 1024
 
-export class ConflictError extends Schema.TaggedErrorClass<ConflictError>()("PlannerCalendarStore.ConflictError", {
+export class ConflictError extends Schema.TaggedError<ConflictError>()("PlannerCalendarStore.ConflictError", {
   reason: Schema.String,
 }) {}
 

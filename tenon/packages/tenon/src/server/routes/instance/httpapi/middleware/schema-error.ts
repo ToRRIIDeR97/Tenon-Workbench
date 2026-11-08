@@ -1,6 +1,6 @@
 import { Effect } from "effect"
-import { HttpServerResponse } from "effect/unstable/http"
-import { HttpApiMiddleware } from "effect/unstable/httpapi"
+import { HttpServerResponse } from "effect/http"
+import { HttpApiMiddleware } from "effect/http-api"
 import { issueSummary } from "@tenon/protocol/middleware/schema-error"
 import { InvalidRequestError } from "../errors"
 

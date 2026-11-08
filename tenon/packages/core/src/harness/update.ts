@@ -1,7 +1,7 @@
 export * as HarnessUpdate from "./update"
 
 import { Effect, Schema } from "effect"
-import { ChildProcess } from "effect/unstable/process"
+import { ChildProcess } from "effect/process"
 import fs from "fs/promises"
 import os from "os"
 import path from "path"
@@ -53,7 +53,7 @@ export interface Check {
   readonly error?: string
 }
 
-export class UpdateError extends Schema.TaggedErrorClass<UpdateError>()("HarnessUpdate.UpdateError", {
+export class UpdateError extends Schema.TaggedError<UpdateError>()("HarnessUpdate.UpdateError", {
   reason: Schema.Literals(["not-found", "not-updatable", "update-failed"]),
   message: Schema.String,
 }) {}

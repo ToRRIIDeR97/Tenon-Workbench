@@ -117,7 +117,7 @@ Expected domain failures belong on the Effect error channel. Defects are
 for bugs, impossible states, and final unknown-boundary fallbacks.
 
 ```ts
-export class SessionBusyError extends Schema.TaggedErrorClass<SessionBusyError>()("SessionBusyError", {
+export class SessionBusyError extends Schema.TaggedError<SessionBusyError>()("SessionBusyError", {
   sessionID: SessionID,
   message: Schema.String,
 }) {}
@@ -131,7 +131,7 @@ export interface Interface {
 
 Rules:
 
-- Use `Schema.TaggedErrorClass` for new expected domain errors.
+- Use `Schema.TaggedError` for new expected domain errors.
 - Export a domain-level `Error` union from service modules.
 - In `Effect.gen` / `Effect.fn`, prefer `yield* new MyError(...)` for
   direct expected failures.

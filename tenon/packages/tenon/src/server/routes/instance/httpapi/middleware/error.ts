@@ -7,7 +7,7 @@ import {
   HttpServerRequest,
   HttpServerRespondable,
   HttpServerResponse,
-} from "effect/unstable/http"
+} from "effect/http"
 import { stat } from "node:fs/promises"
 
 // A workspace whose folder was moved or deleted fails deep inside its per-folder services. When the
