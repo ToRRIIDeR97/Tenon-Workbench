@@ -187,7 +187,7 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
       onCleanup(unsubscribe)
     })
     // The synced session info carries the title the server sets after the first reply and the latest activity.
-    const list = () =>
+    const list = createMemo(() =>
       (settled(threads) ?? [])
         .map((thread) => {
           const info = serverSync().session.get(thread.id)
@@ -197,7 +197,8 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
             updated: Math.max(thread.updated, info?.time.updated ?? 0),
           }
         })
-        .sort((left, right) => right.updated - left.updated)
+        .sort((left, right) => right.updated - left.updated),
+    )
     const latest = () => list()[0]
 
     const messages = (sessionID: string | undefined): CommandMessage[] => {

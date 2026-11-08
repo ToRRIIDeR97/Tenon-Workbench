@@ -10,7 +10,14 @@ type Driver = {
   getBlob(id: string): Promise<Blob | null>
 }
 
-export type DraftStore = AsyncStorage & { putBlob(blob: Blob): Promise<BlobReference> }
+export type DraftStore = AsyncStorage & {
+  putBlob(blob: Blob): Promise<BlobReference>
+  /** Write every draft still waiting for its quiet period. */
+  flush(): Promise<void>
+}
+
+/** Trailing quiet period before a changed draft is encoded and written. */
+export const DRAFT_WRITE_DELAY_MS = 200
 const urls = new Map<string, string>()
 
 function blobUrl(id: string, blob: Blob) {
@@ -33,7 +40,7 @@ export async function createBlobReference(blob: Blob): Promise<BlobReference> {
   return { id, url: blobUrl(id, blob) }
 }
 
-export function createDraftStore(driver: Driver): DraftStore {
+export function createDraftStore(driver: Driver, options: { delay?: number } = {}): DraftStore {
   const versions = new Map<string, number>()
   const putBlob = async (blob: Blob) => {
     const id = await driver.putBlob(blob)
@@ -75,22 +82,72 @@ export function createDraftStore(driver: Driver): DraftStore {
       await Promise.all(Object.entries(item).map(async ([key, entry]) => [key, await decode(entry)])),
     )
   }
+  // Each keystroke in a prompt rewrites its draft. Encoding and handing it to the driver (IPC on desktop)
+  // happens once per quiet period instead, and pending writes land before the page is hidden or unloaded.
+  type Pending = {
+    value: string
+    timer: ReturnType<typeof setTimeout>
+    done: Promise<void>
+    resolve: () => void
+    reject: (cause: unknown) => void
+  }
+  const pending = new Map<string, Pending>()
+  const write = async (key: string, value: string) => {
+    const version = (versions.get(key) ?? 0) + 1
+    versions.set(key, version)
+    const encoded = JSON.stringify(await encode(JSON.parse(value)))
+    if (versions.get(key) === version) await driver.set(key, encoded)
+  }
+  const flushKey = (key: string) => {
+    const item = pending.get(key)
+    if (!item) return Promise.resolve()
+    pending.delete(key)
+    clearTimeout(item.timer)
+    void write(key, item.value).then(item.resolve, item.reject)
+    return item.done
+  }
+  const cancelKey = (key: string) => {
+    const item = pending.get(key)
+    if (!item) return
+    pending.delete(key)
+    clearTimeout(item.timer)
+    item.resolve()
+  }
+  const flush = () => Promise.all([...pending.keys()].map(flushKey)).then(() => undefined)
+  if (typeof window !== "undefined" && typeof document !== "undefined") {
+    window.addEventListener("pagehide", () => void flush())
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) void flush()
+    })
+  }
+  const delay = options.delay ?? DRAFT_WRITE_DELAY_MS
   return {
     getItem: async (key) => {
+      // A read never returns what was on disk before a write that is still waiting.
+      await flushKey(key)
       const value = await driver.get(key)
       return value === null ? null : JSON.stringify(await decode(JSON.parse(value)))
     },
-    setItem: async (key, value) => {
-      const version = (versions.get(key) ?? 0) + 1
-      versions.set(key, version)
-      const encoded = JSON.stringify(await encode(JSON.parse(value)))
-      if (versions.get(key) === version) await driver.set(key, encoded)
+    setItem: (key, value) => {
+      const current = pending.get(key)
+      if (current) {
+        clearTimeout(current.timer)
+        current.value = value
+        current.timer = setTimeout(() => void flushKey(key), delay)
+        return current.done
+      }
+      const { promise: done, resolve, reject } = Promise.withResolvers<void>()
+      pending.set(key, { value, done, resolve, reject, timer: setTimeout(() => void flushKey(key), delay) })
+      return done
     },
     removeItem: async (key) => {
+      // A remove is not undone by a write that was still waiting.
+      cancelKey(key)
       versions.set(key, (versions.get(key) ?? 0) + 1)
       await driver.remove(key)
     },
     putBlob,
+    flush,
   }
 }
 
