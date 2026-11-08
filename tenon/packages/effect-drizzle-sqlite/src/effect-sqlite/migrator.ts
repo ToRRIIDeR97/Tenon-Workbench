@@ -11,5 +11,9 @@ export function migrate<TRelations extends AnyRelations>(
   config: MigrationConfig,
 ) {
   const migrations = readMigrationFiles(config)
-  return coreMigrate(migrations, db._.session as unknown as SQLiteEffectSession<unknown, EffectSQLiteQueryEffectHKT, EmptyRelations>, config)
+  return coreMigrate(
+    migrations,
+    db._.session as unknown as SQLiteEffectSession<unknown, EffectSQLiteQueryEffectHKT, EmptyRelations>,
+    config,
+  )
 }
