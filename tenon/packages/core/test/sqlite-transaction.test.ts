@@ -19,7 +19,7 @@ const nodeLayer = nodeSupported ? (await import("@tenon/core/database/sqlite.nod
 
 const drivers = [
   { name: "bun:sqlite", layer: bunLayer, supported: true },
-  { name: "node:sqlite", layer: nodeLayer as typeof bunLayer, supported: nodeSupported },
+  { name: "node:sqlite", layer: nodeLayer ?? bunLayer, supported: nodeLayer !== undefined },
 ]
 
 for (const driver of drivers) {
