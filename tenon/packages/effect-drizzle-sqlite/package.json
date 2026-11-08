@@ -12,8 +12,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./effect-sqlite": "./src/effect-sqlite/index.ts",
-    "./effect-sqlite/migrator": "./src/effect-sqlite/migrator.ts",
-    "./sqlite-core/effect": "./src/sqlite-core/effect/index.ts"
+    "./effect-sqlite/migrator": "./src/effect-sqlite/migrator.ts"
   },
   "devDependencies": {
     "@effect/sql-sqlite-bun": "catalog:",

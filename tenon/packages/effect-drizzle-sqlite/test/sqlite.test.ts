@@ -99,6 +99,83 @@ test("rolls back explicit transaction rollback", async () => {
   )
 })
 
+test("nested transactions roll back to their savepoint", async () => {
+  await run(
+    Effect.gen(function* () {
+      const db = yield* makeDb
+
+      yield* db.transaction((tx) =>
+        Effect.gen(function* () {
+          yield* tx.insert(users).values({ name: "Outer" })
+          yield* tx
+            .transaction((nested) =>
+              nested
+                .insert(users)
+                .values({ name: "Inner" })
+                .pipe(Effect.andThen(Effect.fail("boom"))),
+            )
+            .pipe(Effect.ignore)
+          yield* tx.transaction((nested) => nested.insert(users).values({ name: "Kept" }))
+        }),
+      )
+
+      expect(yield* db.select({ name: users.name }).from(users)).toEqual([{ name: "Outer" }, { name: "Kept" }])
+    }),
+  )
+})
+
+test("a failed outer transaction discards committed savepoints", async () => {
+  await run(
+    Effect.gen(function* () {
+      const db = yield* makeDb
+
+      yield* db
+        .transaction((tx) =>
+          tx
+            .transaction((nested) => nested.insert(users).values({ name: "Inner" }))
+            .pipe(Effect.andThen(Effect.fail("boom"))),
+        )
+        .pipe(Effect.ignore)
+
+      expect(yield* db.select().from(users)).toEqual([])
+    }),
+  )
+})
+
+test("transaction behavior picks the BEGIN statement", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "effect-drizzle-sqlite-"))
+  const filename = join(dir, "reserved.db")
+  const holder = new Database(filename)
+
+  try {
+    holder.run("create table users (id integer primary key autoincrement, name text not null)")
+    holder.run("begin immediate")
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const db = yield* EffectDrizzleSqlite.makeWithDefaults()
+        yield* db.run(sql`pragma busy_timeout = 0`)
+
+        // Another connection holds the write lock: a deferred transaction can still read, but
+        // an immediate one, and the client's default BEGIN IMMEDIATE, cannot start.
+        expect(yield* db.transaction((tx) => tx.select().from(users), { behavior: "deferred" })).toEqual([])
+        for (const transaction of [
+          db.transaction((tx) => tx.select().from(users), { behavior: "immediate" }),
+          db.transaction((tx) => tx.select().from(users)),
+        ]) {
+          const error = yield* transaction.pipe(Effect.flip)
+          if (!isSqlError(error)) throw new Error("Expected SqlError")
+          expect(error.reason._tag).toBe("LockTimeoutError")
+        }
+      }).pipe(Effect.provide(SqliteClient.layer({ filename, disableWAL: true, busyTimeout: 0 })), Effect.scoped),
+    )
+  } finally {
+    if (holder.inTransaction) holder.run("rollback")
+    holder.close()
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
 test("redacts bound values from failed query errors", async () => {
   await run(
     Effect.gen(function* () {
@@ -107,7 +184,7 @@ test("redacts bound values from failed query errors", async () => {
 
       const error = yield* db.insert(users).values({ id: 1, name: "sk-secret-token" }).pipe(Effect.flip)
 
-      expect(error.params).toEqual(["[redacted]", "[redacted]"])
+      expect(error.params).toBeUndefined()
       expect(error.message).not.toContain("sk-secret-token")
       expect(error.message).toContain("insert into")
     }),
