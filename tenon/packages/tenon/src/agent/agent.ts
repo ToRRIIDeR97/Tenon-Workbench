@@ -407,6 +407,8 @@ const layer = Layer.effect(
             },
           },
           temperature: 0.3,
+          // The system prompt here is Tenon's own agent-generation prompt.
+          allowSystemInMessages: true,
           messages: [
             ...(isOpenaiOauth
               ? []

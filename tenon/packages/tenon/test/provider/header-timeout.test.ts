@@ -1,6 +1,6 @@
 import { afterEach, expect } from "bun:test"
 import { createServer, type Server } from "node:http"
-import { streamText } from "ai"
+import { APICallError, streamText } from "ai"
 import { LayerNode } from "@tenon/core/effect/layer-node"
 import { CrossSpawnSpawner } from "@tenon/core/cross-spawn-spawner"
 import { Effect } from "effect"
@@ -73,7 +73,9 @@ it.live("chunkTimeout raises a response stream error when SSE body stalls", () =
               return error
             }
           })
-          expect(error).toBeInstanceOf(ProviderError.ResponseStreamError)
+          // @ai-sdk/provider-utils wraps body read failures in APICallError with the original as cause.
+          const cause = APICallError.isInstance(error) ? error.cause : error
+          expect(cause).toBeInstanceOf(ProviderError.ResponseStreamError)
         }),
       { config: providerConfig(server.url, { chunkTimeout: 50 }) },
     )
