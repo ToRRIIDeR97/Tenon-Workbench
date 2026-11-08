@@ -115,16 +115,18 @@ export function createDraftStore(driver: Driver, options: { delay?: number } = {
   }
   const flush = () => Promise.all([...pending.keys()].map(flushKey)).then(() => undefined)
   if (typeof window !== "undefined" && typeof document !== "undefined") {
-    window.addEventListener("pagehide", () => void flush())
+    // A failed write already rejects the setItem call that queued it.
+    window.addEventListener("pagehide", () => void flush().catch(() => undefined))
     document.addEventListener("visibilitychange", () => {
-      if (document.hidden) void flush()
+      if (document.hidden) void flush().catch(() => undefined)
     })
   }
   const delay = options.delay ?? DRAFT_WRITE_DELAY_MS
   return {
     getItem: async (key) => {
       // A read never returns what was on disk before a write that is still waiting.
-      await flushKey(key)
+      // A failed write is reported to its setItem caller; the read still returns what is stored.
+      await flushKey(key).catch(() => undefined)
       const value = await driver.get(key)
       return value === null ? null : JSON.stringify(await decode(JSON.parse(value)))
     },

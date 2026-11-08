@@ -29,6 +29,7 @@ describe("createDraftStore", () => {
     void store.setItem("prompt", JSON.stringify({ text: "h" }))
     void store.setItem("prompt", JSON.stringify({ text: "he" }))
     const done = store.setItem("prompt", JSON.stringify({ text: "hey" }))
+    await wait(5)
     expect(memory.writes).toEqual([])
     await done
     expect(memory.writes).toEqual([["prompt", JSON.stringify({ text: "hey" })]])
@@ -53,6 +54,18 @@ describe("createDraftStore", () => {
     await wait(30)
     expect(memory.writes).toEqual([])
     expect(await store.getItem("prompt")).toBeNull()
+  })
+
+  test("a failed write rejects its setItem call but not a later read", async () => {
+    const memory = memoryDriver()
+    memory.documents.set("prompt", JSON.stringify({ text: "stored" }))
+    const store = createDraftStore(
+      { ...memory.driver, set: async () => Promise.reject(new Error("disk")) },
+      { delay: 10_000 },
+    )
+    const pending = store.setItem("prompt", JSON.stringify({ text: "new" }))
+    expect(await store.getItem("prompt")).toBe(JSON.stringify({ text: "stored" }))
+    await expect(pending).rejects.toThrow("disk")
   })
 
   test("pending writes land when the page is hidden or unloaded", async () => {
