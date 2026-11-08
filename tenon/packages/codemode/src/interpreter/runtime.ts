@@ -1,6 +1,6 @@
 import { parse } from "acorn"
 import { Cause, Effect, Exit, Fiber, Semaphore } from "effect"
-import { DiagnosticCategory, ModuleKind, ScriptTarget, flattenDiagnosticMessageText, transpileModule } from "typescript"
+import { transform } from "sucrase"
 import {
   copyIn,
   copyOut,
@@ -112,34 +112,67 @@ import {
   SandboxURLSearchParams,
 } from "../values.js"
 
-const parseProgram = (code: string): ProgramNode => {
-  const transpiled = transpileModule(`async function __codemode__() {\n${code}\n}`, {
-    reportDiagnostics: true,
-    compilerOptions: {
-      target: ScriptTarget.ESNext,
-      module: ModuleKind.ESNext,
-    },
-  })
-  const diagnostic = transpiled.diagnostics?.find((item) => item.category === DiagnosticCategory.Error)
+const WRAPPER_PREFIX = "async function __codemode__() {\n"
 
-  if (diagnostic) {
-    throw new InterpreterRuntimeError(
-      `Failed to parse TypeScript: ${flattenDiagnosticMessageText(diagnostic.messageText, "\n")}`,
-      undefined,
-      "ParseError",
+// Sucrase and acorn report a 1-based line in the wrapped source, which `sourceLocation`
+// maps back to the model's code. `column` is 0-based here, as in an acorn node.
+const parseError = (reason: string, code: string, line?: number, column?: number): InterpreterRuntimeError => {
+  const message = `Failed to parse TypeScript: ${reason.replace(/\s*\(\d+:\d+\)$/, "")}`
+  if (line === undefined || column === undefined) return new InterpreterRuntimeError(message, undefined, "ParseError")
+  // A wrapped line past the model's code is the wrapper's closing brace: report the end of input.
+  const lastLine = code.split("\n").length + 1
+  const position =
+    line > lastLine ? { line: lastLine, column: (code.split("\n").at(-1) ?? "").length } : { line, column }
+  return new InterpreterRuntimeError(
+    message,
+    { type: "ParseError", loc: { start: position, end: position } },
+    "ParseError",
+  )
+}
+
+const errorPosition = (error: unknown): { line?: number; column?: number } => {
+  const loc = isRecord(error) && isRecord(error.loc) ? error.loc : undefined
+  return typeof loc?.line === "number" && typeof loc.column === "number" ? { line: loc.line, column: loc.column } : {}
+}
+
+const parseProgram = (code: string): ProgramNode => {
+  // Sucrase only strips TypeScript syntax: no type checking and no ES downlevelling.
+  let outputText: string
+  try {
+    outputText = transform(`${WRAPPER_PREFIX}${code}\n}`, {
+      transforms: ["typescript"],
+      disableESTransforms: true,
+    }).code
+  } catch (error) {
+    if (!(error instanceof Error)) throw error
+    const position = errorPosition(error)
+    // Sucrase columns are 1-based.
+    throw parseError(
+      error.message,
+      code,
+      position.line,
+      position.column === undefined ? undefined : position.column - 1,
     )
   }
 
-  const bodyStart = transpiled.outputText.indexOf("{") + 1
-  const bodyEnd = transpiled.outputText.lastIndexOf("}")
-  const executableCode = transpiled.outputText.slice(bodyStart, bodyEnd)
-  const parsed = parse(executableCode, {
-    ecmaVersion: "latest",
-    sourceType: "script",
-    allowReturnOutsideFunction: true,
-    allowAwaitOutsideFunction: true,
-    locations: true,
-  }) as unknown
+  const bodyStart = outputText.indexOf("{") + 1
+  const bodyEnd = outputText.lastIndexOf("}")
+  const executableCode = outputText.slice(bodyStart, bodyEnd)
+  let parsed: unknown
+  try {
+    parsed = parse(executableCode, {
+      ecmaVersion: "latest",
+      sourceType: "script",
+      allowReturnOutsideFunction: true,
+      allowAwaitOutsideFunction: true,
+      locations: true,
+    })
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error
+    // `executableCode` starts at the wrapper's newline, so its lines already match the wrapped source.
+    const position = errorPosition(error)
+    throw parseError(error.message, code, position.line, position.column)
+  }
 
   if (!isRecord(parsed) || parsed.type !== "Program" || !Array.isArray(parsed.body)) {
     throw new InterpreterRuntimeError("Failed to parse script as a Program node.")

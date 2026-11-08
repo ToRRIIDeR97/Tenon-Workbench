@@ -191,7 +191,7 @@ export const getNode = (node: AstNode, key: string): AstNode => asNode(node[key]
 
 export const sourceLocation = (node: AstNode): { readonly line: number; readonly column: number } => ({
   line: Math.max(1, (node.loc?.start.line ?? 2) - 1),
-  column: Math.max(1, (node.loc?.start.column ?? 4) - 3),
+  column: (node.loc?.start.column ?? 0) + 1,
 })
 
 export const formatLocation = (node?: AstNode): string => {
