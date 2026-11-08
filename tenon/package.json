@@ -12,7 +12,6 @@
     "lint": "oxlint",
     "format:check": "prettier --check packages --ignore-path .gitignore --ignore-path .prettierignore --ignore-path packages/app/.gitignore --ignore-path packages/desktop/.gitignore --ignore-path packages/sdk/.gitignore --ignore-path packages/tenon/.gitignore",
     "typecheck": "bun turbo typecheck",
-    "postinstall": "bun run --cwd packages/core fix-node-pty",
     "prepare": "cd .. && husky tenon/.husky",
     "test": "echo 'do not run tests from root' && exit 1"
   },
