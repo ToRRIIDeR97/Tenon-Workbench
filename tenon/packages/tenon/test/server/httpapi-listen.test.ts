@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test"
+import http from "node:http"
 import net from "node:net"
 import path from "node:path"
 import { pathToFileURL } from "node:url"
@@ -272,6 +273,37 @@ describe("HttpApi Server.listen", () => {
       await withTimeout(socket.closed, 5_000, "timed out waiting for websocket close before graceful stop resolved")
     } finally {
       if (!stopped) await stop(listener, "timed out cleaning up overlapping stop listener").catch(() => undefined)
+    }
+  })
+
+  test("a loopback listener refuses foreign Host and Origin headers", async () => {
+    const listener = await startListener()
+    // node:http, because fetch derives Host from the URL.
+    const status = (headers: Record<string, string>) =>
+      new Promise<number>((resolve, reject) => {
+        http
+          .get(
+            new URL("/global/health", listener.url),
+            { headers: { authorization: authorization(), ...headers } },
+            (response) => {
+              response.resume()
+              resolve(response.statusCode ?? 0)
+            },
+          )
+          .on("error", reject)
+      })
+    try {
+      const port = listener.url.port
+      expect(await status({})).toBe(200)
+      expect(await status({ host: `localhost:${port}` })).toBe(200)
+      expect(await status({ host: `evil.example:${port}` })).toBe(403)
+      expect(await status({ origin: "oc://renderer" })).toBe(200)
+      expect(await status({ origin: "http://localhost:5173" })).toBe(200)
+      expect(await status({ origin: `http://127.0.0.1:${port}` })).toBe(200)
+      expect(await status({ origin: "https://evil.example" })).toBe(403)
+      expect(await status({ origin: "null" })).toBe(403)
+    } finally {
+      await stop(listener, "timed out cleaning up host guard listener").catch(() => undefined)
     }
   })
 

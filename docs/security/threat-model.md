@@ -198,6 +198,21 @@ RunAsNode.
 - **CORS.** The allowlist is `oc://renderer` (exact match), numeric-port
   `localhost` and `127.0.0.1` origins for development, and origins passed to
   `Server.listen`. Tauri and `*.opencode.ai` origins are no longer trusted.
+- **Host and Origin guard.** A listener bound to a loopback address answers
+  only a `Host` of `localhost`, `127.x.x.x`, `[::1]` or its own hostname (any
+  port), so a DNS-rebound page is refused with 403. A request that carries an
+  `Origin` must match the CORS allowlist or name the same host as `Host` (the
+  server's own web UI), else 403, whatever the route or method. CLI and TUI
+  clients send no `Origin`. A listener bound wider (with a password) keeps
+  only the CORS and credential checks (`httpapi/middleware/host-guard.ts`).
+- **Provider keys file.** `auth.json` is written to a sibling temp file
+  created with mode `0600` and renamed over the old one (Windows ignores the
+  mode; the file inherits the profile ACL, and a rename blocked by a brief
+  lock is retried). Sets and removes are serialized in process. A file that
+  exists but can't be read or parsed is never overwritten: the save fails.
+- **Schema rejection logs.** A rejected request logs its kind and the issue
+  tags and paths only. The response still tells the caller what was wrong,
+  which can quote its own payload.
 - **Body size.** The server rejects a declared request body over 32 MiB with
   413. Effect's `MaxBodySize` stops a streamed body at the same cap. The cap
   matches the session export limit and leaves room for base64 image
