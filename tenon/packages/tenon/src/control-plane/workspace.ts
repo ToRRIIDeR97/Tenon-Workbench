@@ -81,13 +81,10 @@ export class SyncHttpError extends Schema.TaggedError<SyncHttpError>()("Workspac
   body: Schema.optional(Schema.String),
 }) {}
 
-export class WorkspaceNotFoundError extends Schema.TaggedError<WorkspaceNotFoundError>()(
-  "WorkspaceNotFoundError",
-  {
-    message: Schema.String,
-    workspaceID: WorkspaceV2.ID,
-  },
-) {}
+export class WorkspaceNotFoundError extends Schema.TaggedError<WorkspaceNotFoundError>()("WorkspaceNotFoundError", {
+  message: Schema.String,
+  workspaceID: WorkspaceV2.ID,
+}) {}
 
 export class SessionEventsNotFoundError extends Schema.TaggedError<SessionEventsNotFoundError>()(
   "WorkspaceSessionEventsNotFoundError",
@@ -97,16 +94,13 @@ export class SessionEventsNotFoundError extends Schema.TaggedError<SessionEvents
   },
 ) {}
 
-export class SessionWarpHttpError extends Schema.TaggedError<SessionWarpHttpError>()(
-  "WorkspaceSessionWarpHttpError",
-  {
-    message: Schema.String,
-    workspaceID: WorkspaceV2.ID,
-    sessionID: SessionID,
-    status: Schema.Number,
-    body: Schema.String,
-  },
-) {}
+export class SessionWarpHttpError extends Schema.TaggedError<SessionWarpHttpError>()("WorkspaceSessionWarpHttpError", {
+  message: Schema.String,
+  workspaceID: WorkspaceV2.ID,
+  sessionID: SessionID,
+  status: Schema.Number,
+  body: Schema.String,
+}) {}
 
 export class SyncTimeoutError extends Schema.TaggedError<SyncTimeoutError>()("WorkspaceSyncTimeoutError", {
   message: Schema.String,

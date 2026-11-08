@@ -330,11 +330,7 @@ describe("http-recorder", () => {
             "websocket/replay",
             { url: "wss://example.test/realtime" },
             { directory, compareClientMessagesAsJson: true, mode: "replay" },
-          ).pipe(
-            Layer.provide(
-              Layer.succeed(Socket.Socket, unexpectedLiveSocket),
-            ),
-          ),
+          ).pipe(Layer.provide(Layer.succeed(Socket.Socket, unexpectedLiveSocket))),
         ),
       ),
     )
@@ -373,9 +369,7 @@ describe("http-recorder", () => {
         Effect.scoped,
         Effect.provide(
           HttpRecorder.socket("websocket/public-layer", { directory }).pipe(
-            Layer.provide(
-              Layer.succeed(Socket.Socket, unexpectedLiveSocket),
-            ),
+            Layer.provide(Layer.succeed(Socket.Socket, unexpectedLiveSocket)),
           ),
         ),
       ),
@@ -411,11 +405,7 @@ describe("http-recorder", () => {
             "websocket/concurrent-handlers",
             { url: "wss://example.test/realtime" },
             { directory, mode: "replay" },
-          ).pipe(
-            Layer.provide(
-              Layer.succeed(Socket.Socket, unexpectedLiveSocket),
-            ),
-          ),
+          ).pipe(Layer.provide(Layer.succeed(Socket.Socket, unexpectedLiveSocket))),
         ),
       ),
     )
@@ -447,11 +437,7 @@ describe("http-recorder", () => {
             "websocket/early-close",
             { url: "wss://example.test/realtime" },
             { directory, mode: "replay" },
-          ).pipe(
-            Layer.provide(
-              Layer.succeed(Socket.Socket, unexpectedLiveSocket),
-            ),
-          ),
+          ).pipe(Layer.provide(Layer.succeed(Socket.Socket, unexpectedLiveSocket))),
         ),
       ),
     )
@@ -535,11 +521,7 @@ describe("http-recorder", () => {
             "websocket/binary",
             { url: "wss://example.test/binary" },
             { directory, mode: "replay" },
-          ).pipe(
-            Layer.provide(
-              Layer.succeed(Socket.Socket, unexpectedLiveSocket),
-            ),
-          ),
+          ).pipe(Layer.provide(Layer.succeed(Socket.Socket, unexpectedLiveSocket))),
         ),
       ),
     )

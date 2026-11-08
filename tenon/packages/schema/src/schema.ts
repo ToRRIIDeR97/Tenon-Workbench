@@ -28,7 +28,10 @@ export const statics =
     return Object.defineProperties(
       schema.annotate({}),
       Object.fromEntries(
-        Object.entries(added).map(([key, value]) => [key, { value, enumerable: true, writable: true, configurable: true }]),
+        Object.entries(added).map(([key, value]) => [
+          key,
+          { value, enumerable: true, writable: true, configurable: true },
+        ]),
       ),
     ) as S & M
   }

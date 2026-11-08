@@ -19,8 +19,7 @@ function restoreWorkspace<R>(workspace: WorkspaceV2.ID | undefined, fn: () => R)
 function captureSync() {
   const fiber = Fiber.getCurrent()
   const instance = fiber ? Context.getUnsafe(fiber.context, InstanceRef) : undefined
-  const workspace =
-    (fiber ? Context.getUnsafe(fiber.context, WorkspaceRef) : undefined) ?? WorkspaceContext.workspaceID
+  const workspace = (fiber ? Context.getUnsafe(fiber.context, WorkspaceRef) : undefined) ?? WorkspaceContext.workspaceID
   return { instance, workspace }
 }
 

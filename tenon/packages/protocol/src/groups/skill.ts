@@ -6,11 +6,9 @@ import { LocationQuery, locationQueryOpenApi } from "./location"
 
 const errorFields = { reason: Schema.String, message: Schema.String }
 
-export class SkillNotFoundError extends Schema.TaggedError<SkillNotFoundError>()(
-  "SkillNotFoundError",
-  errorFields,
-  { httpApiStatus: 404 },
-) {}
+export class SkillNotFoundError extends Schema.TaggedError<SkillNotFoundError>()("SkillNotFoundError", errorFields, {
+  httpApiStatus: 404,
+}) {}
 
 export class SkillToggleWriteError extends Schema.TaggedError<SkillToggleWriteError>()(
   "SkillToggleWriteError",

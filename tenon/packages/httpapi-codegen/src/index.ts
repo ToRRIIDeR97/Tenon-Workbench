@@ -715,7 +715,11 @@ function sameEncoding(left: SchemaAST.AST, right: SchemaAST.AST): boolean {
   if (
     left.encoding?.some((link, index) => {
       const other = right.encoding?.[index]
-      return other === undefined || !sameTransformation(link.transformation, other.transformation) || !sameEncoding(link.to, other.to)
+      return (
+        other === undefined ||
+        !sameTransformation(link.transformation, other.transformation) ||
+        !sameEncoding(link.to, other.to)
+      )
     })
   )
     return false
@@ -981,7 +985,8 @@ function metadataPortable(ast: SchemaAST.AST, seen: Set<SchemaAST.AST>): boolean
 // callback. Call it with placeholder type parameters and apply the same rules:
 // the runtime must come from `Schema` or an `effect` namespace import.
 const placeholderTypeParameters = new Proxy([], {
-  get: (target, key) => (typeof key === "string" && /^\d+$/.test(key) ? { runtime: "?", Type: "?" } : Reflect.get(target, key)),
+  get: (target, key) =>
+    typeof key === "string" && /^\d+$/.test(key) ? { runtime: "?", Type: "?" } : Reflect.get(target, key),
 })
 
 function codePortable(toCode: unknown): boolean {
@@ -1016,10 +1021,7 @@ function codePortable(toCode: unknown): boolean {
 function annotationsPortable(annotations: Schema.Annotations.Annotations | undefined) {
   if (annotations === undefined) return true
   return Object.entries(annotations).every(([key, value]) => {
-    if (
-      key.startsWith("toCodec") ||
-      ["toArbitrary", "toFormatter", "toEquivalence", "~constructor"].includes(key)
-    ) {
+    if (key.startsWith("toCodec") || ["toArbitrary", "toFormatter", "toEquivalence", "~constructor"].includes(key)) {
       return true
     }
     if (key === "toCode") return codePortable(value)
@@ -1099,7 +1101,12 @@ function streamEncodedDataSchema(schema: Extract<StreamSchema, { readonly _tag: 
   // string link and take the encoded side of what remains.
   const links = data.encoding
   const last = links?.at(-1)
-  if (links === undefined || last === undefined || !SchemaAST.isString(last.to) || jsonContent(last.transformation) === undefined) {
+  if (
+    links === undefined ||
+    last === undefined ||
+    !SchemaAST.isString(last.to) ||
+    jsonContent(last.transformation) === undefined
+  ) {
     throw new GenerationError({ reason: "Invalid SSE data schema" })
   }
   const content: SchemaAST.AST = Object.assign(Object.create(Object.getPrototypeOf(data)), data, {

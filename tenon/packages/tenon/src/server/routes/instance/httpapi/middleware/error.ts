@@ -1,13 +1,7 @@
 import { NamedError } from "@tenon/core/util/error"
 import { ConfigErrorV1 } from "@tenon/core/v1/config/error"
 import { Cause, Effect } from "effect"
-import {
-  HttpRouter,
-  HttpServerError,
-  HttpServerRequest,
-  HttpServerRespondable,
-  HttpServerResponse,
-} from "effect/http"
+import { HttpRouter, HttpServerError, HttpServerRequest, HttpServerRespondable, HttpServerResponse } from "effect/http"
 import { stat } from "node:fs/promises"
 
 // A workspace whose folder was moved or deleted fails deep inside its per-folder services. When the

@@ -37,12 +37,9 @@ export class ApplyChangesError extends Schema.TaggedError<ApplyChangesError>()("
   message: Schema.String,
 }) {}
 
-export class CaptureChangesError extends Schema.TaggedError<CaptureChangesError>()(
-  "MoveSession.CaptureChangesError",
-  {
-    message: Schema.String,
-  },
-) {}
+export class CaptureChangesError extends Schema.TaggedError<CaptureChangesError>()("MoveSession.CaptureChangesError", {
+  message: Schema.String,
+}) {}
 
 export class ResetSourceChangesError extends Schema.TaggedError<ResetSourceChangesError>()(
   "MoveSession.ResetSourceChangesError",

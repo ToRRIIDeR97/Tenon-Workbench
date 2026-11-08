@@ -40,10 +40,10 @@ export function websocket(
         runRaw(socket, () => Effect.void, {
           onOpen: write(WebSocketTracker.SERVER_CLOSING_EVENT()).pipe(Effect.catch(() => Effect.void)),
         }).pipe(
-            Effect.timeout("1 second"),
-            Effect.catchReason("SocketError", "SocketCloseError", () => Effect.void),
-            Effect.catch(() => Effect.void),
-          )
+          Effect.timeout("1 second"),
+          Effect.catchReason("SocketError", "SocketCloseError", () => Effect.void),
+          Effect.catch(() => Effect.void),
+        )
       const closeAccepted = Effect.all([closeSocket(inbound, writeInbound), closeSocket(outbound, writeOutbound)], {
         concurrency: "unbounded",
         discard: true,
@@ -63,21 +63,21 @@ export function websocket(
       }
 
       yield* runRaw(outbound, (message) => writeInbound(message)).pipe(
-          Effect.catchReason("SocketError", "SocketCloseError", (reason) =>
-            writeInbound(new Socket.CloseEvent(reason.code, reason.closeReason)).pipe(Effect.catch(() => Effect.void)),
-          ),
-          Effect.catch(() =>
-            writeInbound(new Socket.CloseEvent(1011, "proxy error")).pipe(Effect.catch(() => Effect.void)),
-          ),
-          Effect.forkScoped,
-        )
+        Effect.catchReason("SocketError", "SocketCloseError", (reason) =>
+          writeInbound(new Socket.CloseEvent(reason.code, reason.closeReason)).pipe(Effect.catch(() => Effect.void)),
+        ),
+        Effect.catch(() =>
+          writeInbound(new Socket.CloseEvent(1011, "proxy error")).pipe(Effect.catch(() => Effect.void)),
+        ),
+        Effect.forkScoped,
+      )
 
       yield* runRaw(inbound, (message) => {
         return writeOutbound(typeof message === "string" ? message : message.slice())
       }).pipe(
-          Effect.catch(() => Effect.void),
-          Effect.ensuring(writeOutbound(new Socket.CloseEvent()).pipe(Effect.catch(() => Effect.void))),
-        )
+        Effect.catch(() => Effect.void),
+        Effect.ensuring(writeOutbound(new Socket.CloseEvent()).pipe(Effect.catch(() => Effect.void))),
+      )
       return HttpServerResponse.empty()
     }).pipe(Effect.orDie),
   )

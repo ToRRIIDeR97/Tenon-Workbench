@@ -215,10 +215,10 @@ export const ptyConnectHandlers = HttpApiBuilder.group(PtyConnectApi, "pty-conne
         const { write } = yield* socket.writer
         const closeAccepted = (event: Socket.CloseEvent) =>
           runRaw(socket, () => Effect.void, { onOpen: write(event).pipe(Effect.catch(() => Effect.void)) }).pipe(
-              Effect.timeout("1 second"),
-              Effect.catchReason("SocketError", "SocketCloseError", () => Effect.void),
-              Effect.catch(() => Effect.void),
-            )
+            Effect.timeout("1 second"),
+            Effect.catchReason("SocketError", "SocketCloseError", () => Effect.void),
+            Effect.catch(() => Effect.void),
+          )
         const registered = yield* WebSocketTracker.register(write(WebSocketTracker.SERVER_CLOSING_EVENT()))
         if (!registered) {
           yield* closeAccepted(WebSocketTracker.SERVER_CLOSING_EVENT())

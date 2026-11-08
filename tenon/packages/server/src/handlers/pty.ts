@@ -171,10 +171,10 @@ export const PtyHandler = HttpApiBuilder.group(Api, "server.pty", (handlers) =>
           const { write } = yield* socket.writer
           const closeAccepted = (event: Socket.CloseEvent) =>
             runRaw(socket, () => Effect.void, { onOpen: write(event).pipe(Effect.catch(() => Effect.void)) }).pipe(
-                Effect.timeout("1 second"),
-                Effect.catchReason("SocketError", "SocketCloseError", () => Effect.void),
-                Effect.catch(() => Effect.void),
-              )
+              Effect.timeout("1 second"),
+              Effect.catchReason("SocketError", "SocketCloseError", () => Effect.void),
+              Effect.catch(() => Effect.void),
+            )
 
           // Outbound frames flow through one queue drained by a single writer so replay, live
           // output, and the close frame keep their order.
