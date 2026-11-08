@@ -78,4 +78,51 @@ return {
       location: { line: 2, column: 5 },
     })
   })
+  const parseFailure = async (code: string) => {
+    const result = await execute(code)
+    return result.ok ? undefined : result.error
+  }
+
+  test("rejects namespaces with values at the namespace's position", async () => {
+    const message = "TypeScript namespaces are not supported in code mode; use a plain object instead."
+    expect(await parseFailure("const a = 1\n  namespace NS { export const b = a }\nreturn NS.b")).toStrictEqual({
+      kind: "ParseError",
+      message: `${message} (line 2, col 3)`,
+      location: { line: 2, column: 3 },
+    })
+    expect(await parseFailure("module M { export const z = 1 }\nreturn M.z")).toMatchObject({
+      kind: "ParseError",
+      location: { line: 1, column: 1 },
+    })
+    expect(await parseFailure("namespace A.B { export const c = 3 }")).toMatchObject({ kind: "ParseError" })
+  })
+
+  test("keeps ambient declarations and identifiers named namespace or module", async () => {
+    const result = await execute(`
+declare namespace Api { namespace Inner { const v: number } }
+declare module "external" { export = Thing }
+declare module "shorthand"
+declare global { interface Window { x: 1 } }
+const namespace = 1
+const module = { value: 2 }
+type T = { namespace: string; module: string }
+return namespace + module.value
+`)
+
+    expect(result.ok ? result.value : result.error).toBe(3)
+  })
+
+  test("rejects import-equals and export-equals declarations", async () => {
+    expect(await parseFailure('const a = 1\nimport fs = require("fs")')).toMatchObject({
+      kind: "ParseError",
+      message: expect.stringContaining("`import ... =` declarations are not supported"),
+      location: { line: 2, column: 1 },
+    })
+    expect(await parseFailure("import type T = Other.T\nreturn 1")).toMatchObject({ kind: "ParseError" })
+    expect(await parseFailure("export = 1")).toMatchObject({
+      kind: "ParseError",
+      message: expect.stringContaining("`export =` is not supported"),
+      location: { line: 1, column: 1 },
+    })
+  })
 })

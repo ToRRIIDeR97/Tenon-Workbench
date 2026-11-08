@@ -54,6 +54,7 @@ import {
   unsupportedSyntax,
   UriFunction,
 } from "./model.js"
+import { findUnsupportedTypeScript } from "./unsupported-typescript.js"
 import { arrayMethods, mapMethods, setMethods, spreadItems } from "../stdlib/collections.js"
 import { consoleMethods, MAX_CONSOLE_DEPTH } from "../stdlib/console.js"
 import { dateMethods, dateStatics, invokeDateMethod, invokeDateStatic } from "../stdlib/date.js"
@@ -116,8 +117,7 @@ const WRAPPER_PREFIX = "async function __codemode__() {\n"
 
 // Sucrase and acorn report a 1-based line in the wrapped source, which `sourceLocation`
 // maps back to the model's code. `column` is 0-based here, as in an acorn node.
-const parseError = (reason: string, code: string, line?: number, column?: number): InterpreterRuntimeError => {
-  const message = `Failed to parse TypeScript: ${reason.replace(/\s*\(\d+:\d+\)$/, "")}`
+const parseError = (message: string, code: string, line?: number, column?: number): InterpreterRuntimeError => {
   if (line === undefined || column === undefined) return new InterpreterRuntimeError(message, undefined, "ParseError")
   // A wrapped line past the model's code is the wrapper's closing brace: report the end of input.
   const lastLine = code.split("\n").length + 1
@@ -130,6 +130,15 @@ const parseError = (reason: string, code: string, line?: number, column?: number
   )
 }
 
+const parseFailure = (error: Error): string =>
+  `Failed to parse TypeScript: ${error.message.replace(/\s*\(\d+:\d+\)$/, "")}`
+
+// 1-based line and 0-based column of `offset` in `source`.
+const offsetPosition = (source: string, offset: number): { line: number; column: number } => {
+  const before = source.slice(0, offset)
+  return { line: before.split("\n").length, column: offset - (before.lastIndexOf("\n") + 1) }
+}
+
 const errorPosition = (error: unknown): { line?: number; column?: number } => {
   const loc = isRecord(error) && isRecord(error.loc) ? error.loc : undefined
   return typeof loc?.line === "number" && typeof loc.column === "number" ? { line: loc.line, column: loc.column } : {}
@@ -137,9 +146,10 @@ const errorPosition = (error: unknown): { line?: number; column?: number } => {
 
 const parseProgram = (code: string): ProgramNode => {
   // Sucrase only strips TypeScript syntax: no type checking and no ES downlevelling.
+  const wrapped = `${WRAPPER_PREFIX}${code}\n}`
   let outputText: string
   try {
-    outputText = transform(`${WRAPPER_PREFIX}${code}\n}`, {
+    outputText = transform(wrapped, {
       transforms: ["typescript"],
       disableESTransforms: true,
     }).code
@@ -148,11 +158,18 @@ const parseProgram = (code: string): ProgramNode => {
     const position = errorPosition(error)
     // Sucrase columns are 1-based.
     throw parseError(
-      error.message,
+      parseFailure(error),
       code,
       position.line,
       position.column === undefined ? undefined : position.column - 1,
     )
+  }
+
+  // Sucrase drops value namespaces and emits `import x =` / `export =` as CommonJS: reject them by name.
+  const unsupported = findUnsupportedTypeScript(wrapped)
+  if (unsupported) {
+    const position = offsetPosition(wrapped, unsupported.start)
+    throw parseError(unsupported.reason, code, position.line, position.column)
   }
 
   const bodyStart = outputText.indexOf("{") + 1
@@ -171,7 +188,7 @@ const parseProgram = (code: string): ProgramNode => {
     if (!(error instanceof SyntaxError)) throw error
     // `executableCode` starts at the wrapper's newline, so its lines already match the wrapped source.
     const position = errorPosition(error)
-    throw parseError(error.message, code, position.line, position.column)
+    throw parseError(parseFailure(error), code, position.line, position.column)
   }
 
   if (!isRecord(parsed) || parsed.type !== "Program" || !Array.isArray(parsed.body)) {
