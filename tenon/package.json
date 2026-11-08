@@ -94,10 +94,6 @@
   },
   "trustedDependencies": [
     "esbuild",
-    "protobufjs",
-    "tree-sitter-bash",
-    "tree-sitter-powershell",
-    "web-tree-sitter",
     "electron"
   ],
   "overrides": {
