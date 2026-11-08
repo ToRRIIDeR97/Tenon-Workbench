@@ -321,6 +321,8 @@ const live: Layer.Layer<
           abortSignal: input.abort,
           headers: prepared.headers,
           maxRetries: input.retries ?? 0,
+          // System messages are built by Tenon (agent prompt, instructions), not taken from user content.
+          allowSystemInMessages: true,
           messages: prepared.messages,
           model: wrapLanguageModel({
             model: language,

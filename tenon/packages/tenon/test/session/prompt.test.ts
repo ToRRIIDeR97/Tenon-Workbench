@@ -865,7 +865,9 @@ it.instance("loop continues when finish is unknown", () =>
       noReply: true,
       parts: [{ type: "text", text: "hello" }],
     })
-    yield* llm.push(reply())
+    // A stream that ends without any finish_reason is reported as an error since
+    // @ai-sdk/openai-compatible 2.0.70; an unrecognised finish_reason still maps to "unknown".
+    yield* llm.push(reply().unrecognizedFinish())
     yield* llm.text("second")
 
     const result = yield* prompt.loop({ sessionID: session.id })
