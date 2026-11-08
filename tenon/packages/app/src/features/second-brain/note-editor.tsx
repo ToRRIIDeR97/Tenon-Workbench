@@ -5,7 +5,8 @@ import { KeybindV2 } from "@tenon/ui/v2/keybind-v2"
 import { SegmentedControlItemV2, SegmentedControlV2 } from "@tenon/ui/v2/segmented-control-v2"
 import { Presence } from "@tenon/ui/v2/presence"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
-import { createEffect, createMemo, createSignal, For, on, Show, type JSX } from "solid-js"
+import { debounce } from "@solid-primitives/scheduled"
+import { createEffect, createMemo, createSignal, For, on, onCleanup, Show, type JSX } from "solid-js"
 import {
   applyNoteEditorCommand,
   applySlashCommand,
@@ -44,7 +45,8 @@ export type NoteEditorLabels = Partial<{
 export type NoteEditorProps = {
   value: string
   onOpenNote?: (path: string) => void
-  previewText?: string
+  /** Turns the note into the Markdown the preview renders, e.g. resolving note links. */
+  preview?: (text: string) => string
   onChange: (value: string) => void
   onSave: () => void | Promise<void>
   loading?: boolean
@@ -104,6 +106,9 @@ const insertCommands = noteEditorCommands.filter((command) => !toolbarCommands.i
 // Formatting shortcuts, registered as commands so they win over global ones (mod+b toggles the sidebar elsewhere).
 const shortcuts: Partial<Record<NoteEditorCommand, string>> = { bold: "mod+b", italic: "mod+i" }
 
+// Typing in split mode re-renders the preview once the writer pauses instead of on every key.
+const SPLIT_PREVIEW_DELAY_MS = 150
+
 export function NoteEditor(props: NoteEditorProps) {
   const language = useLanguage()
   const command = useCommand()
@@ -149,6 +154,22 @@ export function NoteEditor(props: NoteEditorProps) {
     slash()?.query
     setActiveCommand(0)
   })
+
+  // Split mode trails the text by a short pause; preview mode, and any switch out of split, shows it at once.
+  const [previewSource, setPreviewSource] = createSignal(props.value)
+  const schedulePreview = debounce((value: string) => setPreviewSource(value), SPLIT_PREVIEW_DELAY_MS)
+  createEffect(() => {
+    const value = props.value
+    if (mode() === "split") return schedulePreview(value)
+    schedulePreview.clear()
+    setPreviewSource(value)
+  })
+  onCleanup(() => schedulePreview.clear())
+  // Read only by the preview pane, so write mode never builds it.
+  const previewText = () => {
+    const source = previewSource()
+    return props.preview ? props.preview(source) : source
+  }
 
   const commit = (edit: TextEdit) => {
     internalValue = edit.value
@@ -561,7 +582,7 @@ export function NoteEditor(props: NoteEditorProps) {
                 props.onOpenNote(path)
               }}
             >
-              <Markdown text={props.previewText ?? props.value} class="max-w-none text-[15px] leading-7" />
+              <Markdown text={previewText()} class="max-w-none text-[15px] leading-7" />
             </div>
           </Show>
         </div>

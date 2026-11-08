@@ -2,7 +2,7 @@ import { A, useNavigate } from "@solidjs/router"
 import { useQueryClient } from "@tanstack/solid-query"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Switch } from "@tenon/ui/v2/switch-v2"
-import { createEffect, createResource, For, onCleanup, Show } from "solid-js"
+import { createEffect, createResource, For, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { PageEmpty, PageFrame, PageHeader } from "@/components/page"
 import { useLanguage } from "@/context/language"
@@ -25,6 +25,7 @@ import { invalidateVaultPages } from "@/features/second-brain/vault-pages"
 import { settled } from "@/utils/resource"
 import { sessionHref } from "@/utils/session-route"
 import { showToast } from "@/utils/toast"
+import { createVisibleInterval } from "@/utils/visible-interval"
 
 /**
  * Routines: vault pages under `Routines/` with a `schedule` property. Each row shows the schedule, last and
@@ -61,8 +62,7 @@ export default function RoutinesPage() {
   // A run ends on the server, so the list is re-read while one is in flight.
   createEffect(() => {
     if (!items().some((routine) => routine.lastStatus === "running")) return
-    const timer = setInterval(() => void refetch(), 15_000)
-    onCleanup(() => clearInterval(timer))
+    createVisibleInterval(() => void refetch(), 15_000)
   })
   const time = (value: string | null) =>
     value

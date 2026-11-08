@@ -39,6 +39,8 @@ import { sessionHref } from "@/utils/session-route"
 import { dismissToast, showToast } from "@/utils/toast"
 import { createUndoQueue } from "@/utils/undo-action"
 
+const NO_PAGES: ReadonlyArray<VaultPageInfo> = []
+
 /**
  * Projects: every Project and page in the Tenon vault. URL contract: `/projects` (the landing: Projects, Archived,
  * General pages), `/projects?project=<id>&section=<tasks|pages|threads|log|settings>` (a Project as one page; an
@@ -134,13 +136,24 @@ export default function ProjectsPage() {
   const pageKey = (target: string, path: string) => `${target}
 ${path}`
   const visible = (page: VaultPageInfo) => !state.deleting[pageKey(directory(), page.path)]
-  const pageList = () => (vault.pages() ?? []).filter(visible)
+  const pageList = createMemo(() => (vault.pages() ?? []).filter(visible))
   const foundPages = () => (settled(matches) ?? []).filter(visible)
   const foundProjects = () => matchProjects(projects(), state.query)
   const projects = () => (held() ? [] : (brainProjects.list() ?? []))
   const known = createMemo(() => new Set(projects().map((item) => item.id)))
   // Pages tied to no Project this workspace lists.
-  const generalPages = () => pageList().filter((page) => !page.projectId || !known().has(page.projectId))
+  const generalPages = createMemo(() => pageList().filter((page) => !page.projectId || !known().has(page.projectId)))
+  // One pass over the vault for every Project's page list, instead of a filter per Project.
+  const pagesByProject = createMemo(() => {
+    const groups = new Map<string, VaultPageInfo[]>()
+    for (const page of pageList()) {
+      if (!page.projectId) continue
+      const group = groups.get(page.projectId)
+      if (group) group.push(page)
+      else groups.set(page.projectId, [page])
+    }
+    return groups
+  })
   // The vault refuses to live inside a workspace or Project folder; say so instead of a generic failure.
   const misplaced = () => {
     const error = vault.error()
@@ -690,7 +703,7 @@ ${path}`
                                 failed: !!log.error,
                                 retry: () => void logActions.refetch(),
                               }}
-                              pages={pageList().filter((page) => page.projectId === item().id)}
+                              pages={pagesByProject().get(item().id) ?? NO_PAGES}
                               pageHref={pageHref}
                               onPage={openPage}
                               onNewPage={() => void createPage(item().id)}

@@ -20,6 +20,7 @@ import { SDKProvider, useSDK } from "@/context/sdk"
 import { useServerSDK } from "@/context/server-sdk"
 import { installHarness, listHarnessSetup, removeHarnessApiKey, setHarnessApiKey, signInHarness } from "@/utils/server"
 import { showToast } from "@/utils/toast"
+import { createVisibleInterval } from "@/utils/visible-interval"
 import { SettingsListV2 } from "./parts/list"
 import "./settings-v2.css"
 
@@ -45,10 +46,10 @@ function createHarnessSetup(directory: string) {
 
   // A sign-in in the browser or a terminal finishes outside the app, so check again while setup is open.
   // A check still running is not restarted: each one can start every harness CLI on the server.
-  const poll = setInterval(() => {
+  // A hidden window skips checks and catches up when it is shown again.
+  createVisibleInterval(() => {
     if (!state.busy && !statuses.loading) void refetch()
   }, 5_000)
-  onCleanup(() => clearInterval(poll))
 
   const changed = (next: Harness.SetupStatus) => {
     mutate((current) => current?.map((item) => (item.id === next.id ? next : item)))
