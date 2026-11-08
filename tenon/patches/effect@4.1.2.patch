@@ -1,0 +1,63 @@
+diff --git a/dist/http-api/HttpApiSchema.js b/dist/http-api/HttpApiSchema.js
+index 83bb5e8..330a785 100644
+--- a/dist/http-api/HttpApiSchema.js
++++ b/dist/http-api/HttpApiSchema.js
+@@ -162,7 +162,7 @@ const defaultMaxElementBytes = /*#__PURE__*/ByteSize.mebibytes(1);
+ export const StreamSse = options => {
+   const events = options.events ?? (options.data === undefined ? undefined : Schema.Struct({
+     ...Sse.EventEncoded.fields,
+-    data: Schema.fromJsonString(Schema.toCodecJson(options.data))
++    data: sseDataJsonSchema(options.data)
+   }));
+   if (events === undefined) {
+     throw new Error("StreamSse requires either an events schema or a data schema");
+@@ -177,6 +177,17 @@ export const StreamSse = options => {
+     error: options.error ?? Schema.Never
+   });
+ };
++const sseDataJsonSchema = data => {
++  const identifier = SchemaAST.resolveIdentifier(data.ast);
++  const codec = Schema.toCodecJson(data);
++  if (identifier === undefined) return Schema.fromJsonString(codec);
++  // The SSE transport field is a JSON string. Give that wrapper its own
++  // OpenAPI identifier so it does not claim the decoded data schema's name.
++  return Schema.String.annotate({
++    expected: "a string that will be decoded as JSON",
++    identifier: `${identifier}Stream`
++  }).pipe(Schema.decodeTo(codec, SchemaTransformation.fromJsonString()));
++};
+ /**
+  * Creates a streaming `Uint8Array` body schema.
+  *
+diff --git a/src/http-api/HttpApiSchema.ts b/src/http-api/HttpApiSchema.ts
+index d9d9206..b5108a7 100644
+--- a/src/http-api/HttpApiSchema.ts
++++ b/src/http-api/HttpApiSchema.ts
+@@ -600,7 +600,7 @@ export const StreamSse: {
+ }): StreamSse<Sse.EventCodec, Schema.Top, unknown> => {
+   const events = options.events ?? (options.data === undefined ? undefined : Schema.Struct({
+     ...Sse.EventEncoded.fields,
+-    data: Schema.fromJsonString(Schema.toCodecJson(options.data))
++    data: sseDataJsonSchema(options.data)
+   }))
+   if (events === undefined) {
+     throw new Error("StreamSse requires either an events schema or a data schema")
+@@ -616,6 +616,18 @@ export const StreamSse: {
+   })
+ }
+ 
++const sseDataJsonSchema = (data: Schema.Constraint) => {
++  const identifier = SchemaAST.resolveIdentifier(data.ast)
++  const codec = Schema.toCodecJson(data)
++  if (identifier === undefined) return Schema.fromJsonString(codec)
++  // The SSE transport field is a JSON string. Give that wrapper its own
++  // OpenAPI identifier so it does not claim the decoded data schema's name.
++  return Schema.String.annotate({
++    expected: "a string that will be decoded as JSON",
++    identifier: `${identifier}Stream`
++  }).pipe(Schema.decodeTo(codec, SchemaTransformation.fromJsonString()))
++}
++
+ /**
+  * Creates a streaming `Uint8Array` body schema.
+  *
