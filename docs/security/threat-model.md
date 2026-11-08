@@ -114,7 +114,9 @@ renderer only learns whether such a client exists. Keep the values out of git
 and logs. `mcp-auth.json` keeps the `issuer` the MCP SDK stamps on each
 remote MCP server's tokens and registered client, so a server that later
 advertises a different authorization server never receives them; configured
-`oauth.clientId` credentials store only that binding, not the secret. Provider
+`oauth.clientId` credentials store only that binding, not the secret, and
+re-authenticating never presents them to another authorization server
+(`tenon mcp logout <name>` clears the binding if the server has moved). Provider
 credentials (`auth.json`, `mcp-auth.json`) and the session database
 (`tenon.db`) live in the XDG data directory (by default
 `~/.local/share/tenon-workbench/`), outside Electron `userData`. `userData` holds

@@ -234,4 +234,75 @@ describe("McpOAuthProvider issuer binding", () => {
     expect(redirects[0]?.searchParams.get("client_id")).toBe("as2-client")
     expect((await provider.clientInformation())?.issuer).toBe("https://as2.example.com")
   })
+
+  // Authorization server as2 that issues tokens for a code exchange; records every request
+  function as2() {
+    const requests: string[] = []
+    const fetchFn = async (input: string | URL, init?: RequestInit) => {
+      const url = new URL(String(input))
+      requests.push(`${init?.method ?? "GET"} ${url.href}`)
+      if (url.pathname.startsWith("/.well-known/oauth-protected-resource"))
+        return Response.json({ resource: serverUrl, authorization_servers: ["https://as2.example.com"] })
+      if (url.pathname === "/.well-known/oauth-authorization-server")
+        return Response.json({
+          issuer: "https://as2.example.com",
+          authorization_endpoint: "https://as2.example.com/authorize",
+          token_endpoint: "https://as2.example.com/token",
+          response_types_supported: ["code"],
+          code_challenge_methods_supported: ["S256"],
+        })
+      if (url.pathname === "/token") return Response.json({ access_token: "new", token_type: "Bearer" })
+      return new Response("unexpected", { status: 500 })
+    }
+    return { requests, fetchFn }
+  }
+
+  test("re-authenticating never presents configured credentials to another authorization server", async () => {
+    const { data, store } = memoryAuth()
+    data["test-server"] = {
+      serverUrl,
+      clientInfo: { clientId: "configured", issuer: "https://as1.example.com/" },
+      codeVerifier: "verifier",
+    }
+    const config = { clientId: "configured", clientSecret: "secret" }
+    const provider = new McpOAuthPendingProvider(
+      "test-server",
+      serverUrl,
+      config,
+      { onRedirect: async () => {} },
+      store,
+    )
+    const { requests, fetchFn } = as2()
+
+    await expect(auth(provider, { serverUrl, fetchFn, authorizationCode: "code" })).rejects.toThrow()
+    await provider.commit()
+
+    expect(requests.some((r) => r.includes("/token"))).toBe(false)
+    expect(data["test-server"].clientInfo).toEqual({ clientId: "configured", issuer: "https://as1.example.com/" })
+  })
+
+  test("re-authenticating configured credentials with their own authorization server keeps the binding", async () => {
+    const { data, store } = memoryAuth()
+    data["test-server"] = {
+      serverUrl,
+      clientInfo: { clientId: "configured", issuer: "https://as2.example.com/" },
+      codeVerifier: "verifier",
+    }
+    const config = { clientId: "configured", clientSecret: "secret" }
+    const provider = new McpOAuthPendingProvider(
+      "test-server",
+      serverUrl,
+      config,
+      { onRedirect: async () => {} },
+      store,
+    )
+    const { requests, fetchFn } = as2()
+
+    expect(await auth(provider, { serverUrl, fetchFn, authorizationCode: "code" })).toBe("AUTHORIZED")
+    await provider.commit()
+
+    expect(requests).toContain("POST https://as2.example.com/token")
+    expect(data["test-server"].tokens?.accessToken).toBe("new")
+    expect(data["test-server"].clientInfo).toEqual({ clientId: "configured", issuer: "https://as2.example.com/" })
+  })
 })

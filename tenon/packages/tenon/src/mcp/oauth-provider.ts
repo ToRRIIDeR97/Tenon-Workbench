@@ -198,10 +198,16 @@ export class McpOAuthPendingProvider extends McpOAuthProvider {
 
   override async clientInformation(): Promise<OAuthClientInformation | undefined> {
     if (!this.config.clientId) return this.pendingClientInfo
-    return {
-      client_id: this.config.clientId,
-      client_secret: this.config.clientSecret,
+    // Configured credentials keep their stored binding, so re-authenticating never presents
+    // the secret to an authorization server other than the one that first accepted it.
+    if (this.pendingClientInfo?.client_id === this.config.clientId && this.pendingClientInfo.issuer) {
+      return {
+        client_id: this.config.clientId,
+        client_secret: this.config.clientSecret,
+        issuer: this.pendingClientInfo.issuer,
+      }
     }
+    return super.clientInformation()
   }
 
   override async saveClientInformation(info: OAuthClientInformationFull): Promise<void> {
@@ -223,12 +229,18 @@ export class McpOAuthPendingProvider extends McpOAuthProvider {
 
   async commit(): Promise<void> {
     if (!this.pendingTokens) return
+    // The SDK only re-saves client information it has not bound yet, so an already bound
+    // configured client keeps its stored binding.
+    const stored = this.config.clientId
+      ? await Effect.runPromise(this.auth.getForUrl(this.mcpName, this.serverUrl))
+      : undefined
+    const kept = stored?.clientInfo?.clientId === this.config.clientId ? stored?.clientInfo : undefined
     await Effect.runPromise(
       this.auth.set(
         this.mcpName,
         {
           tokens: this.toTokens(this.pendingTokens),
-          clientInfo: this.pendingClientInfo ? this.toClientInfo(this.pendingClientInfo) : undefined,
+          clientInfo: (this.pendingClientInfo && this.toClientInfo(this.pendingClientInfo)) ?? kept,
         },
         this.serverUrl,
       ),
