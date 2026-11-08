@@ -29,6 +29,43 @@ index 83bb5e8..330a785 100644
  /**
   * Creates a streaming `Uint8Array` body schema.
   *
+diff --git a/dist/socket/Socket.js b/dist/socket/Socket.js
+index 372d2a3..c6f2e55 100644
+--- a/dist/socket/Socket.js
++++ b/dist/socket/Socket.js
+@@ -58,6 +58,7 @@ export const make = options => Socket.of({
+   writer: options.writer
+ });
+ const encoder = /*#__PURE__*/new TextEncoder();
++const textDecoder = /*#__PURE__*/new TextDecoder();
+ /**
+  * Acquires the socket's binary `pull`, encoding any string frames as UTF-8
+  * bytes.
+@@ -615,7 +616,14 @@ export const fromWebSocket = (acquire, options) => Effect.withFiber(fiber => {
+     function onClose(event) {
+       fail(closeError(typeof event.code === "number" ? event.code : 1006, event.reason));
+     }
+-    ws.addEventListener("message", onMessage);
++    // `ws` (Node) and Bun's `ws` shim say whether a frame is binary only on their `message` emitter;
++    // Bun's shim hands text frames to `message` event listeners as bytes.
++    const onEmitterMessage = (data, isBinary) => {
++      const bytes = data instanceof ArrayBuffer ? new Uint8Array(data) : data;
++      push(isBinary || typeof bytes === "string" ? bytes : textDecoder.decode(bytes));
++    };
++    const emitter = typeof ws.on === "function" && typeof ws.off === "function";
++    if (emitter) ws.on("message", onEmitterMessage);else ws.addEventListener("message", onMessage);
+     ws.addEventListener("error", onError, {
+       once: true
+     });
+@@ -625,7 +633,7 @@ export const fromWebSocket = (acquire, options) => Effect.withFiber(fiber => {
+     yield* Scope.addFinalizer(scope, Effect.sync(() => {
+       // resume a pull blocked in another fiber before detaching
+       fail(closeError(1006));
+-      ws.removeEventListener("message", onMessage);
++      if (emitter) ws.off("message", onEmitterMessage);else ws.removeEventListener("message", onMessage);
+       // Keep late errors handled when release aborts a pending ws handshake.
+       ws.addEventListener("error", constVoid);
+       ws.removeEventListener("error", onError);
 diff --git a/src/http-api/HttpApiSchema.ts b/src/http-api/HttpApiSchema.ts
 index d9d9206..b5108a7 100644
 --- a/src/http-api/HttpApiSchema.ts
@@ -61,3 +98,46 @@ index d9d9206..b5108a7 100644
  /**
   * Creates a streaming `Uint8Array` body schema.
   *
+diff --git a/src/socket/Socket.ts b/src/socket/Socket.ts
+index bc3051d..dd2f7a1 100644
+--- a/src/socket/Socket.ts
++++ b/src/socket/Socket.ts
+@@ -203,6 +203,7 @@ export const make = (options: {
+   })
+ 
+ const encoder = new TextEncoder()
++const textDecoder = new TextDecoder()
+ 
+ /**
+  * Acquires the socket's binary `pull`, encoding any string frames as UTF-8
+@@ -1090,7 +1091,19 @@ export const fromWebSocket = <RO, WS extends WebSocketLike>(
+         fail(closeError(typeof event.code === "number" ? event.code : 1006, event.reason))
+       }
+ 
+-      ws.addEventListener("message", onMessage)
++      // `ws` (Node) and Bun's `ws` shim say whether a frame is binary only on their `message` emitter;
++      // Bun's shim hands text frames to `message` event listeners as bytes.
++      const onEmitterMessage = (data: Uint8Array | ArrayBuffer | string, isBinary: boolean) => {
++        const bytes = data instanceof ArrayBuffer ? new Uint8Array(data) : data
++        push(isBinary || typeof bytes === "string" ? bytes : textDecoder.decode(bytes))
++      }
++      const emitterWs = ws as unknown as {
++        on?: (event: "message", listener: typeof onEmitterMessage) => void
++        off?: (event: "message", listener: typeof onEmitterMessage) => void
++      }
++      const emitter = typeof emitterWs.on === "function" && typeof emitterWs.off === "function"
++      if (emitter) emitterWs.on!("message", onEmitterMessage)
++      else ws.addEventListener("message", onMessage)
+       ws.addEventListener("error", onError, { once: true })
+       ws.addEventListener("close", onClose, { once: true })
+       yield* Scope.addFinalizer(
+@@ -1098,7 +1111,8 @@ export const fromWebSocket = <RO, WS extends WebSocketLike>(
+         Effect.sync(() => {
+           // resume a pull blocked in another fiber before detaching
+           fail(closeError(1006))
+-          ws.removeEventListener("message", onMessage)
++          if (emitter) emitterWs.off!("message", onEmitterMessage)
++          else ws.removeEventListener("message", onMessage)
+           // Keep late errors handled when release aborts a pending ws handshake.
+           ws.addEventListener("error", constVoid)
+           ws.removeEventListener("error", onError)

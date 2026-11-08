@@ -48,11 +48,16 @@ function echoWebSocket(request: HttpServerRequest.HttpServerRequest) {
     const { write } = yield* socket.writer
     // The upstream announces the negotiated protocol, then echoes every
     // received frame. The assertions use those messages to prove proxy flow.
-    yield* runRaw(socket, (message) => write(`echo:${String(message)}`), {
-      onOpen: write(`protocol:${request.headers["sec-websocket-protocol"] ?? "none"}`).pipe(
-        Effect.catch(() => Effect.void),
-      ),
-    }).pipe(Effect.catch(() => Effect.void))
+    // Binary frames are echoed as their byte values, so a text frame sent as bytes shows up.
+    yield* runRaw(
+      socket,
+      (message) => write(typeof message === "string" ? `echo:${message}` : `echo-binary:${[...message].join(",")}`),
+      {
+        onOpen: write(`protocol:${request.headers["sec-websocket-protocol"] ?? "none"}`).pipe(
+          Effect.catch(() => Effect.void),
+        ),
+      },
+    ).pipe(Effect.catch(() => Effect.void))
     return HttpServerResponse.empty()
   })
 }
@@ -176,6 +181,8 @@ describe("HttpApi workspace proxy", () => {
       expect(yield* Queue.take(messages)).toBe("protocol:chat")
       yield* write("hello")
       expect(yield* Queue.take(messages)).toBe("echo:hello")
+      yield* write(new Uint8Array([1, 2]))
+      expect(yield* Queue.take(messages)).toBe("echo-binary:1,2")
     }),
   )
   it.live("sends the target's auth headers on the upstream websocket", () =>
