@@ -58,14 +58,14 @@ const netFetch = ((input: RequestInfo | URL, init?: RequestInit) =>
   net.fetch(String(input instanceof Request ? input.url : input), init)) as typeof globalThis.fetch
 
 export type MailService = MailPlatform & {
-  provider(account?: string): MailProvider
+  provider(account?: string): Promise<MailProvider>
 }
 
 export function createMailService(): MailService {
   const googleTokens = createGoogleAccessTokens({
     fetch: (input, init) => net.fetch(input, init),
     endpoint: googleToken,
-    onRotate: (accountId, refreshToken) => update(accountId, { refreshToken: encrypt(refreshToken) }),
+    onRotate: async (accountId, refreshToken) => update(accountId, { refreshToken: await encrypt(refreshToken) }),
   })
   const graphTokens = new Map<string, { token: string; expiresAt: number }>()
   let consent: AbortController | undefined
@@ -77,10 +77,10 @@ export function createMailService(): MailService {
     const tokens = await tokenRequest(microsoftToken, {
       client_id: microsoftClientId,
       grant_type: "refresh_token",
-      refresh_token: decrypt(account.refreshToken),
+      refresh_token: await decrypt(account.refreshToken),
       scope: GRAPH_SCOPES.join(" "),
     })
-    if (tokens.refresh_token) update(account.id, { refreshToken: encrypt(tokens.refresh_token) })
+    if (tokens.refresh_token) update(account.id, { refreshToken: await encrypt(tokens.refresh_token) })
     graphTokens.set(account.id, {
       token: tokens.access_token,
       expiresAt: Date.now() + (tokens.expires_in - 60) * 1_000,
@@ -88,7 +88,7 @@ export function createMailService(): MailService {
     return tokens.access_token
   }
 
-  const provider = (selector?: string): MailProvider => {
+  const provider = async (selector?: string): Promise<MailProvider> => {
     const accounts = read()
     const account = selector
       ? accounts.find((item) => item.id === selector || item.address.toLowerCase() === selector.toLowerCase())
@@ -96,18 +96,18 @@ export function createMailService(): MailService {
     if (!account) throw new Error(selector ? "mail_account_not_found" : "mail_no_account")
     if (account.provider === "gmail") {
       if (!googleClient || !account.refreshToken) throw new Error("mail_reconnect_required")
-      const credentials = { accountId: account.id, ...googleClient, refreshToken: decrypt(account.refreshToken) }
+      const credentials = { accountId: account.id, ...googleClient, refreshToken: await decrypt(account.refreshToken) }
       return createGmailProvider({ fetch: netFetch, accessToken: () => googleTokens.get(credentials) })
     }
     if (account.provider === "outlook")
       return createGraphProvider({ fetch: netFetch, accessToken: () => graphToken(account) })
     const password = getStore(storeName).get(`imap-password:${account.id}`)
     if (!account.imap || typeof password !== "string") throw new Error("mail_reconnect_required")
-    return createImapProvider({ client: createImapClient({ ...account.imap, password: decrypt(password) }) })
+    return createImapProvider({ client: createImapClient({ ...account.imap, password: await decrypt(password) }) })
   }
 
   const connect: MailPlatform["connect"] = async (kind) => {
-    if (!secure()) throw new Error("mail_secure_storage_unavailable")
+    if (!(await secure())) throw new Error("mail_secure_storage_unavailable")
     consent?.abort()
     const controller = new AbortController()
     consent = controller
@@ -131,7 +131,7 @@ export function createMailService(): MailService {
         id: randomUUID(),
         provider: "gmail",
         address: profile.emailAddress ?? "Gmail",
-        refreshToken: encrypt(tokens.refresh_token),
+        refreshToken: await encrypt(tokens.refresh_token),
       })
       return accounts()
     }
@@ -149,14 +149,14 @@ export function createMailService(): MailService {
       id: randomUUID(),
       provider: "outlook",
       address: tokenAddress(tokens.access_token) ?? "Outlook",
-      refreshToken: encrypt(tokens.refresh_token),
+      refreshToken: await encrypt(tokens.refresh_token),
     })
     return accounts()
   }
 
   const addImap: MailPlatform["addImap"] = async (input) => {
     // Same keychain check as connect(): Linux's basic_text backend would store the password readable.
-    if (!secure()) throw new Error("mail_secure_storage_unavailable")
+    if (!(await secure())) throw new Error("mail_secure_storage_unavailable")
     const host = input.host.trim()
     const user = input.user.trim()
     const port = Number(input.port)
@@ -196,7 +196,7 @@ export function createMailService(): MailService {
 
   return {
     available: async () => ({
-      secureStorage: secure(),
+      secureStorage: await secure(),
       gmail: Boolean(googleClient),
       outlook: Boolean(microsoftClientId),
       imap: true,
@@ -262,10 +262,12 @@ async function route(path: string, input: Record<string, unknown>, service: Mail
     if (typeof value !== "string" || !value.trim()) throw new Error(`mail_${key}_required`)
     return value
   }
-  if (path === "/search") return { results: await service.provider(account).search(text("query")) }
-  if (path === "/thread") return await service.provider(account).readThread(text("id"))
+  if (path === "/search") return { results: await (await service.provider(account)).search(text("query")) }
+  if (path === "/thread") return await (await service.provider(account)).readThread(text("id"))
   if (path === "/draft") {
-    const draft = await service.provider(account).createDraft({
+    const draft = await (
+      await service.provider(account)
+    ).createDraft({
       to: text("to"),
       subject: typeof input.subject === "string" ? input.subject : "",
       body: typeof input.body === "string" ? input.body : "",
@@ -416,8 +418,8 @@ function tokenAddress(token: string) {
   }
 }
 
-function secure() {
-  if (!safeStorage.isEncryptionAvailable()) return false
+async function secure() {
+  if (!(await safeStorage.isAsyncEncryptionAvailable())) return false
   return process.platform !== "linux" || safeStorage.getSelectedStorageBackend() !== "basic_text"
 }
 
@@ -449,10 +451,12 @@ function update(id: string, patch: Partial<StoredAccount>) {
   )
 }
 
-function encrypt(value: string) {
-  return safeStorage.encryptString(value).toString("base64")
+async function encrypt(value: string) {
+  return (await safeStorage.encryptStringAsync(value)).toString("base64")
 }
 
-function decrypt(value: string) {
-  return safeStorage.decryptString(Buffer.from(value, "base64"))
+// Electron documents that data written by the deprecated `encryptString` decrypts with `decryptStringAsync`,
+// so secrets stored before Electron 45 keep working.
+async function decrypt(value: string) {
+  return (await safeStorage.decryptStringAsync(Buffer.from(value, "base64"))).result
 }

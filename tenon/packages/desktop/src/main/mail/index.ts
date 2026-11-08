@@ -259,7 +259,10 @@ export function createImapProvider(input: { client: ImapClient }): MailProvider 
   }
 }
 
-type SafeStorage = { isEncryptionAvailable(): boolean; encryptString(value: string): Buffer }
+type SafeStorage = {
+  isAsyncEncryptionAvailable(): Promise<boolean>
+  encryptStringAsync(value: string): Promise<Buffer>
+}
 
 /** Store an IMAP app password, encrypted with the OS keychain (Electron safeStorage); never in plain text. */
 export async function saveImapPassword(
@@ -267,8 +270,11 @@ export async function saveImapPassword(
   accountId: string,
   password: string,
 ) {
-  if (!deps.safeStorage.isEncryptionAvailable()) throw new Error("mail_secure_storage_unavailable")
-  await deps.write(`imap-password:${accountId}`, deps.safeStorage.encryptString(password).toString("base64"))
+  if (!(await deps.safeStorage.isAsyncEncryptionAvailable())) throw new Error("mail_secure_storage_unavailable")
+  await deps.write(
+    `imap-password:${accountId}`,
+    (await deps.safeStorage.encryptStringAsync(password)).toString("base64"),
+  )
 }
 
 // ---------------------------------------------------------------------------------------------
