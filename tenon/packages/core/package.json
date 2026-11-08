@@ -54,14 +54,15 @@
     "@parcel/watcher-win32-arm64": "2.5.1",
     "@parcel/watcher-win32-x64": "2.5.1",
     "@tenon/http-recorder": "workspace:*",
-    "drizzle-kit": "catalog:"
+    "drizzle-kit": "catalog:",
+    "@effect/sql-sqlite-bun": "catalog:"
   },
   "dependencies": {
     "@ai-sdk/alibaba": "1.0.17",
     "@ai-sdk/amazon-bedrock": "4.0.158",
     "@ai-sdk/anthropic": "3.0.82",
     "@ai-sdk/azure": "3.0.88",
-    "@ai-sdk/cerebras": "2.0.41",
+    "@ai-sdk/cerebras": "2.0.60",
     "@ai-sdk/cohere": "3.0.27",
     "@ai-sdk/deepinfra": "2.0.41",
     "@ai-sdk/gateway": "3.0.104",
@@ -80,7 +81,6 @@
     "@aws-sdk/credential-providers": "3.1057.0",
     "@effect/opentelemetry": "catalog:",
     "@effect/platform-node": "catalog:",
-    "@effect/sql-sqlite-bun": "catalog:",
     "@lydell/node-pty": "catalog:",
     "@ff-labs/fff-bun": "0.9.4",
     "@npmcli/arborist": "9.4.0",
@@ -109,7 +109,6 @@
     "gray-matter": "4.0.3",
     "htmlparser2": "8.0.2",
     "immer": "11.1.4",
-    "ignore": "7.0.5",
     "jsonc-parser": "3.3.1",
     "mime-types": "3.0.2",
     "minimatch": "10.2.5",
@@ -118,7 +117,9 @@
     "venice-ai-sdk-provider": "2.1.1",
     "which": "6.0.1",
     "xdg-basedir": "5.1.0",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "@opentelemetry/sdk-trace-node": "2.6.1",
+    "@opencode-ai/sdk": "workspace:*"
   },
   "overrides": {
     "drizzle-orm": "catalog:"
