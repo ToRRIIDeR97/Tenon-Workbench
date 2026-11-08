@@ -4,6 +4,7 @@ import { type ParseError as JsoncParseError, parse as parseJsoncImpl, printParse
 import { Cause, Exit, Schema as EffectSchema, SchemaIssue } from "effect"
 import type { DeepMutable } from "@tenon/core/schema"
 import { InvalidError, JsonError } from "@tenon/core/v1/config/error"
+import { withInputOrder } from "@tenon/core/util/input-order"
 
 export function jsonc(text: string, filepath: string): unknown {
   const errors: JsoncParseError[] = []
@@ -40,9 +41,9 @@ export function schema<S extends EffectSchema.Decoder<unknown, never>>(
   const decoded = EffectSchema.decodeUnknownExit(schema)(data, {
     errors: "all",
     onExcessProperty: "ignore",
-    propertyOrder: "original",
   })
-  if (Exit.isSuccess(decoded)) return decoded.value as DeepMutable<S["Type"]>
+  // Keep the user's key order: permission rules are ordered by precedence.
+  if (Exit.isSuccess(decoded)) return withInputOrder(data, decoded.value) as DeepMutable<S["Type"]>
   const error = Cause.squash(decoded.cause)
 
   throw new InvalidError(

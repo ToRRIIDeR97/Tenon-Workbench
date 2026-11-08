@@ -9,6 +9,8 @@ import * as Layer from "effect/Layer"
 import * as Path from "effect/Path"
 import * as PlatformError from "effect/PlatformError"
 import * as Predicate from "effect/Predicate"
+import * as Record from "effect/Record"
+import * as Redacted from "effect/Redacted"
 import type * as Scope from "effect/Scope"
 import * as Sink from "effect/Sink"
 import * as Stream from "effect/Stream"
@@ -80,13 +82,17 @@ const flatten = (command: ChildProcess.Command) => {
   }
 }
 
+// Effect 4.1 lets command arguments and env values be `Redacted`.
+const unwrap = (value: string | Redacted.Redacted<string>): string =>
+  Redacted.isRedacted(value) ? Redacted.value(value) : value
+
 const toPlatformError = (
   method: string,
   err: NodeJS.ErrnoException,
   command: ChildProcess.Command,
 ): PlatformError.PlatformError => {
   const cmd = flatten(command)
-    .commands.map((x) => `${x.command} ${x.args.join(" ")}`)
+    .commands.map((x) => `${x.command} ${x.args.map((arg) => (Redacted.isRedacted(arg) ? "<redacted>" : arg)).join(" ")}`)
     .join(" | ")
   return PlatformError.systemError({
     _tag: toTag(err),
@@ -111,8 +117,10 @@ export const make = Effect.gen(function* () {
   })
 
   // Children never receive the server credentials, even when they inherit the parent environment.
-  const env = (opts: ChildProcess.CommandOptions) =>
-    ChildEnv.from(opts.extendEnv || !opts.env ? { ...globalThis.process.env, ...opts.env } : opts.env)
+  const env = (opts: ChildProcess.CommandOptions) => {
+    const own = opts.env === undefined ? undefined : Record.map(opts.env, (value) => value && unwrap(value))
+    return ChildEnv.from(opts.extendEnv || !own ? { ...globalThis.process.env, ...own } : own)
+  }
 
   const input = (x: ChildProcess.CommandInput | undefined): NodeChildProcess.IOType | undefined =>
     Stream.isStream(x) ? "pipe" : x
@@ -277,7 +285,7 @@ export const make = Effect.gen(function* () {
         return
       }
       const signal = Deferred.makeUnsafe<readonly [code: number | null, signal: NodeJS.Signals | null]>()
-      const proc = launch(file, command.args, opts)
+      const proc = launch(file, command.args.map(unwrap), opts)
       let end = false
       let exit: readonly [code: number | null, signal: NodeJS.Signals | null] | undefined
       let grace: ReturnType<typeof setTimeout> | undefined

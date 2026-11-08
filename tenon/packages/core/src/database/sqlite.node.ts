@@ -114,6 +114,9 @@ const make = (options: Config) =>
       executeValues(query, params) {
         return runValues(query, params)
       },
+      executeValuesUnprepared(query, params) {
+        return runValues(query, params)
+      },
       executeUnprepared(query, params, transformRows) {
         return this.execute(query, params, transformRows)
       },
@@ -143,6 +146,7 @@ const make = (options: Config) =>
 
     const client = Object.assign(
       (yield* Client.make({
+        driver: "sqlite-node",
         acquirer,
         compiler,
         transactionAcquirer,

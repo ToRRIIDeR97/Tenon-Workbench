@@ -7,6 +7,7 @@ import { ConfigCommandV1 } from "@tenon/core/v1/config/command"
 import { configEntryNameFromPath } from "./entry-name"
 import { InvalidError } from "@tenon/core/v1/config/error"
 import * as ConfigMarkdown from "./markdown"
+import { withInputOrder } from "@tenon/core/util/input-order"
 
 const decodeInfo = Schema.decodeUnknownExit(ConfigCommandV1.Info)
 
@@ -28,9 +29,9 @@ export async function load(dir: string) {
       ...md.data,
       template: md.content.trim(),
     }
-    const parsed = decodeInfo(config, { errors: "all", propertyOrder: "original" })
+    const parsed = decodeInfo(config, { errors: "all" })
     if (Exit.isSuccess(parsed)) {
-      result[config.name] = parsed.value
+      result[config.name] = withInputOrder(config, parsed.value)
       continue
     }
     throw new InvalidError({ path: item, message: Cause.pretty(parsed.cause) }, { cause: Cause.squash(parsed.cause) })

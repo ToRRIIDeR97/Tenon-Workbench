@@ -1,8 +1,7 @@
 import path from "path"
 import fs from "fs/promises"
 import { describe, expect } from "bun:test"
-import { Effect, Layer, Schema } from "effect"
-import { FastCheck } from "effect/testing"
+import { Arbitrary, Effect, Layer, Schema } from "effect"
 import { Config } from "@tenon/core/config"
 import { ConfigProvider } from "@tenon/core/config/provider"
 import { ConfigTrust } from "@tenon/core/config/trust"
@@ -78,13 +77,16 @@ describe("Config", () => {
   )
 
   it.effect("migrates arbitrary v1 configuration into valid v2 configuration", () =>
-    Effect.sync(() => {
-      FastCheck.assert(
-        FastCheck.property(Schema.toArbitrary(ConfigV1.Info), (info) => {
-          Schema.decodeUnknownSync(Config.Info)(ConfigMigrateV1.migrate(info), { errors: "all" })
-        }),
-        { numRuns: 100 },
+    Effect.gen(function* () {
+      const result = yield* Arbitrary.checkEffect(
+        Arbitrary.schema(ConfigV1.Info),
+        (info) =>
+          Schema.decodeUnknownEffect(Config.Info)(ConfigMigrateV1.migrate(info), { errors: "all" }).pipe(
+            Effect.as(true),
+          ),
+        { runs: 100 },
       )
+      expect(Arbitrary.formatCheckFailure(result)).toBeUndefined()
     }),
   )
 
