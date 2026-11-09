@@ -77,8 +77,8 @@
     "@types/mime-types": "3.0.1",
     "@typescript/native-preview": "catalog:",
     "husky": "9.1.7",
-    "oxlint": "1.60.0",
-    "oxlint-tsgolint": "0.21.0",
+    "oxlint": "1.91.0",
+    "oxlint-tsgolint": "7.0.2006",
     "prettier": "3.6.2",
     "turbo": "2.10.2"
   },
