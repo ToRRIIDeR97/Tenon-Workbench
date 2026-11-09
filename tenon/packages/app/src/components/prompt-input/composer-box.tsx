@@ -44,6 +44,7 @@ export function ComposerBox(props: {
         <IconButtonV2
           type="submit"
           variant="contrast"
+          data-slot="composer-send"
           size={size() === "compact" ? "normal" : "large"}
           class={size() === "compact" ? undefined : "!size-9"}
           aria-label={props.sendLabel}
@@ -60,7 +61,7 @@ export function ComposerBox(props: {
       data-size={size()}
       class={props.class}
       classList={{
-        "flex min-w-0 overflow-hidden bg-v2-background-bg-base transition-shadow duration-short ease-standard motion-reduce:transition-none": true,
+        "flex min-w-0 overflow-hidden bg-v2-background-bg-raised transition-shadow duration-short ease-standard motion-reduce:transition-none": true,
         "flex-col shadow-[0_0_0_1px_var(--v2-border-border-base),0_8px_24px_-12px_rgb(0_0_0/0.14)] focus-within:shadow-[0_0_0_2px_var(--v2-border-border-focus),0_8px_24px_-12px_rgb(0_0_0/0.14)]":
           size() !== "compact",
         "rounded-[28px]": size() === "large",

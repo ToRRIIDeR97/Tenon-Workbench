@@ -295,7 +295,7 @@ body[data-new-layout] {
     [data-slot="basic-tool-tool-subtitle"] {
       font-family: var(--v2-font-family-sans, "Inter", sans-serif);
       font-style: normal;
-      font-weight: 400;
+      font-weight: 450;
       font-size: 13px;
       line-height: 20px;
       letter-spacing: 0;

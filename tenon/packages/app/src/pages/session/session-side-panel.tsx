@@ -27,7 +27,7 @@ const fileBrowserTabPanelID = "session-side-panel-file-browser-tabpanel"
 import { SessionContextTab, SortableTabV2 } from "@/components/session"
 import { OpenInAppV2 } from "@/components/session/open-in-app-v2"
 import { SessionTabClose } from "@/components/session/session-tab-close"
-import { SubagentTab, SubagentTabLabel, useSubagentParts } from "@/components/session/subagent-tab"
+import { AgentsTab, AgentsTabLabel, useThreadSubagents } from "@/components/session/subagent-tab"
 import { useCommand } from "@/context/command"
 import { useFile, type SelectedLineRange } from "@/context/file"
 import { useLanguage } from "@/context/language"
@@ -41,8 +41,11 @@ import {
   BROWSER_TAB,
   DEVICE_TAB,
   SESSION_OPEN_FILE_TAB,
-  agentTabPartID,
+  AGENTS_TAB,
   createOpenSessionFileTab,
+  migrateAgentTabs,
+  selectAgent,
+  selectedAgent,
   createSessionTabs,
   shouldShowFileTree,
   type Sizing,
@@ -197,8 +200,16 @@ export function SessionSidePanel(props: {
   const openFileOpen = tabState.openFileOpen
   const panelTabs = tabState.panelTabs
   const openedTabs = tabState.openedTabs
-  const agentTabs = tabState.agentTabs
-  const subagentParts = useSubagentParts(() => agentTabs().flatMap((tab) => agentTabPartID(tab) ?? []))
+  const agentsOpen = tabState.agentsOpen
+  const subagents = useThreadSubagents(agentsOpen)
+  // Tab lists saved before the Agents tab held one tab per subagent; fold them in, keeping that agent selected.
+  createEffect(() => {
+    const migrated = migrateAgentTabs(tabs().all(), tabs().active())
+    if (!migrated) return
+    if (migrated.selected) selectAgent(sessionKey(), migrated.selected)
+    tabs().setAll(migrated.all)
+    if (migrated.active !== tabs().active() && migrated.active) tabs().setActive(migrated.active)
+  })
   const activeTab = tabState.activeTab
   const activeFileTab = tabState.activeFileTab
 
@@ -259,7 +270,7 @@ export function SessionSidePanel(props: {
       active !== BROWSER_TAB &&
       active !== DEVICE_TAB &&
       active !== "empty" &&
-      !agentTabPartID(active)
+      active !== AGENTS_TAB
     )
   })
   const openFileKeybind = createMemo(() => command.keybindParts("file.open"))
@@ -319,25 +330,26 @@ export function SessionSidePanel(props: {
   const tabEnter = () => (strip.ready ? "animate-enter" : undefined)
 
   const agentTriggers = () => (
-    <For each={agentTabs()}>
-      {(tab) => (
-        <TabsV2.Trigger value={tab} class={tabEnter()} onMiddleClick={() => tabs().close(tab)}>
-          <SubagentTabLabel found={subagentParts().get(agentTabPartID(tab)!)} />
-          {closeButton(tab)}
-        </TabsV2.Trigger>
-      )}
-    </For>
+    <Show when={agentsOpen()}>
+      <TabsV2.Trigger value={AGENTS_TAB} class={tabEnter()} onMiddleClick={() => tabs().close(AGENTS_TAB)}>
+        <AgentsTabLabel groups={subagents()} />
+        {closeButton(AGENTS_TAB)}
+      </TabsV2.Trigger>
+    </Show>
   )
 
   const agentContent = () => (
-    <Show when={agentTabPartID(activeTab())} keyed>
-      {(partID) => (
-        <TabsV2.Content value={activeTab()} class="flex min-h-0 flex-col !overflow-hidden contain-strict">
-          <div class="relative flex-1 min-h-0 overflow-hidden">
-            <SubagentTab found={subagentParts().get(partID)} harnessName={props.harnessName} />
-          </div>
-        </TabsV2.Content>
-      )}
+    <Show when={activeTab() === AGENTS_TAB}>
+      <TabsV2.Content value={AGENTS_TAB} class="flex min-h-0 flex-col !overflow-hidden contain-strict">
+        <div class="relative flex-1 min-h-0 overflow-hidden">
+          <AgentsTab
+            groups={subagents()}
+            selected={selectedAgent(sessionKey())}
+            onSelect={(partID) => selectAgent(sessionKey(), partID)}
+            harnessName={props.harnessName}
+          />
+        </div>
+      </TabsV2.Content>
     </Show>
   )
 
@@ -699,7 +711,7 @@ export function SessionSidePanel(props: {
                           <div
                             id={fileBrowserTabPanelID}
                             role="tabpanel"
-                            class="flex-1 min-h-0 overflow-hidden animate-in fade-in duration-medium ease-emphasized-decelerate motion-reduce:animate-none"
+                            class="flex-1 min-h-0 overflow-hidden animate-enter"
                             classList={{ hidden: !fileBrowserVisible() }}
                             inert={!fileBrowserVisible() || undefined}
                           >

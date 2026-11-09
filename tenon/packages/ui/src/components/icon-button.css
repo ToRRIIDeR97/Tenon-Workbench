@@ -148,7 +148,7 @@
   [data-component="icon-button"][data-icon="stop"] [data-slot="icon-svg"] rect {
     transform-origin: center;
     transform-box: fill-box;
-    animation: stop-pulse 1.8s ease-in-out infinite;
+    animation: stop-pulse 1.6s var(--v2-ease-standard) infinite;
   }
 }
 

@@ -71,7 +71,10 @@ export function SessionContextUsage(props: SessionContextUsageProps) {
       }),
   )
 
-  const context = createMemo(() => getSessionContext(messages(), [...providers.all().values()]))
+  const context = createMemo(() =>
+    getSessionContext(messages(), [...providers.all().values()], undefined, (id) => sync().data.part[id]),
+  )
+  const percent = () => (context()?.compacted ? 0 : (context()?.usage ?? 0))
   const cost = createMemo(() => {
     return usd().format(info()?.cost ?? 0)
   })
@@ -104,7 +107,7 @@ export function SessionContextUsage(props: SessionContextUsageProps) {
       <ProgressCircle
         size={16}
         strokeWidth={2}
-        percentage={context()?.usage ?? 0}
+        percentage={percent()}
         style={
           variant() === "indicator"
             ? {
@@ -119,14 +122,17 @@ export function SessionContextUsage(props: SessionContextUsageProps) {
   )
   const circleV2 = () => (
     <div class="flex items-center justify-center">
-      <ProgressCircleV2 percentage={context()?.usage ?? 0} />
+      <ProgressCircleV2 percentage={percent()} />
     </div>
   )
 
   const tooltipValue = () => (
     <div class="flex w-[120px] flex-col gap-2">
       <ContextTooltipRow name={language.t("context.usage.cost")} value={cost()} />
-      <ContextTooltipRow name={language.t("context.usage.usage")} value={`${context()?.usage ?? 0}%`} />
+      <ContextTooltipRow
+        name={language.t("context.usage.usage")}
+        value={context()?.compacted ? language.t("secondBrain.sessionTab.compacted") : `${context()?.usage ?? 0}%`}
+      />
       <ContextTooltipRow
         name={language.t("context.usage.tokens")}
         value={context()?.total.toLocaleString(language.intl()) ?? "0"}

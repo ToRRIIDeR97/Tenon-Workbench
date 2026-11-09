@@ -69,7 +69,7 @@ export const DialogSelectModelUnpaidV2: Component<{ model?: ModelState }> = (pro
     <DialogV2
       fit
       containerClass="!h-auto max-h-[calc(100vh_-_16px)] !w-[min(calc(100vw_-_16px),640px)]"
-      class="[font-family:var(--v2-font-family-sans)] [&_[data-slot=dialog-header]]:!px-6"
+      class="[&_[data-slot=dialog-header]]:!px-6"
     >
       <DialogHeader closeLabel={language.t("common.close")}>
         <DialogTitle>{language.t("dialog.model.select.title")}</DialogTitle>
@@ -88,7 +88,6 @@ export const DialogSelectModelUnpaidV2: Component<{ model?: ModelState }> = (pro
                   class="w-full"
                   placement="right-start"
                   gutter={6}
-                  contentStyle={{ "font-family": "var(--v2-font-family-sans)" }}
                   value={
                     <ModelTooltip
                       model={{ ...item, name: displayModelName(item.name) }}

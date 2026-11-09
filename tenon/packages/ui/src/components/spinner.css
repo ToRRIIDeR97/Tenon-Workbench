@@ -4,3 +4,10 @@
   width: 18px;
   aspect-ratio: 1;
 }
+
+/* The squares pulse through inline styles; under reduced motion they hold still. */
+@media (prefers-reduced-motion: reduce) {
+  [data-component="spinner"] rect {
+    animation: none !important;
+  }
+}

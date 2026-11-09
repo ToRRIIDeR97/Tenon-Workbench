@@ -15,7 +15,7 @@ import { sessionHref } from "@/utils/session-route"
 import { useServerSync } from "@/context/server-sync"
 import { createMediaQuery } from "@solid-primitives/media"
 import { useSessionLayout } from "@/pages/session/session-layout"
-import { agentTab } from "@/pages/session/helpers"
+import { AGENTS_TAB, selectAgent } from "@/pages/session/helpers"
 
 export function DirectoryDataProvider(
   props: ParentProps<{
@@ -63,16 +63,16 @@ export function DirectoryDataProvider(
     onCleanup(() => serverSync().session.unpin(sessionID))
   })
 
-  // Opens the right panel on the subagent's tab; a second click on the same agent only focuses it.
-  const openSubagent = (input: { sessionID: string; partID: string }) => {
+  // Opens the right panel's Agents tab on the subagent, or on the list without one. There is one Agents tab.
+  const openSubagent = (input: { sessionID: string; partID?: string }) => {
     if (input.sessionID !== params.id) return
     const view = sessionLayout.view()
     const tabs = sessionLayout.tabs()
-    const tab = agentTab(input.partID)
+    selectAgent(sessionLayout.sessionKey(), input.partID)
     view.reviewPanel.open(view.reviewPanel.opened() ? "other" : "context-button")
     // Appended directly so opening an agent never replaces a file preview tab.
-    if (!tabs.all().includes(tab)) tabs.setAll([...tabs.all(), tab])
-    tabs.setActive(tab)
+    if (!tabs.all().includes(AGENTS_TAB)) tabs.setAll([...tabs.all(), AGENTS_TAB])
+    tabs.setActive(AGENTS_TAB)
   }
 
   return (

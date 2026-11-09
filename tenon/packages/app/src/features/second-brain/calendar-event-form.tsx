@@ -102,13 +102,22 @@ export const draftProviderEvent = (draft: CalendarDraft): GoogleCalendarProvider
   ...(draft.etag ? { etag: draft.etag } : {}),
 })
 
-export const fieldClass = "flex flex-col gap-1.5 text-[12px] text-v2-text-text-muted"
+export const fieldClass = "flex flex-col gap-1.5 type-meta text-v2-text-text-muted"
 
 export const noteClass =
   "rounded-[12px] bg-v2-background-bg-base px-3 py-2 text-[12px] leading-5 text-v2-text-text-muted"
 
-const dateInputClass =
-  "h-9 w-full min-w-0 rounded-[12px] border-0 bg-v2-background-bg-base px-3 text-[12px] text-v2-text-text-base outline-none transition-shadow duration-short ease-standard focus:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)] motion-reduce:transition-none"
+/** Every editor field shares the TextInputV2 look: full width, 36px, layer-01 fill and base ring, pill shape. */
+export const controlClass = "!h-9 !w-full"
+
+/** Text areas match the fields at a 16px radius. */
+export const textareaClass = "!w-full !rounded-[16px]"
+
+/** A labelled DateChip restyled as a field; the chip's popover is portaled, so only the trigger matches. */
+export const dateFieldClass = `${fieldClass} [&_[data-slot=popover-trigger]]:!h-9 [&_[data-slot=popover-trigger]]:!w-full [&_[data-slot=popover-trigger]]:!bg-v2-background-bg-layer-01 [&_[data-slot=popover-trigger]]:!px-3 [&_[data-slot=popover-trigger]]:text-[13px] [&_[data-slot=popover-trigger]]:shadow-[inset_0_0_0_1px_var(--v2-border-border-base)] [&_[data-slot=popover-trigger]:hover]:shadow-[inset_0_0_0_1px_var(--v2-border-border-strong)]`
+
+export const timeInputClass =
+  "h-9 w-full min-w-0 rounded-full border-0 bg-v2-background-bg-layer-01 px-3 text-[13px] text-v2-text-text-base shadow-[inset_0_0_0_1px_var(--v2-border-border-base)] outline-none transition-shadow duration-short ease-standard hover:shadow-[inset_0_0_0_1px_var(--v2-border-border-strong)] focus:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)] aria-[invalid]:shadow-[inset_0_0_0_1px_var(--v2-state-fg-danger)] motion-reduce:transition-none"
 
 /** The event editor. The page owns the draft and the store; `state` is read here so the form stays reactive. */
 export function CalendarEventForm(props: {
@@ -173,7 +182,7 @@ export function CalendarEventForm(props: {
         {language.t("secondBrain.calendar.eventTitle")}
         <TextInputV2
           id="calendar-event-title"
-          appearance="large"
+          class={controlClass}
           ref={focusWhenConnected}
           invalid={props.state.errorField === "title"}
           aria-describedby={props.state.errorField === "title" ? "calendar-event-error" : undefined}
@@ -187,7 +196,7 @@ export function CalendarEventForm(props: {
           <SelectV2
             id="calendar-event-source"
             aria-label={language.t("secondBrain.calendar.google.destination")}
-            class="!h-8 !w-full"
+            class={controlClass}
             options={["local", ...props.googleAccounts.map((account) => account.id)]}
             current={props.state.draft.source === "google" ? props.state.draft.accountId : "local"}
             label={(source) =>
@@ -213,7 +222,7 @@ export function CalendarEventForm(props: {
         <SelectV2
           id="calendar-event-project"
           aria-label={language.t("secondBrain.calendar.project")}
-          class="!h-8 !w-full"
+          class={controlClass}
           options={["__none__", ...props.projects.map((project) => project.id)]}
           current={props.state.draft.projectId || "__none__"}
           label={(projectID) =>
@@ -225,7 +234,7 @@ export function CalendarEventForm(props: {
         />
       </label>
       <div class="grid grid-cols-2 gap-3">
-        <div class={fieldClass}>
+        <div class={dateFieldClass}>
           {language.t("secondBrain.calendar.date")}
           <DateChip
             label={language.t("secondBrain.calendar.date")}
@@ -233,7 +242,7 @@ export function CalendarEventForm(props: {
             onChange={(value) => props.onDraft({ date: value ?? "" })}
           />
         </div>
-        <div class={fieldClass}>
+        <div class={dateFieldClass}>
           {language.t("secondBrain.calendar.endDate")}
           <DateChip
             label={language.t("secondBrain.calendar.endDate")}
@@ -248,7 +257,7 @@ export function CalendarEventForm(props: {
           <input
             id="calendar-event-start"
             type="time"
-            class={dateInputClass}
+            class={timeInputClass}
             aria-invalid={props.state.errorField === "time" ? true : undefined}
             aria-describedby={props.state.errorField === "time" ? "calendar-event-error" : undefined}
             value={props.state.draft.start}
@@ -260,7 +269,7 @@ export function CalendarEventForm(props: {
           <input
             id="calendar-event-end"
             type="time"
-            class={dateInputClass}
+            class={timeInputClass}
             aria-invalid={props.state.errorField === "time" ? true : undefined}
             aria-describedby={props.state.errorField === "time" ? "calendar-event-error" : undefined}
             value={props.state.draft.end}
@@ -277,6 +286,7 @@ export function CalendarEventForm(props: {
         {language.t("secondBrain.calendar.details")}
         <TextareaV2
           id="calendar-event-details"
+          class={textareaClass}
           rows={5}
           value={props.state.draft.details}
           onInput={(event) => props.onDraft({ details: event.currentTarget.value })}

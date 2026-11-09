@@ -5,16 +5,33 @@ import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { MenuV2 } from "@tenon/ui/v2/menu-v2"
 import { RevealShow } from "@tenon/ui/v2/reveal"
 import { SegmentedControlItemV2, SegmentedControlV2 } from "@tenon/ui/v2/segmented-control-v2"
-import { createEffect, createMemo, For, on, Show, type JSX } from "solid-js"
+import { createEffect, createMemo, For, on, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLanguage } from "@/context/language"
-import { PageEmpty, pageRowClass } from "@/components/page"
 import { focusWhenConnected } from "@/utils/focus-when-connected"
-import { getRelativeTime } from "@/utils/time"
 import { showToast } from "@/utils/toast"
 import type { LogEntry, ProjectRecord, Timeline, TimelineItem, VaultPageInfo } from "./client"
-import { dueDatePatch, restoreItem, timelineCounts, timelineLayout } from "./notes-timeline"
+import {
+  dueDatePatch,
+  milestoneGroups,
+  restoreItem,
+  timelineCounts,
+  timelineLayout,
+  type MilestoneGroup,
+} from "./notes-timeline"
 import { DateChip, KindSwitch, StatusMenu } from "./project-controls"
+import { ProjectActionsMenu, useProjectCard } from "./project-details"
+import {
+  LogCard,
+  loadedView,
+  PagesCard,
+  ProgressCard,
+  ThreadsCard,
+  type Loaded,
+  type ProjectThread,
+} from "./project-rail"
+
+export type { ProjectThread } from "./project-rail"
 
 export const projectSections = ["tasks", "pages", "threads", "log", "settings"] as const
 export type ProjectSection = (typeof projectSections)[number]
@@ -32,16 +49,18 @@ export function sectionFromTab(tab: string | undefined): ProjectSection | undefi
   return tab ? (legacy[tab] ?? projectSections.find((section) => section === tab)) : undefined
 }
 
-type Loaded<T> = { value?: T; loading: boolean; failed: boolean; retry: () => void }
-export type ProjectThread = { id: string; title: string; updated: number; running: boolean }
-
 /**
- * A Project as one scrolling page: title, outcome and progress; a sticky bar that jumps to Tasks, Pages, Threads,
- * Log and Settings and holds Start work; and each section adds in place (a task line, a New page card, New
- * thread). Tasks and milestones are the Project's timeline items, saved whole through `onSaveItems`.
+ * A Project as a workspace: a header (title, status, the actions menu and Start work), then tasks on the left,
+ * grouped under milestones, and the Project's context on the right (Progress, Pages, Threads, Log). The rail stacks
+ * under the tasks below 1100px. Tasks and milestones are the Project's timeline items, saved whole through
+ * `onSaveItems`; `settings` (an older link's section) is the Progress card.
  */
 export function ProjectView(props: {
   project: ProjectRecord
+  /** The workspace the Project's card is saved through. */
+  directory: string
+  /** After archiving, the page leaves the Project. */
+  onArchived: () => void
   timeline: Loaded<Timeline>
   log: Loaded<ReadonlyArray<LogEntry>>
   pages: ReadonlyArray<VaultPageInfo>
@@ -58,12 +77,11 @@ export function ProjectView(props: {
   /** Absent when the Project has no folder to run threads in. */
   onNewThread?: () => void
   onStartWork?: () => void
-  /** The Settings section: the Project's card (progress, milestone, blocker, settings, status). */
-  settings: JSX.Element
   /** A section to scroll to on open (from an older link or an agent write's Open). */
   section?: ProjectSection
 }) {
   const language = useLanguage()
+  const card = useProjectCard(props)
   const [state, setState] = createStore({
     show: "open" as "open" | "all",
     saving: false,
@@ -71,10 +89,10 @@ export function ProjectView(props: {
     draft: { title: "", kind: "task" as TimelineItem["kind"], date: undefined as string | undefined },
     /** The item whose title is being edited in its row. */
     renaming: "",
-    settingsOpen: props.section === "settings",
   })
   const items = () => props.timeline.value?.items ?? []
   const counts = createMemo(() => timelineCounts(items()))
+  const groups = createMemo(() => milestoneGroups(items(), state.show === "open"))
   const percent = () => Math.round((props.timeline.value?.progress ?? 0) * 100)
   const shortDate = (value: string) => {
     const date = new Date(`${value.slice(0, 10)}T00:00:00Z`)
@@ -91,9 +109,9 @@ export function ProjectView(props: {
       date: next.start ? shortDate(next.start) : "",
     })
   }
+  const outcome = () => props.project.outcome.trim()
   // A task's date is its due day (end); a milestone's is its day (start).
   const dueOf = (item: TimelineItem) => (item.kind === "milestone" ? item.start : (item.end ?? item.start))
-  const shown = () => items().filter((item) => state.show === "all" || item.status !== "done")
 
   const save = async (next: ReadonlyArray<TimelineItem>) => {
     if (state.saving) return false
@@ -128,6 +146,7 @@ export function ProjectView(props: {
   }
   // A rename picked from the menu shows its input once the menu has closed: closing returns focus to the trigger.
   let renameFromMenu = ""
+  // New items join the end of the list, so a task lands under the last milestone.
   const add = async (event: SubmitEvent) => {
     event.preventDefault()
     const title = state.draft.title.trim()
@@ -144,111 +163,175 @@ export function ProjectView(props: {
   }
 
   const reduced = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches
-  const jump = (section: ProjectSection) => {
-    if (section === "settings") setState("settingsOpen", true)
-    queueMicrotask(() =>
-      document
-        .getElementById(`project-${section}`)
-        ?.scrollIntoView({ behavior: reduced() ? "auto" : "smooth", block: "start" }),
-    )
-  }
   createEffect(
     on(
       () => [props.project.id, props.section] as const,
       ([, section]) => {
-        if (section) jump(section)
+        if (!section) return
+        queueMicrotask(() =>
+          document
+            .getElementById(`project-${section}`)
+            ?.scrollIntoView({ behavior: reduced() ? "auto" : "smooth", block: "start" }),
+        )
       },
     ),
   )
 
-  const loaded = <T,>(source: Loaded<T>, view: (value: T) => JSX.Element) => (
-    <Show
-      when={!source.failed}
-      fallback={
-        <PageEmpty
-          error
-          title={language.t("secondBrain.state.error.title")}
-          action={
-            <ButtonV2 size="small" variant="outline" onClick={source.retry}>
-              {language.t("secondBrain.state.retry")}
-            </ButtonV2>
-          }
-        >
-          {language.t("secondBrain.state.error.body")}
-        </PageEmpty>
-      }
+  /** A task line, or a milestone's heading line with its tasks' "n of m done". */
+  const row = (item: TimelineItem, group?: MilestoneGroup) => (
+    <div
+      data-task={item.id}
+      data-kind={item.kind}
+      data-status={item.status}
+      classList={{
+        "flex items-center gap-3 px-4": true,
+        "min-h-11": item.kind === "milestone",
+        "min-h-10": item.kind === "task",
+      }}
     >
-      <Show when={source.value} fallback={<PageEmpty loading={source.loading} title={language.t("common.loading")} />}>
-        {(value) => view(value())}
+      <Show
+        when={item.kind === "task"}
+        fallback={
+          <span aria-hidden="true" class="flex w-4 shrink-0 justify-center text-v2-icon-icon-accent">
+            ◆
+          </span>
+        }
+      >
+        <CheckboxV2
+          hideLabel
+          shape="round"
+          label={item.title}
+          checked={item.status === "done"}
+          disabled={state.saving}
+          onChange={(checked) => void setStatus(item, checked ? "done" : "todo")}
+        />
       </Show>
-    </Show>
-  )
-  const heading = (section: ProjectSection, actions?: JSX.Element) => (
-    <div class="flex min-h-8 items-center gap-2">
-      <h2 id={`project-${section}-title`} class="min-w-0 flex-1 text-[15px] text-v2-text-text-base [font-weight:600]">
-        {language.t(`secondBrain.project.${section}`)}
-      </h2>
-      {actions}
+      <Show
+        when={state.renaming === item.id}
+        fallback={
+          // A button, so rename is one click or Enter away from the keyboard too.
+          <button
+            type="button"
+            title={item.title}
+            aria-label={language.t("secondBrain.project.renameItem", { title: item.title })}
+            disabled={state.saving}
+            classList={{
+              "min-w-0 flex-1 truncate rounded-[8px] text-left focus-visible:outline-offset-2": true,
+              "type-row-title": item.kind === "milestone",
+              "text-[13px]": item.kind === "task",
+              "text-v2-text-text-muted line-through": item.status === "done",
+              "text-v2-text-text-base": item.status !== "done",
+            }}
+            onClick={() => setState("renaming", item.id)}
+          >
+            {item.title}
+          </button>
+        }
+      >
+        <input
+          ref={focusWhenConnected}
+          class="h-7 min-w-0 flex-1 rounded-full bg-v2-background-bg-base px-2 text-[13px] text-v2-text-text-base outline-none [box-shadow:inset_0_0_0_1px_var(--v2-border-border-base)] focus:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)]"
+          aria-label={language.t("secondBrain.project.renameItem", { title: item.title })}
+          maxLength={200}
+          value={item.title}
+          onKeyDown={(event) => {
+            if (event.isComposing) return
+            if (event.key === "Enter") finishRename(item, event.currentTarget.value)
+            if (event.key === "Escape") finishRename(item, undefined)
+          }}
+          onBlur={(event) => finishRename(item, event.currentTarget.value)}
+        />
+      </Show>
+      <Show when={group && group.total > 0 ? group : undefined}>
+        {(group) => (
+          <span class="shrink-0 type-meta tabular-nums text-v2-text-text-muted">
+            {language.t("secondBrain.project.milestoneDone", { done: group().done, total: group().total })}
+          </span>
+        )}
+      </Show>
+      <StatusMenu
+        value={item.status}
+        label={language.t("secondBrain.project.statusOf", { title: item.title })}
+        disabled={state.saving}
+        onChange={(status) => void setStatus(item, status)}
+      />
+      <DateChip
+        value={dueOf(item)?.slice(0, 10)}
+        label={language.t("secondBrain.project.dueDateOf", { title: item.title })}
+        disabled={state.saving}
+        onChange={(date) => void update(item.id, dueDatePatch(item, date))}
+      />
+      <MenuV2 gutter={4} modal={false} placement="bottom-end">
+        <MenuV2.Trigger
+          as={IconButtonV2}
+          variant="ghost-muted"
+          size="small"
+          disabled={state.saving}
+          icon={<Icon name="outline-dots" size="small" />}
+          aria-label={language.t("secondBrain.project.itemActions", { title: item.title })}
+        />
+        <MenuV2.Portal>
+          <MenuV2.Content
+            onCloseAutoFocus={() => {
+              if (renameFromMenu !== item.id) return
+              renameFromMenu = ""
+              // Kobalte focuses the trigger right after this handler, so the input opens after it.
+              queueMicrotask(() => setState("renaming", item.id))
+            }}
+          >
+            <MenuV2.Item onSelect={() => (renameFromMenu = item.id)}>{language.t("common.rename")}</MenuV2.Item>
+            <MenuV2.Item onSelect={() => void remove(item)}>{language.t("common.delete")}</MenuV2.Item>
+          </MenuV2.Content>
+        </MenuV2.Portal>
+      </MenuV2>
     </div>
   )
-  const panel = "rounded-[16px] bg-v2-background-bg-layer-01 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]"
 
   return (
-    <div class="flex min-h-0 flex-col">
-      <nav
-        aria-label={language.t("secondBrain.project.sections")}
-        class="sticky top-0 z-10 flex min-h-12 flex-wrap items-center gap-1 border-b border-v2-border-border-muted bg-v2-background-bg-base px-6 py-2 sm:px-10"
-      >
-        <span class="mr-2 max-w-48 truncate type-section text-v2-text-text-base">{props.project.name}</span>
-        <For each={projectSections}>
-          {(section) => (
-            <button
-              type="button"
-              data-section-link={section}
-              class="rounded-full px-2.5 py-1 type-control text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base motion-reduce:transition-none"
-              onClick={() => jump(section)}
-            >
-              {language.t(`secondBrain.project.${section}`)}
-            </button>
-          )}
-        </For>
-        <span class="flex-1" />
-        <ButtonV2 size="small" variant="contrast" disabled={!props.onStartWork} onClick={() => props.onStartWork?.()}>
-          {language.t("secondBrain.projects.startWork")}
-        </ButtonV2>
-      </nav>
+    <div class="mx-auto flex w-full max-w-[1320px] flex-col gap-6 px-6 pb-12 pt-6 sm:px-10">
+      <header class="flex flex-col gap-1.5">
+        <div class="flex flex-wrap items-center gap-3">
+          <h1 class="min-w-0 break-words type-page-title text-v2-text-text-base">{props.project.name}</h1>
+          <span
+            data-project-status={props.project.status}
+            class="flex h-6 shrink-0 items-center gap-1.5 rounded-full bg-v2-background-bg-layer-02 px-2.5 type-meta text-v2-text-text-muted"
+          >
+            <span
+              aria-hidden="true"
+              classList={{
+                "size-1.5 rounded-full": true,
+                "bg-v2-icon-icon-accent": props.project.status === "active",
+                "bg-v2-icon-icon-muted": props.project.status !== "active",
+              }}
+            />
+            {language.t(`secondBrain.projects.filter.${props.project.status}`)}
+          </span>
+          <span class="flex-1" />
+          <ProjectActionsMenu project={props.project} card={card} />
+          <ButtonV2 variant="contrast" disabled={!props.onStartWork} onClick={() => props.onStartWork?.()}>
+            {language.t("secondBrain.projects.startWork")}
+          </ButtonV2>
+        </div>
+        <Show when={outcome() && outcome() !== props.project.name.trim()}>
+          <p class="max-w-3xl type-body text-v2-text-text-muted">{outcome()}</p>
+        </Show>
+      </header>
 
-      <div class="mx-auto flex w-full max-w-[1040px] flex-col gap-8 px-6 pb-12 pt-6 sm:px-10">
-        <header class="flex flex-col gap-2.5">
-          <h1 class="break-words type-display text-v2-text-text-base">{props.project.name}</h1>
-          <Show when={props.project.outcome}>
-            <p class="max-w-3xl text-[15px] leading-6 text-v2-text-text-base">{props.project.outcome}</p>
-          </Show>
-          <Show when={props.timeline.value}>
-            <div class="flex flex-wrap items-center gap-3 type-meta text-v2-text-text-muted">
-              <span
-                class="h-2 w-56 overflow-hidden rounded-full bg-v2-background-bg-layer-02"
-                role="progressbar"
-                aria-valuemin="0"
-                aria-valuemax="100"
-                aria-valuenow={percent()}
-                aria-label={language.t("secondBrain.projects.progress")}
-              >
-                <span
-                  class="block h-full rounded-full bg-v2-background-bg-accent transition-[width] duration-medium ease-standard motion-reduce:transition-none"
-                  style={{ width: `${percent()}%` }}
-                />
-              </span>
-              <span>{progress()}</span>
-            </div>
-          </Show>
-        </header>
-
-        <section id="project-tasks" aria-labelledby="project-tasks-title" class="flex scroll-mt-16 flex-col gap-3">
-          {heading(
-            "tasks",
+      <div class="grid grid-cols-1 gap-6 min-[1100px]:grid-cols-[minmax(0,1fr)_300px] min-[1100px]:items-start">
+        <section
+          id="project-tasks"
+          aria-labelledby="project-tasks-title"
+          class="flex min-w-0 scroll-mt-6 flex-col gap-3"
+        >
+          <div class="flex min-h-8 flex-wrap items-center gap-x-3 gap-y-1">
+            <h2 id="project-tasks-title" class="type-section text-v2-text-text-base">
+              {language.t("secondBrain.project.tasks")}
+            </h2>
+            <Show when={props.timeline.value}>
+              <span class="min-w-0 flex-1 truncate type-caption text-v2-text-text-muted">{progress()}</span>
+            </Show>
             <SegmentedControlV2
-              class="!w-auto"
+              class="!w-auto ml-auto"
               aria-label={language.t("secondBrain.project.show")}
               value={state.show}
               onChange={(value) => value && setState("show", value === "all" ? "all" : "open")}
@@ -257,112 +340,14 @@ export function ProjectView(props: {
                 {language.t("secondBrain.project.show.open")}
               </SegmentedControlItemV2>
               <SegmentedControlItemV2 value="all">{language.t("secondBrain.project.show.all")}</SegmentedControlItemV2>
-            </SegmentedControlV2>,
-          )}
-          {loaded(props.timeline, () => (
-            <div class={`${panel} flex flex-col px-4 py-1`}>
-              <ul class="flex flex-col" aria-label={language.t("secondBrain.project.tasks")}>
-                <For each={shown()}>
-                  {(item) => (
-                    <li
-                      data-task={item.id}
-                      data-kind={item.kind}
-                      data-status={item.status}
-                      class="flex min-h-11 items-center gap-3 border-b border-v2-border-border-muted last:border-b-0"
-                    >
-                      <Show
-                        when={item.kind === "task"}
-                        fallback={
-                          <span aria-hidden="true" class="flex w-4 shrink-0 justify-center text-v2-icon-icon-accent">
-                            ◆
-                          </span>
-                        }
-                      >
-                        <CheckboxV2
-                          hideLabel
-                          shape="round"
-                          label={item.title}
-                          checked={item.status === "done"}
-                          disabled={state.saving}
-                          onChange={(checked) => void setStatus(item, checked ? "done" : "todo")}
-                        />
-                      </Show>
-                      <Show
-                        when={state.renaming === item.id}
-                        fallback={
-                          // A button, so rename is one click or Enter away from the keyboard too.
-                          <button
-                            type="button"
-                            title={item.title}
-                            aria-label={language.t("secondBrain.project.renameItem", { title: item.title })}
-                            disabled={state.saving}
-                            classList={{
-                              "min-w-0 flex-1 truncate rounded-[8px] text-left text-[13px] focus-visible:outline-offset-2": true,
-                              "text-v2-text-text-muted line-through": item.status === "done",
-                              "text-v2-text-text-base": item.status !== "done",
-                            }}
-                            onClick={() => setState("renaming", item.id)}
-                          >
-                            {item.title}
-                          </button>
-                        }
-                      >
-                        <input
-                          ref={focusWhenConnected}
-                          class="h-7 min-w-0 flex-1 rounded-full bg-v2-background-bg-base px-2 text-[13px] text-v2-text-text-base outline-none [box-shadow:inset_0_0_0_1px_var(--v2-border-border-base)] focus:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)]"
-                          aria-label={language.t("secondBrain.project.renameItem", { title: item.title })}
-                          maxLength={200}
-                          value={item.title}
-                          onKeyDown={(event) => {
-                            if (event.isComposing) return
-                            if (event.key === "Enter") finishRename(item, event.currentTarget.value)
-                            if (event.key === "Escape") finishRename(item, undefined)
-                          }}
-                          onBlur={(event) => finishRename(item, event.currentTarget.value)}
-                        />
-                      </Show>
-                      <StatusMenu
-                        value={item.status}
-                        label={language.t("secondBrain.project.statusOf", { title: item.title })}
-                        disabled={state.saving}
-                        onChange={(status) => void setStatus(item, status)}
-                      />
-                      <DateChip
-                        value={dueOf(item)?.slice(0, 10)}
-                        label={language.t("secondBrain.project.dueDateOf", { title: item.title })}
-                        disabled={state.saving}
-                        onChange={(date) => void update(item.id, dueDatePatch(item, date))}
-                      />
-                      <MenuV2 gutter={4} modal={false} placement="bottom-end">
-                        <MenuV2.Trigger
-                          as={IconButtonV2}
-                          variant="ghost-muted"
-                          size="small"
-                          disabled={state.saving}
-                          icon={<Icon name="outline-dots" size="small" />}
-                          aria-label={language.t("secondBrain.project.itemActions", { title: item.title })}
-                        />
-                        <MenuV2.Portal>
-                          <MenuV2.Content
-                            onCloseAutoFocus={() => {
-                              if (renameFromMenu !== item.id) return
-                              renameFromMenu = ""
-                              // Kobalte focuses the trigger right after this handler, so the input opens after it.
-                              queueMicrotask(() => setState("renaming", item.id))
-                            }}
-                          >
-                            <MenuV2.Item onSelect={() => (renameFromMenu = item.id)}>
-                              {language.t("common.rename")}
-                            </MenuV2.Item>
-                            <MenuV2.Item onSelect={() => void remove(item)}>{language.t("common.delete")}</MenuV2.Item>
-                          </MenuV2.Content>
-                        </MenuV2.Portal>
-                      </MenuV2>
-                    </li>
-                  )}
-                </For>
-              </ul>
-              <form class="flex min-h-12 flex-wrap items-center gap-2 py-1.5" onSubmit={(event) => void add(event)}>
+            </SegmentedControlV2>
+          </div>
+          {loadedView(props.timeline, () => (
+            <div class="flex flex-col divide-y divide-v2-border-border-muted rounded-[16px] bg-v2-background-bg-layer-01 py-1 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]">
+              <form
+                class="flex min-h-12 flex-wrap items-center gap-2 px-4 py-1.5"
+                onSubmit={(event) => void add(event)}
+              >
                 <Icon name="plus" size="small" class="shrink-0 text-v2-icon-icon-muted" />
                 <input
                   class="h-8 min-w-[180px] flex-1 bg-transparent text-[13px] text-v2-text-text-base outline-none placeholder:text-v2-text-text-faint"
@@ -383,11 +368,28 @@ export function ProjectView(props: {
                 />
                 <KindSwitch value={state.draft.kind} onChange={(kind) => setState("draft", "kind", kind)} />
               </form>
+              <For each={groups()}>
+                {(group) => (
+                  <div
+                    role="group"
+                    aria-label={group.milestone?.title ?? language.t("secondBrain.project.tasks")}
+                    data-milestone-group={group.milestone?.id ?? ""}
+                    class="flex flex-col divide-y divide-v2-border-border-muted"
+                  >
+                    <Show when={group.milestone}>{(milestone) => row(milestone(), group)}</Show>
+                    <Show when={group.tasks.length > 0}>
+                      <ul class="flex flex-col divide-y divide-v2-border-border-muted">
+                        <For each={group.tasks}>{(task) => <li>{row(task)}</li>}</For>
+                      </ul>
+                    </Show>
+                  </div>
+                )}
+              </For>
             </div>
           ))}
           <RevealShow when={state.error}>
             {(error) => (
-              <p role="alert" class="px-1 text-[12px] text-v2-text-text-critical">
+              <p role="alert" class="px-1 type-caption text-v2-text-text-critical">
                 {error()}
               </p>
             )}
@@ -397,163 +399,20 @@ export function ProjectView(props: {
           </Show>
         </section>
 
-        <section id="project-pages" aria-labelledby="project-pages-title" class="flex scroll-mt-16 flex-col gap-3">
-          {heading("pages")}
-          <ul class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <li>
-              <button
-                type="button"
-                data-action="project-new-page"
-                disabled={props.creatingPage}
-                class="flex h-24 w-full flex-col items-center justify-center gap-1 rounded-[16px] type-control text-v2-text-text-muted shadow-[inset_0_0_0_1px_var(--v2-border-border-base)] transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base disabled:opacity-50 motion-reduce:transition-none"
-                onClick={props.onNewPage}
-              >
-                <Icon name="plus" size="small" />
-                {language.t("secondBrain.vault.newPage")}
-              </button>
-            </li>
-            <For each={props.pages}>
-              {(page) => (
-                <li>
-                  <a
-                    href={props.pageHref(page.path)}
-                    class={`${panel} flex h-24 flex-col gap-1.5 p-4 transition-colors duration-short ease-standard hover:bg-v2-background-bg-layer-02 motion-reduce:transition-none`}
-                    onClick={(event) => {
-                      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return
-                      event.preventDefault()
-                      props.onPage(page.path)
-                    }}
-                  >
-                    <span class="truncate type-row-title text-v2-text-text-base" title={page.title}>
-                      {page.title}
-                    </span>
-                    {/* A hand-edited `updated_at` may not parse; the server then sends "". */}
-                    <Show when={Number.isFinite(Date.parse(page.updatedAt))}>
-                      <span class="mt-auto type-meta tabular-nums text-v2-text-text-muted">
-                        {shortDate(new Date(page.updatedAt).toISOString())}
-                      </span>
-                    </Show>
-                  </a>
-                </li>
-              )}
-            </For>
-          </ul>
-          <RevealShow when={props.pageError}>
-            {(error) => (
-              <p role="alert" class="px-1 text-[12px] text-v2-text-text-critical">
-                {error()}
-              </p>
-            )}
-          </RevealShow>
-        </section>
-
-        <section id="project-threads" aria-labelledby="project-threads-title" class="flex scroll-mt-16 flex-col gap-3">
-          {heading(
-            "threads",
-            <ButtonV2
-              size="small"
-              variant="ghost"
-              icon="plus"
-              disabled={!props.onNewThread}
-              onClick={() => props.onNewThread?.()}
-            >
-              {language.t("secondBrain.project.newThread")}
-            </ButtonV2>,
-          )}
-          <Show
-            when={props.threads.length > 0}
-            fallback={
-              <p class="px-1 type-control text-v2-text-text-muted">{language.t("secondBrain.project.threadsEmpty")}</p>
-            }
-          >
-            <ul class="flex flex-col">
-              <For each={props.threads}>
-                {(thread) => (
-                  <li>
-                    <a href={props.threadHref(thread.id)} class={pageRowClass}>
-                      <span
-                        aria-hidden="true"
-                        classList={{
-                          "size-2 shrink-0 rounded-full": true,
-                          "bg-v2-icon-icon-accent running-pulse": thread.running,
-                          "bg-v2-background-bg-layer-03": !thread.running,
-                        }}
-                      />
-                      <span class="min-w-0 flex-1 truncate type-row-title text-v2-text-text-base">{thread.title}</span>
-                      <span class="shrink-0 type-meta text-v2-text-text-muted">
-                        {getRelativeTime(new Date(thread.updated).toISOString(), language.t)}
-                      </span>
-                    </a>
-                  </li>
-                )}
-              </For>
-            </ul>
-          </Show>
-        </section>
-
-        <section id="project-log" aria-labelledby="project-log-title" class="flex scroll-mt-16 flex-col gap-3">
-          {heading("log")}
-          {loaded(props.log, (entries) => (
-            <Show
-              when={entries.length > 0}
-              fallback={
-                <p class="px-1 type-control text-v2-text-text-muted">{language.t("secondBrain.vault.log.empty")}</p>
-              }
-            >
-              <ol class={`${panel} flex flex-col gap-px px-2 py-2`}>
-                <For each={entries}>
-                  {(entry) => (
-                    <li class="flex min-w-0 items-baseline gap-3 rounded-[12px] px-2 py-1.5">
-                      <time
-                        datetime={entry.at}
-                        class="w-32 min-w-0 shrink truncate whitespace-nowrap type-meta tabular-nums text-v2-text-text-muted"
-                      >
-                        {new Date(entry.at).toLocaleString(language.intl(), {
-                          day: "numeric",
-                          month: "short",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </time>
-                      <span class="w-20 min-w-0 shrink truncate type-meta text-v2-text-text-muted">{entry.author}</span>
-                      <span class="min-w-0 flex-1 text-[13px] text-v2-text-text-base">{entry.text}</span>
-                    </li>
-                  )}
-                </For>
-              </ol>
-            </Show>
-          ))}
-        </section>
-
-        <section
-          id="project-settings"
-          aria-labelledby="project-settings-title"
-          class="flex scroll-mt-16 flex-col gap-3"
-        >
-          <button
-            type="button"
-            aria-expanded={state.settingsOpen}
-            aria-controls="project-settings-body"
-            class="flex w-fit items-center gap-2 rounded-full pr-2 text-left"
-            onClick={() => setState("settingsOpen", (open) => !open)}
-          >
-            <h2 id="project-settings-title" class="text-[15px] text-v2-text-text-base [font-weight:600]">
-              {language.t("secondBrain.project.settings")}
-            </h2>
-            <Icon
-              name="chevron-down"
-              size="small"
-              classList={{
-                "text-v2-icon-icon-muted transition-transform duration-short motion-reduce:transition-none": true,
-                "-rotate-90": !state.settingsOpen,
-              }}
-            />
-          </button>
-          {/* Hidden, not unmounted: collapsing must keep unsaved edits and the guard that protects them. */}
-          <div id="project-settings-body" hidden={!state.settingsOpen}>
-            {props.settings}
-          </div>
-        </section>
+        <aside class="flex min-w-0 flex-col gap-3" aria-label={language.t("secondBrain.project.context")}>
+          <ProgressCard card={card} />
+          <PagesCard
+            pages={props.pages}
+            pageHref={props.pageHref}
+            onPage={props.onPage}
+            onNewPage={props.onNewPage}
+            creatingPage={props.creatingPage}
+            pageError={props.pageError}
+            dateLabel={shortDate}
+          />
+          <ThreadsCard threads={props.threads} threadHref={props.threadHref} onNewThread={props.onNewThread} />
+          <LogCard log={props.log} />
+        </aside>
       </div>
     </div>
   )

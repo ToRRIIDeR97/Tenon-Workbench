@@ -15,9 +15,9 @@
   padding: 6px 8px;
   gap: 6px;
 
-  background: var(--v2-background-bg-base);
+  background: var(--v2-background-bg-floating);
   box-shadow: var(--v2-elevation-floating);
-  border-radius: 4px;
+  border-radius: 8px;
 
   font-style: normal;
   font-weight: 500;

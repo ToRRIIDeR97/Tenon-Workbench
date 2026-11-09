@@ -34,9 +34,7 @@ import { Icon as IconV2 } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { MenuV2 } from "@tenon/ui/v2/menu-v2"
-import { DialogFooter, DialogHeader, DialogTitleGroup, DialogV2 } from "@tenon/ui/v2/dialog-v2"
 import { InlineInput } from "@tenon/ui/inline-input"
-import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { SessionRetry } from "@tenon/session-ui/session-retry"
 import { isScrollKeyTarget, scrollKey, scrollKeyOwner, ScrollView } from "@tenon/ui/scroll-view"
 import { TextReveal } from "@tenon/ui/text-reveal"
@@ -45,20 +43,18 @@ import type {
   AssistantMessage,
   Message as MessageType,
   Part as PartType,
+  Session,
   ToolPart,
   UserMessage,
 } from "@opencode-ai/sdk/v2"
 import { showToast } from "@/utils/toast"
-import { downloadSessionExport, fetchSessionExport, sessionExportFilename } from "@/utils/session-export"
 import { getDirectory, getFilename } from "@tenon/core/util/path"
 import { normalize } from "@tenon/session-ui/session-diff"
 import { useFileComponent } from "@tenon/ui/context/file"
 import { shouldMarkBoundaryGesture, normalizeWheelDelta } from "@/pages/session/message-gesture"
-import { useDialog } from "@tenon/ui/context/dialog"
 import { useLanguage } from "@/context/language"
 import { usePrompt } from "@/context/prompt"
 import { useSessionKey, useSessionLayout } from "@/pages/session/session-layout"
-import { useSessionArchive } from "@/pages/session/session-archive"
 import { useSettings } from "@/context/settings"
 import { requireServerKey, sessionHref } from "@/utils/session-route"
 import { useSDK } from "@/context/sdk"
@@ -66,6 +62,9 @@ import { ServerConnection } from "@/context/server"
 import { useServerSDK } from "@/context/server-sdk"
 import { useSync } from "@/context/sync"
 import { sessionTitle } from "@/utils/session-title"
+import { sessionPinnedAt } from "@/utils/session"
+import { useSidebarController } from "@/components/sidebar/sidebar-controller"
+import { onThreadMenuKey, ThreadMenuItems, type ThreadMenuRun } from "@/components/sidebar/thread-menu"
 import { scheduleConnectedMeasure } from "./measure"
 import { observeElementOffsetReconnectAware } from "./observe-element-offset"
 import { createTimelineProjection } from "./projection"
@@ -271,8 +270,7 @@ export function MessageTimeline(props: {
   const serverSDK = useServerSDK()
   const sync = useSync()
   const settings = useSettings()
-  const dialog = useDialog()
-  const sessionArchive = useSessionArchive()
+  const threads = useSidebarController()
   const language = useLanguage()
   const data = useData()
   const { params, sessionKey } = useSessionKey()
@@ -792,90 +790,25 @@ export function MessageTimeline(props: {
     titleMutation.mutate({ id, title: next })
   }
 
-  const exportSession = async (sessionID: string) => {
-    try {
-      const data = await fetchSessionExport({
-        sessionID,
-        client: sdk().client,
-      })
-      const filename = sessionExportFilename(data.info)
-      downloadSessionExport(filename, data)
-      showToast({
-        variant: "success",
-        icon: "circle-check",
-        title: language.t("toast.session.export.success.title"),
-        description: language.t("toast.session.export.success.description", { filename }),
-      })
-    } catch (err) {
-      showToast({
-        variant: "error",
-        title: language.t("toast.session.export.failed.title"),
-        description: err instanceof Error ? err.message : language.t("toast.session.export.failed.description"),
-      })
-    }
+  const headerPinned = (id: string) => {
+    const session = sync().session.get(id)
+    return !!session && sessionPinnedAt(session) !== undefined
   }
 
-  const deleteSession = async (sessionID: string) => {
-    const session = sync().session.get(sessionID)
-    if (!session) return false
-
-    const sessions = (sync().data.session ?? []).filter((s) => !s.parentID && !s.time?.archived)
-    const index = sessions.findIndex((s) => s.id === sessionID)
-    const nextSession = index === -1 ? undefined : (sessions[index + 1] ?? sessions[index - 1])
-
-    const result = await sdk()
-      .api.session.remove({ sessionID })
-      .then(() => true)
-      .catch((err) => {
-        showToast({
-          title: language.t("session.delete.failed.title"),
-          description: errorMessage(err),
-        })
-        return false
-      })
-
-    if (!result) return false
-
-    const removed = new Set<string>([sessionID])
-    const byParent = new Map<string, string[]>()
-    for (const item of sync().data.session) {
-      const parentID = item.parentID
-      if (!parentID) continue
-      const existing = byParent.get(parentID)
-      if (existing) {
-        existing.push(item.id)
-        continue
-      }
-      byParent.set(parentID, [item.id])
+  // The header menu runs the same thread actions as the sidebar row, so both share one undo queue.
+  const threadMenu = (id: string): ThreadMenuRun => {
+    const withSession = (action: (session: Session) => void) => () => {
+      const session = sync().session.get(id)
+      if (session) action(session)
     }
-
-    const stack = [sessionID]
-    while (stack.length) {
-      const parentID = stack.pop()
-      if (!parentID) continue
-
-      const children = byParent.get(parentID)
-      if (!children) continue
-
-      for (const child of children) {
-        if (removed.has(child)) continue
-        removed.add(child)
-        stack.push(child)
-      }
+    return {
+      rename: () => setTitle("pendingRename", true),
+      pin: withSession((session) => void threads.setThreadPinned(session, sessionPinnedAt(session) === undefined)),
+      fork: withSession((session) => void threads.forkThread(session)),
+      export: withSession((session) => void threads.exportThread(session)),
+      archive: withSession((session) => void threads.archiveThread(session)),
+      delete: withSession((session) => threads.deleteThread(session)),
     }
-
-    sessionArchive.navigateAfterRemoval(sessionID, session.parentID, nextSession?.id)
-
-    sync().set(
-      produce((draft) => {
-        draft.session = draft.session.filter((s) => !removed.has(s.id))
-      }),
-    )
-
-    for (const id of removed) {
-      sync().session.evict(id)
-    }
-    return true
   }
 
   const navigateParent = () => {
@@ -883,35 +816,6 @@ export function MessageTimeline(props: {
     if (!id) return
     navigate(
       sessionHref(params.serverKey ? requireServerKey(params.serverKey) : ServerConnection.key(serverSDK().server), id),
-    )
-  }
-
-  function DialogDeleteSession(props: { sessionID: string }) {
-    const name = createMemo(
-      () => sessionTitle(sync().session.get(props.sessionID)?.title) ?? language.t("command.session.new"),
-    )
-    const handleDelete = async () => {
-      await deleteSession(props.sessionID)
-      dialog.close()
-    }
-
-    return (
-      <DialogV2 fit>
-        <DialogHeader hideClose>
-          <DialogTitleGroup
-            title={language.t("session.delete.title")}
-            description={language.t("session.delete.confirm", { name: name() })}
-          />
-        </DialogHeader>
-        <DialogFooter>
-          <ButtonV2 variant="ghost" onClick={() => dialog.close()}>
-            {language.t("common.cancel")}
-          </ButtonV2>
-          <ButtonV2 variant="danger" onClick={handleDelete}>
-            {language.t("session.delete.button")}
-          </ButtonV2>
-        </DialogFooter>
-      </DialogV2>
     )
   }
 
@@ -1203,7 +1107,11 @@ export function MessageTimeline(props: {
                 layout={settings.general.workSteps()}
                 onOpenSubagent={
                   data.openSubagent
-                    ? (part) => data.openSubagent?.({ sessionID: part.sessionID, partID: part.id })
+                    ? (part) =>
+                        data.openSubagent?.({
+                          sessionID: part?.sessionID ?? data.sessionID ?? "",
+                          partID: part?.id,
+                        })
                     : undefined
                 }
                 onToggle={(open) => {
@@ -1258,8 +1166,12 @@ export function MessageTimeline(props: {
               <div
                 role="alert"
                 class="rounded-[16px] bg-v2-state-bg-danger px-4 py-2.5 text-[13px] leading-5 text-v2-state-fg-danger whitespace-pre-wrap break-words"
+                title={errorRow().unsupportedModel ? errorRow().text : undefined}
               >
-                {errorRow().text}
+                <Show when={errorRow().unsupportedModel} fallback={errorRow().text}>
+                  {language.t("secondBrain.session.unsupportedModel")}
+                  <div class="text-[12px] opacity-70">{errorRow().text}</div>
+                </Show>
               </div>
             </div>
           </TimelineRowFrame>
@@ -1353,10 +1265,9 @@ export function MessageTimeline(props: {
         <button
           type="button"
           aria-label={language.t("session.messages.jumpToLatest")}
-          class="pointer-events-auto flex items-center justify-center size-9 rounded-full border-none text-v2-text-text-base backdrop-blur-[2px]"
+          class="pointer-events-auto flex items-center justify-center size-9 rounded-full border-none text-v2-text-text-base backdrop-blur-[2px] shadow-[0_0_0_1px_var(--v2-border-border-muted),var(--v2-elevation-floating)]"
           style={{
             background: "color-mix(in srgb, var(--v2-background-bg-base) 92%, transparent)",
-            "box-shadow": "0 0 0 1px var(--v2-border-border-muted), 0 6px 16px -8px rgb(0 0 0 / 0.2)",
           }}
           onClick={props.onResumeScroll}
         >
@@ -1402,7 +1313,7 @@ export function MessageTimeline(props: {
                     <button
                       type="button"
                       data-slot="session-title-parent"
-                      class="min-w-0 max-w-[40%] truncate pl-3 text-[15px] font-[500] leading-5 text-v2-text-text-muted transition-colors duration-150 ease-standard hover:text-v2-text-text-base motion-reduce:transition-none"
+                      class="min-w-0 max-w-[40%] truncate pl-3 text-[15px] font-[500] leading-5 text-v2-text-text-muted transition-colors duration-short ease-standard hover:text-v2-text-text-base motion-reduce:transition-none"
                       onClick={navigateParent}
                     >
                       {parentTitle()}
@@ -1421,7 +1332,7 @@ export function MessageTimeline(props: {
                       fallback={
                         <h1
                           data-slot="session-title-child"
-                          class="truncate text-[15px] font-[600] leading-5 text-v2-text-text-base w-fit rounded-full px-3 py-1 transition-colors duration-150 ease-standard hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none"
+                          class="truncate text-[15px] font-[600] leading-5 text-v2-text-text-base w-fit rounded-full px-3 py-1 transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none"
                           onClick={openTitleEditor}
                         >
                           {childTitle()}
@@ -1466,7 +1377,7 @@ export function MessageTimeline(props: {
                         <button
                           type="button"
                           data-action="session-changes"
-                          class="hidden md:flex h-7 items-center rounded-full px-2.5 transition-colors duration-150 ease-standard hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none"
+                          class="hidden md:flex h-7 items-center rounded-full px-2.5 transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none"
                           aria-label={`${language.t("session.review.change.other")} +${summary().additions} -${summary().deletions}`}
                           aria-expanded={sessionView().reviewPanel.opened()}
                           aria-controls="review-panel"
@@ -1498,7 +1409,9 @@ export function MessageTimeline(props: {
                         </TooltipV2>
                         <MenuV2.Portal>
                           <MenuV2.Content
-                            style={{ width: "120px", "min-width": "120px" }}
+                            onKeyDown={(event) =>
+                              onThreadMenuKey(event, threadMenu(id), () => setTitle("menuOpen", false))
+                            }
                             onCloseAutoFocus={(event) => {
                               if (title.pendingRename) {
                                 event.preventDefault()
@@ -1507,27 +1420,7 @@ export function MessageTimeline(props: {
                               }
                             }}
                           >
-                            <MenuV2.Item
-                              onSelect={() => {
-                                setTitle("pendingRename", true)
-                                setTitle("menuOpen", false)
-                              }}
-                            >
-                              {language.t("common.rename")}
-                            </MenuV2.Item>
-                            <MenuV2.Item onSelect={() => exportSession(id)}>
-                              {language.t("common.export")}...
-                            </MenuV2.Item>
-                            <MenuV2.Item onSelect={() => void sessionArchive.archive(id)}>
-                              {language.t("common.archive")}
-                            </MenuV2.Item>
-                            <MenuV2.Separator />
-                            <MenuV2.Item
-                              critical
-                              onSelect={() => dialog.show(() => <DialogDeleteSession sessionID={id} />)}
-                            >
-                              {language.t("common.delete")}...
-                            </MenuV2.Item>
+                            <ThreadMenuItems run={threadMenu(id)} pinned={headerPinned(id)} />
                           </MenuV2.Content>
                         </MenuV2.Portal>
                       </MenuV2>

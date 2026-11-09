@@ -1,6 +1,6 @@
-export type ThreadMenuAction = "rename" | "pin" | "fork" | "archive" | "delete"
+export type ThreadMenuAction = "rename" | "pin" | "fork" | "export" | "archive" | "delete"
 
-/** The single key each thread-menu item shows as its hint. */
+/** The single key each thread-menu item shows as its hint. Export has none. */
 export const THREAD_MENU_KEYS = { rename: "r", pin: "p", fork: "f", archive: "a", delete: "delete" } as const
 
 const ACTION_BY_KEY: Partial<Record<string, ThreadMenuAction>> = {

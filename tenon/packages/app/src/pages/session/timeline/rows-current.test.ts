@@ -201,6 +201,40 @@ describe("current session timeline rows", () => {
     expect(result.rows.map((row) => row._tag)).toEqual(["UserMessage", "AssistantPart"])
   })
 
+  test("flags an unsupported model API error and keeps the raw text", () => {
+    const rows = (message: string) => {
+      const source = [
+        { id: "msg_user", type: "user", text: "hi", time: { created: 1 } },
+        {
+          id: "msg_failed",
+          type: "assistant",
+          agent: "build",
+          model: { id: "iceman-free", providerID: "opencode" },
+          content: [],
+          error: { type: "unknown", message },
+          time: { created: 2, completed: 3 },
+        },
+      ] satisfies SessionMessageInfo[]
+      const normalized = normalizeSessionMessages("ses_1", source)
+      const messages = new Map(normalized.messages.map((item) => [item.id, item]))
+      return Timeline.constructSessionMessageRows(
+        source,
+        (messageID) => messages.get(messageID),
+        (messageID) => normalized.parts.get(messageID) ?? [],
+        true,
+        "idle",
+        true,
+        normalized.messages.filter((item) => item.role === "user"),
+      ).rows.filter((row) => row._tag === "Error")
+    }
+
+    expect(rows("Unsupported API for opencode/iceman-free: native")).toMatchObject([
+      { text: "Unsupported API for opencode/iceman-free: native", unsupportedModel: true },
+    ])
+    expect(rows("temporary failure")).toMatchObject([{ text: "temporary failure" }])
+    expect(rows("temporary failure")[0]).not.toHaveProperty("unsupportedModel")
+  })
+
   test("collapses completed tool runs but keeps edits and running tools as their own rows", () => {
     const tool = (id: string, name: string, status: string) =>
       ({ id, messageID: "msg_a", sessionID: "ses_1", type: "tool", callID: id, tool: name, state: { status } }) as Part

@@ -111,11 +111,11 @@ export function CommandStrip() {
             state.open,
           // Hidden once the exit finishes (visibility flips at the end), so the closed card's input is not
           // reachable by role queries, assistive tech or clicks.
-          "invisible translate-y-3 scale-[0.97] opacity-0 transition-[opacity,translate,scale,visibility] duration-[200ms] ease-emphasized-accelerate":
+          "invisible translate-y-3 scale-[0.97] opacity-0 transition-[opacity,translate,scale,visibility] duration-exit ease-emphasized-accelerate":
             !state.open,
         }}
       >
-        <div class="flex flex-col gap-1 rounded-[16px] bg-v2-background-bg-base px-3 py-2 shadow-[var(--v2-elevation-floating)]">
+        <div class="flex flex-col gap-1 rounded-[16px] bg-v2-background-bg-floating px-3 py-2 shadow-[var(--v2-elevation-floating)]">
           <div class="flex h-7 min-w-0 items-center gap-2">
             <p
               class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-muted"

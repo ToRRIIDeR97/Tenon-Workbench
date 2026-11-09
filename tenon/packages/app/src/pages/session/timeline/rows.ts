@@ -293,12 +293,15 @@ export namespace Timeline {
 
     if (error) {
       const data = error.data?.message
+      const text = unwrapErrorMessage(
+        typeof data === "string" ? data : data === undefined || data === null ? "" : String(data),
+      )
       rows.push(
         new TimelineRow.Error({
           userMessageID: userMessage.id,
-          text: unwrapErrorMessage(
-            typeof data === "string" ? data : data === undefined || data === null ? "" : String(data),
-          ),
+          text,
+          // Core reports a model whose API the runtime can't drive as raw text; the row shows friendly copy instead.
+          ...(/^Unsupported API for [^\s/]+\/\S+: \S+$/.test(text) ? { unsupportedModel: true as const } : {}),
         }),
       )
     }

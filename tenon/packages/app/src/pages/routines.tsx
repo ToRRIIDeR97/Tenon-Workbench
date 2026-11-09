@@ -5,6 +5,7 @@ import { Switch } from "@tenon/ui/v2/switch-v2"
 import { createEffect, createResource, For, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { PageEmpty, PageFrame, PageHeader } from "@/components/page"
+import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
@@ -43,6 +44,7 @@ export default function RoutinesPage() {
   const settings = useSettings()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const command = useCommand()
   const [state, setState] = createStore({
     running: {} as Record<string, boolean>,
     toggling: {} as Record<string, boolean>,
@@ -174,132 +176,151 @@ export default function RoutinesPage() {
           </>
         }
       />
-      <div class="px-6 pb-6">
-        <Show when={state.failed || settled(routines)?.failed}>
-          <p role="alert" class="pb-2 type-meta text-v2-text-text-critical">
-            {language.t("common.requestFailed")}
-          </p>
-        </Show>
-        <Show
-          when={items().length > 0}
-          fallback={
-            <Show when={!routines.loading} fallback={<PageEmpty loading title={language.t("common.loading")} />}>
-              <Show when={!settled(routines)?.failed}>
-                <PageEmpty title={language.t("secondBrain.routines.empty.title")}>
-                  {language.t("secondBrain.routines.empty.body")}
-                </PageEmpty>
+      {/* With no workspace there is nowhere to write a routine, so say so rather than leave New routine inert. */}
+      <Show
+        when={workspace()}
+        fallback={
+          <PageEmpty
+            title={language.t("secondBrain.state.noWorkspace.title")}
+            action={
+              <ButtonV2 variant="contrast" onClick={() => command.trigger("project.open")}>
+                {language.t("secondBrain.home.openWorkspace")}
+              </ButtonV2>
+            }
+          >
+            {language.t("secondBrain.state.noWorkspace.body")}
+          </PageEmpty>
+        }
+      >
+        <div class="px-6 pb-6">
+          <Show when={state.failed || settled(routines)?.failed}>
+            <p role="alert" class="pb-2 type-meta text-v2-text-text-critical">
+              {language.t("common.requestFailed")}
+            </p>
+          </Show>
+          <Show
+            when={items().length > 0}
+            fallback={
+              <Show when={!routines.loading} fallback={<PageEmpty loading title={language.t("common.loading")} />}>
+                <Show when={!settled(routines)?.failed}>
+                  <PageEmpty title={language.t("secondBrain.routines.empty.title")}>
+                    {language.t("secondBrain.routines.empty.body")}
+                  </PageEmpty>
+                </Show>
               </Show>
-            </Show>
-          }
-        >
-          <table class="w-full border-separate border-spacing-y-1 text-left text-[13px]">
-            <thead class="type-meta text-v2-text-text-muted">
-              <tr>
-                <th class="px-3 py-1 [font-weight:500]">{language.t("secondBrain.routines.column.name")}</th>
-                <th class="px-3 py-1 [font-weight:500]">{language.t("secondBrain.routines.column.schedule")}</th>
-                <th class="px-3 py-1 [font-weight:500]">{language.t("secondBrain.routines.column.lastRun")}</th>
-                <th class="px-3 py-1 [font-weight:500]">{language.t("secondBrain.routines.column.nextRun")}</th>
-                <th class="px-3 py-1">
-                  <span class="sr-only">{language.t("secondBrain.routines.column.actions")}</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <For each={items()}>
-                {(routine) => (
-                  <tr class="text-v2-text-text-base" data-routine={routine.id}>
-                    <td class="px-3 py-2">
-                      <A
-                        href={`/projects?page=${encodeURIComponent(routine.path)}`}
-                        class="type-row-title hover:underline"
-                      >
-                        {routine.name}
-                      </A>
-                      <Show when={!routine.enabled}>
-                        <span class="ml-2 type-caption text-v2-text-text-muted">
-                          {language.t("secondBrain.routines.disabled")}
-                        </span>
-                      </Show>
-                      {/* `harness` and `tools` are read from the page but runs don't honour them yet. */}
-                      <Show when={(routine.unsupported ?? []).length > 0}>
-                        <span class="block type-meta text-v2-text-text-muted">
-                          {language.t("secondBrain.routines.unsupported", {
-                            fields: (routine.unsupported ?? []).join(", "),
-                          })}
-                        </span>
-                      </Show>
-                      <Show when={routine.needsApproval}>
-                        <span class="mt-1 flex flex-wrap items-center gap-2">
-                          <span class="rounded-full bg-v2-state-bg-warning px-2 py-0.5 type-caption text-v2-state-fg-warning">
-                            {language.t("secondBrain.routines.needsApproval")}
+            }
+          >
+            <table class="w-full border-separate border-spacing-y-1 text-left text-[13px]">
+              <thead class="type-meta text-v2-text-text-muted">
+                <tr>
+                  <th class="px-3 py-1 [font-weight:500]">{language.t("secondBrain.routines.column.name")}</th>
+                  <th class="px-3 py-1 [font-weight:500]">{language.t("secondBrain.routines.column.schedule")}</th>
+                  <th class="px-3 py-1 [font-weight:500]">{language.t("secondBrain.routines.column.lastRun")}</th>
+                  <th class="px-3 py-1 [font-weight:500]">{language.t("secondBrain.routines.column.nextRun")}</th>
+                  <th class="px-3 py-1">
+                    <span class="sr-only">{language.t("secondBrain.routines.column.actions")}</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <For each={items()}>
+                  {(routine) => (
+                    <tr class="text-v2-text-text-base" data-routine={routine.id}>
+                      <td class="px-3 py-2">
+                        <A
+                          href={`/projects?page=${encodeURIComponent(routine.path)}`}
+                          class="type-row-title hover:underline"
+                        >
+                          {routine.name}
+                        </A>
+                        <Show when={!routine.enabled}>
+                          <span class="ml-2 type-caption text-v2-text-text-muted">
+                            {language.t("secondBrain.routines.disabled")}
                           </span>
-                          <A
-                            href={`/projects?page=${encodeURIComponent(routine.path)}`}
-                            class="type-meta text-v2-text-text-muted underline hover:text-v2-text-text-base"
+                        </Show>
+                        {/* `harness` and `tools` are read from the page but runs don't honour them yet. */}
+                        <Show when={(routine.unsupported ?? []).length > 0}>
+                          <span class="block type-meta text-v2-text-text-muted">
+                            {language.t("secondBrain.routines.unsupported", {
+                              fields: (routine.unsupported ?? []).join(", "),
+                            })}
+                          </span>
+                        </Show>
+                        <Show when={routine.needsApproval}>
+                          <span class="mt-1 flex flex-wrap items-center gap-2">
+                            <span class="rounded-full bg-v2-state-bg-warning px-2 py-0.5 type-caption text-v2-state-fg-warning">
+                              {language.t("secondBrain.routines.needsApproval")}
+                            </span>
+                            <A
+                              href={`/projects?page=${encodeURIComponent(routine.path)}`}
+                              class="type-meta text-v2-text-text-muted underline hover:text-v2-text-text-base"
+                            >
+                              {language.t("secondBrain.routines.review")}
+                            </A>
+                          </span>
+                        </Show>
+                        <Show when={(routine.denied ?? []).length > 0}>
+                          <span class="block type-meta text-v2-text-text-muted">
+                            {language.t("secondBrain.routines.denied", {
+                              permissions: (routine.denied ?? []).join(", "),
+                            })}
+                          </span>
+                        </Show>
+                      </td>
+                      <td class="px-3 py-2 font-mono type-meta text-v2-text-text-muted">{routine.schedule}</td>
+                      <td class="px-3 py-2 type-meta text-v2-text-text-muted">
+                        {time(routine.lastRun)}
+                        <Show when={routine.lastStatus === "failed"}>
+                          <span class="ml-2 text-v2-text-text-critical">
+                            {language.t("secondBrain.routines.failed")}
+                          </span>
+                        </Show>
+                        <Show when={routine.lastStatus === "unfiled"}>
+                          <span class="ml-2 text-v2-text-text-critical">
+                            {language.t("secondBrain.routines.unfiled")}
+                          </span>
+                        </Show>
+                        <Show when={routine.lastStatus === "running"}>
+                          <span class="ml-2">{language.t("secondBrain.routines.running")}</span>
+                        </Show>
+                      </td>
+                      <td class="px-3 py-2 type-meta text-v2-text-text-muted">
+                        {routine.enabled ? time(routine.nextRun) : "—"}
+                      </td>
+                      <td class="px-3 py-2">
+                        <div class="flex items-center justify-end gap-3">
+                          <Switch
+                            hideLabel
+                            size="small"
+                            checked={routine.enabled}
+                            disabled={state.toggling[routine.id] === true}
+                            onChange={(enabled) => void setEnabled(routine, enabled)}
                           >
-                            {language.t("secondBrain.routines.review")}
-                          </A>
-                        </span>
-                      </Show>
-                      <Show when={(routine.denied ?? []).length > 0}>
-                        <span class="block type-meta text-v2-text-text-muted">
-                          {language.t("secondBrain.routines.denied", {
-                            permissions: (routine.denied ?? []).join(", "),
-                          })}
-                        </span>
-                      </Show>
-                    </td>
-                    <td class="px-3 py-2 font-mono type-meta text-v2-text-text-muted">{routine.schedule}</td>
-                    <td class="px-3 py-2 type-meta text-v2-text-text-muted">
-                      {time(routine.lastRun)}
-                      <Show when={routine.lastStatus === "failed"}>
-                        <span class="ml-2 text-v2-text-text-critical">{language.t("secondBrain.routines.failed")}</span>
-                      </Show>
-                      <Show when={routine.lastStatus === "unfiled"}>
-                        <span class="ml-2 text-v2-text-text-critical">
-                          {language.t("secondBrain.routines.unfiled")}
-                        </span>
-                      </Show>
-                      <Show when={routine.lastStatus === "running"}>
-                        <span class="ml-2">{language.t("secondBrain.routines.running")}</span>
-                      </Show>
-                    </td>
-                    <td class="px-3 py-2 type-meta text-v2-text-text-muted">
-                      {routine.enabled ? time(routine.nextRun) : "—"}
-                    </td>
-                    <td class="px-3 py-2">
-                      <div class="flex items-center justify-end gap-3">
-                        <Switch
-                          hideLabel
-                          size="small"
-                          checked={routine.enabled}
-                          disabled={state.toggling[routine.id] === true}
-                          onChange={(enabled) => void setEnabled(routine, enabled)}
-                        >
-                          {language.t("secondBrain.routines.enable", { name: routine.name })}
-                        </Switch>
-                        <ButtonV2
-                          size="small"
-                          variant={routine.needsApproval ? "tonal" : "ghost"}
-                          disabled={
-                            state.running[routine.id] === true ||
-                            (!routine.needsApproval && routine.lastStatus === "running")
-                          }
-                          onClick={() => void (routine.needsApproval ? approve(routine) : run(routine))}
-                        >
-                          {language.t(
-                            routine.needsApproval ? "secondBrain.routines.approve" : "secondBrain.routines.runNow",
-                          )}
-                        </ButtonV2>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </For>
-            </tbody>
-          </table>
-        </Show>
-      </div>
+                            {language.t("secondBrain.routines.enable", { name: routine.name })}
+                          </Switch>
+                          <ButtonV2
+                            size="small"
+                            variant={routine.needsApproval ? "tonal" : "ghost"}
+                            disabled={
+                              state.running[routine.id] === true ||
+                              (!routine.needsApproval && routine.lastStatus === "running")
+                            }
+                            onClick={() => void (routine.needsApproval ? approve(routine) : run(routine))}
+                          >
+                            {language.t(
+                              routine.needsApproval ? "secondBrain.routines.approve" : "secondBrain.routines.runNow",
+                            )}
+                          </ButtonV2>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </For>
+              </tbody>
+            </table>
+          </Show>
+        </div>
+      </Show>
     </PageFrame>
   )
 }

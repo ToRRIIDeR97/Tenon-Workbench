@@ -4,7 +4,7 @@
   overflow: hidden;
   border-radius: var(--v2-radius-lg);
   border: 0;
-  background-color: var(--v2-background-bg-base);
+  background-color: var(--v2-background-bg-floating);
   padding: 6px;
   box-shadow: var(--v2-elevation-floating);
   z-index: 50;
@@ -20,7 +20,7 @@
   }
 
   &[data-expanded] {
-    animation: dropdown-menu-open var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate);
+    animation: dropdown-menu-open var(--v2-duration-short) var(--v2-ease-emphasized-decelerate);
   }
 }
 
@@ -108,7 +108,7 @@
   }
 
   [data-slot="dropdown-menu-arrow"] {
-    fill: var(--v2-background-bg-base);
+    fill: var(--v2-background-bg-floating);
   }
 }
 

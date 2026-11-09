@@ -217,16 +217,18 @@ folder as a workspace and selects it) and `tenon://new-session?directory=<path>&
   per Project since the workshop's variant B). With nothing open it lists
   **Projects** (name, outcome, progress; **All projects** first), **Archived**
   (folded) and **General** (pages tied to no Project), with search, **New page**
-  and **New Project**. A Project is one scrolling page:
-  - a sticky bar jumps to **Tasks**, **Pages**, **Threads**, **Log** and
-    **Settings**, and holds **Start work**;
-  - **Tasks** has an Open/All switch, a checkbox, a status pill (a menu), a
-    date chip and a row menu (Rename, Delete) per task, with Undo after a tick
-    or delete, an "Add a task" line with a date chip and a Task/Milestone
-    switch, and the timeline;
-  - **Pages** has a **New page** card, and **Threads** has **New thread**;
-  - **Settings** (folded) holds progress, next milestone, blocker, settings,
-    Pause/Resume and Archive with Undo.
+  and **New Project**. A Project is one page, tasks on the left and context on
+  the right (stacked below 1100px):
+  - a header with the title, a status chip, a **···** menu (Pause/Resume,
+    Archive with Undo, Save current state, Project settings) and **Start work**;
+  - **Tasks** has an "Add a task" line with a date chip and a Task/Milestone
+    switch, an Open/All switch, and the tasks grouped under the milestone
+    listed before them (each heading shows its date and "n of m done"), with a
+    checkbox, a status pill (a menu), a date chip and a row menu (Rename,
+    Delete) per item, Undo after a tick or delete, and the timeline;
+  - the right rail holds **Progress** (progress, next milestone, blocker as a
+    warning chip), **Pages** with a **New page** tile, **Threads** with **New
+    thread**, and **Log**.
 
   Dates, status and kind use the app's own popover, menu and switch, never
   native controls. A page opens full width, and Back returns to the Project.

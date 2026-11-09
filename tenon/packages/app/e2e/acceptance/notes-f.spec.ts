@@ -116,15 +116,15 @@ test("AC-4.1 the landing lists Projects and General pages, with no page tree", a
   await expect(page.getByRole("checkbox")).toHaveCount(0)
 })
 
-test("AC-4.2 a Project is one page: a section bar and no tabs; an older tab= link scrolls to its section", async ({
+test("AC-4.2 a Project is one page: tasks beside its context and no tabs; an older tab= link scrolls to its section", async ({
   page,
 }) => {
   await open(page)
   await page.goto(`/projects?project=${project.project.id}`)
-  const bar = page.getByRole("navigation", { name: "Project sections" })
-  for (const name of ["Tasks", "Pages", "Threads", "Log", "Settings"])
-    await expect(bar.getByRole("button", { name, exact: true })).toBeVisible()
-  await expect(bar.getByRole("button", { name: "Start work", exact: true })).toBeVisible()
+  for (const name of ["Tasks", "Progress", "Pages", "Threads", "Log"])
+    await expect(page.getByRole("region", { name, exact: true })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Start work", exact: true })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Project actions", exact: true })).toBeVisible()
   await expect(page.getByRole("tab")).toHaveCount(0)
   await page.goto(`/projects?project=${project.project.id}&tab=log`)
   await expect(page.getByRole("region", { name: "Log" })).toBeInViewport()
@@ -230,7 +230,11 @@ test("merge AC-5 /notes links open the same Project under /projects", async ({ p
 test("merge AC-3 Settings holds the Project's card", async ({ page }) => {
   await open(page)
   await page.goto(`/projects?project=${project.project.id}&section=settings`)
-  await expect(page.getByRole("button", { name: "Archive project", exact: true })).toBeVisible()
+  await expect(page.getByRole("region", { name: "Progress", exact: true })).toBeInViewport()
+  await page.getByRole("button", { name: "Project actions", exact: true }).click()
+  await expect(page.getByRole("menuitem", { name: "Archive project", exact: true })).toBeVisible()
+  await page.getByRole("menuitem", { name: "Project settings", exact: true }).click()
+  await expect(page.getByRole("textbox", { name: "Project name", exact: true })).toHaveValue("Acme API")
 })
 
 test("merge AC-4 New Project opens the create form", async ({ page }) => {

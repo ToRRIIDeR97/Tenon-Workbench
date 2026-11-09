@@ -49,6 +49,27 @@ export function timelineCounts(items: ReadonlyArray<TimelineItem>) {
   return { done: tasks.filter((item) => item.status === "done").length, total: tasks.length, next }
 }
 
+export type MilestoneGroup = { milestone?: TimelineItem; tasks: TimelineItem[]; done: number; total: number }
+
+/**
+ * The timeline grouped by list order, since items carry no milestone link: a milestone heads the tasks listed after
+ * it up to the next milestone, and tasks before the first milestone form a group without one. `open` hides done
+ * tasks, and done milestones with nothing open under them. `done` and `total` count every task in the group.
+ */
+export function milestoneGroups(items: ReadonlyArray<TimelineItem>, open = false) {
+  const groups: MilestoneGroup[] = [{ tasks: [], done: 0, total: 0 }]
+  items.forEach((item) => {
+    if (item.kind === "milestone") return void groups.push({ milestone: item, tasks: [], done: 0, total: 0 })
+    const group = groups.at(-1)!
+    group.total += 1
+    if (item.status === "done") group.done += 1
+    if (!open || item.status !== "done") group.tasks.push(item)
+  })
+  return groups.filter((group) =>
+    group.milestone ? !open || group.milestone.status !== "done" || group.tasks.length > 0 : group.tasks.length > 0,
+  )
+}
+
 /**
  * A month (`YYYY-MM`) as whole weeks from Monday, each day with the items on it: a task on every day from its
  * start to its end, a milestone on its date. UTC calendar days, like `timelineLayout`.

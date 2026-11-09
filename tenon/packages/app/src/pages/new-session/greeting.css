@@ -1,7 +1,6 @@
 /*
- * New-thread greeting: the welcome fades in once, and each headline change uses the next effect in turn. Every
- * effect runs at the typing's pace (a prompt types out in about 1.4s): words rise over about 1.6s, the blur
- * settles over 1.4s, and a verb rolls over 1.2s.
+ * New-thread greeting: the welcome fades in once while the headline types in over TYPE_MS (750ms), then both stay
+ * put. The headline's full text holds its place invisibly, so the typed part grows over it without moving anything.
  */
 .new-thread-welcome {
   animation: greeting-fade 900ms var(--v2-ease-emphasized-decelerate) both;
@@ -16,14 +15,19 @@
   text-align: center;
 }
 
-.greeting-word {
+.greeting-type {
+  position: relative;
   display: inline-block;
-  animation: greeting-rise 950ms var(--v2-ease-emphasized-decelerate) both;
-  animation-delay: var(--delay);
 }
 
-.greeting-blur {
-  animation: greeting-blur 1400ms var(--v2-ease-emphasized-decelerate) both;
+.greeting-type-full {
+  visibility: hidden;
+}
+
+.greeting-type-shown {
+  position: absolute;
+  inset: 0;
+  text-align: left;
 }
 
 .greeting-caret {
@@ -34,34 +38,6 @@
   vertical-align: -0.12em;
   border-radius: 1px;
   background: currentColor;
-  animation: greeting-blink 1.05s steps(1) infinite;
-
-  &[data-typing] {
-    animation: none;
-  }
-}
-
-.greeting-slot {
-  animation: greeting-fade 600ms var(--v2-ease-standard) both;
-}
-
-.greeting-slot-window {
-  display: inline-block;
-  height: 1.3em;
-  overflow: hidden;
-  vertical-align: top;
-  transition: width 1100ms var(--v2-ease-standard);
-}
-
-.greeting-slot-stack {
-  display: block;
-  transition: transform 1200ms var(--v2-ease-emphasized-decelerate);
-
-  > span {
-    display: block;
-    width: max-content;
-    height: 1.3em;
-  }
 }
 
 @keyframes greeting-fade {
@@ -71,38 +47,8 @@
   }
 }
 
-@keyframes greeting-rise {
-  from {
-    opacity: 0;
-    transform: translateY(0.45em);
-  }
-}
-
-@keyframes greeting-blur {
-  from {
-    opacity: 0;
-    filter: blur(10px);
-    transform: translateY(0.3em);
-  }
-}
-
-@keyframes greeting-blink {
-  50% {
-    opacity: 0;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .new-thread-welcome,
-  .greeting-word,
-  .greeting-blur,
-  .greeting-caret,
-  .greeting-slot {
+  .new-thread-welcome {
     animation: none;
-  }
-
-  .greeting-slot-window,
-  .greeting-slot-stack {
-    transition: none;
   }
 }

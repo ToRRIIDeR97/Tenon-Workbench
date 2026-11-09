@@ -199,6 +199,52 @@ describe("ACP harness", () => {
     expect(events.some((event) => event.type === "text-delta")).toBe(false)
   })
 
+  test("routes parallel children titled by the task tool to their own subagent", () => {
+    const state = AcpHarness.acpState()
+    const childOf = (id: string, title: string) => ({
+      "opencode/child-session": { id, parentID: "s1", depth: 1, title: `${title} (@explore subagent)` },
+    })
+    const spawn = (id: string, description: string) => [
+      update({ sessionUpdate: "tool_call", toolCallId: id, name: "subagent", kind: "think", rawInput: {} }),
+      update({
+        sessionUpdate: "tool_call_update",
+        toolCallId: id,
+        status: "in_progress",
+        rawInput: { agent: "explore", description, prompt: description },
+      }),
+    ]
+    const usage = (child: string, title: string, inputTokens: number) =>
+      update({ sessionUpdate: "usage_update", used: inputTokens, inputTokens, _meta: childOf(child, title) })
+    const chunk = (child: string, title: string, text: string) =>
+      update({
+        sessionUpdate: "agent_message_chunk",
+        messageId: child,
+        content: { type: "text", text },
+        _meta: childOf(child, title),
+      })
+    const done = (id: string) => update({ sessionUpdate: "tool_call_update", toolCallId: id, status: "completed" })
+    const events = [
+      ...spawn("a", "Alpha"),
+      ...spawn("b", "Beta"),
+      usage("cb", "Beta", 200),
+      chunk("ca", "Alpha", "from a"),
+      usage("ca", "Alpha", 100),
+      chunk("cb", "Beta", "from b"),
+      done("a"),
+      done("b"),
+    ].flatMap((notification) => AcpHarness.parseAcpNotification(notification, "s1", state))
+
+    const results = events.filter((event) => event.type === "tool-result")
+    expect(results[0]).toMatchObject({
+      id: "a",
+      providerMetadata: { acp: { transcript: [{ text: "from a" }], usage: { inputTokens: 100 } } },
+    })
+    expect(results[1]).toMatchObject({
+      id: "b",
+      providerMetadata: { acp: { transcript: [{ text: "from b" }], usage: { inputTokens: 200 } } },
+    })
+  })
+
   test("checkpoints a subagent when a child message block ends, not on every chunk", () => {
     const state = AcpHarness.acpState()
     const child = { "opencode/child-session": { id: "c1", parentID: "s1", depth: 1, title: "Look" } }

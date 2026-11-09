@@ -27,8 +27,8 @@
     border: 1.5px solid var(--v2-border-border-control);
     background: var(--v2-background-bg-layer-02);
     transition:
-      background-color 150ms,
-      border-color 150ms;
+      background-color var(--v2-duration-short) var(--v2-ease-standard),
+      border-color var(--v2-duration-short) var(--v2-ease-standard);
   }
 
   [data-slot="switch-thumb"] {
@@ -48,8 +48,8 @@
 
     transform: translateX(-1px);
     transition:
-      transform 150ms,
-      background-color 150ms;
+      transform var(--v2-duration-short) var(--v2-ease-standard),
+      background-color var(--v2-duration-short) var(--v2-ease-standard);
   }
 
   [data-slot="switch-label"] {
@@ -135,5 +135,12 @@
   &[data-readonly] {
     cursor: default;
     pointer-events: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-component="switch"] [data-slot="switch-control"],
+  [data-component="switch"] [data-slot="switch-thumb"] {
+    transition: none;
   }
 }

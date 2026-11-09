@@ -108,7 +108,7 @@ export function SettingsCommandCentreV2() {
                 min="1"
                 max="365"
                 step="1"
-                class="h-8 w-20 rounded-[8px] bg-v2-background-bg-layer-01 px-3 text-right text-[13px] leading-5 text-v2-text-text-base shadow-[inset_0_0_0_1px_var(--v2-border-border-base)] outline-none focus:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)]"
+                class="h-8 w-20 rounded-full bg-v2-background-bg-layer-01 px-3 text-right text-[13px] font-[450] leading-5 text-v2-text-text-base shadow-[inset_0_0_0_1px_var(--v2-border-border-base)] outline-none transition-shadow duration-short ease-standard hover:shadow-[inset_0_0_0_1px_var(--v2-border-border-strong)] focus:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)]"
                 aria-label={language.t("secondBrain.commandCentre.settings.memoryDays")}
                 value={draft()}
                 // Typing only updates the draft (and the lowering warning); the value saves, clamped to 1–365,

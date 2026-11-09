@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import type { Message } from "@opencode-ai/sdk/v2/client"
-import { getTurnUsage } from "@/components/session/session-usage"
+import type { Message, Part } from "@opencode-ai/sdk/v2/client"
+import { getSessionTotals, getSubagentUsage, getTurnUsage } from "@/components/session/session-usage"
 import { formatResetIn, threadUsage, threadWorktree } from "./context-strip-model"
 
 describe("usage limits", () => {
@@ -66,5 +66,46 @@ describe("turn usage", () => {
 
   test("reports no hit rate before the turn has a reply", () => {
     expect(getTurnUsage([assistant(9000, 1000, 100), user]).cacheHit).toBeUndefined()
+  })
+})
+
+describe("session totals", () => {
+  const tokens = (input: number) => ({ input, output: 10, reasoning: 0, cache: { read: 0, write: 0 } })
+  const loaded = [{ role: "assistant", cost: 0.5, tokens: tokens(100) } as Message]
+
+  test("uses the server's whole-session totals over the loaded messages", () => {
+    const totals = getSessionTotals({ cost: 4, tokens: tokens(5000) }, loaded)
+    expect(totals.total).toBe(5010)
+    expect(totals.cost).toBe(4)
+    expect(getSessionTotals(undefined, loaded).total).toBe(110)
+    expect(getSessionTotals(undefined, loaded).cost).toBe(0.5)
+  })
+
+  test("sums ACP subagent usage and cached task children, counting the children it can't see", () => {
+    const tool = (id: string, name: string, metadata: Record<string, unknown>, state: Record<string, unknown> = {}) =>
+      ({
+        id,
+        type: "tool",
+        tool: name,
+        metadata,
+        state: { status: "completed", input: {}, ...state },
+      }) as unknown as Part
+    const parts = [
+      tool("a", "acp_subagent", {
+        acpSubagent: { transcript: [], usage: { inputTokens: 100, outputTokens: 20, cost: 0.1 } },
+      }),
+      tool("b", "acp_subagent", { acpSubagent: { transcript: [], usage: { inputTokens: 50 } } }),
+      tool("c", "task", {}, { metadata: { sessionId: "child" } }),
+      tool("d", "task", {}, { metadata: { sessionId: "unloaded" } }),
+    ]
+    const usage = getSubagentUsage(
+      [{ id: "m", role: "assistant" } as Message],
+      (id) => (id === "m" ? parts : []),
+      (id) => (id === "child" ? { cost: 0.4, tokens: tokens(1000) } : undefined),
+    )
+    expect(usage?.total).toBe(1180)
+    expect(usage?.cost).toBeCloseTo(0.5)
+    expect(usage?.count).toBe(3)
+    expect(usage?.missing).toBe(1)
   })
 })

@@ -9,7 +9,7 @@ import { createReveal, Reveal } from "@tenon/ui/v2/reveal"
 import { SegmentedControlItemV2, SegmentedControlV2 } from "@tenon/ui/v2/segmented-control-v2"
 import { PathTooltip, TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { useDialog } from "@tenon/ui/context/dialog"
-import { formatKeybind, useCommand } from "@/context/command"
+import { useCommand } from "@/context/command"
 import { useGlobal } from "@/context/global"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
@@ -20,7 +20,7 @@ import {
   type SidebarController,
   type SidebarProjectItem,
 } from "@/components/sidebar/sidebar-controller"
-import { THREAD_MENU_KEYS, threadMenuAction, type ThreadMenuAction } from "@/components/sidebar/thread-menu-keys"
+import { onThreadMenuKey, ThreadMenuItems, type ThreadMenuRun } from "@/components/sidebar/thread-menu"
 import { DialogArchivedThreads } from "@/components/sidebar/dialog-archived-threads"
 import { DialogInstructions } from "@/components/sidebar/dialog-instructions"
 import { DialogAddProject, DialogRemoveProject } from "@/components/sidebar/dialog-project-folder"
@@ -105,13 +105,14 @@ export function SecondBrainSidebar() {
     <div
       data-component="second-brain-sidebar"
       data-expanded={layout.sidebar.opened() ? "" : undefined}
-      // One outlined container: its width grows from the rail (80px + border) into rail plus panel.
+      // One outlined container: its width grows from the rail (80px) into rail plus panel. The outline is an
+      // inset ring like the page panel's, so it takes no width.
       // Not overflow-hidden, so rail labels can still float past its edge; the panel clips itself.
       classList={{
         // Same 8px inset as the page panel beside it, so the two share a top and bottom edge.
-        "m-2 flex min-h-0 shrink-0 rounded-[20px] border border-v2-border-border-muted bg-v2-background-bg-base transition-[width] motion-reduce:duration-0": true,
-        "w-[82px] duration-medium ease-emphasized-decelerate md:w-[338px]": layout.sidebar.opened(),
-        "w-[82px] duration-[200ms] ease-emphasized-accelerate": !layout.sidebar.opened(),
+        "m-2 flex min-h-0 shrink-0 rounded-[24px] bg-v2-background-bg-base shadow-[0_0_0_1px_var(--v2-border-border-muted)] transition-[width] motion-reduce:duration-0": true,
+        "w-20 duration-medium ease-emphasized-decelerate md:w-[336px]": layout.sidebar.opened(),
+        "w-20 duration-short ease-emphasized-accelerate": !layout.sidebar.opened(),
       }}
       onTransitionEnd={(event) => {
         if (event.target === event.currentTarget && event.propertyName === "width") panel.settle()
@@ -131,7 +132,7 @@ export function SecondBrainSidebar() {
               id={item.id}
               icon={item.icon}
               label={item.label}
-              active={path() === item.href}
+              active={path() === item.href || (item.id === "command" && path() === "/routines")}
               onClick={() => navigate(item.href)}
             />
           )}
@@ -150,9 +151,9 @@ export function SecondBrainSidebar() {
         classList={{
           // The rail stays at every width; the Projects panel needs the room of a md window.
           // It fills what the container leaves beside the rail and fades on the container's timing.
-          "hidden min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-r-[19px] transition-opacity motion-reduce:duration-0 md:flex": true,
+          "hidden min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-r-[24px] transition-opacity motion-reduce:duration-0 md:flex": true,
           "opacity-100 duration-medium ease-emphasized-decelerate": layout.sidebar.opened(),
-          "opacity-0 duration-[200ms] ease-emphasized-accelerate": !layout.sidebar.opened(),
+          "opacity-0 duration-short ease-emphasized-accelerate": !layout.sidebar.opened(),
         }}
       >
         <Show when={panel.mounted()}>
@@ -550,6 +551,17 @@ function GroupedCard(props: { ctrl: SidebarController; id: keyof typeof groupedC
   )
 }
 
+// Right-click opens the row's own "…" menu instead of Electron's default one; text fields keep the native menu.
+function openRowMenu(event: MouseEvent, open: (value: true) => void) {
+  if (
+    event.target instanceof Element &&
+    event.target.closest("input, textarea, [contenteditable]:not([contenteditable='false'])")
+  )
+    return
+  event.preventDefault()
+  open(true)
+}
+
 function Chevron(props: { open: boolean }) {
   return (
     <span
@@ -566,6 +578,7 @@ function ProjectGroup(props: { ctrl: SidebarController; project: SidebarProjectI
   const dialog = useDialog()
   const open = () => props.ctrl.expanded(props.project.id)
   const summary = () => props.ctrl.card(props.project.id)?.summary
+  const [menuOpen, setMenuOpen] = createSignal(false)
   return (
     <SidebarCard
       data-sidebar-project={props.project.id}
@@ -576,6 +589,7 @@ function ProjectGroup(props: { ctrl: SidebarController; project: SidebarProjectI
       <div
         class={`${rowClass} grid-cols-[minmax(0,1fr)_auto]`}
         data-selected={props.ctrl.activeProjectID() === props.project.id && !open() ? "" : undefined}
+        onContextMenu={(event) => openRowMenu(event, setMenuOpen)}
       >
         <button
           type="button"
@@ -606,7 +620,7 @@ function ProjectGroup(props: { ctrl: SidebarController; project: SidebarProjectI
               onClick={() => props.ctrl.newThread(props.project)}
             />
           </TooltipV2>
-          <MenuV2 gutter={4} modal={false} placement="bottom-start">
+          <MenuV2 gutter={4} modal={false} placement="bottom-start" open={menuOpen()} onOpenChange={setMenuOpen}>
             <TooltipV2 placement="right" value={language.t("secondBrain.sidebar.projectActions")}>
               <MenuV2.Trigger
                 as={IconButtonV2}
@@ -752,7 +766,7 @@ function ThreadList(props: { ctrl: SidebarController; threads: ThreadNode<Sessio
         {(run) => (
           <button type="button" data-sidebar-new-thread class={`${rowClass} grid-cols-[1fr] pl-[34px]`} onClick={run()}>
             <span class="flex min-w-0 items-center gap-1.5">
-              <Icon name="plus" size="small" />
+              <Icon name="plus" size="small" class="shrink-0 text-v2-icon-icon-muted" />
               <span class="truncate">{language.t("secondBrain.sidebar.newThread")}</span>
             </span>
           </button>
@@ -782,6 +796,8 @@ function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; 
   const session = () => props.node.session
   const active = () => props.ctrl.activeSessionID() === session().id
   const title = () => sessionTitle(session().title) || session().id
+  // A thread still on its placeholder title reads as one, so it does not look like the "New thread" action.
+  const untitled = () => !session().title || sessionTitle(session().title) !== session().title
   const pinned = () => sessionPinnedAt(session()) !== undefined
   // Child threads show while their parent's lineage is on screen.
   const showChildren = () => props.node.children.length > 0 && containsSession(props.node, props.ctrl.activeSessionID())
@@ -799,7 +815,7 @@ function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; 
   }
   const [menuOpen, setMenuOpen] = createSignal(false)
   // Each menu item runs from a click or from its single-key hint while the menu has focus.
-  const run: Record<ThreadMenuAction, () => void> = {
+  const run: ThreadMenuRun = {
     rename: () => {
       renameFromMenu = true
       saved = false
@@ -807,10 +823,10 @@ function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; 
     },
     pin: () => void props.ctrl.setThreadPinned(session(), !pinned()),
     fork: () => void props.ctrl.forkThread(session()),
+    export: () => void props.ctrl.exportThread(session()),
     archive: () => void props.ctrl.archiveThread(session()),
     delete: () => props.ctrl.deleteThread(session()),
   }
-  const hint = (action: ThreadMenuAction) => formatKeybind(THREAD_MENU_KEYS[action], language.t)
 
   return (
     <>
@@ -819,6 +835,7 @@ function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; 
         data-selected={active() ? "" : undefined}
         class={`${rowClass} grid-cols-[1fr_auto] ${props.enter ? "animate-enter" : ""}`}
         style={{ "padding-left": `${26 + props.depth * 12}px` }}
+        onContextMenu={(event) => openRowMenu(event, setMenuOpen)}
       >
         <Show
           when={editing()}
@@ -841,7 +858,9 @@ function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; 
                 setEditing(true)
               }}
             >
-              <span class="min-w-0 flex-1 truncate">{title()}</span>
+              <span class="min-w-0 flex-1 truncate" classList={{ italic: untitled() }}>
+                {title()}
+              </span>
               <Show when={pinned()}>
                 <span
                   data-sidebar-pinned
@@ -889,15 +908,7 @@ function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; 
             </TooltipV2>
             <MenuV2.Portal>
               <MenuV2.Content
-                onKeyDown={(event) => {
-                  const action = threadMenuAction(event)
-                  if (!action) return
-                  event.preventDefault()
-                  event.stopPropagation()
-                  // Same order as a click: the item runs, then the menu closes.
-                  run[action]()
-                  setMenuOpen(false)
-                }}
+                onKeyDown={(event) => onThreadMenuKey(event, run, () => setMenuOpen(false))}
                 onCloseAutoFocus={() => {
                   if (!renameFromMenu) return
                   renameFromMenu = false
@@ -909,22 +920,7 @@ function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; 
                   })
                 }}
               >
-                <MenuV2.Item onSelect={run.rename} shortcut={hint("rename")}>
-                  {language.t("common.rename")}
-                </MenuV2.Item>
-                <MenuV2.Item onSelect={run.pin} shortcut={hint("pin")}>
-                  {language.t(pinned() ? "secondBrain.sidebar.unpin" : "secondBrain.sidebar.pin")}
-                </MenuV2.Item>
-                <MenuV2.Item onSelect={run.fork} shortcut={hint("fork")}>
-                  {language.t("secondBrain.sidebar.fork")}
-                </MenuV2.Item>
-                <MenuV2.Separator />
-                <MenuV2.Item onSelect={run.archive} shortcut={hint("archive")}>
-                  {language.t("common.archive")}
-                </MenuV2.Item>
-                <MenuV2.Item critical onSelect={run.delete} shortcut={hint("delete")}>
-                  {language.t("common.delete")}
-                </MenuV2.Item>
+                <ThreadMenuItems run={run} pinned={pinned()} />
               </MenuV2.Content>
             </MenuV2.Portal>
           </MenuV2>

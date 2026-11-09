@@ -1128,7 +1128,9 @@ function recordChild(
   kind: string | undefined,
   update: Record<string, unknown>,
 ): ReadonlyArray<LLMEvent> {
-  const parentId = state.children.get(child.id) ?? subagentFor(state, child.title)
+  // Tenon's task tool titles a child session "<description> (@<agent> subagent)".
+  const description = child.title?.replace(SUBAGENT_TITLE_SUFFIX, "")
+  const parentId = state.children.get(child.id) ?? subagentFor(state, description)
   const parent = parentId === undefined ? undefined : state.tools.get(parentId)
   if (parentId === undefined || !parent) return []
   if (kind === "agent_message_chunk" || kind === "agent_thought_chunk") {
@@ -1159,7 +1161,11 @@ function recordChild(
   // Titles arrive as "<subagent description>: <command or tool>"; the row already shows the description.
   const raw = isRecord(update.rawInput) ? update.rawInput : {}
   const title =
-    string(raw.command) ?? string(raw.path) ?? string(update.title)?.replace(child.title ? `${child.title}: ` : "", "")
+    string(raw.command) ??
+    string(raw.path) ??
+    string(update.title)
+      ?.replace(child.title ? `${child.title}: ` : "", "")
+      .replace(description ? `${description}: ` : "", "")
   if (title) step.title = title
   step.status = string(update.status) ?? step.status
   parent.steps.set(id, step)
@@ -1262,9 +1268,19 @@ function subagentSnapshot(tool: AcpTool, live = false) {
   }
 }
 
-function subagentFor(state: AcpState, title: string | undefined) {
+const SUBAGENT_TITLE_SUFFIX = /\s*\(@[^)]+ subagent\)$/
+
+/**
+ * The open subagent call a new child session belongs to, matched by description. OpenCode's child-session
+ * marker names only the parent session, not the call, so an unmatched child falls back to the newest
+ * subagent no other child has claimed yet.
+ */
+function subagentFor(state: AcpState, description: string | undefined) {
   const open = [...state.tools.entries()].filter((entry) => entry[1].name === "acp_subagent" && !entry[1].done)
-  return (open.find((entry) => entry[1].input.description === title) ?? open.at(-1))?.[0]
+  const claimed = new Set(state.children.values())
+  const free = open.filter((entry) => !claimed.has(entry[0]))
+  const named = (entry: (typeof open)[number]) => entry[1].input.description === description
+  return (free.find(named) ?? open.find(named) ?? free.at(-1) ?? open.at(-1))?.[0]
 }
 
 function toolOutput(update: Record<string, unknown>) {

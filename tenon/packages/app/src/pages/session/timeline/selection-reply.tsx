@@ -87,7 +87,7 @@ export function SelectionReply(props: { root: () => HTMLElement | undefined; onR
             data-component="selection-reply"
             role="toolbar"
             aria-label={language.t("secondBrain.quote.toolbar")}
-            class="fixed z-50 flex gap-0.5 rounded-[16px] bg-v2-background-bg-base p-1 shadow-[var(--v2-elevation-floating)] animate-enter"
+            class="fixed z-50 flex gap-0.5 rounded-[16px] bg-v2-background-bg-floating p-1 shadow-[var(--v2-elevation-floating)] animate-enter"
             style={{
               left: `${current().x}px`,
               top: `${current().y}px`,

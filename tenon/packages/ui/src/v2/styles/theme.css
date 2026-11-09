@@ -18,6 +18,8 @@
     --v2-background-bg-base: var(--v2-grey-50);
     --v2-background-bg-deep: #f3f3f4;
     --v2-background-bg-layer-01: #f6f6f7;
+    --v2-background-bg-raised: var(--v2-grey-50);
+    --v2-background-bg-floating: var(--v2-grey-50);
     --v2-background-bg-layer-02: #efefef;
     --v2-background-bg-layer-03: #e8e8e8;
     --v2-background-bg-layer-04: var(--v2-grey-400);
@@ -288,6 +290,8 @@
     --v2-background-bg-base: var(--v2-grey-50);
     --v2-background-bg-deep: #f3f3f4;
     --v2-background-bg-layer-01: #f6f6f7;
+    --v2-background-bg-raised: var(--v2-grey-50);
+    --v2-background-bg-floating: var(--v2-grey-50);
     --v2-background-bg-layer-02: #efefef;
     --v2-background-bg-layer-03: #e8e8e8;
     --v2-background-bg-layer-04: var(--v2-grey-400);
@@ -409,6 +413,8 @@
     --v2-background-bg-base: var(--v2-grey-1100);
     --v2-background-bg-deep: var(--v2-grey-1200);
     --v2-background-bg-layer-01: var(--v2-grey-1000);
+    --v2-background-bg-raised: var(--v2-grey-1000);
+    --v2-background-bg-floating: var(--v2-grey-900);
     --v2-background-bg-layer-02: var(--v2-grey-900);
     --v2-background-bg-layer-03: var(--v2-grey-800);
     --v2-background-bg-layer-04: var(--v2-grey-700);

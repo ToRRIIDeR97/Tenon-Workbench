@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { Part, ToolPart } from "@opencode-ai/sdk/v2"
-import { stepOf, summarizeTurn } from "./step-kind"
+import { stepOf, subagentName, summarizeTurn } from "./step-kind"
 
 const tool = (name: string, input: Record<string, unknown>, status = "completed") =>
   ({
@@ -52,5 +52,21 @@ describe("summarizeTurn", () => {
       failed: 1,
       running: 0,
     })
+  })
+})
+
+describe("subagentName", () => {
+  test("names a subagent by its task and tags it with its type", () => {
+    expect(subagentName({ description: "  Map the auth flow (@explore subagent) ", subagent_type: "explore" })).toEqual(
+      {
+        name: "Map the auth flow",
+        tag: "explore",
+      },
+    )
+  })
+
+  test("leaves the name empty when there is no description", () => {
+    expect(subagentName({ subagent_type: "general" })).toEqual({ name: undefined, tag: "general" })
+    expect(subagentName(undefined)).toEqual({ name: undefined, tag: undefined })
   })
 })

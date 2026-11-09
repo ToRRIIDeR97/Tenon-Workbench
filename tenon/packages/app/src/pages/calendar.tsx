@@ -98,6 +98,8 @@ type CalendarState = {
   googleError: string
   googleConfirm: "" | "save" | "delete"
   googleWriteKey: string
+  /** Bumped by the header's New task; the tasks view opens a blank task on each change. */
+  newTask: number
 }
 
 const unavailableGoogle: GoogleCalendarConnection = {
@@ -155,6 +157,7 @@ export default function CalendarPage() {
     googleError: "",
     googleConfirm: "",
     googleWriteKey: "",
+    newTask: 0,
   })
   const client = (directory: string) => ({
     server: serverSDK().server,
@@ -826,9 +829,14 @@ export default function CalendarPage() {
         id="calendar-title"
         title={language.t("secondBrain.calendar.title")}
         actions={
-          <Show when={directory() && !taskView()}>
-            <ButtonV2 variant="contrast" icon="plus" onClick={() => openNew()}>
-              {language.t("secondBrain.calendar.new")}
+          <Show when={directory()}>
+            {/* One slot for the primary action in every view, so it never moves when the view changes. */}
+            <ButtonV2
+              variant="contrast"
+              icon="plus"
+              onClick={() => (taskView() ? setState("newTask", (count) => count + 1) : openNew())}
+            >
+              {language.t(taskView() ? "secondBrain.tasks.new" : "secondBrain.calendar.new")}
             </ButtonV2>
           </Show>
         }
@@ -906,6 +914,24 @@ export default function CalendarPage() {
             >
               {language.t("secondBrain.calendar.today")}
             </ButtonV2>
+          </Show>
+          {/* The tasks filters take the date controls' place, so the view switcher stays put. */}
+          <Show when={taskView()}>
+            {(filter) => (
+              <SegmentedControlV2 class="!w-fit" value={filter()}>
+                <For each={["today", "upcoming", "unscheduled", "completed"] as const}>
+                  {(item) => (
+                    <SegmentedControlItemV2
+                      value={item}
+                      class="!flex-auto whitespace-nowrap"
+                      onClick={() => setState("view", viewForTaskFilter(item))}
+                    >
+                      {language.t(`secondBrain.tasks.filter.${item}`)}
+                    </SegmentedControlItemV2>
+                  )}
+                </For>
+              </SegmentedControlV2>
+            )}
           </Show>
           <h2 class="ml-1 min-w-0 flex-1 truncate text-[15px] leading-[22px] text-v2-text-text-base [font-weight:600]">
             <Show when={!taskView()}>{viewTitle()}</Show>
@@ -992,13 +1018,14 @@ export default function CalendarPage() {
                 filter={filter}
                 selectedId={state.selectedTask}
                 googleAccounts={googleWriteAccounts()}
-                onFilterChange={(next) => setState("view", viewForTaskFilter(next))}
+                newTask={state.newTask}
               />
             )}
           </Show>
           <Show when={!taskView()}>
             <div class={sidePanelGridClass(panelOpen())}>
-              <div class="flex min-h-[560px] min-w-0 flex-col">
+              {/* Stretched to the row so month and the hour grid fill the page height. */}
+              <div class="flex min-h-[560px] min-w-0 flex-col self-stretch">
                 {/* A failed refresh keeps the last snapshot on screen with an inline retry. */}
                 <Show when={events.error() && events.snapshot()}>
                   <div role="alert" class="flex items-center gap-2 pb-2 text-[12px] text-v2-text-text-critical">
@@ -1060,7 +1087,7 @@ export default function CalendarPage() {
                                           <span class="type-caption text-v2-text-text-muted">{day.weekday}</span>
                                           <span
                                             classList={{
-                                              "mt-1 flex size-9 items-center justify-center rounded-full text-[17px]": true,
+                                              "mt-1 flex size-8 items-center justify-center rounded-full text-[15px]": true,
                                               "bg-v2-background-bg-accent text-v2-text-text-contrast [font-weight:600]":
                                                 day.today,
                                               "text-v2-text-text-base [font-weight:500]": !day.today,

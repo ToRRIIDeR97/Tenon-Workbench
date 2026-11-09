@@ -12,7 +12,8 @@ import { File } from "@tenon/session-ui/file"
 import { Markdown } from "@tenon/session-ui/markdown"
 import { ScrollView } from "@tenon/ui/scroll-view"
 import type { Message, Part, ToolPart, UserMessage } from "@opencode-ai/sdk/v2/client"
-import { summarizeTurn } from "@tenon/session-ui/step-kind"
+import { subagentName, summarizeTurn } from "@tenon/session-ui/step-kind"
+import { useData } from "@tenon/session-ui/context"
 import { Harness } from "@tenon/schema/harness"
 import { showToast } from "@/utils/toast"
 import { downloadSessionExport, fetchSessionExport, sessionExportFilename } from "@/utils/session-export"
@@ -24,7 +25,7 @@ import { useSessionLayout } from "@/pages/session/session-layout"
 import { getSessionContext, getSessionHarnesses } from "./session-context-metrics"
 import { estimateSessionContextBreakdown, type SessionContextBreakdownKey } from "./session-context-breakdown"
 import { createSessionContextFormatter } from "./session-context-format"
-import { getSessionUsage } from "./session-usage"
+import { getSessionTotals, getSessionUsage, getSubagentUsage } from "./session-usage"
 import { stepCountPhrases } from "./turn-steps-summary"
 
 // User and assistant turns share one "Messages" segment, as in the Thread design; tones of the accent, not hues.
@@ -164,10 +165,17 @@ export function SessionContextTab() {
     return id
   }
   const harnessOptions = createMemo(() => harnesses().map((id) => ({ id, label: harnessLabel(id) })))
-  const ctx = createMemo(() => getSessionContext(messages(), [...providers.all().values()], selectedHarness()))
+  const ctx = createMemo(() =>
+    getSessionContext(messages(), [...providers.all().values()], selectedHarness(), (id) => sync().data.part[id]),
+  )
   const formatter = createMemo(() => createSessionContextFormatter(language.intl()))
 
-  const usage = createMemo(() => getSessionUsage(messages(), { harness: selectedHarness() }))
+  // The server's whole-session totals have no per-harness split, so one harness's rows sum the loaded messages.
+  const perHarness = () => harnesses().length > 1
+  const usage = createMemo(() =>
+    perHarness() ? getSessionUsage(messages(), { harness: selectedHarness() }) : getSessionTotals(info(), messages()),
+  )
+  const subagentUsage = createMemo(() => getSubagentUsage(messages(), getParts, (id) => sync().session.get(id)))
   const harnessParts = createMemo(() =>
     messages()
       .filter(
@@ -180,20 +188,25 @@ export function SessionContextTab() {
       .flatMap((message) => getParts(message.id)),
   )
   const toolPhrases = createMemo(() => stepCountPhrases(language, summarizeTurn(harnessParts()).counts))
-  // Built-in `task` subagents; Codex and ACP don't expose theirs.
+  // Built-in `task` and harness `acp_subagent` calls; each row opens the agent in the Agents tab.
+  const data = useData()
   const subagents = createMemo(() =>
     harnessParts().flatMap((part) => {
-      if (part.type !== "tool" || part.tool !== "task") return []
+      if (part.type !== "tool" || (part.tool !== "task" && part.tool !== "acp_subagent")) return []
       const tool = part as ToolPart
-      const input = tool.state.input ?? {}
       const metadata = ("metadata" in tool.state ? tool.state.metadata : undefined) ?? {}
       const sessionID = typeof metadata.sessionId === "string" ? metadata.sessionId : undefined
-      const description = typeof input.description === "string" ? input.description : undefined
+      const named = subagentName(tool.state.input)
       return [
         {
           id: tool.id,
-          title: description ?? (sessionID ? sync().session.get(sessionID)?.title : undefined) ?? tool.tool,
-          agent: typeof input.subagent_type === "string" ? input.subagent_type : undefined,
+          sessionID: tool.sessionID,
+          title:
+            named.name ??
+            (sessionID ? sync().session.get(sessionID)?.title : undefined) ??
+            named.tag ??
+            language.t("secondBrain.agentTab.agentFallback"),
+          agent: named.name ? named.tag : undefined,
           status: tool.state.status,
         },
       ]
@@ -268,7 +281,10 @@ export function SessionContextTab() {
     { label: "secondBrain.sessionTab.tokens", value: () => formatter().number(ctx()?.total) },
     {
       label: "secondBrain.sessionTab.contextShare",
-      value: () => (ctx()?.limit ? formatter().percent(ctx()?.usage) : "—"),
+      value: () => {
+        if (ctx()?.compacted) return language.t("secondBrain.sessionTab.compacted")
+        return ctx()?.limit ? formatter().percent(ctx()?.usage) : "—"
+      },
     },
     { label: "context.stats.messages", value: () => counts().all.toLocaleString(language.intl()) },
     {
@@ -286,12 +302,14 @@ export function SessionContextTab() {
       { label: "context.stats.provider", value: c ? providerLabel() : undefined },
       {
         label: "secondBrain.sessionTab.contextWindow",
-        value: c?.limit
-          ? language.t("secondBrain.sessionTab.contextUsed", {
-              used: formatter().number(c.total),
-              limit: formatter().number(c.limit),
-            })
-          : undefined,
+        value: c?.compacted
+          ? language.t("secondBrain.contextMenu.compacted")
+          : c?.limit
+            ? language.t("secondBrain.sessionTab.contextUsed", {
+                used: formatter().number(c.total),
+                limit: formatter().number(c.limit),
+              })
+            : undefined,
       },
       { label: "secondBrain.sessionTab.input", value: u.input > 0 ? formatter().number(u.input) : undefined },
       { label: "secondBrain.sessionTab.output", value: u.output > 0 ? formatter().number(u.output) : undefined },
@@ -316,6 +334,10 @@ export function SessionContextTab() {
       },
       { label: "secondBrain.sessionTab.cost", value: u.cost === undefined ? undefined : usd().format(u.cost) },
       {
+        label: "secondBrain.sessionTab.subagents",
+        value: subagentSpend(),
+      },
+      {
         label: "context.stats.sessionCreated",
         value: info()?.time.created ? formatter().time(info()?.time.created) : undefined,
       },
@@ -326,6 +348,15 @@ export function SessionContextTab() {
     ]
     return rows.flatMap((row) => (row.value ? [{ label: row.label, value: row.value }] : []))
   })
+
+  // What the subagents spent, apart from the context figure above.
+  const subagentSpend = () => {
+    const spent = subagentUsage()
+    if (!spent || spent.count === 0) return undefined
+    const tokens = formatter().number(spent.total)
+    if (spent.cost === undefined) return language.t("secondBrain.contextMenu.usedTokens", { count: tokens })
+    return language.t("secondBrain.sessionTab.subagentUsage", { tokens, cost: usd().format(spent.cost) })
+  }
 
   const [raw, setRaw] = createSignal(false)
 
@@ -483,6 +514,20 @@ export function SessionContextTab() {
                 )}
               </For>
             </dl>
+            <Show when={perHarness()}>
+              <div class="pl-1 text-[12px] text-v2-text-text-muted">
+                {language.t("secondBrain.sessionTab.loadedTotals")}
+              </div>
+            </Show>
+            <Show when={subagentUsage()?.missing}>
+              {(missing) => (
+                <div class="pl-1 text-[12px] text-v2-text-text-muted">
+                  {language.plural("secondBrain.sessionTab.subagentsMissing", missing(), {
+                    count: missing().toLocaleString(language.intl()),
+                  })}
+                </div>
+              )}
+            </Show>
           </div>
         </Show>
 
@@ -491,17 +536,44 @@ export function SessionContextTab() {
             <SectionLabel>{language.t("secondBrain.sessionTab.subagents")}</SectionLabel>
             <div class="flex flex-col gap-1">
               <For each={subagents()}>
-                {(agent) => (
-                  <div
-                    class="flex min-w-0 items-center gap-2 rounded-[16px] bg-v2-background-bg-layer-01 px-3 py-2 text-[13px]"
-                    data-status={agent.status}
-                  >
-                    <span class="min-w-0 flex-1 truncate text-v2-text-text-base">{agent.title}</span>
-                    <Show when={agent.agent}>
-                      <span class="shrink-0 text-v2-text-text-muted">{agent.agent}</span>
+                {(agent) => {
+                  const row = () => (
+                    <>
+                      <span class="min-w-0 flex-1 truncate text-v2-text-text-base">{agent.title}</span>
+                      <Show when={agent.agent}>
+                        <span class="shrink-0 rounded-full bg-v2-background-bg-base px-1.5 text-[11px] leading-4 text-v2-text-text-muted">
+                          {agent.agent}
+                        </span>
+                      </Show>
+                    </>
+                  )
+                  return (
+                    <Show
+                      when={data.openSubagent}
+                      fallback={
+                        <div
+                          class="flex min-w-0 items-center gap-2 rounded-[16px] bg-v2-background-bg-layer-01 px-3 py-2 text-[13px]"
+                          data-status={agent.status}
+                        >
+                          {row()}
+                        </div>
+                      }
+                    >
+                      {(open) => (
+                        <button
+                          type="button"
+                          data-status={agent.status}
+                          aria-label={language.t("secondBrain.agentTab.open", { agent: agent.title })}
+                          class="flex min-w-0 items-center gap-2 rounded-[16px] bg-v2-background-bg-layer-01 px-3 py-2 text-left text-[13px] transition-colors duration-short ease-standard hover:bg-v2-background-bg-layer-02 motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-v2-border-border-focus"
+                          onClick={() => open()({ sessionID: agent.sessionID, partID: agent.id })}
+                        >
+                          {row()}
+                          <Icon name="chevron-right" size="small" class="shrink-0 text-v2-icon-icon-muted" />
+                        </button>
+                      )}
                     </Show>
-                  </div>
-                )}
+                  )
+                }}
               </For>
             </div>
           </div>

@@ -145,6 +145,17 @@ export function summarizeTurn(
   return durationMs === undefined ? { counts, failed, running } : { counts, failed, running, durationMs }
 }
 
+/**
+ * A subagent's display name and type tag, from its tool input. The name is the task's description without a
+ * trailing " (@type subagent)"; callers fall back to the tag, then a generic "Agent".
+ */
+export function subagentName(input: Record<string, unknown> | undefined): { name?: string; tag?: string } {
+  const description = typeof input?.description === "string" ? input.description : ""
+  const name = description.replace(/\s*\(@[^)]+ subagent\)\s*$/, "").trim() || undefined
+  const tag = typeof input?.subagent_type === "string" ? input.subagent_type.trim() || undefined : undefined
+  return { name, tag }
+}
+
 function sanitize(name: string) {
   return name.replace(/[^a-zA-Z0-9_-]/g, "_")
 }

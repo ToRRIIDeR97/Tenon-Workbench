@@ -425,18 +425,23 @@ to it.
   (pages with no known Project), with search (`GET …/vault/pages?search=`, plus Projects whose name or outcome
   matches), New page and New Project. The command palette finds the same Projects and pages for the sidebar's
   workspace: Projects filter in the renderer, and pages are searched on the server behind a 250 ms delay.
-- A Project (`features/second-brain/project-view.tsx`) is one page:
-  - a sticky section bar with Start work;
-  - Tasks: the timeline items as a list with Open/All, a checkbox, a status menu, a date chip and a row menu
-    (Rename, also on double-click, and Delete) per item, an "Add a task" line, and the week grid. Every change saves
-    the whole list through `PUT …/vault/timeline` with the loaded revision; ticking or deleting offers an Undo toast
-    that rebuilds from the latest items;
-  - Pages with a New page card (`create: true` in this Project);
-  - Threads: the Project folder's recent root threads, from the same `serverSync().child(folder)` lists the sidebar
-    reads, and New thread;
-  - Log;
-  - Settings, which is `project-details.tsx`'s `ProjectDetails` (also home of the New Project form). Collapsing hides
-    it without unmounting, so unsaved edits and their guard stay. Renaming changes the card's name, not its folder.
+- A Project (`features/second-brain/project-view.tsx`) is one page: a header (title, status chip, a "···" menu with
+  Pause/Resume, Archive, Save current state and Project settings, and Start work), then two columns at 1100px and
+  wider (tasks, and a 300px context rail that stacks under them on narrower windows):
+  - Tasks: the "Add a task" line, then the timeline items with Open/All, grouped under milestones by list order
+    (items carry no milestone link: a milestone heads the tasks after it, up to the next one; `milestoneGroups` in
+    `notes-timeline.ts`). Each item has a checkbox, a status menu, a date chip and a row menu (Rename, Delete); a
+    milestone row also shows "n of m done". The week grid follows. Every change saves the whole list through
+    `PUT …/vault/timeline` with the loaded revision; ticking or deleting offers an Undo toast that rebuilds from the
+    latest items;
+  - the rail (`project-rail.tsx`): Progress (manual progress, next milestone, and blocker, which reads as a warning
+    chip when set), Pages with a New page tile (`create: true` in this Project), Threads (the Project folder's
+    recent root threads, from the same `serverSync().child(folder)` lists the sidebar reads, and New thread), and
+    Log. An older `?section=settings` link scrolls to Progress.
+  - The Project's card lives in `project-details.tsx`'s `useProjectCard` (also home of the New Project form): one
+    store for the Progress card and the Project settings dialog (name, outcome, instructions, tags), so Save
+    current state sends every edit and its unsaved guard covers both. Renaming changes the card's name, not its
+    folder.
 - `project-controls.tsx` holds the app-styled controls that replace native ones: `DateChip` (`Popover`, quick picks
   and a Monday-first month grid), `StatusMenu` (`MenuV2` radio items) and `KindSwitch` (`SegmentedControlV2`).
 - A page (`notes-page.tsx`) opens full width in the shared `NoteEditor`. Save
@@ -445,7 +450,7 @@ to it.
   instead of overwriting, also in the fullscreen toolbar. A 404 (deleted
   elsewhere) offers the copy too. While a page has unsaved edits it keeps its
   workspace (a sidebar switch waits). `unsaved-guard.tsx`, shared with
-  `ProjectDetails`, turns leaving into Save / Discard / Keep editing and then
+  `useProjectCard`, turns leaving into Save / Discard / Keep editing and then
   finishes the navigation, and reports the edits to the desktop shell.
   Windows answers a held `beforeunload` with a false `unresponsive` report after Stay, so
   `windows.ts` asks the page itself (`renderer-probe.ts`) before offering Relaunch.
@@ -2159,21 +2164,31 @@ context window comes from `getSessionContext`: the window the harness reported
 for the last step (`contextWindow` on `Step.Ended` and the assistant message,
 from ACP `usage_update.size` or Codex `tokenUsage.modelContextWindow`), else
 the provider's limit for that model. Harness model IDs can be aliases such as
-Claude Code's `haiku` that no provider lists. Subagents are built-in `task` parts. Tool counts come from
+Claude Code's `haiku` that no provider lists. Subagents are built-in `task` and ACP `acp_subagent` parts; each row opens it in the Agents tab. Tool counts come from
 `summarizeTurn` over the harness's parts.
 
-ACP subagents open as agent tabs (`agent://<partID>`) in the same side panel.
-`createSessionTabs` (`app/src/pages/session/helpers.ts`) keeps them apart from
-file tabs; with nothing active, a file tab wins, then an agent tab, then
-context, then review. The opener (`onOpenSubagent` in the session-ui data
-context, wired in `pages/directory-layout.tsx`) appends the tab without
-replacing a file preview and focuses it if it's already open. It only exists
-on desktop widths. `SubagentTab` (`components/session/subagent-tab.tsx`)
-reads `subagentDetail(part)` (`components/session/subagent-detail.ts`) and
-shows the prompt and transcript, the context window (`used / size`), and
-usage with cache hit `cacheRead / (input + cacheRead + cacheWrite)`. Values
-the harness didn't send read "Not reported by <harness>", using the session's
-harness list for the name.
+Subagents (built-in `task` and ACP `acp_subagent` parts) open in one Agents
+tab (`agents`) in the same side panel. `createSessionTabs`
+(`app/src/pages/session/helpers.ts`) keeps it apart from file tabs; with
+nothing active, a file tab wins, then the Agents tab, then context, then
+review. The selected agent is per-session state held for the app's lifetime
+(`selectAgent`); none selected shows the list. Stored tab lists with the
+retired per-agent `agent://<partID>` tabs are folded into the Agents tab with
+that agent selected (`migrateAgentTabs`, run by the side panel). The opener
+(`onOpenSubagent` in the session-ui data context, wired in
+`pages/directory-layout.tsx`) takes an optional part ID, appends the tab
+without replacing a file preview and focuses it. It only exists on desktop
+widths. The list (`components/session/subagent-tab.tsx`, grouped by
+`threadSubagents` in `subagent-list.ts`) shows every subagent as the same
+`SubagentLane` the live turn card uses (`subagent-lane.tsx`), grouped by user
+turn with All / Running / Failed filters; it only scans the thread while the
+tab is open. A subagent is named by its task description, with the agent type
+as a tag (`subagentName` in `session-ui/src/components/step-kind.ts`). The
+detail shows the prompt, the steps (the ACP transcript from
+`subagentDetail(part)`, or a `task` agent's child session, loaded on demand),
+the result and a model / tokens / cost footer. Tokens the harness didn't send
+read "Not reported by <harness>", using the session's harness list for the
+name. The `task` card in the timeline still navigates to the child session.
 
 ### Thread titles
 

@@ -1,11 +1,9 @@
 import { useNavigate } from "@solidjs/router"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Icon } from "@tenon/ui/v2/icon"
-import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
-import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { createMemo, For, Show } from "solid-js"
 import { createStore } from "solid-js/store"
-import { PageEmpty, PageFrame, PageHeader, pageRowClass } from "@/components/page"
+import { PageEmpty, PageFrame, PageHeader, pageRowClass, pageWideColumnClass } from "@/components/page"
 import { useBrainProjects } from "@/components/sidebar/sidebar-controller"
 import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
@@ -106,26 +104,12 @@ export default function ProjectOverviewPage() {
           </>
         }
       >
-        <header class="flex min-h-14 shrink-0 flex-wrap items-center gap-2 pl-3 pr-6 pt-3">
-          <TooltipV2 value={language.t("secondBrain.projects.back")}>
-            <IconButtonV2
-              type="button"
-              variant="ghost-muted"
-              class="!size-8"
-              aria-label={language.t("secondBrain.projects.back")}
-              icon={
-                <span class="flex rotate-90">
-                  <Icon name="chevron-down" size="small" />
-                </span>
-              }
-              onClick={() => navigate("/projects")}
-            />
-          </TooltipV2>
-          <h1 id="project-overview-title" class="min-w-0 flex-1 truncate type-page-title text-v2-text-text-base">
-            {language.t("secondBrain.projects.overview.title")}
-          </h1>
-        </header>
-        <div class="mx-auto flex w-full max-w-[1040px] flex-col gap-6 px-6 pb-10 pt-2 sm:px-10">
+        <PageHeader
+          id="project-overview-title"
+          title={language.t("secondBrain.projects.overview.title")}
+          back={{ label: language.t("secondBrain.projects.back"), onClick: () => navigate("/projects") }}
+        />
+        <div class={pageWideColumnClass}>
           <label class="relative block">
             <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-v2-icon-icon-muted">
               <Icon name="magnifying-glass" size="small" />
@@ -176,10 +160,7 @@ export default function ProjectOverviewPage() {
                     return (
                       <section class="flex flex-col gap-3" aria-labelledby={heading()}>
                         <div class="flex min-w-0 items-baseline gap-2 px-3">
-                          <h2
-                            id={heading()}
-                            class="min-w-0 flex-1 truncate text-[15px] text-v2-text-text-base [font-weight:600]"
-                          >
+                          <h2 id={heading()} class="min-w-0 flex-1 truncate type-section text-v2-text-text-base">
                             {group.name || language.t("secondBrain.projects.overview.workspace")}
                           </h2>
                           <Show when={group.status}>
