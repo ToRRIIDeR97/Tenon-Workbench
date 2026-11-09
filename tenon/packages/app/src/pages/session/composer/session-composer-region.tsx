@@ -123,7 +123,7 @@ export function SessionComposerRegion(props: {
               <div
                 classList={{
                   "relative z-(--z-composer)": true,
-                  "animate-in fade-in duration-short ease-standard motion-reduce:animate-none": handedOff,
+                  "animate-enter": handedOff,
                 }}
                 style={{ "margin-top": `${-36 * controller.dockProgress()}px` }}
               >
@@ -143,7 +143,7 @@ export function SessionComposerRegion(props: {
                     <Show when={controller.parentID()}>
                       <button
                         type="button"
-                        class="rounded-full text-v2-text-text-accent transition-colors duration-150 ease-standard hover:text-v2-text-text-accent-hover [font-weight:500] motion-reduce:transition-none"
+                        class="rounded-full text-v2-text-text-accent transition-colors duration-short ease-standard hover:text-v2-text-text-accent-hover [font-weight:500] motion-reduce:transition-none"
                         onClick={controller.openParent}
                       >
                         {language.t("session.child.backToParent")}

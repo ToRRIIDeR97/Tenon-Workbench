@@ -21,24 +21,36 @@ export function createPromptModelSelection(input: { agent: () => { model?: Model
     return !!provider?.models[model.modelID] && connected().has(model.providerID)
   }
 
+  // Implicit picks skip models turned off in Settings › Models; an explicit choice is kept as is.
+  const pickable = (model: ModelKey) => valid(model) && models.visible(model)
+
   const configured = () => {
     const model = resolveDefaultModel(providers.defaultModel(), sync().data.config.model)
-    if (!model) return
-    if (valid(model)) return model
+    if (model && pickable(model)) return model
   }
 
-  const recent = () => models.recent.list().find(valid)
-  const fallback = () => {
+  const recent = () => models.recent.list().find(pickable)
+  const firstModel = (visibleOnly: boolean) => {
     const defaults = providers.default()
     for (const provider of providers.connected()) {
-      const modelID = defaults[provider.id] ?? Object.values(provider.models)[0]?.id
+      const modelID = [defaults[provider.id], ...Object.values(provider.models).map((model) => model.id)].find(
+        (id) => id && (!visibleOnly || models.visible({ providerID: provider.id, modelID: id })),
+      )
       if (modelID) return { providerID: provider.id, modelID }
     }
     return undefined
   }
 
   const current = createMemo(() => {
-    for (const read of [prompt.model.current, () => input.agent()?.model, configured, recent, fallback]) {
+    for (const read of [
+      prompt.model.current,
+      () => input.agent()?.model,
+      configured,
+      recent,
+      () => firstModel(true),
+      // Every model is turned off: keep the composer usable rather than selecting nothing.
+      () => firstModel(false),
+    ]) {
       const key = read()
       if (key && valid(key)) return models.find(key)
     }

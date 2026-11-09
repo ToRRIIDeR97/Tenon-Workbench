@@ -313,7 +313,7 @@ export function NoteEditor(props: NoteEditorProps) {
       classList={{
         "flex min-h-[280px] min-w-0 flex-1 flex-col overflow-hidden rounded-[24px] bg-v2-background-bg-base shadow-[0_0_0_1px_var(--v2-border-border-muted)]": true,
         relative: !fullscreen(),
-        "fixed inset-3 z-50 !rounded-[24px] shadow-2xl": fullscreen(),
+        "fixed inset-3 z-50 !rounded-[24px] shadow-[var(--v2-elevation-overlay)]": fullscreen(),
       }}
       aria-label={label("editor")}
       onKeyDown={(event) => {
@@ -497,7 +497,7 @@ export function NoteEditor(props: NoteEditorProps) {
                   id="note-editor-slash-menu"
                   role="listbox"
                   aria-label={label("slashMenu")}
-                  class="max-h-64 w-64 overflow-y-auto rounded-[16px] bg-v2-background-bg-layer-01 p-1.5 shadow-[var(--v2-elevation-floating)]"
+                  class="max-h-64 w-64 overflow-y-auto rounded-[16px] bg-v2-background-bg-floating p-1.5 shadow-[var(--v2-elevation-floating)]"
                 >
                   <Show
                     when={commands().length}

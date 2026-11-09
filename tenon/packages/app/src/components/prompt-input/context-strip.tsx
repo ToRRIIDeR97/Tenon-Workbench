@@ -9,7 +9,7 @@ import { createStore } from "solid-js/store"
 import { openSessionContext } from "@/components/session-context-usage"
 import { createSessionContextFormatter } from "@/components/session/session-context-format"
 import { getSessionContext } from "@/components/session/session-context-metrics"
-import { getSessionUsage, getTurnUsage } from "@/components/session/session-usage"
+import { getSessionTotals, getSubagentUsage, getTurnUsage } from "@/components/session/session-usage"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
@@ -41,13 +41,19 @@ export function createComposerContext() {
   const providers = useProviders(() => sdk().directory)
   const { params } = useSessionLayout()
   const messages = createMemo(() => (params.id ? (sync().data.message[params.id] ?? []) : []))
-  const context = createMemo(() => getSessionContext(messages(), [...providers.all().values()]))
-  return { messages, context }
+  const parts = (messageID: string) => sync().data.part[messageID] ?? []
+  const context = createMemo(() =>
+    getSessionContext(messages(), [...providers.all().values()], undefined, (id) => sync().data.part[id]),
+  )
+  // The server keeps whole-session totals on the session info; the loaded messages may be only part of the thread.
+  const totals = createMemo(() => getSessionTotals(params.id ? sync().session.get(params.id) : undefined, messages()))
+  const subagents = createMemo(() => getSubagentUsage(messages(), parts, (id) => sync().session.get(id)))
+  return { messages, context, totals, subagents }
 }
 
 /**
  * The composer's context ring: it fills with the share of the context window used and opens the context menu,
- * a list in three groups: the context window, this turn, and the harness's plan limits.
+ * a list of groups: the context window, this turn, the thread's cost and subagent spend, and the harness's plan limits.
  */
 export function ComposerContextRing(props: { context: ComposerContext; harness?: ComposerHarness }) {
   const language = useLanguage()
@@ -58,6 +64,7 @@ export function ComposerContextRing(props: { context: ComposerContext; harness?:
   const label = () => {
     const value = props.context.context()
     if (!value) return ""
+    if (value.compacted) return language.t("secondBrain.contextStrip.ringCompacted")
     if (value.usage === null)
       return language.t("secondBrain.contextStrip.ringTokens", { count: formatter().number(value.total) })
     return language.t("secondBrain.contextStrip.ring", { percent: formatter().percent(value.usage) })
@@ -84,7 +91,7 @@ export function ComposerContextRing(props: { context: ComposerContext; harness?:
           }}
           trigger={
             <span class="flex items-center justify-center">
-              <ProgressCircleV2 percentage={value().usage ?? 0} />
+              <ProgressCircleV2 percentage={value().compacted ? 0 : (value().usage ?? 0)} />
             </span>
           }
         >
@@ -92,6 +99,8 @@ export function ComposerContextRing(props: { context: ComposerContext; harness?:
             open={state.open}
             context={value()}
             messages={props.context.messages()}
+            cost={props.context.totals().cost}
+            subagents={props.context.subagents()}
             harness={props.harness}
             usage={usage}
             onView={() => setState("open", false)}
@@ -140,13 +149,15 @@ export function ComposerWhereRow() {
 }
 
 /**
- * The context menu's list: how much of the context window is used, what the latest turn read from cache and cost,
- * and the thread's harness's plan limits. A window the harness doesn't report shows tokens without a share.
+ * The context menu's list: how much of the context window is used, what the latest turn read from cache, the
+ * thread's whole cost and what its subagents spent, and the thread's harness's plan limits. A window the harness doesn't report shows tokens without a share.
  */
 function ContextMenu(props: {
   open: boolean
   context: NonNullable<ReturnType<ComposerContext["context"]>>
   messages: ReturnType<ComposerContext["messages"]>
+  cost: number | undefined
+  subagents: ReturnType<ComposerContext["subagents"]>
   harness?: ComposerHarness
   usage: PlanUsage
   onView: () => void
@@ -156,7 +167,6 @@ function ContextMenu(props: {
   const { tabs, view } = useSessionLayout()
   const formatter = createMemo(() => createSessionContextFormatter(language.intl()))
   const usd = createMemo(() => new Intl.NumberFormat(language.intl(), { style: "currency", currency: "USD" }))
-  const cost = createMemo(() => getSessionUsage(props.messages).cost)
   const turn = createMemo(() => getTurnUsage(props.messages))
   const limit = () => props.context.limit || undefined
   const percent = (value: number) => `${Math.round(value)}%`
@@ -169,30 +179,41 @@ function ContextMenu(props: {
     >
       <Group title={language.t("secondBrain.contextMenu.window")}>
         <Show
-          when={limit()}
+          when={!props.context.compacted}
           fallback={
-            <>
-              <Row label={language.t("secondBrain.contextMenu.used")}>
-                {language.t("secondBrain.contextMenu.usedTokens", { count: formatter().number(props.context.total) })}
-              </Row>
-              <Row label={language.t("secondBrain.contextMenu.windowSize")}>
-                <span class="text-v2-text-text-muted">{language.t("secondBrain.contextMenu.notReported")}</span>
-              </Row>
-            </>
-          }
-        >
-          {(max) => (
             <Row label={language.t("secondBrain.contextMenu.used")}>
               <span class="truncate text-[12px] font-normal text-v2-text-text-muted">
-                {language.t("secondBrain.sessionTab.contextUsed", {
-                  used: formatter().number(props.context.total),
-                  limit: formatter().number(max()),
-                })}
+                {language.t("secondBrain.contextMenu.compacted")}
               </span>
-              <Meter value={props.context.usage ?? 0} />
-              <span class="w-[34px] text-right">{percent(props.context.usage ?? 0)}</span>
             </Row>
-          )}
+          }
+        >
+          <Show
+            when={limit()}
+            fallback={
+              <>
+                <Row label={language.t("secondBrain.contextMenu.used")}>
+                  {language.t("secondBrain.contextMenu.usedTokens", { count: formatter().number(props.context.total) })}
+                </Row>
+                <Row label={language.t("secondBrain.contextMenu.windowSize")}>
+                  <span class="text-v2-text-text-muted">{language.t("secondBrain.contextMenu.notReported")}</span>
+                </Row>
+              </>
+            }
+          >
+            {(max) => (
+              <Row label={language.t("secondBrain.contextMenu.used")}>
+                <span class="truncate text-[12px] font-normal text-v2-text-text-muted">
+                  {language.t("secondBrain.sessionTab.contextUsed", {
+                    used: formatter().number(props.context.total),
+                    limit: formatter().number(max()),
+                  })}
+                </span>
+                <Meter value={props.context.usage ?? 0} />
+                <span class="w-[34px] text-right">{percent(props.context.usage ?? 0)}</span>
+              </Row>
+            )}
+          </Show>
         </Show>
       </Group>
 
@@ -208,15 +229,32 @@ function ContextMenu(props: {
         <Show when={turn().total > 0}>
           <Row label={language.t("secondBrain.contextMenu.tokens")}>{formatter().number(turn().total)}</Row>
         </Show>
-        <Show when={cost()}>
-          {(amount) => <Row label={language.t("secondBrain.contextMenu.cost")}>{usd().format(amount())}</Row>}
-        </Show>
         <Row label={language.t("harness.model")}>
           <TooltipV2 placement="top" class="min-w-0" value={props.context.modelLabel}>
             <span class="min-w-0 truncate font-mono text-[12px] font-normal">{props.context.modelLabel}</span>
           </TooltipV2>
         </Row>
       </Group>
+
+      <Show when={props.cost || props.subagents?.count}>
+        <Group title={language.t("secondBrain.contextMenu.thread")}>
+          <Show when={props.cost}>
+            {(amount) => <Row label={language.t("secondBrain.contextMenu.cost")}>{usd().format(amount())}</Row>}
+          </Show>
+          <Show when={props.subagents?.count ? props.subagents : undefined}>
+            {(spent) => (
+              <Row label={language.t("secondBrain.contextMenu.subagents")}>
+                {spent().cost
+                  ? language.t("secondBrain.sessionTab.subagentUsage", {
+                      tokens: formatter().number(spent().total),
+                      cost: usd().format(spent().cost!),
+                    })
+                  : language.t("secondBrain.contextMenu.usedTokens", { count: formatter().number(spent().total) })}
+              </Row>
+            )}
+          </Show>
+        </Group>
+      </Show>
 
       <PlanLimits usage={props.usage} harness={props.harness} />
 

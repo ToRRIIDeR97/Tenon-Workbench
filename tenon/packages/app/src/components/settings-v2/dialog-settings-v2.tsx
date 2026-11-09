@@ -118,7 +118,7 @@ export const DialogSettings: Component<{
                       {language.t("settings.models.title")}
                     </TabsV2.Trigger>
                     <TabsV2.Trigger value="harnesses">
-                      <Icon name="console" />
+                      <Icon name="terminal" />
                       {language.t("harness.settings.title")}
                     </TabsV2.Trigger>
                     <TabsV2.Trigger value="skills">

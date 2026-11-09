@@ -2,7 +2,9 @@ import { describe, expect, test } from "bun:test"
 import { createMemo, createRoot } from "solid-js"
 import { createStore } from "solid-js/store"
 import {
+  AGENTS_TAB,
   CANVAS_TAB,
+  migrateAgentTabs,
   SESSION_OPEN_FILE_TAB,
   createOpenReviewFile,
   createOpenSessionFileTab,
@@ -132,8 +134,23 @@ describe("createSessionTabs", () => {
       })
 
     expect(fallback(["agent://prt_1", "file://src/a.ts", "context"])).toBe("file://src/a.ts")
-    expect(fallback(["context", "agent://prt_1", "agent://prt_2"])).toBe("agent://prt_1")
+    expect(fallback(["context", "agent://prt_1", "agent://prt_2"])).toBe(AGENTS_TAB)
+    expect(fallback(["context", AGENTS_TAB])).toBe(AGENTS_TAB)
     expect(fallback(["context"])).toBe("context")
+  })
+
+  test("folds retired agent tabs into one Agents tab with the active agent selected", () => {
+    expect(migrateAgentTabs(["context", "file://a.ts"], "context")).toBeUndefined()
+    expect(migrateAgentTabs(["context", "agent://prt_1", "file://a.ts", "agent://prt_2"], "agent://prt_1")).toEqual({
+      all: ["context", AGENTS_TAB, "file://a.ts"],
+      active: AGENTS_TAB,
+      selected: "prt_1",
+    })
+    expect(migrateAgentTabs([AGENTS_TAB, "agent://prt_2"], "context")).toEqual({
+      all: [AGENTS_TAB],
+      active: "context",
+      selected: "prt_2",
+    })
   })
 
   test("ignores an active agent tab that is no longer open", () => {
@@ -143,7 +160,7 @@ describe("createSessionTabs", () => {
       const result = createSessionTabs({ tabs, pathFromTab: () => undefined, normalizeTab: (tab) => tab })
 
       expect(result.activeTab()).toBe("context")
-      expect(result.agentTabs()).toEqual([])
+      expect(result.agentsOpen()).toBe(false)
       dispose()
     })
   })

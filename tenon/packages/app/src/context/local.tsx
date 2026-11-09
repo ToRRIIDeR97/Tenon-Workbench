@@ -149,35 +149,31 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       setStore("promoting", undefined)
     })
 
+    // Implicit picks skip models turned off in Settings › Models; an explicit choice is kept as is.
+    const pickable = (model: ModelKey) => validModel(model) && models.visible(model)
+
     const configuredModel = () => {
       const model = resolveDefaultModel(providers.defaultModel(), sync().data.config.model)
-      if (!model) return
-      if (validModel(model)) return model
+      if (model && pickable(model)) return model
     }
 
-    const recentModel = () => {
-      for (const item of models.recent.list()) {
-        if (validModel(item)) return item
-      }
-    }
+    const recentModel = () => models.recent.list().find(pickable)
 
-    const defaultModel = () => {
+    const defaultModel = (visibleOnly: boolean) => {
       const defaults = providers.default()
       for (const provider of providers.connected()) {
-        const configured = defaults[provider.id]
-        if (configured) {
-          const model = { providerID: provider.id, modelID: configured }
-          if (validModel(model)) return model
-        }
-
-        const first = Object.values(provider.models)[0]
-        if (!first) continue
-        const model = { providerID: provider.id, modelID: first.id }
-        if (validModel(model)) return model
+        const model = [defaults[provider.id], ...Object.values(provider.models).map((item) => item.id)]
+          .filter((modelID): modelID is string => !!modelID)
+          .map((modelID) => ({ providerID: provider.id, modelID }))
+          .find((item) => (visibleOnly ? pickable(item) : validModel(item)))
+        if (model) return model
       }
     }
 
-    const fallback = createMemo<ModelKey | undefined>(() => configuredModel() ?? recentModel() ?? defaultModel())
+    const fallback = createMemo<ModelKey | undefined>(
+      // Every model is turned off: keep the composer usable rather than selecting nothing.
+      () => configuredModel() ?? recentModel() ?? defaultModel(true) ?? defaultModel(false),
+    )
 
     const agent = {
       list,

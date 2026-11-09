@@ -17,6 +17,12 @@
   inset: 0;
   background: var(--v2-icon-icon-accent, currentColor);
   transform-origin: left;
+  transition: background-color var(--v2-duration-short) var(--v2-ease-standard);
+}
+
+/* A finished lane keeps a full, static bar; a failed one turns the error colour. */
+[data-slot="turn-steps-lane"][data-status="error"] [data-slot="turn-steps-lane-fill"] {
+  background: var(--v2-state-fg-danger, currentColor);
 }
 
 [data-slot="turn-steps-lane"][data-running] [data-slot="turn-steps-lane-fill"] {

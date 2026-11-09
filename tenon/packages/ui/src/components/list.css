@@ -215,7 +215,7 @@
           background: linear-gradient(to bottom, var(--v2-background-bg-base), transparent);
           pointer-events: none;
           opacity: 0;
-          transition: opacity 0.15s ease;
+          transition: opacity var(--v2-duration-short) var(--v2-ease-standard);
         }
 
         &[data-stuck="true"]::after {

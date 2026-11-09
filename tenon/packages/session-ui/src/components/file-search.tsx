@@ -41,7 +41,7 @@ export function FileSearchBar(props: {
         <div class="flex items-center">
           <button
             type="button"
-            class="size-6 grid place-items-center rounded-full text-v2-icon-icon-muted transition-colors duration-150 ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-icon-icon-base motion-reduce:transition-none disabled:opacity-40 disabled:pointer-events-none"
+            class="size-6 grid place-items-center rounded-full text-v2-icon-icon-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-icon-icon-base motion-reduce:transition-none disabled:opacity-40 disabled:pointer-events-none"
             disabled={props.count() === 0}
             aria-label={i18n.t("ui.fileSearch.previousMatch")}
             onClick={props.onPrev}
@@ -50,7 +50,7 @@ export function FileSearchBar(props: {
           </button>
           <button
             type="button"
-            class="size-6 grid place-items-center rounded-full text-v2-icon-icon-muted transition-colors duration-150 ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-icon-icon-base motion-reduce:transition-none disabled:opacity-40 disabled:pointer-events-none"
+            class="size-6 grid place-items-center rounded-full text-v2-icon-icon-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-icon-icon-base motion-reduce:transition-none disabled:opacity-40 disabled:pointer-events-none"
             disabled={props.count() === 0}
             aria-label={i18n.t("ui.fileSearch.nextMatch")}
             onClick={props.onNext}
@@ -60,7 +60,7 @@ export function FileSearchBar(props: {
         </div>
         <button
           type="button"
-          class="size-6 grid place-items-center rounded-full text-v2-icon-icon-muted transition-colors duration-150 ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-icon-icon-base motion-reduce:transition-none"
+          class="size-6 grid place-items-center rounded-full text-v2-icon-icon-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-icon-icon-base motion-reduce:transition-none"
           aria-label={i18n.t("ui.fileSearch.close")}
           onClick={props.onClose}
         >

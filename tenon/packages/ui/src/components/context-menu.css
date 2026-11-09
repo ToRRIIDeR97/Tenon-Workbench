@@ -5,7 +5,7 @@
   border: none;
   border-radius: var(--v2-radius-lg);
   box-shadow: var(--v2-elevation-floating);
-  background-color: var(--v2-background-bg-base);
+  background-color: var(--v2-background-bg-floating);
   padding: 6px;
   z-index: 100;
   transform-origin: var(--kb-menu-content-transform-origin);
@@ -23,7 +23,7 @@
 
   &[data-expanded] {
     pointer-events: auto;
-    animation: contextMenuContentShow var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate) forwards;
+    animation: contextMenuContentShow var(--v2-duration-short) var(--v2-ease-emphasized-decelerate) forwards;
   }
 }
 
@@ -108,7 +108,7 @@
   }
 
   [data-slot="context-menu-arrow"] {
-    fill: var(--v2-background-bg-base);
+    fill: var(--v2-background-bg-floating);
   }
 }
 

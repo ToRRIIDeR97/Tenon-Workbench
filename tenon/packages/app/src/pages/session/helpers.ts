@@ -22,11 +22,40 @@ type TabsInput = {
   fileBrowser?: Accessor<boolean>
 }
 
-/** Right-panel tabs that show one subagent, keyed by its tool part ID. */
+/** Right-panel tab that lists the thread's subagents, or shows the one selected below. */
+export const AGENTS_TAB = "agents"
+
+/**
+ * The retired one-tab-per-subagent IDs, keyed by tool part ID. Stored tab lists may still hold them; the side panel
+ * folds them into the Agents tab with that agent selected.
+ */
 export const AGENT_TAB_PREFIX = "agent://"
-export const agentTab = (partID: string) => `${AGENT_TAB_PREFIX}${partID}`
 export const isAgentTab = (tab: string | undefined) => !!tab?.startsWith(AGENT_TAB_PREFIX)
 export const agentTabPartID = (tab: string) => (isAgentTab(tab) ? tab.slice(AGENT_TAB_PREFIX.length) : undefined)
+
+// The agent the Agents tab shows, per session key; none shows the list. Kept for the app's lifetime only.
+const [agentSelection, setAgentSelection] = createStore<Record<string, string | undefined>>({})
+export const selectedAgent = (sessionKey: string) => agentSelection[sessionKey]
+export const selectAgent = (sessionKey: string, partID: string | undefined) => setAgentSelection(sessionKey, partID)
+
+/**
+ * Folds retired `agent://` tabs into one Agents tab where the first of them stood. Returns undefined when there are
+ * none; otherwise the new list, the active tab and the agent to select (the active one, else the last one).
+ */
+export function migrateAgentTabs(all: readonly string[], active: string | undefined) {
+  const legacy = all.filter(isAgentTab)
+  if (legacy.length === 0) return undefined
+  const next: string[] = []
+  for (const tab of all) {
+    const value = isAgentTab(tab) ? AGENTS_TAB : tab
+    if (!next.includes(value)) next.push(value)
+  }
+  return {
+    all: next,
+    active: isAgentTab(active) ? AGENTS_TAB : active,
+    selected: agentTabPartID(isAgentTab(active) ? active! : legacy.at(-1)!),
+  }
+}
 
 /** Right-panel tab that lays out the thread's html designs as artboards. */
 export const CANVAS_TAB = "canvas"
@@ -61,7 +90,14 @@ export const createSessionTabs = (input: TabsInput) => {
         .tabs()
         .all()
         .flatMap((tab) => {
-          if (tab === "context" || tab === "review" || tab === CANVAS_TAB || toolTabs.has(tab) || isAgentTab(tab))
+          if (
+            tab === "context" ||
+            tab === "review" ||
+            tab === CANVAS_TAB ||
+            tab === AGENTS_TAB ||
+            toolTabs.has(tab) ||
+            isAgentTab(tab)
+          )
             return []
           if (tab === SESSION_OPEN_FILE_TAB && !fileBrowser()) return []
           const value = input.pathFromTab(tab) ? input.normalizeTab(tab) : tab
@@ -76,16 +112,22 @@ export const createSessionTabs = (input: TabsInput) => {
   const openedTabs = createMemo(() => panelTabs().filter((tab) => tab !== SESSION_OPEN_FILE_TAB), emptyTabs, {
     equals: same,
   })
-  const agentTabs = createMemo(() => [...new Set(input.tabs().all().filter(isAgentTab))], emptyTabs, { equals: same })
+  // Retired `agent://` tabs count as the Agents tab until the side panel folds them in.
+  const agentsOpen = createMemo(() =>
+    input
+      .tabs()
+      .all()
+      .some((tab) => tab === AGENTS_TAB || isAgentTab(tab)),
+  )
   const activeTab = createMemo(() => {
     const active = input.tabs().active()
     if (active === "context" || active === CANVAS_TAB || (active && toolTabs.has(active))) return active
     if (active === SESSION_OPEN_FILE_TAB && openFileOpen()) return active
     if (active === "review" && review()) return active
     if (active && input.pathFromTab(active)) return input.normalizeTab(active)
-    if (active && agentTabs().includes(active)) return active
+    if ((active === AGENTS_TAB || isAgentTab(active)) && agentsOpen()) return AGENTS_TAB
 
-    const first = openedTabs()[0] ?? agentTabs()[0]
+    const first = openedTabs()[0] ?? (agentsOpen() ? AGENTS_TAB : undefined)
     if (first) return first
     if (contextOpen()) return "context"
     if (canvasOpen()) return CANVAS_TAB
@@ -101,7 +143,7 @@ export const createSessionTabs = (input: TabsInput) => {
     const active = activeTab()
     if (active === "context" || active === CANVAS_TAB || toolTabs.has(active)) return active
     if (active === SESSION_OPEN_FILE_TAB && openFileOpen()) return active
-    if (agentTabs().includes(active)) return active
+    if (active === AGENTS_TAB) return active
     if (!openedTabs().includes(active)) return
     return active
   })
@@ -114,7 +156,7 @@ export const createSessionTabs = (input: TabsInput) => {
     openFileOpen,
     panelTabs,
     openedTabs,
-    agentTabs,
+    agentsOpen,
     activeTab,
     activeFileTab,
     closableTab,

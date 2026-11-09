@@ -38,7 +38,9 @@
   max-height: min(420px, calc(100dvh - 96px));
   overflow: hidden;
   pointer-events: auto;
-  transition: all var(--v2-duration-short) var(--v2-ease-standard);
+  transition:
+    transform var(--v2-duration-short) var(--v2-ease-standard),
+    opacity var(--v2-duration-short) var(--v2-ease-standard);
 
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-weak-base);
@@ -200,7 +202,7 @@
     height: 100%;
     width: var(--kb-toast-progress-fill-width);
     background-color: var(--color-primary);
-    transition: width 250ms linear;
+    transition: width var(--v2-duration-short) linear;
   }
 }
 

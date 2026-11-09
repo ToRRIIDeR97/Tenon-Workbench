@@ -72,7 +72,7 @@ export function TooltipV2(props: TooltipV2Props) {
   }
 
   const leave = () => {
-    if (!inside()) close()
+    close()
     drop()
   }
 
@@ -107,9 +107,10 @@ export function TooltipV2(props: TooltipV2Props) {
           onOpenChange={(open) => {
             if (local.forceOpen) return
             if (state.block && open) return
+            // A press on the trigger only suppresses the reopen that follows it; a close request always goes through.
             if (justClickedTrigger) {
               justClickedTrigger = false
-              return
+              if (open) return
             }
             setOpen(open)
           }}
@@ -125,6 +126,9 @@ export function TooltipV2(props: TooltipV2Props) {
               arm()
             }}
             onPointerLeave={leave}
+            onKeyDown={(event: KeyboardEvent) => {
+              if (event.key === "Escape") close()
+            }}
             onFocusOut={() => requestAnimationFrame(() => drop())}
           >
             {local.children}

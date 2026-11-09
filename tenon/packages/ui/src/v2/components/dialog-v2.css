@@ -76,8 +76,8 @@
           flex-grow: 0;
           user-select: none;
           font-weight: 600;
-          font-size: 18px;
-          line-height: 26px;
+          font-size: 20px;
+          line-height: 28px;
           color: var(--v2-text-text-base);
           font-variation-settings: "slnt" 0;
         }
@@ -102,7 +102,7 @@
           margin-top: -2px;
           margin-inline-end: -6px;
           margin-inline-start: auto;
-          border-radius: 4px;
+          border-radius: var(--v2-radius-full);
           flex-shrink: 0;
           cursor: default;
           color: var(--v2-icon-icon-muted);
@@ -187,7 +187,7 @@
 }
 
 [data-component="dialog-v2"] [data-slot="dialog-container"]:has(> [data-slot="dialog-content"][data-closed]) {
-  animation: dialog-v2-exit var(--v2-duration-exit) var(--v2-ease-emphasized-accelerate) forwards;
+  animation: dialog-v2-exit var(--v2-duration-exit) var(--v2-ease-exit) forwards;
 }
 
 /* Kobalte's presence watches the content element, not the container. A same-length animation with its
@@ -201,7 +201,7 @@
 }
 
 [data-component="dialog-overlay"][data-closed] {
-  animation: dialog-v2-overlay-out var(--v2-duration-exit) var(--v2-ease-emphasized-accelerate) forwards;
+  animation: dialog-v2-overlay-out var(--v2-duration-exit) var(--v2-ease-exit) forwards;
 }
 
 [data-component="dialog-v2"] [data-slot="dialog-close-button"] {

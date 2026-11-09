@@ -257,7 +257,13 @@ export const SettingsHarnessesV2: Component<{
                       <span class="min-w-0 flex-1 truncate">{entry.name}</span>
                       <Show when={entry.enabled && fullestWindow(usageReport(entry.id))}>
                         {(window) => (
-                          <span class="shrink-0 type-meta tabular-nums text-v2-text-text-muted">
+                          <span
+                            class="shrink-0 type-meta tabular-nums text-v2-text-text-muted"
+                            title={language.t("harness.settings.usage.meter", {
+                              window: window().label,
+                              percent: percent(window().usedPercent),
+                            })}
+                          >
                             {percent(window().usedPercent)}
                           </span>
                         )}
@@ -270,6 +276,10 @@ export const SettingsHarnessesV2: Component<{
                           class="h-1 overflow-hidden rounded-full bg-v2-background-bg-layer-04"
                           role="meter"
                           aria-label={language.t("harness.settings.usage.meter", {
+                            window: window().label,
+                            percent: percent(window().usedPercent),
+                          })}
+                          title={language.t("harness.settings.usage.meter", {
                             window: window().label,
                             percent: percent(window().usedPercent),
                           })}
@@ -298,10 +308,10 @@ export const SettingsHarnessesV2: Component<{
               <ButtonV2 size="normal" variant="ghost" icon="download" disabled={!directory()} onClick={openSetup}>
                 {language.t("harness.settings.setup")}
               </ButtonV2>
-              <ButtonV2 size="normal" variant="ghost" icon="plus" disabled={!directory()} onClick={openAssistant}>
+              <ButtonV2 size="normal" variant="ghost" icon="models" disabled={!directory()} onClick={openAssistant}>
                 {language.t("harness.settings.assistant")}
               </ButtonV2>
-              <ButtonV2 size="normal" variant="ghost" disabled={!directory()} onClick={openAdd}>
+              <ButtonV2 size="normal" variant="ghost" icon="pencil-line" disabled={!directory()} onClick={openAdd}>
                 {language.t("harness.settings.addManually")}
               </ButtonV2>
             </div>

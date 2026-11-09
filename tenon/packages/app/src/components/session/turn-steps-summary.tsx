@@ -12,7 +12,7 @@ import {
   stepOf,
   stepVerbKey,
   summarizeTurn,
-  toolStep,
+  subagentName,
   type StepKind,
   type TurnSteps,
 } from "@tenon/session-ui/step-kind"
@@ -24,6 +24,7 @@ import { DiffChanges } from "@tenon/ui/diff-changes"
 import { useFileComponent } from "@tenon/ui/context/file"
 import { Dynamic } from "solid-js/web"
 import { editDiffs } from "./step-diff"
+import { SubagentLane, childLaneSteps, laneTokens, subagentLanes, taskSessionID } from "./subagent-lane"
 import "./turn-steps-summary.css"
 
 // Fixed order so the phrase list doesn't reshuffle while a turn streams.
@@ -192,36 +193,7 @@ export function toolDetail(part: ToolPart) {
   return output || undefined
 }
 
-export interface LaneStep {
-  readonly tool: string
-  readonly title?: string
-  readonly status: string
-}
-
-/** Subagents started in the turn, with the steps an ACP harness reported for each one. */
-export function subagentLanes(parts: readonly Part[]) {
-  return parts
-    .filter((part): part is ToolPart => part.type === "tool" && isSubagent(part))
-    .map((part) => {
-      const steps = laneSteps(part.metadata?.acpSteps)
-      return {
-        part,
-        steps,
-        running: isRunning(part),
-        // The newest step still going, else the newest one, so the lane reads as "what it's doing now".
-        current: steps.findLast((step) => step.status === "pending" || step.status === "in_progress") ?? steps.at(-1),
-      }
-    })
-}
-
-function laneSteps(value: unknown): LaneStep[] {
-  if (!Array.isArray(value)) return []
-  return value.flatMap((item) =>
-    typeof item === "object" && item !== null && typeof item.tool === "string" && typeof item.status === "string"
-      ? [{ tool: item.tool, status: item.status, title: typeof item.title === "string" ? item.title : undefined }]
-      : [],
-  )
-}
+export { subagentLanes, type LaneStep } from "./subagent-lane"
 
 export function formatTurnDuration(language: ReturnType<typeof useLanguage>, ms: number | undefined) {
   if (ms === undefined || !(ms >= 0)) return
@@ -243,8 +215,11 @@ export function TurnStepsSummary(props: {
   onToggle: (open: boolean) => void
   /** Called before a row inside the open card opens or closes, which changes the card's height. */
   onResize?: () => void
-  /** Opens a harness subagent's tab; its lanes become buttons when this is set. */
-  onOpenSubagent?: (part: ToolPart) => void
+  /**
+   * Opens the side panel's Agents tab, on the given subagent or on the list without one. Lanes become buttons and
+   * the lanes block gets an "Agents" link when this is set.
+   */
+  onOpenSubagent?: (part?: ToolPart) => void
   /**
    * "grouped" (default) is one card whose same-kind steps merge into one row. "rows" lists each step as its own
    * line straight in the thread while the card works, the current one highlighted, then folds into the card.
@@ -273,7 +248,18 @@ export function TurnStepsSummary(props: {
     { equals: (a, b) => a?.part === b?.part && a?.topic === b?.topic },
   )
   // Finished lanes stay, with a full bar, until the turn ends so parallel subagents don't jump around.
-  const lanes = createMemo(() => (live() ? subagentLanes(props.parts) : []))
+  // A `task` agent's steps are its child session's tool calls, when that session is loaded.
+  const childParts = (sessionID: string) =>
+    (data.store.message[sessionID] ?? []).flatMap((message) => data.store.part[message.id] ?? [])
+  const childSteps = (part: ToolPart) => {
+    const id = taskSessionID(part)
+    return id ? childLaneSteps(childParts(id)) : undefined
+  }
+  const lanes = createMemo(() => (live() ? subagentLanes(props.parts, childSteps) : []))
+  const childSession = (part: ToolPart) => {
+    const id = taskSessionID(part)
+    return id ? data.store.session.find((session) => session.id === id) : undefined
+  }
   // The body's rows mount on first open and stay, so closing animates instead of emptying at once.
   const [body, setBody] = createStore({
     mounted: shown(),
@@ -342,10 +328,20 @@ export function TurnStepsSummary(props: {
 
   const label = (part: ToolPart) => {
     const step = stepOf(part)
-    // Subagent rows show the agent's own name, which is data rather than copy.
-    const agent = part.state.input?.subagent_type
-    if (step.kind === "subagent" && typeof agent === "string" && agent) return agent
+    // Subagent rows show the agent's task, else its type, which are data rather than copy.
+    if (step.kind === "subagent") {
+      const named = subagentName(part.state.input)
+      const name = named.name ?? named.tag
+      if (name) return name
+    }
     return language.t(stepVerbKey(step.kind, isRunning(part)))
+  }
+  // A subagent row's task is already its label, so the agent type takes the target's place.
+  const rowTarget = (part: ToolPart) => {
+    const step = stepOf(part)
+    if (step.kind !== "subagent") return step.target
+    const named = subagentName(part.state.input)
+    return named.name ? named.tag : undefined
   }
   // The "Expand shell/edit tool parts" settings open those steps until the user toggles them.
   const startsOpen = (part: ToolPart) => {
@@ -404,7 +400,7 @@ export function TurnStepsSummary(props: {
                 >
                   {label(tool())}
                 </span>
-                <Show when={step().target}>
+                <Show when={rowTarget(tool())}>
                   {(target) => (
                     <span
                       class="min-w-0 truncate text-v2-text-text-muted"
@@ -718,78 +714,36 @@ export function TurnStepsSummary(props: {
               </div>
             )}
           </Show>
-          <Index each={lanes()}>
-            {(lane) => {
-              const content = () => (
-                <>
-                  <div class="flex min-w-0 items-center gap-2">
-                    <span class="shrink-0 [font-weight:500]">{label(lane().part)}</span>
-                    <Show when={stepOf(lane().part).target}>
-                      {(target) => <span class="min-w-0 truncate text-v2-text-text-muted">{target()}</span>}
-                    </Show>
-                    <span class="flex-1" />
-                    <Show when={lane().steps.length > 0}>
-                      <span class="shrink-0 tabular-nums text-[12px] text-v2-text-text-muted">
-                        {language.plural("secondBrain.turnSteps.laneSteps", lane().steps.length, {
-                          count: lane().steps.length.toLocaleString(language.intl()),
-                        })}
-                      </span>
-                    </Show>
-                  </div>
-                  <div data-slot="turn-steps-lane-bar">
-                    <div data-slot="turn-steps-lane-fill" />
-                  </div>
-                  <Show when={lane().current} keyed>
-                    {(step) => {
-                      const current = toolStep(step.tool, { title: step.title })
-                      return (
-                        <div
-                          data-slot="turn-steps-ticker-step"
-                          class="flex min-w-0 items-center gap-2 text-[12px] text-v2-text-text-muted"
-                        >
-                          <StepIcon name={stepIcon(current.kind)} size="small" class="shrink-0" />
-                          <span class="shrink-0">
-                            {language.t(
-                              stepVerbKey(current.kind, step.status === "pending" || step.status === "in_progress"),
-                            )}
-                          </span>
-                          <Show when={current.target}>
-                            {(target) => <span class="min-w-0 truncate font-mono">{target()}</span>}
-                          </Show>
-                        </div>
-                      )
-                    }}
-                  </Show>
-                </>
-              )
-              return (
-                <Show
-                  when={openable(lane().part)}
-                  fallback={
-                    <div
-                      data-slot="turn-steps-lane"
-                      data-running={lane().running ? "" : undefined}
-                      class="flex flex-col gap-1"
-                    >
-                      {content()}
-                    </div>
-                  }
+          <Show when={lanes().length > 0 && props.onOpenSubagent}>
+            {(open) => (
+              <div data-slot="turn-steps-lanes-header" class="flex h-5 min-w-0 items-center gap-2 text-[12px]">
+                <span class="min-w-0 truncate text-v2-text-text-muted">
+                  {language.t("secondBrain.sessionTab.subagents")}
+                </span>
+                <span class="flex-1" />
+                <button
+                  type="button"
+                  data-action="turn-steps-open-agents"
+                  aria-label={language.t("secondBrain.agents.openList")}
+                  class="flex shrink-0 items-center gap-0.5 rounded-[6px] px-1 text-v2-text-text-accent transition-colors duration-short ease-standard hover:bg-v2-background-bg-layer-02 motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-v2-border-border-focus"
+                  onClick={() => open()()}
                 >
-                  {(open) => (
-                    <button
-                      type="button"
-                      data-slot="turn-steps-lane"
-                      data-running={lane().running ? "" : undefined}
-                      aria-label={language.t("secondBrain.agentTab.open", { agent: label(lane().part) })}
-                      class="-mx-1.5 flex w-[calc(100%+12px)] flex-col gap-1 rounded-[8px] px-1.5 py-0.5 text-left transition-colors hover:bg-v2-background-bg-layer-02 motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-v2-border-border-focus"
-                      onClick={() => open()(lane().part)}
-                    >
-                      {content()}
-                    </button>
-                  )}
-                </Show>
-              )
-            }}
+                  {language.t("secondBrain.agents.title")}
+                  <Icon name="chevron-right" size="small" />
+                </button>
+              </div>
+            )}
+          </Show>
+          <Index each={lanes()}>
+            {(lane) => (
+              <SubagentLane
+                lane={lane()}
+                now={now()}
+                formatDuration={(ms) => formatTurnDuration(language, ms)}
+                tokens={laneTokens(lane().part, childSession(lane().part))}
+                onOpen={props.onOpenSubagent ? () => props.onOpenSubagent?.(lane().part) : undefined}
+              />
+            )}
           </Index>
         </div>
       </Show>

@@ -267,7 +267,7 @@
   flex-grow: 0;
   font-family: var(--v2-font-family-sans);
   font-style: normal;
-  font-weight: 400;
+  font-weight: 450;
   font-size: 11px;
   line-height: 16px;
   letter-spacing: 0;
@@ -420,7 +420,7 @@
 [data-component="session-review-v2"] [data-slot="session-review-v2-file-path"] {
   flex: none;
   font-size: 13px;
-  font-weight: 400;
+  font-weight: 450;
   line-height: 1;
   letter-spacing: 0;
   font-variant-numeric: tabular-nums lining-nums;
@@ -494,7 +494,7 @@
   margin: 0 0 4px;
   max-width: 360px;
   font-size: 13px;
-  font-weight: 400;
+  font-weight: 450;
   line-height: 20px;
   text-align: center;
   letter-spacing: 0;

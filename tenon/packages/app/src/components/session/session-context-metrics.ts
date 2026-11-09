@@ -1,4 +1,4 @@
-import type { AssistantMessage, Message } from "@opencode-ai/sdk/v2/client"
+import type { AssistantMessage, Message, Part } from "@opencode-ai/sdk/v2/client"
 import { Harness } from "@tenon/schema/harness"
 
 type HarnessAssistant = AssistantMessage & { harnessInstanceID?: string; contextWindow?: number; contextUsed?: number }
@@ -24,8 +24,11 @@ type Context = {
   modelLabel: string
   limit: number | undefined
   input: number
+  /** Tokens in the context window: the harness's live report, else the last step's token counts. */
   total: number
   usage: number | null
+  /** A compaction finished after this message, so its figures describe the context before it. */
+  compacted: boolean
 }
 
 const tokenTotal = (msg: AssistantMessage) => {
@@ -43,6 +46,8 @@ const lastAssistantWithTokens = (messages: Message[], selectedHarness?: string) 
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i]
     if (msg.role !== "assistant") continue
+    // A compaction's summary reply measures the old context it summarised, not the one that follows.
+    if (msg.summary) continue
     if (selectedHarness && harnessID(msg) !== selectedHarness) continue
     // A harness's live context report counts before the step's tokens arrive.
     if (tokenTotal(msg) <= 0 && ((msg as HarnessAssistant).contextUsed ?? 0) <= 0) continue
@@ -50,7 +55,12 @@ const lastAssistantWithTokens = (messages: Message[], selectedHarness?: string) 
   }
 }
 
-const build = (messages: Message[] = [], providers: Provider[] = [], selectedHarness?: string): Context | undefined => {
+const build = (
+  messages: Message[],
+  providers: Provider[],
+  selectedHarness?: string,
+  parts?: (messageID: string) => Part[] | undefined,
+): Context | undefined => {
   const message = lastAssistantWithTokens(messages, selectedHarness)
   if (!message) return undefined
 
@@ -58,7 +68,8 @@ const build = (messages: Message[] = [], providers: Provider[] = [], selectedHar
   const model = provider ? provider.models[message.modelID] : sharedModel(providers, message.modelID)
   // A harness's own report wins: it names the window it ran with, and its model id may be an alias.
   const limit = (message as HarnessAssistant).contextWindow || model?.limit.context
-  const total = tokenTotal(message) || ((message as HarnessAssistant).contextUsed ?? 0)
+  // A harness's reported context in use wins: its token counts add up every model call in the turn.
+  const total = (message as HarnessAssistant).contextUsed || tokenTotal(message)
 
   return {
     message,
@@ -69,9 +80,32 @@ const build = (messages: Message[] = [], providers: Provider[] = [], selectedHar
     limit,
     input: message.tokens.input,
     total,
-    // A harness's reported context in use wins: its token counts add up every model call in the turn.
-    usage: limit ? Math.round((((message as HarnessAssistant).contextUsed ?? total) / limit) * 100) : null,
+    usage: limit ? Math.round((total / limit) * 100) : null,
+    compacted: compactedAfter(messages, message, parts),
   }
+}
+
+/**
+ * True when a compaction finished after `message`. A compaction carries no tokens; it shows as a `compaction` part
+ * on the turn's user message, its ID (`<compaction message ID>:compaction`) ordered like message IDs.
+ */
+const compactedAfter = (
+  messages: Message[],
+  message: AssistantMessage,
+  parts: ((messageID: string) => Part[] | undefined) | undefined,
+) => {
+  if (!parts) return false
+  const index = messages.indexOf(message)
+  const start = messages.findLastIndex((item, at) => item.role === "user" && at < index)
+  return messages
+    .slice(Math.max(start, 0))
+    .some((item) =>
+      (parts(item.id) ?? []).some(
+        (part) =>
+          part.type === "compaction" &&
+          (part.id.endsWith(":compaction") ? part.id.slice(0, -":compaction".length) : part.messageID) > message.id,
+      ),
+    )
 }
 
 /**
@@ -88,6 +122,11 @@ const sharedModel = (providers: Provider[], modelID: string) => {
   return first
 }
 
-export function getSessionContext(messages: Message[] = [], providers: Provider[] = [], selectedHarness?: string) {
-  return build(messages, providers, selectedHarness)
+export function getSessionContext(
+  messages: Message[] = [],
+  providers: Provider[] = [],
+  selectedHarness?: string,
+  parts?: (messageID: string) => Part[] | undefined,
+) {
+  return build(messages, providers, selectedHarness, parts)
 }

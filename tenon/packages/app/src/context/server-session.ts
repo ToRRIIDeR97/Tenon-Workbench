@@ -60,7 +60,7 @@ type MessagePage = {
   session: Message[]
   part: { id: string; part: Part[] }[]
   source?: SessionMessageInfo[]
-  sourceMode?: "latest" | "older"
+  sourceMode?: "latest" | "older" | "replace"
   projectSource?: boolean
   cursor?: string
   complete: boolean
@@ -229,6 +229,7 @@ export function createServerSession(
   const optimistic = new Map<string, Map<string, OptimisticItem>>()
   const v2 = createV2SessionReducer()
   const messageLoads = new Map<string, MessageLoadState>()
+  const queuedLoads = new Map<string, { limit: number; mode?: "replace" | "revalidate" }>()
   const pendingParts = new Map<string, Map<string, Set<string>>>()
   const orphanParts = new Map<string, Set<string>>()
   const removedMessages = new Map<string, Set<string>>()
@@ -709,8 +710,10 @@ export function createServerSession(
           const existing = data.session_message[sessionID] ?? []
           const current = existing.filter((message) => !incoming.has(message.id))
           const live = new Map(existing.map((message) => [message.id, message]))
-          return (page.sourceMode === "older" ? [...page.source, ...current] : [...current, ...page.source]).map(
-            (message) => (load?.touchedSource.has(message.id) ? (live.get(message.id) ?? message) : message),
+          const kept =
+            page.sourceMode === "replace" ? current.filter((message) => load?.touchedSource.has(message.id)) : current
+          return (page.sourceMode === "older" ? [...page.source, ...kept] : [...kept, ...page.source]).map((message) =>
+            load?.touchedSource.has(message.id) ? (live.get(message.id) ?? message) : message,
           )
         })()
       : undefined
@@ -772,7 +775,11 @@ export function createServerSession(
     before?: string,
     mode?: "replace" | "prepend" | "revalidate",
   ) => {
-    if (meta.loading[sessionID]) return
+    if (meta.loading[sessionID]) {
+      // A refresh that lands mid-load (say, while older history pages in) would be lost, so it runs after that load.
+      if (mode !== "prepend") queuedLoads.set(sessionID, { limit, mode })
+      return
+    }
     const active = generation(sessionID)
     const load: MessageLoadState = {
       touchedMessages: new Set(),
@@ -857,9 +864,12 @@ export function createServerSession(
                 parents.map((parent) => ({ id: parent.message.id, part: parent.parts })),
               ),
             }
+      // A revalidated page that still shares nothing with the cache means more arrived than was fetched; keeping the
+      // old messages would leave a hole before this page, so it replaces the cached window and paging resumes from it.
+      const gap = revalidate && !page.complete && !overlapsLoaded(sessionID, page.session)
       const preserveUnfetched =
         mode === "prepend" ||
-        (!result.complete && (!first || ((message: Message) => compareMessages(message, first) < 0)))
+        (!gap && !result.complete && (!first || ((message: Message) => compareMessages(message, first) < 0)))
       const keepPaging =
         revalidate &&
         !result.complete &&
@@ -868,7 +878,7 @@ export function createServerSession(
         data.message[sessionID]!.some((message) => compareMessages(message, first) < 0)
       applyMessagePage(
         sessionID,
-        result,
+        gap ? { ...result, sourceMode: "replace" } : result,
         messageLoads.get(sessionID) === load ? load : undefined,
         preserveUnfetched,
         mode !== "prepend",
@@ -886,6 +896,13 @@ export function createServerSession(
       }
       if (messageLoads.get(sessionID) === load) messageLoads.delete(sessionID)
       if (generations.get(sessionID) === active) setMeta("loading", sessionID, false)
+      const queued = queuedLoads.get(sessionID)
+      queuedLoads.delete(sessionID)
+      if (queued && generations.get(sessionID) === active) {
+        // Paged-in history may have grown the thread since the refresh was asked for.
+        const limit = queued.mode === "revalidate" ? (meta.limit[sessionID] ?? queued.limit) : queued.limit
+        void loadMessages(sessionID, limit, undefined, queued.mode).catch(() => undefined)
+      }
     }
   }
 

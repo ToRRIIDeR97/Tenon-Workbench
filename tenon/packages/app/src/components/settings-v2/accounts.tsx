@@ -8,7 +8,7 @@ import { SettingsRowV2 } from "./parts/row"
 import "./settings-v2.css"
 
 const inputClass =
-  "h-8 min-w-0 rounded-[8px] bg-v2-background-bg-layer-01 px-3 text-[13px] leading-5 text-v2-text-text-base shadow-[inset_0_0_0_1px_var(--v2-border-border-base)] outline-none focus:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)]"
+  "h-8 min-w-0 rounded-full bg-v2-background-bg-layer-01 px-3 text-[13px] font-[450] leading-5 text-v2-text-text-base shadow-[inset_0_0_0_1px_var(--v2-border-border-base)] outline-none transition-shadow duration-short ease-standard hover:shadow-[inset_0_0_0_1px_var(--v2-border-border-strong)] focus:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)]"
 
 /** Settings › Accounts (desktop): the mail accounts the Command Centre reads and drafts in. */
 export function SettingsAccountsV2() {
@@ -71,7 +71,10 @@ export function SettingsAccountsV2() {
           fallback={<div class="settings-v2-provider-empty">{language.t("secondBrain.mail.settings.desktopOnly")}</div>}
         >
           <div class="settings-v2-section">
-            <p class="type-meta text-v2-text-text-muted">{language.t("secondBrain.mail.settings.description")}</p>
+            <div class="flex flex-col gap-1">
+              <p class="type-meta text-v2-text-text-muted">{language.t("secondBrain.mail.settings.description")}</p>
+              <p class="type-meta text-v2-text-text-muted">{language.t("secondBrain.mail.settings.draftOnly")}</p>
+            </div>
             <Show when={available.latest && !available.latest.secureStorage}>
               <p role="alert" class="type-meta text-v2-text-text-critical">
                 {language.t("secondBrain.mail.settings.secureStorage")}
@@ -218,7 +221,6 @@ export function SettingsAccountsV2() {
                 {language.t("secondBrain.mail.settings.failed")}
               </p>
             </Show>
-            <p class="type-meta text-v2-text-text-muted">{language.t("secondBrain.mail.settings.draftOnly")}</p>
           </div>
         </Show>
       </div>

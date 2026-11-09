@@ -9,6 +9,7 @@ import { Reveal, RevealShow } from "@tenon/ui/v2/reveal"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { createEffect, createMemo, createResource, For, Match, on, onCleanup, Show, Switch } from "solid-js"
 import { createStore } from "solid-js/store"
+import { PageHeader, pageWideColumnClass } from "@/components/page"
 import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
 import { showToast } from "@/utils/toast"
@@ -348,56 +349,52 @@ export function NotesPageView(props: {
 
   return (
     <article class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <header class="flex min-h-14 shrink-0 items-center gap-2 px-3 pt-3">
-        <TooltipV2 value={language.t("secondBrain.vault.back")}>
-          <IconButtonV2
-            type="button"
-            variant="ghost-muted"
-            class="!size-8"
-            aria-label={language.t("secondBrain.vault.back")}
-            icon={<Icon name="arrow-left" size="small" />}
-            onClick={props.onBack}
-          />
-        </TooltipV2>
-        <p class="min-w-0 flex-1 truncate type-control text-v2-text-text-muted">
-          {project()
+      <PageHeader
+        crumb
+        title={
+          project()
             ? language.t("secondBrain.vault.breadcrumb", { project: project()!.name, page: state.title })
-            : state.title}
-        </p>
-        {savedState()}
-        <Reveal open={dirty()} variant="inline">
-          <ButtonV2 size="small" variant="ghost" disabled={state.saving} onClick={discard}>
-            {language.t("secondBrain.notes.discard")}
-          </ButtonV2>
-        </Reveal>
-        {saveButton()}
-        <MenuV2 gutter={4} modal={false} placement="bottom-end">
-          <MenuV2.Trigger
-            as={IconButtonV2}
-            variant="ghost-muted"
-            class="!size-8"
-            icon={<Icon name="outline-dots" size="small" />}
-            aria-label={language.t("secondBrain.vault.actions")}
-          />
-          <MenuV2.Portal>
-            <MenuV2.Content>
-              <MenuV2.Item disabled={!state.revision} onSelect={openVersions}>
-                {language.t("secondBrain.vault.versions")}
-              </MenuV2.Item>
-              {/* Unsaved edits would go with the page, so they are saved or discarded first. */}
-              <MenuV2.Item
-                disabled={!state.revision || dirty() || state.saving}
-                onSelect={() => props.onDelete({ path: props.path, title: state.title, revision: state.revision })}
-              >
-                {language.t("secondBrain.vault.delete")}
-              </MenuV2.Item>
-            </MenuV2.Content>
-          </MenuV2.Portal>
-        </MenuV2>
-      </header>
+            : state.title
+        }
+        back={{ label: language.t("secondBrain.vault.back"), onClick: props.onBack }}
+        actions={
+          <>
+            {savedState()}
+            <Reveal open={dirty()} variant="inline">
+              <ButtonV2 size="small" variant="ghost" disabled={state.saving} onClick={discard}>
+                {language.t("secondBrain.notes.discard")}
+              </ButtonV2>
+            </Reveal>
+            {saveButton()}
+            <MenuV2 gutter={4} modal={false} placement="bottom-end">
+              <MenuV2.Trigger
+                as={IconButtonV2}
+                variant="ghost-muted"
+                class="!size-8"
+                icon={<Icon name="outline-dots" size="small" />}
+                aria-label={language.t("secondBrain.vault.actions")}
+              />
+              <MenuV2.Portal>
+                <MenuV2.Content>
+                  <MenuV2.Item disabled={!state.revision} onSelect={openVersions}>
+                    {language.t("secondBrain.vault.versions")}
+                  </MenuV2.Item>
+                  {/* Unsaved edits would go with the page, so they are saved or discarded first. */}
+                  <MenuV2.Item
+                    disabled={!state.revision || dirty() || state.saving}
+                    onSelect={() => props.onDelete({ path: props.path, title: state.title, revision: state.revision })}
+                  >
+                    {language.t("secondBrain.vault.delete")}
+                  </MenuV2.Item>
+                </MenuV2.Content>
+              </MenuV2.Portal>
+            </MenuV2>
+          </>
+        }
+      />
 
       <div class="min-h-0 flex-1 overflow-y-auto">
-        <div class="mx-auto flex min-h-full w-full max-w-[1040px] flex-col gap-3 px-6 pb-8 pt-4 sm:px-10">
+        <div class={`${pageWideColumnClass} min-h-full`}>
           <h1 class="type-display text-v2-text-text-base">
             <input
               class="w-full min-w-0 rounded-[12px] bg-transparent px-1 -mx-1 outline-none transition-colors duration-short ease-standard placeholder:text-v2-text-text-faint hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none"

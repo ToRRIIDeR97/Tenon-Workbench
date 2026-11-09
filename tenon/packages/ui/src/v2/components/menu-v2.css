@@ -13,7 +13,7 @@
   z-index: 60;
   pointer-events: auto;
 
-  background: var(--v2-background-bg-base);
+  background: var(--v2-background-bg-floating);
   border-radius: var(--v2-radius-lg);
   box-shadow: var(--v2-elevation-floating);
 

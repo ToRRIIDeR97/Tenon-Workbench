@@ -6,7 +6,7 @@ import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { MenuV2 } from "@tenon/ui/v2/menu-v2"
 import { createEffect, createResource, createSignal, For, onMount, Show } from "solid-js"
 import { createStore } from "solid-js/store"
-import { PageEmpty, PageHeader, pagePanelClass, pageRowClass } from "@/components/page"
+import { PageEmpty, PageFrame, PageHeader, pageRowClass } from "@/components/page"
 import { ComposerBox } from "@/components/prompt-input/composer-box"
 import { createComposerController } from "@/components/prompt-input/composer-controller"
 import { ComposerModelPill, createComposerHarness } from "@/components/prompt-input/composer-harness"
@@ -92,41 +92,43 @@ export default function CommandCentrePage() {
   })
 
   return (
-    <section class="flex size-full min-h-0 flex-col p-2 pl-0" aria-labelledby="command-centre-title">
-      <div class={`flex min-h-0 flex-1 flex-col overflow-hidden ${pagePanelClass}`}>
-        <PageHeader
-          id="command-centre-title"
-          title={language.t("secondBrain.commandCentre.title")}
-          actions={
-            <>
-              <Show when={centre.directory()}>
-                {(directory) => (
-                  <ButtonV2
-                    size="small"
-                    variant="ghost"
-                    onClick={() => dialog.show(() => <DialogArchivedThreads ctrl={ctrl} directory={directory()} />)}
-                  >
-                    {language.t("secondBrain.sidebar.archivedThreads")}
-                  </ButtonV2>
-                )}
-              </Show>
-              <ButtonV2 size="small" variant="ghost" icon="refresh" onClick={() => navigate("/routines")}>
-                {language.t("secondBrain.routines.title")}
-              </ButtonV2>
-            </>
-          }
-        />
-        <div class="flex min-h-0 flex-1 gap-2 px-3 pb-3">
-          <aside class="flex w-[260px] shrink-0 flex-col gap-2 overflow-y-auto">
-            <form
-              onSubmit={(event) => {
-                event.preventDefault()
-                setState({ query: state.memory.trim(), hit: -1 })
-              }}
-            >
+    <PageFrame labelledBy="command-centre-title" scroll={false}>
+      <PageHeader
+        id="command-centre-title"
+        title={language.t("secondBrain.commandCentre.title")}
+        actions={
+          <>
+            <Show when={centre.directory()}>
+              {(directory) => (
+                <ButtonV2
+                  variant="ghost"
+                  onClick={() => dialog.show(() => <DialogArchivedThreads ctrl={ctrl} directory={directory()} />)}
+                >
+                  {language.t("secondBrain.sidebar.archivedThreads")}
+                </ButtonV2>
+              )}
+            </Show>
+            <ButtonV2 variant="ghost" icon="refresh" onClick={() => navigate("/routines")}>
+              {language.t("secondBrain.routines.title")}
+            </ButtonV2>
+          </>
+        }
+      />
+      <div class="flex min-h-0 flex-1 gap-2 px-3 pb-3">
+        <aside class="flex w-[260px] shrink-0 flex-col gap-2 overflow-y-auto">
+          <form
+            onSubmit={(event) => {
+              event.preventDefault()
+              setState({ query: state.memory.trim(), hit: -1 })
+            }}
+          >
+            <label class="relative block">
+              <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-v2-icon-icon-muted">
+                <Icon name="magnifying-glass" size="small" />
+              </span>
               <input
                 type="search"
-                class="h-8 w-full rounded-full bg-v2-background-bg-layer-01 px-3 type-control text-v2-text-text-base outline-none [box-shadow:inset_0_0_0_1px_var(--v2-border-border-base)] placeholder:text-v2-text-text-faint focus:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)]"
+                class="h-9 w-full rounded-full bg-v2-background-bg-layer-01 pl-9 pr-3 text-[13px] text-v2-text-text-base outline-none transition-[background-color,box-shadow] duration-short ease-standard [box-shadow:inset_0_0_0_1px_var(--v2-border-border-base)] placeholder:text-v2-text-text-faint focus:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)] motion-reduce:transition-none"
                 placeholder={language.t("secondBrain.commandCentre.memory.placeholder")}
                 aria-label={language.t("secondBrain.commandCentre.memory.label")}
                 value={state.memory}
@@ -135,96 +137,96 @@ export default function CommandCentrePage() {
                   setState(memory.trim() ? { memory } : { memory, query: "", hit: -1 })
                 }}
               />
-            </form>
-            <Show when={state.query}>
-              <Show
-                when={!hits.loading}
-                fallback={
-                  <p role="status" class="px-3 type-meta text-v2-text-text-muted">
-                    {language.t("secondBrain.commandCentre.memory.searching")}
-                  </p>
-                }
-              >
-                <ul class="flex flex-col gap-1" aria-label={language.t("secondBrain.commandCentre.memory.results")}>
-                  <For
-                    each={hits()?.items ?? []}
-                    fallback={
-                      <li role={hits()?.failed ? "alert" : undefined} class="px-3 type-meta text-v2-text-text-muted">
-                        {language.t(hits()?.failed ? "common.requestFailed" : "secondBrain.commandCentre.memory.empty")}
-                      </li>
-                    }
-                  >
-                    {(hit, index) => (
-                      <li>
-                        {/* A hit from a live thread opens it; a summary (its thread was compacted) expands in place. */}
-                        <button
-                          type="button"
-                          class={`${pageRowClass} !py-1.5`}
-                          aria-expanded={hit.sessionID ? undefined : state.hit === index()}
-                          onClick={() => {
-                            if (hit.sessionID) return open(hit.sessionID)
-                            setState("hit", state.hit === index() ? -1 : index())
-                          }}
-                        >
-                          <span
-                            class="min-w-0 flex-1 whitespace-pre-wrap type-meta text-v2-text-text-muted"
-                            classList={{ "line-clamp-2": state.hit !== index() }}
-                          >
-                            {hit.text}
-                          </span>
-                        </button>
-                      </li>
-                    )}
-                  </For>
-                </ul>
-              </Show>
-            </Show>
+            </label>
+          </form>
+          <Show when={state.query}>
             <Show
-              when={centre.threads().length > 0}
+              when={!hits.loading}
               fallback={
-                <p role={centre.loading() ? "status" : undefined} class="px-3 py-2 type-meta text-v2-text-text-muted">
-                  {centre.loading()
-                    ? language.t("common.loading")
-                    : language.t("secondBrain.commandCentre.threads.empty")}
+                <p role="status" class="px-3 type-meta text-v2-text-text-muted">
+                  {language.t("secondBrain.commandCentre.memory.searching")}
                 </p>
               }
             >
-              <ul class="flex flex-col gap-0.5" aria-label={language.t("secondBrain.commandCentre.threads")}>
-                {/* By ID: a refresh rebuilds the thread objects, which must not end a rename in progress. */}
-                <For each={centre.threads().flatMap((thread) => (ctrl.threadHidden(thread.id) ? [] : [thread.id]))}>
-                  {(id) => (
-                    <Show when={centre.threads().find((thread) => thread.id === id)}>
-                      {(thread) => <ThreadRow thread={thread()} href={sessionHref(server.key, id)} />}
-                    </Show>
+              <ul class="flex flex-col gap-1" aria-label={language.t("secondBrain.commandCentre.memory.results")}>
+                <For
+                  each={hits()?.items ?? []}
+                  fallback={
+                    <li role={hits()?.failed ? "alert" : undefined} class="px-3 type-meta text-v2-text-text-muted">
+                      {language.t(hits()?.failed ? "common.requestFailed" : "secondBrain.commandCentre.memory.empty")}
+                    </li>
+                  }
+                >
+                  {(hit, index) => (
+                    <li>
+                      {/* A hit from a live thread opens it; a summary (its thread was compacted) expands in place. */}
+                      <button
+                        type="button"
+                        class={`${pageRowClass} !py-1.5`}
+                        aria-expanded={hit.sessionID ? undefined : state.hit === index()}
+                        onClick={() => {
+                          if (hit.sessionID) return open(hit.sessionID)
+                          setState("hit", state.hit === index() ? -1 : index())
+                        }}
+                      >
+                        <span
+                          class="min-w-0 flex-1 whitespace-pre-wrap type-meta text-v2-text-text-muted"
+                          classList={{ "line-clamp-2": state.hit !== index() }}
+                        >
+                          {hit.text}
+                        </span>
+                      </button>
+                    </li>
                   )}
                 </For>
               </ul>
             </Show>
-          </aside>
-          <div class="@container flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-6 overflow-y-auto rounded-[20px] bg-v2-background-bg-deep px-6 py-8">
-            <Show when={!centre.loading() && centre.threads().length === 0}>
-              <PageEmpty title={language.t("secondBrain.commandCentre.empty.title")}>
-                {language.t("secondBrain.commandCentre.empty.body")}
-              </PageEmpty>
-            </Show>
-            <ComposerBox
-              size="large"
-              class="w-full max-w-[720px]"
-              controller={composer}
-              label={language.t("secondBrain.commandCentre.composer.label")}
-              placeholder={language.t("secondBrain.commandCentre.composer.placeholder")}
-              sendLabel={language.t("secondBrain.commandCentre.composer.send")}
-              controls={<ComposerModelPill harness={harness} />}
-            />
-            <Show when={centre.error()}>
-              <p role="alert" class="type-meta text-v2-text-text-critical">
-                {language.t("common.requestFailed")}
+          </Show>
+          <Show
+            when={centre.threads().length > 0}
+            fallback={
+              <p role={centre.loading() ? "status" : undefined} class="px-3 py-2 type-meta text-v2-text-text-muted">
+                {centre.loading()
+                  ? language.t("common.loading")
+                  : language.t("secondBrain.commandCentre.threads.empty")}
               </p>
-            </Show>
-          </div>
+            }
+          >
+            <ul class="flex flex-col gap-0.5" aria-label={language.t("secondBrain.commandCentre.threads")}>
+              {/* By ID: a refresh rebuilds the thread objects, which must not end a rename in progress. */}
+              <For each={centre.threads().flatMap((thread) => (ctrl.threadHidden(thread.id) ? [] : [thread.id]))}>
+                {(id) => (
+                  <Show when={centre.threads().find((thread) => thread.id === id)}>
+                    {(thread) => <ThreadRow thread={thread()} href={sessionHref(server.key, id)} />}
+                  </Show>
+                )}
+              </For>
+            </ul>
+          </Show>
+        </aside>
+        <div class="@container flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-6 overflow-y-auto rounded-[16px] bg-v2-background-bg-layer-01 px-6 py-8">
+          <Show when={!centre.loading() && centre.threads().length === 0}>
+            <PageEmpty title={language.t("secondBrain.commandCentre.empty.title")}>
+              {language.t("secondBrain.commandCentre.empty.body")}
+            </PageEmpty>
+          </Show>
+          <ComposerBox
+            size="large"
+            class="w-full max-w-[720px]"
+            controller={composer}
+            label={language.t("secondBrain.commandCentre.composer.label")}
+            placeholder={language.t("secondBrain.commandCentre.composer.placeholder")}
+            sendLabel={language.t("secondBrain.commandCentre.composer.send")}
+            controls={<ComposerModelPill harness={harness} />}
+          />
+          <Show when={centre.error()}>
+            <p role="alert" class="type-meta text-v2-text-text-critical">
+              {language.t("common.requestFailed")}
+            </p>
+          </Show>
         </div>
       </div>
-    </section>
+    </PageFrame>
   )
 }
 

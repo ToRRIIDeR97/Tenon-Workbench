@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, on, onMount, Show, untrack } from "solid-js"
+import { createEffect, createMemo, createSignal, on, onCleanup, onMount, Show, untrack } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLocation, useNavigate } from "@solidjs/router"
 import { Icon } from "@tenon/ui/v2/icon"
@@ -9,7 +9,7 @@ import { createMediaQuery } from "@solid-primitives/media"
 
 import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
-import { useCommand } from "@/context/command"
+import { outsideEditable, useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
 import { useSettings } from "@/context/settings"
 import { WindowsAppMenu } from "./windows-app-menu"
@@ -124,6 +124,31 @@ export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visibl
       onSelect: forward,
     },
   ])
+
+  onMount(() => {
+    // Windows convention; on macOS Alt+Arrow moves the caret by word, so it stays a text shortcut there.
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!windows() || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
+      if (!outsideEditable(event)) return
+      event.preventDefault()
+      if (event.key === "ArrowLeft") return back()
+      forward()
+    }
+    // Mouse buttons 3/4 (back/forward); preventDefault stops Chromium's own history navigation.
+    const onMouseUp = (event: MouseEvent) => {
+      if (event.button !== 3 && event.button !== 4) return
+      event.preventDefault()
+      if (event.button === 3) return back()
+      forward()
+    }
+    window.addEventListener("keydown", onKeyDown)
+    window.addEventListener("mouseup", onMouseUp)
+    onCleanup(() => {
+      window.removeEventListener("keydown", onKeyDown)
+      window.removeEventListener("mouseup", onMouseUp)
+    })
+  })
 
   return (
     <header
@@ -251,7 +276,7 @@ function TitlebarV2Right(props: { update: TitlebarUpdatePillState }) {
 function TitlebarUpdateIconButton(props: { state: TitlebarUpdatePillState }) {
   return (
     <TooltipV2 placement="bottom" class="shrink-0" inactive={!props.state.title} value={props.state.title}>
-      <div class="group relative mr-3 h-5 w-5 shrink-0 animate-menu-enter rounded-full bg-v2-background-bg-deep transition-[width] duration-short ease-standard hover:z-30 hover:w-[68px] focus-within:z-30 focus-within:w-[68px] motion-reduce:transition-none">
+      <div class="group relative mr-3 h-5 w-5 shrink-0 rounded-full bg-v2-background-bg-deep transition-[width] duration-short ease-standard hover:z-30 hover:w-[68px] focus-within:z-30 focus-within:w-[68px] motion-reduce:transition-none">
         <button
           type="button"
           class="absolute right-0 top-0 z-10 flex h-5 w-5 items-center justify-end overflow-hidden rounded-full bg-v2-icon-icon-accent/20 text-v2-icon-icon-accent transition-[width,background-color] duration-short ease-standard group-hover:w-[68px] group-hover:bg-[color-mix(in_srgb,var(--v2-icon-icon-accent)_20%,var(--v2-background-bg-deep))] group-focus-within:w-[68px] group-focus-within:bg-[color-mix(in_srgb,var(--v2-icon-icon-accent)_20%,var(--v2-background-bg-deep))] disabled:opacity-60 motion-reduce:transition-none"

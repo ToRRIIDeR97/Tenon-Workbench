@@ -7,7 +7,7 @@
   min-width: 200px;
   max-width: 320px;
   border-radius: var(--v2-radius-lg);
-  background-color: var(--v2-background-bg-base);
+  background-color: var(--v2-background-bg-floating);
   border: 0;
   box-shadow: var(--v2-elevation-floating);
 
@@ -22,7 +22,7 @@
   }
 
   &[data-expanded] {
-    animation: popover-open var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate);
+    animation: popover-open var(--v2-duration-short) var(--v2-ease-emphasized-decelerate);
   }
 
   [data-slot="popover-header"] {
@@ -67,7 +67,7 @@
   }
 
   [data-slot="popover-arrow"] {
-    fill: var(--v2-background-bg-base);
+    fill: var(--v2-background-bg-floating);
   }
 }
 

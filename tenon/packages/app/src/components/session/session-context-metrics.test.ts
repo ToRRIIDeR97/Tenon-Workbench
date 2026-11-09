@@ -130,6 +130,54 @@ describe("getSessionContext", () => {
     expect(context?.usage).toBe(30)
   })
 
+  test("reports the context in use, not the turn's summed token spend, against the window", () => {
+    const turn = {
+      ...(assistant(
+        "a1",
+        { input: 900_000, output: 100_000, reasoning: 0, read: 200_000, write: 0 },
+        0,
+        "claude-code",
+        "x",
+      ) as object),
+      contextWindow: 200_000,
+      contextUsed: 80_000,
+    } as unknown as Message
+
+    const context = getSessionContext([user("u1"), turn], [])
+    expect(context?.total).toBe(80_000)
+    expect(context?.usage).toBe(40)
+  })
+
+  test("marks the meter stale when a compaction finished after the last reply", () => {
+    const providers = [{ id: "openai", models: { "gpt-4.1": { limit: { context: 1000 } } } }]
+    const before = assistant("msg_a", { input: 900, output: 0, reasoning: 0, read: 0, write: 0 }, 0)
+    const compaction = { id: "msg_b:compaction", sessionID: "s", messageID: "msg_u", type: "compaction", auto: true }
+    const parts = (id: string) => (id === "msg_u" ? [compaction as never] : [])
+    const after = assistant("msg_c", { input: 100, output: 0, reasoning: 0, read: 0, write: 0 }, 0)
+
+    expect(getSessionContext([user("msg_u"), before], providers)?.compacted).toBe(false)
+    const stale = getSessionContext([user("msg_u"), before], providers, undefined, parts)
+    expect(stale?.compacted).toBe(true)
+    expect(stale?.message.id).toBe("msg_a")
+    const fresh = getSessionContext([user("msg_u"), before, user("msg_v"), after], providers, undefined, parts)
+    expect(fresh?.compacted).toBe(false)
+    expect(fresh?.usage).toBe(10)
+  })
+
+  test("skips a compaction's summary reply when picking the context snapshot", () => {
+    const before = assistant("msg_a", { input: 900, output: 0, reasoning: 0, read: 0, write: 0 }, 0)
+    const summary = {
+      ...(assistant("msg_c", { input: 900, output: 50, reasoning: 0, read: 0, write: 0 }, 0) as object),
+      summary: true,
+    } as unknown as Message
+    const compaction = { id: "prt_1", sessionID: "s", messageID: "msg_b", type: "compaction", auto: true }
+    const parts = (id: string) => (id === "msg_b" ? [compaction as never] : [])
+
+    const context = getSessionContext([user("msg_u"), before, user("msg_b"), summary], [], undefined, parts)
+    expect(context?.message.id).toBe("msg_a")
+    expect(context?.compacted).toBe(true)
+  })
+
   test("leaves a harness model's limit unknown when providers disagree on it", () => {
     const providers = [
       { id: "anthropic", models: { "claude-x": { name: "Claude X", limit: { context: 200 } } } },

@@ -24,7 +24,7 @@
   inset-inline-end: 0;
   top: 0;
   width: 12px;
-  transition: opacity 200ms ease;
+  transition: opacity var(--v2-duration-short) var(--v2-ease-standard);
   cursor: default;
   user-select: none;
   pointer-events: auto;
@@ -42,7 +42,7 @@
   border-radius: 9999px;
   background-color: var(--border-weak-base);
   backdrop-filter: blur(4px);
-  transition: background-color 150ms ease;
+  transition: background-color var(--v2-duration-short) var(--v2-ease-standard);
 }
 
 .scroll-view__thumb:hover::after,

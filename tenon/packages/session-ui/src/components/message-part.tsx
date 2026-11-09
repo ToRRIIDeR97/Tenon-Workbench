@@ -65,7 +65,7 @@ import { ToolStatusTitle } from "./tool-status-title"
 import { patchFiles } from "./apply-patch-file"
 import { partDefaultOpen } from "./part-default-open"
 import { groupParts, isContextGroupTool, sameGroups, toolGroupCounts, type PartGroup } from "./part-group"
-import { stepIcon, stepVerbKey, toolStep } from "./step-kind"
+import { stepIcon, stepVerbKey, subagentName, toolStep } from "./step-kind"
 import { animate } from "motion"
 import { motionDuration, prefersReducedMotion } from "@tenon/ui/v2/motion"
 import { attached, inline, kind, typeLabel } from "./message-file"
@@ -527,10 +527,12 @@ export function getToolInfo(
         typeof input.subagent_type === "string" && input.subagent_type
           ? input.subagent_type[0]!.toUpperCase() + input.subagent_type.slice(1)
           : undefined
+      // The task names the agent; its type is the secondary label.
+      const { name, tag } = subagentName(input)
       return {
         icon: "task",
-        title: agentTitle(i18n, type),
-        subtitle: input.description,
+        title: name ?? agentTitle(i18n, type),
+        subtitle: name ? tag : undefined,
       }
     }
     case "bash":
@@ -2074,13 +2076,12 @@ ToolRegistry.register({
       return taskSession(props.input, data.sessionID, data.store.session, data.store.agent)
     })
     const agent = createMemo(() => taskAgent(props.input.subagent_type, data.store.agent))
-    const title = createMemo(() => agent().name ?? i18n.t("ui.tool.agent.default"))
+    const named = createMemo(() => subagentName(props.input))
+    // The task names the agent; its type moves to the subtitle.
+    const title = createMemo(() => named().name ?? agent().name ?? i18n.t("ui.tool.agent.default"))
     const tone = createMemo(() => agent().color)
     const subtitle = createMemo(() => {
-      const value =
-        typeof props.input.description === "string" && props.input.description
-          ? props.input.description
-          : childSessionId()
+      const value = named().name ? named().tag : childSessionId()
       if (!value) return value
       if (props.metadata.background === true) return `${value} (background)`
       return value
@@ -2182,14 +2183,15 @@ ToolRegistry.register({
       if (!opener || !sessionID || !partID) return undefined
       return () => opener({ sessionID, partID })
     })
+    const named = createMemo(() => subagentName(props.input))
+    // The task names the agent; its type moves to the subtitle.
     const title = createMemo(() => {
-      const agent = props.input.subagent_type
-      if (typeof agent !== "string" || !agent) return i18n.t("ui.tool.agent.default")
+      const agent = named().tag
+      if (named().name) return named().name!
+      if (!agent) return i18n.t("ui.tool.agent.default")
       return i18n.t("ui.tool.agent", { type: agent[0]!.toUpperCase() + agent.slice(1) })
     })
-    const subtitle = createMemo(() =>
-      typeof props.input.description === "string" && props.input.description ? props.input.description : undefined,
-    )
+    const subtitle = createMemo(() => (named().name ? named().tag : undefined))
     const running = createMemo(() => props.status === "pending" || props.status === "running")
 
     return (

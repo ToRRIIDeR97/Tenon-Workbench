@@ -106,7 +106,7 @@ function StatusPopoverBody(props: { shown: boolean; children: JSX.Element }) {
     <Show when={mounted()}>
       <Suspense
         fallback={
-          <div class="h-14 w-[360px] rounded-[24px] bg-v2-background-bg-layer-01 shadow-[var(--v2-elevation-floating)]" />
+          <div class="h-14 w-[360px] rounded-[16px] bg-v2-background-bg-floating shadow-[var(--v2-elevation-floating)]" />
         }
       >
         {props.children}
@@ -118,7 +118,7 @@ function StatusPopoverBody(props: { shown: boolean; children: JSX.Element }) {
 function StatusPopoverView(props: { state: StatusPopoverState }) {
   const popoverProps = {
     class:
-      "[&_[data-slot=popover-body]]:p-0 w-[360px] max-w-[calc(100vw-40px)] bg-transparent border-0 shadow-none rounded-[24px]",
+      "[&_[data-slot=popover-body]]:p-0 w-[360px] max-w-[calc(100vw-40px)] bg-transparent border-0 shadow-none rounded-[16px]",
     gutter: 4,
     placement: "bottom-end" as const,
     shift: -168,

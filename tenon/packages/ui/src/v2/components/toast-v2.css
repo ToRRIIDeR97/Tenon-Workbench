@@ -23,7 +23,7 @@
   -webkit-user-select: none;
   border-radius: 8px;
   color: var(--v2-text-text-base);
-  background: var(--v2-background-bg-base);
+  background: var(--v2-background-bg-floating);
   box-shadow: var(--v2-elevation-floating);
   transition:
     transform var(--v2-duration-medium) var(--v2-ease-standard),

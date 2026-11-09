@@ -1,7 +1,6 @@
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
-import { SegmentedControlItemV2, SegmentedControlV2 } from "@tenon/ui/v2/segmented-control-v2"
 import { SelectV2 } from "@tenon/ui/v2/select-v2"
 import { TextareaV2 } from "@tenon/ui/v2/textarea-v2"
 import { TextInputV2 } from "@tenon/ui/v2/text-input-v2"
@@ -12,6 +11,7 @@ import { PageEmpty, pageRowClass } from "@/components/page"
 import { useLanguage } from "@/context/language"
 import { focusWhenConnected } from "@/utils/focus-when-connected"
 import { localDateKey } from "./calendar-domain"
+import { controlClass, dateFieldClass, fieldClass, textareaClass, timeInputClass } from "./calendar-event-form"
 import { CalendarPeek, TaskCheck } from "./calendar-peek"
 import type { PlannerTask, ProjectRecord } from "./client"
 import { revealSidePanel, SidePanel, sidePanelGridClass } from "./side-panel"
@@ -78,7 +78,8 @@ export function CalendarTasks(props: {
   onToggle: (task: PlannerTask) => Promise<void>
   filter?: CalendarTaskFilter
   selectedId?: string
-  onFilterChange?: (filter: CalendarTaskFilter) => void
+  /** Changes when the page's New task is chosen; each change opens a blank task. */
+  newTask?: number
   /** Google accounts with write access; a new task can be saved to any of them. */
   googleAccounts?: ReadonlyArray<{ id: string; label: string }>
 }) {
@@ -177,6 +178,23 @@ export function CalendarTasks(props: {
     ),
   )
 
+  createEffect(
+    on(
+      () => props.newTask,
+      () =>
+        setState({
+          editing: true,
+          peek: "",
+          draft: emptyDraft(),
+          error: "",
+          errorField: "",
+          confirmingDelete: false,
+          googleConfirm: false,
+        }),
+      { defer: true },
+    ),
+  )
+
   const inConflict = () => state.draft.syncState === "conflict" && Boolean(state.draft.outboxKey)
 
   const persist = async (tasks: ReadonlyArray<PlannerTask>) => {
@@ -263,49 +281,8 @@ export function CalendarTasks(props: {
   return (
     <div class={sidePanelGridClass(state.editing || Boolean(peeked()))}>
       <section class="flex min-h-0 min-w-0 flex-col" aria-label={language.t("secondBrain.tasks.title")}>
-        <div class="flex shrink-0 flex-wrap items-center gap-2 px-3 pb-2">
-          <div class="min-w-0 flex-1">
-            <SegmentedControlV2 class="!w-fit" value={state.filter}>
-              <For each={["today", "upcoming", "unscheduled", "completed"] as const}>
-                {(filter) => (
-                  <SegmentedControlItemV2
-                    value={filter}
-                    class="!flex-auto whitespace-nowrap"
-                    onClick={() => {
-                      setState("filter", filter)
-                      props.onFilterChange?.(filter)
-                    }}
-                  >
-                    {language.t(`secondBrain.tasks.filter.${filter}`)}
-                  </SegmentedControlItemV2>
-                )}
-              </For>
-            </SegmentedControlV2>
-          </div>
-          <ButtonV2
-            size="small"
-            variant="contrast"
-            icon="plus"
-            onClick={() =>
-              setState({
-                editing: true,
-                peek: "",
-                draft: emptyDraft(),
-                error: "",
-                errorField: "",
-                confirmingDelete: false,
-                googleConfirm: false,
-              })
-            }
-          >
-            {language.t("secondBrain.tasks.new")}
-          </ButtonV2>
-        </div>
         <div class="flex flex-col gap-0.5">
-          <Show
-            when={visible().length > 0}
-            fallback={<PageEmpty class="!pt-8">{language.t("secondBrain.tasks.empty")}</PageEmpty>}
-          >
+          <Show when={visible().length > 0} fallback={<PageEmpty>{language.t("secondBrain.tasks.empty")}</PageEmpty>}>
             <For each={visible()}>
               {(task) => (
                 <div
@@ -415,10 +392,11 @@ export function CalendarTasks(props: {
                 />
               </TooltipV2>
             </div>
-            <label class="flex flex-col gap-1.5 text-[12px] text-v2-text-text-muted" for="task-title">
+            <label class={fieldClass} for="task-title">
               {language.t("secondBrain.tasks.name")}
               <TextInputV2
                 id="task-title"
+                class={controlClass}
                 ref={focusWhenConnected}
                 value={state.draft.title}
                 invalid={state.errorField === "title"}
@@ -437,12 +415,12 @@ export function CalendarTasks(props: {
                 </Show>
               }
             >
-              <label class="flex flex-col gap-1.5 text-[12px] text-v2-text-text-muted" for="task-source">
+              <label class={fieldClass} for="task-source">
                 {language.t("secondBrain.tasks.google.destination")}
                 <SelectV2
                   id="task-source"
                   aria-label={language.t("secondBrain.tasks.google.destination")}
-                  class="!h-8 !w-full"
+                  class={controlClass}
                   options={["local", ...(props.googleAccounts ?? []).map((account) => account.id)]}
                   current={state.draft.source === "google" ? state.draft.accountId : "local"}
                   label={(source) => {
@@ -464,12 +442,12 @@ export function CalendarTasks(props: {
                 />
               </label>
             </Show>
-            <label class="flex flex-col gap-1.5 text-[12px] text-v2-text-text-muted" for="task-project">
+            <label class={fieldClass} for="task-project">
               {language.t("secondBrain.calendar.project")}
               <SelectV2
                 id="task-project"
                 aria-label={language.t("secondBrain.calendar.project")}
-                class="!h-8 !w-full"
+                class={controlClass}
                 options={["__none__", ...props.projects.map((project) => project.id)]}
                 current={state.draft.projectId || "__none__"}
                 label={(projectID) =>
@@ -482,7 +460,7 @@ export function CalendarTasks(props: {
                 }
               />
             </label>
-            <div class="flex flex-col gap-1.5 text-[12px] text-v2-text-text-muted">
+            <div class={dateFieldClass}>
               {language.t("secondBrain.tasks.due")}
               <DateChip
                 label={language.t("secondBrain.tasks.due")}
@@ -490,7 +468,7 @@ export function CalendarTasks(props: {
                 onChange={(value) => setState("draft", "dueDate", value ?? "")}
               />
             </div>
-            <div class="flex flex-col gap-1.5 text-[12px] text-v2-text-text-muted">
+            <div class={dateFieldClass}>
               {language.t("secondBrain.tasks.scheduled")}
               <DateChip
                 label={language.t("secondBrain.tasks.scheduled")}
@@ -499,24 +477,24 @@ export function CalendarTasks(props: {
               />
             </div>
             <div class="grid grid-cols-2 gap-3">
-              <label class="flex flex-col gap-1.5 text-[12px] text-v2-text-text-muted" for="task-start">
+              <label class={fieldClass} for="task-start">
                 {language.t("secondBrain.calendar.start")}
                 <input
                   id="task-start"
                   type="time"
-                  class={dateInputClass}
+                  class={timeInputClass}
                   aria-invalid={state.errorField === "time" ? true : undefined}
                   aria-describedby={state.errorField === "time" ? "task-error" : undefined}
                   value={state.draft.start}
                   onInput={(event) => setState("draft", "start", event.currentTarget.value)}
                 />
               </label>
-              <label class="flex flex-col gap-1.5 text-[12px] text-v2-text-text-muted" for="task-end">
+              <label class={fieldClass} for="task-end">
                 {language.t("secondBrain.calendar.end")}
                 <input
                   id="task-end"
                   type="time"
-                  class={dateInputClass}
+                  class={timeInputClass}
                   aria-invalid={state.errorField === "time" ? true : undefined}
                   aria-describedby={state.errorField === "time" ? "task-error" : undefined}
                   value={state.draft.end}
@@ -534,10 +512,11 @@ export function CalendarTasks(props: {
                 {language.t("secondBrain.tasks.unschedule")}
               </ButtonV2>
             </Show>
-            <label class="flex flex-col gap-1.5 text-[12px] text-v2-text-text-muted" for="task-notes">
+            <label class={fieldClass} for="task-notes">
               {language.t("secondBrain.tasks.notes")}
               <TextareaV2
                 id="task-notes"
+                class={textareaClass}
                 rows={4}
                 value={state.draft.notes}
                 onInput={(event) => setState("draft", "notes", event.currentTarget.value)}
@@ -598,6 +577,3 @@ export function CalendarTasks(props: {
     </div>
   )
 }
-
-const dateInputClass =
-  "h-9 w-full min-w-0 rounded-[12px] border-0 bg-v2-background-bg-base px-3 text-[12px] text-v2-text-text-base outline-none transition-shadow duration-short ease-standard focus:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)] motion-reduce:transition-none"

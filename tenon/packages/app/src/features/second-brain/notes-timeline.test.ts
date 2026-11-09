@@ -4,6 +4,7 @@ import {
   bodyAfterSave,
   dueDatePatch,
   matchProjects,
+  milestoneGroups,
   monthGrid,
   newPagePath,
   restoreItem,
@@ -98,4 +99,28 @@ test("matchProjects searches names and outcomes", () => {
   expect(matchProjects(projects, " acme ").map((project) => project.name)).toEqual(["Acme API"])
   expect(matchProjects(projects, "landing").map((project) => project.name)).toEqual(["Website"])
   expect(matchProjects(projects, "  ")).toEqual([])
+})
+
+test("milestoneGroups puts each task under the milestone listed before it", () => {
+  const list: TimelineItem[] = [
+    { id: "a", title: "A", kind: "task", status: "todo" },
+    { id: "m1", title: "M1", kind: "milestone", status: "done" },
+    { id: "b", title: "B", kind: "task", status: "done" },
+    { id: "m2", title: "M2", kind: "milestone", status: "todo" },
+    { id: "c", title: "C", kind: "task", status: "done" },
+    { id: "d", title: "D", kind: "task", status: "doing" },
+  ]
+  const shape = (groups: ReturnType<typeof milestoneGroups>) =>
+    groups.map((group) => [group.milestone?.id, group.tasks.map((task) => task.id), group.done, group.total])
+  expect(shape(milestoneGroups(list))).toEqual([
+    [undefined, ["a"], 0, 1],
+    ["m1", ["b"], 1, 1],
+    ["m2", ["c", "d"], 1, 2],
+  ])
+  // Open hides done tasks and a done milestone with nothing open left; the counts still cover every task.
+  expect(shape(milestoneGroups(list, true))).toEqual([
+    [undefined, ["a"], 0, 1],
+    ["m2", ["d"], 1, 2],
+  ])
+  expect(milestoneGroups([])).toEqual([])
 })

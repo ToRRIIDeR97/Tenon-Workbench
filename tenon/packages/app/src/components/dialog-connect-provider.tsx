@@ -98,8 +98,9 @@ export const DialogConnectProvider: Component<{
 
   return (
     <DialogV2
-      containerClass="!h-[min(calc(100vh_-_16px),512px)] !w-[min(calc(100vw_-_16px),640px)]"
-      class="[font-family:var(--v2-font-family-sans)] [&_[data-slot=dialog-header]]:!px-6"
+      fit
+      containerClass="max-h-[min(calc(100vh_-_16px),512px)] !w-[min(calc(100vw_-_16px),640px)]"
+      class="[&_[data-slot=dialog-header]]:!px-6"
     >
       <DialogHeader closeLabel={language.t("common.close")}>
         <Show
@@ -194,12 +195,12 @@ function ProviderPickerV2(props: {
   }
 
   return (
-    <div ref={picker} class="flex min-h-0 flex-1 flex-col gap-4" onKeyDown={handleKeyDown}>
+    <div ref={picker} class="flex h-[min(444px,calc(100vh_-_84px))] min-h-0 flex-col gap-4" onKeyDown={handleKeyDown}>
       <div class="shrink-0 px-1 pt-px">
         <TextInputV2
           ref={search}
           type="search"
-          class="!h-9 !w-full !rounded-full [font-family:var(--v2-font-family-sans)]"
+          class="!h-9 !w-full !rounded-full"
           leadingIcon={<Icon name="magnifying-glass" size="small" />}
           placeholder={language.t("dialog.provider.search.placeholder")}
           value={store.filter}

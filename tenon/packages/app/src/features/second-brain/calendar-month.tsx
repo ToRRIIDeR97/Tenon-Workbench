@@ -52,12 +52,7 @@ export function CalendarMonth(props: {
             const total = () => events().length + tasks().length
             const shown = () => monthCellShown(total(), rows())
             return (
-              <div
-                classList={{
-                  "group/day flex min-h-0 flex-col items-stretch overflow-hidden border-b border-r border-v2-border-border-muted p-1 [&:nth-child(7n)]:border-r-0 [&:nth-last-child(-n+7)]:border-b-0": true,
-                  "bg-v2-background-bg-layer-01": !day.inMonth,
-                }}
-              >
+              <div class="group/day flex min-h-0 flex-col items-stretch overflow-hidden border-b border-r border-v2-border-border-muted p-1 [&:nth-child(7n)]:border-r-0 [&:nth-last-child(-n+7)]:border-b-0">
                 <div class="relative mb-1 flex shrink-0 justify-center">
                   <button
                     type="button"
@@ -89,7 +84,13 @@ export function CalendarMonth(props: {
                     />
                   </TooltipV2>
                 </div>
-                <div class="flex min-h-0 flex-col gap-0.5 overflow-hidden">
+                {/* Days of the next and previous month recede by dimming, not by a fill: layer fills read lighter in dark mode. */}
+                <div
+                  classList={{
+                    "flex min-h-0 flex-col gap-0.5 overflow-hidden": true,
+                    "opacity-60": !day.inMonth,
+                  }}
+                >
                   <For each={events().slice(0, shown())}>
                     {(event) => (
                       <TooltipV2 class="min-w-0 shrink-0" value={event.title}>

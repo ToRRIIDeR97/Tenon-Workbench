@@ -45,7 +45,7 @@ export function PromptWorktreeSwitch(props: {
 export function PromptGitStatus(props: { branch?: string; noGit?: boolean }) {
   const language = useLanguage()
   const label = () => {
-    if (props.noGit) return language.t("session.new.git.none")
+    if (props.noGit) return language.t("secondBrain.composer.branch.detached")
     return props.branch
   }
 

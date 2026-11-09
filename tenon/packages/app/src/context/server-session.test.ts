@@ -1956,5 +1956,54 @@ describe("server session", () => {
       expect(requests.map((input) => input.limit)).toEqual([20, 20])
       expect(store.data.message.child?.at(-1)?.id).toBe("msg_030")
     })
+
+    test("replaces the cached window when more than a page arrived since, leaving no gap", async () => {
+      let newest = 20
+      const { store } = setupPages((input) => {
+        if (input.cursor) return { data: [] }
+        return { data: range(newest - 19, newest), next: "older" }
+      })
+
+      await store.sync("child")
+      newest = 50
+      await store.sync("child", { force: true })
+
+      const ids = range(31, 50)
+        .map((message) => message.id)
+        .toReversed()
+      expect(store.data.message.child?.map((message) => message.id)).toEqual(ids)
+      expect(store.data.session_message.child?.map((message) => message.id)).toEqual(ids)
+      expect(store.history.more("child")).toBe(true)
+    })
+
+    test("runs a forced refresh that arrives while older history is loading", async () => {
+      let newest = 40
+      let release = () => {}
+      const held = new Promise<void>((resolve) => (release = resolve))
+      const list = async (input: { limit: number; cursor?: string }) => {
+        if (input.cursor) {
+          await held
+          return { data: range(1, 20), cursor: { next: null } }
+        }
+        return { data: range(newest - 19, newest), cursor: { next: "older" } }
+      }
+      const sessionApi = { get: async () => session("child") } as unknown as SessionApi
+      const store = createServerSession({} as OpencodeClient, sessionApi, { list } as unknown as MessageApi, {
+        protocol: Promise.resolve("v2"),
+      })
+      await store.sync("child")
+
+      const loading = store.history.loadMore("child")
+      await Bun.sleep(1)
+      expect(store.history.loading("child")).toBe(true)
+      newest = 41
+      await store.sync("child", { force: true })
+      release()
+      await loading
+      for (let tries = 0; tries < 100 && store.data.message.child?.at(-1)?.id !== "msg_041"; tries++) await Bun.sleep(1)
+
+      expect(store.data.message.child?.at(-1)?.id).toBe("msg_041")
+      expect(store.data.message.child?.at(0)?.id).toBe("msg_001")
+    })
   })
 })

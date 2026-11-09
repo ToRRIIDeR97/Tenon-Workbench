@@ -30,7 +30,7 @@ type SessionFileViewProps = {
 
 const selectionSide = (range: SelectedLineRange) => range.endSide ?? range.side ?? "additions"
 
-// A file reference's code fades in (medium, as its fade-in class) before it glides to the cited lines over
+// A file reference's code fades in (medium, as its animate-enter class) before it glides to the cited lines over
 // the long duration on the standard curve.
 const referenceFadeMs = () => motionDuration("medium")
 
@@ -548,7 +548,7 @@ function SessionFileViewV2(props: { tab: string }) {
       class="relative overflow-hidden pb-40"
       classList={{
         // Not hidden before then: the viewer only renders its lines while it can be seen.
-        "animate-in fade-in duration-medium ease-emphasized-decelerate motion-reduce:animate-none": rendered(),
+        "animate-enter": rendered(),
       }}
     >
       <Dynamic
@@ -636,7 +636,7 @@ function SessionFileViewV2(props: { tab: string }) {
       <Show when={!state()?.error && !rendered()}>
         <div
           role="status"
-          class="pointer-events-none absolute inset-x-0 top-0 flex flex-col gap-2.5 px-6 py-4 animate-in fade-in duration-medium ease-emphasized-decelerate motion-reduce:animate-none"
+          class="pointer-events-none absolute inset-x-0 top-0 flex flex-col gap-2.5 px-6 py-4 animate-enter"
         >
           <span class="sr-only">{language.t("common.loading")}...</span>
           {[72, 54, 64, 38, 58].map((width) => (

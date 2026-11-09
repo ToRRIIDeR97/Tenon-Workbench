@@ -294,7 +294,7 @@ export const ErrorPage: Component<ErrorPageProps> = (props) => {
     >
       <div class="flex w-full max-w-2xl flex-col items-center gap-6">
         <div class="flex flex-col items-center gap-2 text-center">
-          <h1 class="text-[22px] font-[600] leading-7 text-v2-text-text-base">{language.t("error.page.title")}</h1>
+          <h1 class="type-page-title text-v2-text-text-base">{language.t("error.page.title")}</h1>
           <p class="text-[14px] leading-5 text-v2-text-text-muted">{language.t(errorDescriptionKey(props.error))}</p>
         </div>
         <div class="relative w-full rounded-[16px] bg-v2-background-bg-layer-01 shadow-[0_0_0_1px_var(--v2-border-border-muted)]">

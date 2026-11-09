@@ -230,17 +230,17 @@ export default function BrainHomePage() {
               }
               header={
                 <div class="flex h-10 min-w-0 items-center gap-0.5 border-b border-v2-border-border-muted pl-2.5 pr-2">
+                  {/* A label, not a picker (the sidebar picks the folder): the tooltip's trigger is the chip itself,
+                      so it opens right above it. */}
                   <PathTooltip
                     placement="top"
-                    class="min-w-0 shrink"
+                    class="h-8 min-w-0 shrink cursor-default items-center gap-1.5 px-2 text-[13px] leading-5 text-v2-text-text-muted"
                     name={getFilename(directory())}
                     path={directory()}
                   >
-                    <span class="flex h-8 min-w-0 shrink items-center gap-1.5 px-2 text-[13px] leading-5 text-v2-text-text-muted">
-                      <Icon name="folder" size="small" class="shrink-0 text-v2-icon-icon-muted" />
-                      <span class="min-w-0 truncate text-v2-text-text-base [font-weight:500]">
-                        {getFilename(directory())}
-                      </span>
+                    <Icon name="folder" size="small" class="shrink-0 text-v2-icon-icon-muted" />
+                    <span class="min-w-0 truncate text-v2-text-text-base [font-weight:500]">
+                      {getFilename(directory())}
                     </span>
                   </PathTooltip>
                   <Icon name="chevron-down" size="small" class="shrink-0 -rotate-90 text-v2-icon-icon-muted" />

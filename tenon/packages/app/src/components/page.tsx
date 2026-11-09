@@ -1,26 +1,77 @@
 import { Icon } from "@tenon/ui/v2/icon"
+import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { LoaderV2 } from "@tenon/ui/v2/loader-v2"
+import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { children, Show, type JSX, type ParentProps } from "solid-js"
 
 /** The rounded surface every page sits on, next to the nav rail and projects panel. */
 export const pagePanelClass = "rounded-[24px] bg-v2-background-bg-base shadow-[0_0_0_1px_var(--v2-border-border-muted)]"
 
-/** Full-height page: one rounded panel that scrolls. Pages with their own layout use `pagePanelClass`. */
-export function PageFrame(props: ParentProps<{ labelledBy?: string; class?: string }>) {
+/**
+ * Full-height page: one rounded panel that scrolls. `scroll={false}` keeps the panel fixed for pages whose
+ * columns scroll on their own. Pages with their own layout use `pagePanelClass`.
+ */
+export function PageFrame(
+  props: ParentProps<{ labelledBy?: string; label?: string; scroll?: boolean; class?: string }>,
+) {
   return (
-    <section class="flex size-full min-h-0 flex-col p-2 pl-0" aria-labelledby={props.labelledBy}>
-      <div class={`min-h-0 flex-1 overflow-y-auto ${pagePanelClass} ${props.class ?? ""}`}>{props.children}</div>
+    <section
+      class="flex size-full min-h-0 flex-col p-2 pl-0"
+      aria-labelledby={props.labelledBy}
+      aria-label={props.label}
+    >
+      <div
+        class={`min-h-0 flex-1 ${props.scroll === false ? "flex flex-col overflow-hidden" : "overflow-y-auto"} ${pagePanelClass} ${props.class ?? ""}`}
+      >
+        {props.children}
+      </div>
     </section>
   )
 }
 
-/** Page title with optional trailing actions. Pages carry no subtitle: the title names the page. */
-export function PageHeader(props: { id?: string; title: string; actions?: JSX.Element }) {
+/** The page's content column: 720px for lists and forms, 1040px for overviews and notes. */
+export const pageColumnClass = "mx-auto flex w-full max-w-[720px] flex-col gap-6 px-6 pt-6 pb-10 sm:px-10"
+export const pageWideColumnClass = "mx-auto flex w-full max-w-[1040px] flex-col gap-6 px-6 pt-6 pb-10 sm:px-10"
+
+/**
+ * Page title with optional back button and trailing actions. Pages carry no subtitle: the title names the page.
+ * `crumb` shows the title as a muted breadcrumb instead of the h1, for pages whose heading sits in the body.
+ */
+export function PageHeader(props: {
+  id?: string
+  title: string
+  crumb?: boolean
+  back?: { label: string; onClick: () => void }
+  actions?: JSX.Element
+}) {
   return (
     <header class="flex min-h-14 shrink-0 flex-wrap items-center gap-2 px-6 pt-3">
-      <h1 id={props.id} class="max-w-full flex-1 shrink-0 truncate type-page-title text-v2-text-text-base">
-        {props.title}
-      </h1>
+      <Show when={props.back}>
+        {(back) => (
+          <TooltipV2 value={back().label}>
+            <IconButtonV2
+              type="button"
+              variant="ghost-muted"
+              class="-ml-2"
+              aria-label={back().label}
+              icon={<Icon name="arrow-left" />}
+              onClick={() => back().onClick()}
+            />
+          </TooltipV2>
+        )}
+      </Show>
+      <Show
+        when={!props.crumb}
+        fallback={
+          <p id={props.id} class="min-w-0 flex-1 truncate type-control text-v2-text-text-muted">
+            {props.title}
+          </p>
+        }
+      >
+        <h1 id={props.id} class="max-w-full min-w-0 flex-1 shrink-0 truncate type-page-title text-v2-text-text-base">
+          {props.title}
+        </h1>
+      </Show>
       <Show when={props.actions}>
         <div class="flex flex-wrap items-center gap-1.5">{props.actions}</div>
       </Show>
@@ -56,7 +107,7 @@ export function PageSection(
 
 /**
  * The one empty, loading and error block: centred near the top of the space the view would fill, with a title
- * (15/22 600), a muted body (type-body) and at most one pill action. `loading` puts a spinner before the title; `error` marks it
+ * (type-row-title, 600), a muted body (type-body) and at most one pill action. `loading` puts a spinner before the title; `error` marks it
  * as an alert and pairs with a plain-language body and an outline "Try again" action, never a raw error code.
  */
 export function PageEmpty(
@@ -73,7 +124,7 @@ export function PageEmpty(
           <Show when={props.loading}>
             <LoaderV2 class="shrink-0 text-v2-icon-icon-muted" />
           </Show>
-          <p class="text-[15px] leading-[22px] text-v2-text-text-base [font-weight:600]">{props.title}</p>
+          <p class="type-row-title text-v2-text-text-base [font-weight:600]">{props.title}</p>
         </div>
       </Show>
       <Show when={body()}>

@@ -10,7 +10,7 @@
   max-width: 320px;
   max-height: calc(100vh - 1rem);
   border-radius: var(--v2-radius-lg);
-  background-color: var(--v2-background-bg-base);
+  background-color: var(--v2-background-bg-floating);
   pointer-events: auto;
   border: 0;
   box-shadow: var(--v2-elevation-floating);
@@ -26,7 +26,7 @@
   }
 
   &[data-expanded] {
-    animation: hover-card-open var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate);
+    animation: hover-card-open var(--v2-duration-short) var(--v2-ease-emphasized-decelerate);
   }
 
   [data-slot="hover-card-body"] {

@@ -300,7 +300,7 @@ function ModelSelectorPopoverV2View(props: {
       <MenuV2.Portal>
         <MenuV2.Content
           ref={(element: HTMLDivElement) => (contentRef = element)}
-          class={`w-[300px] overflow-hidden !rounded-[16px] border-0 bg-v2-background-bg-base !p-0 shadow-[var(--v2-elevation-floating)] focus:outline-none ${menuItemsClass}`}
+          class={`w-[300px] overflow-hidden !rounded-[16px] border-0 bg-v2-background-bg-floating !p-0 shadow-[var(--v2-elevation-floating)] focus:outline-none ${menuItemsClass}`}
           onPointerDownOutside={dismiss.preventTriggerRestore}
           onFocusOutside={dismiss.preventTriggerRestore}
           onCloseAutoFocus={dismiss.onCloseAutoFocus}
@@ -383,7 +383,7 @@ function ModelSelectorPopoverV2View(props: {
                           class="absolute inset-x-2 flex flex-col gap-0.5"
                           style={{ top: `${row().start}px` }}
                         >
-                          <MenuV2.GroupLabel class="sticky top-0 z-10 gap-2 bg-v2-background-bg-base px-3">
+                          <MenuV2.GroupLabel class="sticky top-0 z-10 gap-2 bg-v2-background-bg-floating px-3">
                             <span class="min-w-0 truncate">{group.items[0].provider.name}</span>
                           </MenuV2.GroupLabel>
                           <MenuV2.RadioGroup value={props.current()}>

@@ -238,7 +238,9 @@
       "v2-illustration-illustration-layer-03": "var(--v2-grey-500)",
       "v2-background-bg-accent-container": "var(--v2-blue-200)",
       "v2-text-text-disabled": "#8a8a8a",
-      "v2-border-border-control": "#8a8a8a"
+      "v2-border-border-control": "#8a8a8a",
+      "v2-background-bg-raised": "var(--v2-grey-50)",
+      "v2-background-bg-floating": "var(--v2-grey-50)"
     }
   },
   "dark": {
@@ -477,7 +479,9 @@
       "v2-illustration-illustration-layer-02": "var(--v2-grey-800)",
       "v2-illustration-illustration-layer-03": "var(--v2-grey-700)",
       "v2-text-text-disabled": "#6b6b6b",
-      "v2-border-border-control": "#6b6b6b"
+      "v2-border-border-control": "#6b6b6b",
+      "v2-background-bg-raised": "var(--v2-grey-1000)",
+      "v2-background-bg-floating": "var(--v2-grey-900)"
     }
   }
 }

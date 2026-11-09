@@ -65,6 +65,7 @@ import { normalizeSessionInfo } from "@/utils/session"
 import { sessionTitle } from "@/utils/session-title"
 import { dismissToast, showToast } from "@/utils/toast"
 import { createUndoQueue } from "@/utils/undo-action"
+import { downloadSessionExport, fetchSessionExport, sessionExportFilename } from "@/utils/session-export"
 
 export type SidebarProjectItem = {
   id: string
@@ -668,6 +669,30 @@ export function createSidebarController() {
       .catch(requestFailed)
   }
 
+  /** Downloads the thread as the same JSON `opencode export` writes. */
+  const exportThread = async (session: Pick<Session, "id" | "directory">) => {
+    try {
+      const data = await fetchSessionExport({
+        sessionID: session.id,
+        client: serverSDK().createClient({ directory: session.directory }),
+      })
+      const filename = sessionExportFilename(data.info)
+      downloadSessionExport(filename, data)
+      showToast({
+        variant: "success",
+        icon: "circle-check",
+        title: language.t("toast.session.export.success.title"),
+        description: language.t("toast.session.export.success.description", { filename }),
+      })
+    } catch (err) {
+      showToast({
+        variant: "error",
+        title: language.t("toast.session.export.failed.title"),
+        description: err instanceof Error ? err.message : language.t("toast.session.export.failed.description"),
+      })
+    }
+  }
+
   const openProjectCard = (project: SidebarProjectItem) =>
     navigate(`/projects?project=${encodeURIComponent(project.id)}`)
 
@@ -917,6 +942,7 @@ export function createSidebarController() {
     setThreadPinned,
     listArchivedThreads,
     forkThread,
+    exportThread,
     openProjectCard,
     archiveProject,
     chooseFolder,

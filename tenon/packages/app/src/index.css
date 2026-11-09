@@ -347,3 +347,28 @@
     animation: none;
   }
 }
+
+/* The composer's send button: the primary text colour on the raised composer (white in dark, near-black in light),
+   and an outline when there is nothing to send, so an empty composer doesn't show a dark hole. */
+[data-component="composer-box"] [data-slot="composer-send"][data-component="icon-button-v2"] {
+  background-image: none;
+  background-color: var(--v2-text-text-base);
+  color: var(--v2-background-bg-base);
+  box-shadow: none;
+}
+
+[data-component="composer-box"]
+  [data-slot="composer-send"][data-component="icon-button-v2"]:is(:hover, :active):not(:disabled) {
+  background-image: linear-gradient(
+    90deg,
+    var(--v2-overlay-simple-overlay-contrast-hover) 0%,
+    var(--v2-overlay-simple-overlay-contrast-hover) 100%
+  );
+}
+
+[data-component="composer-box"]
+  [data-slot="composer-send"][data-component="icon-button-v2"]:is(:disabled, [data-state="disabled"]) {
+  background: transparent;
+  color: var(--v2-icon-icon-muted);
+  box-shadow: inset 0 0 0 1px var(--v2-border-border-strong);
+}

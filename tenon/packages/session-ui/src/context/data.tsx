@@ -51,7 +51,8 @@ export type NavigateToSessionFn = (sessionID: string) => void
 export type SessionHrefFn = (sessionID: string) => string
 
 /** Opens a harness subagent's own view (the app's right-panel agent tab) for one tool part. */
-export type OpenSubagentFn = (input: { sessionID: string; partID: string }) => void
+/** Opens the app's Agents panel on one subagent call, or on the list of them when `partID` is left out. */
+export type OpenSubagentFn = (input: { sessionID: string; partID?: string }) => void
 
 export const { use: useData, provider: DataProvider } = createSimpleContext({
   name: "Data",

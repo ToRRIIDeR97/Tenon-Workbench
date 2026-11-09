@@ -7,7 +7,7 @@
   width: 280px;
   height: 28px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--v2-radius-full);
   outline: none;
   background: var(--v2-background-bg-layer-01);
   box-shadow: inset 0 0 0 1px var(--v2-border-border-base);

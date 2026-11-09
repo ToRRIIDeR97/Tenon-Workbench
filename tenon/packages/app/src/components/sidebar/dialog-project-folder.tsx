@@ -102,7 +102,7 @@ export function DialogAddProject(props: { server: ServerConnection.Any; onAdd: (
                   <PathTooltip placement="top" name={getFilename(folder)} path={folder}>
                     <button
                       type="button"
-                      class="flex h-8 w-full min-w-0 items-center gap-2 rounded-[10px] px-2 text-left text-[13px] text-v2-text-text-muted hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base focus-visible:bg-v2-overlay-simple-overlay-hover focus-visible:outline-none"
+                      class="flex h-8 w-full min-w-0 items-center gap-2 rounded-[10px] px-2 text-left text-[13px] text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base focus-visible:bg-v2-overlay-simple-overlay-hover focus-visible:outline-none motion-reduce:transition-none"
                       onClick={() => setState({ path: folder, error: "" })}
                     >
                       <Icon name="folder" size="small" class="shrink-0 text-v2-icon-icon-muted" />

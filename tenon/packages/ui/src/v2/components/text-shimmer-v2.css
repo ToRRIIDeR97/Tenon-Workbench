@@ -42,7 +42,7 @@
 [data-component="text-shimmer-v2"] [data-slot="text-shimmer-v2-shimmer"] {
   grid-area: 1 / 1;
   white-space: pre;
-  transition: opacity var(--_swap) ease-out;
+  transition: opacity var(--_swap) var(--v2-ease-standard);
   font: inherit;
   letter-spacing: inherit;
   line-height: inherit;

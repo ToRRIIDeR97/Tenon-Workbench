@@ -147,7 +147,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
       <form
         data-component="prompt-input-v2"
         data-dock-border-underlay={props.borderUnderlay ? "v2" : undefined}
-        class="group/prompt-input relative min-h-[96px] w-full overflow-clip rounded-[28px] bg-v2-background-bg-base focus-within:[--prompt-input-edge:var(--v2-border-border-focus)]"
+        class="group/prompt-input relative min-h-[96px] w-full overflow-clip rounded-[28px] bg-v2-background-bg-raised focus-within:[--prompt-input-edge:var(--v2-border-border-focus)]"
         classList={{
           "shadow-[0_0_0_1px_var(--prompt-input-edge,var(--v2-border-border-strong)),0_8px_24px_-12px_rgb(0_0_0/0.18)]":
             !props.borderUnderlay,
@@ -169,9 +169,9 @@ export function PromptInputV2(props: PromptInputV2Props) {
         <Presence
           when={state.drag === "active"}
           class="pointer-events-none absolute inset-0 z-20"
-          enterClass="animate-in fade-in duration-medium ease-emphasized-decelerate motion-reduce:animate-none"
+          enterClass="animate-enter duration-medium ease-emphasized-decelerate motion-reduce:animate-none"
         >
-          <div class="grid size-full place-items-center rounded-[28px] bg-v2-background-bg-base/90 text-v2-text-text-base">
+          <div class="grid size-full place-items-center rounded-[28px] bg-v2-background-bg-raised/90 text-v2-text-text-base">
             {i18n.t("ui.promptInput.dropFiles")}
           </div>
         </Presence>
@@ -218,7 +218,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
             spellcheck={state.mode === "normal"}
             // @ts-expect-error
             autocomplete="off"
-            class="relative z-10 block min-h-[60px] max-h-[180px] w-full overflow-y-auto whitespace-pre-wrap bg-transparent px-5 pt-4 pb-2 text-[13px] font-[400] leading-5 text-v2-text-text-base focus:outline-none [&_[data-mention=file]]:text-syntax-property [&_[data-mention=agent]]:text-syntax-type [&_[data-mention=skill]]:text-syntax-type [&_[data-mention=reference]]:text-syntax-keyword"
+            class="relative z-10 block min-h-[60px] max-h-[180px] w-full overflow-y-auto whitespace-pre-wrap bg-transparent px-5 pt-4 pb-2 text-[14px] font-[450] leading-[22px] text-v2-text-text-base focus:outline-none [&_[data-mention=file]]:text-syntax-property [&_[data-mention=agent]]:text-syntax-type [&_[data-mention=skill]]:text-syntax-type [&_[data-mention=reference]]:text-syntax-keyword"
             classList={{ "font-mono!": state.mode === "shell", "opacity-50": props.disabled }}
             onInput={(event) => syncEditor(event.currentTarget)}
             // A thread reference switches between its summary and the full thread on click.
@@ -245,7 +245,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
           />
           <Show when={!props.controller.value()}>
             <div
-              class="pointer-events-none absolute inset-x-0 top-0 px-5 pt-4 text-[13px] font-[400] leading-5 text-v2-text-text-faint"
+              class="pointer-events-none absolute inset-x-0 top-0 px-5 pt-4 text-[14px] font-[450] leading-[22px] text-v2-text-text-faint"
               classList={{ "font-mono!": state.mode === "shell" }}
             >
               {view.placeholder?.() ??
@@ -584,11 +584,11 @@ export function PromptInputV2Attachments(props: {
         </div>
         <div
           data-slot="prompt-attachments-fade-left"
-          class="pointer-events-none absolute inset-y-0 start-0 z-10 w-6 bg-[linear-gradient(to_right,var(--v2-background-bg-base),transparent)] rtl:bg-[linear-gradient(to_left,var(--v2-background-bg-base),transparent)]"
+          class="pointer-events-none absolute inset-y-0 start-0 z-10 w-6 bg-[linear-gradient(to_right,var(--v2-background-bg-raised),transparent)] rtl:bg-[linear-gradient(to_left,var(--v2-background-bg-raised),transparent)]"
         />
         <div
           data-slot="prompt-attachments-fade-right"
-          class="pointer-events-none absolute inset-y-0 end-0 z-10 w-6 bg-[linear-gradient(to_left,var(--v2-background-bg-base),transparent)] rtl:bg-[linear-gradient(to_right,var(--v2-background-bg-base),transparent)]"
+          class="pointer-events-none absolute inset-y-0 end-0 z-10 w-6 bg-[linear-gradient(to_left,var(--v2-background-bg-raised),transparent)] rtl:bg-[linear-gradient(to_right,var(--v2-background-bg-raised),transparent)]"
         />
       </div>
     </Reveal>
@@ -717,7 +717,7 @@ export function PromptInputV2Select(props: {
           as={ButtonV2}
           variant="ghost-muted"
           size="normal"
-          class={`prompt-input-responsive-select max-w-[220px] justify-start ![font-weight:400] ${props.class ?? ""}`}
+          class={`prompt-input-responsive-select max-w-[220px] justify-start ![font-weight:450] ${props.class ?? ""}`}
           data-control={props.control}
           disabled={props.disabled}
           aria-label={props.title}
@@ -791,7 +791,7 @@ export function PromptInputV2Popover(props: {
 }) {
   return (
     <div
-      class="absolute inset-x-0 -top-2 z-40 flex max-h-80 -translate-y-full flex-col overflow-auto rounded-[16px] bg-v2-background-bg-base p-2 shadow-[var(--v2-elevation-floating)]"
+      class="absolute inset-x-0 -top-2 z-40 flex max-h-80 -translate-y-full flex-col overflow-auto rounded-[16px] bg-v2-background-bg-floating p-2 shadow-[var(--v2-elevation-floating)]"
       onMouseDown={(event) => event.preventDefault()}
     >
       <Show when={props.search}>
@@ -819,7 +819,7 @@ export function PromptInputV2Popover(props: {
             <button
               type="button"
               data-suggestion-id={item.id}
-              class="flex w-full items-center gap-2 rounded-[12px] px-2.5 py-1.5 text-start transition-colors duration-150 ease-standard hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none"
+              class="flex w-full items-center gap-2 rounded-[12px] px-2.5 py-1.5 text-start transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none"
               classList={{ "bg-v2-overlay-simple-overlay-hover": props.activeID === item.id }}
               onPointerMove={() => props.onActiveChange(item)}
               onClick={() => props.onSelect(item)}
@@ -864,7 +864,7 @@ export function PromptInputV2SubmitButton(props: {
         tabIndex={props.mode === "normal" ? undefined : -1}
         icon={props.stopping ? "stop" : props.mode === "shell" ? "arrow-undo-down" : "arrow-up"}
         variant="primary"
-        class="size-9 rounded-full p-[9px] enabled:!bg-v2-background-bg-accent enabled:[&_[data-slot=icon-svg]]:!text-v2-text-text-contrast disabled:!bg-v2-background-bg-layer-02 disabled:[&_[data-slot=icon-svg]]:!text-v2-icon-icon-muted transition-[border-radius,opacity] duration-short ease-standard enabled:hover:opacity-90 active:rounded-[12px] motion-reduce:transition-none"
+        class="size-9 rounded-full p-[9px] enabled:!bg-v2-text-text-base enabled:[&_[data-slot=icon-svg]]:!text-v2-background-bg-base disabled:!bg-transparent disabled:shadow-[inset_0_0_0_1px_var(--v2-border-border-strong)] disabled:[&_[data-slot=icon-svg]]:!text-v2-icon-icon-muted transition-[border-radius,opacity] duration-short ease-standard enabled:hover:opacity-90 active:rounded-[12px] motion-reduce:transition-none"
         aria-label={props.stopping ? props.stopLabel : props.sendLabel}
         onClick={(event) => {
           event.preventDefault()
