@@ -247,14 +247,21 @@ export function DialogSelectDirectoryV2(props: DialogSelectDirectoryV2Props) {
       stickyFolders: true,
       unsafeCSS: `
         button[data-type="item"] {
-          background: transparent !important;
           box-shadow: none !important;
         }
-        button[data-type="item"]:hover {
+        button[data-type="item"]:not([data-item-selected="true"]) {
+          background: transparent !important;
+        }
+        button[data-type="item"]:not([data-item-selected="true"]):hover {
           background: var(--v2-overlay-simple-overlay-hover) !important;
         }
+        button[data-type="item"][data-item-selected="true"] {
+          background: var(--v2-background-bg-accent-container) !important;
+          color: var(--v2-text-text-on-accent-container) !important;
+        }
         button[data-type="item"]:focus-visible {
-          outline: none !important;
+          outline: 2px solid var(--v2-border-border-focus) !important;
+          outline-offset: -2px;
           box-shadow: none !important;
         }
         [data-file-tree-virtualized-scroll] {

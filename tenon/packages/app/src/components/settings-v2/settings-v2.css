@@ -35,9 +35,10 @@
 }
 
 .settings-v2-tab-title {
-  font-size: 17px;
+  font-size: 20px;
   font-weight: 600;
-  line-height: 24px;
+  line-height: 28px;
+  letter-spacing: -0.2px;
   color: var(--v2-text-text-base);
 }
 
@@ -56,30 +57,34 @@
 }
 
 .settings-v2-section-title {
-  padding-inline-start: 8px;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 16px;
-  color: var(--v2-text-text-muted);
+  padding-inline-start: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+  color: var(--v2-text-text-base);
 }
 
-/* Material 3 segmented group: rows sit on their own surface, 2px apart, inside 24px outer corners. */
+/* Settings card: one layer-01 surface with a 1px ring; rows are split by 1px dividers. */
 [data-component="settings-v2-list"] {
   display: flex;
   flex-direction: column;
-  gap: 2px;
   overflow: hidden;
-  border-radius: var(--v2-radius-xl);
+  border: 1px solid var(--v2-border-border-muted);
+  border-radius: var(--v2-radius-lg);
+  background-color: var(--v2-background-bg-layer-01);
 }
 
 [data-component="settings-v2-list"] > * {
-  background-color: var(--v2-background-bg-layer-01);
   transition: background-color var(--v2-duration-short) var(--v2-ease-standard);
+}
+
+[data-component="settings-v2-list"] > * + * {
+  border-top: 1px solid var(--v2-border-border-muted);
 }
 
 @media (hover: hover) {
   [data-component="settings-v2-list"] > :hover {
-    background-color: var(--v2-background-bg-layer-02);
+    background-color: var(--v2-overlay-simple-overlay-hover);
   }
 }
 
@@ -89,7 +94,7 @@
   align-items: center;
   gap: 16px;
   min-height: 56px;
-  padding: 10px 20px;
+  padding: 12px 16px;
 }
 
 @media (min-width: 640px) {
@@ -107,19 +112,16 @@
 }
 
 [data-slot="settings-v2-row-title"] {
-  font-style: normal;
   font-size: 13px;
   font-weight: 500;
   line-height: 20px;
-  letter-spacing: -0.04px;
   color: var(--v2-text-text-base);
-  font-variation-settings: "slnt" 0;
 }
 
 [data-slot="settings-v2-row-description"] {
   font-size: 12px;
-  font-weight: 400;
-  line-height: 17px;
+  font-weight: 450;
+  line-height: 16px;
   color: var(--v2-text-text-muted);
 }
 
@@ -157,24 +159,13 @@
   max-width: 100%;
 }
 
-/* Filled fields: flat surface with the focus ring from text-input-v2. */
-.settings-v2-panel [data-component="text-input-v2"] {
-  background: var(--v2-background-bg-base);
-  box-shadow: none;
-}
-
 .settings-v2-tab-search [data-component="text-input-v2"] {
   height: 36px;
   border-radius: var(--v2-radius-full);
-  background: var(--v2-background-bg-layer-01);
-}
-
-.settings-v2-tab-search [data-component="text-input-v2"]:hover:not(:focus-within) {
-  background: var(--v2-background-bg-layer-02);
 }
 
 .settings-v2-tab-search [data-slot="text-input-v2-input"] {
-  padding-inline-start: 14px;
+  padding-inline-start: 16px;
 }
 
 /* Tonal button: accent container fill on a ghost ButtonV2. */
@@ -198,8 +189,8 @@
 
 .settings-v2-panel [data-component="tag"] {
   flex-shrink: 0;
-  height: 22px;
-  padding: 0 9px;
+  height: 24px;
+  padding: 0 8px;
   border: 0;
   border-radius: var(--v2-radius-full);
   background: var(--v2-background-bg-layer-02);
@@ -211,24 +202,16 @@
   color: var(--v2-text-text-on-accent-container);
 }
 
-.settings-v2-panel [data-slot="segmented-control-v2"] {
-  height: auto;
-  padding: 2px;
-  gap: 2px;
-  background: var(--v2-background-bg-base);
-  box-shadow: none;
-}
-
-.settings-v2-panel [data-slot="segmented-control-v2-item"] {
-  height: 32px;
-}
-
 [data-component="tabs-v2"][data-variant="settings"][data-orientation="vertical"] [data-slot="tabs-v2-list"] {
   background-color: var(--v2-background-bg-layer-01);
 }
 
 [data-component="tabs-v2"][data-variant="settings"][data-orientation="vertical"] [data-slot="tabs-v2-trigger-wrapper"] {
   height: 36px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  color: var(--v2-text-text-muted);
   transition:
     background-color var(--v2-duration-short) var(--v2-ease-standard),
     color var(--v2-duration-short) var(--v2-ease-standard);
@@ -290,10 +273,10 @@
 }
 
 .settings-v2-nav-footer > span {
-  font-size: 11px;
-  font-weight: 400;
+  font-size: 12px;
+  font-weight: 450;
   line-height: 16px;
-  color: var(--v2-text-text-faint);
+  color: var(--v2-text-text-muted);
 }
 
 .settings-v2-provider-row {
@@ -301,8 +284,8 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  min-height: 60px;
+  gap: 12px;
+  min-height: 56px;
   padding: 8px 12px 8px 16px;
 }
 
@@ -322,7 +305,7 @@
   padding: 10px;
   border-radius: var(--v2-radius-full);
   background: var(--v2-background-bg-base);
-  box-shadow: inset 0 0 0 0.5px var(--v2-border-border-base);
+  box-shadow: inset 0 0 0 1px var(--v2-border-border-muted);
 }
 
 .settings-v2-provider-lead {
@@ -330,7 +313,7 @@
   min-width: 0;
   flex: 1;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
 }
 
 .settings-v2-provider-copy {
@@ -352,21 +335,21 @@
 .settings-v2-provider-name {
   font-size: 13px;
   font-weight: 500;
-  line-height: 16px;
+  line-height: 20px;
   color: var(--v2-text-text-base);
 }
 
 .settings-v2-provider-description {
   font-size: 12px;
-  font-weight: 400;
-  line-height: 17px;
+  font-weight: 450;
+  line-height: 16px;
   color: var(--v2-text-text-muted);
 }
 
 .settings-v2-provider-empty {
-  padding: 20px;
+  padding: 24px;
   font-size: 13px;
-  font-weight: 400;
+  font-weight: 450;
   line-height: 20px;
   color: var(--v2-text-text-muted);
 }
@@ -374,9 +357,9 @@
 .settings-v2-provider-env-hint {
   padding-inline-end: 8px;
   font-size: 12px;
-  font-weight: 400;
+  font-weight: 450;
   line-height: 16px;
-  color: var(--v2-text-text-faint);
+  color: var(--v2-text-text-muted);
   cursor: default;
 }
 
@@ -404,7 +387,7 @@
   flex-direction: column;
   gap: 4px;
   padding: 12px 16px;
-  box-shadow: inset 0 0 0 0.5px var(--v2-border-border-muted);
+  box-shadow: inset 0 0 0 1px var(--v2-border-border-muted);
   border-radius: var(--v2-radius-lg);
 }
 
@@ -423,7 +406,7 @@
   gap: 8px;
   padding: 0 0 12px;
   font-size: 12px;
-  line-height: 1.4;
+  line-height: 16px;
   color: var(--v2-text-text-muted);
 }
 
@@ -452,7 +435,7 @@
 
 .settings-v2-harness-detail {
   font-size: 12px;
-  line-height: 1.4;
+  line-height: 16px;
   color: var(--v2-text-text-muted);
   overflow-wrap: anywhere;
 }
@@ -461,7 +444,7 @@
   overflow: hidden;
   font-family: var(--font-family-mono);
   font-size: 12px;
-  line-height: 17px;
+  line-height: 16px;
   color: var(--v2-text-text-muted);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -497,29 +480,40 @@
 .settings-v2-harness-nav-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 32px;
-  padding: 6px 10px;
+  gap: 8px;
+  min-height: 36px;
+  padding: 8px 12px;
   border-radius: var(--v2-radius-md);
   font-size: 13px;
-  color: var(--v2-text-text-base);
+  font-weight: 500;
+  line-height: 20px;
+  color: var(--v2-text-text-muted);
   text-align: start;
-  transition: background-color var(--v2-duration-short) var(--v2-ease-standard);
+  transition:
+    background-color var(--v2-duration-short) var(--v2-ease-standard),
+    color var(--v2-duration-short) var(--v2-ease-standard);
 }
 
 .settings-v2-harness-nav-item:hover {
-  background: var(--v2-background-bg-layer-01);
+  background: var(--v2-overlay-simple-overlay-hover);
+  color: var(--v2-text-text-base);
+}
+
+.settings-v2-harness-nav-item:focus-visible {
+  outline: 2px solid var(--v2-border-border-focus);
+  outline-offset: -2px;
 }
 
 .settings-v2-harness-nav-item[aria-current="true"] {
-  background: var(--v2-background-bg-layer-02);
-  font-weight: 500;
+  background: var(--v2-background-bg-accent-container);
+  color: var(--v2-text-text-on-accent-container);
+  font-weight: 600;
 }
 
 .settings-v2-harness-dot,
 .settings-v2-harness-update-dot {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   flex-shrink: 0;
   border-radius: var(--v2-radius-full);
 }
@@ -529,7 +523,7 @@
 }
 
 .settings-v2-harness-dot[data-state="off"] {
-  box-shadow: inset 0 0 0 1px var(--v2-text-text-faint);
+  box-shadow: inset 0 0 0 1px var(--v2-border-border-control);
 }
 
 .settings-v2-harness-dot[data-state="error"] {
@@ -547,7 +541,7 @@
   gap: 2px;
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 0.5px solid var(--v2-border-border-muted);
+  border-top: 1px solid var(--v2-border-border-muted);
 }
 
 .settings-v2-harness-detail-pane {
@@ -564,8 +558,8 @@
 }
 
 .settings-v2-harness-name {
-  font-size: 15px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
   line-height: 20px;
   color: var(--v2-text-text-base);
 }
@@ -574,11 +568,12 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 12px 10px 16px;
+  padding: 12px 12px 12px 16px;
+  border: 1px solid var(--v2-border-border-muted);
   border-radius: var(--v2-radius-lg);
   background: var(--v2-background-bg-layer-01);
   font-size: 12px;
-  line-height: 1.4;
+  line-height: 16px;
   color: var(--v2-text-text-muted);
 }
 
@@ -595,7 +590,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 44px;
+  min-height: 40px;
   padding: 0 12px 0 8px;
 }
 
@@ -623,14 +618,14 @@
 }
 
 .settings-v2-harness-group-models {
-  padding: 4px 16px 14px 32px;
+  padding: 4px 16px 16px 32px;
 }
 
 .settings-v2-harness-footer {
   display: flex;
   justify-content: flex-end;
   padding-top: 8px;
-  border-top: 0.5px solid var(--v2-border-border-muted);
+  border-top: 1px solid var(--v2-border-border-muted);
 }
 
 @media (max-width: 720px) {
@@ -658,7 +653,7 @@
 .settings-v2-tab-header.settings-v2-tab-header--stacked {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
   padding-bottom: 32px;
 }
 
@@ -685,7 +680,7 @@
 .settings-v2-tab-search-clear {
   position: absolute;
   top: 50%;
-  inset-inline-end: 6px;
+  inset-inline-end: 4px;
   z-index: 1;
   transform: translateY(-50%);
 }
@@ -709,7 +704,8 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border-radius: var(--v2-radius-xl);
+  border: 1px solid var(--v2-border-border-muted);
+  border-radius: var(--v2-radius-lg);
   background-color: var(--v2-background-bg-layer-01);
 }
 
@@ -744,7 +740,7 @@
 
 @media (hover: hover) {
   .settings-v2-models-group-trigger:not(:disabled):hover {
-    background-color: var(--v2-background-bg-layer-02);
+    background-color: var(--v2-overlay-simple-overlay-hover);
   }
 }
 
@@ -769,30 +765,20 @@
   gap: 12px;
 }
 
+/* Model rows continue the group card: no inner ring, a divider above each row. */
 .settings-v2-models-group [data-component="settings-v2-list"] {
-  margin: 0 4px 4px;
-  border-radius: var(--v2-radius-lg);
-}
-
-.settings-v2-models-group [data-component="settings-v2-list"] > * {
-  background-color: var(--v2-background-bg-base);
-}
-
-@media (hover: hover) {
-  .settings-v2-models-group [data-component="settings-v2-list"] > :hover {
-    background-color: var(--v2-background-bg-layer-02);
-  }
+  border: 0;
+  border-top: 1px solid var(--v2-border-border-muted);
+  border-radius: 0;
 }
 
 .settings-v2-models-group [data-component="settings-v2-row"] {
-  min-height: 52px;
-  padding: 6px 16px 6px 52px;
+  min-height: 48px;
+  padding: 8px 16px 8px 52px;
 }
 
 .settings-v2-models .settings-v2-section-title {
   padding-inline-start: 0;
-  line-height: 16px;
-  color: var(--v2-text-text-base);
 }
 
 .settings-v2-models [data-component="provider-icon"] {
@@ -807,8 +793,8 @@
   min-width: 0;
   overflow: hidden;
   font-size: 13px;
-  font-weight: 400;
-  line-height: 16px;
+  font-weight: 450;
+  line-height: 20px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -821,7 +807,7 @@
   gap: 4px;
   padding-block: 48px;
   font-size: 13px;
-  font-weight: 400;
+  font-weight: 450;
   line-height: 20px;
   color: var(--v2-text-text-muted);
   text-align: center;
@@ -836,14 +822,12 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  min-height: 52px;
-  padding: 8px 12px 8px 20px;
-  font-weight: 400;
+  min-height: 48px;
+  padding: 8px 12px 8px 16px;
+  font-weight: 450;
   font-size: 13px;
   line-height: 20px;
-  letter-spacing: -0.04px;
   color: var(--v2-text-text-base);
-  font-variation-settings: "slnt" 0;
 }
 
 .settings-v2-keybind-button {
@@ -857,10 +841,10 @@
   padding: 0 12px;
   border: 0;
   border-radius: var(--v2-radius-full);
-  background: var(--v2-background-bg-base);
+  background: var(--v2-background-bg-layer-02);
   cursor: default;
   font-family: var(--font-family-mono);
-  font-weight: 400;
+  font-weight: 450;
   font-size: 12px;
   line-height: 16px;
   color: var(--v2-text-text-muted);
@@ -911,7 +895,7 @@
   gap: 4px;
   padding-block: 48px;
   font-size: 13px;
-  font-weight: 400;
+  font-weight: 450;
   line-height: 20px;
   color: var(--v2-text-text-muted);
   text-align: center;
@@ -945,9 +929,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  min-height: 60px;
-  padding: 8px 10px 8px 20px;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 12px 8px 16px;
 }
 
 .settings-v2-servers-actions {
@@ -963,7 +947,7 @@
   min-width: 0;
   flex: 1;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
 }
 
 .settings-v2-servers-copy {
@@ -985,7 +969,7 @@
   overflow: hidden;
   font-size: 13px;
   font-weight: 500;
-  line-height: 16px;
+  line-height: 20px;
   color: var(--v2-text-text-base);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -993,9 +977,9 @@
 
 .settings-v2-servers-meta {
   font-size: 12px;
-  font-weight: 400;
+  font-weight: 450;
   line-height: 16px;
-  color: var(--v2-text-text-faint);
+  color: var(--v2-text-text-muted);
 }
 
 .settings-v2-servers-status {
@@ -1006,7 +990,7 @@
   gap: 4px;
   padding-block: 48px;
   font-size: 13px;
-  font-weight: 400;
+  font-weight: 450;
   line-height: 20px;
   color: var(--v2-text-text-muted);
   text-align: center;
@@ -1054,7 +1038,7 @@
 
 .settings-v2-server-dialog-error {
   font-size: 12px;
-  font-weight: 400;
+  font-weight: 450;
   line-height: 16px;
   color: var(--v2-state-fg-danger);
 }
@@ -1065,13 +1049,13 @@
   flex: 1;
   flex-direction: column;
   overflow-y: auto;
-  padding: 0 20px 20px;
+  padding: 0 24px 24px;
 }
 
 .settings-v2-harness-setup-content {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
   outline: none;
 }
 
@@ -1086,36 +1070,34 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 15px;
-  font-weight: 500;
-  letter-spacing: -0.13px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
   color: var(--v2-text-text-base);
 }
 
 .settings-v2-harness-setup-connect-copy {
   margin: 0;
   font-size: 13px;
-  font-weight: 400;
+  font-weight: 450;
   line-height: 20px;
-  letter-spacing: -0.04px;
   color: var(--v2-text-text-muted);
 }
 
 .settings-v2-harness-setup-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
 }
 
 .settings-v2-harness-setup-chip {
   display: flex;
   height: 32px;
   align-items: center;
-  border-radius: 9999px;
-  padding: 0 14px;
+  border-radius: var(--v2-radius-full);
+  padding: 0 16px;
   font-size: 13px;
   font-weight: 500;
-  letter-spacing: -0.04px;
   color: var(--v2-text-text-base);
   background: var(--v2-background-bg-layer-02);
   transition:
@@ -1124,7 +1106,7 @@
 }
 
 .settings-v2-harness-setup-chip:hover {
-  background: var(--v2-background-bg-layer-03);
+  background-image: linear-gradient(var(--v2-overlay-simple-overlay-hover), var(--v2-overlay-simple-overlay-hover));
 }
 
 .settings-v2-harness-setup-chip:active {
@@ -1133,7 +1115,7 @@
 
 .settings-v2-harness-setup-chip:focus-visible {
   outline: 2px solid var(--v2-border-border-focus);
-  outline-offset: 1px;
+  outline-offset: 2px;
 }
 
 .settings-v2-harness-setup-chip[data-selected="true"] {
@@ -1144,7 +1126,6 @@
 .settings-v2-harness-setup-chip[data-size="small"] {
   height: 28px;
   padding: 0 12px;
-  font-weight: 400;
 }
 
 .settings-v2-harness-setup-key {
@@ -1159,10 +1140,10 @@
   display: flex;
   width: 100%;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   font-size: 13px;
   font-weight: 500;
-  line-height: 16px;
+  line-height: 20px;
   color: var(--v2-text-text-base);
 }
 
@@ -1181,13 +1162,8 @@
   background: var(--v2-background-bg-layer-01);
 }
 
-/* The dialog surface is layer-01, so rows sit one level up, as on the Settings panel. */
-.settings-v2-harness-setup-body [data-component="settings-v2-list"] > * {
-  background-color: var(--v2-background-bg-layer-02);
-}
-
-@media (hover: hover) {
-  .settings-v2-harness-setup-body [data-component="settings-v2-list"] > :hover {
-    background-color: var(--v2-background-bg-layer-03);
-  }
+/* A switched-off row keeps its layout; only its copy dims to the disabled text colour. */
+[data-component="settings-v2-row"][data-enabled="false"] [data-slot="settings-v2-row-copy"],
+[data-component="settings-v2-row"][data-enabled="false"] [data-slot="settings-v2-row-copy"] * {
+  color: var(--v2-text-text-disabled);
 }

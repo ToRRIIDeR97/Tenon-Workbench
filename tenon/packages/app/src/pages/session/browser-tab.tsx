@@ -206,7 +206,7 @@ export function SessionBrowserTab() {
     <Show
       when={browser}
       fallback={
-        <div class="px-6 py-4 text-13-regular text-v2-text-text-weak">
+        <div class="px-6 py-4 text-13-regular text-v2-text-text-muted">
           {language.t("secondBrain.browser.desktopOnly")}
         </div>
       }
@@ -301,7 +301,7 @@ export function SessionBrowserTab() {
           </Show>
           <span class="flex-1" />
           <TooltipV2 placement="bottom" value={language.t("secondBrain.browser.agentTools.description")}>
-            <span class="rounded-full bg-v2-background-bg-layer-02 px-2 py-0.5 text-11-medium text-v2-text-text-weak">
+            <span class="rounded-full bg-v2-background-bg-layer-02 px-2 py-0.5 text-11-medium text-v2-text-text-muted">
               {language.t("secondBrain.browser.agentTools")}
             </span>
           </TooltipV2>
@@ -371,7 +371,7 @@ export function SessionBrowserTab() {
           </Show>
         </div>
         <Show when={picked.length > 0 || annotate.active}>
-          <div class="flex flex-wrap items-center gap-2 rounded-xl bg-v2-background-bg-layer-01 px-3 py-2 text-12-regular text-v2-text-text-weak">
+          <div class="flex flex-wrap items-center gap-2 rounded-xl bg-v2-background-bg-layer-01 px-3 py-2 text-12-regular text-v2-text-text-muted">
             <span class="min-w-0 flex-1 truncate">
               {language.t("secondBrain.browser.tray", { elements: picked.length, notes: annotate.notes.length })}
             </span>
@@ -382,7 +382,7 @@ export function SessionBrowserTab() {
         </Show>
         <Show when={activity.length > 0}>
           <div
-            class="max-h-20 overflow-auto rounded-xl bg-v2-background-bg-layer-01 px-3 py-2 font-mono text-11-regular text-v2-text-text-weak"
+            class="max-h-20 overflow-auto rounded-xl bg-v2-background-bg-layer-01 px-3 py-2 font-mono text-11-regular text-v2-text-text-muted"
             aria-label={language.t("secondBrain.browser.activity")}
           >
             <For each={activity.slice(-8)}>{(line) => <div>{line}</div>}</For>

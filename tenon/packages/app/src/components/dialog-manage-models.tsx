@@ -66,7 +66,7 @@ export const DialogManageModelsV2: Component = () => {
         </ButtonV2>
       </DialogHeader>
       <DialogBody class="flex min-h-0 flex-1 flex-col">
-        <div class="px-4 pt-px pb-3">
+        <div class="px-4 pb-3">
           <div class="relative">
             <TextInputV2
               type="search"

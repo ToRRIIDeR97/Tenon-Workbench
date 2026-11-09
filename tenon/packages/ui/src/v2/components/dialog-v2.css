@@ -22,7 +22,7 @@
     align-items: flex-start;
     width: 480px;
     height: 368px;
-    background: var(--v2-background-bg-layer-01);
+    background: var(--v2-background-bg-base);
     box-shadow: var(--v2-elevation-overlay);
     border-radius: var(--v2-radius-xl);
     overflow: hidden;
@@ -54,10 +54,9 @@
           flex: 1;
           min-width: 0;
           user-select: none;
-          font-weight: 500;
-          font-size: 13px;
-          line-height: 16px;
-          letter-spacing: -0.04px;
+          font-weight: 600;
+          font-size: 14px;
+          line-height: 20px;
           color: var(--v2-text-text-base);
           font-variation-settings: "slnt" 0;
         }
@@ -76,10 +75,9 @@
           flex: none;
           flex-grow: 0;
           user-select: none;
-          font-weight: 500;
-          font-size: 15px;
-          line-height: 20px;
-          letter-spacing: -0.13px;
+          font-weight: 600;
+          font-size: 18px;
+          line-height: 26px;
           color: var(--v2-text-text-base);
           font-variation-settings: "slnt" 0;
         }
@@ -88,10 +86,9 @@
           flex: none;
           flex-grow: 0;
           user-select: none;
-          font-weight: 400;
+          font-weight: 450;
           font-size: 13px;
           line-height: 20px;
-          letter-spacing: -0.04px;
           color: var(--v2-text-text-muted);
           font-variation-settings: "slnt" 0;
         }
@@ -100,10 +97,10 @@
           display: flex;
           justify-content: center;
           align-items: center;
-          width: 20px;
-          height: 20px;
+          width: 28px;
+          height: 28px;
           margin-top: -2px;
-          margin-inline-end: -2px;
+          margin-inline-end: -6px;
           margin-inline-start: auto;
           border-radius: 4px;
           flex-shrink: 0;
@@ -112,6 +109,16 @@
 
           &:hover {
             background: var(--v2-overlay-simple-overlay-hover);
+            color: var(--v2-icon-icon-base);
+          }
+
+          &:active {
+            background: var(--v2-overlay-simple-overlay-pressed);
+          }
+
+          &:focus-visible {
+            outline: 2px solid var(--v2-border-border-focus);
+            outline-offset: 2px;
           }
         }
 

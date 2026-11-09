@@ -176,14 +176,14 @@ function ContextMenu(props: {
                 {language.t("secondBrain.contextMenu.usedTokens", { count: formatter().number(props.context.total) })}
               </Row>
               <Row label={language.t("secondBrain.contextMenu.windowSize")}>
-                <span class="text-v2-text-text-faint">{language.t("secondBrain.contextMenu.notReported")}</span>
+                <span class="text-v2-text-text-muted">{language.t("secondBrain.contextMenu.notReported")}</span>
               </Row>
             </>
           }
         >
           {(max) => (
             <Row label={language.t("secondBrain.contextMenu.used")}>
-              <span class="truncate text-[12px] font-normal text-v2-text-text-faint">
+              <span class="truncate text-[12px] font-normal text-v2-text-text-muted">
                 {language.t("secondBrain.sessionTab.contextUsed", {
                   used: formatter().number(props.context.total),
                   limit: formatter().number(max()),
@@ -222,7 +222,7 @@ function ContextMenu(props: {
 
       <button
         type="button"
-        class="mt-1.5 flex h-9 w-full items-center rounded-[12px] px-3 text-left text-[13px] font-[500] text-v2-text-text-base outline-none transition-colors hover:bg-v2-overlay-simple-overlay-hover focus-visible:shadow-[inset_0_0_0_1.5px_var(--v2-border-border-focus)]"
+        class="mt-1.5 flex h-9 w-full items-center rounded-[12px] px-3 text-left type-control text-v2-text-text-base outline-none transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover active:bg-v2-overlay-simple-overlay-pressed focus-visible:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)] motion-reduce:transition-none"
         onClick={() => {
           props.onView()
           openSessionContext({ view: view(), layout, tabs: tabs() })
@@ -298,7 +298,7 @@ function PlanLimits(props: { usage: PlanUsage; harness?: ComposerHarness }) {
                     <Row label={window.label}>
                       <Show when={window.resetsAt}>
                         {(resetsAt) => (
-                          <span class="truncate text-[12px] font-normal text-v2-text-text-faint">
+                          <span class="truncate text-[12px] font-normal text-v2-text-text-muted">
                             {language.t("secondBrain.contextStrip.usage.resets", {
                               time: formatResetIn(resetsAt(), state.now, language.intl()),
                             })}
@@ -332,7 +332,7 @@ function PlanLimits(props: { usage: PlanUsage; harness?: ComposerHarness }) {
 function Group(props: { title: string; children: JSX.Element }) {
   return (
     <section class="flex flex-col">
-      <h3 class="m-0 px-3 pb-1 pt-2.5 text-[12px] font-[500] text-v2-text-text-faint">{props.title}</h3>
+      <h3 class="m-0 px-3 pb-1 pt-2.5 type-section text-v2-text-text-base">{props.title}</h3>
       <div class="flex flex-col divide-y divide-v2-border-border-muted rounded-[16px] border border-v2-border-border-muted bg-v2-background-bg-layer-01 px-3">
         {props.children}
       </div>

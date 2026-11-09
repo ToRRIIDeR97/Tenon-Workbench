@@ -1183,7 +1183,7 @@ export const dict = {
   "harness.serviceTier": "Nivel de servicio",
   "harness.default": "Predeterminado",
   "harness.switching": "Espera a que termine el cambio de motor.",
-  "secondBrain.sidebar.title": "Second Brain",
+  "secondBrain.sidebar.title": "Tenon",
   "secondBrain.sidebar.overview": "Inicio",
   "secondBrain.sidebar.workspace": "Espacio de trabajo",
   "secondBrain.sidebar.projects": "Proyectos",

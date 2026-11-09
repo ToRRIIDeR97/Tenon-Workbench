@@ -23,7 +23,7 @@
   -webkit-user-select: none;
   border-radius: 8px;
   color: var(--v2-text-text-base);
-  background: var(--v2-background-bg-layer-01);
+  background: var(--v2-background-bg-base);
   box-shadow: var(--v2-elevation-floating);
   transition:
     transform var(--v2-duration-medium) var(--v2-ease-standard),
@@ -137,7 +137,6 @@
     font-style: normal;
     font-weight: 500;
     line-height: 20px;
-    letter-spacing: -0.04px;
     font-synthesis: none;
     margin: 0;
   }
@@ -150,9 +149,8 @@
     word-break: break-word;
     font-size: 13px;
     font-style: normal;
-    font-weight: 400;
+    font-weight: 450;
     line-height: 20px;
-    letter-spacing: -0.04px;
     font-synthesis: none;
     margin: 0;
   }
@@ -175,7 +173,6 @@
     font-style: normal;
     font-weight: 500;
     line-height: 20px;
-    letter-spacing: -0.04px;
     font-synthesis: none;
   }
 

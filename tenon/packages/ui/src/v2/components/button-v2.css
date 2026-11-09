@@ -18,7 +18,6 @@
   color: var(--v2-text-text-base);
   text-shadow: none;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.04px;
   user-select: none;
   cursor: default;
   outline: none;
@@ -30,7 +29,7 @@
 
 [data-component="button-v2"]:is(:focus-visible, [data-state="focus"]):not(:disabled):not([data-variant="loading"]) {
   outline: 2px solid var(--v2-border-border-focus);
-  outline-offset: 2.5px;
+  outline-offset: 2px;
 }
 
 [data-component="button-v2"][data-size="normal"] {
@@ -85,7 +84,7 @@
 }
 
 [data-component="button-v2"][data-variant="neutral"]:is(:disabled, [data-state="disabled"]) {
-  opacity: 0.5;
+  color: var(--v2-text-text-disabled);
   cursor: not-allowed;
 }
 
@@ -109,7 +108,7 @@
 }
 
 [data-component="button-v2"][data-variant="danger"]:is(:disabled, [data-state="disabled"]) {
-  opacity: 0.5;
+  color: var(--v2-text-text-disabled);
   cursor: not-allowed;
 }
 
@@ -132,7 +131,7 @@
 }
 
 [data-component="button-v2"][data-variant="warning"]:is(:disabled, [data-state="disabled"]) {
-  opacity: 0.5;
+  color: var(--v2-text-text-disabled);
   cursor: not-allowed;
 }
 
@@ -152,7 +151,7 @@
 }
 
 [data-component="button-v2"][data-variant="outline"]:is(:disabled, [data-state="disabled"]) {
-  opacity: 0.5;
+  color: var(--v2-text-text-disabled);
   cursor: not-allowed;
 }
 
@@ -179,7 +178,7 @@
 }
 
 [data-component="button-v2"][data-variant="tonal"]:is(:disabled, [data-state="disabled"]) {
-  opacity: 0.5;
+  color: var(--v2-text-text-disabled);
   cursor: not-allowed;
 }
 
@@ -216,7 +215,7 @@
 }
 
 [data-component="button-v2"][data-variant="contrast"]:is(:disabled, [data-state="disabled"]) {
-  opacity: 0.4;
+  color: var(--v2-text-text-disabled);
   cursor: not-allowed;
 }
 
@@ -224,7 +223,7 @@
 [data-component="button-v2"][data-variant="loading"] {
   background: var(--v2-background-bg-layer-02);
   color: var(--v2-text-text-base);
-  box-shadow: inset 0 0 0 0.5px var(--v2-border-border-muted);
+  box-shadow: inset 0 0 0 1px var(--v2-border-border-muted);
   cursor: default;
   pointer-events: none;
 }
@@ -250,7 +249,7 @@
 }
 
 [data-component="button-v2"][data-variant="ghost"]:is(:disabled, [data-state="disabled"]) {
-  opacity: 0.5;
+  color: var(--v2-text-text-disabled);
   cursor: not-allowed;
 }
 
@@ -284,7 +283,7 @@
 }
 
 [data-component="button-v2"][data-variant="ghost-muted"]:is(:disabled, [data-state="disabled"]) {
-  opacity: 0.5;
+  color: var(--v2-text-text-disabled);
   cursor: not-allowed;
 }
 
@@ -293,7 +292,7 @@
 [data-component="button-v2"][data-size="small"] {
   border-radius: var(--v2-radius-full);
   transition:
-    border-radius var(--v2-duration-medium) var(--v2-ease-standard),
+    border-radius var(--v2-duration-short) var(--v2-ease-standard),
     background-color var(--v2-duration-short) var(--v2-ease-standard),
     transform var(--v2-duration-medium) var(--v2-ease-spring);
 }
@@ -338,6 +337,17 @@
     var(--v2-overlay-simple-overlay-contrast-pressed) 0%,
     var(--v2-overlay-simple-overlay-contrast-pressed) 100%
   );
+}
+
+/* Disabled keeps the control's shape: a neutral fill and disabled text instead of fading the whole button. */
+[data-component="button-v2"][data-variant="contrast"]:is(:disabled, [data-state="disabled"]) {
+  background-image: none;
+  background-color: var(--v2-background-bg-layer-02);
+  color: var(--v2-text-text-disabled);
+}
+
+[data-component="button-v2"]:is(:disabled, [data-state="disabled"]) [data-slot="icon-svg"] {
+  color: var(--v2-text-text-disabled);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -8,12 +8,12 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  padding: 2px;
+  padding: 6px;
   min-width: 160px;
   z-index: 60;
   pointer-events: auto;
 
-  background: var(--v2-background-bg-layer-01);
+  background: var(--v2-background-bg-base);
   border-radius: var(--v2-radius-lg);
   box-shadow: var(--v2-elevation-floating);
 
@@ -47,7 +47,7 @@
   --menu-v2-fg-muted: var(--v2-text-text-faint);
   --menu-v2-fg-subtle: var(--v2-text-text-muted);
   --menu-v2-icon: var(--v2-icon-icon-base);
-  --menu-v2-accent: var(--v2-text-text-accent);
+  --menu-v2-accent: var(--v2-text-text-on-accent-container);
   --menu-v2-badge-bg: var(--v2-background-bg-layer-02);
   --menu-v2-badge-border: var(--v2-border-border-base);
   --menu-v2-hover: var(--v2-overlay-simple-overlay-hover);
@@ -61,10 +61,10 @@
   flex-direction: row;
   align-items: center;
   gap: 8px;
-  height: 28px;
+  height: 36px;
   padding: 0 12px;
   background: transparent;
-  border-radius: 4px;
+  border-radius: var(--v2-radius-md);
   outline: none;
   cursor: default;
   user-select: none;
@@ -82,9 +82,8 @@
     min-width: 0;
 
     font-size: 13px;
-    font-weight: 400;
+    font-weight: 450;
     line-height: 20px;
-    letter-spacing: -0.04px;
     color: var(--menu-v2-fg);
   }
 
@@ -97,7 +96,6 @@
     font-size: 11px;
     font-weight: 500;
     line-height: 16px;
-    letter-spacing: 0.05px;
     color: var(--menu-v2-fg-muted);
     white-space: nowrap;
   }
@@ -114,13 +112,12 @@
     padding: 0 4px;
 
     background: var(--menu-v2-badge-bg);
-    border: 0.5px solid var(--menu-v2-badge-border);
-    border-radius: 2px;
+    border: 1px solid var(--menu-v2-badge-border);
+    border-radius: 4px;
 
     font-size: 11px;
     font-weight: 500;
     line-height: 16px;
-    letter-spacing: 0.05px;
     color: var(--menu-v2-fg-subtle);
     white-space: nowrap;
   }
@@ -143,15 +140,20 @@
     flex: none;
     width: 16px;
     height: 16px;
-    color: var(--menu-v2-fg-muted);
+    color: var(--v2-icon-icon-muted);
   }
 
+  /* An overlay image, so the keyboard highlight also shows on a checked (accent container) row. */
   &[data-highlighted] {
-    background: var(--menu-v2-hover);
+    background-image: linear-gradient(var(--menu-v2-hover), var(--menu-v2-hover));
+  }
+
+  &[data-checked] {
+    background-color: var(--v2-background-bg-accent-container);
   }
 
   &[data-checked] [data-slot="menu-v2-item-content"] {
-    font-weight: 500;
+    font-weight: 600;
     color: var(--menu-v2-accent);
   }
 
@@ -161,14 +163,15 @@
 
   &[data-disabled] {
     pointer-events: none;
-    opacity: 0.5;
+    --menu-v2-fg: var(--v2-text-text-disabled);
+    --menu-v2-icon: var(--v2-text-text-disabled);
   }
 }
 
 [data-slot="menu-v2-separator"] {
   height: 1px;
-  width: calc(100% + 4px);
-  margin: 2px -2px;
+  width: auto;
+  margin: 4px 8px;
   background: var(--v2-border-border-muted);
   border: none;
 }
@@ -182,9 +185,8 @@
 
   font-size: 11px;
   font-weight: 500;
-  line-height: 16px;
-  letter-spacing: 0.05px;
-  color: var(--v2-text-text-faint);
+  line-height: 14px;
+  color: var(--v2-text-text-muted);
   user-select: none;
   font-variant-numeric: tabular-nums;
 }

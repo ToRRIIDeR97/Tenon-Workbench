@@ -69,10 +69,10 @@ export const DialogSettings: Component<{
         <TabsV2.List>
           <div class="flex flex-col justify-between h-full w-full">
             <div class="flex flex-col gap-3 w-full">
-              <div class="flex flex-col gap-3">
-                <div class="flex flex-col gap-1.5">
+              <div class="flex flex-col gap-6">
+                <div class="flex flex-col gap-1">
                   <TabsV2.SectionTitle>{language.t("settings.section.desktop")}</TabsV2.SectionTitle>
-                  <div class="flex flex-col gap-1.5 w-full">
+                  <div class="flex flex-col gap-1 w-full">
                     <TabsV2.Trigger value="general">
                       <Icon name="outline-sliders" />
                       {language.t("settings.tab.general")}
@@ -102,9 +102,9 @@ export const DialogSettings: Component<{
                   </div>
                 </div>
 
-                <div class="flex flex-col gap-1.5">
+                <div class="flex flex-col gap-1">
                   <TabsV2.SectionTitle>{language.t("settings.section.server")}</TabsV2.SectionTitle>
-                  <div class="flex flex-col gap-1.5 w-full">
+                  <div class="flex flex-col gap-1 w-full">
                     <TabsV2.Trigger value="servers">
                       <Icon name="server" />
                       {language.t("status.popover.tab.servers")}

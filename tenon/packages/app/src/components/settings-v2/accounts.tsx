@@ -8,7 +8,7 @@ import { SettingsRowV2 } from "./parts/row"
 import "./settings-v2.css"
 
 const inputClass =
-  "h-8 min-w-0 rounded-[10px] border border-v2-border-border-muted bg-v2-background-bg-base px-2 text-[13px] text-v2-text-text-base outline-none focus:border-v2-border-border-focus"
+  "h-8 min-w-0 rounded-[8px] bg-v2-background-bg-layer-01 px-3 text-[13px] leading-5 text-v2-text-text-base shadow-[inset_0_0_0_1px_var(--v2-border-border-base)] outline-none focus:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)]"
 
 /** Settings › Accounts (desktop): the mail accounts the Command Centre reads and drafts in. */
 export function SettingsAccountsV2() {
@@ -71,9 +71,9 @@ export function SettingsAccountsV2() {
           fallback={<div class="settings-v2-provider-empty">{language.t("secondBrain.mail.settings.desktopOnly")}</div>}
         >
           <div class="settings-v2-section">
-            <p class="text-12-regular text-text-weak">{language.t("secondBrain.mail.settings.description")}</p>
+            <p class="type-meta text-v2-text-text-muted">{language.t("secondBrain.mail.settings.description")}</p>
             <Show when={available.latest && !available.latest.secureStorage}>
-              <p role="alert" class="text-12-regular text-text-critical">
+              <p role="alert" class="type-meta text-v2-text-text-critical">
                 {language.t("secondBrain.mail.settings.secureStorage")}
               </p>
             </Show>
@@ -126,13 +126,15 @@ export function SettingsAccountsV2() {
             </div>
             {/* Name only the providers this build has no sign-in for; the others' buttons work. */}
             <Show when={available.latest && !available.latest.gmail && !available.latest.outlook}>
-              <p class="text-12-regular text-text-weak">{language.t("secondBrain.mail.settings.unconfigured")}</p>
+              <p class="type-meta text-v2-text-text-muted">{language.t("secondBrain.mail.settings.unconfigured")}</p>
             </Show>
             <Show when={available.latest && !available.latest.gmail && available.latest.outlook}>
-              <p class="text-12-regular text-text-weak">{language.t("secondBrain.mail.settings.unconfigured.gmail")}</p>
+              <p class="type-meta text-v2-text-text-muted">
+                {language.t("secondBrain.mail.settings.unconfigured.gmail")}
+              </p>
             </Show>
             <Show when={available.latest && available.latest.gmail && !available.latest.outlook}>
-              <p class="text-12-regular text-text-weak">
+              <p class="type-meta text-v2-text-text-muted">
                 {language.t("secondBrain.mail.settings.unconfigured.outlook")}
               </p>
             </Show>
@@ -144,7 +146,7 @@ export function SettingsAccountsV2() {
                   void addImap()
                 }}
               >
-                <label class="text-12-regular text-text-weak" for="mail-imap-host">
+                <label class="type-meta text-v2-text-text-muted" for="mail-imap-host">
                   {language.t("secondBrain.mail.imap.host")}
                 </label>
                 <input
@@ -153,7 +155,7 @@ export function SettingsAccountsV2() {
                   value={state.form.host}
                   onInput={(event) => setState("form", "host", event.currentTarget.value)}
                 />
-                <label class="text-12-regular text-text-weak" for="mail-imap-port">
+                <label class="type-meta text-v2-text-text-muted" for="mail-imap-port">
                   {language.t("secondBrain.mail.imap.port")}
                 </label>
                 <input
@@ -163,7 +165,7 @@ export function SettingsAccountsV2() {
                   value={state.form.port}
                   onInput={(event) => setState("form", "port", event.currentTarget.value)}
                 />
-                <label class="text-12-regular text-text-weak" for="mail-imap-user">
+                <label class="type-meta text-v2-text-text-muted" for="mail-imap-user">
                   {language.t("secondBrain.mail.imap.user")}
                 </label>
                 <input
@@ -173,7 +175,7 @@ export function SettingsAccountsV2() {
                   value={state.form.user}
                   onInput={(event) => setState("form", "user", event.currentTarget.value)}
                 />
-                <label class="text-12-regular text-text-weak" for="mail-imap-password">
+                <label class="type-meta text-v2-text-text-muted" for="mail-imap-password">
                   {language.t("secondBrain.mail.imap.password")}
                 </label>
                 <input
@@ -184,7 +186,7 @@ export function SettingsAccountsV2() {
                   value={state.form.password}
                   onInput={(event) => setState("form", "password", event.currentTarget.value)}
                 />
-                <label class="text-12-regular text-text-weak" for="mail-imap-address">
+                <label class="type-meta text-v2-text-text-muted" for="mail-imap-address">
                   {language.t("secondBrain.mail.imap.address")}
                 </label>
                 <input
@@ -195,7 +197,7 @@ export function SettingsAccountsV2() {
                   onInput={(event) => setState("form", "address", event.currentTarget.value)}
                 />
                 <span />
-                <label class="flex items-center gap-2 text-12-regular text-text-weak">
+                <label class="flex items-center gap-2 type-meta text-v2-text-text-muted">
                   <input
                     type="checkbox"
                     checked={state.form.secure}
@@ -212,11 +214,11 @@ export function SettingsAccountsV2() {
               </form>
             </Show>
             <Show when={state.failed}>
-              <p role="alert" class="text-12-regular text-text-critical">
+              <p role="alert" class="type-meta text-v2-text-text-critical">
                 {language.t("secondBrain.mail.settings.failed")}
               </p>
             </Show>
-            <p class="text-12-regular text-text-weak">{language.t("secondBrain.mail.settings.draftOnly")}</p>
+            <p class="type-meta text-v2-text-text-muted">{language.t("secondBrain.mail.settings.draftOnly")}</p>
           </div>
         </Show>
       </div>

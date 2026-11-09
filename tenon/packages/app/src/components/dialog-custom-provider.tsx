@@ -182,15 +182,13 @@ export function CustomProviderForm(props: { autofocus?: boolean } = {}) {
   }
 
   return (
-    <div class="flex max-h-[60vh] flex-col gap-5 overflow-y-auto px-2.5 pb-3">
-      <div class="flex items-center gap-3 px-2.5">
+    <div class="flex max-h-[60vh] flex-col gap-6 overflow-y-auto px-3 pb-3">
+      <div class="flex items-center gap-3 px-3">
         <ProviderIcon id="synthetic" class="size-5 shrink-0 text-v2-icon-icon-base" />
-        <h2 class="text-[15px] font-[500] tracking-[-0.13px] text-v2-text-text-base">
-          {language.t("provider.custom.title")}
-        </h2>
+        <h2 class="type-row-title font-semibold text-v2-text-text-base">{language.t("provider.custom.title")}</h2>
       </div>
 
-      <form onSubmit={save} class="flex flex-col gap-5 px-2.5 pb-6">
+      <form onSubmit={save} class="flex flex-col gap-6 px-3 pb-6">
         <p class="text-[13px] leading-5 text-v2-text-text-muted">{language.t("provider.custom.description.prefix")}</p>
 
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -230,13 +228,11 @@ export function CustomProviderForm(props: { autofocus?: boolean } = {}) {
         />
 
         <div class="flex flex-col gap-2">
-          <span class="ms-1 text-[12px] font-[500] text-v2-text-text-muted">
-            {language.t("provider.custom.models.label")}
-          </span>
-          <div class="flex flex-col gap-0.5 overflow-hidden rounded-[16px]">
+          <span class="ms-1 type-control text-v2-text-text-base">{language.t("provider.custom.models.label")}</span>
+          <div class="flex flex-col divide-y divide-v2-border-border-muted overflow-hidden rounded-[16px] border border-v2-border-border-muted bg-v2-background-bg-layer-01">
             <For each={form.models}>
               {(m, i) => (
-                <div class="flex items-start gap-1.5 bg-v2-background-bg-layer-02 p-1.5 ps-2" data-row={m.row}>
+                <div class="flex items-start gap-2 p-2" data-row={m.row}>
                   <RowInput
                     label={language.t("provider.custom.models.id.label")}
                     placeholder={language.t("provider.custom.models.id.placeholder")}
@@ -273,13 +269,11 @@ export function CustomProviderForm(props: { autofocus?: boolean } = {}) {
         </div>
 
         <div class="flex flex-col gap-2">
-          <span class="ms-1 text-[12px] font-[500] text-v2-text-text-muted">
-            {language.t("provider.custom.headers.label")}
-          </span>
-          <div class="flex flex-col gap-0.5 overflow-hidden rounded-[16px]">
+          <span class="ms-1 type-control text-v2-text-text-base">{language.t("provider.custom.headers.label")}</span>
+          <div class="flex flex-col divide-y divide-v2-border-border-muted overflow-hidden rounded-[16px] border border-v2-border-border-muted bg-v2-background-bg-layer-01">
             <For each={form.headers}>
               {(h, i) => (
-                <div class="flex items-start gap-1.5 bg-v2-background-bg-layer-02 p-1.5 ps-2" data-row={h.row}>
+                <div class="flex items-start gap-2 p-2" data-row={h.row}>
                   <RowInput
                     label={language.t("provider.custom.headers.key.label")}
                     placeholder={language.t("provider.custom.headers.key.placeholder")}
@@ -335,7 +329,7 @@ function FormField(props: {
   onInput: (value: string) => void
 }) {
   return (
-    <Field invalid={!!props.error} class="flex min-w-0 flex-col gap-1.5">
+    <Field invalid={!!props.error} class="flex min-w-0 flex-col gap-2">
       <Field.Label class="ms-1">{props.label}</Field.Label>
       <Show when={props.description}>
         <Field.Prefix class="ms-1">{props.description}</Field.Prefix>
@@ -370,7 +364,7 @@ function RowInput(props: {
     <div class="flex min-w-0 flex-1 flex-col gap-1">
       <TextInputV2
         aria-label={props.label}
-        class={`!h-9 !w-full !bg-v2-background-bg-layer-01 !shadow-none ${props.mono ? "[&_input]:font-mono" : ""}`}
+        class={`!h-9 !w-full ${props.mono ? "[&_input]:font-mono" : ""}`}
         placeholder={props.placeholder}
         value={props.value}
         invalid={!!props.error}
@@ -379,7 +373,7 @@ function RowInput(props: {
         onInput={(event) => props.onInput(event.currentTarget.value)}
       />
       <Show when={props.error}>
-        <span role="alert" class="ms-1 text-[12px] text-v2-state-fg-danger">
+        <span role="alert" class="ms-1 type-meta text-v2-state-fg-danger">
           {props.error}
         </span>
       </Show>

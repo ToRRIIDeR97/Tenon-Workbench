@@ -323,14 +323,14 @@ export function CalendarTasks(props: {
                   >
                     <span
                       classList={{
-                        "block truncate text-[13px]": true,
+                        "block truncate type-row-title": true,
                         "text-v2-text-text-base": !task.completedAt,
-                        "text-v2-text-text-faint line-through": Boolean(task.completedAt),
+                        "text-v2-text-text-muted line-through": Boolean(task.completedAt),
                       }}
                     >
                       {task.title}
                     </span>
-                    <span class="block truncate text-[11px] text-v2-text-text-faint">
+                    <span class="block truncate type-meta text-v2-text-text-muted">
                       {(task.scheduledDate ?? task.dueDate)
                         ? formatDate((task.scheduledDate ?? task.dueDate)!)
                         : language.t("secondBrain.tasks.unscheduled")}
@@ -343,11 +343,9 @@ export function CalendarTasks(props: {
                       <Show when={task.source === "google"}> · {task.taskListTitle}</Show>
                     </span>
                   </button>
-                  <span class="flex shrink-0 flex-col items-end gap-0.5 text-[10px] text-v2-text-text-faint">
+                  <span class="flex shrink-0 flex-col items-end gap-0.5 type-meta text-v2-text-text-muted">
                     <Show when={task.dueDate && !task.completedAt && task.dueDate < today()}>
-                      <span class="text-[11px] text-v2-text-text-critical">
-                        {language.t("secondBrain.tasks.overdue")}
-                      </span>
+                      <span class="text-v2-text-text-critical">{language.t("secondBrain.tasks.overdue")}</span>
                     </Show>
                     <span>
                       {language.t(`secondBrain.calendar.source.${task.source}`)}
@@ -403,7 +401,7 @@ export function CalendarTasks(props: {
             }}
           >
             <div class="flex items-center gap-2">
-              <h3 class="min-w-0 flex-1 text-[14px] text-v2-text-text-base [font-weight:500]">
+              <h3 class="min-w-0 flex-1 type-section text-v2-text-text-base">
                 {state.draft.id ? language.t("secondBrain.tasks.edit") : language.t("secondBrain.tasks.new")}
               </h3>
               <TooltipV2 value={language.t("common.cancel")}>
@@ -432,7 +430,7 @@ export function CalendarTasks(props: {
               when={!state.draft.id && (props.googleAccounts?.length ?? 0) > 0}
               fallback={
                 <Show when={state.draft.source === "google"}>
-                  <p class="text-[11px] text-v2-text-text-faint">
+                  <p class="text-[11px] text-v2-text-text-muted">
                     {state.draft.taskListTitle || language.t("secondBrain.tasks.google.defaultList")} ·{" "}
                     {language.t(`secondBrain.calendar.sync.${state.draft.syncState}`)}
                   </p>

@@ -285,7 +285,7 @@ function ChannelIndicator(props: { debugTools?: { visible: boolean; toggle: () =
     return (
       <button
         type="button"
-        class="bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container font-medium px-2 rounded-full uppercase font-mono"
+        class="rounded-full bg-v2-background-bg-accent-container px-2 font-mono text-[12px] leading-5 text-v2-text-text-on-accent-container uppercase font-medium"
         onClick={props.debugTools.toggle}
         aria-label="Toggle debug tools"
         aria-pressed={props.debugTools.visible}
@@ -298,7 +298,7 @@ function ChannelIndicator(props: { debugTools?: { visible: boolean; toggle: () =
   return (
     <>
       {channel && ["beta", "dev"].includes(channel) && (
-        <div class="bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container font-medium px-2 rounded-full uppercase font-mono">
+        <div class="rounded-full bg-v2-background-bg-accent-container px-2 font-mono text-[12px] leading-5 text-v2-text-text-on-accent-container uppercase font-medium">
           {channel.toUpperCase()}
         </div>
       )}

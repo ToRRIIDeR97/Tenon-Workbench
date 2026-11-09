@@ -34,7 +34,7 @@
 
 [data-component="icon-button-v2"]:is(:focus-visible, [data-state="focus"]):not(:disabled) {
   outline: 2px solid var(--v2-border-border-focus);
-  outline-offset: 2.5px;
+  outline-offset: 2px;
 }
 
 [data-component="icon-button-v2"][data-size="small"] {
@@ -77,7 +77,7 @@
 }
 
 [data-component="icon-button-v2"][data-variant="neutral"]:is(:disabled, [data-state="disabled"]) {
-  opacity: 0.5;
+  color: var(--v2-text-text-disabled);
   cursor: not-allowed;
 }
 
@@ -141,7 +141,7 @@
 }
 
 [data-component="icon-button-v2"][data-variant="ghost"]:is(:disabled, [data-state="disabled"]) {
-  opacity: 0.5;
+  color: var(--v2-text-text-disabled);
   cursor: not-allowed;
 }
 
@@ -168,7 +168,7 @@
 }
 
 [data-component="icon-button-v2"][data-variant="ghost-muted"]:is(:disabled, [data-state="disabled"]) {
-  opacity: 0.5;
+  color: var(--v2-text-text-disabled);
   cursor: not-allowed;
 }
 
@@ -179,7 +179,7 @@
 [data-component="icon-button-v2"][data-size="small"] {
   border-radius: var(--v2-radius-full);
   transition:
-    border-radius var(--v2-duration-medium) var(--v2-ease-standard),
+    border-radius var(--v2-duration-short) var(--v2-ease-standard),
     background-color var(--v2-duration-short) var(--v2-ease-standard),
     color var(--v2-duration-short) var(--v2-ease-standard),
     transform var(--v2-duration-short) var(--v2-ease-standard);
@@ -211,6 +211,17 @@
     var(--v2-overlay-simple-overlay-contrast-pressed) 0%,
     var(--v2-overlay-simple-overlay-contrast-pressed) 100%
   );
+}
+
+[data-component="icon-button-v2"][data-variant="contrast"]:is(:disabled, [data-state="disabled"]) {
+  background-image: none;
+  background-color: var(--v2-background-bg-layer-02);
+  color: var(--v2-text-text-disabled);
+}
+
+/* Ghost-muted icons rest at icon-muted and turn base on hover. */
+[data-component="icon-button-v2"][data-variant="ghost-muted"]:is(:hover, [data-state="hover"]):not(:disabled) {
+  color: var(--v2-icon-icon-base);
 }
 
 /* Lists the small size too: the motion rule above names it, so a lone selector would lose to it. */

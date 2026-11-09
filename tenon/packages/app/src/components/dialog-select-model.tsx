@@ -300,12 +300,12 @@ function ModelSelectorPopoverV2View(props: {
       <MenuV2.Portal>
         <MenuV2.Content
           ref={(element: HTMLDivElement) => (contentRef = element)}
-          class={`w-[300px] overflow-hidden !rounded-[16px] border-0 bg-v2-background-bg-layer-01 !p-0 shadow-[var(--v2-elevation-floating)] focus:outline-none ${menuItemsClass}`}
+          class={`w-[300px] overflow-hidden !rounded-[16px] border-0 bg-v2-background-bg-base !p-0 shadow-[var(--v2-elevation-floating)] focus:outline-none ${menuItemsClass}`}
           onPointerDownOutside={dismiss.preventTriggerRestore}
           onFocusOutside={dismiss.preventTriggerRestore}
           onCloseAutoFocus={dismiss.onCloseAutoFocus}
         >
-          <div class="flex flex-col px-2 pt-2 pb-1.5">
+          <div class="flex flex-col px-2 pt-2 pb-2">
             <div class="relative flex items-center text-v2-icon-icon-muted">
               <Icon name="magnifying-glass" size="small" class="pointer-events-none absolute left-3 shrink-0" />
               <input
@@ -370,7 +370,7 @@ function ModelSelectorPopoverV2View(props: {
               <Show
                 when={models().length > 0}
                 fallback={
-                  <div class="flex h-12 items-center px-3 text-[13px] font-[400] leading-5 tracking-[-0.04px] text-v2-text-text-faint">
+                  <div class="flex h-12 items-center px-3 text-[13px] leading-5 text-v2-text-text-muted">
                     {language.t("dialog.model.empty")}
                   </div>
                 }
@@ -383,7 +383,7 @@ function ModelSelectorPopoverV2View(props: {
                           class="absolute inset-x-2 flex flex-col gap-0.5"
                           style={{ top: `${row().start}px` }}
                         >
-                          <MenuV2.GroupLabel class="sticky top-0 z-10 gap-2 bg-v2-background-bg-layer-01 px-3">
+                          <MenuV2.GroupLabel class="sticky top-0 z-10 gap-2 bg-v2-background-bg-base px-3">
                             <span class="min-w-0 truncate">{group.items[0].provider.name}</span>
                           </MenuV2.GroupLabel>
                           <MenuV2.RadioGroup value={props.current()}>

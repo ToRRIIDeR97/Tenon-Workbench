@@ -58,7 +58,7 @@ export const DialogServerV2: Component<{
         <DialogTitle>{title()}</DialogTitle>
       </DialogHeader>
       <DividerV2 />
-      <DialogBody class="flex w-full min-w-0 flex-1 flex-col px-4 pt-4 pb-2">
+      <DialogBody class="flex w-full min-w-0 flex-1 flex-col px-6 pt-6 pb-0">
         <div class="flex w-full min-w-0 flex-col gap-6">
           <div class="flex w-full min-w-0 flex-col gap-2">
             <label class="settings-v2-server-dialog-label" for="server-url">

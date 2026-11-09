@@ -158,7 +158,7 @@ export function SortableTerminalTabV2(props: {
                 onKeyDown={keydown}
                 onMouseDown={(e) => e.stopPropagation()}
                 aria-label={language.t("common.rename")}
-                class="bg-transparent border-none outline-none min-w-0 flex-1 p-0 text-[12px] leading-4 text-v2-text-text-base [font-weight:500] [font-variant-numeric:tabular-nums]"
+                class="bg-transparent border-none outline-none min-w-0 flex-1 p-0 text-[13px] leading-5 text-v2-text-text-base font-medium [font-variant-numeric:tabular-nums]"
               />
             </div>
           </Show>

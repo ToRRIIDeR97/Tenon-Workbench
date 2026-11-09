@@ -30,10 +30,10 @@ export function DialogArchivedThreads(props: { ctrl: SidebarController; director
       </DialogHeader>
       <DialogBody class="flex max-h-[min(480px,calc(100vh-160px))] w-[min(440px,calc(100vw-32px))] flex-col gap-1 overflow-y-auto px-4 pb-4">
         <Show when={threads.error}>
-          <p class="py-2 text-[13px] text-v2-text-text-faint">{language.t("common.requestFailed")}</p>
+          <p class="py-2 text-[13px] text-v2-text-text-muted">{language.t("common.requestFailed")}</p>
         </Show>
         <Show when={threads.state === "ready" && threads()?.length === 0}>
-          <p class="py-2 text-[13px] text-v2-text-text-faint">{language.t("secondBrain.sidebar.noArchivedThreads")}</p>
+          <p class="py-2 text-[13px] text-v2-text-text-muted">{language.t("secondBrain.sidebar.noArchivedThreads")}</p>
         </Show>
         <For each={threads.state === "ready" ? threads() : []}>
           {(session) => (

@@ -160,15 +160,12 @@ export default function RoutinesPage() {
         title={language.t("secondBrain.routines.title")}
         actions={
           <>
-            <A
-              href="/command"
-              class="rounded-full px-3 py-1.5 text-[13px] text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base motion-reduce:transition-none"
-            >
+            <ButtonV2 variant="ghost" onClick={() => navigate("/command")}>
               {language.t("secondBrain.commandCentre.title")}
-            </A>
+            </ButtonV2>
             <ButtonV2
-              size="small"
-              variant="tonal"
+              variant="contrast"
+              icon="plus"
               disabled={!workspace() || state.creating}
               onClick={() => void create()}
             >
@@ -179,22 +176,24 @@ export default function RoutinesPage() {
       />
       <div class="px-6 pb-6">
         <Show when={state.failed || settled(routines)?.failed}>
-          <p role="alert" class="pb-2 text-[12px] text-v2-text-text-critical">
+          <p role="alert" class="pb-2 type-meta text-v2-text-text-critical">
             {language.t("common.requestFailed")}
           </p>
         </Show>
         <Show
           when={items().length > 0}
           fallback={
-            <Show when={!routines.loading && !settled(routines)?.failed}>
-              <PageEmpty title={language.t("secondBrain.routines.empty.title")}>
-                {language.t("secondBrain.routines.empty.body")}
-              </PageEmpty>
+            <Show when={!routines.loading} fallback={<PageEmpty loading title={language.t("common.loading")} />}>
+              <Show when={!settled(routines)?.failed}>
+                <PageEmpty title={language.t("secondBrain.routines.empty.title")}>
+                  {language.t("secondBrain.routines.empty.body")}
+                </PageEmpty>
+              </Show>
             </Show>
           }
         >
           <table class="w-full border-separate border-spacing-y-1 text-left text-[13px]">
-            <thead class="text-[12px] text-v2-text-text-muted">
+            <thead class="type-meta text-v2-text-text-muted">
               <tr>
                 <th class="px-3 py-1 [font-weight:500]">{language.t("secondBrain.routines.column.name")}</th>
                 <th class="px-3 py-1 [font-weight:500]">{language.t("secondBrain.routines.column.schedule")}</th>
@@ -210,41 +209,48 @@ export default function RoutinesPage() {
                 {(routine) => (
                   <tr class="text-v2-text-text-base" data-routine={routine.id}>
                     <td class="px-3 py-2">
-                      <A href={`/projects?page=${encodeURIComponent(routine.path)}`} class="hover:underline">
+                      <A
+                        href={`/projects?page=${encodeURIComponent(routine.path)}`}
+                        class="type-row-title hover:underline"
+                      >
                         {routine.name}
                       </A>
                       <Show when={!routine.enabled}>
-                        <span class="ml-2 text-[11px] text-v2-text-text-faint">
+                        <span class="ml-2 type-caption text-v2-text-text-muted">
                           {language.t("secondBrain.routines.disabled")}
                         </span>
                       </Show>
                       {/* `harness` and `tools` are read from the page but runs don't honour them yet. */}
                       <Show when={(routine.unsupported ?? []).length > 0}>
-                        <span class="block text-[11px] text-v2-text-text-faint">
+                        <span class="block type-meta text-v2-text-text-muted">
                           {language.t("secondBrain.routines.unsupported", {
                             fields: (routine.unsupported ?? []).join(", "),
                           })}
                         </span>
                       </Show>
                       <Show when={routine.needsApproval}>
-                        <span class="block text-[11px] text-v2-text-text-muted">
-                          {language.t("secondBrain.routines.needsApproval")}
-                          {" · "}
-                          <A href={`/projects?page=${encodeURIComponent(routine.path)}`} class="underline">
+                        <span class="mt-1 flex flex-wrap items-center gap-2">
+                          <span class="rounded-full bg-v2-state-bg-warning px-2 py-0.5 type-caption text-v2-state-fg-warning">
+                            {language.t("secondBrain.routines.needsApproval")}
+                          </span>
+                          <A
+                            href={`/projects?page=${encodeURIComponent(routine.path)}`}
+                            class="type-meta text-v2-text-text-muted underline hover:text-v2-text-text-base"
+                          >
                             {language.t("secondBrain.routines.review")}
                           </A>
                         </span>
                       </Show>
                       <Show when={(routine.denied ?? []).length > 0}>
-                        <span class="block text-[11px] text-v2-text-text-faint">
+                        <span class="block type-meta text-v2-text-text-muted">
                           {language.t("secondBrain.routines.denied", {
                             permissions: (routine.denied ?? []).join(", "),
                           })}
                         </span>
                       </Show>
                     </td>
-                    <td class="px-3 py-2 font-mono text-[12px] text-v2-text-text-muted">{routine.schedule}</td>
-                    <td class="px-3 py-2 text-v2-text-text-muted">
+                    <td class="px-3 py-2 font-mono type-meta text-v2-text-text-muted">{routine.schedule}</td>
+                    <td class="px-3 py-2 type-meta text-v2-text-text-muted">
                       {time(routine.lastRun)}
                       <Show when={routine.lastStatus === "failed"}>
                         <span class="ml-2 text-v2-text-text-critical">{language.t("secondBrain.routines.failed")}</span>
@@ -258,7 +264,9 @@ export default function RoutinesPage() {
                         <span class="ml-2">{language.t("secondBrain.routines.running")}</span>
                       </Show>
                     </td>
-                    <td class="px-3 py-2 text-v2-text-text-muted">{routine.enabled ? time(routine.nextRun) : "—"}</td>
+                    <td class="px-3 py-2 type-meta text-v2-text-text-muted">
+                      {routine.enabled ? time(routine.nextRun) : "—"}
+                    </td>
                     <td class="px-3 py-2">
                       <div class="flex items-center justify-end gap-3">
                         <Switch
@@ -272,7 +280,7 @@ export default function RoutinesPage() {
                         </Switch>
                         <ButtonV2
                           size="small"
-                          variant="tonal"
+                          variant={routine.needsApproval ? "tonal" : "ghost"}
                           disabled={
                             state.running[routine.id] === true ||
                             (!routine.needsApproval && routine.lastStatus === "running")

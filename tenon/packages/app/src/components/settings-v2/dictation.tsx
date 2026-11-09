@@ -53,7 +53,7 @@ export function SettingsDictationV2() {
         >
           <div class="settings-v2-section">
             <h4 class="settings-v2-section-title">{language.t("dictation.settings.models")}</h4>
-            <p class="text-12-regular text-text-weak">{language.t("dictation.settings.description")}</p>
+            <p class="type-meta text-v2-text-text-muted">{language.t("dictation.settings.description")}</p>
             <SettingsListV2>
               <For each={state.latest?.models ?? []}>
                 {(model) => {
@@ -79,7 +79,7 @@ export function SettingsDictationV2() {
                     >
                       <div class="flex items-center gap-2" data-model={model.id}>
                         <Show when={failure()}>
-                          <span class="text-12-regular text-text-critical" role="alert">
+                          <span class="type-meta text-v2-text-text-critical" role="alert">
                             {failure()}
                           </span>
                         </Show>
@@ -139,7 +139,7 @@ export function SettingsDictationV2() {
             </SettingsListV2>
             <Show when={state.latest?.folder}>
               {(folder) => (
-                <p class="text-12-regular text-text-weak">
+                <p class="type-meta text-v2-text-text-muted">
                   {language.t("dictation.settings.folder", { folder: folder() })}
                 </p>
               )}
@@ -148,7 +148,7 @@ export function SettingsDictationV2() {
         </Show>
         <div class="settings-v2-section">
           <a
-            class="text-12-regular text-text-weak underline"
+            class="type-meta text-v2-text-text-muted underline"
             href={HANDY_URL}
             data-action="dictation-credit"
             onClick={(event) => {

@@ -251,7 +251,7 @@ export function NotesPageView(props: {
     </TooltipV2>
   )
   const savedState = () => (
-    <span class="hidden shrink-0 items-center gap-1.5 px-1 text-[11px] text-v2-text-text-faint sm:flex">
+    <span class="hidden shrink-0 items-center gap-1.5 px-1 type-caption text-v2-text-text-muted sm:flex">
       <Reveal open={dirty()} variant="inline">
         <span class="block size-1.5 rounded-full bg-v2-icon-icon-accent" aria-hidden="true" />
       </Reveal>
@@ -281,7 +281,7 @@ export function NotesPageView(props: {
     <Show when={Object.keys(state.properties).length > 0}>
       <dl
         aria-label={language.t("secondBrain.vault.properties")}
-        class="grid grid-cols-[minmax(0,160px)_minmax(0,1fr)] items-center gap-x-3 gap-y-1 rounded-[16px] bg-v2-background-bg-layer-01 px-3 py-2 text-[13px]"
+        class="grid grid-cols-[minmax(0,160px)_minmax(0,1fr)] items-center gap-x-3 gap-y-1 rounded-[16px] bg-v2-background-bg-layer-01 px-3 py-2 text-[13px] shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]"
       >
         <For each={Object.keys(state.properties)}>
           {(key) => {
@@ -289,7 +289,7 @@ export function NotesPageView(props: {
             const set = (next: string | boolean) => setState("properties", key, next)
             return (
               <>
-                <dt class="min-w-0 truncate text-[12px] text-v2-text-text-muted" title={key}>
+                <dt class="min-w-0 truncate type-meta text-v2-text-text-muted" title={key}>
                   {key}
                 </dt>
                 <dd class="min-w-0">
@@ -348,7 +348,7 @@ export function NotesPageView(props: {
 
   return (
     <article class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <header class="flex min-h-14 shrink-0 items-center gap-2 pl-3 pr-3 pt-3">
+      <header class="flex min-h-14 shrink-0 items-center gap-2 px-3 pt-3">
         <TooltipV2 value={language.t("secondBrain.vault.back")}>
           <IconButtonV2
             type="button"
@@ -359,7 +359,7 @@ export function NotesPageView(props: {
             onClick={props.onBack}
           />
         </TooltipV2>
-        <p class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-muted">
+        <p class="min-w-0 flex-1 truncate type-control text-v2-text-text-muted">
           {project()
             ? language.t("secondBrain.vault.breadcrumb", { project: project()!.name, page: state.title })
             : state.title}
@@ -397,10 +397,10 @@ export function NotesPageView(props: {
       </header>
 
       <div class="min-h-0 flex-1 overflow-y-auto">
-        <div class="mx-auto flex min-h-full w-full max-w-[920px] flex-col gap-3 px-6 pb-8 pt-4 sm:px-12">
-          <h1 class="text-[30px] leading-10 text-v2-text-text-base [font-weight:700]">
+        <div class="mx-auto flex min-h-full w-full max-w-[1040px] flex-col gap-3 px-6 pb-8 pt-4 sm:px-10">
+          <h1 class="type-display text-v2-text-text-base">
             <input
-              class="w-full min-w-0 rounded-[12px] bg-transparent px-1 -mx-1 outline-none transition-colors duration-short ease-standard placeholder:text-v2-text-text-faint hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none [font-weight:700]"
+              class="w-full min-w-0 rounded-[12px] bg-transparent px-1 -mx-1 outline-none transition-colors duration-short ease-standard placeholder:text-v2-text-text-faint hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none"
               aria-label={language.t("secondBrain.vault.pageTitle")}
               placeholder={language.t("secondBrain.vault.untitled")}
               value={state.title}
@@ -412,7 +412,7 @@ export function NotesPageView(props: {
               }}
             />
           </h1>
-          <div class="flex flex-wrap items-center gap-2 text-[12px] text-v2-text-text-muted">
+          <div class="flex flex-wrap items-center gap-2 type-meta text-v2-text-text-muted">
             <Show when={project()}>
               {(item) => (
                 <span class="rounded-full bg-v2-background-bg-accent-container px-2.5 py-0.5 text-v2-text-text-on-accent-container">
@@ -439,7 +439,7 @@ export function NotesPageView(props: {
           <RevealShow when={!!page.error}>
             {() => (
               <div class="flex flex-wrap items-center gap-2">
-                <p role="alert" class="text-[12px] text-v2-text-text-critical">
+                <p role="alert" class="type-meta text-v2-text-text-critical">
                   {language.t("secondBrain.error.request")}
                 </p>
                 <ButtonV2 size="small" variant="outline" onClick={reload}>
@@ -451,7 +451,7 @@ export function NotesPageView(props: {
           <RevealShow when={state.error || (props.held ? language.t("secondBrain.vault.unsaved") : "")}>
             {(error) => (
               <div class="flex flex-wrap items-center gap-2">
-                <p role="alert" class="text-[12px] text-v2-text-text-critical">
+                <p role="alert" class="type-meta text-v2-text-text-critical">
                   {error()}
                 </p>
                 {recoveryActions()}
@@ -471,7 +471,7 @@ export function NotesPageView(props: {
               fullscreenActions={
                 <>
                   <Show when={state.error}>
-                    <span class="max-w-64 truncate text-[12px] text-v2-text-text-critical" title={state.error}>
+                    <span class="max-w-64 truncate type-meta text-v2-text-text-critical" title={state.error}>
                       {state.error}
                     </span>
                   </Show>

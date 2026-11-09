@@ -176,8 +176,8 @@ export function DialogSelectDirectory(props: DialogSelectDirectoryProps) {
                 <div data-directory-path={item.absolute} class="flex w-full min-w-0 items-center gap-x-3">
                   <FileIcon node={{ path: item.absolute, type: "directory" }} class="size-4 shrink-0" />
                   <div class="flex min-w-0 items-center">
-                    <span class="whitespace-nowrap [font-weight:500]">~</span>
-                    <span class="whitespace-nowrap opacity-70">/</span>
+                    <span class="whitespace-nowrap font-medium">~</span>
+                    <span class="whitespace-nowrap text-v2-text-text-muted">/</span>
                   </div>
                 </div>
               )
@@ -186,9 +186,9 @@ export function DialogSelectDirectory(props: DialogSelectDirectoryProps) {
               <div data-directory-path={item.absolute} class="flex w-full min-w-0 items-center gap-x-3">
                 <FileIcon node={{ path: item.absolute, type: "directory" }} class="size-4 shrink-0" />
                 <div class="flex min-w-0 items-center">
-                  <span class="min-w-0 truncate whitespace-nowrap opacity-70">{getDirectory(path)}</span>
-                  <span class="whitespace-nowrap [font-weight:500]">{getFilename(path)}</span>
-                  <span class="whitespace-nowrap opacity-70">/</span>
+                  <span class="min-w-0 truncate whitespace-nowrap text-v2-text-text-muted">{getDirectory(path)}</span>
+                  <span class="whitespace-nowrap font-medium">{getFilename(path)}</span>
+                  <span class="whitespace-nowrap text-v2-text-text-muted">/</span>
                 </div>
               </div>
             )

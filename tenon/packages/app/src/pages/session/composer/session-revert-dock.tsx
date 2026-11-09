@@ -71,7 +71,7 @@ export function SessionRevertDock(props: {
     // (the strip or the composer), as the strip's own bottom does, so the rows read as one surface.
     <div
       data-component="session-revert-dock"
-      class="w-full overflow-hidden rounded-t-[24px] bg-v2-background-bg-layer-01"
+      class="w-full overflow-hidden rounded-t-[24px] bg-v2-background-bg-layer-01 shadow-[inset_0_1px_0_var(--v2-border-border-muted),inset_1px_0_0_var(--v2-border-border-muted),inset_-1px_0_0_var(--v2-border-border-muted)]"
       style={{ "margin-bottom": "-14px" }}
     >
       <div
@@ -84,7 +84,7 @@ export function SessionRevertDock(props: {
         <IconV2 name="outline-reset" size="normal" class="text-v2-icon-icon-muted" />
         <span
           classList={{
-            "font-[400] shrink-0 cursor-default text-[13px] leading-5 tracking-[-0.04px]": true,
+            "[font-weight:450] shrink-0 cursor-default text-[13px] leading-5": true,
             "text-v2-text-text-base": !store.collapsed,
             "text-v2-text-text-muted": store.collapsed,
           }}
@@ -93,7 +93,7 @@ export function SessionRevertDock(props: {
         </span>
         <RevealShow when={store.collapsed && preview()} class="min-w-0 flex-1">
           {(text) => (
-            <span class="block truncate cursor-default text-[13px] font-[400] leading-5 tracking-[-0.04px] text-v2-text-text-faint">
+            <span class="block truncate cursor-default text-[13px] [font-weight:450] leading-5 text-v2-text-text-muted">
               {text()}
             </span>
           )}
@@ -135,7 +135,7 @@ export function SessionRevertDock(props: {
             {(entry, index) => (
               <Reveal open={entry.open}>
                 <div classList={{ "flex h-6 min-w-0 items-center gap-2": true, "mt-2": index() > 0 }}>
-                  <span class="min-w-0 flex-1 truncate text-[13px] font-[400] leading-5 tracking-[-0.04px] text-v2-text-text-muted">
+                  <span class="min-w-0 flex-1 truncate text-[13px] [font-weight:450] leading-5 text-v2-text-text-muted">
                     {entry.item.text}
                   </span>
                   <ButtonV2

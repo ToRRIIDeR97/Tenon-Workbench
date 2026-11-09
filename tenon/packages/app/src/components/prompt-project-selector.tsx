@@ -448,7 +448,7 @@ export function PromptProjectAddButton(props: { controller: PromptProjectControl
     <button
       data-action="prompt-project"
       type="button"
-      class={`${chipClass} max-w-[160px] text-v2-text-text-faint hover:bg-v2-overlay-simple-overlay-hover`}
+      class={`${chipClass} max-w-[160px] text-v2-text-text-muted hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base`}
       onClick={() => props.controller.add()}
     >
       <Icon name="folder-add-left" size="small" class="shrink-0 text-v2-icon-icon-muted" />
@@ -460,7 +460,7 @@ export function PromptProjectAddButton(props: { controller: PromptProjectControl
 
 /** Composer chip: a pill that tightens its corners while pressed. */
 const chipClass =
-  "flex h-8 min-w-0 items-center gap-1.5 rounded-full px-2.5 text-[13px] font-[400] leading-5 tracking-[-0.04px] transition-[background-color,border-radius] duration-short ease-standard active:rounded-[12px] motion-reduce:transition-none"
+  "flex h-8 min-w-0 items-center gap-1.5 rounded-full px-2.5 type-control transition-[background-color,color,border-radius] duration-short ease-standard active:rounded-[12px] active:bg-v2-overlay-simple-overlay-pressed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
 
 function ProjectTrigger(props: ComponentProps<"button"> & { controller: PromptProjectController }) {
   const [local, rest] = splitProps(props, ["controller", "class", "classList", "onClick", "onKeyDown"])

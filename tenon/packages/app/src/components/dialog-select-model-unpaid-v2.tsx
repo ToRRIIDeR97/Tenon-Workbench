@@ -69,7 +69,7 @@ export const DialogSelectModelUnpaidV2: Component<{ model?: ModelState }> = (pro
     <DialogV2
       fit
       containerClass="!h-auto max-h-[calc(100vh_-_16px)] !w-[min(calc(100vw_-_16px),640px)]"
-      class="[font-family:var(--v2-font-family-sans)] [&_[data-slot=dialog-header]]:!px-5 [&_[data-slot=dialog-header-title]]:!text-[15px] [&_[data-slot=dialog-header-title]]:!tracking-[-0.13px]"
+      class="[font-family:var(--v2-font-family-sans)] [&_[data-slot=dialog-header]]:!px-6"
     >
       <DialogHeader closeLabel={language.t("common.close")}>
         <DialogTitle>{language.t("dialog.model.select.title")}</DialogTitle>
@@ -78,7 +78,7 @@ export const DialogSelectModelUnpaidV2: Component<{ model?: ModelState }> = (pro
         <div ref={listEl} class="flex min-h-0 flex-col">
           <div data-section="free-models" class="flex w-full flex-col items-start pb-3">
             <div class="flex h-8 w-full flex-none select-none flex-row items-center px-3 pb-2">
-              <div class="flex h-5 items-center text-[13px] font-[400] leading-5 tracking-[-0.04px] text-v2-text-text-muted [font-family:var(--v2-font-family-sans)] [font-variant-numeric:tabular-nums] [font-variation-settings:'slnt'_0]">
+              <div class="flex h-5 items-center type-meta font-medium text-v2-text-text-muted">
                 {language.t("dialog.model.unpaid.freeModels.title")}
               </div>
             </div>
@@ -99,7 +99,7 @@ export const DialogSelectModelUnpaidV2: Component<{ model?: ModelState }> = (pro
                 >
                   <button
                     type="button"
-                    class="flex min-h-10 w-full scroll-my-3.5 flex-row items-center gap-1.5 rounded-[16px] px-4 py-2 text-left text-[13px] font-[500] leading-5 tracking-[-0.04px] text-v2-text-text-base [font-family:var(--v2-font-family-sans)] [font-variation-settings:'slnt'_0] transition-[background-color,border-radius] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover focus:bg-v2-overlay-simple-overlay-hover focus:outline-none active:rounded-[12px] motion-reduce:transition-none"
+                    class="flex min-h-10 w-full scroll-my-4 flex-row items-center gap-2 rounded-[12px] px-3 py-2 text-left text-[13px] font-medium leading-5 text-v2-text-text-base transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
                     classList={{
                       "!bg-v2-background-bg-accent-container !text-v2-text-text-on-accent-container":
                         currentKey() === modelKey(item),
@@ -122,13 +122,13 @@ export const DialogSelectModelUnpaidV2: Component<{ model?: ModelState }> = (pro
           </div>
 
           <div class="flex w-full flex-col">
-            <div class="flex w-full flex-col items-start rounded-[24px] border-[0.5px] border-v2-border-border-muted bg-v2-background-bg-layer-02 p-2.5 pt-2">
-              <div class="flex h-8 w-full select-none items-center px-0.5 pb-2">
-                <div class="flex h-5 items-center text-[13px] font-[400] leading-5 tracking-[-0.04px] text-v2-text-text-muted [font-family:var(--v2-font-family-sans)] [font-variant-numeric:tabular-nums] [font-variation-settings:'slnt'_0]">
+            <div class="flex w-full flex-col items-start rounded-[16px] border border-v2-border-border-muted bg-v2-background-bg-layer-01 p-3 pt-2">
+              <div class="flex h-8 w-full select-none items-center px-1 pb-2">
+                <div class="flex h-5 items-center type-meta font-medium text-v2-text-text-muted">
                   {language.t("dialog.model.unpaid.addMore.title")}
                 </div>
               </div>
-              <div class="grid w-full grid-cols-1 gap-y-1.5 gap-x-2 sm:grid-cols-2">
+              <div class="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
                 <For
                   each={[...providers.popular()]
                     .filter((provider) => featuredProviders.includes(provider.id))
@@ -138,10 +138,10 @@ export const DialogSelectModelUnpaidV2: Component<{ model?: ModelState }> = (pro
                     <button
                       type="button"
                       data-provider-id={provider.id}
-                      class="flex min-h-11 w-full scroll-my-3.5 flex-row items-start gap-2 rounded-[16px] bg-v2-background-bg-base px-3 py-2.5 text-left text-[13px] font-[500] leading-5 tracking-[-0.04px] text-v2-text-text-base [font-family:var(--v2-font-family-sans)] [font-variation-settings:'slnt'_0] transition-[background-color,border-radius] duration-short ease-standard hover:bg-v2-background-bg-layer-01 focus:bg-v2-background-bg-layer-01 focus:outline-none active:rounded-[12px] motion-reduce:transition-none"
+                      class="flex min-h-10 w-full scroll-my-4 flex-row items-start gap-2 rounded-[12px] bg-v2-background-bg-base px-3 py-2 text-left text-[13px] font-medium leading-5 text-v2-text-text-base transition-colors duration-short ease-standard hover:[background-image:linear-gradient(var(--v2-overlay-simple-overlay-hover),var(--v2-overlay-simple-overlay-hover))] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
                       classList={{
-                        "border-[0.5px] border-v2-border-border-muted": theme.mode() !== "dark",
-                        "border-[0.5px] border-v2-border-border-strong": theme.mode() === "dark",
+                        "border border-v2-border-border-muted": theme.mode() !== "dark",
+                        "border border-v2-border-border-strong": theme.mode() === "dark",
                       }}
                       onClick={() => openProviders(provider.id)}
                     >
@@ -154,7 +154,7 @@ export const DialogSelectModelUnpaidV2: Component<{ model?: ModelState }> = (pro
                 </For>
                 <button
                   type="button"
-                  class="col-span-full flex h-8 w-full scroll-my-3.5 items-center justify-start rounded-full px-4 text-left text-[13px] font-[400] leading-5 tracking-[-0.04px] text-v2-text-text-muted [font-family:var(--v2-font-family-sans)] [font-variation-settings:'slnt'_0] transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover focus:bg-v2-overlay-simple-overlay-hover focus:outline-none motion-reduce:transition-none"
+                  class="col-span-full flex h-8 w-full scroll-my-4 items-center justify-start rounded-full px-3 text-left type-control text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
                   onClick={() => openProviders()}
                 >
                   {language.t("dialog.model.unpaid.viewMoreProviders")}

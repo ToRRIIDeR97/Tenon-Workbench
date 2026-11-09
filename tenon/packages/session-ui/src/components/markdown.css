@@ -13,7 +13,8 @@
   color: var(--v2-text-text-base);
   font-family: var(--font-family-sans);
   font-size: var(--font-size-base); /* 14px */
-  line-height: 160%;
+  font-weight: 450;
+  line-height: 22px;
 
   /* Spacing for flow */
   > *:first-child {
@@ -49,9 +50,9 @@
   }
 
   h3 {
-    font-size: 13px;
+    font-size: 14px;
     color: var(--v2-text-text-base);
-    font-weight: var(--font-weight-medium);
+    font-weight: 600;
     margin-top: 20px;
     margin-bottom: 8px;
     line-height: var(--line-height-large);
@@ -60,8 +61,8 @@
   h4,
   h5,
   h6 {
-    font-size: 13px;
-    color: var(--v2-text-text-muted);
+    font-size: 14px;
+    color: var(--v2-text-text-base);
     font-weight: var(--font-weight-medium);
     margin-top: 20px;
     margin-bottom: 8px;
@@ -158,7 +159,7 @@
 
   /* Blockquotes */
   blockquote {
-    border-inline-start: 0.5px solid var(--v2-border-border-base);
+    border-inline-start: 1px solid var(--v2-border-border-base);
     margin: 1rem 0;
     padding-inline-start: 0.5rem;
     color: var(--v2-text-text-muted);
@@ -405,7 +406,7 @@
   th,
   td {
     /* Minimal borders for structure, matching TUI "lines" roughly but keeping it web-clean */
-    border-bottom: 0.5px solid var(--v2-border-border-muted);
+    border-bottom: 1px solid var(--v2-border-border-muted);
     padding: 12px;
     text-align: start;
     vertical-align: top;
@@ -414,7 +415,8 @@
   th {
     color: var(--v2-text-text-base);
     font-weight: var(--font-weight-medium);
-    border-bottom: 0.5px solid var(--v2-border-border-base);
+    background: var(--v2-background-bg-layer-01);
+    border-bottom: 1px solid var(--v2-border-border-muted);
   }
 
   /* Images */
@@ -441,14 +443,14 @@ body[data-new-layout] [data-component="markdown"] {
     padding: 5px 8px;
     border: 0;
     border-radius: var(--v2-radius-full);
-    background: var(--v2-background-bg-layer-01);
+    background: var(--v2-background-bg-base);
     box-shadow: var(--v2-elevation-floating);
     color: var(--v2-text-text-base);
     user-select: none;
     font-size: 11px;
     font-weight: 500;
     line-height: 12px;
-    letter-spacing: 0.05px;
+    letter-spacing: 0;
     font-variant-numeric: tabular-nums;
     font-variation-settings: "slnt" 0;
   }

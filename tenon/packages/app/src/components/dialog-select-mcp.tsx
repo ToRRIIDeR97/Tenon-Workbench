@@ -69,15 +69,15 @@ export const DialogSelectMcp: Component = () => {
             }
             const enabled = () => status() === "connected"
             return (
-              <div class="flex w-full items-center gap-2.5">
+              <div class="flex w-full items-center gap-2">
                 <span class={`size-2 shrink-0 rounded-full ${statusDotClass(status())}`} />
-                <div class="flex min-w-0 flex-1 flex-col gap-px">
-                  <span class="truncate [font-weight:500]">{i.name}</span>
+                <div class="flex min-w-0 flex-1 flex-col">
+                  <span class="truncate font-medium">{i.name}</span>
                   <Show when={error() ?? statusLabel()}>
                     {(line) => (
                       <span
-                        class="truncate text-[12px] opacity-70"
-                        classList={{ "text-v2-text-text-critical !opacity-100": !!error() }}
+                        class="truncate type-meta text-v2-text-text-muted"
+                        classList={{ "!text-v2-text-text-critical": !!error() }}
                       >
                         {line()}
                       </span>

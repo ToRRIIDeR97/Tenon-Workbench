@@ -8,16 +8,14 @@
   height: 28px;
   border: 0;
   border-radius: 6px;
-  outline: 1px solid transparent;
-  outline-offset: 0;
-  background: var(--v2-background-bg-button-neutral);
-  box-shadow: var(--v2-elevation-button-neutral);
+  outline: none;
+  background: var(--v2-background-bg-layer-01);
+  box-shadow: inset 0 0 0 1px var(--v2-border-border-base);
   flex: none;
   align-self: stretch;
   overflow: hidden;
   transition:
     background var(--v2-duration-short) var(--v2-ease-standard),
-    outline-color var(--v2-duration-short) var(--v2-ease-standard),
     box-shadow var(--v2-duration-short) var(--v2-ease-standard);
 }
 
@@ -26,28 +24,19 @@
 }
 
 [data-component="inline-input-v2"]:where(:hover):not([data-disabled], [data-invalid]):not(:focus-within) {
-  background:
-    linear-gradient(0deg, var(--v2-overlay-simple-overlay-hover), var(--v2-overlay-simple-overlay-hover)),
-    var(--v2-background-bg-button-neutral);
-}
-
-[data-component="inline-input-v2"]:where(:hover):not([data-disabled], [data-invalid]):not(:focus-within)
-  [data-slot="inline-input-v2-prefix"] {
-  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--v2-border-border-strong);
 }
 
 [data-component="inline-input-v2"]:where(:focus-within):not([data-disabled], [data-invalid]) {
-  outline-color: var(--v2-border-border-focus);
-  box-shadow: none;
+  box-shadow: inset 0 0 0 2px var(--v2-border-border-focus);
 }
 
 [data-component="inline-input-v2"]:where([data-invalid]):not([data-disabled]) {
-  outline-color: var(--v2-state-fg-danger);
-  box-shadow: none;
+  box-shadow: inset 0 0 0 1px var(--v2-state-fg-danger);
 }
 
 [data-component="inline-input-v2"]:where([data-disabled]) {
-  opacity: 0.5;
+  color: var(--v2-text-text-disabled);
   cursor: not-allowed;
 }
 
@@ -64,7 +53,9 @@
   max-width: 100%;
   padding: 4px 8px;
   gap: 4px;
-  background: var(--v2-background-bg-layer-01);
+  /* Transparent so the field's inset edge and focus ring stay visible; a hairline divides it from the value. */
+  background: transparent;
+  border-inline-end: 1px solid var(--v2-border-border-muted);
   border-radius: 4px 0 0 4px;
   cursor: default;
   transition: background var(--v2-duration-short) var(--v2-ease-standard);
@@ -87,10 +78,9 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-style: normal;
-  font-weight: 400;
+  font-weight: 450;
   font-size: 13px;
   line-height: 1;
-  letter-spacing: -0.04px;
   color: var(--v2-text-text-muted);
   font-variation-settings: "slnt" 0;
   user-select: none;
@@ -144,10 +134,9 @@
   background: transparent;
   outline: none;
   font-style: normal;
-  font-weight: 400;
+  font-weight: 450;
   font-size: 13px;
   line-height: 1;
-  letter-spacing: -0.04px;
   color: var(--v2-text-text-base);
   font-variation-settings: "slnt" 0;
 }
@@ -221,4 +210,12 @@
 [data-component="inline-input-v2"][data-invalid]:not([data-disabled]) [data-slot="inline-input-v2-input"]::placeholder {
   color: var(--v2-state-fg-danger);
   opacity: 1;
+}
+
+[data-component="inline-input-v2"]:where(:focus-within):where([data-invalid]):not([data-disabled]) {
+  box-shadow: inset 0 0 0 2px var(--v2-state-fg-danger);
+}
+
+[data-component="inline-input-v2"]:where([data-disabled]) [data-slot="inline-input-v2-input"] {
+  color: var(--v2-text-text-disabled);
 }

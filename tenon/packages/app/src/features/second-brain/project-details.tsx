@@ -236,7 +236,7 @@ export function ProjectDetails(props: {
           >
             {language.t("secondBrain.projects.discard")}
           </ButtonV2>
-          <span class="flex items-center gap-1.5 text-[12px] text-v2-text-text-faint" role="status">
+          <span class="flex items-center gap-1.5 text-[12px] text-v2-text-text-muted" role="status">
             <span class="size-1.5 rounded-full bg-v2-icon-icon-accent" aria-hidden="true" />
             {language.t("secondBrain.projects.unsaved")}
           </span>
@@ -332,7 +332,7 @@ export function ProjectCreate(props: {
 
   return (
     <form
-      class="mx-auto flex w-full max-w-2xl flex-col gap-5 px-6 pb-10 pt-8 sm:px-10"
+      class="mx-auto flex w-full max-w-[720px] flex-col gap-5 px-6 pb-10 pt-8 sm:px-10"
       aria-labelledby="project-create-title"
       onSubmit={(event) => {
         event.preventDefault()
@@ -346,7 +346,7 @@ export function ProjectCreate(props: {
         props.onCancel()
       }}
     >
-      <h1 id="project-create-title" class="text-[28px] leading-[38px] text-v2-text-text-base [font-weight:700]">
+      <h1 id="project-create-title" class="type-display text-v2-text-text-base">
         {language.t("secondBrain.projects.create.title")}
       </h1>
       <label class={labelClass} for="project-name">

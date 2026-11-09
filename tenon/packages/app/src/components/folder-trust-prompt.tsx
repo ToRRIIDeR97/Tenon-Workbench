@@ -51,8 +51,10 @@ function DialogFolderTrust(props: { client: Client; trust: FolderTrust }) {
       <DialogHeader hideClose={true}>
         <DialogTitle>{language.t("folderTrust.title")}</DialogTitle>
       </DialogHeader>
-      <DialogBody class="flex w-full min-w-0 flex-col gap-3 px-4 pt-2 pb-2">
-        <code class="min-w-0 break-all">{props.trust.root}</code>
+      <DialogBody class="flex w-full min-w-0 flex-col gap-3 px-4 pt-0 pb-2">
+        <code class="min-w-0 break-all rounded-[8px] bg-v2-background-bg-layer-02 px-2 py-1 font-mono type-meta text-v2-text-text-base">
+          {props.trust.root}
+        </code>
         <p>{language.t("folderTrust.description")}</p>
         <ul class="list-disc pl-5">
           <For each={withheld()}>{(label) => <li>{label}</li>}</For>

@@ -271,7 +271,7 @@ const HarnessAssistant: Component<{
         <DialogTitle>{language.t("harness.assistant.title")}</DialogTitle>
       </DialogHeader>
       <DividerV2 />
-      <DialogBody class="flex w-full min-w-0 flex-1 flex-col gap-3 px-4 pt-4 pb-2">
+      <DialogBody class="flex w-full min-w-0 flex-1 flex-col gap-3 px-6 pt-6 pb-0">
         <div class="flex flex-wrap items-center gap-2" data-component="harness-assistant-picker">
           <span class="settings-v2-harness-detail shrink-0 whitespace-nowrap">
             {language.t("harness.assistant.runsOn")}

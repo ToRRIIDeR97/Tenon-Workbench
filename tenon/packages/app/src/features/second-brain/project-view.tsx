@@ -8,7 +8,7 @@ import { SegmentedControlItemV2, SegmentedControlV2 } from "@tenon/ui/v2/segment
 import { createEffect, createMemo, For, on, Show, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLanguage } from "@/context/language"
-import { PageEmpty } from "@/components/page"
+import { PageEmpty, pageRowClass } from "@/components/page"
 import { focusWhenConnected } from "@/utils/focus-when-connected"
 import { getRelativeTime } from "@/utils/time"
 import { showToast } from "@/utils/toast"
@@ -191,7 +191,7 @@ export function ProjectView(props: {
       {actions}
     </div>
   )
-  const panel = "rounded-[20px] bg-v2-background-bg-layer-01"
+  const panel = "rounded-[16px] bg-v2-background-bg-layer-01 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]"
 
   return (
     <div class="flex min-h-0 flex-col">
@@ -199,15 +199,13 @@ export function ProjectView(props: {
         aria-label={language.t("secondBrain.project.sections")}
         class="sticky top-0 z-10 flex min-h-12 flex-wrap items-center gap-1 border-b border-v2-border-border-muted bg-v2-background-bg-base px-6 py-2 sm:px-10"
       >
-        <span class="mr-2 max-w-48 truncate text-[13px] text-v2-text-text-base [font-weight:600]">
-          {props.project.name}
-        </span>
+        <span class="mr-2 max-w-48 truncate type-section text-v2-text-text-base">{props.project.name}</span>
         <For each={projectSections}>
           {(section) => (
             <button
               type="button"
               data-section-link={section}
-              class="rounded-full px-2.5 py-1 text-[13px] text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base motion-reduce:transition-none"
+              class="rounded-full px-2.5 py-1 type-control text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base motion-reduce:transition-none"
               onClick={() => jump(section)}
             >
               {language.t(`secondBrain.project.${section}`)}
@@ -222,14 +220,12 @@ export function ProjectView(props: {
 
       <div class="mx-auto flex w-full max-w-[1040px] flex-col gap-8 px-6 pb-12 pt-6 sm:px-10">
         <header class="flex flex-col gap-2.5">
-          <h1 class="break-words text-[28px] leading-[38px] text-v2-text-text-base [font-weight:700]">
-            {props.project.name}
-          </h1>
+          <h1 class="break-words type-display text-v2-text-text-base">{props.project.name}</h1>
           <Show when={props.project.outcome}>
             <p class="max-w-3xl text-[15px] leading-6 text-v2-text-text-base">{props.project.outcome}</p>
           </Show>
           <Show when={props.timeline.value}>
-            <div class="flex flex-wrap items-center gap-3 text-[13px] text-v2-text-text-muted">
+            <div class="flex flex-wrap items-center gap-3 type-meta text-v2-text-text-muted">
               <span
                 class="h-2 w-56 overflow-hidden rounded-full bg-v2-background-bg-layer-02"
                 role="progressbar"
@@ -272,7 +268,7 @@ export function ProjectView(props: {
                       data-task={item.id}
                       data-kind={item.kind}
                       data-status={item.status}
-                      class="flex min-h-11 items-center gap-3 border-b border-v2-border-border-muted"
+                      class="flex min-h-11 items-center gap-3 border-b border-v2-border-border-muted last:border-b-0"
                     >
                       <Show
                         when={item.kind === "task"}
@@ -294,22 +290,26 @@ export function ProjectView(props: {
                       <Show
                         when={state.renaming === item.id}
                         fallback={
-                          <span
+                          // A button, so rename is one click or Enter away from the keyboard too.
+                          <button
+                            type="button"
                             title={item.title}
+                            aria-label={language.t("secondBrain.project.renameItem", { title: item.title })}
+                            disabled={state.saving}
                             classList={{
-                              "min-w-0 flex-1 truncate text-[13px]": true,
-                              "text-v2-text-text-faint line-through": item.status === "done",
+                              "min-w-0 flex-1 truncate rounded-[8px] text-left text-[13px] focus-visible:outline-offset-2": true,
+                              "text-v2-text-text-muted line-through": item.status === "done",
                               "text-v2-text-text-base": item.status !== "done",
                             }}
-                            onDblClick={() => setState("renaming", item.id)}
+                            onClick={() => setState("renaming", item.id)}
                           >
                             {item.title}
-                          </span>
+                          </button>
                         }
                       >
                         <input
                           ref={focusWhenConnected}
-                          class="h-7 min-w-0 flex-1 rounded-full bg-v2-background-bg-base px-2 text-[13px] text-v2-text-text-base outline-none [box-shadow:inset_0_0_0_0.5px_var(--v2-border-border-muted)] focus:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)]"
+                          class="h-7 min-w-0 flex-1 rounded-full bg-v2-background-bg-base px-2 text-[13px] text-v2-text-text-base outline-none [box-shadow:inset_0_0_0_1px_var(--v2-border-border-base)] focus:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)]"
                           aria-label={language.t("secondBrain.project.renameItem", { title: item.title })}
                           maxLength={200}
                           value={item.title}
@@ -405,7 +405,7 @@ export function ProjectView(props: {
                 type="button"
                 data-action="project-new-page"
                 disabled={props.creatingPage}
-                class="flex h-24 w-full flex-col items-center justify-center gap-1 rounded-[20px] text-[13px] text-v2-text-text-muted shadow-[inset_0_0_0_1px_var(--v2-border-border-base)] transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base disabled:opacity-50 motion-reduce:transition-none"
+                class="flex h-24 w-full flex-col items-center justify-center gap-1 rounded-[16px] type-control text-v2-text-text-muted shadow-[inset_0_0_0_1px_var(--v2-border-border-base)] transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base disabled:opacity-50 motion-reduce:transition-none"
                 onClick={props.onNewPage}
               >
                 <Icon name="plus" size="small" />
@@ -424,12 +424,12 @@ export function ProjectView(props: {
                       props.onPage(page.path)
                     }}
                   >
-                    <span class="truncate text-[13px] text-v2-text-text-base [font-weight:500]" title={page.title}>
+                    <span class="truncate type-row-title text-v2-text-text-base" title={page.title}>
                       {page.title}
                     </span>
                     {/* A hand-edited `updated_at` may not parse; the server then sends "". */}
                     <Show when={Number.isFinite(Date.parse(page.updatedAt))}>
-                      <span class="mt-auto text-[12px] tabular-nums text-v2-text-text-faint">
+                      <span class="mt-auto type-meta tabular-nums text-v2-text-text-muted">
                         {shortDate(new Date(page.updatedAt).toISOString())}
                       </span>
                     </Show>
@@ -463,14 +463,14 @@ export function ProjectView(props: {
           <Show
             when={props.threads.length > 0}
             fallback={
-              <p class="px-1 text-[13px] text-v2-text-text-faint">{language.t("secondBrain.project.threadsEmpty")}</p>
+              <p class="px-1 type-control text-v2-text-text-muted">{language.t("secondBrain.project.threadsEmpty")}</p>
             }
           >
-            <ul class={`${panel} flex flex-col px-4 py-1`}>
+            <ul class="flex flex-col">
               <For each={props.threads}>
                 {(thread) => (
-                  <li class="border-b border-v2-border-border-muted last:border-b-0">
-                    <a href={props.threadHref(thread.id)} class="flex min-h-11 items-center gap-3 text-[13px]">
+                  <li>
+                    <a href={props.threadHref(thread.id)} class={pageRowClass}>
                       <span
                         aria-hidden="true"
                         classList={{
@@ -479,8 +479,8 @@ export function ProjectView(props: {
                           "bg-v2-background-bg-layer-03": !thread.running,
                         }}
                       />
-                      <span class="min-w-0 flex-1 truncate text-v2-text-text-base">{thread.title}</span>
-                      <span class="shrink-0 text-[12px] text-v2-text-text-faint">
+                      <span class="min-w-0 flex-1 truncate type-row-title text-v2-text-text-base">{thread.title}</span>
+                      <span class="shrink-0 type-meta text-v2-text-text-muted">
                         {getRelativeTime(new Date(thread.updated).toISOString(), language.t)}
                       </span>
                     </a>
@@ -497,7 +497,7 @@ export function ProjectView(props: {
             <Show
               when={entries.length > 0}
               fallback={
-                <p class="px-1 text-[13px] text-v2-text-text-faint">{language.t("secondBrain.vault.log.empty")}</p>
+                <p class="px-1 type-control text-v2-text-text-muted">{language.t("secondBrain.vault.log.empty")}</p>
               }
             >
               <ol class={`${panel} flex flex-col gap-px px-2 py-2`}>
@@ -506,7 +506,7 @@ export function ProjectView(props: {
                     <li class="flex min-w-0 items-baseline gap-3 rounded-[12px] px-2 py-1.5">
                       <time
                         datetime={entry.at}
-                        class="w-32 min-w-0 shrink truncate whitespace-nowrap text-[12px] tabular-nums text-v2-text-text-faint"
+                        class="w-32 min-w-0 shrink truncate whitespace-nowrap type-meta tabular-nums text-v2-text-text-muted"
                       >
                         {new Date(entry.at).toLocaleString(language.intl(), {
                           day: "numeric",
@@ -515,9 +515,7 @@ export function ProjectView(props: {
                           minute: "2-digit",
                         })}
                       </time>
-                      <span class="w-20 min-w-0 shrink truncate text-[12px] text-v2-text-text-muted">
-                        {entry.author}
-                      </span>
+                      <span class="w-20 min-w-0 shrink truncate type-meta text-v2-text-text-muted">{entry.author}</span>
                       <span class="min-w-0 flex-1 text-[13px] text-v2-text-text-base">{entry.text}</span>
                     </li>
                   )}
@@ -572,7 +570,7 @@ function TimelineGrid(props: { items: ReadonlyArray<TimelineItem>; dateLabel: (v
     "background-size": `${100 / Math.max(1, layout().weeks.length)}% 100%`,
   })
   return (
-    <div class="overflow-x-auto rounded-[20px] bg-v2-background-bg-layer-01 px-4 py-3">
+    <div class="overflow-x-auto rounded-[16px] bg-v2-background-bg-layer-01 px-4 py-3 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]">
       <div class="flex min-w-[640px] flex-col">
         <div class="grid h-8 grid-cols-[200px_minmax(0,1fr)] items-center text-[12px] text-v2-text-text-muted">
           <span />
@@ -601,7 +599,7 @@ function TimelineGrid(props: { items: ReadonlyArray<TimelineItem>; dateLabel: (v
                 <Show
                   when={row.left !== undefined}
                   fallback={
-                    <span class="absolute inset-y-0 left-1.5 flex items-center text-[12px] text-v2-text-text-faint">
+                    <span class="absolute inset-y-0 left-1.5 flex items-center text-[12px] text-v2-text-text-muted">
                       {language.t("secondBrain.vault.timeline.undated")}
                     </span>
                   }

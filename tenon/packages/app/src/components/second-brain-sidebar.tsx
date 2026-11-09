@@ -35,7 +35,11 @@ import { sessionTitle } from "@/utils/session-title"
 // Rows clip, so keyboard focus draws an inset ring on the row: when the row is the button, or while its
 // main button (a direct child) has focus.
 const rowClass =
-  "group/row relative grid h-9 w-full min-w-0 shrink-0 cursor-default items-center overflow-hidden rounded-full bg-transparent text-left text-[13px] text-v2-text-text-muted [font-weight:400] transition-[background-color,color,border-radius] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base active:rounded-[12px] data-[selected]:bg-v2-background-bg-accent-container data-[selected]:text-v2-text-text-on-accent-container data-[selected]:[font-weight:530] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus has-[>button:focus-visible]:outline has-[>button:focus-visible]:outline-2 has-[>button:focus-visible]:-outline-offset-2 has-[>button:focus-visible]:outline-v2-border-border-focus motion-reduce:transition-none"
+  "group/row relative grid h-9 w-full min-w-0 shrink-0 cursor-default items-center overflow-hidden rounded-full bg-transparent text-left text-[13px] leading-5 text-v2-text-text-muted [font-weight:500] transition-[background-color,color,border-radius] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base active:rounded-[12px] active:bg-v2-overlay-simple-overlay-pressed data-[selected]:bg-v2-background-bg-accent-container data-[selected]:text-v2-text-text-on-accent-container data-[selected]:[font-weight:600] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus has-[>button:focus-visible]:outline has-[>button:focus-visible]:outline-2 has-[>button:focus-visible]:-outline-offset-2 has-[>button:focus-visible]:outline-v2-border-border-focus motion-reduce:transition-none"
+
+// Card header actions take no width at rest and open beside the status marks on hover, focus or an open menu.
+const headerActionsClass =
+  "flex w-0 items-center gap-0.5 overflow-hidden group-hover/row:w-auto group-hover/row:pr-0.5 focus-within:w-auto focus-within:pr-0.5 has-[[data-expanded]]:w-auto has-[[data-expanded]]:pr-0.5"
 
 const groupedCardLabel = {
   "attention:needs": "secondBrain.sidebar.needsYou",
@@ -114,12 +118,10 @@ export function SecondBrainSidebar() {
       }}
     >
       <nav
-        // The rail keeps a grey gradient so it reads apart from the plain neutral panel. It follows the
-        // container's corners: all four when it fills the container, only the left ones beside the panel.
+        // A hairline divides the rail from the Projects panel beside it; alone, the rail is the container.
         classList={{
-          "flex w-20 shrink-0 flex-col items-center gap-3 rounded-[19px] bg-[linear-gradient(to_bottom,var(--v2-background-bg-layer-01),var(--v2-background-bg-deep))] pb-4 pt-3 transition-[border-radius] motion-reduce:duration-0": true,
-          "duration-medium ease-emphasized-decelerate md:rounded-r-none": layout.sidebar.opened(),
-          "duration-[200ms] ease-emphasized-accelerate": !layout.sidebar.opened(),
+          "flex w-20 shrink-0 flex-col items-center gap-3 border-v2-border-border-muted pb-4 pt-3": true,
+          "md:border-r": layout.sidebar.opened(),
         }}
         aria-label={language.t("secondBrain.sidebar.title")}
       >
@@ -162,7 +164,7 @@ export function SecondBrainSidebar() {
             <Show
               when={ctrl.brainDirectory()}
               fallback={
-                <p class="px-3 py-1 text-[12px] text-v2-text-text-faint">
+                <p class="px-3 py-1 text-[12px] leading-4 text-v2-text-text-muted">
                   {language.t("secondBrain.sidebar.noWorkspace")}
                 </p>
               }
@@ -194,7 +196,7 @@ export function SecondBrainSidebar() {
                     </For>
                     <ProjectsFailed ctrl={ctrl} />
                     <Show when={!ctrl.loading() && !ctrl.failed() && ctrl.projects().length === 0}>
-                      <p class="px-3 py-1 text-[12px] text-v2-text-text-faint">
+                      <p class="px-3 py-1 text-[12px] leading-4 text-v2-text-text-muted">
                         {language.t("secondBrain.sidebar.noProjectFolders")}
                       </p>
                     </Show>
@@ -239,14 +241,14 @@ function RailItem(props: { id: string; icon: string; label: string; active?: boo
               !props.active,
           }}
         />
-        <span class="relative flex text-v2-icon-icon-muted group-data-[selected]/rail:text-v2-text-text-on-accent-container">
+        <span class="relative flex text-v2-icon-icon-muted transition-colors duration-short ease-standard group-hover/rail:text-v2-icon-icon-base group-data-[selected]/rail:text-v2-text-text-on-accent-container motion-reduce:transition-none">
           <Icon name={props.icon} size="large" />
         </span>
       </span>
       {/* The name slides out to the right on hover or keyboard focus; the button's aria-label carries it. */}
       <span
         aria-hidden="true"
-        class="pointer-events-none absolute left-[calc(50%+32px)] top-1/2 z-50 -translate-x-2 -translate-y-1/2 scale-90 whitespace-nowrap rounded-full bg-v2-background-bg-layer-01 px-2.5 py-1 text-[12px] text-v2-text-text-base opacity-0 shadow-[var(--v2-elevation-floating)] [font-weight:500] transition-[opacity,translate,scale] duration-short ease-standard group-hover/rail:translate-x-0 group-hover/rail:scale-100 group-hover/rail:opacity-100 group-focus-visible/rail:translate-x-0 group-focus-visible/rail:scale-100 group-focus-visible/rail:opacity-100 motion-reduce:transition-none"
+        class="pointer-events-none absolute left-[calc(50%+32px)] top-1/2 z-50 -translate-x-2 -translate-y-1/2 scale-90 whitespace-nowrap rounded-full bg-v2-background-bg-base px-2.5 py-1 text-[12px] leading-4 text-v2-text-text-base opacity-0 shadow-[var(--v2-elevation-floating)] [font-weight:500] transition-[opacity,translate,scale] duration-short ease-standard group-hover/rail:translate-x-0 group-hover/rail:scale-100 group-hover/rail:opacity-100 group-focus-visible/rail:translate-x-0 group-focus-visible/rail:scale-100 group-focus-visible/rail:opacity-100 motion-reduce:transition-none"
       >
         {props.label}
       </span>
@@ -264,7 +266,7 @@ function MissingFolder(props: { ctrl: SidebarController; directory: string }) {
       <p class="text-[12px] text-v2-text-text-critical [font-weight:600]">
         {language.t("secondBrain.sidebar.folderMissing")}
       </p>
-      <p class="break-all text-[12px] text-v2-text-text-faint">
+      <p class="break-all text-[12px] leading-4 text-v2-text-text-muted">
         {language.t("secondBrain.sidebar.folderMissingDescription", { path: props.directory })}
       </p>
       <div class="-ml-2 flex flex-wrap gap-1">
@@ -306,7 +308,7 @@ function WorkspaceHeader(props: { ctrl: SidebarController }) {
           as="button"
           type="button"
           data-sidebar-item="workspace"
-          class="flex min-w-0 items-center gap-1 rounded-full px-3 py-1 text-left text-[13px] text-v2-text-text-base [font-weight:600] transition-colors hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none"
+          class="flex min-w-0 items-center gap-1 rounded-full px-3 py-1 text-left type-section text-v2-text-text-base transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover active:bg-v2-overlay-simple-overlay-pressed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
           aria-label={language.t("secondBrain.sidebar.switchWorkspace")}
         >
           <span class="min-w-0 truncate">
@@ -314,7 +316,7 @@ function WorkspaceHeader(props: { ctrl: SidebarController }) {
               ? name(props.ctrl.brainDirectory()!)
               : language.t("secondBrain.sidebar.workspace")}
           </span>
-          <Icon name="chevron-down" size="small" />
+          <Icon name="chevron-down" size="small" class="shrink-0 text-v2-icon-icon-muted" />
         </MenuV2.Trigger>
         <MenuV2.Portal>
           <MenuV2.Content>
@@ -336,7 +338,7 @@ function WorkspaceHeader(props: { ctrl: SidebarController }) {
                       <span class="min-w-0 truncate">{name(workspace.worktree)}</span>
                     </PathTooltip>
                     <Show when={props.ctrl.folderMissing(workspace.worktree)}>
-                      <span class="shrink-0 text-[12px] text-v2-text-text-faint">
+                      <span class="shrink-0 text-[12px] leading-4 text-v2-text-text-muted">
                         {language.t("secondBrain.sidebar.folderMissing")}
                       </span>
                     </Show>
@@ -494,7 +496,7 @@ function SidebarCard(props: ComponentProps<"div"> & { cardID: string; label: str
           ? language.plural("secondBrain.sidebar.cardRunning", running(), { name: local.label, count: running() })
           : local.label
       }
-      class="relative flex shrink-0 flex-col overflow-hidden rounded-[16px] bg-v2-background-bg-layer-01 p-1"
+      class="relative flex shrink-0 flex-col overflow-hidden rounded-[16px] bg-v2-background-bg-layer-01 p-1 shadow-[0_0_0_1px_var(--v2-border-border-muted)]"
     >
       <Show when={running() > 0}>
         <span aria-hidden="true" class="sidebar-card-line" />
@@ -511,7 +513,9 @@ function GroupedCards(props: { ctrl: SidebarController }) {
     <For
       each={props.ctrl.cards().map((card) => card.id)}
       fallback={
-        <p class="px-3 py-1 text-[12px] text-v2-text-text-faint">{language.t("secondBrain.sidebar.noThreads")}</p>
+        <p class="px-3 py-1 text-[12px] leading-4 text-v2-text-text-muted">
+          {language.t("secondBrain.sidebar.noThreads")}
+        </p>
       }
     >
       {(id) => <GroupedCard ctrl={props.ctrl} id={id as keyof typeof groupedCardLabel} />}
@@ -534,9 +538,9 @@ function GroupedCard(props: { ctrl: SidebarController; id: keyof typeof groupedC
           onClick={() => props.ctrl.toggleExpanded(props.id)}
         >
           <Chevron open={open()} />
-          <span class="min-w-0 flex-1 truncate [font-weight:600]">{label()}</span>
+          <span class="min-w-0 flex-1 truncate type-section text-v2-text-text-base">{label()}</span>
           <CardMarks summary={card()?.summary} />
-          <span class="shrink-0 text-[12px] text-v2-text-text-faint">{card()?.summary.total ?? 0}</span>
+          <span class="shrink-0 type-meta text-v2-text-text-muted">{card()?.summary.total ?? 0}</span>
         </button>
       </div>
       <Reveal open={open()} variant="even">
@@ -570,7 +574,7 @@ function ProjectGroup(props: { ctrl: SidebarController; project: SidebarProjectI
       summary={summary()}
     >
       <div
-        class={`${rowClass} grid-cols-[1fr]`}
+        class={`${rowClass} grid-cols-[minmax(0,1fr)_auto]`}
         data-selected={props.ctrl.activeProjectID() === props.project.id && !open() ? "" : undefined}
       >
         <button
@@ -581,17 +585,17 @@ function ProjectGroup(props: { ctrl: SidebarController; project: SidebarProjectI
         >
           <Chevron open={open()} />
           <span
-            class="min-w-0 flex-1 truncate [font-weight:600]"
-            classList={{ "text-v2-text-text-base": props.ctrl.activeProjectID() === props.project.id }}
+            class="min-w-0 flex-1 truncate type-section"
+            classList={{ "text-v2-text-text-base": props.ctrl.activeProjectID() !== props.project.id || open() }}
           >
             {props.project.name}
           </span>
-          <span class="flex shrink-0 items-center gap-1.5 group-hover/row:opacity-0">
+          <span class="flex shrink-0 items-center gap-1.5">
             <CardMarks summary={summary()} />
           </span>
         </button>
-        {/* Over the row, not beside it, so hidden actions don't push the marks away from the row marks below. */}
-        <div class="absolute inset-y-0 right-0.5 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 motion-reduce:transition-none">
+        {/* Beside the marks, and no width at rest, so the marks line up with the row marks below. */}
+        <div class={headerActionsClass}>
           <TooltipV2 placement="right" value={language.t("secondBrain.sidebar.newThread")}>
             <IconButtonV2
               type="button"
@@ -676,7 +680,7 @@ function ThreadGroup(props: {
   const summary = () => props.ctrl.card(props.id)?.summary
   return (
     <SidebarCard data-sidebar-group={props.id} cardID={props.id} label={props.label} summary={summary()}>
-      <div class={`${rowClass} grid-cols-[1fr]`}>
+      <div class={`${rowClass} grid-cols-[minmax(0,1fr)_auto]`}>
         <button
           type="button"
           class="flex h-9 min-w-0 items-center gap-1.5 pl-3 pr-3 text-left focus-visible:outline-none"
@@ -684,12 +688,12 @@ function ThreadGroup(props: {
           onClick={() => props.ctrl.toggleExpanded(props.id)}
         >
           <Chevron open={open()} />
-          <span class="min-w-0 flex-1 truncate [font-weight:600]">{props.label}</span>
-          <span class="flex shrink-0 items-center gap-1.5 group-hover/row:opacity-0">
+          <span class="min-w-0 flex-1 truncate type-section text-v2-text-text-base">{props.label}</span>
+          <span class="flex shrink-0 items-center gap-1.5">
             <CardMarks summary={summary()} />
           </span>
         </button>
-        <div class="absolute inset-y-0 right-0.5 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 motion-reduce:transition-none">
+        <div class={headerActionsClass}>
           <Show when={props.onNewThread}>
             {(run) => (
               <TooltipV2 placement="right" value={language.t("secondBrain.sidebar.newThread")}>
@@ -746,12 +750,7 @@ function ThreadList(props: { ctrl: SidebarController; threads: ThreadNode<Sessio
     <div class="flex flex-col">
       <Show when={props.onNewThread}>
         {(run) => (
-          <button
-            type="button"
-            data-sidebar-new-thread
-            class={`${rowClass} grid-cols-[1fr] pl-[34px] text-v2-text-text-faint`}
-            onClick={run()}
-          >
+          <button type="button" data-sidebar-new-thread class={`${rowClass} grid-cols-[1fr] pl-[34px]`} onClick={run()}>
             <span class="flex min-w-0 items-center gap-1.5">
               <Icon name="plus" size="small" />
               <span class="truncate">{language.t("secondBrain.sidebar.newThread")}</span>
@@ -766,7 +765,9 @@ function ThreadList(props: { ctrl: SidebarController; threads: ThreadNode<Sessio
         }}
       </For>
       <Show when={!props.onNewThread && props.threads.length === 0}>
-        <p class="py-1 pl-8 text-[12px] text-v2-text-text-faint">{language.t("secondBrain.sidebar.noThreads")}</p>
+        <p class="py-1 pl-8 text-[12px] leading-4 text-v2-text-text-muted">
+          {language.t("secondBrain.sidebar.noThreads")}
+        </p>
       </Show>
     </div>
   )
@@ -860,7 +861,7 @@ function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; 
               input = el
               if (!renameFromMenu) queueMicrotask(() => el.select())
             }}
-            class="mx-1 h-7 min-w-0 rounded-full bg-v2-background-bg-base px-3 text-[13px] text-v2-text-text-base outline-none [box-shadow:inset_0_0_0_0.5px_var(--v2-border-border-muted)] focus:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)]"
+            class="mx-1 h-7 min-w-0 rounded-full bg-v2-background-bg-base px-3 text-[13px] text-v2-text-text-base outline-none [box-shadow:inset_0_0_0_1px_var(--v2-border-border-base)] focus:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)]"
             value={session().title ?? ""}
             aria-label={language.t("secondBrain.sidebar.renameThread")}
             onKeyDown={(event) => {
@@ -871,7 +872,11 @@ function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; 
             onBlur={(event) => finish(event.currentTarget.value)}
           />
         </Show>
-        <div class="flex items-center pr-0.5 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 motion-reduce:transition-none">
+        {/* The "…" stays on the selected row and while its menu is open. */}
+        <div
+          class="flex items-center pr-0.5 opacity-0 transition-opacity group-hover/row:opacity-100 group-data-[selected]/row:opacity-100 focus-within:opacity-100 motion-reduce:transition-none"
+          classList={{ "!opacity-100": menuOpen() }}
+        >
           <MenuV2 gutter={4} modal={false} placement="bottom-start" open={menuOpen()} onOpenChange={setMenuOpen}>
             <TooltipV2 placement="right" value={language.t("secondBrain.sidebar.threadActions")}>
               <MenuV2.Trigger

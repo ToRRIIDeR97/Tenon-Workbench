@@ -202,3 +202,61 @@
     animation-delay: 3s;
   }
 }
+
+/* Type roles (readability pass). Pair each with one text colour: section and row-title use text-base,
+   body and meta use text-muted; text-faint is for placeholders only. Nothing in the app goes below caption. */
+@utility type-display {
+  font-size: 26px;
+  line-height: 32px;
+  font-weight: 650;
+  letter-spacing: -0.4px;
+}
+
+@utility type-page-title {
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+
+@utility type-section {
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+@utility type-row-title {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+@utility type-body {
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 450;
+  letter-spacing: 0;
+}
+
+@utility type-control {
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+@utility type-meta {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 450;
+  letter-spacing: 0;
+}
+
+@utility type-caption {
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+}

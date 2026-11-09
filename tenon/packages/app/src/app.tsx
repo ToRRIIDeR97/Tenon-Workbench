@@ -212,7 +212,7 @@ function BodyDesignClass() {
   createRenderEffect(() => {
     if (typeof document === "undefined") return
     document.body.toggleAttribute("data-new-layout", true)
-    document.body.classList.add("font-(family-name:--font-family-text)", "text-[13px]", "font-[400]")
+    document.body.classList.add("font-(family-name:--font-family-text)", "text-[13px]", "font-[450]")
   })
 
   return null

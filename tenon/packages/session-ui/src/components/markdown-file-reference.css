@@ -46,8 +46,8 @@
   opacity: 0;
   translate: 0 2px;
   pointer-events: none;
-  background: var(--v2-background-bg-layer-01);
-  border-radius: 8px;
+  background: var(--v2-background-bg-base);
+  border-radius: var(--v2-radius-lg);
   box-shadow: var(--v2-elevation-floating);
   color: var(--v2-text-text-base);
   font-size: 12px;

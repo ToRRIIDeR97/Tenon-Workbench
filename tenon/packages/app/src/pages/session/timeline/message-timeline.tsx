@@ -1077,8 +1077,8 @@ export function MessageTimeline(props: {
                 <div class="flex w-max min-w-full justify-end gap-2">
                   <Index each={comments()}>
                     {(comment) => (
-                      <div class="shrink-0 max-w-[260px] rounded-[16px] bg-v2-background-bg-layer-01 px-3 py-2">
-                        <div class="flex items-center gap-1.5 min-w-0 text-[11px] text-v2-text-text-base [font-weight:500]">
+                      <div class="shrink-0 max-w-[260px] rounded-[16px] bg-v2-background-bg-layer-01 px-3 py-2 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]">
+                        <div class="flex items-center gap-1.5 min-w-0 text-[12px] leading-4 text-v2-text-text-base font-medium">
                           <FileIcon node={{ path: comment().path, type: "file" }} class="size-3.5 shrink-0" />
                           <span class="truncate">{getFilename(comment().path)}</span>
                           <Show when={comment().selection}>
@@ -1356,7 +1356,7 @@ export function MessageTimeline(props: {
           class="pointer-events-auto flex items-center justify-center size-9 rounded-full border-none text-v2-text-text-base backdrop-blur-[2px]"
           style={{
             background: "color-mix(in srgb, var(--v2-background-bg-base) 92%, transparent)",
-            "box-shadow": "0 0 0 0.5px var(--v2-border-border-muted), 0 6px 16px -8px rgb(0 0 0 / 0.2)",
+            "box-shadow": "0 0 0 1px var(--v2-border-border-muted), 0 6px 16px -8px rgb(0 0 0 / 0.2)",
           }}
           onClick={props.onResumeScroll}
         >
@@ -1402,14 +1402,14 @@ export function MessageTimeline(props: {
                     <button
                       type="button"
                       data-slot="session-title-parent"
-                      class="min-w-0 max-w-[40%] truncate pl-3 text-[14px] font-[500] leading-5 tracking-[-0.04px] text-v2-text-text-faint transition-colors duration-150 ease-standard hover:text-v2-text-text-muted motion-reduce:transition-none"
+                      class="min-w-0 max-w-[40%] truncate pl-3 text-[15px] font-[500] leading-5 text-v2-text-text-muted transition-colors duration-150 ease-standard hover:text-v2-text-text-base motion-reduce:transition-none"
                       onClick={navigateParent}
                     >
                       {parentTitle()}
                     </button>
                     <span
                       data-slot="session-title-separator"
-                      class="-translate-y-[0.5px] pl-2 pr-1 text-[11px] font-medium text-v2-text-text-faint"
+                      class="-translate-y-[0.5px] pl-2 pr-1 text-[13px] font-medium text-v2-text-text-faint"
                       aria-hidden="true"
                     >
                       /
@@ -1421,7 +1421,7 @@ export function MessageTimeline(props: {
                       fallback={
                         <h1
                           data-slot="session-title-child"
-                          class="truncate text-[14px] font-[500] leading-5 tracking-[-0.04px] text-v2-text-text-base w-fit rounded-full px-3 py-1 transition-colors duration-150 ease-standard hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none"
+                          class="truncate text-[15px] font-[600] leading-5 text-v2-text-text-base w-fit rounded-full px-3 py-1 transition-colors duration-150 ease-standard hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none"
                           onClick={openTitleEditor}
                         >
                           {childTitle()}
@@ -1435,7 +1435,7 @@ export function MessageTimeline(props: {
                         data-slot="session-title-child"
                         value={title.draft}
                         disabled={titleMutation.isPending}
-                        class="block text-[14px] font-[500] leading-5 tracking-[-0.04px] text-v2-text-text-base field-sizing-content self-start rounded-full px-3 py-1"
+                        class="block text-[15px] font-[600] leading-5 text-v2-text-text-base field-sizing-content self-start rounded-full px-3 py-1"
                         style={{
                           "--inline-input-shadow": "none",
                         }}

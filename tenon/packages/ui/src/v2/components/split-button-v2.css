@@ -48,7 +48,7 @@
 }
 
 [data-component="split-button-v2-action"]:disabled {
-  opacity: 0.5;
+  color: var(--v2-text-text-disabled);
   cursor: not-allowed;
 }
 
@@ -72,7 +72,7 @@
 }
 
 [data-component="split-button-v2-menu-trigger"]:disabled {
-  opacity: 0.5;
+  color: var(--v2-text-text-disabled);
   cursor: not-allowed;
 }
 

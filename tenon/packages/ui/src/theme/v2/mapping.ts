@@ -42,20 +42,20 @@ const light: Record<string, V2ColorValue> = {
   "v2-background-bg-contrast": ref("v2-grey-900"),
   "v2-background-bg-button-neutral": ref("v2-grey-100"),
   "v2-background-bg-accent": ref("v2-blue-600"),
-  "v2-background-bg-accent-container": ref("v2-blue-100"),
+  "v2-background-bg-accent-container": ref("v2-blue-200"),
   "v2-text-text-on-accent-container": ref("v2-blue-1000"),
   "v2-text-text-inverse": ref("v2-grey-100"),
   "v2-text-text-contrast": ref("v2-grey-100"),
   "v2-text-text-accent": ref("v2-blue-600"),
   "v2-text-text-accent-hover": ref("v2-blue-700"),
   "v2-text-text-code-accent": ref("v2-blue-900"),
-  "v2-border-border-muted": ref("v2-alpha-dark-8"),
-  "v2-border-border-base": ref("v2-alpha-dark-10"),
-  "v2-border-border-strong": ref("v2-alpha-dark-20"),
+  "v2-border-border-muted": ref("v2-alpha-dark-10"),
+  "v2-border-border-base": ref("v2-alpha-dark-14"),
+  "v2-border-border-strong": ref("v2-alpha-dark-24"),
   "v2-border-border-inverse": ref("v2-grey-1000"),
-  "v2-border-border-focus": ref("v2-blue-500"),
-  "v2-overlay-simple-overlay-hover": ref("v2-alpha-dark-4"),
-  "v2-overlay-simple-overlay-pressed": ref("v2-alpha-dark-8"),
+  "v2-border-border-focus": ref("v2-blue-600"),
+  "v2-overlay-simple-overlay-hover": ref("v2-alpha-dark-6"),
+  "v2-overlay-simple-overlay-pressed": ref("v2-alpha-dark-12"),
   "v2-overlay-simple-overlay-contrast-hover": ref("v2-alpha-light-12"),
   "v2-overlay-simple-overlay-contrast-pressed": ref("v2-alpha-light-24"),
   "v2-overlay-simple-overlay-scrim": ref("v2-alpha-dark-40"),
@@ -81,9 +81,9 @@ const light: Record<string, V2ColorValue> = {
   "v2-elevation-raised":
     "0px 2px 4px 0px var(--v2-alpha-dark-4), 0px 1px 2px -1px var(--v2-alpha-dark-8), 0px 0px 0px 0.5px var(--v2-alpha-dark-12), 0px 0px 0px 0px var(--v2-alpha-dark-0)",
   "v2-elevation-floating":
-    "0px 8px 16px 0px var(--v2-alpha-dark-4), 0px 4px 8px 0px var(--v2-alpha-dark-8), 0px 0px 0px 0.5px var(--v2-alpha-dark-12), 0px 0px 0px 0px var(--v2-alpha-dark-0)",
+    "0px 8px 24px 0px var(--v2-alpha-dark-12), 0px 2px 6px 0px var(--v2-alpha-dark-8), 0px 0px 0px 1px var(--v2-alpha-dark-10)",
   "v2-elevation-overlay":
-    "0px 16px 32px 0px var(--v2-alpha-dark-4), 0px 8px 16px 0px var(--v2-alpha-dark-8), 0px 0px 0px 0.5px var(--v2-alpha-dark-12), 0px 0px 0px 0px var(--v2-alpha-dark-0)",
+    "0px 16px 40px 0px var(--v2-alpha-dark-16), 0px 4px 12px 0px var(--v2-alpha-dark-8), 0px 0px 0px 1px var(--v2-alpha-dark-8)",
   "v2-elevation-button-neutral":
     "0px 1px 1.5px 0px var(--v2-alpha-dark-10), 0px 0px 0px 0.5px var(--v2-alpha-dark-14), 0px 0px 0px 0px var(--v2-alpha-dark-0)",
   "v2-elevation-button-contrast":
@@ -96,6 +96,8 @@ const light: Record<string, V2ColorValue> = {
   "v2-illustration-illustration-layer-01": ref("v2-grey-300"),
   "v2-illustration-illustration-layer-02": ref("v2-grey-400"),
   "v2-illustration-illustration-layer-03": ref("v2-grey-500"),
+  "v2-text-text-disabled": ref("v2-grey-600"),
+  "v2-border-border-control": ref("v2-grey-600"),
 }
 
 const dark: Record<string, V2ColorValue> = {
@@ -116,13 +118,13 @@ const dark: Record<string, V2ColorValue> = {
   "v2-text-text-accent": ref("v2-blue-400"),
   "v2-text-text-accent-hover": ref("v2-blue-300"),
   "v2-text-text-code-accent": ref("v2-blue-400"),
-  "v2-border-border-muted": ref("v2-alpha-light-8"),
-  "v2-border-border-base": ref("v2-alpha-light-10"),
-  "v2-border-border-strong": ref("v2-alpha-light-20"),
+  "v2-border-border-muted": ref("v2-alpha-light-10"),
+  "v2-border-border-base": ref("v2-alpha-light-14"),
+  "v2-border-border-strong": ref("v2-alpha-light-24"),
   "v2-border-border-inverse": ref("v2-grey-100"),
   "v2-border-border-focus": ref("v2-blue-500"),
-  "v2-overlay-simple-overlay-hover": ref("v2-alpha-light-6"),
-  "v2-overlay-simple-overlay-pressed": ref("v2-alpha-light-10"),
+  "v2-overlay-simple-overlay-hover": ref("v2-alpha-light-8"),
+  "v2-overlay-simple-overlay-pressed": ref("v2-alpha-light-12"),
   "v2-overlay-simple-overlay-contrast-hover": ref("v2-alpha-dark-24"),
   "v2-overlay-simple-overlay-contrast-pressed": ref("v2-alpha-dark-40"),
   "v2-overlay-simple-overlay-scrim": ref("v2-alpha-dark-60"),
@@ -163,6 +165,8 @@ const dark: Record<string, V2ColorValue> = {
   "v2-illustration-illustration-layer-01": ref("v2-grey-900"),
   "v2-illustration-illustration-layer-02": ref("v2-grey-800"),
   "v2-illustration-illustration-layer-03": ref("v2-grey-700"),
+  "v2-text-text-disabled": ref("v2-grey-700"),
+  "v2-border-border-control": ref("v2-grey-700"),
 }
 
 export function mapV2Semantics(isDark: boolean): Record<string, V2ColorValue> {

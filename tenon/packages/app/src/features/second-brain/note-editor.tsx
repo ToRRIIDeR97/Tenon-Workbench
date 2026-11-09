@@ -91,10 +91,10 @@ const glyph: Partial<Record<NoteEditorCommand, string>> = {
   link: "↗",
 }
 const glyphClass: Partial<Record<NoteEditorCommand, string>> = {
-  bold: "[font-weight:700]",
+  bold: "[font-weight:600]",
   italic: "italic",
   strike: "line-through",
-  "inline-code": "font-mono text-[10px]",
+  "inline-code": "font-mono text-[11px]",
 }
 const toolbarCommands = noteEditorCommands.filter((command) =>
   ["h1", "h2", "h3", "bold", "italic", "strike", "bullet", "ordered", "task", "quote", "inline-code", "link"].includes(
@@ -311,7 +311,7 @@ export function NoteEditor(props: NoteEditorProps) {
     <section
       ref={surface}
       classList={{
-        "flex min-h-[280px] min-w-0 flex-1 flex-col overflow-hidden rounded-[24px] bg-v2-background-bg-base shadow-[0_0_0_0.5px_var(--v2-border-border-muted)]": true,
+        "flex min-h-[280px] min-w-0 flex-1 flex-col overflow-hidden rounded-[24px] bg-v2-background-bg-base shadow-[0_0_0_1px_var(--v2-border-border-muted)]": true,
         relative: !fullscreen(),
         "fixed inset-3 z-50 !rounded-[24px] shadow-2xl": fullscreen(),
       }}
@@ -386,7 +386,7 @@ export function NoteEditor(props: NoteEditorProps) {
         <div class="ml-auto flex items-center gap-1">
           <Show when={fullscreen()}>{props.fullscreenActions}</Show>
           <Show when={props.value.trim()}>
-            <span class="hidden px-1 text-[11px] tabular-nums text-v2-text-text-faint sm:inline">
+            <span class="hidden px-1 text-[11px] tabular-nums text-v2-text-text-muted sm:inline">
               {label("words")(props.value.trim().split(/\s+/).length)}
             </span>
           </Show>
@@ -435,7 +435,7 @@ export function NoteEditor(props: NoteEditorProps) {
                   onClick={() => run(command.id)}
                 >
                   <span>{commandLabel(command)}</span>
-                  <span class="text-[10px] text-v2-text-text-faint">{command.shortLabel}</span>
+                  <span class="text-[11px] text-v2-text-text-muted">{command.shortLabel}</span>
                 </button>
               )}
             </For>
@@ -446,7 +446,7 @@ export function NoteEditor(props: NoteEditorProps) {
       <Show
         when={!props.loading}
         fallback={
-          <div class="flex flex-1 items-center justify-center text-[13px] text-v2-text-text-faint">
+          <div class="flex flex-1 items-center justify-center text-[13px] text-v2-text-text-muted">
             {language.t("common.loading")}
             {language.t("common.loading.ellipsis")}
           </div>
@@ -501,7 +501,7 @@ export function NoteEditor(props: NoteEditorProps) {
                 >
                   <Show
                     when={commands().length}
-                    fallback={<p class="px-2 py-1.5 text-[12px] text-v2-text-text-faint">{label("slashEmpty")}</p>}
+                    fallback={<p class="px-2 py-1.5 text-[12px] text-v2-text-text-muted">{label("slashEmpty")}</p>}
                   >
                     <For each={commands()}>
                       {(command, index) => (
@@ -519,7 +519,7 @@ export function NoteEditor(props: NoteEditorProps) {
                           }}
                         >
                           <span>{commandLabel(command)}</span>
-                          <span class="text-[10px] text-v2-text-text-faint">{command.shortLabel}</span>
+                          <span class="text-[11px] text-v2-text-text-muted">{command.shortLabel}</span>
                         </button>
                       )}
                     </For>

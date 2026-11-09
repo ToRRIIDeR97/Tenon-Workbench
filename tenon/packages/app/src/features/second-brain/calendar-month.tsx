@@ -36,13 +36,11 @@ export function CalendarMonth(props: {
   })
 
   return (
-    <div class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[24px] shadow-[0_0_0_0.5px_var(--v2-border-border-muted)]">
+    <div class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[24px] shadow-[0_0_0_1px_var(--v2-border-border-muted)]">
       <div class="grid h-8 shrink-0 grid-cols-7 bg-v2-background-bg-layer-01">
         <For each={weekdays()}>
           {(weekday) => (
-            <div class="flex items-center justify-center text-[12px] text-v2-text-text-muted [font-weight:500]">
-              {weekday}
-            </div>
+            <div class="flex items-center justify-center type-caption text-v2-text-text-muted">{weekday}</div>
           )}
         </For>
       </div>
@@ -68,7 +66,7 @@ export function CalendarMonth(props: {
                       "bg-v2-background-bg-accent text-v2-text-text-contrast [font-weight:600]": day.today,
                       "hover:bg-v2-overlay-simple-overlay-hover": !day.today,
                       "text-v2-text-text-faint": !day.inMonth && !day.today,
-                      "text-v2-text-text-muted": day.inMonth && !day.today,
+                      "text-v2-text-text-base": day.inMonth && !day.today,
                     }}
                     aria-label={language.t("secondBrain.calendar.openDate", { date: props.dateLabel(day.date) })}
                     aria-current={day.today ? "date" : undefined}
@@ -101,7 +99,7 @@ export function CalendarMonth(props: {
                           onClick={() => props.onOpenEvent(event)}
                         >
                           <Show when={event.start && event.date === day.date}>
-                            <span class="mr-1 opacity-70">{event.start}</span>
+                            <span class="mr-1 tabular-nums">{event.start}</span>
                           </Show>
                           {event.title}
                         </button>
@@ -117,7 +115,7 @@ export function CalendarMonth(props: {
                           onClick={() => props.onOpenTask(task)}
                         >
                           <Show when={task.start}>
-                            <span class="mr-1 text-v2-text-text-faint">{task.start}</span>
+                            <span class="mr-1 tabular-nums">{task.start}</span>
                           </Show>
                           {task.title}
                         </button>

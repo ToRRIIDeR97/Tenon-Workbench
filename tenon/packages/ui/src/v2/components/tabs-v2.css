@@ -58,9 +58,12 @@
   user-select: none;
 
   font-size: 13px;
-  font-weight: 440;
+  font-weight: 500;
   line-height: 16px;
-  letter-spacing: -0.04px;
+}
+
+[data-component="tabs-v2"] [data-slot="tabs-v2-trigger"][data-selected] {
+  font-weight: 600;
 }
 
 [data-component="tabs-v2"] [data-slot="tabs-v2-trigger"]:is(:focus, :focus-visible) {
@@ -82,11 +85,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--v2-text-text-faint);
+  color: var(--v2-icon-icon-muted);
 }
 
 [data-component="tabs-v2"] [data-slot="tabs-v2-close-button"]:hover {
-  color: var(--v2-text-text-muted);
+  color: var(--v2-icon-icon-base);
 }
 
 [data-component="tabs-v2"] [data-component="icon-button"] {
@@ -95,7 +98,7 @@
 
 [data-component="tabs-v2"]
   [data-slot="tabs-v2-trigger-wrapper"]:has([data-slot="tabs-v2-trigger"]:is(:disabled, [data-disabled])) {
-  opacity: 0.5;
+  color: var(--v2-text-text-disabled);
   cursor: not-allowed;
 }
 
@@ -132,7 +135,6 @@
   height: 100%;
   gap: 4px;
   color: var(--v2-text-text-muted);
-  border-bottom: 1px solid transparent;
 }
 
 [data-component="tabs-v2"][data-variant="normal"][data-orientation="horizontal"] [data-slot="tabs-v2-trigger"] {
@@ -147,7 +149,7 @@
 
 [data-component="tabs-v2"][data-variant="normal"][data-orientation="horizontal"]
   [data-slot="tabs-v2-trigger-wrapper"]:has([data-selected]) {
-  border-bottom-color: var(--v2-text-text-faint);
+  box-shadow: inset 0 -2px 0 var(--v2-text-text-base);
   color: var(--v2-text-text-base);
 }
 
@@ -159,7 +161,6 @@
 [data-component="tabs-v2"][data-variant="pill"][data-orientation="horizontal"] [data-slot="tabs-v2-trigger-wrapper"] {
   height: 24px;
   border-radius: 4px;
-  border: 0.5px solid transparent;
   box-sizing: border-box;
   color: var(--v2-text-text-muted);
 }
@@ -168,8 +169,7 @@
   width: 100%;
   height: 100%;
   justify-content: center;
-  padding: 0 6px;
-  border: 0.5px solid transparent;
+  padding: 0 10px;
 }
 
 [data-component="tabs-v2"][data-variant="pill"][data-orientation="horizontal"]
@@ -200,7 +200,7 @@
 
 [data-component="tabs-v2"][data-variant="settings"][data-orientation="vertical"] [data-slot="tabs-v2-trigger-wrapper"] {
   width: 100%;
-  height: 28px;
+  height: 36px;
   border-radius: 4px;
   box-sizing: border-box;
   color: var(--v2-text-text-muted);
@@ -210,8 +210,8 @@
   width: 100%;
   height: 100%;
   justify-content: flex-start;
-  gap: 6px;
-  padding: 0 6px;
+  gap: 8px;
+  padding: 0 12px;
 }
 
 [data-component="tabs-v2"][data-variant="settings"][data-orientation="vertical"]
@@ -254,7 +254,7 @@
   transition:
     color var(--v2-duration-short) var(--v2-ease-standard),
     background-color var(--v2-duration-short) var(--v2-ease-standard),
-    border-color var(--v2-duration-short) var(--v2-ease-standard);
+    box-shadow var(--v2-duration-short) var(--v2-ease-standard);
 }
 
 /* Sliding selection highlight (pill and settings variants; tabs-v2.tsx places it). It sits under the

@@ -138,13 +138,13 @@ const SkillSectionView: Component<{
       <div class="flex min-w-0 items-center gap-2 pr-2">
         <h3 class="settings-v2-section-title">{props.section.title}</h3>
         <Show when={!props.section.editable}>
-          <span class="flex shrink-0 items-center gap-1 text-[12px] leading-4 text-v2-text-text-muted">
+          <span class="flex shrink-0 items-center gap-1 type-meta text-v2-text-text-muted">
             <LockIcon />
             {language.t("secondBrain.skills.readOnly")}
           </span>
         </Show>
         <Show when={props.section.source === "reported"}>
-          <span class="min-w-0 truncate text-[12px] leading-4 text-v2-text-text-muted">
+          <span class="min-w-0 truncate type-meta text-v2-text-text-muted">
             {language.t("secondBrain.skills.source.reported")}
           </span>
         </Show>
@@ -205,7 +205,7 @@ const SkillRow: Component<{
 
   return (
     <div data-component="settings-v2-row" data-enabled={props.enabled === false ? "false" : undefined}>
-      <div data-slot="settings-v2-row-copy" classList={{ "opacity-60": props.enabled === false }}>
+      <div data-slot="settings-v2-row-copy">
         <span data-slot="settings-v2-row-title" class="truncate">
           {props.skill.name}
         </span>
@@ -229,7 +229,7 @@ const SkillRow: Component<{
         </Show>
       </div>
       <Show when={isBuiltInSkill(props.skill, props.openable)}>
-        <span class="shrink-0 text-[12px] text-v2-text-text-muted">{language.t("secondBrain.skills.builtIn")}</span>
+        <span class="shrink-0 type-meta text-v2-text-text-muted">{language.t("secondBrain.skills.builtIn")}</span>
       </Show>
       <Show when={props.openable && props.skill.location}>
         {(location) => (

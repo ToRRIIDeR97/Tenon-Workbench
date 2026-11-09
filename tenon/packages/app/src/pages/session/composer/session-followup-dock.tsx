@@ -35,7 +35,7 @@ export function SessionFollowupDock(props: {
   return (
     <div
       data-component="session-followup-dock"
-      class="w-full overflow-hidden rounded-[24px] bg-v2-background-bg-layer-01"
+      class="w-full overflow-hidden rounded-[24px] bg-v2-background-bg-layer-01 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]"
       style={{ "margin-bottom": "-0.875rem" }}
     >
       <div
@@ -54,7 +54,7 @@ export function SessionFollowupDock(props: {
         </span>
         <RevealShow when={store.collapsed && preview()} class="min-w-0 flex-1">
           {(text) => (
-            <span class="block truncate cursor-default text-[13px] leading-5 text-v2-text-text-faint">{text()}</span>
+            <span class="block truncate cursor-default text-[13px] leading-5 text-v2-text-text-muted">{text()}</span>
           )}
         </RevealShow>
         <div class="ml-auto shrink-0">

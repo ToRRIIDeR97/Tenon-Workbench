@@ -297,7 +297,7 @@ export const ErrorPage: Component<ErrorPageProps> = (props) => {
           <h1 class="text-[22px] font-[600] leading-7 text-v2-text-text-base">{language.t("error.page.title")}</h1>
           <p class="text-[14px] leading-5 text-v2-text-text-muted">{language.t(errorDescriptionKey(props.error))}</p>
         </div>
-        <div class="relative w-full rounded-[16px] bg-v2-background-bg-layer-01 shadow-[0_0_0_0.5px_var(--v2-border-border-muted)]">
+        <div class="relative w-full rounded-[16px] bg-v2-background-bg-layer-01 shadow-[0_0_0_1px_var(--v2-border-border-muted)]">
           <pre
             class="max-h-96 overflow-auto whitespace-pre-wrap break-words p-4 pr-12 font-mono text-[12px] leading-5 text-v2-text-text-base select-text"
             aria-label={language.t("error.page.details.label")}
@@ -380,7 +380,7 @@ export const ErrorPage: Component<ErrorPageProps> = (props) => {
         </Show>
         <Show when={platform.version}>
           {(version) => (
-            <p class="text-[12px] leading-4 text-v2-text-text-faint">
+            <p class="text-[12px] leading-4 text-v2-text-text-muted">
               {language.t("error.page.version", { version: version() })}
             </p>
           )}

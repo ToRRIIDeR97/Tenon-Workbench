@@ -81,7 +81,7 @@ function Cell(props: {
       >
         <div
           classList={{
-            "text-[10px] leading-none font-black uppercase tracking-[0.04em] opacity-70": true,
+            "text-[11px] leading-none font-black uppercase opacity-70": true,
           }}
         >
           {props.label}
@@ -144,7 +144,7 @@ function ToggleCell(props: {
           "flex-col items-center": !props.inline,
         }}
       >
-        <span class="text-[10px] leading-none font-black tracking-[0.04em] opacity-70">{props.label}</span>
+        <span class="text-[11px] leading-none font-black opacity-70">{props.label}</span>
         <span class="text-[11px] leading-none font-bold">{props.value}</span>
       </span>
     </button>

@@ -33,7 +33,7 @@
 
     [data-slot="collapsible-arrow-icon"] {
       display: inline-flex;
-      color: var(--icon-weaker);
+      color: var(--v2-icon-icon-muted);
       transform: translateZ(0) rotate(-90deg);
       transition: transform var(--v2-duration-short) var(--v2-ease-standard);
       will-change: transform;

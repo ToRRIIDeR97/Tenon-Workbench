@@ -24,7 +24,7 @@
   }
 
   [data-slot="progress-value-label"] {
-    color: var(--text-weak);
+    color: var(--v2-text-text-muted);
     font-variant-numeric: tabular-nums;
   }
 
