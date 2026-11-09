@@ -55,7 +55,7 @@
       "remend": "1.3.0",
       "@playwright/test": "1.59.1",
       "typescript": "5.9.3",
-      "@typescript/native-preview": "7.0.0-dev.20251207.1",
+      "@typescript/native-preview": "7.0.0-dev.20260707.2",
       "zod": "4.6.7",
       "remeda": "2.26.0",
       "shiki": "4.2.0",
