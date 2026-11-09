@@ -32,7 +32,6 @@ type PrepareInput = {
   readonly auth: Auth.Info | undefined
   readonly plugin: Plugin.Interface
   readonly flags: RuntimeFlags.Info
-  readonly isWorkflow: boolean
 }
 
 export type Prepared = {
@@ -98,18 +97,17 @@ export const prepare = Effect.fn("LLMRequestPrep.prepare")(function* (input: Pre
   }
   if (isOpenaiOauth) options.instructions = system.join("\n")
 
-  const messages =
-    isOpenaiOauth || input.isWorkflow
-      ? input.messages
-      : [
-          ...system.map(
-            (x): ModelMessage => ({
-              role: "system",
-              content: x,
-            }),
-          ),
-          ...input.messages,
-        ]
+  const messages = isOpenaiOauth
+    ? input.messages
+    : [
+        ...system.map(
+          (x): ModelMessage => ({
+            role: "system",
+            content: x,
+          }),
+        ),
+        ...input.messages,
+      ]
 
   const params = yield* input.plugin.trigger(
     "chat.params",

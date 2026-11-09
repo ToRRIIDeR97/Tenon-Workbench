@@ -18,7 +18,6 @@ export const ID = Schema.String.pipe(
     azure: schema.make("azure"),
     openrouter: schema.make("openrouter"),
     mistral: schema.make("mistral"),
-    gitlab: schema.make("gitlab"),
   })),
 )
 export type ID = typeof ID.Type

@@ -22,6 +22,12 @@ The terminal UI is gone too: the `tui` and `cli` packages,
 remains for development only; the SDK build runs its `generate` command. The
 fork no longer builds or ships an `opencode` binary.
 
+The GitLab Duo model provider (`gitlab-ai-provider`) and the GitLab sign-in
+plugin (`opencode-gitlab-auth`) are removed. models.dev providers built on a
+removed SDK package are dropped from the catalogue (`core/src/models-dev.ts`),
+so a saved `gitlab` provider config, `GITLAB_TOKEN`, or `auth.json` entry is
+ignored. GitLab remotes and GitLab file icons are unaffected.
+
 Owned code uses Tenon names: the `tenon/` folder and `packages/tenon`, the
 `@tenon/*` workspace packages, `TENON_*` environment variables, `tenon.json`
 and `.tenon/` config, `x-tenon-*` headers, and `tenon.*` store and database
