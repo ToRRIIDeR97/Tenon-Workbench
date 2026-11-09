@@ -501,6 +501,15 @@ export class Reply {
     return this
   }
 
+  // A finish_reason the SDK does not recognise; it maps to the "unknown" finish.
+  unrecognizedFinish() {
+    this.#finish = "eos"
+    this.#hang = false
+    this.#error = undefined
+    this.#reset = false
+    return this
+  }
+
   toolCalls() {
     this.#finish = "tool_calls"
     this.#hang = false
