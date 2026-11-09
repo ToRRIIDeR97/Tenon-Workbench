@@ -62,7 +62,7 @@
   },
   "devDependencies": {
     "@solidjs/meta": "catalog:",
-    "@tsconfig/node22": "catalog:",
+    "@tsconfig/node24": "catalog:",
     "@types/bun": "catalog:",
     "@types/katex": "0.16.7",
     "@typescript/native-preview": "catalog:",

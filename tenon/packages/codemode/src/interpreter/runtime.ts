@@ -1,6 +1,6 @@
 import { parse } from "acorn"
 import { Cause, Effect, Exit, Fiber, Semaphore } from "effect"
-import { DiagnosticCategory, ModuleKind, ScriptTarget, flattenDiagnosticMessageText, transpileModule } from "typescript"
+import { transform } from "sucrase"
 import {
   copyIn,
   copyOut,
@@ -54,6 +54,7 @@ import {
   unsupportedSyntax,
   UriFunction,
 } from "./model.js"
+import { findUnsupportedTypeScript } from "./unsupported-typescript.js"
 import { arrayMethods, mapMethods, setMethods, spreadItems } from "../stdlib/collections.js"
 import { consoleMethods, MAX_CONSOLE_DEPTH } from "../stdlib/console.js"
 import { dateMethods, dateStatics, invokeDateMethod, invokeDateStatic } from "../stdlib/date.js"
@@ -112,34 +113,83 @@ import {
   SandboxURLSearchParams,
 } from "../values.js"
 
-const parseProgram = (code: string): ProgramNode => {
-  const transpiled = transpileModule(`async function __codemode__() {\n${code}\n}`, {
-    reportDiagnostics: true,
-    compilerOptions: {
-      target: ScriptTarget.ESNext,
-      module: ModuleKind.ESNext,
-    },
-  })
-  const diagnostic = transpiled.diagnostics?.find((item) => item.category === DiagnosticCategory.Error)
+const WRAPPER_PREFIX = "async function __codemode__() {\n"
 
-  if (diagnostic) {
-    throw new InterpreterRuntimeError(
-      `Failed to parse TypeScript: ${flattenDiagnosticMessageText(diagnostic.messageText, "\n")}`,
-      undefined,
-      "ParseError",
+// Sucrase and acorn report a 1-based line in the wrapped source, which `sourceLocation`
+// maps back to the model's code. `column` is 0-based here, as in an acorn node.
+const parseError = (message: string, code: string, line?: number, column?: number): InterpreterRuntimeError => {
+  if (line === undefined || column === undefined) return new InterpreterRuntimeError(message, undefined, "ParseError")
+  // A wrapped line past the model's code is the wrapper's closing brace: report the end of input.
+  const lastLine = code.split("\n").length + 1
+  const position =
+    line > lastLine ? { line: lastLine, column: (code.split("\n").at(-1) ?? "").length } : { line, column }
+  return new InterpreterRuntimeError(
+    message,
+    { type: "ParseError", loc: { start: position, end: position } },
+    "ParseError",
+  )
+}
+
+const parseFailure = (error: Error): string =>
+  `Failed to parse TypeScript: ${error.message.replace(/\s*\(\d+:\d+\)$/, "")}`
+
+// 1-based line and 0-based column of `offset` in `source`.
+const offsetPosition = (source: string, offset: number): { line: number; column: number } => {
+  const before = source.slice(0, offset)
+  return { line: before.split("\n").length, column: offset - (before.lastIndexOf("\n") + 1) }
+}
+
+const errorPosition = (error: unknown): { line?: number; column?: number } => {
+  const loc = isRecord(error) && isRecord(error.loc) ? error.loc : undefined
+  return typeof loc?.line === "number" && typeof loc.column === "number" ? { line: loc.line, column: loc.column } : {}
+}
+
+const parseProgram = (code: string): ProgramNode => {
+  // Sucrase only strips TypeScript syntax: no type checking and no ES downlevelling.
+  const wrapped = `${WRAPPER_PREFIX}${code}\n}`
+  let outputText: string
+  try {
+    outputText = transform(wrapped, {
+      transforms: ["typescript"],
+      disableESTransforms: true,
+    }).code
+  } catch (error) {
+    if (!(error instanceof Error)) throw error
+    const position = errorPosition(error)
+    // Sucrase columns are 1-based.
+    throw parseError(
+      parseFailure(error),
+      code,
+      position.line,
+      position.column === undefined ? undefined : position.column - 1,
     )
   }
 
-  const bodyStart = transpiled.outputText.indexOf("{") + 1
-  const bodyEnd = transpiled.outputText.lastIndexOf("}")
-  const executableCode = transpiled.outputText.slice(bodyStart, bodyEnd)
-  const parsed = parse(executableCode, {
-    ecmaVersion: "latest",
-    sourceType: "script",
-    allowReturnOutsideFunction: true,
-    allowAwaitOutsideFunction: true,
-    locations: true,
-  }) as unknown
+  // Sucrase drops value namespaces and emits `import x =` / `export =` as CommonJS: reject them by name.
+  const unsupported = findUnsupportedTypeScript(wrapped)
+  if (unsupported) {
+    const position = offsetPosition(wrapped, unsupported.start)
+    throw parseError(unsupported.reason, code, position.line, position.column)
+  }
+
+  const bodyStart = outputText.indexOf("{") + 1
+  const bodyEnd = outputText.lastIndexOf("}")
+  const executableCode = outputText.slice(bodyStart, bodyEnd)
+  let parsed: unknown
+  try {
+    parsed = parse(executableCode, {
+      ecmaVersion: "latest",
+      sourceType: "script",
+      allowReturnOutsideFunction: true,
+      allowAwaitOutsideFunction: true,
+      locations: true,
+    })
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error
+    // `executableCode` starts at the wrapper's newline, so its lines already match the wrapped source.
+    const position = errorPosition(error)
+    throw parseError(parseFailure(error), code, position.line, position.column)
+  }
 
   if (!isRecord(parsed) || parsed.type !== "Program" || !Array.isArray(parsed.body)) {
     throw new InterpreterRuntimeError("Failed to parse script as a Program node.")

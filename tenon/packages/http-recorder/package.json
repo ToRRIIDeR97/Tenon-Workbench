@@ -43,7 +43,7 @@
     "LICENSE"
   ],
   "devDependencies": {
-    "@tsconfig/node22": "catalog:",
+    "@tsconfig/node24": "catalog:",
     "@types/bun": "catalog:",
     "@types/node": "catalog:",
     "@typescript/native-preview": "catalog:",

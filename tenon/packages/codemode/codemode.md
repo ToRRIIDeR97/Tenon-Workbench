@@ -32,8 +32,9 @@ The generic runtime lives in `packages/codemode` and is host-neutral:
 
 1. The host builds a tree of `Tool.make(...)` definitions and calls `CodeMode.make(...)` or `CodeMode.execute(...)`.
 2. CodeMode generates model instructions, a budgeted inline catalog, and the internal `$codemode.search` tool.
-3. TypeScript syntax is transpiled away, Acorn parses the resulting JavaScript, and an owned tree-walking interpreter
-   executes it without `eval`.
+3. Sucrase strips TypeScript syntax, Acorn parses the resulting JavaScript, and an owned tree-walking interpreter
+   executes it without `eval`. Namespaces, `import x =` and `export =` are rejected as `ParseError`, since Sucrase
+   would drop them or emit CommonJS; `declare` blocks are types and pass.
 4. Tool inputs and outputs cross schema and plain-data boundaries before they become visible on either side.
 5. Execution returns `CodeMode.Result`. Expected program and tool failures are diagnostic data; host interruption
    remains Effect interruption.

@@ -646,6 +646,17 @@ export function fromError(
   e: unknown,
   ctx: { providerID: ProviderV2.ID; aborted?: boolean },
 ): NonNullable<Assistant["error"]> {
+  // @ai-sdk/provider-utils wraps errors thrown while reading a successful response body in
+  // APICallError. Classify stream timeouts, socket resets and decompression failures as before.
+  const cause =
+    APICallError.isInstance(e) && e.message === "Failed to process successful response" ? e.cause : undefined
+  if (
+    cause instanceof ProviderError.ResponseStreamError ||
+    (cause as SystemError | undefined)?.code === "ECONNRESET" ||
+    (cause as FetchDecompressionError | undefined)?.code === "ZlibError"
+  ) {
+    return fromError(cause, ctx)
+  }
   switch (true) {
     case e instanceof DOMException && e.name === "AbortError":
       return new AbortedError(

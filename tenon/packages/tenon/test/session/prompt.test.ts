@@ -865,7 +865,9 @@ it.instance("loop continues when finish is unknown", () =>
       noReply: true,
       parts: [{ type: "text", text: "hello" }],
     })
-    yield* llm.push(reply())
+    // A stream that ends without any finish_reason is reported as an error since
+    // @ai-sdk/openai-compatible 2.0.70; an unrecognised finish_reason still maps to "unknown".
+    yield* llm.push(reply().unrecognizedFinish())
     yield* llm.text("second")
 
     const result = yield* prompt.loop({ sessionID: session.id })
@@ -914,6 +916,41 @@ it.instance("glob tool keeps instance context during prompt runs", () =>
     expect(tool.state.output).toContain(file)
     expect(tool.state.output).not.toContain("No context found for instance")
     expect(result.parts.some((part) => part.type === "text" && part.text === "done")).toBe(true)
+  }),
+)
+
+it.instance("unknown tool calls are repaired to the hidden invalid tool", () =>
+  Effect.gen(function* () {
+    const { llm } = yield* useServerConfig(providerCfg)
+    const prompt = yield* SessionPrompt.Service
+    const sessions = yield* Session.Service
+    const session = yield* sessions.create({
+      title: "Invalid tool",
+      permission: [{ permission: "*", pattern: "*", action: "allow" }],
+    })
+    yield* prompt.prompt({
+      sessionID: session.id,
+      agent: "build",
+      noReply: true,
+      parts: [{ type: "text", text: "hello" }],
+    })
+    yield* llm.tool("no_such_tool", {})
+    yield* llm.text("done")
+
+    yield* prompt.loop({ sessionID: session.id })
+
+    const msgs = yield* MessageV2.filterCompactedEffect(session.id)
+    const tool = msgs
+      .flatMap((msg) => msg.parts)
+      .find((part): part is CompletedToolPart => part.type === "tool" && part.tool === "invalid")
+    expect(tool?.state.status).toBe("completed")
+    expect(tool?.state.output).toContain("The arguments provided to the tool are invalid")
+    expect(tool?.state.output).toContain("no_such_tool")
+    const sent = (yield* llm.inputs).flatMap((body) =>
+      Array.isArray(body.tools) ? body.tools.map((item: { function?: { name?: string } }) => item.function?.name) : [],
+    )
+    expect(sent.length).toBeGreaterThan(0)
+    expect(sent).not.toContain("invalid")
   }),
 )
 
