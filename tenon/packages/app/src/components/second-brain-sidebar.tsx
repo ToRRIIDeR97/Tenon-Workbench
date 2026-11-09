@@ -89,6 +89,13 @@ export function SecondBrainSidebar() {
   // The panel keeps its content while its width collapses, so it never closes as an empty column.
   const panel = createReveal(() => layout.sidebar.opened())
   const path = () => ctrl.location.pathname
+  // Routine pages open in the page editor under /projects but belong to the Command Centre.
+  const fromRoutines = () => new URLSearchParams(ctrl.location.search).get("from") === "routines"
+  const railActive = (id: string, href: string) => {
+    if (id === "projects") return path().startsWith("/projects") && !fromRoutines()
+    if (id === "command") return path() === href || path() === "/routines" || fromRoutines()
+    return path() === href
+  }
   const items = () => [
     { id: "overview", icon: "home" as const, label: language.t("secondBrain.sidebar.overview"), href: "/" },
     { id: "projects", icon: "book" as const, label: language.t("secondBrain.sidebar.projects"), href: "/projects" },
@@ -132,7 +139,7 @@ export function SecondBrainSidebar() {
               id={item.id}
               icon={item.icon}
               label={item.label}
-              active={path() === item.href || (item.id === "command" && path() === "/routines")}
+              active={railActive(item.id, item.href)}
               onClick={() => navigate(item.href)}
             />
           )}
@@ -692,9 +699,13 @@ function ThreadGroup(props: {
   const dialog = useDialog()
   const open = () => props.ctrl.expanded(props.id)
   const summary = () => props.ctrl.card(props.id)?.summary
+  const [menuOpen, setMenuOpen] = createSignal(false)
   return (
     <SidebarCard data-sidebar-group={props.id} cardID={props.id} label={props.label} summary={summary()}>
-      <div class={`${rowClass} grid-cols-[minmax(0,1fr)_auto]`}>
+      <div
+        class={`${rowClass} grid-cols-[minmax(0,1fr)_auto]`}
+        onContextMenu={(event) => props.archivedDirectory && openRowMenu(event, setMenuOpen)}
+      >
         <button
           type="button"
           class="flex h-9 min-w-0 items-center gap-1.5 pl-3 pr-3 text-left focus-visible:outline-none"
@@ -724,7 +735,7 @@ function ThreadGroup(props: {
           </Show>
           <Show when={props.archivedDirectory}>
             {(directory) => (
-              <MenuV2 gutter={4} modal={false} placement="bottom-start">
+              <MenuV2 gutter={4} modal={false} placement="bottom-start" open={menuOpen()} onOpenChange={setMenuOpen}>
                 <MenuV2.Trigger
                   as={IconButtonV2}
                   variant="ghost-muted"
@@ -787,9 +798,6 @@ function ThreadList(props: { ctrl: SidebarController; threads: ThreadNode<Sessio
   )
 }
 
-const containsSession = (node: ThreadNode<Session>, sessionID: string | undefined): boolean =>
-  !!sessionID && (node.session.id === sessionID || node.children.some((child) => containsSession(child, sessionID)))
-
 function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; depth: number; enter?: boolean }) {
   const language = useLanguage()
   const [editing, setEditing] = createSignal(false)
@@ -799,8 +807,8 @@ function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; 
   // A thread still on its placeholder title reads as one, so it does not look like the "New thread" action.
   const untitled = () => !session().title || sessionTitle(session().title) !== session().title
   const pinned = () => sessionPinnedAt(session()) !== undefined
-  // Child threads show while their parent's lineage is on screen.
-  const showChildren = () => props.node.children.length > 0 && containsSession(props.node, props.ctrl.activeSessionID())
+  // Child threads (subagents) show while their parent's lineage is on screen, or when the row's toggle opens them.
+  const childrenOpen = () => props.ctrl.childrenOpen(props.node)
   let saved = false
   let input: HTMLInputElement | undefined
   // A rename picked from the menu focuses the input only once the menu has closed: closing returns focus to
@@ -837,6 +845,21 @@ function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; 
         style={{ "padding-left": `${26 + props.depth * 12}px` }}
         onContextMenu={(event) => openRowMenu(event, setMenuOpen)}
       >
+        <Show when={props.ctrl.hasChildren(props.node)}>
+          <button
+            type="button"
+            data-sidebar-thread-children
+            class="absolute top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded-full hover:bg-v2-overlay-simple-overlay-hover focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus"
+            style={{ left: `${6 + props.depth * 12}px` }}
+            aria-expanded={childrenOpen()}
+            aria-label={language.t(
+              childrenOpen() ? "secondBrain.sidebar.hideSubagents" : "secondBrain.sidebar.showSubagents",
+            )}
+            onClick={() => props.ctrl.toggleChildren(props.node)}
+          >
+            <Chevron open={childrenOpen()} />
+          </button>
+        </Show>
         <Show
           when={editing()}
           fallback={
@@ -927,7 +950,7 @@ function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; 
         </div>
       </div>
       <Show when={props.node.children.length > 0}>
-        <Reveal open={showChildren()}>
+        <Reveal open={childrenOpen()}>
           <For each={props.node.children}>
             {(child) => <ThreadRow ctrl={props.ctrl} node={child} depth={props.depth + 1} />}
           </For>

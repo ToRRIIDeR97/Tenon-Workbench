@@ -71,8 +71,9 @@ import { createTimelineProjection } from "./projection"
 import { MessageComment, SummaryDiff, TimelineRow, TimelineRowMap } from "./rows"
 import { SelectionReply } from "./selection-reply"
 import { filterVirtualIndexes } from "./virtual-items"
-import { TurnStepsSummary, stepsSpan } from "@/components/session/turn-steps-summary"
+import { TurnStepsSummary, hasVisibleSteps, turnDuration } from "@/components/session/turn-steps-summary"
 import { useData } from "@tenon/session-ui/context"
+import { readPartText } from "@tenon/session-ui/message-part-text"
 import { AgentWritesInline } from "@/features/agent-writes/cards"
 import { type AgentWrite, useAgentWrites } from "@/features/agent-writes/store"
 
@@ -342,11 +343,13 @@ export function MessageTimeline(props: {
   })
   const showHeader = createMemo(() => !!(titleValue() || parentID()))
   const [toolOpen, setToolOpen] = createStore<Record<string, boolean | undefined>>(cached?.toolOpen ?? {})
-  // A user toggle wins; otherwise a card stays open while its steps stream in, then folds unless a step failed.
-  // Folded while working, it shows a one-line ticker of the current step.
+  // A user toggle wins. Otherwise a card only opens on its own when the user asked for expanded steps (Settings ›
+  // General "Expand shell/edit tool parts"): then it stays open while its steps stream in, and folds unless a step
+  // failed. With both off it stays folded, showing a one-line ticker of the current step while working.
   const turnStepsOpen = (row: TimelineRow.TurnSteps) =>
     toolOpen[`turn:${row.userMessageID}:${row.segment}`] ??
-    ((workingTurn(row.userMessageID) && !row.settled) || row.failed)
+    ((settings.general.shellToolPartsExpanded() || settings.general.editToolPartsExpanded()) &&
+      ((workingTurn(row.userMessageID) && !row.settled) || row.failed))
   const projection = createTimelineProjection({
     messages: sessionMessages,
     userMessages: () => props.userMessages,
@@ -829,18 +832,10 @@ export function MessageTimeline(props: {
   const turnDurationMs = (userMessageID: string) => {
     const message = messageByID().get(userMessageID)
     if (!message || message.role !== "user") return
-    const end = (assistantMessagesByParent().get(userMessageID) ?? emptyAssistantMessages).reduce<number | undefined>(
-      (max, item) => {
-        const completed = item.time.completed
-        if (typeof completed !== "number") return max
-        if (max === undefined) return completed
-        return Math.max(max, completed)
-      },
-      undefined,
+    return turnDuration(
+      message.time.created,
+      (assistantMessagesByParent().get(userMessageID) ?? emptyAssistantMessages).map((item) => item.time.completed),
     )
-    if (typeof end !== "number") return
-    if (end < message.time.created) return
-    return end - message.time.created
   }
 
   const assistantCopyPartID = (userMessageID: string) => {
@@ -1081,28 +1076,25 @@ export function MessageTimeline(props: {
             return part ? [part] : []
           }),
         )
-        // The turn's first card times the whole turn; a later one, after an update to the user, times its own steps.
-        const span = createMemo(() =>
-          turnStepsRow().segment > 0 || turnStepsRow().settled ? stepsSpan(parts()) : undefined,
-        )
-        const duration = () => {
-          const value = span()
-          if (!value) return turnDurationMs(turnStepsRow().userMessageID)
-          return value.end === undefined ? undefined : value.end - value.start
-        }
+        // Every card times the whole turn from message times, like the turn footer, so the duration doesn't depend on
+        // which parts are visible. A card the turn has moved past shows its duration once the turn ends.
+        const working = () => workingTurn(turnStepsRow().userMessageID)
+        // A card with nothing to show (reasoning without text) isn't drawn once the turn has finished.
+        const visible = () =>
+          working() || hasVisibleSteps(parts(), (part) => readPartText(data.store.part_text_accum_delta, part))
         return (
           <TimelineRowFrame row={turnStepsRow}>
             {/* Text after the card brings its own gap; a card that ends the turn keeps one below it. */}
             <div
               data-slot="session-turn-message-container"
               class="w-full px-4 md:px-5"
-              classList={{ "pb-2": !turnStepsRow().settled }}
+              classList={{ "pb-2": !turnStepsRow().settled && visible(), hidden: !visible() }}
             >
               <TurnStepsSummary
                 parts={parts()}
-                working={workingTurn(turnStepsRow().userMessageID) && !turnStepsRow().settled}
-                startedAt={span()?.start ?? userMessageCreated(turnStepsRow().userMessageID)}
-                durationMs={duration()}
+                working={working() && !turnStepsRow().settled}
+                startedAt={userMessageCreated(turnStepsRow().userMessageID)}
+                durationMs={working() ? undefined : turnDurationMs(turnStepsRow().userMessageID)}
                 open={turnStepsOpen(turnStepsRow())}
                 layout={settings.general.workSteps()}
                 onOpenSubagent={

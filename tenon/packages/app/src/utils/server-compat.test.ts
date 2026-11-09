@@ -235,6 +235,24 @@ describe("createCompatibleApi", () => {
     expect(await requests[0]!.json()).toEqual({ id: "msg_1", prompt: { text: "hello" } })
   })
 
+  test("records the composer's model before a built-in prompt on V2 servers", async () => {
+    const { api, requests } = setup("v2")
+    await api.session.prompt({
+      sessionID: "ses_1",
+      id: "msg_1",
+      text: "hello",
+      model: { providerID: "openrouter", modelID: "nemotron" },
+      variant: "high",
+    })
+
+    expect(requests.map((request) => new URL(request.url).pathname)).toEqual([
+      "/api/session/ses_1/model",
+      "/api/session/ses_1/prompt",
+    ])
+    expect(await requests[0]!.json()).toEqual({ model: { id: "nemotron", providerID: "openrouter", variant: "high" } })
+    expect(await requests[1]!.json()).toEqual({ id: "msg_1", prompt: { text: "hello" } })
+  })
+
   /*
   test("routes V1 archive through the legacy session update", async () => {
     const { api, requests } = setup("v1")

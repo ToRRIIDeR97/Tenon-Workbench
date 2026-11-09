@@ -23,6 +23,9 @@ export type SessionFileBrowserState = {
   sidebarTransition: () => boolean
   resizeSidebar: (width: number) => void
   toggleSidebar: () => void
+  /** The panel is narrow: the tree floats over the file instead of sitting beside it. */
+  narrow?: () => boolean
+  closeOverlay?: () => void
 }
 
 export function SessionFileBrowserTab(props: {
@@ -103,6 +106,16 @@ export function SessionFileBrowserTab(props: {
     ),
   )
 
+  // In a narrow panel the tree floats over the file; opening one puts it away.
+  const select = (path: string) => {
+    props.onSelect(path)
+    props.state.closeOverlay?.()
+  }
+  const selectPermanent = (path: string) => {
+    props.onSelectPermanent(path)
+    props.state.closeOverlay?.()
+  }
+
   const onFilterKeyDown = (event: KeyboardEvent & { currentTarget: HTMLInputElement }) => {
     if (event.key === "Escape" && query()) {
       event.preventDefault()
@@ -112,7 +125,7 @@ export function SessionFileBrowserTab(props: {
     if (!query()) return
     applyFileListKeyDown(event, files(), highlighted(), {
       onHighlight: setExplicitHighlight,
-      onSelect: props.onSelectPermanent,
+      onSelect: selectPermanent,
     })
   }
 
@@ -148,6 +161,7 @@ export function SessionFileBrowserTab(props: {
           filterExpanded={query().length > 0 && files().length > 0}
           width={props.state.sidebarWidth()}
           onWidthChange={props.state.resizeSidebar}
+          overlay={props.state.narrow?.() && !props.placeholder}
         >
           <Show
             when={query()}
@@ -156,8 +170,8 @@ export function SessionFileBrowserTab(props: {
                 active={revealed()?.path ?? props.active}
                 revealed={revealed()}
                 kinds={props.kinds}
-                onFileClick={(node) => props.onSelect(node.path)}
-                onFileDoubleClick={(node) => props.onSelectPermanent(node.path)}
+                onFileClick={(node) => select(node.path)}
+                onFileDoubleClick={(node) => selectPermanent(node.path)}
               />
             }
           >
@@ -188,9 +202,9 @@ export function SessionFileBrowserTab(props: {
                   highlighted={highlighted()}
                   onFileClick={(path) => {
                     setExplicitHighlight(path)
-                    props.onSelect(path)
+                    select(path)
                   }}
-                  onFileDoubleClick={props.onSelectPermanent}
+                  onFileDoubleClick={selectPermanent}
                 />
               </Show>
             </Show>

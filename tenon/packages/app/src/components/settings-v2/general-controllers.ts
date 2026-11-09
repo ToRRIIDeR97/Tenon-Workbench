@@ -16,6 +16,7 @@ import {
   terminalInput,
   useSettings,
 } from "@/context/settings"
+import { servesLegacyRoutes } from "@/utils/server-protocol"
 import { playSoundById, SOUND_OPTIONS } from "@/utils/sound"
 import { createSoundPreviewController, type ShellOption } from "./general-controller-behavior"
 
@@ -55,7 +56,7 @@ export function createShellSettingsController() {
   const [shells] = createResource(
     async () => {
       const sdk = serverSdk()
-      if ((await sdk.protocol) === "v1") return (await sdk.client.pty.shells()).data ?? []
+      if (await servesLegacyRoutes(sdk)) return (await sdk.client.pty.shells()).data ?? []
       return [] as ShellOption[]
     },
     { initialValue: [] as ShellOption[] },

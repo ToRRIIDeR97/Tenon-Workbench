@@ -166,6 +166,18 @@ export function hourSlot(hour: number) {
   return { start: clock(hour), end: hour >= 23 ? "23:59" : clock(hour + 1) }
 }
 
+/**
+ * Scroll offset that opens the Day and Week grid at 07:00, or at the hour of an earlier event, just below the
+ * pinned day header. `starts` are the "HH:MM" start times of the shown timed events.
+ */
+export function gridScrollTop(input: { starts: string[]; hoursTop: number; headerHeight: number; hour: number }) {
+  const first = Math.min(
+    7 * 60,
+    ...input.starts.map((start) => Number(start.slice(0, 2)) * 60 + Number(start.slice(3, 5))),
+  )
+  return Math.max(0, input.hoursTop - input.headerHeight + Math.floor(first / 60) * input.hour - 12)
+}
+
 export function shiftMonth(cursor: Date, amount: number) {
   return new Date(cursor.getFullYear(), cursor.getMonth() + amount, 1, 12)
 }

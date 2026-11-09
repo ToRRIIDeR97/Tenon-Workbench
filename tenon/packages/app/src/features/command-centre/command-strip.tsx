@@ -82,8 +82,9 @@ export function CommandStrip() {
       data-command-strip
       data-state={state.open ? "open" : "closed"}
       // Only the handle and the open card take the pointer; the rest of the band stays the page's.
-      // On a thread the composer owns the page's bottom edge, so the strip sits on top of it.
-      class="pointer-events-none absolute bottom-[calc(0.5rem+var(--command-strip-lift,0px))] left-1/2 z-(--z-command-strip) h-5 w-[min(680px,calc(100%-32px))] -translate-x-1/2"
+      // On a thread the composer owns the page's bottom edge, so the strip sits on top of it, centred on the
+      // chat column (the composer region sets --command-strip-center/-span) rather than the whole window.
+      class="pointer-events-none absolute bottom-[calc(0.5rem+var(--command-strip-lift,0px))] left-[var(--command-strip-center,50%)] z-(--z-command-strip) h-5 w-[min(680px,var(--command-strip-span,calc(100%-32px)))] -translate-x-1/2"
     >
       <button
         type="button"

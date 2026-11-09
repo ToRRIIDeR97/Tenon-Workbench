@@ -19,7 +19,9 @@ export type Step = { kind: StepKind; target?: string }
 
 export type TurnSteps = {
   counts: Partial<Record<StepKind, number>>
+  /** Errored steps the agent caused; a call the user declined is counted in `declined` instead. */
   failed: number
+  declined: number
   running: number
   durationMs?: number
 }
@@ -138,11 +140,34 @@ export function summarizeTurn(
     acc[kind] = (acc[kind] ?? 0) + 1
     return acc
   }, {})
-  const failed = tools.filter((part) => part.state.status === "error").length
+  const declined = tools.filter(isDeclined).length
+  // A call cut short by Stop is the user's choice too, so it isn't a failure either.
+  const failed = tools.filter((part) => part.state.status === "error" && !isStopped(part)).length - declined
   const running = tools.filter((part) => part.state.status === "pending" || part.state.status === "running").length
   const durationMs =
     options?.startedAt !== undefined && options.endedAt !== undefined ? options.endedAt - options.startedAt : undefined
-  return durationMs === undefined ? { counts, failed, running } : { counts, failed, running, durationMs }
+  return durationMs === undefined
+    ? { counts, failed, declined, running }
+    : { counts, failed, declined, running, durationMs }
+}
+
+// A declined permission reaches the part only as an errored call with the harness's wording: Tenon's own tools
+// (core/src/v1/permission.ts, core/src/tool/tool.ts) and Claude Code over ACP. No structured flag survives.
+const DECLINED = [/The user rejected permission to use this specific tool call/i, /The user declined this tool call/i]
+
+/** Whether the user declined this tool call's permission, which is the user's choice rather than a failure. */
+export function isDeclined(part: ToolPart) {
+  const state = part.state
+  if (state.status !== "error") return false
+  return DECLINED.some((pattern) => pattern.test(state.error))
+}
+
+// Core's runner fails a call left running when the turn is interrupted with this wording (runner/llm.ts).
+const STOPPED = "Tool execution interrupted"
+
+/** Whether this call was cut short because the turn was stopped, rather than failing on its own. */
+export function isStopped(part: ToolPart) {
+  return part.state.status === "error" && part.state.error === STOPPED
 }
 
 /**

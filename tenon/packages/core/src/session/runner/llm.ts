@@ -613,24 +613,28 @@ const layer = Layer.effect(
       let promotion: SessionInput.Delivery | undefined = hasSteer ? "steer" : hasQueue ? "queue" : undefined
       let shouldRun = input.force || hasSteer || hasQueue
       let titleStarted = false
+      // Runs beside the turn in the runner's scope; a failure only leaves the default title.
+      const startTitle = Effect.suspend(() => {
+        if (titleStarted) return Effect.void
+        titleStarted = true
+        return generateTitle(input.sessionID).pipe(
+          Effect.catchCause((cause) =>
+            Effect.logError("failed to generate session title", {
+              sessionID: input.sessionID,
+              error: Cause.squash(cause),
+            }),
+          ),
+          Effect.forkIn(scope),
+          Effect.asVoid,
+        )
+      })
       while (shouldRun) {
         let needsContinuation = true
         let step = 1
         while (needsContinuation) {
-          const result = yield* runTurn(input.sessionID, promotion, step)
-          if (!titleStarted) {
-            titleStarted = true
-            // Runs beside the turn in the runner's scope; a failure only leaves the default title.
-            yield* generateTitle(input.sessionID).pipe(
-              Effect.catchCause((cause) =>
-                Effect.logError("failed to generate session title", {
-                  sessionID: input.sessionID,
-                  error: Cause.squash(cause),
-                }),
-              ),
-              Effect.forkIn(scope),
-            )
-          }
+          // Title once the first turn ends however it ends: a stopped or failed first turn would otherwise
+          // leave the thread on its default title, since only the first user message is eligible.
+          const result = yield* runTurn(input.sessionID, promotion, step).pipe(Effect.ensuring(startTitle))
           needsContinuation = result.needsContinuation
           step = result.step + 1
           promotion = "steer"

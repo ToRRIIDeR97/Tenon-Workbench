@@ -32,8 +32,8 @@ import { createVisibleInterval } from "@/utils/visible-interval"
  * Routines: vault pages under `Routines/` with a `schedule` property. Each row shows the schedule, last and
  * next run, and Run now starts a Command Centre thread with the routine's prompt. A page runs only once
  * approved, and again after any change to what it would run; the row links to the page to read first. New
- * routine writes a `Routines/` page from a template (switched off until ready) and opens it on the Projects
- * page. A row's name opens its page and its switch turns the schedule on or off.
+ * routine writes a `Routines/` page from a template (switched off until ready) and opens it in the page editor,
+ * which returns here on Back (`from=routines`) so the routine stays in the Command Centre's context. A row's name opens its page and its switch turns the schedule on or off.
  */
 export default function RoutinesPage() {
   const language = useLanguage()
@@ -152,7 +152,7 @@ export default function RoutinesPage() {
     setState("creating", false)
     if (!path) return setState("failed", true)
     void invalidateVaultPages(queryClient, server.key)
-    navigate(`/projects?page=${encodeURIComponent(path)}`)
+    navigate(routineHref(path))
   }
 
   return (
@@ -227,10 +227,7 @@ export default function RoutinesPage() {
                   {(routine) => (
                     <tr class="text-v2-text-text-base" data-routine={routine.id}>
                       <td class="px-3 py-2">
-                        <A
-                          href={`/projects?page=${encodeURIComponent(routine.path)}`}
-                          class="type-row-title hover:underline"
-                        >
+                        <A href={routineHref(routine.path)} class="type-row-title hover:underline">
                           {routine.name}
                         </A>
                         <Show when={!routine.enabled}>
@@ -252,7 +249,7 @@ export default function RoutinesPage() {
                               {language.t("secondBrain.routines.needsApproval")}
                             </span>
                             <A
-                              href={`/projects?page=${encodeURIComponent(routine.path)}`}
+                              href={routineHref(routine.path)}
                               class="type-meta text-v2-text-text-muted underline hover:text-v2-text-text-base"
                             >
                               {language.t("secondBrain.routines.review")}
@@ -324,3 +321,6 @@ export default function RoutinesPage() {
     </PageFrame>
   )
 }
+
+/** A routine's page in the editor; `from=routines` sends Back here and keeps the rail on Command Centre. */
+const routineHref = (path: string) => `/projects?page=${encodeURIComponent(path)}&from=routines`

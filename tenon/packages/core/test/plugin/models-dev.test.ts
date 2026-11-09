@@ -12,6 +12,7 @@ import { ModelV2 } from "@tenon/core/model"
 import { ModelsDev } from "@tenon/core/models-dev"
 import { ModelsDevPlugin } from "@tenon/core/plugin/models-dev"
 import { ProviderV2 } from "@tenon/core/provider"
+import { SessionRunnerModel } from "@tenon/core/session/runner/model"
 import { AbsolutePath } from "@tenon/core/schema"
 import { location } from "../fixture/location"
 import { testEffect } from "../lib/effect"
@@ -121,6 +122,57 @@ describe("ModelsDevPlugin", () => {
           cache: { read: 0.5, write: 0 },
         },
       ])
+    }),
+  )
+
+  it.effect("keeps the provider SDK package for models that only override the endpoint", () =>
+    Effect.gen(function* () {
+      const integrations = yield* Integration.Service
+      const catalog = yield* Catalog.Service
+      const models = ModelsDev.Service.of({
+        get: () =>
+          Effect.succeed({
+            opencode: {
+              id: "opencode",
+              name: "OpenCode",
+              env: [],
+              npm: "@ai-sdk/openai-compatible",
+              api: "https://opencode.test/inference/openai/v1",
+              models: {
+                "flash-free": {
+                  id: "flash-free",
+                  name: "Flash Free",
+                  release_date: "2026-01-01",
+                  attachment: false,
+                  reasoning: true,
+                  temperature: true,
+                  tool_call: true,
+                  limit: { context: 200_000, output: 32_000 },
+                  provider: { api: "https://opencode.test/zen/v1" },
+                },
+              },
+            },
+          } satisfies Record<string, ModelsDev.Provider>),
+        refresh: () => Effect.void,
+      })
+
+      yield* ModelsDevPlugin.effect(
+        host({
+          catalog: catalogHost(catalog),
+          integration: integrationHost(integrations),
+        }),
+      ).pipe(Effect.provideService(ModelsDev.Service, models))
+
+      const model = yield* catalog.model.get(ProviderV2.ID.make("opencode"), ModelV2.ID.make("flash-free"))
+      if (!model) throw new Error("model missing")
+      expect(model.api).toMatchObject({
+        type: "aisdk",
+        package: "@ai-sdk/openai-compatible",
+        url: "https://opencode.test/zen/v1",
+      })
+      expect(SessionRunnerModel.supported(model)).toBe(true)
+      const resolved = yield* SessionRunnerModel.fromCatalogModel(model)
+      expect(resolved.route).toMatchObject({ endpoint: { baseURL: "https://opencode.test/zen/v1" } })
     }),
   )
 

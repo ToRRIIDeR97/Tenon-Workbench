@@ -106,6 +106,17 @@ export type HarnessChoice = {
 }
 export type HarnessDefaults = HarnessChoice & { mode: "fixed" | "last" }
 
+/**
+ * The harness a new thread starts with. Until a default is saved in Settings › Harnesses, new threads start
+ * from the last one used, as with "Start from the last one I used"; undefined means the built-in agent.
+ */
+export function newThreadChoice(harnesses: { defaults?: HarnessDefaults; lastUsed?: HarnessChoice } | undefined) {
+  const defaults = harnesses?.defaults
+  if (!defaults) return harnesses?.lastUsed
+  if (defaults.mode === "last") return harnesses?.lastUsed ?? defaults
+  return defaults
+}
+
 /** A harness with the models the user hid in Settings left out. */
 export function withVisibleModels<T extends { id: string; models: ReadonlyArray<{ id: string }> }>(
   instance: T,
@@ -437,12 +448,7 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
           setStore("harnesses", (current) => ({ ...current, defaults: value }))
         },
         /** The harness a new thread starts with, or undefined to use the built-in agent. */
-        newThreadChoice(): HarnessChoice | undefined {
-          const defaults = store.harnesses?.defaults
-          if (!defaults) return
-          if (defaults.mode === "last") return store.harnesses?.lastUsed ?? defaults
-          return defaults
-        },
+        newThreadChoice: () => newThreadChoice(store.harnesses),
         setLastUsed(value: HarnessChoice) {
           setStore("harnesses", (current) => ({ ...current, lastUsed: value }))
         },

@@ -42,9 +42,11 @@ import {
   type ThreadGrouping,
 } from "@/features/second-brain/sidebar-grouping"
 import {
+  childThreadsOpen,
   createThreadNodeCache,
   flattenThreads,
   groupSidebarThreads,
+  hasChildThreads,
   isWithinDirectory,
   mergeSidebarSessions,
   projectForDirectory,
@@ -238,8 +240,8 @@ export function createSidebarController() {
       .then((result) =>
         showToast({
           title: language.t("secondBrain.sidebar.scanDone"),
-          description: language.t("secondBrain.sidebar.scanResult", {
-            folders: result.folders,
+          description: language.plural("secondBrain.sidebar.scanResultCount", result.folders, {
+            count: result.folders.toLocaleString(language.intl()),
             created: result.created,
           }),
         }),
@@ -347,9 +349,19 @@ export function createSidebarController() {
   )
 
   // `hidden` holds threads whose delete waits for its undo window to close; their children hide too.
-  const [local, setLocal] = createStore({ hidden: {} as Record<string, boolean>, undoPending: 0 })
+  // `childrenOpen` is a row's own choice to show or hide its child threads; `fetched` holds the child IDs
+  // loaded for a thread on demand, read back from the live session cache.
+  const [local, setLocal] = createStore({
+    hidden: {} as Record<string, boolean>,
+    undoPending: 0,
+    childrenOpen: {} as Record<string, boolean>,
+    fetched: {} as Record<string, string[]>,
+  })
   const sessions = createMemo<Session[]>(() => {
-    const all = mergeSidebarSessions(directoryLists(), indexStore.sessions)
+    const fetched = Object.values(local.fetched)
+      .flat()
+      .flatMap((id) => serverSync().session.get(id) ?? [])
+    const all = mergeSidebarSessions(directoryLists(), [...indexStore.sessions, ...fetched])
     const parents = new Map(all.map((session) => [session.id, session.parentID] as const))
     const hidden = (id: string | undefined, depth = 0): boolean =>
       !!id && depth < 64 && (local.hidden[id] || hidden(parents.get(id), depth + 1))
@@ -373,12 +385,11 @@ export function createSidebarController() {
   }
   // Only expanded Projects load child threads; elsewhere a root has no child nodes. The session index's
   // parent links still carry a child's state up to its root, with no request per folder.
+  const childLinks = createMemo(() => homeSessions().parents(sessionIndex.data, sessionEvents.data))
   const linkedThreads = createMemo(() => {
     const data = serverSync().session.data
-    return linkedStates(
-      [...Object.keys(data.session_status), ...Object.keys(data.permission)],
-      homeSessions().parents(sessionIndex.data, sessionEvents.data),
-      (id) => stateOf({ id }),
+    return linkedStates([...Object.keys(data.session_status), ...Object.keys(data.permission)], childLinks(), (id) =>
+      stateOf({ id }),
     )
   })
   const linked = (session: Pick<Session, "id">) => linkedThreads().get(session.id) ?? []
@@ -474,6 +485,46 @@ export function createSidebarController() {
   )
 
   const openThread = (session: Pick<Session, "id">) => navigate(sessionHref(server.key, session.id))
+
+  // Directory lists hold root threads only, and child threads (subagents) otherwise reach the sidebar only
+  // once their parent's page has loaded them, so fetch a thread's children when its rows are opened.
+  const childLoads = new Set<string>()
+  const loadChildren = (session: Pick<Session, "id" | "directory">) => {
+    if (childLoads.has(session.id)) return
+    childLoads.add(session.id)
+    void serverSDK()
+      .client.session.children({ sessionID: session.id, directory: session.directory }, { throwOnError: true })
+      .then((result) => {
+        const children = result.data.map((child) => serverSync().session.remember(normalizeSessionInfo(child)))
+        setLocal(
+          "fetched",
+          session.id,
+          children.map((child) => child.id),
+        )
+      })
+      .catch(requestFailed)
+      .finally(() => childLoads.delete(session.id))
+  }
+  const hasChildren = (node: ThreadNode<Session>) => hasChildThreads(node, childLinks())
+  const childrenOpen = (node: ThreadNode<Session>) =>
+    childThreadsOpen(node, activeSessionID(), local.childrenOpen[node.session.id])
+  const toggleChildren = (node: ThreadNode<Session>) => {
+    const open = !childrenOpen(node)
+    setLocal("childrenOpen", node.session.id, open)
+    if (open) loadChildren(node.session)
+  }
+  // Opening a thread (or one of its subagents) shows its lineage's children, so load those not fetched yet.
+  createEffect(
+    on(activeSessionID, (sessionID) => {
+      const links = childLinks()
+      const seen = new Set<string>()
+      for (let id = sessionID; id && !seen.has(id); id = links[id]) {
+        seen.add(id)
+        const session = knownSession(id)
+        if (session && !local.fetched[id] && Object.values(links).includes(id)) loadChildren(session)
+      }
+    }),
+  )
 
   const newThread = (project?: SidebarProjectItem) => {
     const target = project ?? currentProject()
@@ -594,12 +645,13 @@ export function createSidebarController() {
         { throwOnError: true },
       )
       .then((result) => {
+        const wasOpen = activeSessionID() === session.id
         leaveThread(session)
         applySession(result.data)
         undo.push({
           title: language.t("secondBrain.sidebar.threadArchived"),
           description: threadLabel(session),
-          undo: () => unarchiveThread(session),
+          undo: () => unarchiveThread(session).then(() => wasOpen && openThread(session)),
         })
       })
       .catch(requestFailed)
@@ -618,13 +670,18 @@ export function createSidebarController() {
    * undo window closes. If the app quits first, the thread is simply not deleted.
    */
   const deleteThread = (session: Session) => {
+    const wasOpen = activeSessionID() === session.id
     leaveThread(session)
     setLocal("hidden", session.id, true)
     const restore = () => setLocal("hidden", session.id, false)
     undo.push({
       title: language.t("secondBrain.sidebar.threadDeleted"),
       description: threadLabel(session),
-      undo: restore,
+      // Undoing the delete of the open thread brings the user back to it.
+      undo: () => {
+        restore()
+        if (wasOpen) openThread(session)
+      },
       commit: () => {
         // The server deletes a thread's children with it, so drop the whole subtree here; otherwise a
         // child row can linger and its own delete fails with "not found".
@@ -932,6 +989,9 @@ export function createSidebarController() {
     expanded,
     toggleExpanded,
     openThread,
+    hasChildren,
+    childrenOpen,
+    toggleChildren,
     newThread,
     newBrainThread,
     renameThread,

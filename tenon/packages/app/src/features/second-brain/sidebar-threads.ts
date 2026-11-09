@@ -140,6 +140,25 @@ export function mergeSidebarSessions<S extends SidebarSession>(
   return [...owned, ...index]
 }
 
+/**
+ * Whether a thread has child threads (subagents). Directory lists load roots only, so a child the sidebar
+ * has not fetched yet is known only by the session index's child-to-parent links.
+ */
+export function hasChildThreads(node: ThreadNode, links: Readonly<Record<string, string>>) {
+  return node.children.length > 0 || Object.values(links).includes(node.session.id)
+}
+
+/**
+ * Whether a thread's child rows show: the user's own choice for that row, else open while the active
+ * thread is the row or one of its descendants.
+ */
+export function childThreadsOpen(node: ThreadNode, activeSessionID: string | undefined, choice?: boolean) {
+  return choice ?? containsSession(node, activeSessionID)
+}
+
+const containsSession = (node: ThreadNode, sessionID: string | undefined): boolean =>
+  !!sessionID && (node.session.id === sessionID || node.children.some((child) => containsSession(child, sessionID)))
+
 /** Visible threads in sidebar order, for previous/next thread navigation. */
 export function flattenThreads<S extends SidebarSession>(nodes: readonly ThreadNode<S>[]): S[] {
   return nodes.flatMap((node) => [node.session, ...flattenThreads(node.children)])

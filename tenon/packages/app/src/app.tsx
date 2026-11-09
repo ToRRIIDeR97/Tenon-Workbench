@@ -63,7 +63,7 @@ import { DirectoryDataProvider } from "@/pages/directory-layout"
 import NewLayout from "@/pages/layout-new"
 import { ErrorPage } from "./pages/error"
 import { useCheckServerHealth } from "./utils/server-health"
-import { requireServerKey, sessionHref } from "./utils/session-route"
+import { parseServerKey, requireServerKey, sessionHref } from "./utils/session-route"
 import { decode64 } from "./utils/base64"
 
 // File viewers pull in the diff renderer and shiki; only session views render them.
@@ -116,11 +116,19 @@ function TargetServerRoute(props: ParentProps) {
   )
 }
 
-const TargetSessionRoute = () => (
-  <TargetServerRoute>
-    <TargetSessionRouteContent />
-  </TargetServerRoute>
-)
+// A malformed server segment would throw in every server-scoped provider, so rewrite it to the
+// selected server; the session page then reports an unknown thread as not found.
+const TargetSessionRoute = () => {
+  const params = useParams<{ serverKey: string; id: string }>()
+  const server = useServer()
+  return (
+    <Show when={parseServerKey(params.serverKey)} fallback={<Navigate href={sessionHref(server.key, params.id)} />}>
+      <TargetServerRoute>
+        <TargetSessionRouteContent />
+      </TargetServerRoute>
+    </Show>
+  )
+}
 
 // Wraps the non-draft routes. They are gated on (and keyed to) the globally selected
 // server via ServerKey, then provide the server-scoped shell for that server.

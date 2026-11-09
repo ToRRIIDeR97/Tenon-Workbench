@@ -134,6 +134,7 @@ describe("bootstrapDirectory", () => {
       translate: (key) => key,
       queryClient: new QueryClient(),
       protocol: Promise.resolve("v1"),
+      legacyRoutes: Promise.resolve(true),
     })
 
     expect(store.status).toBe("partial")
@@ -181,10 +182,57 @@ describe("bootstrapDirectory", () => {
 
     expect(store.status).toBe("complete")
   })
+
+  test("loads the branch and path from the V1 routes a V2 sidecar still serves", async () => {
+    const [store, setStore] = directoryState()
+    const cached: unknown[] = []
+    const paths: unknown[] = []
+    const queryClient = new QueryClient()
+
+    await bootstrapDirectory({
+      directory: "/repo",
+      scope: ServerScope.local,
+      mcp: false,
+      global: {
+        config: {} satisfies Config,
+        path: { state: "", config: "", worktree: "", directory: "", home: "" },
+        project: [{ id: "project", worktree: "/repo" } as Project],
+        provider,
+      },
+      sdk: {
+        vcs: { get: async () => ({ data: { branch: "master", default_branch: "main" } }) },
+        path: {
+          get: async (input: unknown) => {
+            paths.push(input)
+            return { data: { state: "", config: "", worktree: "/repo", directory: "/repo", home: "/home" } }
+          },
+        },
+      } as unknown as OpencodeClient,
+      api,
+      store,
+      setStore,
+      vcsCache: { setStore: (_key: string, value: unknown) => cached.push(value) } as unknown as VcsCache,
+      loadSessions() {},
+      translate: (key) => key,
+      queryClient,
+      protocol: Promise.resolve("v2"),
+      legacyRoutes: Promise.resolve(true),
+    })
+
+    await new Promise((resolve) => setTimeout(resolve, 80))
+
+    expect(store.status).toBe("complete")
+    expect(store.vcs).toEqual({ branch: "master", default_branch: "main" })
+    expect(cached).toEqual([{ branch: "master", default_branch: "main" }])
+    expect(paths).toEqual([{ directory: "/repo" }])
+    expect(
+      queryClient.getQueryData(loadPathQuery(ServerScope.local, "/repo", {} as OpencodeClient).queryKey)?.home,
+    ).toBe("/home")
+  })
 })
 
 describe("config queries", () => {
-  test("skips legacy global config for v2 servers", async () => {
+  test("skips legacy global config for servers without the V1 routes", async () => {
     const sdk = {
       global: {
         config: {
@@ -196,13 +244,13 @@ describe("config queries", () => {
     } as unknown as OpencodeClient
 
     const result = await new QueryClient().fetchQuery(
-      loadGlobalConfigQuery(ServerScope.local, sdk, Promise.resolve("v2")),
+      loadGlobalConfigQuery(ServerScope.local, sdk, Promise.resolve(false)),
     )
 
     expect(result).toEqual({})
   })
 
-  test("loads legacy global config for v1 servers", async () => {
+  test("loads legacy global config for servers that serve the V1 routes", async () => {
     const calls: string[] = []
     const config = { shell: "zsh" } satisfies Config
     const sdk = {
@@ -217,7 +265,7 @@ describe("config queries", () => {
     } as unknown as OpencodeClient
 
     const result = await new QueryClient().fetchQuery(
-      loadGlobalConfigQuery(ServerScope.local, sdk, Promise.resolve("v1")),
+      loadGlobalConfigQuery(ServerScope.local, sdk, Promise.resolve(true)),
     )
 
     expect(result).toEqual(config)

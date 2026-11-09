@@ -3,6 +3,7 @@ import type { SessionMessageInfo } from "@opencode-ai/client/promise"
 import { AssistantMessage, Part, SessionStatus, UserMessage } from "@opencode-ai/sdk/v2"
 import { renderable } from "@tenon/session-ui/message-part"
 import { groupParts, type PartGroup, type PartRef } from "@tenon/session-ui/part-group"
+import { isDeclined, isStopped } from "@tenon/session-ui/step-kind"
 import { TimelineRow, type SummaryDiff } from "./timeline-row"
 import { uniqueSummaryDiffs } from "./summary-diffs"
 import { compareMessages } from "@/utils/session-message"
@@ -238,9 +239,10 @@ export namespace Timeline {
           const end = groups.findIndex((item, at) => at > index && !item.step)
           const run = groups.slice(index, end === -1 ? undefined : end)
           const steps = run.flatMap((item) => (item.group.type === "part" ? [item.group.ref] : item.group.refs))
+          // A call the user declined or stopped isn't a failure, so it doesn't hold the card open.
           const failed = steps.some((ref) => {
             const part = partByID.get(ref.partID)
-            return part?.type === "tool" && part.state.status === "error"
+            return part?.type === "tool" && part.state.status === "error" && !isDeclined(part) && !isStopped(part)
           })
           // Text after the run settles it only once every step has finished: a shell still running stays open.
           const running = steps.some((ref) => {

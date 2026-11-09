@@ -1,4 +1,5 @@
 import type { Part as PartType, ToolPart } from "@opencode-ai/sdk/v2"
+import { stepOf } from "./step-kind"
 
 function deletionOnly(part: ToolPart) {
   if (!("metadata" in part.state)) return false
@@ -18,8 +19,11 @@ function deletionOnly(part: ToolPart) {
 
 export function partDefaultOpen(part: PartType, shell = false, edit = false) {
   if (part.type !== "tool") return
-  if (part.tool === "bash" || part.tool === "shell") return shell
-  if (part.tool === "edit" || part.tool === "write" || part.tool === "patch" || part.tool === "apply_patch") {
+  // By step kind, so Codex and ACP commands and edits (`command_execution`, `acp_execute`, `acp_edit`, …) follow the
+  // settings too. Searches, reads and every other tool start closed.
+  const kind = stepOf(part).kind
+  if (kind === "run") return shell
+  if (kind === "edit") {
     if (!edit) return false
     return !deletionOnly(part)
   }

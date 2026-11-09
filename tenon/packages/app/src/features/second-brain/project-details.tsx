@@ -143,7 +143,17 @@ export function useProjectCard(props: {
     const saved = formFields(props.project)
     setState({ name: saved.name, outcome: saved.outcome, instructions: saved.instructions, tags: saved.tags })
   }
-  return { state, setState, dirty, save, discard, discardSettings, setStatus }
+  // Writes the task-derived percent to the card, so every list shows the Project page's value. It waits for a
+  // running save, sends one attempt per value, and a failure is left for the next change to retry.
+  const synced = { value: "" }
+  const syncProgress = async (percent: number) => {
+    const before = props.project
+    if (state.saving || synced.value === `${before.id}:${percent}`) return
+    synced.value = `${before.id}:${percent}`
+    const updated = await project.update(before, { progressPercent: percent }).catch(() => undefined)
+    if (!updated) synced.value = ""
+  }
+  return { state, setState, dirty, save, discard, discardSettings, setStatus, syncProgress }
 }
 export type ProjectCard = ReturnType<typeof useProjectCard>
 
@@ -273,7 +283,7 @@ function ProjectSettingsDialog(props: { card: ProjectCard }) {
             if (await props.card.save()) dialog.close()
           }}
         >
-          {state.saving ? language.t("secondBrain.saving") : language.t("secondBrain.projects.saveState")}
+          {state.saving ? language.t("secondBrain.saving") : language.t("common.save")}
         </ButtonV2>
       </DialogFooter>
     </DialogV2>
@@ -304,6 +314,12 @@ export function ProjectCreate(props: {
         .map((location) => [pathKey(location.worktree), location]),
     ).values(),
   ])
+
+  const locationLabel = (locationID: string) => {
+    if (locationID === "__none__") return language.t("secondBrain.projects.location.none")
+    const location = locations().find((item) => item.id === locationID)
+    return location?.name ?? location?.worktree ?? locationID
+  }
 
   const submit = async () => {
     const name = state.draft.name.trim()
@@ -397,15 +413,14 @@ export function ProjectCreate(props: {
           appearance="large"
           options={["__none__", ...locations().map((location) => location.id)]}
           current={state.draft.locationId || "__none__"}
-          label={(locationID) => {
-            if (locationID === "__none__") return language.t("secondBrain.projects.location.none")
-            const location = locations().find((item) => item.id === locationID)
-            return location?.name ?? location?.worktree ?? locationID
-          }}
+          label={locationLabel}
           onSelect={(locationID) =>
             setState("draft", "locationId", locationID === "__none__" ? "" : (locationID ?? ""))
           }
-        />
+        >
+          {/* A long folder path ends in an ellipsis instead of being cut off. */}
+          {(locationID) => <span class="min-w-0 truncate">{locationLabel(locationID)}</span>}
+        </SelectV2>
       </label>
       <details class="group">
         <summary class={summaryClass}>

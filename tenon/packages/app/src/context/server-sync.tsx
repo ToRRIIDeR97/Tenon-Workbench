@@ -49,6 +49,7 @@ import type { ServerScope } from "@/utils/server-scope"
 import { createHomeSessionIndexCache } from "./global-sync/home-session-index"
 import { persisted } from "@/utils/persist"
 import type { ServerApi } from "@/utils/server"
+import { servesLegacyRoutes } from "@/utils/server-protocol"
 import type {
   McpListInput,
   McpListOutput,
@@ -228,14 +229,15 @@ function makeQueryOptionsApi(
   serverAPI: ServerApi,
   sdkFor: (dir: PathKey) => OpencodeClient,
   protocol: Promise<"v1" | "v2">,
+  legacyRoutes: Promise<boolean>,
 ) {
   return {
-    globalConfig: () => loadGlobalConfigQuery(scope, serverSDK(), protocol),
+    globalConfig: () => loadGlobalConfigQuery(scope, serverSDK(), legacyRoutes),
     projects: () => loadProjectsQuery(scope, serverAPI.project),
     providers: (directory: PathKey | null) =>
       loadProvidersQuery(scope, directory, serverAPI, directory ? sdkFor(directory) : serverSDK(), protocol),
     path: (directory: PathKey | null) =>
-      loadPathQuery(scope, directory, directory ? sdkFor(directory) : serverSDK(), protocol),
+      loadPathQuery(scope, directory, directory ? sdkFor(directory) : serverSDK(), legacyRoutes),
     agents: (directory: PathKey) => loadAgentsQuery(scope, directory, serverAPI.agent, sdkFor(directory), protocol),
     references: (directory: PathKey) =>
       loadReferencesQuery(scope, directory, serverAPI.reference, sdkFor(directory), protocol),
@@ -274,12 +276,14 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
   const session = createServerSession(serverSDK.client, serverSDK.api.session, serverSDK.api.message, {
     protocol: serverSDK.protocol,
   })
+  const legacyRoutes = servesLegacyRoutes(serverSDK)
   const queryOptionsApi = makeQueryOptionsApi(
     serverSDK.scope,
     () => serverSDK.client,
     serverSDK.api,
     sdkFor,
     serverSDK.protocol,
+    legacyRoutes,
   )
 
   const [configQuery, providerQuery, pathQuery] = useQueries(() => ({
@@ -371,6 +375,7 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
         serverSDK: serverSDK.client,
         serverAPI: serverSDK.api,
         protocol: serverSDK.protocol,
+        legacyRoutes,
         scope: serverSDK.scope,
         requestFailedTitle: language.t("common.requestFailed"),
         translate: language.t,
@@ -552,6 +557,7 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
         queryClient,
         session,
         protocol: serverSDK.protocol,
+        legacyRoutes,
       })
     })
 

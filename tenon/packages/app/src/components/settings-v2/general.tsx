@@ -66,7 +66,11 @@ const soundSettings = {
 const PermissionScopeSetting: Component<{ controller: PermissionScopeController }> = (props) => {
   const language = useLanguage()
   return (
-    <SettingsRowV2 title={language.t("command.permissions.autoaccept.enable")}>
+    // It applies to one thread's folder, so it is off without an open thread; the row says so.
+    <SettingsRowV2
+      title={language.t("command.permissions.autoaccept.enable")}
+      description={props.controller.enabled() ? undefined : language.t("secondBrain.settings.autoAcceptNeedsThread")}
+    >
       <div data-action="settings-auto-accept-permissions">
         <Switch
           checked={props.controller.accepting()}

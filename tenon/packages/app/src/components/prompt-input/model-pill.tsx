@@ -181,7 +181,9 @@ export function PromptModelPill(props: {
       trigger={
         <>
           <Icon name="monitor" size="small" class="shrink-0" />
-          <span class="min-w-0 truncate">{label() || language.t("harness.checking")}</span>
+          <span class="min-w-0 truncate" title={modelName() !== label() ? modelName() || undefined : undefined}>
+            {label() || language.t("harness.checking")}
+          </span>
           <Icon name="chevron-down" size="small" class="shrink-0 text-v2-icon-icon-muted" />
         </>
       }

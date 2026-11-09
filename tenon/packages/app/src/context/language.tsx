@@ -39,6 +39,8 @@ type PluralKey =
   | "secondBrain.sessionTab.subagentsMissing"
   | "secondBrain.sidebar.cardRunning"
   | "secondBrain.turnSteps.failed"
+  | "secondBrain.turnSteps.declined"
+  | "secondBrain.sidebar.scanResultCount"
   | "secondBrain.turnSteps.laneSteps"
   | "secondBrain.vault.moved"
   | `secondBrain.turnSteps.${StepKind}`

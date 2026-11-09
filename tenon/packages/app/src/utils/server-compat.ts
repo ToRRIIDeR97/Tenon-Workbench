@@ -58,7 +58,7 @@ type CompatibleInput = {
   legacyProjectsAndMcp?: Promise<boolean>
   current: ServerApi
   createSession?: (input?: HarnessSessionCreateInput) => Promise<SessionInfo>
-  promptSession?: (input: SessionPromptInput) => Promise<void>
+  promptSession?: (input: SessionPromptInput & LegacyPrompt) => Promise<void>
   legacy: LegacyFor
   directory?: string
 }

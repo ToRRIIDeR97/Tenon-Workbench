@@ -8,6 +8,7 @@
 }
 
 [data-component="session-review-v2"] [data-slot="session-review-v2-body"] {
+  position: relative;
   display: flex;
   flex: 1;
   min-height: 0;
@@ -22,6 +23,20 @@
   min-height: 0;
   height: 100%;
   overflow: hidden;
+}
+
+/* A narrow panel floats the tree over the viewer, so the viewer keeps the full width. */
+[data-component="session-review-v2-sidebar-root"][data-overlay] {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  z-index: 30;
+  max-width: calc(100% - 48px);
+}
+
+[data-component="session-review-v2-sidebar-root"][data-overlay] [data-slot="session-review-v2-sidebar"] {
+  max-width: 100%;
+  box-shadow: var(--v2-elevation-floating);
 }
 
 [data-component="session-review-v2-sidebar-root"] [data-slot="session-review-v2-sidebar"] {
@@ -438,8 +453,10 @@
 }
 
 [data-component="session-review-v2"] .session-review-v2-toolbar-group--segments {
-  flex-shrink: 0;
-  gap: 12px;
+  flex-shrink: 1;
+  flex-wrap: wrap;
+  min-width: 0;
+  gap: 8px 12px;
 }
 
 [data-component="session-review-v2"] .session-review-v2-toolbar-group--segments .session-review-v2-segmented-control {

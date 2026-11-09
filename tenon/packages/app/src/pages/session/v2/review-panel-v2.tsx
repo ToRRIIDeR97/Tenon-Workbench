@@ -67,8 +67,6 @@ export function ReviewPanelV2(props: ReviewPanelV2Props) {
   )
   const searching = createMemo(() => props.state.filter().trim().length > 0)
   const kinds = createMemo(() => reviewDiffKinds(diffs()))
-  // Changes-only trees omit "M" — every row is already a change; A/D stay visible.
-  const treeKinds = createMemo(() => new Map([...kinds()].filter(([, kind]) => kind !== "mix")))
   const activeDiff = createMemo(() => {
     // A focused comment takes over the preview until the preview applies it and
     // clears the focus; the owner then persists the file as the active selection.
@@ -127,7 +125,7 @@ export function ReviewPanelV2(props: ReviewPanelV2Props) {
           diffs={diffs}
           filteredFiles={filteredFiles}
           searching={searching}
-          kinds={treeKinds}
+          kinds={kinds}
           activeDiff={activeDiff}
         />
       }
@@ -182,6 +180,11 @@ function ReviewPanelV2Sidebar(props: {
 }) {
   const language = useLanguage()
   const [explicitHighlight, setExplicitHighlight] = createSignal<string | undefined>()
+  // In a narrow panel the tree floats over the diff; picking a file puts it away.
+  const select = (path: string) => {
+    props.onSelectFile(path)
+    props.state.closeOverlay()
+  }
   const highlightedPath = createMemo(() => {
     if (!props.searching()) return undefined
     const files = props.filteredFiles()
@@ -195,7 +198,7 @@ function ReviewPanelV2Sidebar(props: {
     if (!props.searching()) return
     applyFileListKeyDown(event, props.filteredFiles(), highlightedPath(), {
       onHighlight: setExplicitHighlight,
-      onSelect: props.onSelectFile,
+      onSelect: select,
     })
   }
 
@@ -212,6 +215,7 @@ function ReviewPanelV2Sidebar(props: {
       onWidthChange={props.state.resizeSidebar}
       minWidth={SESSION_REVIEW_V2_SIDEBAR_WIDTH_MIN}
       maxWidth={SESSION_REVIEW_V2_SIDEBAR_WIDTH_MAX}
+      overlay={props.state.narrow()}
     >
       <Show
         when={props.diffsReady()}
@@ -225,7 +229,7 @@ function ReviewPanelV2Sidebar(props: {
               kinds={props.kinds()}
               draggable={false}
               active={props.activeDiff()}
-              onFileClick={(node) => props.onSelectFile(node.path)}
+              onFileClick={(node) => select(node.path)}
             />
           }
         >
@@ -244,7 +248,7 @@ function ReviewPanelV2Sidebar(props: {
               highlighted={highlightedPath()}
               onFileClick={(path) => {
                 setExplicitHighlight(path)
-                props.onSelectFile(path)
+                select(path)
               }}
             />
           </Show>

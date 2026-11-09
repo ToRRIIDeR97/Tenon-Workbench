@@ -293,6 +293,16 @@ export function SessionContextTab() {
     },
   ] satisfies { label: string; value: () => JSX.Element }[]
 
+  // What the subagents spent, apart from the context figure below. Declared before `details`, which the memo reads
+  // on creation.
+  const subagentSpend = () => {
+    const spent = subagentUsage()
+    if (!spent || spent.count === 0) return undefined
+    const tokens = formatter().number(spent.total)
+    if (spent.cost === undefined) return language.t("secondBrain.contextMenu.usedTokens", { count: tokens })
+    return language.t("secondBrain.sessionTab.subagentUsage", { tokens, cost: usd().format(spent.cost) })
+  }
+
   // Only what the harness reported; a missing value hides its row instead of reading "Not reported".
   const details = createMemo(() => {
     const c = ctx()
@@ -348,15 +358,6 @@ export function SessionContextTab() {
     ]
     return rows.flatMap((row) => (row.value ? [{ label: row.label, value: row.value }] : []))
   })
-
-  // What the subagents spent, apart from the context figure above.
-  const subagentSpend = () => {
-    const spent = subagentUsage()
-    if (!spent || spent.count === 0) return undefined
-    const tokens = formatter().number(spent.total)
-    if (spent.cost === undefined) return language.t("secondBrain.contextMenu.usedTokens", { count: tokens })
-    return language.t("secondBrain.sessionTab.subagentUsage", { tokens, cost: usd().format(spent.cost) })
-  }
 
   const [raw, setRaw] = createSignal(false)
 

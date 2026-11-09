@@ -10,7 +10,8 @@
 [data-component="menu-v2-content"][data-slot="select-v2-content"] {
   padding: 0;
   min-width: 160px;
-  max-width: 23rem;
+  /* A wide trigger (a form field) keeps its list as wide as itself; Kobalte sets the anchor width. */
+  max-width: max(23rem, var(--kb-popper-anchor-width, 0px));
   overflow: hidden;
   z-index: 60;
   pointer-events: auto;

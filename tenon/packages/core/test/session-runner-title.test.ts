@@ -36,7 +36,7 @@ import { SystemContext } from "@tenon/core/system-context"
 import { SystemContextRegistry } from "@tenon/core/system-context/registry"
 import { ToolRegistry } from "@tenon/core/tool/registry"
 import { eq } from "drizzle-orm"
-import { Effect, Layer, Stream } from "effect"
+import { Effect, Fiber, Layer, Stream } from "effect"
 import * as TestClock from "effect/testing/TestClock"
 import { testEffect } from "./lib/effect"
 
@@ -46,6 +46,7 @@ let titleReply = "<think>naming</think>\nFix login redirect\n"
 let titleFails = false
 let titleHangs = false
 let titleAbandoned = false
+let turnHangs = false
 const client = Layer.succeed(
   LLMClient.Service,
   LLMClient.Service.of({
@@ -90,7 +91,7 @@ const harnessTitles: Array<HarnessRuntime.CompleteInput & { readonly instanceID:
 let preferredTitleAgent: Harness.InstanceID | undefined
 const harnesses = Layer.mock(HarnessRuntime.Service, {
   driver: (id) => (id === harnessID || id === otherHarnessID ? Harness.DriverKind.make("acp") : Harness.OpenCodeDriver),
-  stream: () => Stream.fromIterable(turn),
+  stream: () => (turnHangs ? Stream.never : Stream.fromIterable(turn)),
   complete: (input) =>
     Effect.sync(() => {
       harnessTitles.push(input)
@@ -194,6 +195,7 @@ const setup = (input: { harness?: boolean; agentModel?: boolean } = {}) =>
     titleFails = false
     titleHangs = false
     titleAbandoned = false
+    turnHangs = false
     yield* agents.transform((editor) =>
       editor.update(AgentV2.ID.make("title"), (info) => {
         info.hidden = true
@@ -369,6 +371,25 @@ describe("session runner titles", () => {
 
       expect(titleRequests).toHaveLength(1)
       expect(yield* storedTitle).toBe(defaultTitle)
+    }),
+  )
+
+  it.effect("titles a session whose first turn is stopped", () =>
+    Effect.gen(function* () {
+      yield* setup()
+      turnHangs = true
+      const session = yield* SessionV2.Service
+      yield* session.prompt({ sessionID, prompt: Prompt.make({ text: "Users land on /login" }), resume: false })
+      const fiber = yield* session.resume(sessionID).pipe(Effect.exit, Effect.forkChild)
+      yield* settle
+      expect(titleRequests).toHaveLength(0)
+
+      yield* session.interrupt(sessionID)
+      yield* Fiber.join(fiber)
+      yield* settle
+
+      expect(titleRequests).toHaveLength(1)
+      expect(yield* storedTitle).toBe("Fix login redirect")
     }),
   )
 

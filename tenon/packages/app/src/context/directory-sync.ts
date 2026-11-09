@@ -6,6 +6,7 @@ import type { createServerSdkContext } from "./server-sdk"
 import type { createServerSyncContextInner } from "./server-sync"
 import type { State } from "./global-sync/types"
 import { normalizeSessionInfo } from "@/utils/session"
+import { servesLegacyRoutes } from "@/utils/server-protocol"
 
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
 const sessionFields = new Set([
@@ -134,7 +135,7 @@ export const createDirSyncContext = (
       },
       more: createMemo(() => current()[0].session.length >= current()[0].limit),
       archive: async (sessionID: string) => {
-        if ((await serverSDK.protocol) !== "v1") return
+        if (!(await servesLegacyRoutes(serverSDK))) return
         await serverSDK.client.session.update({ sessionID, directory, time: { archived: Date.now() } })
         current()[1](
           "session",

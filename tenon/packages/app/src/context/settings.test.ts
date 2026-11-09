@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test"
-import { hasExistingWebState, initialAgentVisibility, modelProvider, withVisibleModels } from "./settings"
+import {
+  hasExistingWebState,
+  initialAgentVisibility,
+  modelProvider,
+  newThreadChoice,
+  withVisibleModels,
+} from "./settings"
 
 describe("agent visibility", () => {
   test("shows the picker for existing profiles and hides it for first-time installs", () => {
@@ -43,5 +49,22 @@ describe("harness model visibility", () => {
     ])
     expect(modelProvider("openrouter/openai/gpt")).toBe("openrouter")
     expect(modelProvider("plain")).toBeUndefined()
+  })
+})
+
+describe("newThreadChoice", () => {
+  const lastUsed = { harnessID: "opencode-acp", model: { id: "nemotron" } }
+  const fixed = { mode: "fixed" as const, harnessID: "codex" }
+
+  test("starts from the last harness used until a default is saved", () => {
+    expect(newThreadChoice(undefined)).toBeUndefined()
+    expect(newThreadChoice({ lastUsed })).toEqual(lastUsed)
+  })
+
+  test("follows the saved default", () => {
+    expect(newThreadChoice({ defaults: fixed, lastUsed })).toEqual(fixed)
+    expect(newThreadChoice({ defaults: { ...fixed, mode: "last" }, lastUsed })).toEqual(lastUsed)
+    const last = { ...fixed, mode: "last" as const }
+    expect(newThreadChoice({ defaults: last })).toEqual(last)
   })
 })

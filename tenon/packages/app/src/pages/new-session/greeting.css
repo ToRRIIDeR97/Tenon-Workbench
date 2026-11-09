@@ -40,6 +40,31 @@
   background: currentColor;
 }
 
+/* Home's rolling verb (Greeting `swap`): a one-line window over a stack of verbs that slides up to the next one. */
+.greeting-slot-window {
+  display: inline-block;
+  height: 1.3em;
+  overflow: hidden;
+  vertical-align: top;
+  transition: width var(--v2-duration-medium) var(--v2-ease-standard);
+}
+
+.greeting-slot-stack {
+  display: block;
+  transition: transform 700ms var(--v2-ease-emphasized-decelerate);
+
+  > span {
+    display: block;
+    width: max-content;
+    height: 1.3em;
+  }
+}
+
+/* The snap back from the copy of the first verb to the first one, which must not be seen. */
+.greeting-slot-snap {
+  transition: none;
+}
+
 @keyframes greeting-fade {
   from {
     opacity: 0;

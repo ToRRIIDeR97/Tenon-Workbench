@@ -123,7 +123,7 @@ export const SettingsHarnessesV2: Component<{
   const openAdd = () => {
     const dir = directory()
     if (!dir) return
-    void dialog.show(() => (
+    void dialog.push(() => (
       <DialogAddHarness directory={dir} server={server()} onClose={props.onBack} onSaved={saved} />
     ))
   }
@@ -146,7 +146,7 @@ export const SettingsHarnessesV2: Component<{
     if (!dir) return
     void harnessAssistantDirectory(server(), dir).then(
       (assistantDir) =>
-        dialog.show(() => <DialogHarnessAssistant directory={assistantDir} onClose={props.onBack} onSaved={saved} />),
+        dialog.push(() => <DialogHarnessAssistant directory={assistantDir} onClose={props.onBack} onSaved={saved} />),
       failed,
     )
   }
@@ -154,7 +154,7 @@ export const SettingsHarnessesV2: Component<{
   const openSetup = () => {
     const dir = directory()
     if (!dir) return
-    void dialog.show(() => (
+    void dialog.push(() => (
       <DialogHarnessSetup
         directory={dir}
         onClose={() => {
@@ -786,7 +786,8 @@ function HarnessDefaults(props: {
   const settings = useSettings()
   const defaults = () => settings.harnesses.defaults()
   const harnessID = () => defaults()?.harnessID ?? Harness.OpenCode
-  const last = () => defaults()?.mode === "last"
+  // With no saved default, new threads already start from the last one used (settings.tsx newThreadChoice).
+  const last = () => (defaults()?.mode ?? "last") === "last"
   const save = (next: Partial<NonNullable<ReturnType<typeof defaults>>>) =>
     settings.harnesses.setDefaults({ mode: "fixed", harnessID: harnessID(), ...defaults(), ...next })
   const harnessOptions = createMemo(() => [

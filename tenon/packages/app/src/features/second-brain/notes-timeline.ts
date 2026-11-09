@@ -2,6 +2,7 @@ import type { TimelineItem, VaultPageInfo } from "./client"
 
 const day = 86_400_000
 const week = 7 * day
+const MIN_WEEKS = 4
 
 export type TimelineRow = {
   item: TimelineItem
@@ -12,7 +13,8 @@ export type TimelineRow = {
 
 /**
  * Lay items out on a grid of whole weeks (starting Monday, UTC calendar days so the time zone never shifts a
- * date). A task spans start..end inclusive; a milestone sits at its date. Dates are `YYYY-MM-DD`.
+ * date). A task spans start..end inclusive; a milestone sits at its date. Dates are `YYYY-MM-DD`. The grid spans
+ * at least four weeks, so a short plan still has dated ticks to read its bars and milestone labels against.
  */
 export function timelineLayout(items: ReadonlyArray<TimelineItem>) {
   const spans = items.map((item) => {
@@ -25,7 +27,7 @@ export function timelineLayout(items: ReadonlyArray<TimelineItem>) {
   if (starts.length === 0) return { weeks: [] as string[], rows: items.map((item): TimelineRow => ({ item })) }
   const min = Math.min(...starts)
   const first = min - ((new Date(min).getUTCDay() + 6) % 7) * day
-  const count = Math.max(1, Math.ceil((Math.max(...ends) + day - first) / week))
+  const count = Math.max(MIN_WEEKS, Math.ceil((Math.max(...ends) + day - first) / week))
   const total = count * week
   return {
     weeks: Array.from({ length: count }, (_, index) => new Date(first + index * week).toISOString().slice(0, 10)),
@@ -40,33 +42,62 @@ export function timelineLayout(items: ReadonlyArray<TimelineItem>) {
   }
 }
 
-/** Progress counts tasks only; milestones mark dates. */
+/**
+ * Progress counts tasks only; milestones mark dates. `percent` is the Project's one progress value (done of total,
+ * rounded), absent while it has no tasks. `next` is the earliest milestone still open: one whose tasks are all done
+ * counts as complete even if its own status was never changed.
+ */
 export function timelineCounts(items: ReadonlyArray<TimelineItem>) {
   const tasks = items.filter((item) => item.kind === "task")
-  const next = items
-    .filter((item) => item.kind === "milestone" && item.status !== "done")
+  const done = tasks.filter((item) => item.status === "done").length
+  const next = milestoneGroups(items)
+    .flatMap((group) => (group.milestone && !group.complete ? [group.milestone] : []))
     .sort((left, right) => (left.start ?? "￿").localeCompare(right.start ?? "￿"))[0]
-  return { done: tasks.filter((item) => item.status === "done").length, total: tasks.length, next }
+  return {
+    done,
+    total: tasks.length,
+    percent: tasks.length ? Math.round((done / tasks.length) * 100) : undefined,
+    next,
+  }
 }
 
-export type MilestoneGroup = { milestone?: TimelineItem; tasks: TimelineItem[]; done: number; total: number }
+/**
+ * A milestone's shown status: done once every task under it is done (and it has at least one), otherwise its own.
+ */
+export function milestoneStatus(group: MilestoneGroup): TimelineItem["status"] | undefined {
+  if (!group.milestone) return undefined
+  return group.complete ? "done" : group.milestone.status
+}
+
+export type MilestoneGroup = {
+  milestone?: TimelineItem
+  tasks: TimelineItem[]
+  done: number
+  total: number
+  /** The milestone is marked done, or every task under it is. */
+  complete: boolean
+}
 
 /**
  * The timeline grouped by list order, since items carry no milestone link: a milestone heads the tasks listed after
  * it up to the next milestone, and tasks before the first milestone form a group without one. `open` hides done
- * tasks, and done milestones with nothing open under them. `done` and `total` count every task in the group.
+ * tasks, and complete milestones with nothing open under them. `done` and `total` count every task in the group.
  */
 export function milestoneGroups(items: ReadonlyArray<TimelineItem>, open = false) {
-  const groups: MilestoneGroup[] = [{ tasks: [], done: 0, total: 0 }]
+  const groups: MilestoneGroup[] = [{ tasks: [], done: 0, total: 0, complete: false }]
   items.forEach((item) => {
-    if (item.kind === "milestone") return void groups.push({ milestone: item, tasks: [], done: 0, total: 0 })
+    if (item.kind === "milestone")
+      return void groups.push({ milestone: item, tasks: [], done: 0, total: 0, complete: false })
     const group = groups.at(-1)!
     group.total += 1
     if (item.status === "done") group.done += 1
     if (!open || item.status !== "done") group.tasks.push(item)
   })
+  groups.forEach((group) => {
+    group.complete = group.milestone?.status === "done" || (group.total > 0 && group.done === group.total)
+  })
   return groups.filter((group) =>
-    group.milestone ? !open || group.milestone.status !== "done" || group.tasks.length > 0 : group.tasks.length > 0,
+    group.milestone ? !open || !group.complete || group.tasks.length > 0 : group.tasks.length > 0,
   )
 }
 

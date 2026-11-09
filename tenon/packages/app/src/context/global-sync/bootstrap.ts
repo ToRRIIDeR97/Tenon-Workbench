@@ -106,11 +106,11 @@ function showErrors(input: {
   })
 }
 
-export const loadGlobalConfigQuery = (scope: ServerScope, sdk: OpencodeClient, protocol?: Promise<ServerProtocol>) =>
+export const loadGlobalConfigQuery = (scope: ServerScope, sdk: OpencodeClient, legacyRoutes?: Promise<boolean>) =>
   queryOptions({
     queryKey: [scope, "config"],
     queryFn: async () => {
-      if ((await protocol) !== "v1") return {}
+      if (!(await legacyRoutes)) return {}
       return retry(() => sdk.global.config.get().then((x) => x.data!))
     },
   })
@@ -145,6 +145,8 @@ export async function bootstrapGlobal(input: {
   serverSDK: OpencodeClient
   serverAPI: CatalogApi & { readonly project: ProjectApi }
   protocol?: Promise<ServerProtocol>
+  // Whether the server answers the V1 instance routes; see `servesLegacyRoutes`.
+  legacyRoutes?: Promise<boolean>
   scope: ServerScope
   requestFailedTitle: string
   translate: (key: string, vars?: Record<string, string | number>) => string
@@ -153,12 +155,12 @@ export async function bootstrapGlobal(input: {
   queryClient: QueryClient
 }) {
   const slow = [
-    () => input.queryClient.fetchQuery(loadGlobalConfigQuery(input.scope, input.serverSDK, input.protocol)),
+    () => input.queryClient.fetchQuery(loadGlobalConfigQuery(input.scope, input.serverSDK, input.legacyRoutes)),
     () =>
       input.queryClient.fetchQuery(
         loadProvidersQuery(input.scope, null, input.serverAPI, input.serverSDK, input.protocol),
       ),
-    () => input.queryClient.fetchQuery(loadPathQuery(input.scope, null, input.serverSDK, input.protocol)),
+    () => input.queryClient.fetchQuery(loadPathQuery(input.scope, null, input.serverSDK, input.legacyRoutes)),
     () =>
       input.queryClient
         .fetchQuery(loadProjectsQuery(input.scope, input.serverAPI.project))
@@ -302,13 +304,12 @@ export const loadPathQuery = (
   scope: ServerScope,
   directory: string | null,
   sdk: OpencodeClient,
-  protocol?: Promise<ServerProtocol>,
+  legacyRoutes?: Promise<boolean>,
 ) =>
   queryOptions<Path>({
     queryKey: [scope, directory, "path"],
     queryFn: async () => {
-      if ((await protocol) !== "v1")
-        return { state: "", config: "", worktree: "", directory: directory ?? "", home: "" }
+      if (!(await legacyRoutes)) return { state: "", config: "", worktree: "", directory: directory ?? "", home: "" }
       return retry(() => sdk.path.get({ directory: directory ?? undefined }).then((result) => result.data!))
     },
   })
@@ -360,6 +361,8 @@ export async function bootstrapDirectory(input: {
   queryClient: QueryClient
   session?: ServerSession
   protocol?: Promise<ServerProtocol>
+  // Whether the server answers the V1 instance routes; see `servesLegacyRoutes`.
+  legacyRoutes?: Promise<boolean>
 }) {
   const loading = input.store.status !== "complete"
   const seededProject = projectID(input.directory, input.global.project)
@@ -421,14 +424,14 @@ export async function bootstrapDirectory(input: {
       !seededPath &&
         (() =>
           input.queryClient
-            .ensureQueryData(loadPathQuery(input.scope, input.directory, input.sdk, input.protocol))
+            .ensureQueryData(loadPathQuery(input.scope, input.directory, input.sdk, input.legacyRoutes))
             .then((data) => {
               const next = projectID(data.directory ?? input.directory, input.global.project)
               if (next) input.setStore("project", next)
             })),
       () =>
         retry(async () => {
-          if ((await input.protocol) !== "v1") return
+          if (!(await input.legacyRoutes)) return
           return input.sdk.vcs.get().then((result) => {
             const next = { branch: result.data?.branch, default_branch: result.data?.default_branch }
             input.setStore("vcs", next)

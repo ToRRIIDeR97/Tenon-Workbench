@@ -68,6 +68,8 @@ export default function ProjectsPage() {
     page?: string
     note?: string
     new?: string
+    /** `routines`: the page was opened from Routines, so Back returns there. */
+    from?: string
   }>()
   const [state, setState] = createStore({
     directory: "",
@@ -197,8 +199,9 @@ ${path}`
   const pageHref = (path: string) => `/projects?page=${encodeURIComponent(path)}`
   const openPage = (path: string) => navigate(pageHref(path), { state: { fromNotes: true } })
   const openProject = (id: string) => navigate(`/projects?project=${encodeURIComponent(id)}`)
-  // The open page's Project, else the landing.
+  // Routines (when it opened the page), else the open page's Project, else the landing.
   const parentHref = () => {
+    if (search.from === "routines") return "/routines"
     const owner = pageList().find((page) => page.path === pagePath())?.projectId
     return owner ? `/projects?project=${encodeURIComponent(owner)}&section=pages` : "/projects"
   }

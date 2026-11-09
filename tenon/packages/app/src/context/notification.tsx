@@ -18,7 +18,7 @@ import { ServerConnection, useServer } from "./server"
 import { useDrafts } from "./drafts"
 import { needsAttention, notificationTrigger, type NotificationTrigger } from "./notification-events"
 import { usePermission } from "./permission"
-import { requireServerKey, sessionHref } from "@/utils/session-route"
+import { parseServerKey, sessionHref } from "@/utils/session-route"
 import type { ServerScope } from "@/utils/server-scope"
 
 type NotificationBase = {
@@ -130,7 +130,8 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
     const states = new Map<ServerScope, { dispose: () => void; state: NotificationState }>()
 
     const activeServer = createMemo(() => {
-      if (params.serverKey) return requireServerKey(params.serverKey)
+      const routed = parseServerKey(params.serverKey)
+      if (routed) return routed
       if (search.draftId) {
         const draft = drafts.get(search.draftId)
         if (draft) return draft.server

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { detectServerCapabilities, detectServerProtocol } from "./server-protocol"
+import { detectServerCapabilities, detectServerProtocol, servesLegacyRoutes } from "./server-protocol"
 
 const server = { url: "http://localhost:4096" }
 const json = (value: unknown, status = 200) =>
@@ -49,5 +49,19 @@ describe("detectServerProtocol", () => {
     })
 
     expect(await detectServerProtocol(server, fetcher)).toBe("v1")
+  })
+})
+
+describe("servesLegacyRoutes", () => {
+  const serves = (protocol: "v1" | "v2", legacy: boolean) =>
+    servesLegacyRoutes({ protocol: Promise.resolve(protocol), legacyProjectsAndMcp: Promise.resolve(legacy) })
+
+  test("is true for V1 servers and the sidecar that still serves the V1 routes", async () => {
+    expect(await serves("v1", true)).toBeTrue()
+    expect(await serves("v2", true)).toBeTrue()
+  })
+
+  test("is false for a V2-only server", async () => {
+    expect(await serves("v2", false)).toBeFalse()
   })
 })

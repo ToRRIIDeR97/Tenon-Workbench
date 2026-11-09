@@ -8,9 +8,10 @@ import { createMemo, createResource, createSignal } from "solid-js"
 import { useLanguage } from "@/context/language"
 import { ServerConnection } from "@/context/server"
 import { useGlobal } from "@/context/global"
-import { cleanPickerInput, createDirectorySearch, displayPickerPath } from "./directory-picker-domain"
+import { cleanPickerInput, createDirectorySearch, displayPickerPath, trimPickerPath } from "./directory-picker-domain"
 import { listV2Class } from "./surface-classes"
 import type { Path } from "@opencode-ai/sdk/v2/client"
+import { servesLegacyRoutes } from "@/utils/server-protocol"
 
 interface DialogSelectDirectoryProps {
   title?: string
@@ -30,6 +31,8 @@ type Row = {
 function toRow(absolute: string, home: string, group: Row["group"]): Row {
   const full = displayPickerPath(absolute, "", "")
   const tilde = displayPickerPath(full, "~", home)
+  // Windows paths display with backslashes; keep the forward-slash spelling searchable too.
+  const slashed = trimPickerPath(full)
   const withSlash = (value: string) => {
     if (!value) return ""
     if (value.endsWith("/")) return value
@@ -37,7 +40,9 @@ function toRow(absolute: string, home: string, group: Row["group"]): Row {
   }
 
   const search = Array.from(
-    new Set([full, withSlash(full), tilde, withSlash(tilde), getFilename(full)].filter(Boolean)),
+    new Set(
+      [full, withSlash(full), slashed, withSlash(slashed), tilde, withSlash(tilde), getFilename(full)].filter(Boolean),
+    ),
   ).join("\n")
   return { absolute: full, search, group }
 }
@@ -64,7 +69,7 @@ export function DialogSelectDirectory(props: DialogSelectDirectoryProps) {
   const [fallbackPath] = createResource(
     () => (missingHome() ? true : undefined),
     async (): Promise<Path | undefined> => {
-      if ((await sdk.protocol) !== "v1") return
+      if (!(await servesLegacyRoutes(sdk))) return
       return sdk.client.path
         .get()
         .then((result) => result.data)
@@ -143,6 +148,8 @@ export function DialogSelectDirectory(props: DialogSelectDirectoryProps) {
           items={items}
           key={(x) => x.absolute}
           filterKeys={["search"]}
+          // Folder rows already match the typed path (`~`, `~/`, `C:/…`), which a second fuzzy pass would drop.
+          skipFilter={(item) => item.group === "folders"}
           groupBy={(item) => item.group}
           sortGroupsBy={(a, b) => {
             if (a.category === b.category) return 0

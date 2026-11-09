@@ -5,6 +5,7 @@ import {
   dateKeys,
   eventCoversDay,
   eventLastDay,
+  gridScrollTop,
   hourSlot,
   localDateKey,
   mergeProviderEvents,
@@ -158,4 +159,13 @@ test("every task view round-trips through its filter, and others have none", () 
   expect(taskFilter("month")).toBeUndefined()
   expect(calendarView("nonsense")).toBe("today")
   expect(calendarView("upcoming")).toBe("upcoming")
+})
+
+test("gridScrollTop opens at 07:00 below the header, or at an earlier event", () => {
+  const base = { hoursTop: 100, headerHeight: 60, hour: 48 }
+  expect(gridScrollTop({ ...base, starts: [] })).toBe(100 - 60 + 7 * 48 - 12)
+  expect(gridScrollTop({ ...base, starts: ["09:00"] })).toBe(100 - 60 + 7 * 48 - 12)
+  expect(gridScrollTop({ ...base, starts: ["05:30", "10:00"] })).toBe(100 - 60 + 5 * 48 - 12)
+  expect(gridScrollTop({ ...base, starts: ["00:15"] })).toBe(28)
+  expect(gridScrollTop({ hoursTop: 0, headerHeight: 80, hour: 48, starts: ["00:00"] })).toBe(0)
 })

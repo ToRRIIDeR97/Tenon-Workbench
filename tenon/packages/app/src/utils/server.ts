@@ -459,40 +459,55 @@ export async function promptSessionForServer(
     server: ServerConnection.HttpBase
     fetch?: typeof globalThis.fetch
   },
-  value: SessionPromptInput,
+  value: SessionPromptInput & {
+    model?: { providerID: string; modelID: string }
+    variant?: string
+    harness?: boolean
+  },
 ) {
-  const response = await (input.fetch ?? globalThis.fetch)(
-    `${input.server.url.replace(/\/+$/, "")}/api/session/${encodeURIComponent(value.sessionID)}/prompt`,
-    {
+  const base = `${input.server.url.replace(/\/+$/, "")}/api/session/${encodeURIComponent(value.sessionID)}`
+  const headers = {
+    "content-type": "application/json",
+    ...(input.server.password
+      ? {
+          Authorization: `Basic ${authTokenFromCredentials({
+            username: input.server.username,
+            password: input.server.password,
+          })}`,
+        }
+      : {}),
+  }
+  // The prompt route carries no model, so a built-in (host model) thread records the composer's choice first;
+  // the server skips the switch when the model is unchanged. A harness thread switches through /harness instead.
+  if (value.model && !value.harness) {
+    const switched = await (input.fetch ?? globalThis.fetch)(`${base}/model`, {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        ...(input.server.password
-          ? {
-              Authorization: `Basic ${authTokenFromCredentials({
-                username: input.server.username,
-                password: input.server.password,
-              })}`,
-            }
-          : {}),
-      },
+      headers,
       body: JSON.stringify({
-        id: value.id,
-        prompt: {
-          text: value.text,
-          files: value.files?.map((file) => ({
-            uri: file.uri,
-            name: file.name,
-            description: file.description,
-            source: file.mention,
-          })),
-          agents: value.agents?.map((agent) => ({ name: agent.name, source: agent.mention })),
-        },
-        delivery: value.delivery,
-        resume: value.resume,
+        model: { id: value.model.modelID, providerID: value.model.providerID, variant: value.variant },
       }),
-    },
-  )
+    })
+    if (!switched.ok) throw new Error(`Model switch failed (${switched.status}).`)
+  }
+  const response = await (input.fetch ?? globalThis.fetch)(`${base}/prompt`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      id: value.id,
+      prompt: {
+        text: value.text,
+        files: value.files?.map((file) => ({
+          uri: file.uri,
+          name: file.name,
+          description: file.description,
+          source: file.mention,
+        })),
+        agents: value.agents?.map((agent) => ({ name: agent.name, source: agent.mention })),
+      },
+      delivery: value.delivery,
+      resume: value.resume,
+    }),
+  })
   if (!response.ok) throw new Error(`Harness prompt failed (${response.status}).`)
 }
 
