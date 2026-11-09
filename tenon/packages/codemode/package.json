@@ -16,7 +16,7 @@
   "dependencies": {
     "acorn": "8.15.0",
     "effect": "catalog:",
-    "typescript": "catalog:"
+    "sucrase": "3.35.1"
   },
   "devDependencies": {
     "@tsconfig/bun": "catalog:",
