@@ -3,6 +3,7 @@ import { SessionV1 } from "@tenon/core/v1/session"
 import { APICallError } from "ai"
 import { MessageV2 } from "../../src/session/message-v2"
 import { ProviderTransform } from "@/provider/transform"
+import { ProviderError } from "@/provider/error"
 import type { Provider } from "@/provider/provider"
 
 import { SessionID, MessageID, PartID } from "../../src/session/schema"
@@ -1524,6 +1525,22 @@ describe("session.message-v2.fromError", () => {
         message: "The user dismissed this question",
       },
     })
+  })
+
+  test("classifies a stream timeout wrapped by provider-utils as retryable APIError", () => {
+    const wrapped = new APICallError({
+      message: "Failed to process successful response",
+      cause: new ProviderError.ResponseStreamError("SSE read timed out"),
+      url: "https://example.com/v1/chat/completions",
+      requestBodyValues: {},
+      statusCode: 200,
+    })
+
+    const result = MessageV2.fromError(wrapped, { providerID })
+
+    expect(SessionV1.APIError.isInstance(result)).toBe(true)
+    expect((result as SessionV1.APIError).data.isRetryable).toBe(true)
+    expect((result as SessionV1.APIError).data.message).toBe("SSE read timed out")
   })
 
   test("classifies ZlibError from fetch as retryable APIError", () => {
