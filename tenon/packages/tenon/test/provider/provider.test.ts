@@ -2169,3 +2169,42 @@ it.effect("opencode loader keeps paid models when auth exists", () =>
     expect(keyedCount).toBeGreaterThan(0)
   }).pipe(provideMultiInstance),
 )
+
+it.effect("saved GitLab config, token and auth are ignored after GitLab support was removed", () =>
+  Effect.gen(function* () {
+    yield* setProcessEnv("GITLAB_TOKEN", "glpat-test")
+    yield* setProcessEnv("ANTHROPIC_API_KEY", "test-api-key")
+    const dir = yield* tmpdirScoped({
+      config: {
+        provider: {
+          gitlab: {
+            options: { instanceUrl: "https://gitlab.example.com", featureFlags: { duo_agent_platform: true } },
+          },
+        },
+      },
+    })
+
+    const authPath = path.join(Global.Path.data, "auth.json")
+    const original = yield* Effect.promise(() => Filesystem.readText(authPath).catch(() => undefined))
+    yield* Effect.acquireRelease(
+      Effect.promise(() =>
+        Filesystem.write(
+          authPath,
+          JSON.stringify({ gitlab: { type: "oauth", access: "access", refresh: "refresh", expires: 0 } }),
+        ),
+      ),
+      () =>
+        Effect.promise(async () => {
+          if (original !== undefined) await Filesystem.write(authPath, original)
+          else await unlink(authPath).catch(() => undefined)
+        }),
+    )
+
+    const providers = yield* Provider.use
+      .list()
+      .pipe(provideInstanceEffect(dir))
+      .pipe(Effect.provide(instanceStoreLayer), Effect.provide(AppNodeBuilder.build(CrossSpawnSpawner.node)))
+    expect(providers[ProviderV2.ID.make("gitlab")]).toBeUndefined()
+    expect(providers[ProviderV2.ID.anthropic]).toBeDefined()
+  }).pipe(provideMultiInstance),
+)

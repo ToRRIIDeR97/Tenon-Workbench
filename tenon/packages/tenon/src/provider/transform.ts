@@ -1778,7 +1778,6 @@ function reasoningEffort(model: Provider.Model, effort: string) {
     case "@ai-sdk/perplexity":
     case "@ai-sdk/vercel":
     case "@ai-sdk/alibaba":
-    case "gitlab-ai-provider":
       return
   }
 }
@@ -1847,7 +1846,6 @@ function reasoningBudget(model: Provider.Model, budget: number) {
     case "@ai-sdk/vercel":
     case "@ai-sdk/xai":
     case "ai-gateway-provider":
-    case "gitlab-ai-provider":
     case "venice-ai-sdk-provider":
       return
   }

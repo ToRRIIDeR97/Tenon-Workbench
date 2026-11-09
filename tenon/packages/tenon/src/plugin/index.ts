@@ -14,7 +14,6 @@ import { Session } from "@/session/session"
 import { NamedError } from "@tenon/core/util/error"
 import { CopilotAuthPlugin } from "./github-copilot/copilot"
 import { ModalPlugin } from "./modal/modal"
-import { gitlabAuthPlugin as GitlabAuthPlugin } from "opencode-gitlab-auth"
 import { PoeAuthPlugin } from "opencode-poe-auth"
 import { CloudflareAIGatewayAuthPlugin, CloudflareWorkersAuthPlugin } from "./cloudflare"
 import { AzureAuthPlugin } from "./azure"
@@ -27,7 +26,7 @@ import { EffectBridge } from "@/effect/bridge"
 import { InstanceState } from "@/effect/instance-state"
 import { errorMessage } from "@/util/error"
 import { PluginLoader } from "./loader"
-import { parsePluginSpecifier, readPluginId, readV1Plugin, resolvePluginId } from "./shared"
+import { isTuiOnlyPlugin, parsePluginSpecifier, readPluginId, readV1Plugin, resolvePluginId } from "./shared"
 import { registerAdapter } from "@/control-plane/adapters"
 import type { WorkspaceAdapter } from "@/control-plane/types"
 import { RuntimeFlags } from "@/effect/runtime-flags"
@@ -81,7 +80,6 @@ function internalPlugins(flags: RuntimeFlags.Info): PluginInstance[] {
       }),
     CopilotAuthPlugin,
     ModalPlugin,
-    GitlabAuthPlugin,
     PoeAuthPlugin,
     CloudflareWorkersAuthPlugin,
     CloudflareAIGatewayAuthPlugin,
@@ -120,7 +118,7 @@ function getLegacyPlugins(mod: Record<string, unknown>) {
 }
 
 async function applyPlugin(load: PluginLoader.Loaded, input: PluginInput, hooks: Hooks[]) {
-  const plugin = readV1Plugin(load.mod, load.spec, "server", "detect")
+  const plugin = readV1Plugin(load.mod, load.spec, "detect")
   if (plugin) {
     await resolvePluginId(load.source, load.spec, load.target, readPluginId(plugin.id, load.spec), load.pkg)
     hooks.push(await (plugin as PluginModule).server(input, load.options))
@@ -199,7 +197,6 @@ const layer = Layer.effect(
         const loaded = yield* Effect.promise(() =>
           PluginLoader.loadExternal({
             items: plugins,
-            kind: "server",
             report: {
               start(candidate) {},
               missing(candidate, _retry, message) {},
@@ -231,6 +228,10 @@ const layer = Layer.effect(
         ).pipe(logStartupTiming("plugin.resolve"))
         for (const [index, load] of loaded.entries()) {
           if (!load) continue
+          if (isTuiOnlyPlugin(load.mod)) {
+            yield* Effect.logDebug("skipping terminal UI plugin", { path: load.spec })
+            continue
+          }
 
           // Keep plugin execution sequential so hook registration and execution
           // order remains deterministic across plugin runs.

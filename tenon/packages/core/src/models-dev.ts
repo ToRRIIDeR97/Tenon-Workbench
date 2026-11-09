@@ -135,6 +135,16 @@ export const Event = ModelsDev.Event
 
 declare const TENON_MODELS_DEV: string | undefined
 
+// SDK packages Tenon no longer ships. models.dev still lists providers built on them, so drop
+// those providers instead of offering one that can't be configured.
+const REMOVED_PACKAGES = new Set(["gitlab-ai-provider"])
+
+export function supported(providers: Record<string, Provider>) {
+  return Object.fromEntries(
+    Object.entries(providers).filter(([, provider]) => !provider.npm || !REMOVED_PACKAGES.has(provider.npm)),
+  )
+}
+
 export interface Interface {
   readonly get: () => Effect.Effect<Record<string, Provider>>
   readonly refresh: (force?: boolean) => Effect.Effect<void>
@@ -224,7 +234,7 @@ const layer = Layer.effect(
         }),
       )
       return JSON.parse(text) as Record<string, Provider>
-    }).pipe(Effect.withSpan("ModelsDev.populate"), Effect.orDie)
+    }).pipe(Effect.map(supported), Effect.withSpan("ModelsDev.populate"), Effect.orDie)
 
     const [cachedGet, invalidate] = yield* Effect.cachedInvalidateWithTTL(populate, Duration.infinity)
 

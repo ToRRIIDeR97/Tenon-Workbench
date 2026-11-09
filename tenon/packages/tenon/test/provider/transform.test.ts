@@ -578,7 +578,6 @@ describe("ProviderTransform.options - gpt-5 textVerbosity", () => {
           init: () => Effect.void,
         } as any,
         flags: { outputTokenMax: 32_000, client: "test" } as any,
-        isWorkflow: false,
       }),
     )
     expect(result.params.options.reasoningEffort).toBe("high")
@@ -3635,7 +3634,7 @@ describe("ProviderTransform.reasoningVariants", () => {
     expect(ProviderTransform.reasoningVariants(effort, target("@ai-sdk/github-copilot", "gemini-3-pro"))).toEqual({})
   })
 
-  test.each(["@ai-sdk/cohere", "@ai-sdk/perplexity", "@ai-sdk/vercel", "@ai-sdk/alibaba", "gitlab-ai-provider"])(
+  test.each(["@ai-sdk/cohere", "@ai-sdk/perplexity", "@ai-sdk/vercel", "@ai-sdk/alibaba"])(
     "does not invent effort controls for %s",
     (npm) => {
       expect(ProviderTransform.reasoningVariants(model([{ type: "effort", values: ["high"] }]), target(npm))).toEqual(
