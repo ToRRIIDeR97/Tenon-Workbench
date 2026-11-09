@@ -1,7 +1,7 @@
 import { LayerNode } from "@tenon/core/effect/layer-node"
 import { Effect, Layer, Context, Schema } from "effect"
 import { serviceUse } from "@tenon/core/effect/service-use"
-import { ChildProcess } from "effect/unstable/process"
+import { ChildProcess } from "effect/process"
 import { AppProcess } from "@tenon/core/process"
 import { InstanceState } from "@/effect/instance-state"
 import path from "path"

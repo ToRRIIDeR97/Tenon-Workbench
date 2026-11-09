@@ -1,7 +1,7 @@
 import { Buffer } from "node:buffer"
 import { Effect, Schema, Stream } from "effect"
-import * as Sse from "effect/unstable/encoding/Sse"
-import { Headers, HttpClientRequest } from "effect/unstable/http"
+import * as Sse from "effect/encoding/Sse"
+import { Headers, HttpClientRequest } from "effect/http"
 import {
   InvalidProviderOutputReason,
   InvalidRequestReason,
@@ -250,14 +250,17 @@ export const errorText = (error: unknown) => {
  * decoder, and drops empty / `[DONE]` keep-alive events so the downstream
  * `decodeChunk` sees one JSON string per element. The SSE channel emits a
  * `Retry` control event on its error channel; we drop it here (we don't
- * implement client-driven retries) so the public error channel stays
- * `LLMError`.
+ * implement client-driven retries) and map oversized-event `SseError`s, so the
+ * public error channel stays `LLMError`.
  */
 export const sseFraming = (bytes: Stream.Stream<Uint8Array, LLMError>): Stream.Stream<string, LLMError> =>
   bytes.pipe(
     Stream.decodeText(),
     Stream.pipeThroughChannel(Sse.decode()),
     Stream.catchTag("Retry", () => Stream.empty),
+    // Effect 4.1 fails the SSE decoder with `SseError` when a pending event
+    // exceeds its maximum size; surface that as invalid provider output.
+    Stream.catchTag("SseError", (error) => Stream.fail(eventError("sse", error.message))),
     Stream.filter((event) => event.data.length > 0 && event.data !== "[DONE]"),
     Stream.map((event) => event.data),
   )

@@ -11,7 +11,7 @@ const File = Schema.Struct({ disabled: Schema.Array(Schema.String) })
 const decodeFile = Schema.decodeUnknownOption(Schema.fromJsonString(File))
 const writeLock = Semaphore.makeUnsafe(1)
 
-export class WriteError extends Schema.TaggedErrorClass<WriteError>()("SkillToggle.WriteError", {
+export class WriteError extends Schema.TaggedError<WriteError>()("SkillToggle.WriteError", {
   message: Schema.String,
 }) {}
 

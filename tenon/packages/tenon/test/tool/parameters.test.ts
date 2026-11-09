@@ -72,9 +72,10 @@ describe("tool parameters", () => {
     test("keeps repeated allOf constraints instead of dropping duplicates", () => {
       expect(
         toJsonSchema(
-          Schema.Struct({ value: Schema.String.check(Schema.isPattern(/^a/)).check(Schema.isPattern(/z$/)) }),
+          // Effect 4.1 only exports patterns with the `u` flag, which JSON Schema regexes assume.
+          Schema.Struct({ value: Schema.String.check(Schema.isPattern(/^a/u)).check(Schema.isPattern(/z$/u)) }),
         ),
-      ).toMatchObject({ properties: { value: { allOf: [{ pattern: "^a" }, { pattern: "z$" }] } } })
+      ).toMatchObject({ properties: { value: { pattern: "^a", allOf: [{ pattern: "z$" }] } } })
     })
 
     test("bounds bare integer fields to safe integer range", () => {

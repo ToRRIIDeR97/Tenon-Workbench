@@ -2,7 +2,7 @@ import { HarnessSkills } from "@tenon/core/harness/skills"
 import { SkillV2 } from "@tenon/core/skill"
 import { SkillNotFoundError, SkillToggleWriteError } from "@tenon/protocol/groups/skill"
 import { Effect } from "effect"
-import { HttpApiBuilder } from "effect/unstable/httpapi"
+import { HttpApiBuilder } from "effect/http-api"
 import { Api } from "../api"
 import { response } from "../location"
 

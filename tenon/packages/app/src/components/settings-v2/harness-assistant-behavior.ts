@@ -47,7 +47,7 @@ export function displayedUserText(text: string) {
     : text
 }
 
-const decodeJson = Schema.decodeUnknownOption(Schema.UnknownFromJsonString)
+const decodeJson = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Unknown))
 const slug = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/
 
 /** The last valid ```harness block in an assistant reply, if any. */

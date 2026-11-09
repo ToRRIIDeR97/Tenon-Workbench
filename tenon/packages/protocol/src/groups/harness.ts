@@ -1,31 +1,31 @@
 import { Harness } from "@tenon/schema/harness"
 import { Location } from "@tenon/schema/location"
 import { Schema } from "effect"
-import { HttpApiEndpoint, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
+import { HttpApiEndpoint, HttpApiGroup, OpenApi } from "effect/http-api"
 import { LocationQuery, locationQueryOpenApi } from "./location"
 
 const errorFields = { reason: Schema.String, message: Schema.String }
 
 // Each status gets its own error so the reason stays machine-readable for the Settings page.
-export class HarnessSettingsInvalidError extends Schema.TaggedErrorClass<HarnessSettingsInvalidError>()(
+export class HarnessSettingsInvalidError extends Schema.TaggedError<HarnessSettingsInvalidError>()(
   "HarnessSettingsInvalidError",
   errorFields,
   { httpApiStatus: 400 },
 ) {}
 
-export class HarnessSettingsNotFoundError extends Schema.TaggedErrorClass<HarnessSettingsNotFoundError>()(
+export class HarnessSettingsNotFoundError extends Schema.TaggedError<HarnessSettingsNotFoundError>()(
   "HarnessSettingsNotFoundError",
   errorFields,
   { httpApiStatus: 404 },
 ) {}
 
-export class HarnessSettingsExistsError extends Schema.TaggedErrorClass<HarnessSettingsExistsError>()(
+export class HarnessSettingsExistsError extends Schema.TaggedError<HarnessSettingsExistsError>()(
   "HarnessSettingsExistsError",
   errorFields,
   { httpApiStatus: 409 },
 ) {}
 
-export class HarnessSettingsWriteError extends Schema.TaggedErrorClass<HarnessSettingsWriteError>()(
+export class HarnessSettingsWriteError extends Schema.TaggedError<HarnessSettingsWriteError>()(
   "HarnessSettingsWriteError",
   errorFields,
   { httpApiStatus: 500 },

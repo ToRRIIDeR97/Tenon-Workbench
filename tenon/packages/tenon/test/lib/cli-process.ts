@@ -21,8 +21,8 @@ import { AppNodeBuilder } from "@tenon/core/effect/app-node-builder"
 import { LayerNode } from "@tenon/core/effect/layer-node"
 import { AppProcess } from "@tenon/core/process"
 import { Deferred, Duration, Effect, Layer, Schedule, Scope, Stream } from "effect"
-import { FetchHttpClient, HttpClient } from "effect/unstable/http"
-import { ChildProcess } from "effect/unstable/process"
+import { FetchHttpClient, HttpClient } from "effect/http"
+import { ChildProcess } from "effect/process"
 import path from "node:path"
 import { TestLLMServer } from "./llm-server"
 import { testProviderConfig } from "./test-provider"
@@ -144,7 +144,7 @@ export function withCliFixture<A, E>(
     yield* Effect.addFinalizer(() =>
       fs
         .remove(home, { recursive: true })
-        .pipe(Effect.retry(Schedule.spaced("50 millis").pipe(Schedule.both(Schedule.recurs(20)))), Effect.ignore),
+        .pipe(Effect.retry(Schedule.max([Schedule.spaced("50 millis"), Schedule.recurs(20)])), Effect.ignore),
     )
 
     const configJson = JSON.stringify(testProviderConfig(llm.url))

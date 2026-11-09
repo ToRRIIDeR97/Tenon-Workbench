@@ -80,18 +80,18 @@ export type Attachment = {
   readonly detach: () => void
 }
 
-export class NotFoundError extends Schema.TaggedErrorClass<NotFoundError>()("Pty.NotFoundError", {
+export class NotFoundError extends Schema.TaggedError<NotFoundError>()("Pty.NotFoundError", {
   ptyID: PtyID,
 }) {}
 
-export class ExitedError extends Schema.TaggedErrorClass<ExitedError>()("Pty.ExitedError", {
+export class ExitedError extends Schema.TaggedError<ExitedError>()("Pty.ExitedError", {
   ptyID: PtyID,
 }) {}
 
 // node-pty reports a missing executable from a worker thread, where nothing can catch it and the
 // process dies, so a command must resolve to a file before it is spawned. On Windows the working
 // folder reaches the same uncatchable path, so it must exist first too.
-export class SpawnError extends Schema.TaggedErrorClass<SpawnError>()("Pty.SpawnError", {
+export class SpawnError extends Schema.TaggedError<SpawnError>()("Pty.SpawnError", {
   command: Schema.String,
   // The request field at fault, so routes don't report a folder problem as a command problem.
   field: Schema.Literals(["command", "cwd"]),

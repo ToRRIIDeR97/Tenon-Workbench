@@ -2,7 +2,7 @@ import { Pty } from "@tenon/schema/pty"
 import { PtyTicket } from "@tenon/schema/pty-ticket"
 import { Location } from "@tenon/schema/location"
 import { Schema } from "effect"
-import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from "effect/unstable/httpapi"
+import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from "effect/http-api"
 import { ForbiddenError, InvalidRequestError, PtyNotFoundError } from "../errors"
 import { LocationQuery, locationQueryOpenApi } from "./location"
 

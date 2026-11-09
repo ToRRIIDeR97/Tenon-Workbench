@@ -1,19 +1,22 @@
 # Effect Drizzle SQLite
 
-This package vendors a Drizzle Effect SQLite adapter for this repo.
+This package adapts Drizzle's Effect SQLite query builders to a generic Effect `SqlClient`.
 
 - Keep this package generic: Drizzle + Effect + SQLite only.
 - Do not add Tenon-specific tables, paths, migrations, post-commit hooks, or domain storage APIs here.
-- Runtime code should depend on generic `effect/unstable/sql/SqlClient`, not a specific SQLite driver.
+- Runtime code should depend on generic `effect/sql/SqlClient`, not a specific SQLite driver.
 - Concrete SQLite clients such as `@effect/sql-sqlite-bun` belong in tests or examples unless this package intentionally adds a driver-specific helper.
-- Preserve Drizzle adapter naming and behavior where possible so this can be replaced by upstream `drizzle-orm/effect-sqlite` later.
-- If touching copied Drizzle internals, compare with current `drizzle-orm@1.0.0-rc.2` declarations and runtime JS.
-- If touching Effect APIs, verify against `/Users/kit/code/open-source/effect-smol`.
+- The query builders, prepared query, transaction base class and migrator come from `drizzle-orm/sqlite-core/effect`
+  (drizzle-orm 1.0.0-rc.5). Only the driver and session live here, because upstream's `drizzle-orm/effect-sqlite-bun`
+  and `-node` drivers require their own `@effect/sql-sqlite-*` client services, while core provides its own `SqlClient`.
+  Keep `driver.ts` and `session.ts` close to upstream's `effect-sqlite-bun` driver so the package can be retired when
+  upstream accepts a generic client.
+- Transactions go through `SqlClient.withTransaction`; `{ behavior }` only picks the top-level `BEGIN` through
+  `SqlClient.BeginTransaction`.
+- If touching Effect APIs, verify against the installed `effect` sources (`node_modules/effect/src`).
 
 Useful entry points:
 
 - `src/effect-sqlite/driver.ts`: creates the Effect-backed Drizzle database with `make` and `makeWithDefaults`.
 - `src/effect-sqlite/session.ts`: adapts generic Effect `SqlClient` execution and transactions to Drizzle SQLite sessions.
-- `src/sqlite-core/effect/*`: Effect-yieldable SQLite query builders.
-- `src/internal/drizzle-utils.ts`: local typed shims for Drizzle runtime internals that RC2 does not expose in declarations.
 - `examples/basic.ts`: minimal usage example with Bun SQLite.

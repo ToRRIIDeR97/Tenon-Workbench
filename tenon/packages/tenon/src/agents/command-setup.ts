@@ -25,7 +25,7 @@ export const Input = Schema.Struct({
 })
 export type Input = typeof Input.Type
 
-export class SetupError extends Schema.TaggedErrorClass<SetupError>()("CommandSetup.SetupError", {
+export class SetupError extends Schema.TaggedError<SetupError>()("CommandSetup.SetupError", {
   reason: Schema.String,
 }) {}
 

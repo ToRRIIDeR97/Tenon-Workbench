@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test"
 import { Effect, Layer, Schema } from "effect"
-import { HttpClient, HttpClientResponse } from "effect/unstable/http"
+import { HttpClient, HttpClientResponse } from "effect/http"
 import { AppNodeBuilder } from "@tenon/core/effect/app-node-builder"
 import { LayerNode } from "@tenon/core/effect/layer-node"
 import { LayerNodePlatform } from "@tenon/core/effect/app-node-platform"

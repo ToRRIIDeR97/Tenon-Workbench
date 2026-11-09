@@ -17,7 +17,7 @@ import { isBroadFolder } from "./util/broad-folder"
 export const ID = Schema.String.pipe(Schema.brand("Snapshot.ID"))
 export type ID = typeof ID.Type
 
-export class Error extends Schema.TaggedErrorClass<Error>()("Snapshot.Error", {
+export class Error extends Schema.TaggedError<Error>()("Snapshot.Error", {
   operation: Schema.Literals(["capture", "files", "diff", "preview", "restore"]),
   message: Schema.String,
   cause: Schema.optional(Schema.Defect()),

@@ -1,7 +1,7 @@
 import { MoveSession } from "@tenon/core/control-plane/move-session"
 import { SessionV2 } from "@tenon/core/session"
 import { Effect } from "effect"
-import { HttpApiBuilder } from "effect/unstable/httpapi"
+import { HttpApiBuilder } from "effect/http-api"
 import { RootHttpApi } from "../api"
 import { ApiMoveSessionError, MoveSessionPayload } from "../groups/control-plane"
 

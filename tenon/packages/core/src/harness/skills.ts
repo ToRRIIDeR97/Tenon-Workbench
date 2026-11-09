@@ -87,7 +87,7 @@ export const catalog = Effect.fn("HarnessSkills.catalog")(function* () {
   }
 })
 
-export class UnknownSkill extends Schema.TaggedErrorClass<UnknownSkill>()("HarnessSkills.UnknownSkill", {
+export class UnknownSkill extends Schema.TaggedError<UnknownSkill>()("HarnessSkills.UnknownSkill", {
   message: Schema.String,
 }) {}
 

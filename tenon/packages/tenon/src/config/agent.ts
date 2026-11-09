@@ -7,6 +7,7 @@ import { ConfigAgentV1 } from "@tenon/core/v1/config/agent"
 import { configEntryNameFromPath } from "./entry-name"
 import * as ConfigMarkdown from "./markdown"
 import { ConfigParse } from "./parse"
+import { withInputOrder } from "@tenon/core/util/input-order"
 
 export async function load(dir: string) {
   const result: Record<string, ConfigAgentV1.Info> = {}
@@ -47,10 +48,11 @@ export async function loadMode(dir: string) {
       ...md.data,
       prompt: md.content.trim(),
     }
-    const parsed = Schema.decodeUnknownExit(ConfigAgentV1.Info)(config, { errors: "all", propertyOrder: "original" })
+    const parsed = Schema.decodeUnknownExit(ConfigAgentV1.Info)(config, { errors: "all" })
     if (Exit.isSuccess(parsed)) {
       result[config.name] = {
-        ...parsed.value,
+        // Keep the frontmatter key order, which orders permission rules by precedence.
+        ...withInputOrder(config, parsed.value),
         mode: "primary" as const,
       }
     }

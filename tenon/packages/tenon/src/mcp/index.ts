@@ -30,7 +30,7 @@ import { TuiEvent } from "@/server/tui-event"
 import { Cause, Effect, Exit, Layer, Context, Schema, Stream } from "effect"
 import { EffectBridge } from "@/effect/bridge"
 import { InstanceState } from "@/effect/instance-state"
-import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
+import { ChildProcess, ChildProcessSpawner } from "effect/process"
 import { CrossSpawnSpawner } from "@tenon/core/cross-spawn-spawner"
 import { ChildEnv } from "@tenon/core/child-env"
 import { McpCatalog } from "./catalog"
@@ -68,7 +68,7 @@ export const Failed = NamedError.create("MCPFailed", {
   name: Schema.String,
 })
 
-export class NotFoundError extends Schema.TaggedErrorClass<NotFoundError>()("MCP.NotFoundError", {
+export class NotFoundError extends Schema.TaggedError<NotFoundError>()("MCP.NotFoundError", {
   name: Schema.String,
 }) {}
 

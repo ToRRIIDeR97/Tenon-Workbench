@@ -116,7 +116,7 @@ type Pending = {
   readonly deferred: Deferred.Deferred<unknown, ProtocolError>
 }
 
-const decode = Schema.decodeUnknownOption(Schema.UnknownFromJsonString)
+const decode = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Unknown))
 const encoder = new TextEncoder()
 
 export const make = Effect.fn("CodexAppServer.make")(function* (input: {

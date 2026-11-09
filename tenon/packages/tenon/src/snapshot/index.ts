@@ -1,6 +1,6 @@
 import { LayerNode } from "@tenon/core/effect/layer-node"
 import { Cause, Duration, Effect, Layer, Schedule, Schema, Semaphore, Context } from "effect"
-import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
+import { ChildProcess, ChildProcessSpawner } from "effect/process"
 import { formatPatch, structuredPatch } from "diff"
 import path from "path"
 import { AppProcess } from "@tenon/core/process"

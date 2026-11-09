@@ -1,7 +1,7 @@
 import { Provider } from "@tenon/schema/provider"
 import { Location } from "@tenon/schema/location"
 import { Schema } from "effect"
-import { HttpApiEndpoint, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
+import { HttpApiEndpoint, HttpApiGroup, OpenApi } from "effect/http-api"
 import { ProviderNotFoundError, ServiceUnavailableError } from "../errors"
 import { LocationQuery, locationQueryOpenApi } from "./location"
 

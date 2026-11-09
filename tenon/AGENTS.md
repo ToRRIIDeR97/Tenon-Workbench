@@ -114,7 +114,7 @@ function requireConfig(input: unknown) {
 - Keep helpers close to the code they support, below the main export when that improves readability.
 - Do not over-abstract simple expressions into many single-use helpers; extract only when it names a real concept like `requireConfig` or `readMetadata`.
 - Do not return `Effect` from helpers unless they actually perform effectful work. Synchronous parsing, validation, and option building should stay synchronous.
-- Prefer Effect schema helpers such as `Schema.UnknownFromJsonString` and `Schema.decodeUnknownOption` over manual `JSON.parse` wrapped in `Effect.try` when parsing untrusted JSON strings.
+- Prefer Effect schema helpers such as `Schema.fromJsonString(Schema.Unknown)` and `Schema.decodeUnknownOption` over manual `JSON.parse` wrapped in `Effect.try` when parsing untrusted JSON strings.
 - Add comments for non-obvious constraints and surprising behavior, not for obvious assignments or control flow.
 
 ### Schema Definitions (Drizzle)

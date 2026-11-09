@@ -1,8 +1,9 @@
 import { NodeHttpServer, NodeHttpServerRequest } from "@effect/platform-node"
 import * as Http from "node:http"
 import { Deferred, Effect, Layer, Context, Stream } from "effect"
-import * as HttpServer from "effect/unstable/http/HttpServer"
-import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
+import * as HttpServer from "effect/http/HttpServer"
+import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http"
+import type { ServerResponse } from "node:http"
 
 export type Usage = { input: number; output: number }
 
@@ -432,7 +433,8 @@ function send(item: Sse) {
 
 const reset = Effect.fn("TestLLMServer.reset")(function* (item: Sse) {
   const req = yield* HttpServerRequest.HttpServerRequest
-  const res = NodeHttpServerRequest.toServerResponse(req)
+  // The test server speaks HTTP/1.1; Effect 4.1 also types HTTP/2 responses here.
+  const res = NodeHttpServerRequest.toServerResponse(req) as ServerResponse
   yield* Effect.sync(() => {
     res.writeHead(200, { "content-type": "text/event-stream" })
     for (const part of item.head) res.write(line(part))
@@ -715,7 +717,7 @@ export class TestLLMServer extends Context.Service<TestLLMServer, TestLLMServer.
 
       return TestLLMServer.of({
         url:
-          server.address._tag === "TcpAddress"
+          server.address._tag !== "UnixPathAddress"
             ? `http://127.0.0.1:${server.address.port}/v1`
             : `unix://${server.address.path}/v1`,
         push: Effect.fn("TestLLMServer.push")(function* (...input: (Item | Reply)[]) {

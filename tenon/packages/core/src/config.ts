@@ -29,6 +29,7 @@ import { ConfigTrust } from "./config/trust"
 import { ConfigWatcher } from "./config/watcher"
 import { ConfigV1 } from "./v1/config/config"
 import { ConfigMigrateV1 } from "./v1/config/migrate"
+import { withInputOrder } from "./util/input-order"
 
 export class Info extends Schema.Class<Info>("Config.Info")({
   $schema: Schema.optional(Schema.String).annotate({
@@ -182,9 +183,14 @@ const layer = Layer.effect(
     const location = yield* Location.Service
     const policy = yield* Policy.Service
     const names = ConfigNames.files.flatMap((name) => [`${name}.json`, `${name}.jsonc`])
-    const decodeOptions = { errors: "all", onExcessProperty: "ignore", propertyOrder: "original" } as const
-    const decodeInfo = Schema.decodeUnknownOption(Info, decodeOptions)
-    const decodeV1Info = Schema.decodeUnknownOption(ConfigV1.Info, decodeOptions)
+    const decodeOptions = { errors: "all", onExcessProperty: "ignore" } as const
+    const decodeInfoUnordered = Schema.decodeUnknownOption(Info, decodeOptions)
+    const decodeV1InfoUnordered = Schema.decodeUnknownOption(ConfigV1.Info, decodeOptions)
+    // Keep the user's key order: permission rules are ordered by precedence.
+    const decodeInfo = (input: unknown) =>
+      decodeInfoUnordered(input).pipe(Option.map((info) => withInputOrder(input, info)))
+    const decodeV1Info = (input: unknown) =>
+      decodeV1InfoUnordered(input).pipe(Option.map((info) => withInputOrder(input, info)))
 
     const loadFile = Effect.fnUntraced(function* (filepath: string) {
       const text = yield* fs.readFileStringSafe(filepath)

@@ -1,7 +1,7 @@
 import { Integration } from "@tenon/schema/integration"
 import { Location } from "@tenon/schema/location"
 import { Schema } from "effect"
-import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from "effect/unstable/httpapi"
+import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from "effect/http-api"
 import { InvalidRequestError } from "../errors"
 import { LocationQuery, locationQueryOpenApi } from "./location"
 

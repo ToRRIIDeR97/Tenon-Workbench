@@ -1,6 +1,6 @@
 import { describe, expect } from "bun:test"
 import { Effect } from "effect"
-import { ChildProcess } from "effect/unstable/process"
+import { ChildProcess } from "effect/process"
 import { ChildEnv } from "@tenon/core/child-env"
 import { LayerNode } from "@tenon/core/effect/layer-node"
 import { AppProcess } from "@tenon/core/process"

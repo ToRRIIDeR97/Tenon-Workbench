@@ -97,7 +97,7 @@ export const WriteInput = Schema.Struct({
 })
 export type WriteInput = typeof WriteInput.Type
 
-export class InvalidError extends Schema.TaggedErrorClass<InvalidError>()("PlannerCalendar.InvalidError", {
+export class InvalidError extends Schema.TaggedError<InvalidError>()("PlannerCalendar.InvalidError", {
   reason: Schema.String,
 }) {}
 

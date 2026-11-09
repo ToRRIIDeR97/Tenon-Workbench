@@ -2,10 +2,11 @@ import { NodeHttpServer, NodeServices } from "@effect/platform-node"
 import Http from "node:http"
 import { describe, expect } from "bun:test"
 import { Context, Effect, Layer, Queue } from "effect"
-import { FetchHttpClient, HttpClient, HttpServer, HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
-import * as Socket from "effect/unstable/socket/Socket"
+import { FetchHttpClient, HttpClient, HttpServer, HttpServerRequest, HttpServerResponse } from "effect/http"
+import * as Socket from "effect/socket/Socket"
 import { HttpApiProxy } from "../../src/server/routes/instance/httpapi/middleware/proxy"
 import { testEffect } from "../lib/effect"
+import { runRaw } from "@tenon/core/util/socket"
 
 function serverUrl() {
   return HttpServer.HttpServer.use((server) => Effect.succeed(HttpServer.formatAddress(server.address)))
@@ -44,16 +45,19 @@ function listenTestServer<E, R>(handler: TestHandler<E, R>) {
 function echoWebSocket(request: HttpServerRequest.HttpServerRequest) {
   return Effect.gen(function* () {
     const socket = yield* Effect.orDie(request.upgrade)
-    const write = yield* socket.writer
+    const { write } = yield* socket.writer
     // The upstream announces the negotiated protocol, then echoes every
     // received frame. The assertions use those messages to prove proxy flow.
-    yield* socket
-      .runRaw((message) => write(`echo:${String(message)}`), {
+    // Binary frames are echoed as their byte values, so a text frame sent as bytes shows up.
+    yield* runRaw(
+      socket,
+      (message) => write(typeof message === "string" ? `echo:${message}` : `echo-binary:${[...message].join(",")}`),
+      {
         onOpen: write(`protocol:${request.headers["sec-websocket-protocol"] ?? "none"}`).pipe(
           Effect.catch(() => Effect.void),
         ),
-      })
-      .pipe(Effect.catch(() => Effect.void))
+      },
+    ).pipe(Effect.catch(() => Effect.void))
     return HttpServerResponse.empty()
   })
 }
@@ -166,16 +170,19 @@ describe("HttpApi workspace proxy", () => {
       const proxyUrl = yield* listenServer((request) => HttpApiProxy.websocket(request, `${upstreamUrl}/echo`))
 
       const socket = yield* Socket.makeWebSocket(`${proxyUrl.replace(/^http/, "ws")}/proxy`, {
-        closeCodeIsError: () => false,
         protocols: "chat",
       })
       const messages = yield* Queue.unbounded<string>()
-      yield* socket.runRaw((message) => Queue.offer(messages, String(message))).pipe(Effect.forkScoped)
-      const write = yield* socket.writer
+      yield* runRaw(socket, (message) => Queue.offer(messages, String(message)), {
+        closeCodeIsError: () => false,
+      }).pipe(Effect.forkScoped)
+      const { write } = yield* socket.writer
 
       expect(yield* Queue.take(messages)).toBe("protocol:chat")
       yield* write("hello")
       expect(yield* Queue.take(messages)).toBe("echo:hello")
+      yield* write(new Uint8Array([1, 2]))
+      expect(yield* Queue.take(messages)).toBe("echo-binary:1,2")
     }),
   )
   it.live("sends the target's auth headers on the upstream websocket", () =>
@@ -183,12 +190,10 @@ describe("HttpApi workspace proxy", () => {
       const upstreamUrl = yield* listenTestServer((request) =>
         Effect.gen(function* () {
           const socket = yield* Effect.orDie(request.upgrade)
-          const write = yield* socket.writer
-          yield* socket
-            .runRaw(() => Effect.void, {
-              onOpen: write(`auth:${request.headers["authorization"] ?? "none"}`).pipe(Effect.catch(() => Effect.void)),
-            })
-            .pipe(Effect.catch(() => Effect.void))
+          const { write } = yield* socket.writer
+          yield* runRaw(socket, () => Effect.void, {
+            onOpen: write(`auth:${request.headers["authorization"] ?? "none"}`).pipe(Effect.catch(() => Effect.void)),
+          }).pipe(Effect.catch(() => Effect.void))
           return HttpServerResponse.empty()
         }),
       )
@@ -196,11 +201,11 @@ describe("HttpApi workspace proxy", () => {
         HttpApiProxy.websocket(request, `${upstreamUrl}/echo`, { authorization: "Bearer remote-token" }),
       )
 
-      const socket = yield* Socket.makeWebSocket(`${proxyUrl.replace(/^http/, "ws")}/proxy`, {
-        closeCodeIsError: () => false,
-      })
+      const socket = yield* Socket.makeWebSocket(`${proxyUrl.replace(/^http/, "ws")}/proxy`)
       const messages = yield* Queue.unbounded<string>()
-      yield* socket.runRaw((message) => Queue.offer(messages, String(message))).pipe(Effect.forkScoped)
+      yield* runRaw(socket, (message) => Queue.offer(messages, String(message)), {
+        closeCodeIsError: () => false,
+      }).pipe(Effect.forkScoped)
 
       expect(yield* Queue.take(messages)).toBe("auth:Bearer remote-token")
     }),

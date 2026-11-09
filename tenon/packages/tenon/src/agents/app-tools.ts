@@ -330,7 +330,7 @@ const Args = {
   threads_list: Schema.Struct({ limit: Schema.optional(Schema.Number) }),
 }
 
-export class ToolError extends Schema.TaggedErrorClass<ToolError>()("AgentAppTools.ToolError", {
+export class ToolError extends Schema.TaggedError<ToolError>()("AgentAppTools.ToolError", {
   message: Schema.String,
 }) {}
 

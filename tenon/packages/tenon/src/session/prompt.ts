@@ -22,7 +22,7 @@ import { ToolRegistry } from "@/tool/registry"
 import { MCP } from "../mcp"
 import { LSP } from "@/lsp/lsp"
 import { ulid } from "ulid"
-import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
+import { ChildProcess, ChildProcessSpawner } from "effect/process"
 import { CrossSpawnSpawner } from "@tenon/core/cross-spawn-spawner"
 import * as Stream from "effect/Stream"
 import { Command } from "../command"
@@ -1047,7 +1047,7 @@ const layer = Layer.effect(
           : Effect.succeed(part),
       )
 
-      const parsed = decodeMessageInfo(info, { errors: "all", propertyOrder: "original" })
+      const parsed = decodeMessageInfo(info, { errors: "all" })
       if (Exit.isFailure(parsed)) {
         yield* Effect.logError("invalid user message before save", {
           sessionID: input.sessionID,
@@ -1058,7 +1058,7 @@ const layer = Layer.effect(
         })
       }
       for (const [index, part] of parts.entries()) {
-        const p = decodeMessagePart(part, { errors: "all", propertyOrder: "original" })
+        const p = decodeMessagePart(part, { errors: "all" })
         if (Exit.isSuccess(p)) continue
         yield* Effect.logError("invalid user part before save", {
           sessionID: input.sessionID,

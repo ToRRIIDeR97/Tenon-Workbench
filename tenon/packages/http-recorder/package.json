@@ -51,9 +51,9 @@
     "typescript": "catalog:"
   },
   "dependencies": {
-    "@effect/platform-node": "4.0.0-beta.83"
+    "@effect/platform-node": "catalog:"
   },
   "peerDependencies": {
-    "effect": "4.0.0-beta.83"
+    "effect": "catalog:"
   }
 }

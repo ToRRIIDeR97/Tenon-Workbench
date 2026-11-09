@@ -2,7 +2,7 @@ import { FileSystem } from "@tenon/schema/filesystem"
 import { Location } from "@tenon/schema/location"
 import { PositiveInt, RelativePath } from "@tenon/schema/schema"
 import { Schema } from "effect"
-import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from "effect/unstable/httpapi"
+import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from "effect/http-api"
 import { LocationQuery, locationQueryOpenApi } from "./location"
 
 const ListQuery = Schema.Struct({

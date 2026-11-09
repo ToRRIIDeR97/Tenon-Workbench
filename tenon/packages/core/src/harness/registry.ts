@@ -35,7 +35,7 @@ export const Input = Schema.Struct({
 })
 export type Input = typeof Input.Type
 
-export class RegisterError extends Schema.TaggedErrorClass<RegisterError>()("HarnessRegistry.RegisterError", {
+export class RegisterError extends Schema.TaggedError<RegisterError>()("HarnessRegistry.RegisterError", {
   reason: Schema.Literals([
     "invalid-input",
     "invalid-id",
@@ -78,7 +78,7 @@ const decodeInput = Schema.decodeUnknownOption(Input)
 const decodeDiscoverInput = Schema.decodeUnknownOption(Harness.DiscoverInput)
 const decodeVerifyInput = Schema.decodeUnknownOption(Harness.VerifyInput)
 const decodeInstance = Schema.decodeUnknownOption(ConfigHarness.Instance)
-const decodeJson = Schema.decodeUnknownOption(Schema.UnknownFromJsonString)
+const decodeJson = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Unknown))
 
 export const read = (configDir: string): Effect.Effect<Readonly<Record<string, ConfigHarness.Instance>>> =>
   readRaw(configDir).pipe(

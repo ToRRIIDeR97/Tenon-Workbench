@@ -5,7 +5,7 @@ import { BrainProject } from "@/project/brain"
 import { CommandMemory } from "@/agents/command-memory"
 import { CommandThreads } from "@/agents/command-threads"
 import { Routines } from "@/agents/routines"
-import { HttpApi, HttpApiEndpoint, HttpApiError, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
+import { HttpApi, HttpApiEndpoint, HttpApiError, HttpApiGroup, OpenApi } from "effect/http-api"
 import { Authorization } from "../middleware/authorization"
 import { InstanceContextMiddleware } from "../middleware/instance-context"
 import { WorkspaceRoutingMiddleware, WorkspaceRoutingQueryFields } from "../middleware/workspace-routing"
@@ -26,7 +26,7 @@ const ProjectQuery = Schema.Struct({
   id: Schema.String,
 })
 
-export class SecondBrainConflictError extends Schema.ErrorClass<SecondBrainConflictError>("SecondBrainConflictError")(
+export class SecondBrainConflictError extends Schema.Error<SecondBrainConflictError>("SecondBrainConflictError")(
   {
     name: Schema.Literal("SecondBrainConflictError"),
     data: Schema.Struct({ message: Schema.String }),
@@ -35,7 +35,7 @@ export class SecondBrainConflictError extends Schema.ErrorClass<SecondBrainConfl
 ) {}
 
 /** A rejected request: `data.message` is the domain reason, such as `invalid_path` or `invalid_json`. */
-export class SecondBrainInvalidError extends Schema.ErrorClass<SecondBrainInvalidError>("SecondBrainInvalidError")(
+export class SecondBrainInvalidError extends Schema.Error<SecondBrainInvalidError>("SecondBrainInvalidError")(
   {
     name: Schema.Literal("SecondBrainInvalidError"),
     data: Schema.Struct({ message: Schema.String }),

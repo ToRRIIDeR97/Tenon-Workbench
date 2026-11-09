@@ -2,7 +2,7 @@ export * as ConfigAgentPlugin from "./agent"
 
 import { define } from "../../plugin/internal"
 import path from "path"
-import { Effect, Option, Schema } from "effect"
+import { Effect, Option, Schema, type SchemaAST } from "effect"
 import { AgentV2 } from "../../agent"
 import { Config } from "../../config"
 import { ConfigAgent } from "../agent"
@@ -16,6 +16,7 @@ import { PermissionV2 } from "../../permission"
 import type { LocationMutation } from "../../location-mutation"
 import type { ReadTool } from "../../tool/read"
 import type { EditTool } from "../../tool/edit"
+import { withInputOrder } from "../../util/input-order"
 
 const legacySources = [
   { pattern: "{agent,agents}/**/*.md", primary: false },
@@ -23,6 +24,11 @@ const legacySources = [
 ] as const
 const decodeAgent = Schema.decodeUnknownOption(ConfigAgent.Info)
 const decodeLegacyAgent = Schema.decodeUnknownOption(ConfigAgentV1.Info)
+// Keeps the frontmatter key order, which orders permission rules by precedence.
+const decodeOrdered = <A>(
+  decode: (input: unknown, options?: SchemaAST.ParseOptions) => Option.Option<A>,
+  input: Record<string, unknown>,
+) => decode(input, { errors: "all" }).pipe(Option.map((value) => withInputOrder(input, value)))
 const decodeConfig = Schema.decodeUnknownOption(Config.Info)
 type PathAction =
   | LocationMutation.ExternalDirectoryAuthorization["action"]
@@ -167,10 +173,10 @@ function decode(file: { directory: string; filepath: string; primary: boolean },
   const agent = Option.getOrUndefined(
     legacy
       ? Option.map(
-          decodeLegacyAgent({ name, ...markdown.data, prompt: body }, { errors: "all", propertyOrder: "original" }),
+          decodeOrdered(decodeLegacyAgent, { name, ...markdown.data, prompt: body }),
           ConfigMigrateV1.migrateAgent,
         )
-      : decodeAgent({ ...markdown.data, system: body }, { errors: "all", propertyOrder: "original" }),
+      : decodeOrdered(decodeAgent, { ...markdown.data, system: body }),
   )
   if (!agent) return
   const info = Option.getOrUndefined(

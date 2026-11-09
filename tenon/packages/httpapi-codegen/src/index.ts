@@ -1,7 +1,7 @@
 import { isAbsolute, join } from "node:path"
 import { Effect, FileSystem, PlatformError, Schema, SchemaAST, SchemaRepresentation } from "effect"
-import { HttpMethod, type HttpRouter } from "effect/unstable/http"
-import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/unstable/httpapi"
+import { HttpMethod, type HttpRouter } from "effect/http"
+import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/http-api"
 import { format } from "prettier"
 
 export type InputField = {
@@ -30,7 +30,7 @@ export type Contract = {
   readonly groups: ReadonlyArray<Group>
 }
 
-export class GenerationError extends Schema.TaggedErrorClass<GenerationError>()("GenerationError", {
+export class GenerationError extends Schema.TaggedError<GenerationError>()("GenerationError", {
   reason: Schema.String,
 }) {
   override get message() {
@@ -42,7 +42,7 @@ export type Endpoint = {
   readonly group: string
   readonly sourceGroup: string
   readonly topLevel: boolean
-  readonly endpoint: HttpApiEndpoint.AnyWithProps
+  readonly endpoint: HttpApiEndpoint.Top
   readonly params: Schema.Top | undefined
   readonly query: Schema.Top | undefined
   readonly headers: Schema.Top | undefined
@@ -67,13 +67,42 @@ type Slot = {
   readonly schema: Schema.Top
 }
 
-const resolveHttpApiStatus = SchemaAST.resolveAt<number>("httpApiStatus")
+// Mirrors HttpApiSchema's internal status lookup: `HttpApiSchema.status` stores
+// the code as a key annotation (`ast.context`) unless the schema or one of its
+// checks already carries an ordinary `httpApiStatus` annotation.
+function resolveHttpApiStatus(ast: SchemaAST.AST): number | undefined {
+  const annotations = findHttpApiStatusAnnotations(ast)
+  if (annotations !== undefined) return annotations.httpApiStatus as number | undefined
+  return ast.context?.annotations?.httpApiStatus as number | undefined
+}
+
+function keyHttpApiStatus(ast: SchemaAST.AST): number | undefined {
+  if (findHttpApiStatusAnnotations(ast) !== undefined) return undefined
+  return ast.context?.annotations?.httpApiStatus as number | undefined
+}
+
+function findHttpApiStatusAnnotations(
+  ast: SchemaAST.AST | SchemaAST.FilterGroup<any>,
+): Schema.Annotations.Annotations | undefined {
+  if (ast.checks) {
+    for (let i = ast.checks.length - 1; i >= 0; i--) {
+      const check = ast.checks[i]
+      if (check.annotations && "httpApiStatus" in check.annotations) return check.annotations
+      if (check._tag === "FilterGroup") {
+        const annotations = findHttpApiStatusAnnotations(check)
+        if (annotations !== undefined) return annotations
+      }
+    }
+  }
+  const annotations = ast.annotations
+  return annotations && "httpApiStatus" in annotations ? annotations : undefined
+}
+
 const resolveHttpApiEncoding = SchemaAST.resolveAt<HttpApiSchema.Encoding>("~httpApiEncoding")
-const resolveContentSchema = SchemaAST.resolveAt<SchemaAST.AST>("contentSchema")
 const Manifest = Schema.fromJsonString(Schema.Array(Schema.String))
 const manifestName = ".httpapi-codegen.json"
 
-export function compile<Id extends string, Groups extends HttpApiGroup.Any>(
+export function compile<Id extends string, Groups extends HttpApiGroup.Constraint>(
   api: HttpApi.HttpApi<Id, Groups>,
   options?: {
     readonly groupNames?: Readonly<Record<string, string>>
@@ -87,9 +116,9 @@ export function compile<Id extends string, Groups extends HttpApiGroup.Any>(
   HttpApi.reflect(api, {
     onGroup() {},
     onEndpoint({ endpoint, errors, group, middleware }) {
-      if (options?.omitEndpoints?.has(endpoint.name)) return
+      if (options?.omitEndpoints?.has(endpoint.identifier)) return
       const groupName = options?.groupNames?.[group.identifier] ?? group.identifier
-      const name = `${groupName}.${endpoint.name}`
+      const name = `${groupName}.${endpoint.identifier}`
       const required = Array.from(middleware).find((item) => item.requiredForClient)
       if (required !== undefined) {
         throw new GenerationError({ reason: `Client middleware requires adapter: ${required.key}` })
@@ -155,7 +184,7 @@ export function compile<Id extends string, Groups extends HttpApiGroup.Any>(
         effectPortable,
         operation: {
           group: groupName,
-          name: options?.endpointNames?.[endpoint.name] ?? clientEndpointName(endpoint.name),
+          name: options?.endpointNames?.[endpoint.identifier] ?? clientEndpointName(endpoint.identifier),
           input: inputs.map(({ name, source }) => ({ name, source })),
           inputMode: inputs.length === 0 ? "none" : inputs.every((field) => field.optional) ? "optional" : "required",
           success: isStreamSchema(success.schema)
@@ -216,7 +245,7 @@ export function emitEffect(contract: Contract): Output {
   const endpoint = contract.groups.flatMap((group) => group.endpoints).find((endpoint) => !endpoint.effectPortable)
   if (endpoint !== undefined) {
     throw new GenerationError({
-      reason: `Effect schema requires authoritative import: ${endpoint.group}.${endpoint.endpoint.name}`,
+      reason: `Effect schema requires authoritative import: ${endpoint.group}.${endpoint.endpoint.identifier}`,
     })
   }
   return { operations: operations(contract.groups), files: renderEffectFiles(contract.groups) }
@@ -267,7 +296,7 @@ export function emitPromise(
 }
 
 function assertPromiseEndpoint(endpoint: Endpoint) {
-  const name = `${endpoint.group}.${endpoint.endpoint.name}`
+  const name = `${endpoint.group}.${endpoint.endpoint.identifier}`
   const payload = endpoint.payloads[0]
   const payloadEncoding = payload === undefined ? undefined : resolveHttpApiEncoding(payload.ast)
   if (
@@ -311,7 +340,7 @@ function renderEffectFiles(groups: ReadonlyArray<Group>): Output["files"] {
     {
       path: "client-error.ts",
       content:
-        'import { Schema } from "effect"\n\nexport class ClientError extends Schema.TaggedErrorClass<ClientError>()("ClientError", {\n  cause: Schema.Defect(),\n}) {}\n',
+        'import { Schema } from "effect"\n\nexport class ClientError extends Schema.TaggedError<ClientError>()("ClientError", {\n  cause: Schema.Defect(),\n}) {}\n',
     },
     { path: "client.ts", content: renderClient(groups) },
     {
@@ -351,9 +380,9 @@ function renderImportedEffectFiles(
         item.operation.inputMode === "none"
           ? ""
           : `input${item.operation.inputMode === "optional" ? "?" : ""}: ${prefix}Input`
-      const rawCall = `raw[${JSON.stringify(item.endpoint.name)}]({ ${request} })`
+      const rawCall = `raw[${JSON.stringify(item.endpoint.identifier)}]({ ${request} })`
       const mapped = `${rawCall}.pipe(Effect.mapError(mapClientError)${item.unwrapData ? ", Effect.map((value) => value.data)" : ""})`
-      return `${item.operation.inputMode === "none" ? "" : `type ${prefix}Request = Parameters<${rawGroup}[${JSON.stringify(item.endpoint.name)}]>[0]\ntype ${prefix}Input = { ${input} }\n`}const ${prefix} = (raw: ${rawGroup}) => (${argument}) => ${item.operation.success === "stream" ? `Stream.unwrap(${rawCall}.pipe(Effect.mapError(mapClientError), Effect.map((stream) => stream.pipe(Stream.mapError(mapClientError)))))` : mapped}`
+      return `${item.operation.inputMode === "none" ? "" : `type ${prefix}Request = Parameters<${rawGroup}[${JSON.stringify(item.endpoint.identifier)}]>[0]\ntype ${prefix}Input = { ${input} }\n`}const ${prefix} = (raw: ${rawGroup}) => (${argument}) => ${item.operation.success === "stream" ? `Stream.unwrap(${rawCall}.pipe(Effect.mapError(mapClientError), Effect.map((stream) => stream.pipe(Stream.mapError(mapClientError)))))` : mapped}`
     })
     return `${methods.join("\n\n")}\n\nconst adaptGroup${groupIndex} = (raw: ${rawGroup}) => ({ ${group.endpoints.map((item, endpointIndex) => `${JSON.stringify(item.operation.name)}: Endpoint${groupIndex}_${endpointIndex}(raw)`).join(", ")} })`
   })
@@ -373,14 +402,14 @@ function renderImportedEffectFiles(
   const imports =
     projection === undefined
       ? `import { ${api} } from ${JSON.stringify(options.module)}`
-      : `import { HttpApi, HttpApiClient${"endpoints" in options ? ", HttpApiGroup" : ""} } from "effect/unstable/httpapi"\nimport { ${projection.imports.join(", ")} } from ${JSON.stringify(options.module)}`
-  const httpApiImport = projection === undefined ? 'import { HttpApiClient } from "effect/unstable/httpapi"\n' : ""
-  const client = `// Generated by @tenon/httpapi-codegen. Do not edit.\nimport { Effect${usesStream ? ", Stream" : ""}, Schema } from "effect"\nimport { Sse } from "effect/unstable/encoding"\nimport { HttpClientError } from "effect/unstable/http"\n${httpApiImport}${imports}\nimport { ClientError } from "./client-error"\n\n${projection?.source ?? ""}type RawClient = HttpApiClient.ForApi<typeof ${api}>\n\nconst mapClientError = <E>(error: E) => HttpClientError.isHttpClientError(error) || Schema.isSchemaError(error) || Sse.Retry.is(error) ? new ClientError({ cause: error }) : error\n\n${adapters.join("\n\n")}\n\nconst adaptClient = (raw: RawClient) => ({ ${fields.join(", ")} })\n\nexport const make = (options?: { readonly baseUrl?: URL | string }) => HttpApiClient.make(${api}, options).pipe(Effect.map(adaptClient))\n`
+      : `import { HttpApi, HttpApiClient${"endpoints" in options ? ", HttpApiGroup" : ""} } from "effect/http-api"\nimport { ${projection.imports.join(", ")} } from ${JSON.stringify(options.module)}`
+  const httpApiImport = projection === undefined ? 'import { HttpApiClient } from "effect/http-api"\n' : ""
+  const client = `// Generated by @tenon/httpapi-codegen. Do not edit.\nimport { Effect${usesStream ? ", Stream" : ""}, Schema } from "effect"\nimport { Sse } from "effect/encoding"\nimport { HttpClientError } from "effect/http"\n${httpApiImport}${imports}\nimport { ClientError } from "./client-error"\n\n${projection?.source ?? ""}type RawClient = HttpApiClient.ForApi<typeof ${api}>\n\nconst mapClientError = <E>(error: E) => HttpClientError.isHttpClientError(error) || Schema.isSchemaError(error) || Sse.Retry.is(error) ? new ClientError({ cause: error }) : error\n\n${adapters.join("\n\n")}\n\nconst adaptClient = (raw: RawClient) => ({ ${fields.join(", ")} })\n\nexport const make = (options?: { readonly baseUrl?: URL | string }) => HttpApiClient.make(${api}, options).pipe(Effect.map(adaptClient))\n`
   return [
     {
       path: "client-error.ts",
       content:
-        'import { Schema } from "effect"\n\nexport class ClientError extends Schema.TaggedErrorClass<ClientError>()("ClientError", {\n  cause: Schema.Defect(),\n}) {}\n',
+        'import { Schema } from "effect"\n\nexport class ClientError extends Schema.TaggedError<ClientError>()("ClientError", {\n  cause: Schema.Defect(),\n}) {}\n',
     },
     { path: "client.ts", content: client },
     {
@@ -400,10 +429,10 @@ function renderImportedGroup(group: string) {
 function renderImportedProjection(groups: ReadonlyArray<Group>, endpoints: Readonly<Record<string, string>>) {
   const imports = groups.flatMap((group) =>
     group.endpoints.map((endpoint) => {
-      const name = endpoints[`${group.identifier}.${endpoint.endpoint.name}`]
+      const name = endpoints[`${group.identifier}.${endpoint.endpoint.identifier}`]
       if (name === undefined) {
         throw new GenerationError({
-          reason: `Missing imported endpoint: ${group.identifier}.${endpoint.endpoint.name}`,
+          reason: `Missing imported endpoint: ${group.identifier}.${endpoint.endpoint.identifier}`,
         })
       }
       return name
@@ -412,7 +441,7 @@ function renderImportedProjection(groups: ReadonlyArray<Group>, endpoints: Reado
   const source = `const Api = HttpApi.make("generated").${groups
     .map((group) => {
       const options = group.endpoints[0]?.topLevel ? ", { topLevel: true }" : ""
-      return `add(HttpApiGroup.make(${JSON.stringify(group.identifier)}${options})${group.endpoints.map((endpoint) => `.add(${endpoints[`${group.identifier}.${endpoint.endpoint.name}`]})`).join("")})`
+      return `add(HttpApiGroup.make(${JSON.stringify(group.identifier)}${options})${group.endpoints.map((endpoint) => `.add(${endpoints[`${group.identifier}.${endpoint.endpoint.identifier}`]})`).join("")})`
     })
     .join(".")}\n\n`
   return { imports: [...new Set(imports)], source }
@@ -472,7 +501,7 @@ function renderPromiseTypes(
             isStreamSchema(successSchema) && successSchema._tag === "StreamSse"
               ? successSchema.sseMode === "data"
                 ? streamEncodedDataSchema(successSchema)
-                : successSchema.events
+                : streamEvents(successSchema)
               : successSchema,
           )
         return [
@@ -523,7 +552,7 @@ function renderPromiseClient(groups: ReadonlyArray<Group>) {
         const success = endpoint.successes[0]
         if (!isStreamSchema(success) || success._tag !== "StreamSse" || success.sseMode !== "data") {
           throw new GenerationError({
-            reason: `Promise stream emission is not implemented: ${group.identifier}.${endpoint.endpoint.name}`,
+            reason: `Promise stream emission is not implemented: ${group.identifier}.${endpoint.endpoint.identifier}`,
           })
         }
         return `${JSON.stringify(endpoint.operation.name)}: (${argument}): AsyncIterable<${prefix}Output> => sse<${prefix}Output>(${descriptor}, requestOptions)`
@@ -553,8 +582,35 @@ function identifierPart(value: string) {
     .join("")
 }
 
+// The encoded side of `toCodecJson(Schema.Unknown)` is Effect's internal JSON
+// declaration, which carries no `toCode` callback; render it as `Schema.Json`.
+const jsonRepresentations = new Set(["effect/schema/Json", "effect/schema/MutableJson"])
+const jsonCode = () => ({ runtime: "Schema.Json", Type: "Schema.Json" })
+
+function withJsonCode<A>(node: A): A {
+  if (Array.isArray(node)) return node.map(withJsonCode) as A
+  if (typeof node !== "object" || node === null) return node
+  const value = node as Record<string, unknown> & {
+    readonly _tag?: unknown
+    readonly representation?: { readonly id?: unknown }
+    readonly annotations?: Record<string, unknown>
+  }
+  const entries = Object.entries(value).map(([key, item]) => [key, key === "annotations" ? item : withJsonCode(item)])
+  const next = Object.fromEntries(entries) as typeof value
+  if (
+    value._tag === "Declaration" &&
+    typeof value.representation?.id === "string" &&
+    jsonRepresentations.has(value.representation.id) &&
+    value.annotations?.toCode === undefined
+  )
+    return { ...next, annotations: { ...value.annotations, toCode: jsonCode } } as A
+  return next as A
+}
+
 function structuralType(schema: Schema.Top) {
-  const document = SchemaRepresentation.toCodeDocument(SchemaRepresentation.fromASTs([schema.ast]))
+  const document = SchemaRepresentation.toCodeDocument(
+    withJsonCode(SchemaRepresentation.toRepresentations([schema.ast])),
+  )
   if (
     document.artifacts.some(
       (artifact) =>
@@ -609,7 +665,7 @@ function uniqueModule(base: string, index: number, modules: ReadonlySet<string>)
 function normalizeTransport(
   schema: Schema.Top | undefined,
   source: InputField["source"] | "success" | "error",
-  endpoint: HttpApiEndpoint.AnyWithProps,
+  endpoint: HttpApiEndpoint.Top,
   operation: string,
 ) {
   if (schema === undefined) return undefined
@@ -617,11 +673,11 @@ function normalizeTransport(
   if (!metadataPortable(schema.ast, new Set())) {
     throw new GenerationError({ reason: `Unportable schema: ${operation}.${source}` })
   }
-  const decoded = Schema.toType(schema)
+  const decoded: Schema.Top = Schema.toType(schema)
   if (!isPathInput(endpoint.path)) {
     throw new GenerationError({ reason: `Invalid endpoint path: ${operation}` })
   }
-  const rebuilt = HttpApiEndpoint.make(endpoint.method)(endpoint.name, endpoint.path, {
+  const rebuilt = HttpApiEndpoint.make(endpoint.method)(endpoint.identifier, endpoint.path, {
     ...(source === "params" ? { params: decoded } : undefined),
     ...(source === "query" ? { query: decoded } : undefined),
     ...(source === "headers" ? { headers: decoded } : undefined),
@@ -643,6 +699,10 @@ function normalizeTransport(
               : Array.from(rebuilt.error)[0]
   if (normalized === undefined) throw new GenerationError({ reason: `Unportable schema: ${operation}.${source}` })
   if (!sameEncoding(schema.ast, normalized.ast)) return { schema, effectPortable: false } as const
+  // Only `_tag`-keyed error classes can be re-emitted as standalone Effect
+  // code; other classes (for example `name`-keyed errors) need the import.
+  if (isClassDeclaration(schema.ast) && taggedErrorFields(schema) === undefined)
+    return { schema, effectPortable: false } as const
   return { schema: decoded, effectPortable: true } as const
 }
 
@@ -655,7 +715,11 @@ function sameEncoding(left: SchemaAST.AST, right: SchemaAST.AST): boolean {
   if (
     left.encoding?.some((link, index) => {
       const other = right.encoding?.[index]
-      return other === undefined || link.transformation !== other.transformation || !sameEncoding(link.to, other.to)
+      return (
+        other === undefined ||
+        !sameTransformation(link.transformation, other.transformation) ||
+        !sameEncoding(link.to, other.to)
+      )
     })
   )
     return false
@@ -690,6 +754,28 @@ function sameEncoding(left: SchemaAST.AST, right: SchemaAST.AST): boolean {
   return true
 }
 
+// Effect 4.1 builds a fresh `fromJsonString` transformation per schema, so
+// identity no longer matches across rebuilds. Treat two schema-preserving JSON
+// content transformations (no reviver or replacer) as the same encoding.
+const contentTypeId = Symbol.for("~effect/Schema/content")
+
+function jsonContent(transformation: object) {
+  const encode = (transformation as { readonly encode?: object }).encode
+  const content =
+    encode === undefined
+      ? undefined
+      : (encode as { readonly [contentTypeId]?: { readonly mediaType: string; readonly preserveSchema: boolean } })[
+          contentTypeId
+        ]
+  return content?.preserveSchema === true ? content.mediaType : undefined
+}
+
+function sameTransformation(left: object, right: object) {
+  if (left === right) return true
+  const media = jsonContent(left)
+  return media !== undefined && media === jsonContent(right)
+}
+
 function sameChecks(left: SchemaAST.Checks | undefined, right: SchemaAST.Checks | undefined): boolean {
   if (left?.length !== right?.length) return false
   if (left === undefined || right === undefined) return true
@@ -704,7 +790,12 @@ function sameChecks(left: SchemaAST.Checks | undefined, right: SchemaAST.Checks 
 }
 
 function sameContext(left: SchemaAST.Context | undefined, right: SchemaAST.Context | undefined) {
-  return left?.isOptional === right?.isOptional && left?.isMutable === right?.isMutable
+  // A missing context means required and immutable. Effect 4.1 can attach a
+  // default context (for example one that only carries key annotations).
+  return (
+    (left?.isOptional ?? false) === (right?.isOptional ?? false) &&
+    (left?.isMutable ?? false) === (right?.isMutable ?? false)
+  )
 }
 
 export function write(
@@ -768,7 +859,7 @@ function isSafeOutputPath(path: string) {
   return path !== manifestName && !isAbsolute(path) && path !== "." && path !== ".." && !/[\\/]/.test(path)
 }
 
-export function generate<Id extends string, Groups extends HttpApiGroup.Any>(
+export function generate<Id extends string, Groups extends HttpApiGroup.Constraint>(
   api: HttpApi.HttpApi<Id, Groups>,
   options: { readonly directory: string },
 ): Effect.Effect<void, GenerationError | PlatformError.PlatformError, FileSystem.FileSystem> {
@@ -800,10 +891,10 @@ function responseSchemas(schema: Schema.Top, path: string): Array<readonly [stri
   if (HttpApiSchema.isNoContent(schema.ast)) return []
   if (!isStreamSchema(schema)) return [[path, schema]]
   if (schema._tag === "StreamUint8Array") return []
-  const value = schema.sseMode === "data" ? streamDataSchema(schema) : schema.events
+  const value = schema.sseMode === "data" ? streamDataSchema(schema) : streamEvents(schema)
   return [
     [`${path}.${schema.sseMode}`, value],
-    [`${path}.error`, schema.error],
+    [`${path}.error`, streamError(schema)],
   ]
 }
 
@@ -824,9 +915,9 @@ function assertPortable(schema: Schema.Top, path: string, portable: Map<SchemaAS
     if (!annotationsPortable(ast.annotations)) return false
     if (!checksPortable(ast.checks) || ("encodingChecks" in ast && !checksPortable(ast.encodingChecks))) return false
     if (SchemaAST.isDeclaration(ast)) {
-      return generationPortable(ast.annotations?.generation) && ast.typeParameters.every(visit)
+      return codePortable(ast.annotations?.toCode) && ast.typeParameters.every(visit)
     }
-    if (ast.encoding !== undefined && ast.annotations?.generation === undefined) return false
+    if (ast.encoding !== undefined && ast.annotations?.toCode === undefined) return false
     if (SchemaAST.isSuspend(ast)) return visit(ast.thunk())
     if (SchemaAST.isUnion(ast)) return ast.types.every(visit)
     if (SchemaAST.isArrays(ast)) {
@@ -859,11 +950,7 @@ function checksPortable(checks: SchemaAST.Checks | undefined): boolean {
   if (checks === undefined) return true
   return checks.every((check) =>
     check._tag === "Filter"
-      ? !check.aborted &&
-        check.annotations?.meta !== undefined &&
-        typeof check.annotations.arbitrary === "object" &&
-        check.annotations.arbitrary !== null &&
-        "constraint" in check.annotations.arbitrary
+      ? !check.aborted && check.annotations?.representation !== undefined
       : checksPortable(check.checks),
   )
 }
@@ -894,25 +981,39 @@ function metadataPortable(ast: SchemaAST.AST, seen: Set<SchemaAST.AST>): boolean
   return true
 }
 
-function generationPortable(generation: unknown): boolean {
-  if (typeof generation !== "object" || generation === null) return false
-  const value = generation as {
+// Effect 4.1 replaced the static `generation` annotation with a `toCode`
+// callback. Call it with placeholder type parameters and apply the same rules:
+// the runtime must come from `Schema` or an `effect` namespace import.
+const placeholderTypeParameters = new Proxy([], {
+  get: (target, key) =>
+    typeof key === "string" && /^\d+$/.test(key) ? { runtime: "?", Type: "?" } : Reflect.get(target, key),
+})
+
+function codePortable(toCode: unknown): boolean {
+  if (typeof toCode !== "function") return false
+  let value: {
     readonly runtime?: unknown
     readonly Type?: unknown
-    readonly importDeclaration?: unknown
+    readonly importDeclarations?: unknown
   }
+  try {
+    value = toCode({ typeParameters: placeholderTypeParameters })
+  } catch {
+    return false
+  }
+  if (typeof value !== "object" || value === null) return false
   if (typeof value.runtime !== "string" || typeof value.Type !== "string") return false
-  if (value.importDeclaration !== undefined) {
-    if (
-      typeof value.importDeclaration !== "string" ||
-      !/from ["']effect(?:\/[^"']+)?["']$/.test(value.importDeclaration)
-    ) {
+  const imports = value.importDeclarations ?? []
+  if (!Array.isArray(imports) || imports.length > 1) return false
+  const importDeclaration: unknown = imports[0]
+  if (importDeclaration !== undefined) {
+    if (typeof importDeclaration !== "string" || !/from ["']effect(?:\/[^"']+)?["']$/.test(importDeclaration)) {
       return false
     }
   }
   const namespace =
-    typeof value.importDeclaration === "string"
-      ? /import(?: type)? \* as ([A-Za-z_$][\w$]*)/.exec(value.importDeclaration)?.[1]
+    typeof importDeclaration === "string"
+      ? /import(?: type)? \* as ([A-Za-z_$][\w$]*)/.exec(importDeclaration)?.[1]
       : undefined
   return value.runtime.startsWith("Schema.") || (namespace !== undefined && value.runtime.startsWith(`${namespace}.`))
 }
@@ -920,12 +1021,10 @@ function generationPortable(generation: unknown): boolean {
 function annotationsPortable(annotations: Schema.Annotations.Annotations | undefined) {
   if (annotations === undefined) return true
   return Object.entries(annotations).every(([key, value]) => {
-    if (
-      ["toCodec", "toCodecJson", "toArbitrary", "toFormatter", "toEquivalence", "~effect/Schema/Class"].includes(key)
-    ) {
+    if (key.startsWith("toCodec") || ["toArbitrary", "toFormatter", "toEquivalence", "~constructor"].includes(key)) {
       return true
     }
-    if (key === "generation") return generationPortable(value)
+    if (key === "toCode") return codePortable(value)
     return serializable(value)
   })
 }
@@ -937,13 +1036,17 @@ function serializable(value: unknown): boolean {
   return Object.values(value).every(serializable)
 }
 
+function isClassDeclaration(ast: SchemaAST.AST) {
+  return SchemaAST.isDeclaration(ast) && ast.annotations?.["~constructor"] !== undefined
+}
+
 function taggedErrorFields(schema: Schema.Top) {
   const fields = declaredErrorFields(schema)
   return fields?.key === "_tag" ? fields : undefined
 }
 
 function declaredErrorFields(schema: Schema.Top) {
-  if (!SchemaAST.isDeclaration(schema.ast) || schema.ast.annotations?.["~effect/Schema/Class"] === undefined) {
+  if (!SchemaAST.isDeclaration(schema.ast) || !isClassDeclaration(schema.ast)) {
     return undefined
   }
   const fields = schema.ast.typeParameters[0]
@@ -959,7 +1062,7 @@ function declaredErrorFields(schema: Schema.Top) {
     fields: fields.propertySignatures.flatMap((field) =>
       field.name === key || typeof field.name !== "string"
         ? []
-        : [[field.name, Schema.make(field.type), SchemaAST.isOptional(field.type)] as const],
+        : [[field.name, Schema.make<Schema.Top>(field.type), SchemaAST.isOptional(field.type)] as const],
     ),
   }
 }
@@ -975,21 +1078,41 @@ function isDataEnvelope(schema: Schema.Top) {
   )
 }
 
-function isStreamSchema(schema: Schema.Top): schema is HttpApiSchema.StreamSchema {
+// NDJSON streams (added in Effect 4.1) are not generated; only SSE and byte streams are.
+type StreamSchema = Exclude<HttpApiSchema.StreamSchema, { readonly _tag: "StreamNdjson" }>
+
+// Effect 4.1 types stream `events` and `error` as `Schema.Constraint`; at runtime
+// they are full schemas, which the generator walks as `Schema.Top`.
+const streamEvents = (schema: Extract<StreamSchema, { readonly _tag: "StreamSse" }>) => schema.events as Schema.Top
+const streamError = (schema: Extract<StreamSchema, { readonly _tag: "StreamSse" }>) => schema.error as Schema.Top
+
+function isStreamSchema(schema: Schema.Top): schema is StreamSchema {
   return "_tag" in schema && (schema._tag === "StreamSse" || schema._tag === "StreamUint8Array")
 }
 
-function streamDataSchema(schema: Extract<HttpApiSchema.StreamSchema, { readonly _tag: "StreamSse" }>) {
-  return Schema.make(streamDataAst(Schema.toType(schema.events).ast))
+function streamDataSchema(schema: Extract<StreamSchema, { readonly _tag: "StreamSse" }>) {
+  return Schema.make<Schema.Top>(streamDataAst(Schema.toType(schema.events).ast))
 }
 
-function streamEncodedDataSchema(schema: Extract<HttpApiSchema.StreamSchema, { readonly _tag: "StreamSse" }>) {
+function streamEncodedDataSchema(schema: Extract<StreamSchema, { readonly _tag: "StreamSse" }>) {
   const data = streamDataAst(schema.events.ast)
-  const encodedAst = data.encoding?.at(-1)?.to
-  if (encodedAst === undefined) throw new GenerationError({ reason: "Invalid SSE data schema" })
-  const encoded = resolveContentSchema(encodedAst)
-  if (!SchemaAST.isAST(encoded)) throw new GenerationError({ reason: "Invalid SSE data schema" })
-  return Schema.make(encoded)
+  // Effect 4.1 no longer annotates the JSON string with `contentSchema`. The SSE
+  // data field is `fromJsonString(toCodecJson(data))`: drop that final JSON
+  // string link and take the encoded side of what remains.
+  const links = data.encoding
+  const last = links?.at(-1)
+  if (
+    links === undefined ||
+    last === undefined ||
+    !SchemaAST.isString(last.to) ||
+    jsonContent(last.transformation) === undefined
+  ) {
+    throw new GenerationError({ reason: "Invalid SSE data schema" })
+  }
+  const content: SchemaAST.AST = Object.assign(Object.create(Object.getPrototypeOf(data)), data, {
+    encoding: links.length > 1 ? links.slice(0, -1) : undefined,
+  })
+  return Schema.make<Schema.Top>(SchemaAST.toEncoded(content))
 }
 
 function streamDataAst(ast: SchemaAST.AST) {
@@ -1046,7 +1169,7 @@ function renderGroup(group: Group, groupIndex: number) {
       .map((field) => {
         const slot = schemaBySource[field.source]
         if (slot === undefined) {
-          throw new GenerationError({ reason: `Missing input schema: ${group.identifier}.${endpoint.name}` })
+          throw new GenerationError({ reason: `Missing input schema: ${group.identifier}.${endpoint.identifier}` })
         }
         return `readonly ${JSON.stringify(field.name)}${field.optional ? "?" : ""}: (typeof ${slot.name}.Type)[${JSON.stringify(field.name)}]`
       })
@@ -1071,13 +1194,13 @@ function renderGroup(group: Group, groupIndex: number) {
     const declared = [...errorSlots, ...(success.streamError === undefined ? [] : [success.streamError])]
     const declaredSchema =
       declared.length === 0 ? "Schema.Never" : `Schema.Union([${declared.map((slot) => slot.name).join(", ")}])`
-    const rawCall = `raw[${JSON.stringify(endpoint.name)}]({ ${request} })`
+    const rawCall = `raw[${JSON.stringify(endpoint.identifier)}]({ ${request} })`
     const mapped = `${rawCall}.pipe(Effect.mapError(map${prefix}Error)${operation.unwrapData ? ", Effect.map((value) => value.data)" : ""})`
     const inputDeclaration = operation.operation.inputMode === "none" ? "" : `type ${prefix}Input = { ${inputType} }\n`
     adapters.push(
       `${inputDeclaration}const ${prefix}DeclaredError = ${declaredSchema}\nconst map${prefix}Error = (error: unknown) => HttpClientError.isHttpClientError(error) || Schema.isSchemaError(error) || Sse.Retry.is(error) ? new ClientError({ cause: error }) : Schema.is(${prefix}DeclaredError)(error) ? error : new ClientError({ cause: error })\nconst ${prefix} = (raw: RawGroup) => (${argument}) => ${operation.operation.success === "stream" ? `Stream.unwrap(${rawCall}.pipe(Effect.mapError(map${prefix}Error), Effect.map((stream) => stream.pipe(Stream.mapError(map${prefix}Error)))))` : mapped}`,
     )
-    return `HttpApiEndpoint.make(${JSON.stringify(endpoint.method)})(${JSON.stringify(endpoint.name)}, ${JSON.stringify(endpoint.path)}, { ${options.join(", ")} })`
+    return `HttpApiEndpoint.make(${JSON.stringify(endpoint.method)})(${JSON.stringify(endpoint.identifier)}, ${JSON.stringify(endpoint.path)}, { ${options.join(", ")} })`
   })
 
   function addSlot(schema: Schema.Top | undefined, name: string) {
@@ -1097,10 +1220,10 @@ function renderGroup(group: Group, groupIndex: number) {
       }
     }
     const value = addSlot(
-      schema.sseMode === "data" ? streamDataSchema(schema) : schema.events,
+      schema.sseMode === "data" ? streamDataSchema(schema) : streamEvents(schema),
       `${name}${schema.sseMode === "data" ? "Data" : "Events"}`,
     )!
-    const error = addSlot(schema.error, `${name}Error`)!
+    const error = addSlot(streamError(schema), `${name}Error`)!
     return {
       source: `HttpApiSchema.StreamSse({ ${schema.sseMode}: ${value.name}, error: ${error.name}, contentType: ${JSON.stringify(schema.contentType)} })${annotate}`,
       streamError: error,
@@ -1115,9 +1238,9 @@ function renderGroup(group: Group, groupIndex: number) {
     .join(", ")
   const rawGroup = group.endpoints[0]?.topLevel
     ? `HttpApiClient.Client<typeof Group${groupIndex}>`
-    : `HttpApiClient.Client.Group<typeof Group${groupIndex}, ${JSON.stringify(group.identifier)}, never, never>`
+    : `HttpApiClient.Client.Group<typeof Group${groupIndex}, never, never>`
   const usesStream = group.endpoints.some((item) => item.operation.success === "stream")
-  return `// Generated by @tenon/httpapi-codegen. Do not edit.\nimport { Effect, Schema${usesStream ? ", Stream" : ""} } from "effect"\nimport { Sse } from "effect/unstable/encoding"\nimport { HttpClientError } from "effect/unstable/http"\nimport { HttpApiClient, HttpApiEndpoint, HttpApiGroup${usesHttpApiSchema ? ", HttpApiSchema" : ""} } from "effect/unstable/httpapi"\nimport { ClientError } from "./client-error"\n\n${declarations}\n\nexport const Group${groupIndex} = ${groupSource}\n\ntype RawGroup = ${rawGroup}\n\n${adapters.join("\n\n")}\n\nexport const adaptGroup${groupIndex} = (raw: RawGroup) => ({ ${methods} })\n`
+  return `// Generated by @tenon/httpapi-codegen. Do not edit.\nimport { Effect, Schema${usesStream ? ", Stream" : ""} } from "effect"\nimport { Sse } from "effect/encoding"\nimport { HttpClientError } from "effect/http"\nimport { HttpApiClient, HttpApiEndpoint, HttpApiGroup${usesHttpApiSchema ? ", HttpApiSchema" : ""} } from "effect/http-api"\nimport { ClientError } from "./client-error"\n\n${declarations}\n\nexport const Group${groupIndex} = ${groupSource}\n\ntype RawGroup = ${rawGroup}\n\n${adapters.join("\n\n")}\n\nexport const adaptGroup${groupIndex} = (raw: RawGroup) => ({ ${methods} })\n`
 }
 
 function renderSchemas(slots: ReadonlyArray<Slot>) {
@@ -1136,12 +1259,12 @@ function renderSchemas(slots: ReadonlyArray<Slot>) {
   ]
   const [first, ...rest] = expanded
   const document = SchemaRepresentation.toCodeDocument(
-    SchemaRepresentation.fromASTs([first.schema.ast, ...rest.map((slot) => slot.schema.ast)]),
+    SchemaRepresentation.toRepresentations([first.schema.ast, ...rest.map((slot) => slot.schema.ast)]),
   )
   const artifacts = document.artifacts.flatMap((artifact) => {
     if (artifact._tag === "Import") return [artifact.importDeclaration]
-    if (artifact._tag === "Enum") return [artifact.generation.runtime]
-    return [`const ${artifact.identifier} = ${artifact.generation.runtime}`]
+    if (artifact._tag === "Enum") return [artifact.code.runtime]
+    return [`const ${artifact.identifier} = ${artifact.code.runtime}`]
   })
   const references = [
     ...document.references.nonRecursives.map(({ $ref, code }) => `const ${$ref} = ${code.runtime}`),
@@ -1152,7 +1275,13 @@ function renderSchemas(slots: ReadonlyArray<Slot>) {
   let fieldIndex = slots.length
   const declarations = slots.map((slot, index) => {
     const tagged = classes.get(index)
-    if (tagged === undefined) return `const ${slot.name} = ${document.codes[index].runtime}`
+    if (tagged === undefined) {
+      // Key annotations (`HttpApiSchema.status`) live in the AST context, which
+      // the code document does not render; restore the status explicitly.
+      const status = keyHttpApiStatus(slot.schema.ast)
+      const annotate = status === undefined ? "" : `.annotate({ "httpApiStatus": ${JSON.stringify(status)} })`
+      return `const ${slot.name} = ${document.codes[index].runtime}${annotate}`
+    }
     const fields = tagged.fields
       .map(([name]) => `${JSON.stringify(name)}: ${document.codes[fieldIndex++].runtime}`)
       .join(", ")
@@ -1164,7 +1293,7 @@ function renderSchemas(slots: ReadonlyArray<Slot>) {
       annotations.length === 0
         ? ""
         : `.annotate({ ${annotations.map(([key, value]) => `${JSON.stringify(key)}: ${JSON.stringify(value)}`).join(", ")} })`
-    return `class ${slot.name}Class extends Schema.TaggedErrorClass<${slot.name}Class>(${JSON.stringify(tagged.identifier)})(${JSON.stringify(tagged.tag)}, { ${fields} }) {}\nconst ${slot.name} = ${slot.name}Class${annotate}`
+    return `class ${slot.name}Class extends Schema.TaggedError<${slot.name}Class>(${JSON.stringify(tagged.identifier)})(${JSON.stringify(tagged.tag)}, { ${fields} }) {}\nconst ${slot.name} = ${slot.name}Class${annotate}`
   })
   return [...artifacts, ...references, ...declarations].join("\n\n")
 }
@@ -1178,8 +1307,8 @@ function renderClient(groups: ReadonlyArray<Group>) {
     if (!group.endpoints[0]?.topLevel) {
       return [`${JSON.stringify(group.identifier)}: adaptGroup${index}(raw[${JSON.stringify(group.identifier)}])`]
     }
-    const raw = `{ ${group.endpoints.map((item) => `${JSON.stringify(item.endpoint.name)}: raw[${JSON.stringify(item.endpoint.name)}]`).join(", ")} }`
+    const raw = `{ ${group.endpoints.map((item) => `${JSON.stringify(item.endpoint.identifier)}: raw[${JSON.stringify(item.endpoint.identifier)}]`).join(", ")} }`
     return [`...adaptGroup${index}(${raw})`]
   })
-  return `// Generated by @tenon/httpapi-codegen. Do not edit.\nimport { Effect } from "effect"\nimport { HttpApi, HttpApiClient } from "effect/unstable/httpapi"\n${imports}\n\nconst Api = ${api}\nconst adaptClient = (raw: HttpApiClient.ForApi<typeof Api>) => ({ ${fields.join(", ")} })\n\nexport const make = (options?: { readonly baseUrl?: URL | string }) =>\n  HttpApiClient.make(Api, options).pipe(Effect.map(adaptClient))\n`
+  return `// Generated by @tenon/httpapi-codegen. Do not edit.\nimport { Effect } from "effect"\nimport { HttpApi, HttpApiClient } from "effect/http-api"\n${imports}\n\nconst Api = ${api}\nconst adaptClient = (raw: HttpApiClient.ForApi<typeof Api>) => ({ ${fields.join(", ")} })\n\nexport const make = (options?: { readonly baseUrl?: URL | string }) =>\n  HttpApiClient.make(Api, options).pipe(Effect.map(adaptClient))\n`
 }

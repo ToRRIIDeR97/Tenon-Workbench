@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect } from "bun:test"
 import { Effect, Exit, Layer, Option } from "effect"
-import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/unstable/http"
+import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http"
 import { LayerNode } from "@tenon/core/effect/layer-node"
 import { httpClient } from "@tenon/core/effect/app-node-platform"
 import { CrossSpawnSpawner } from "@tenon/core/cross-spawn-spawner"

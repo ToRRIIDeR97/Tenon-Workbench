@@ -1,8 +1,8 @@
 import { NodeFileSystem } from "@effect/platform-node"
 import { describe, expect, test } from "bun:test"
-import { Cause, Deferred, Effect, Exit, Layer, Scope, Stream } from "effect"
-import { Headers, HttpBody, HttpClient, HttpClientRequest } from "effect/unstable/http"
-import { Socket } from "effect/unstable/socket"
+import { Cause, Effect, Exit, Layer, Queue, Scope, Stream } from "effect"
+import { Headers, HttpBody, HttpClient, HttpClientRequest } from "effect/http"
+import { Socket } from "effect/socket"
 import * as fs from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
@@ -21,6 +21,42 @@ const seedCassetteDirectory = (directory: string, name: string, interactions: Re
       Effect.provide(NodeFileSystem.layer),
     ),
   )
+
+// Reads frames until the socket closes, as `socket.runRaw` did before Effect 4.1.
+// A normal close (1000) ends the run; any other close fails it.
+const runSocket = <E = never, R = never>(
+  socket: Socket.Socket,
+  handler: (message: string | Uint8Array) => Effect.Effect<unknown, E, R> | void,
+  options?: { readonly onOpen?: Effect.Effect<void> },
+) =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const reader = yield* socket.reader
+      if (options?.onOpen) yield* options.onOpen
+      while (true) {
+        for (const message of yield* reader.pull) {
+          const result = handler(message)
+          if (Effect.isEffect(result)) yield* result
+        }
+      }
+    }),
+  ).pipe(
+    Effect.catchIf(
+      (error) => Socket.isSocketError(error) && error.reason._tag === "SocketCloseError" && error.reason.code === 1000,
+      () => Effect.void,
+    ),
+  )
+
+const decodeText = (message: string | Uint8Array) =>
+  typeof message === "string" ? message : new TextDecoder().decode(message)
+
+const unexpectedLiveSocket = Socket.make({
+  reader: Effect.die(new Error("unexpected live WebSocket run")),
+  writer: Effect.succeed({
+    write: () => Effect.die(new Error("unexpected live WebSocket write")),
+    writeAll: () => Effect.die(new Error("unexpected live WebSocket write")),
+  }),
+})
 
 const post = (url: string, body: object) =>
   Effect.gen(function* () {
@@ -210,28 +246,31 @@ describe("http-recorder", () => {
   test("records WebSocket frames in observed client/server order", async () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "http-recorder-websocket-"))
     const response = JSON.stringify({ type: "response.completed", token: "server-secret" })
-    let receive: ((message: string | Uint8Array) => Effect.Effect<unknown, unknown, unknown> | void) | undefined
+    // The fake server answers the client frame once, then closes normally.
+    const frames = await Effect.runPromise(Queue.unbounded<string>())
     const upstream = Socket.make({
-      runRaw: (handler, options) =>
-        Effect.gen(function* () {
-          receive = handler
-          if (options?.onOpen) yield* options.onOpen
-          receive = undefined
-        }),
-      writer: Effect.succeed(() =>
-        Effect.suspend(() => {
-          const result = receive?.(response)
-          return Effect.isEffect(result) ? Effect.asVoid(result) : Effect.void
-        }),
-      ),
+      reader: Effect.succeed({
+        pull: Queue.take(frames).pipe(
+          Effect.flatMap((frame) =>
+            frame === "close"
+              ? Effect.fail(new Socket.SocketError({ reason: new Socket.SocketCloseError({ code: 1000 }) }))
+              : Effect.succeed([frame] as const),
+          ),
+        ),
+        upgrade: Socket.SocketUpgradeError.unsupported,
+      }),
+      writer: Effect.succeed({
+        write: () => Queue.offerAll(frames, [response, "close"]).pipe(Effect.asVoid),
+        writeAll: () => Effect.void,
+      }),
     })
 
     await Effect.runPromise(
       Effect.gen(function* () {
         const socket = yield* Socket.Socket
-        const write = yield* socket.writer
-        yield* socket.runRaw(() => {}, {
-          onOpen: write(JSON.stringify({ type: "response.create", token: "client-secret" })),
+        const { write } = yield* socket.writer
+        yield* runSocket(socket, () => {}, {
+          onOpen: write(JSON.stringify({ type: "response.create", token: "client-secret" })).pipe(Effect.orDie),
         })
       }).pipe(
         Effect.scoped,
@@ -277,8 +316,8 @@ describe("http-recorder", () => {
     await Effect.runPromise(
       Effect.gen(function* () {
         const socket = yield* Socket.Socket
-        const write = yield* socket.writer
-        yield* socket.runRaw((message) => {
+        const { write } = yield* socket.writer
+        yield* runSocket(socket, (message) => {
           if (typeof message !== "string") return
           received.push(message)
           if (JSON.parse(message).type === "session.created")
@@ -291,17 +330,7 @@ describe("http-recorder", () => {
             "websocket/replay",
             { url: "wss://example.test/realtime" },
             { directory, compareClientMessagesAsJson: true, mode: "replay" },
-          ).pipe(
-            Layer.provide(
-              Layer.succeed(
-                Socket.Socket,
-                Socket.make({
-                  runRaw: () => Effect.die(new Error("unexpected live WebSocket run")),
-                  writer: Effect.succeed(() => Effect.die(new Error("unexpected live WebSocket write"))),
-                }),
-              ),
-            ),
-          ),
+          ).pipe(Layer.provide(Layer.succeed(Socket.Socket, unexpectedLiveSocket))),
         ),
       ),
     )
@@ -326,28 +355,21 @@ describe("http-recorder", () => {
     await Effect.runPromise(
       Effect.gen(function* () {
         const socket = yield* Socket.Socket
-        const write = yield* socket.writer
-        yield* socket.runString(
+        const { write } = yield* socket.writer
+        yield* runSocket(
+          socket,
           (message) =>
             Effect.gen(function* () {
-              received.push(message)
+              received.push(decodeText(message))
               yield* write(new Socket.CloseEvent(1000))
             }),
-          { onOpen: write("hello") },
+          { onOpen: write("hello").pipe(Effect.orDie) },
         )
       }).pipe(
         Effect.scoped,
         Effect.provide(
           HttpRecorder.socket("websocket/public-layer", { directory }).pipe(
-            Layer.provide(
-              Layer.succeed(
-                Socket.Socket,
-                Socket.make({
-                  runRaw: () => Effect.die(new Error("unexpected live WebSocket run")),
-                  writer: Effect.succeed(() => Effect.die(new Error("unexpected live WebSocket write"))),
-                }),
-              ),
-            ),
+            Layer.provide(Layer.succeed(Socket.Socket, unexpectedLiveSocket)),
           ),
         ),
       ),
@@ -356,7 +378,7 @@ describe("http-recorder", () => {
     expect(received).toEqual(["hello"])
   })
 
-  test("WebSocket replay runs message handlers concurrently", async () => {
+  test("WebSocket replay releases consecutive server frames together", async () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "http-recorder-websocket-"))
     await seedCassetteDirectory(directory, "websocket/concurrent-handlers", [
       {
@@ -369,13 +391,13 @@ describe("http-recorder", () => {
       },
     ])
 
-    await Effect.runPromise(
+    // The reader hands over every frame up to the next client frame in one pull,
+    // so a consumer may process them concurrently.
+    const batch = await Effect.runPromise(
       Effect.gen(function* () {
         const socket = yield* Socket.Socket
-        const second = yield* Deferred.make<void>()
-        yield* socket.runString((message) =>
-          message === "first" ? Deferred.await(second) : Deferred.succeed(second, undefined),
-        )
+        const reader = yield* socket.reader
+        return yield* reader.pull
       }).pipe(
         Effect.scoped,
         Effect.provide(
@@ -383,20 +405,12 @@ describe("http-recorder", () => {
             "websocket/concurrent-handlers",
             { url: "wss://example.test/realtime" },
             { directory, mode: "replay" },
-          ).pipe(
-            Layer.provide(
-              Layer.succeed(
-                Socket.Socket,
-                Socket.make({
-                  runRaw: () => Effect.die(new Error("unexpected live WebSocket run")),
-                  writer: Effect.succeed(() => Effect.die(new Error("unexpected live WebSocket write"))),
-                }),
-              ),
-            ),
-          ),
+          ).pipe(Layer.provide(Layer.succeed(Socket.Socket, unexpectedLiveSocket))),
         ),
       ),
     )
+
+    expect(batch).toEqual(["first", "second"])
   })
 
   test("WebSocket replay rejects close with unconsumed events", async () => {
@@ -412,8 +426,10 @@ describe("http-recorder", () => {
     const exit = await Effect.runPromise(
       Effect.gen(function* () {
         const socket = yield* Socket.Socket
-        const write = yield* socket.writer
-        return yield* Effect.exit(socket.runRaw(() => {}, { onOpen: write(new Socket.CloseEvent(1000)) }))
+        const { write } = yield* socket.writer
+        return yield* Effect.exit(
+          runSocket(socket, () => {}, { onOpen: write(new Socket.CloseEvent(1000)).pipe(Effect.orDie) }),
+        )
       }).pipe(
         Effect.scoped,
         Effect.provide(
@@ -421,17 +437,7 @@ describe("http-recorder", () => {
             "websocket/early-close",
             { url: "wss://example.test/realtime" },
             { directory, mode: "replay" },
-          ).pipe(
-            Layer.provide(
-              Layer.succeed(
-                Socket.Socket,
-                Socket.make({
-                  runRaw: () => Effect.die(new Error("unexpected live WebSocket run")),
-                  writer: Effect.succeed(() => Effect.die(new Error("unexpected live WebSocket write"))),
-                }),
-              ),
-            ),
-          ),
+          ).pipe(Layer.provide(Layer.succeed(Socket.Socket, unexpectedLiveSocket))),
         ),
       ),
     )
@@ -444,7 +450,7 @@ describe("http-recorder", () => {
     const exit = await Effect.runPromise(
       Effect.gen(function* () {
         const socket = yield* Socket.Socket
-        return yield* Effect.exit(socket.runRaw(() => {}))
+        return yield* Effect.exit(runSocket(socket, () => {}))
       }).pipe(
         Effect.scoped,
         Effect.provide(
@@ -457,8 +463,8 @@ describe("http-recorder", () => {
               Layer.succeed(
                 Socket.Socket,
                 Socket.make({
-                  runRaw: () => Effect.die(new Error("connection failed")),
-                  writer: Effect.succeed(() => Effect.void),
+                  reader: Effect.die(new Error("connection failed")),
+                  writer: Effect.succeed({ write: () => Effect.void, writeAll: () => Effect.void }),
                 }),
               ),
             ),
@@ -497,13 +503,14 @@ describe("http-recorder", () => {
     await Effect.runPromise(
       Effect.gen(function* () {
         const socket = yield* Socket.Socket
-        const write = yield* socket.writer
-        const run = socket.runRaw(
+        const { write } = yield* socket.writer
+        const run = runSocket(
+          socket,
           (message) => {
             if (typeof message === "string") throw new Error("Expected a binary WebSocket frame")
             received.push([...message])
           },
-          { onOpen: write(new Uint8Array([1, 2])) },
+          { onOpen: write(new Uint8Array([1, 2])).pipe(Effect.orDie) },
         )
         yield* run
         yield* run
@@ -514,17 +521,7 @@ describe("http-recorder", () => {
             "websocket/binary",
             { url: "wss://example.test/binary" },
             { directory, mode: "replay" },
-          ).pipe(
-            Layer.provide(
-              Layer.succeed(
-                Socket.Socket,
-                Socket.make({
-                  runRaw: () => Effect.die(new Error("unexpected live WebSocket run")),
-                  writer: Effect.succeed(() => Effect.die(new Error("unexpected live WebSocket write"))),
-                }),
-              ),
-            ),
-          ),
+          ).pipe(Layer.provide(Layer.succeed(Socket.Socket, unexpectedLiveSocket))),
         ),
       ),
     )

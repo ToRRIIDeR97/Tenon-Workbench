@@ -6,7 +6,7 @@ import { SessionID } from "@/session/schema"
 import { Worktree } from "@/worktree"
 import { NonNegativeInt } from "@tenon/core/schema"
 import { Schema } from "effect"
-import { HttpApi, HttpApiEndpoint, HttpApiError, HttpApiGroup, HttpApiSchema, OpenApi } from "effect/unstable/httpapi"
+import { HttpApi, HttpApiEndpoint, HttpApiError, HttpApiGroup, HttpApiSchema, OpenApi } from "effect/http-api"
 import { Authorization } from "../middleware/authorization"
 import { InstanceContextMiddleware } from "../middleware/instance-context"
 import {
@@ -18,6 +18,11 @@ import { described } from "./metadata"
 import { QueryBoolean } from "./query"
 import { ProviderV2 } from "@tenon/core/provider"
 import { ModelV2 } from "@tenon/core/model"
+
+// Effect 4.1's `NoContent` (a `Schema.Void`) decodes any value to undefined, so in `[NoContent, Input]` without
+// codecs it would swallow every body. Decoding through `Undefined` first keeps it to an empty body, and the AST is
+// still `Void`, so OpenAPI still treats the body as optional.
+const EmptyPayload = HttpApiSchema.NoContent.pipe(Schema.encodeTo(Schema.Undefined))
 
 const ConsoleStateResponse = Schema.Struct({
   consoleManagedProviders: Schema.mutable(Schema.Array(Schema.String)),
@@ -70,7 +75,7 @@ const WorktreeErrorName = Schema.Union([
   Schema.Literal("WorktreeResetFailedError"),
   Schema.Literal("WorktreeListFailedError"),
 ])
-export class WorktreeApiError extends Schema.ErrorClass<WorktreeApiError>("WorktreeError")(
+export class WorktreeApiError extends Schema.Error<WorktreeApiError>("WorktreeError")(
   {
     name: WorktreeErrorName,
     data: Schema.Struct({ message: Schema.String }),
@@ -187,8 +192,8 @@ export const ExperimentalApi = HttpApi.make("experimental")
         ),
         HttpApiEndpoint.post("worktreeCreate", ExperimentalPaths.worktree, {
           disableCodecs: true,
-          query: WorkspaceRoutingQuery,
-          payload: [HttpApiSchema.NoContent, Worktree.CreateInput],
+          query: WorkspaceRoutingQueryFields,
+          payload: [EmptyPayload, Worktree.CreateInput],
           success: described(Worktree.Info, "Worktree created"),
           error: WorktreeApiError,
         }).annotateMerge(

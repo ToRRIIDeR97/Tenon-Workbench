@@ -11,7 +11,7 @@ import { makeGlobalNode } from "./effect/app-node"
 import { filesystem } from "./effect/app-node-platform"
 
 export namespace FSUtil {
-  export class FileSystemError extends Schema.TaggedErrorClass<FileSystemError>()("FileSystemError", {
+  export class FileSystemError extends Schema.TaggedError<FileSystemError>()("FileSystemError", {
     method: Schema.String,
     cause: Schema.optional(Schema.Defect()),
   }) {
@@ -28,7 +28,8 @@ export namespace FSUtil {
     readonly type: "file" | "directory" | "symlink" | "other"
   }
 
-  export interface Interface extends FileSystem.FileSystem {
+  // Effect 4.1 added `FileSystem.glob` and `readDirectoryEntries`; this service keeps its own versions.
+  export interface Interface extends Omit<FileSystem.FileSystem, "glob" | "readDirectoryEntries"> {
     readonly isDir: (path: string) => Effect.Effect<boolean>
     readonly isFile: (path: string) => Effect.Effect<boolean>
     readonly existsSafe: (path: string) => Effect.Effect<boolean>

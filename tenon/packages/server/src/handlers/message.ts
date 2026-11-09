@@ -1,7 +1,7 @@
 import { SessionMessage } from "@tenon/core/session/message"
 import { SessionV2 } from "@tenon/core/session"
 import { Effect, Schema } from "effect"
-import { HttpApiBuilder } from "effect/unstable/httpapi"
+import { HttpApiBuilder } from "effect/http-api"
 import { Api } from "../api"
 import { InvalidCursorError, SessionNotFoundError, UnknownError } from "@tenon/protocol/errors"
 

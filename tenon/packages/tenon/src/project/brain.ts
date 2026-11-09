@@ -110,15 +110,15 @@ export const EnsureWorkspaceInput = Schema.Struct({
 })
 export type EnsureWorkspaceInput = typeof EnsureWorkspaceInput.Type
 
-export class InvalidError extends Schema.TaggedErrorClass<InvalidError>()("BrainProject.InvalidError", {
+export class InvalidError extends Schema.TaggedError<InvalidError>()("BrainProject.InvalidError", {
   reason: Schema.String,
 }) {}
 
-export class NotFoundError extends Schema.TaggedErrorClass<NotFoundError>()("BrainProject.NotFoundError", {
+export class NotFoundError extends Schema.TaggedError<NotFoundError>()("BrainProject.NotFoundError", {
   id: Schema.String,
 }) {}
 
-export class ConflictError extends Schema.TaggedErrorClass<ConflictError>()("BrainProject.ConflictError", {
+export class ConflictError extends Schema.TaggedError<ConflictError>()("BrainProject.ConflictError", {
   reason: Schema.String,
 }) {}
 

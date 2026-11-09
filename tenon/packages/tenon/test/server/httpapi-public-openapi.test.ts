@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { OpenApi } from "effect/unstable/httpapi"
+import { OpenApi } from "effect/http-api"
 import { PublicApi } from "../../src/server/routes/instance/httpapi/public"
 
 type Method = "get" | "post" | "put" | "delete" | "patch"
@@ -60,9 +60,10 @@ function componentName(ref: string) {
 function componentNames(response: OpenApiResponse | undefined) {
   const schema = response?.content?.["application/json"]?.schema
   if (!schema) return []
+  // Sorted: a union's member order carries no meaning, and Effect 4.1 keeps the declared error order.
   return [
     ...new Set([schema, ...(schema.anyOf ?? [])].flatMap((item) => (item.$ref ? [componentName(item.$ref)] : []))),
-  ]
+  ].toSorted()
 }
 
 function isBuiltInEndpointError(name: string) {

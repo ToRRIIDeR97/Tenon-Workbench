@@ -2,17 +2,15 @@ import { DatabaseSync, type SQLInputValue, type StatementSync } from "node:sqlit
 import { drizzle } from "drizzle-orm/node-sqlite"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
-import * as Fiber from "effect/Fiber"
 import { identity } from "effect/Function"
 import * as Layer from "effect/Layer"
-import * as Scope from "effect/Scope"
 import * as Semaphore from "effect/Semaphore"
 import * as Stream from "effect/Stream"
-import * as Reactivity from "effect/unstable/reactivity/Reactivity"
-import * as Client from "effect/unstable/sql/SqlClient"
-import type { Connection } from "effect/unstable/sql/SqlConnection"
-import { classifySqliteError, SqlError } from "effect/unstable/sql/SqlError"
-import * as Statement from "effect/unstable/sql/Statement"
+import * as Reactivity from "effect/reactivity/Reactivity"
+import * as Client from "effect/sql/SqlClient"
+import type { Connection } from "effect/sql/SqlConnection"
+import { classifySqliteError, SqlError } from "effect/sql/SqlError"
+import * as Statement from "effect/sql/Statement"
 import { Sqlite } from "./sqlite"
 
 const ATTR_DB_SYSTEM_NAME = "db.system.name"
@@ -114,6 +112,9 @@ const make = (options: Config) =>
       executeValues(query, params) {
         return runValues(query, params)
       },
+      executeValuesUnprepared(query, params) {
+        return runValues(query, params)
+      },
       executeUnprepared(query, params, transformRows) {
         return this.execute(query, params, transformRows)
       },
@@ -130,22 +131,27 @@ const make = (options: Config) =>
         }),
     })
 
-    const semaphore = yield* Semaphore.make(1)
-    const acquirer = semaphore.withPermits(1)(Effect.succeed(connection))
-    const transactionAcquirer = Effect.uninterruptibleMask((restore) => {
-      const fiber = Fiber.getCurrent()!
-      const scope = Context.getUnsafe(fiber.context, Scope.Scope)
-      return Effect.as(
-        Effect.tap(restore(semaphore.take(1)), () => Scope.addFinalizer(scope, semaphore.release(1))),
-        connection,
-      )
+    // Mirrors @effect/sql-sqlite-* 4.1: the connection is leased through one semaphore, single statements borrow
+    // it without a scope, and a failed COMMIT is rolled back before the connection is reused.
+    const { acquirer, borrower, isTransaction, onCommitFailure, transactionAcquirer } = Client.makeSqliteAcquirers({
+      connection: Effect.succeed(connection),
+      semaphore: yield* Semaphore.make(1),
+      isTransaction: () => native.isTransaction,
     })
 
-    const client = Object.assign(
+    const client: SqliteClient = Object.assign(
       (yield* Client.make({
+        driver: "sqlite-node",
         acquirer,
+        borrower,
         compiler,
         transactionAcquirer,
+        onCommitFailure,
+        isTransaction,
+        releaseSavepoint: (name) => `RELEASE SAVEPOINT ${name}`,
+        // Takes the write lock up front, so a transaction that writes after reading waits for busy_timeout
+        // instead of failing with SQLITE_BUSY. Drizzle's `{ behavior }` overrides it per transaction.
+        beginTransaction: options.readonly === true ? "BEGIN" : "BEGIN IMMEDIATE",
         spanAttributes: [
           ...(options.spanAttributes ? Object.entries(options.spanAttributes) : []),
           [ATTR_DB_SYSTEM_NAME, "sqlite"],
@@ -155,7 +161,7 @@ const make = (options: Config) =>
       {
         [TypeId]: TypeId,
         config: options,
-        loadExtension: (path: string) => Effect.flatMap(acquirer, (_) => _.loadExtension(path)),
+        loadExtension: (path: string) => Effect.scoped(Effect.flatMap(acquirer, (_) => _.loadExtension(path))),
       },
     )
 

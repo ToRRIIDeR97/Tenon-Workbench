@@ -51,22 +51,22 @@ export type Info = typeof Info.Type
 
 export const RunResult = Schema.Struct({ threadId: Schema.String })
 
-export class NotFoundError extends Schema.TaggedErrorClass<NotFoundError>()("Routines.NotFoundError", {
+export class NotFoundError extends Schema.TaggedError<NotFoundError>()("Routines.NotFoundError", {
   id: Schema.String,
 }) {}
 
 /** Run now on an unapproved routine, or an approval of content that has changed since it was listed. */
-export class ApprovalError extends Schema.TaggedErrorClass<ApprovalError>()("Routines.ApprovalError", {
+export class ApprovalError extends Schema.TaggedError<ApprovalError>()("Routines.ApprovalError", {
   id: Schema.String,
 }) {}
 
 /** A Run now while the routine's last run is still in flight. */
-export class ConflictError extends Schema.TaggedErrorClass<ConflictError>()("Routines.ConflictError", {
+export class ConflictError extends Schema.TaggedError<ConflictError>()("Routines.ConflictError", {
   id: Schema.String,
 }) {}
 
 /** `routines-state.json` could not be written. */
-export class StateError extends Schema.TaggedErrorClass<StateError>()("Routines.StateError", {}) {}
+export class StateError extends Schema.TaggedError<StateError>()("Routines.StateError", {}) {}
 
 /** A routine as `run` receives it. */
 export interface Routine {

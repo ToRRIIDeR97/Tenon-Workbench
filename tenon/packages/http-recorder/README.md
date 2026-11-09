@@ -4,7 +4,7 @@ Record real Effect HTTP and WebSocket traffic once, then replay it from determin
 
 Use it for provider integrations, retries, polling, multi-step flows, and any test where hand-written HTTP mocks hide too much of the real request shape.
 
-> Public beta. The API depends on Effect 4 beta and may change with Effect's unstable transport modules.
+> Public beta. The API depends on Effect 4 and may change with Effect's transport modules.
 
 ## Install
 
@@ -30,7 +30,7 @@ Effect `4.0.0-beta.74` has a known declaration error (`SchemaErrorTypeId` is mis
 ```ts
 import { assert, describe, it } from "@effect/vitest"
 import { Effect, Schema } from "effect"
-import { HttpClient, HttpClientRequest } from "effect/unstable/http"
+import { HttpClient, HttpClientRequest } from "effect/http"
 import { HttpRecorder } from "@tenon/http-recorder"
 
 const User = Schema.Struct({
@@ -95,29 +95,25 @@ WebSocket cassettes preserve one ordered transcript of client and server text or
 import { assert, it } from "@effect/vitest"
 import { NodeSocket } from "@effect/platform-node"
 import { Effect, Layer } from "effect"
-import { Socket } from "effect/unstable/socket"
+import { Socket } from "effect/socket"
 import { HttpRecorder } from "@tenon/http-recorder"
 
 const echo = Effect.gen(function* () {
   const socket = yield* Socket.Socket
-  const write = yield* socket.writer
+  const { write } = yield* socket.writer
+  // Acquiring the reader opens the connection; `pull` returns the next frames.
+  const pull = yield* Socket.readerString(socket)
 
-  yield* socket.runString(
-    (message) =>
-      Effect.gen(function* () {
-        assert.strictEqual(message, "hello")
-        yield* write(new Socket.CloseEvent(1000))
-      }),
-    { onOpen: write("hello") },
-  )
-})
+  yield* write("hello")
+  const [message] = yield* pull
+  assert.strictEqual(message, "hello")
+  yield* write(new Socket.CloseEvent(1000))
+  // The socket reports every close, including a normal one, as a SocketCloseError.
+  yield* pull.pipe(Effect.catchReason("SocketError", "SocketCloseError", () => Effect.succeed([])))
+}).pipe(Effect.scoped)
 
 const recordedSocket = HttpRecorder.socket("echo/hello").pipe(
-  Layer.provide(
-    NodeSocket.layerWebSocket("wss://ws.postman-echo.com/raw", {
-      closeCodeIsError: (code) => code !== 1000,
-    }),
-  ),
+  Layer.provide(NodeSocket.layerWebSocket("wss://ws.postman-echo.com/raw")),
 )
 
 it.effect("exchanges WebSocket frames", () => echo.pipe(Effect.provide(recordedSocket)))

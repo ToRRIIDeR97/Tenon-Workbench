@@ -19,7 +19,7 @@
     "@tenon/protocol": "workspace:*"
   },
   "peerDependencies": {
-    "effect": "4.0.0-beta.83"
+    "effect": "catalog:"
   },
   "peerDependenciesMeta": {
     "effect": {

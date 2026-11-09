@@ -68,7 +68,7 @@ export const Args = {
   }),
 }
 
-export class MailError extends Schema.TaggedErrorClass<MailError>()("MailTools.MailError", {
+export class MailError extends Schema.TaggedError<MailError>()("MailTools.MailError", {
   message: Schema.String,
 }) {}
 

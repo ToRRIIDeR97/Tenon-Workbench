@@ -1,7 +1,7 @@
 import { Agent } from "@tenon/schema/agent"
 import { Location } from "@tenon/schema/location"
 import { Schema } from "effect"
-import { HttpApiEndpoint, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
+import { HttpApiEndpoint, HttpApiGroup, OpenApi } from "effect/http-api"
 import { LocationQuery, locationQueryOpenApi } from "./location"
 
 export const AgentGroup = HttpApiGroup.make("server.agent").add(
