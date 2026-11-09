@@ -35,6 +35,8 @@
     "unicorn/require-post-message-target-origin": "off",
     // Side-effectful constructors are intentional in some places
     "no-new": "off",
+    // Effect's `_tag` discriminant and vendored/xterm internals use leading underscores by design
+    "no-underscore-dangle": "off",
 
     // Type-aware: catch unhandled promises
     "typescript/no-floating-promises": "warn",

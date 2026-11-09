@@ -6,7 +6,7 @@
   "license": "MIT",
   "scripts": {
     "typecheck": "tsgo --noEmit",
-    "build": "tsc"
+    "build": "tsgo"
   },
   "exports": {
     ".": "./src/index.ts",
@@ -48,7 +48,6 @@
     "@opentui/solid": "catalog:",
     "@tsconfig/node24": "catalog:",
     "@types/node": "catalog:",
-    "typescript": "catalog:",
     "@typescript/native-preview": "catalog:"
   }
 }
