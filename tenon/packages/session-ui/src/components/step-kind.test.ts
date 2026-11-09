@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { Part, ToolPart } from "@opencode-ai/sdk/v2"
-import { isDeclined, isStopped, stepOf, subagentName, summarizeTurn } from "./step-kind"
+import { blockedBy, isDeclined, isStopped, stepOf, subagentName, summarizeTurn } from "./step-kind"
 
 const tool = (name: string, input: Record<string, unknown>, status = "completed") =>
   ({
@@ -69,6 +69,23 @@ describe("summarizeTurn", () => {
     const parts = [errored("bash", "Tool execution interrupted"), errored("bash", "exit code 1")]
     expect(parts.map(isStopped)).toEqual([true, false])
     expect(summarizeTurn(parts)).toEqual({ counts: { run: 2 }, failed: 1, declined: 0, running: 0 })
+  })
+
+  test("a call Tenon blocked by its rules is not counted as declined by the user", () => {
+    const blocked = {
+      ...tool("acp_execute", {}),
+      state: {
+        status: "error",
+        input: {},
+        error: "The user declined this tool call",
+        metadata: { blocked: { reason: "rules", action: "bash" } },
+        time: { start: 0, end: 1 },
+      },
+    } as unknown as ToolPart
+    expect(blockedBy(blocked)).toEqual({ reason: "rules", action: "bash" })
+    expect(isDeclined(blocked)).toBe(false)
+    expect(blockedBy(errored("acp_execute", "The user declined this tool call"))).toBeUndefined()
+    expect(summarizeTurn([blocked])).toEqual({ counts: { run: 1 }, failed: 1, declined: 0, running: 0 })
   })
 })
 

@@ -158,8 +158,24 @@ const DECLINED = [/The user rejected permission to use this specific tool call/i
 /** Whether the user declined this tool call's permission, which is the user's choice rather than a failure. */
 export function isDeclined(part: ToolPart) {
   const state = part.state
-  if (state.status !== "error") return false
+  if (state.status !== "error" || blockedBy(part)) return false
   return DECLINED.some((pattern) => pattern.test(state.error))
+}
+
+export type Blocked = { reason: "rules" | "error"; action: string }
+
+/**
+ * Why Tenon refused this call's permission without asking the user, when it did: a deny rule or a failed check.
+ * The harness still reports it as declined, so core tags the result (`markBlocked` in core/src/harness.ts).
+ */
+export function blockedBy(part: ToolPart): Blocked | undefined {
+  if (part.state.status !== "error") return undefined
+  const blocked = part.state.metadata?.blocked
+  if (typeof blocked !== "object" || blocked === null) return undefined
+  const reason = "reason" in blocked ? blocked.reason : undefined
+  const action = "action" in blocked ? blocked.action : undefined
+  if ((reason !== "rules" && reason !== "error") || typeof action !== "string") return undefined
+  return { reason, action }
 }
 
 // Core's runner fails a call left running when the turn is interrupted with this wording (runner/llm.ts).

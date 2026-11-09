@@ -149,8 +149,18 @@ const layer = Layer.effect(
     ) {
       const session = yield* sessions.get(sessionID)
       if (!session) return yield* new SessionV2.NotFoundError({ sessionID })
-      const agent = yield* agents.resolve(agentID ?? session.agent)
-      return agent?.permissions ?? missingAgentPermissions
+      const requested = agentID ?? session.agent
+      const agent = yield* agents.resolve(requested)
+      if (agent) return agent.permissions
+      // A Session can name an agent this Location no longer defines (renamed, removed, or from another folder's
+      // config). Its calls follow the default agent's rules rather than all being refused without a prompt.
+      const fallback = yield* agents.default()
+      if (!fallback) return missingAgentPermissions
+      yield* EffectRuntime.logWarning("permission agent not found; using the default agent's rules", {
+        agent: requested,
+        fallback: fallback.id,
+      })
+      return fallback.permissions
     })
 
     function denied(input: AssertInput, rules: Permission.Ruleset) {

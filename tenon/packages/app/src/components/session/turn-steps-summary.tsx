@@ -8,6 +8,7 @@ import { ScrollView } from "@tenon/ui/scroll-view"
 import { TextShimmer } from "@tenon/ui/text-shimmer"
 import { Icon as StepIcon } from "@tenon/ui/icon"
 import {
+  blockedBy,
   isDeclined,
   isStopped,
   stepIcon,
@@ -87,6 +88,16 @@ const GROUPED = new Set<StepKind>(["read", "search", "edit", "run", "fetch"])
 const isRunning = (part: ToolPart) => part.state.status === "pending" || part.state.status === "running"
 // A call the user declined or stopped errored, but it's the user's choice, so it reads muted rather than red.
 const isFailed = (part: ToolPart) => part.state.status === "error" && !isDeclined(part) && !isStopped(part)
+
+/** The note on a step Tenon blocked without asking the user, saying why; the harness calls it declined. */
+export function blockedNote(part: ToolPart) {
+  const blocked = blockedBy(part)
+  if (!blocked) return undefined
+  const key =
+    blocked.reason === "rules" ? "secondBrain.turnSteps.blockedByRules" : "secondBrain.turnSteps.blockedByError"
+  return { key, action: blocked.action } as const
+}
+
 const isSubagent = (part: ToolPart) => stepOf(part).kind === "subagent"
 // Paths, patterns, commands and URLs read as code; a question or an agent's task reads as prose.
 const codeTarget = (kind: StepKind) =>
@@ -420,6 +431,13 @@ export function TurnStepsSummary(props: {
                   <span data-slot="turn-steps-declined" class="shrink-0 text-[12px] text-v2-text-text-muted">
                     {language.t("secondBrain.turnSteps.declinedStep")}
                   </span>
+                </Show>
+                <Show when={blockedNote(tool())}>
+                  {(note) => (
+                    <span data-slot="turn-steps-blocked" class="shrink-0 text-[12px] text-v2-text-text-muted">
+                      {language.t(note().key, { action: note().action })}
+                    </span>
+                  )}
                 </Show>
                 <Show when={isStopped(tool())}>
                   <span data-slot="turn-steps-stopped" class="shrink-0 text-[12px] text-v2-text-text-muted">

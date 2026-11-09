@@ -728,6 +728,8 @@ export const dict = {
   "secondBrain.turnSteps.declined.one": "{{count}} declined",
   "secondBrain.turnSteps.declined.other": "{{count}} declined",
   "secondBrain.turnSteps.declinedStep": "Declined",
+  "secondBrain.turnSteps.blockedByRules": "Blocked by permission rules: {{action}}",
+  "secondBrain.turnSteps.blockedByError": "Blocked: the permission check for {{action}} failed",
   "secondBrain.turnSteps.stoppedStep": "Stopped",
   "secondBrain.turnSteps.read.one": "Read {{count}} file",
   "secondBrain.turnSteps.read.other": "Read {{count}} files",

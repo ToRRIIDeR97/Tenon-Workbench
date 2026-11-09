@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import type { Part, ToolPart } from "@opencode-ai/sdk/v2"
+import { dict as en } from "@/i18n/en"
 import {
+  blockedNote,
   foldDuration,
   hasVisibleSteps,
   reasoningTopic,
@@ -141,5 +143,28 @@ describe("hasVisibleSteps", () => {
     const blank = { id: "r", type: "reasoning", text: "  ", time: { start: 1, end: 1 } } as unknown as Part
     expect(hasVisibleSteps([blank], read)).toBe(false)
     expect(hasVisibleSteps([], read)).toBe(false)
+  })
+})
+
+describe("blockedNote", () => {
+  const failed = (metadata?: Record<string, unknown>) =>
+    ({
+      id: "a",
+      type: "tool",
+      tool: "acp_execute",
+      state: { status: "error", input: {}, error: "The user declined this tool call", metadata },
+    }) as unknown as ToolPart
+
+  test("names the rule-blocked action instead of calling the call declined", () => {
+    const note = blockedNote(failed({ blocked: { reason: "rules", action: "bash" } }))
+    expect(note).toEqual({ key: "secondBrain.turnSteps.blockedByRules", action: "bash" })
+    expect(en[note!.key].replace("{{action}}", note!.action)).toBe("Blocked by permission rules: bash")
+    expect(blockedNote(failed({ blocked: { reason: "error", action: "edit" } }))?.key).toBe(
+      "secondBrain.turnSteps.blockedByError",
+    )
+  })
+
+  test("leaves a call the user declined alone", () => {
+    expect(blockedNote(failed())).toBeUndefined()
   })
 })

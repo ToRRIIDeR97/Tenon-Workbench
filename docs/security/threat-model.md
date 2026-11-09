@@ -572,7 +572,15 @@ link through Tenon.
 A harness approval carries the tool call it gates as its `source` (the ACP
 `toolCallId` or Codex `itemId`), so the dock can link the request to the call.
 A declined harness approval is returned to the agent, which decides what to do
-next; unlike a local tool, it doesn't end the turn.
+next; unlike a local tool, it doesn't end the turn. A request a deny rule (or a
+failed permission check) refuses never reaches the dock: Tenon answers the
+agent with a reject, logs a warning with the action and matched rules (not the
+command), and rewrites that call's failed result to "Blocked by permission
+rules: <action>" with a `tenon.blocked` result tag, so the thread shows a block
+rather than the agent's "the user declined" wording (ACP only; Codex calls are
+logged but keep Codex's wording). A Session whose agent the Location no longer
+defines is checked against the default agent's rules; only a Location with no
+selectable agent denies everything.
 
 Known gaps: interrupting a Run doesn't stop the tasks it delegated. An ACP
 agent without HTTP MCP support gets neither delegation nor `ask_user`.

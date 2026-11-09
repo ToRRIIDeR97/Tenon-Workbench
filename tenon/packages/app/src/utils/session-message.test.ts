@@ -356,6 +356,52 @@ describe("normalizeSessionMessages", () => {
     expect(metadata("live")?.acpSubagent).toEqual({ transcript: transcript.slice(0, 1) })
     expect(metadata("plain")?.acpSubagent).toBeUndefined()
   })
+
+  test("keeps Tenon's blocked note on a harness call it refused without asking", () => {
+    const failed = (id: string, provider?: Record<string, unknown>) => ({
+      type: "tool",
+      id,
+      name: "acp_execute",
+      state: {
+        status: "error",
+        input: { command: "echo hello" },
+        error: { type: "unknown", message: "Blocked by permission rules: bash" },
+        content: [],
+        structured: {},
+      },
+      ...(provider ? { provider } : {}),
+      time: { created: 2, ran: 2, completed: 3 },
+    })
+    const source = [
+      { id: "msg_user", type: "user", text: "run it", time: { created: 1 } },
+      {
+        id: "msg_assistant",
+        type: "assistant",
+        agent: "build",
+        model: { id: "claude-code", providerID: "claude-code" },
+        content: [
+          failed("blocked", {
+            executed: true,
+            resultMetadata: { tenon: { blocked: { reason: "rules", action: "bash" } } },
+          }),
+          failed("declined", { executed: true }),
+        ],
+        time: { created: 2 },
+      },
+    ] as unknown as SessionMessageInfo[]
+
+    const parts = normalizeSessionMessages("ses_1", source).parts.get("msg_assistant") ?? []
+    const state = (id: string) => {
+      const part = parts.find((item) => item.type === "tool" && item.callID === id)
+      return part?.type === "tool" ? part.state : undefined
+    }
+    expect(state("blocked")).toMatchObject({
+      status: "error",
+      metadata: { blocked: { reason: "rules", action: "bash" } },
+    })
+    expect(state("declined")).toMatchObject({ status: "error" })
+    expect(state("declined")).not.toHaveProperty("metadata.blocked")
+  })
   test("normalizing from a turn start matches the full projection for that turn on", () => {
     const assistant = (id: string, created: number, agent: string, model: string, text: string) => ({
       id,
