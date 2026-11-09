@@ -98,6 +98,7 @@ export default function BrainHomePage() {
   const calendar = createCalendarResource(() => directory() || undefined, client)
   // A window left open overnight moves to the new day when it next takes focus.
   const [today, setToday] = createSignal(localDateKey(new Date()))
+  const [composing, setComposing] = createSignal(false)
   makeEventListener(window, "focus", () => setToday(localDateKey(new Date())))
   const [google, googleActions] = createResource(async () => platform.googleCalendar?.status())
   const tasks = createTaskActions({
@@ -210,8 +211,11 @@ export default function BrainHomePage() {
         <div class="@container">
           <div
             class={`mx-auto flex ${NEW_SESSION_CONTENT_WIDTH} flex-col gap-[clamp(24px,4vh,48px)] px-6 pb-12 pt-[12vh]`}
+            onFocusIn={() => setComposing(true)}
+            onFocusOut={() => setComposing(false)}
           >
-            <Greeting />
+            {/* The headline's verb keeps rolling, except while the user is writing in the composer. */}
+            <Greeting swap={{ paused: () => composing() || !!composer.value().trim() }} />
             <ComposerBox
               size="large"
               controller={composer}

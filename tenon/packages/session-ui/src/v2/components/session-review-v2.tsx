@@ -56,6 +56,8 @@ export type SessionReviewV2SidebarProps = {
   minWidth?: number
   maxWidth?: number
   viewportRef?: (element: HTMLDivElement) => void
+  /** The panel is too narrow to share: the sidebar floats over the viewer instead of squeezing it. */
+  overlay?: boolean
   children?: JSX.Element
 }
 
@@ -74,7 +76,7 @@ export function SessionReviewV2Sidebar(props: SessionReviewV2SidebarProps) {
   })
 
   return (
-    <div data-component="session-review-v2-sidebar-root">
+    <div data-component="session-review-v2-sidebar-root" data-overlay={props.overlay ? "" : undefined}>
       <Show when={props.open}>
         <aside
           data-slot="session-review-v2-sidebar"
@@ -132,7 +134,7 @@ export function SessionReviewV2Sidebar(props: SessionReviewV2SidebarProps) {
           </ScrollView>
         </aside>
       </Show>
-      <Show when={props.open && props.onWidthChange}>
+      <Show when={props.open && props.onWidthChange && !props.overlay}>
         <div data-slot="session-review-v2-sidebar-resize" onPointerDown={() => setResizing(true)}>
           <ResizeHandle
             direction="horizontal"

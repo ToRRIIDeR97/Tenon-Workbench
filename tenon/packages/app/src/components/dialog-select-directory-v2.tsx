@@ -9,6 +9,7 @@ import { useGlobal } from "@/context/global"
 import { useLanguage } from "@/context/language"
 import { ServerConnection } from "@/context/server"
 import type { Path } from "@opencode-ai/sdk/v2/client"
+import { servesLegacyRoutes } from "@/utils/server-protocol"
 import {
   absoluteTreePath,
   activeTreeNavigation,
@@ -70,7 +71,7 @@ export function DialogSelectDirectoryV2(props: DialogSelectDirectoryV2Props) {
   const [fallbackPath] = createResource(
     () => (missingBase() ? true : undefined),
     async (): Promise<Path | undefined> => {
-      if ((await sdk.protocol) !== "v1") return
+      if (!(await servesLegacyRoutes(sdk))) return
       return sdk.client.path
         .get()
         .then((result) => result.data)

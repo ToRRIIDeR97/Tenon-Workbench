@@ -313,8 +313,9 @@ const layer = Layer.effect(
           harnessModel: original.harnessModel,
           agent: original.agent,
           model: original.model,
+          // No parentID: that link marks a subagent (task tool) child, which the UI hides and cannot prompt.
+          // A fork is an independent thread.
           title: `${original.title} (fork)`,
-          parentID: original.id,
         })
         for (const source of history.slice(0, boundary)) {
           const message = { ...source, id: SessionMessage.ID.create(), metadata: undefined }

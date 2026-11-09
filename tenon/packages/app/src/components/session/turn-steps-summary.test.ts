@@ -1,6 +1,14 @@
 import { describe, expect, test } from "bun:test"
 import type { Part, ToolPart } from "@opencode-ai/sdk/v2"
-import { foldDuration, reasoningTopic, subagentLanes, tickerStep, toolDetail } from "./turn-steps-summary"
+import {
+  foldDuration,
+  hasVisibleSteps,
+  reasoningTopic,
+  subagentLanes,
+  tickerStep,
+  toolDetail,
+  turnDuration,
+} from "./turn-steps-summary"
 
 const tool = (
   id: string,
@@ -109,5 +117,29 @@ describe("foldDuration", () => {
     expect(foldDuration(60)).toBe(300)
     expect(foldDuration(400)).toBe(420)
     expect(foldDuration(2000)).toBe(700)
+  })
+})
+
+describe("turnDuration", () => {
+  test("runs from the user's message to the last assistant completion", () => {
+    expect(turnDuration(1_000, [5_000, 24_000, undefined])).toBe(23_000)
+  })
+
+  test("is unknown until an assistant message completes, or without a start", () => {
+    expect(turnDuration(1_000, [undefined])).toBeUndefined()
+    expect(turnDuration(1_000, [])).toBeUndefined()
+    expect(turnDuration(undefined, [5_000])).toBeUndefined()
+    expect(turnDuration(10_000, [5_000])).toBeUndefined()
+  })
+})
+
+describe("hasVisibleSteps", () => {
+  const read = (part: { text?: string }) => part.text
+  test("a tool step or reasoning with text shows; empty reasoning alone doesn't", () => {
+    expect(hasVisibleSteps([tool("a", "completed")], read)).toBe(true)
+    expect(hasVisibleSteps([reasoning("r", 2)], read)).toBe(true)
+    const blank = { id: "r", type: "reasoning", text: "  ", time: { start: 1, end: 1 } } as unknown as Part
+    expect(hasVisibleSteps([blank], read)).toBe(false)
+    expect(hasVisibleSteps([], read)).toBe(false)
   })
 })

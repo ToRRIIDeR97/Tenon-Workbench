@@ -5,6 +5,7 @@ import {
   dueDatePatch,
   matchProjects,
   milestoneGroups,
+  milestoneStatus,
   monthGrid,
   newPagePath,
   restoreItem,
@@ -23,23 +24,41 @@ const items: TimelineItem[] = [
 describe("timelineLayout", () => {
   test("spans whole weeks from the Monday before the first date", () => {
     const layout = timelineLayout(items)
-    expect(layout.weeks).toEqual(["2026-11-02", "2026-11-09"])
+    // Two weeks of dates, padded to the four-week minimum.
+    expect(layout.weeks).toEqual(["2026-11-02", "2026-11-09", "2026-11-16", "2026-11-23"])
     expect(layout.rows.map((row) => [row.item.id, row.left, row.width])).toEqual([
-      ["auth", 0, 50],
-      ["hooks", 50, 50],
-      ["launch", (9 / 14) * 100, 0],
+      ["auth", 0, 25],
+      ["hooks", 25, 25],
+      ["launch", (9 / 28) * 100, 0],
       ["loose", undefined, undefined],
     ])
   })
 
   test("starts on Monday when the first date is mid-week, and has no weeks without dates", () => {
-    expect(timelineLayout([{ ...items[0], start: "2026-11-05", end: "2026-11-05" }]).weeks).toEqual(["2026-11-02"])
+    expect(timelineLayout([{ ...items[0], start: "2026-11-05", end: "2026-11-05" }]).weeks[0]).toBe("2026-11-02")
     expect(timelineLayout([items[3]]).weeks).toEqual([])
   })
 })
 
 test("timelineCounts counts tasks and names the next open milestone", () => {
-  expect(timelineCounts(items)).toEqual({ done: 1, total: 3, next: items[2] })
+  expect(timelineCounts(items)).toEqual({ done: 1, total: 3, percent: 33, next: items[2] })
+  expect(timelineCounts([items[2]])).toEqual({ done: 0, total: 0, percent: undefined, next: items[2] })
+})
+
+test("timelineCounts skips a milestone whose tasks are all done", () => {
+  const list: TimelineItem[] = [
+    { id: "m1", title: "M1", kind: "milestone", status: "todo", start: "2026-11-01" },
+    { id: "a", title: "A", kind: "task", status: "done" },
+    { id: "m2", title: "M2", kind: "milestone", status: "todo", start: "2026-12-01" },
+    { id: "b", title: "B", kind: "task", status: "todo" },
+  ]
+  expect(timelineCounts(list)).toMatchObject({ done: 1, total: 2, percent: 50, next: list[2] })
+  const groups = milestoneGroups(list)
+  expect(groups.map(milestoneStatus)).toEqual(["done", "todo"])
+  // Open hides the complete milestone once nothing under it is left open.
+  expect(milestoneGroups(list, true).map((group) => group.milestone?.id)).toEqual(["m2"])
+  // A milestone without tasks keeps its own status.
+  expect(milestoneStatus(milestoneGroups([list[0]])[0])).toBe("todo")
 })
 
 test("newPagePath picks a free name inside the folder", () => {

@@ -982,7 +982,10 @@ export default function CalendarPage() {
             <MenuV2.Portal>
               <MenuV2.Content>
                 <MenuV2.Group>
-                  <MenuV2.GroupLabel>{googleStatus()}</MenuV2.GroupLabel>
+                  {/* Unconnected, the status would repeat the Connect Google item below it. */}
+                  <Show when={settled(googleConnection)?.connected || taskView()}>
+                    <MenuV2.GroupLabel>{googleStatus()}</MenuV2.GroupLabel>
+                  </Show>
                   <Show when={settled(googleConnection)?.connected}>
                     <MenuV2.Item disabled={state.googleBusy} onSelect={() => void syncGoogle()}>
                       {state.googleBusy

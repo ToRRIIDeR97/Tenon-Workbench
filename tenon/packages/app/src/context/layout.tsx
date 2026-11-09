@@ -18,7 +18,7 @@ import { createPathHelpers } from "./file/path"
 import type { ProjectAvatarVariant } from "@tenon/ui/v2/project-avatar-v2"
 import { migrateLegacySessionStateKeys, ServerScope, SessionStateKey } from "@/utils/server-scope"
 import { createSessionKeyReader, ensureSessionKey, pruneSessionKeys } from "./layout-helpers"
-import { requireServerKey } from "@/utils/session-route"
+import { parseServerKey } from "@/utils/session-route"
 import { NEW_THREAD_PATH, useDrafts } from "./drafts"
 import { closeSessionTab, openSessionTab, previewSessionTab, type SessionTabs } from "./layout-tabs"
 
@@ -140,7 +140,8 @@ export const currentRoute = (pathname: string, search: string): LayoutRoute => {
     return {
       type: "session",
       sessionId: parts[3],
-      server: requireServerKey(parts[1]),
+      // A malformed key falls back to the selected server, where the session page reports the thread missing.
+      server: parseServerKey(parts[1]),
     }
   }
 

@@ -9,7 +9,7 @@ import { useParams, useSearchParams } from "@solidjs/router"
 import { useGlobal } from "./global"
 import { ServerConnection, useServer } from "./server"
 import { useDrafts } from "./drafts"
-import { requireServerKey } from "@/utils/session-route"
+import { parseServerKey } from "@/utils/session-route"
 import type { ServerScope } from "@/utils/server-scope"
 import { normalizePermissionRequest } from "./global-sync/utils"
 import {
@@ -65,7 +65,8 @@ export const { use: usePermission, provider: PermissionProvider } = createSimple
     const activeDraft = createMemo(() => drafts.get(search.draftId))
 
     const activeServer = createMemo(() => {
-      if (params.serverKey) return requireServerKey(params.serverKey)
+      const routed = parseServerKey(params.serverKey)
+      if (routed) return routed
       return activeDraft()?.server ?? server.key
     })
 

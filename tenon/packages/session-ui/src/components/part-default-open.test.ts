@@ -44,6 +44,14 @@ describe("partDefaultOpen", () => {
   test("preserves shell defaults", () => {
     expect(partDefaultOpen(tool("shell", {}), true, false)).toBe(true)
   })
+
+  test("follows the settings for harness commands and edits, and keeps searches closed", () => {
+    expect(partDefaultOpen(tool("acp_execute", {}), false, false)).toBe(false)
+    expect(partDefaultOpen(tool("command_execution", {}), true, false)).toBe(true)
+    expect(partDefaultOpen(tool("acp_edit", {}), false, false)).toBe(false)
+    expect(partDefaultOpen(tool("acp_edit", {}), false, true)).toBe(true)
+    expect(partDefaultOpen(tool("grep", {}), true, true)).toBeUndefined()
+  })
 })
 
 function tool(name: string, metadata: Record<string, unknown>): PartType {

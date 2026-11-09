@@ -34,11 +34,23 @@ export function SessionComposerRegion(props: {
     if (!dock) return
     const element = dock
     const root = document.documentElement
+    // The Command Centre strip handle sits on the composer's top edge, centred on the chat column (not the
+    // window), so it never lands on the side panel or terminal beside the thread.
     createResizeObserver(element, () => {
-      const page = element.closest("main")?.getBoundingClientRect().bottom ?? window.innerHeight
-      root.style.setProperty("--command-strip-lift", `${Math.round(page - element.getBoundingClientRect().top)}px`)
+      const main = element.closest("main")?.getBoundingClientRect()
+      const rect = element.getBoundingClientRect()
+      root.style.setProperty("--command-strip-lift", `${Math.round((main?.bottom ?? window.innerHeight) - rect.top)}px`)
+      root.style.setProperty(
+        "--command-strip-center",
+        `${Math.round(rect.left - (main?.left ?? 0) + rect.width / 2)}px`,
+      )
+      root.style.setProperty("--command-strip-span", `${Math.max(0, Math.round(rect.width - 32))}px`)
     })
-    onCleanup(() => root.style.removeProperty("--command-strip-lift"))
+    onCleanup(() => {
+      root.style.removeProperty("--command-strip-lift")
+      root.style.removeProperty("--command-strip-center")
+      root.style.removeProperty("--command-strip-span")
+    })
   })
 
   return (

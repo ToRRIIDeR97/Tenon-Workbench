@@ -579,7 +579,8 @@ describe("SessionV2.fork", () => {
         continuation: "original-thread",
       })
       const fork = yield* sessions.fork({ sessionID: original.id, messageID: last.id })
-      expect(fork).toMatchObject({ parentID: original.id, title: "Original (fork)", harnessInstanceID: Harness.Codex })
+      expect(fork).toMatchObject({ title: "Original (fork)", harnessInstanceID: Harness.Codex })
+      expect(fork.parentID).toBeUndefined()
       const context = yield* sessions.context(fork.id)
       expect(context).toHaveLength(1)
       expect(context[0]).toMatchObject({ type: "user", text: "Keep this context" })

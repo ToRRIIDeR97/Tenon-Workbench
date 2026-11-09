@@ -33,7 +33,7 @@ export function ThreadMenuItems(props: { run: ThreadMenuRun; pinned: boolean }) 
       <MenuV2.Item onSelect={props.run.fork} shortcut={hint("fork")}>
         {language.t("secondBrain.sidebar.fork")}
       </MenuV2.Item>
-      <MenuV2.Item onSelect={props.run.export}>{language.t("common.export")}...</MenuV2.Item>
+      <MenuV2.Item onSelect={props.run.export}>{language.t("common.export")}</MenuV2.Item>
       <MenuV2.Separator />
       <MenuV2.Item onSelect={props.run.archive} shortcut={hint("archive")}>
         {language.t("common.archive")}

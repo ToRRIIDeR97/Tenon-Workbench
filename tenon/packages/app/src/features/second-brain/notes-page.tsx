@@ -9,7 +9,7 @@ import { Reveal, RevealShow } from "@tenon/ui/v2/reveal"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { createEffect, createMemo, createResource, For, Match, on, onCleanup, Show, Switch } from "solid-js"
 import { createStore } from "solid-js/store"
-import { PageHeader, pageWideColumnClass } from "@/components/page"
+import { PageEmpty, PageHeader, pageWideColumnClass } from "@/components/page"
 import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
 import { showToast } from "@/utils/toast"
@@ -86,10 +86,13 @@ export function NotesPageView(props: {
     () => props.path,
     (path) => readVaultPage(props.client, path),
   )
-  const apply = (document: VaultPage) =>
+  // An empty page comes back as the newline after its front matter; as text it would put the caret on line 2 and
+  // save a leading blank line.
+  const apply = (document: VaultPage) => {
+    const body = document.body.trim() ? document.body : ""
     setState({
-      body: document.body,
-      baseBody: document.body,
+      body,
+      baseBody: body,
       title: document.info.title,
       baseTitle: document.info.title,
       revision: document.revision,
@@ -102,6 +105,9 @@ export function NotesPageView(props: {
       conflict: false,
       missing: false,
     })
+  }
+  // A path with no page (a stale or hand-typed link) shows a not-found state instead of an empty editor.
+  const notFound = () => page.error instanceof SecondBrainRequestError && page.error.status === 404
   createEffect(
     on(
       () => (page.error ? undefined : page()),
@@ -288,10 +294,15 @@ export function NotesPageView(props: {
           {(key) => {
             const value = () => state.properties[key]
             const set = (next: string | boolean) => setState("properties", key, next)
+            // Routine keys read as words; any other key shows as written in the file.
+            const label = () =>
+              key === "schedule" || key === "enabled" || key === "model"
+                ? language.t(`secondBrain.vault.property.${key}`)
+                : key
             return (
               <>
                 <dt class="min-w-0 truncate type-meta text-v2-text-text-muted" title={key}>
-                  {key}
+                  {label()}
                 </dt>
                 <dd class="min-w-0">
                   <Switch
@@ -306,13 +317,13 @@ export function NotesPageView(props: {
                   >
                     <Match when={typeof value() === "boolean"}>
                       <span class="flex h-7 items-center px-2">
-                        <CheckboxV2 hideLabel label={key} checked={value() === true} onChange={set} />
+                        <CheckboxV2 hideLabel label={label()} checked={value() === true} onChange={set} />
                       </span>
                     </Match>
                     <Match when={key === "status" && typeof value() === "string"}>
                       <select
                         class={propertyField}
-                        aria-label={key}
+                        aria-label={label()}
                         value={String(value())}
                         onChange={(event) => set(event.currentTarget.value)}
                       >
@@ -327,12 +338,19 @@ export function NotesPageView(props: {
                       </select>
                     </Match>
                     <Match when={typeof value() === "string" && /^\d{4}-\d{2}-\d{2}(T|$)/.test(String(value()))}>
-                      <DateChip label={key} value={String(value()).slice(0, 10)} onChange={(next) => set(next ?? "")} />
+                      <DateChip
+                        label={label()}
+                        value={String(value()).slice(0, 10)}
+                        onChange={(next) => set(next ?? "")}
+                      />
                     </Match>
                     <Match when={typeof value() === "string"}>
                       <input
-                        class={`${propertyField} w-full`}
-                        aria-label={key}
+                        class={`${propertyField} w-full placeholder:text-v2-text-text-faint`}
+                        aria-label={label()}
+                        placeholder={
+                          key === "model" ? language.t("secondBrain.vault.property.model.placeholder") : undefined
+                        }
                         value={String(value())}
                         onInput={(event) => set(event.currentTarget.value)}
                       />
@@ -348,157 +366,175 @@ export function NotesPageView(props: {
   )
 
   return (
-    <article class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <PageHeader
-        crumb
-        title={
-          project()
-            ? language.t("secondBrain.vault.breadcrumb", { project: project()!.name, page: state.title })
-            : state.title
-        }
-        back={{ label: language.t("secondBrain.vault.back"), onClick: props.onBack }}
-        actions={
-          <>
-            {savedState()}
-            <Reveal open={dirty()} variant="inline">
-              <ButtonV2 size="small" variant="ghost" disabled={state.saving} onClick={discard}>
-                {language.t("secondBrain.notes.discard")}
-              </ButtonV2>
-            </Reveal>
-            {saveButton()}
-            <MenuV2 gutter={4} modal={false} placement="bottom-end">
-              <MenuV2.Trigger
-                as={IconButtonV2}
-                variant="ghost-muted"
-                class="!size-8"
-                icon={<Icon name="outline-dots" size="small" />}
-                aria-label={language.t("secondBrain.vault.actions")}
-              />
-              <MenuV2.Portal>
-                <MenuV2.Content>
-                  <MenuV2.Item disabled={!state.revision} onSelect={openVersions}>
-                    {language.t("secondBrain.vault.versions")}
-                  </MenuV2.Item>
-                  {/* Unsaved edits would go with the page, so they are saved or discarded first. */}
-                  <MenuV2.Item
-                    disabled={!state.revision || dirty() || state.saving}
-                    onSelect={() => props.onDelete({ path: props.path, title: state.title, revision: state.revision })}
-                  >
-                    {language.t("secondBrain.vault.delete")}
-                  </MenuV2.Item>
-                </MenuV2.Content>
-              </MenuV2.Portal>
-            </MenuV2>
-          </>
-        }
-      />
-
-      <div class="min-h-0 flex-1 overflow-y-auto">
-        <div class={`${pageWideColumnClass} min-h-full`}>
-          <h1 class="type-display text-v2-text-text-base">
-            <input
-              class="w-full min-w-0 rounded-[12px] bg-transparent px-1 -mx-1 outline-none transition-colors duration-short ease-standard placeholder:text-v2-text-text-faint hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none"
-              aria-label={language.t("secondBrain.vault.pageTitle")}
-              placeholder={language.t("secondBrain.vault.untitled")}
-              value={state.title}
-              onInput={(event) => setState("title", event.currentTarget.value)}
-              onKeyDown={(event) => {
-                if (event.key !== "Enter") return
-                event.preventDefault()
-                event.currentTarget.closest("article")?.querySelector("textarea")?.focus()
-              }}
-            />
-          </h1>
-          <div class="flex flex-wrap items-center gap-2 type-meta text-v2-text-text-muted">
-            <Show when={project()}>
-              {(item) => (
-                <span class="rounded-full bg-v2-background-bg-accent-container px-2.5 py-0.5 text-v2-text-text-on-accent-container">
-                  {item().name}
-                </span>
-              )}
-            </Show>
-            {/* A hand-edited `updated_at` may not parse; the server then sends "". */}
-            <Show when={Number.isFinite(Date.parse(state.updatedAt))}>
-              <span class="tabular-nums">
-                {language.t("secondBrain.vault.edited", {
-                  time: new Date(state.updatedAt).toLocaleString(language.intl(), {
-                    day: "numeric",
-                    month: "short",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  }),
-                })}
-              </span>
-            </Show>
-          </div>
-          {properties()}
-
-          <RevealShow when={!!page.error}>
-            {() => (
-              <div class="flex flex-wrap items-center gap-2">
-                <p role="alert" class="type-meta text-v2-text-text-critical">
-                  {language.t("secondBrain.error.request")}
-                </p>
-                <ButtonV2 size="small" variant="outline" onClick={reload}>
-                  {language.t("secondBrain.error.retry")}
+    <Show
+      when={!notFound()}
+      fallback={
+        <PageEmpty
+          title={language.t("secondBrain.vault.pageMissing")}
+          action={
+            <ButtonV2 size="small" variant="outline" onClick={props.onBack}>
+              {language.t("secondBrain.vault.back")}
+            </ButtonV2>
+          }
+        >
+          {props.path}
+        </PageEmpty>
+      }
+    >
+      <article class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <PageHeader
+          crumb
+          title={
+            project()
+              ? language.t("secondBrain.vault.breadcrumb", { project: project()!.name, page: state.title })
+              : state.title
+          }
+          back={{ label: language.t("secondBrain.vault.back"), onClick: props.onBack }}
+          actions={
+            <>
+              {savedState()}
+              <Reveal open={dirty()} variant="inline">
+                <ButtonV2 size="small" variant="ghost" disabled={state.saving} onClick={discard}>
+                  {language.t("secondBrain.notes.discard")}
                 </ButtonV2>
-              </div>
-            )}
-          </RevealShow>
-          <RevealShow when={state.error || (props.held ? language.t("secondBrain.vault.unsaved") : "")}>
-            {(error) => (
-              <div class="flex flex-wrap items-center gap-2">
-                <p role="alert" class="type-meta text-v2-text-text-critical">
-                  {error()}
-                </p>
-                {recoveryActions()}
-              </div>
-            )}
-          </RevealShow>
+              </Reveal>
+              {saveButton()}
+              <MenuV2 gutter={4} modal={false} placement="bottom-end">
+                <MenuV2.Trigger
+                  as={IconButtonV2}
+                  variant="ghost-muted"
+                  class="!size-8"
+                  icon={<Icon name="outline-dots" size="small" />}
+                  aria-label={language.t("secondBrain.vault.actions")}
+                />
+                <MenuV2.Portal>
+                  <MenuV2.Content>
+                    <MenuV2.Item disabled={!state.revision} onSelect={openVersions}>
+                      {language.t("secondBrain.vault.versions")}
+                    </MenuV2.Item>
+                    {/* Unsaved edits would go with the page, so they are saved or discarded first. */}
+                    <MenuV2.Item
+                      disabled={!state.revision || dirty() || state.saving}
+                      onSelect={() =>
+                        props.onDelete({ path: props.path, title: state.title, revision: state.revision })
+                      }
+                    >
+                      {language.t("secondBrain.vault.delete")}
+                    </MenuV2.Item>
+                  </MenuV2.Content>
+                </MenuV2.Portal>
+              </MenuV2>
+            </>
+          }
+        />
 
-          <div class="flex min-h-[420px] flex-1">
-            <NoteEditor
-              value={state.body}
-              onOpenNote={props.onOpen}
-              preview={(text) => previewNoteLinks(text, linkLookup())}
-              loading={page.loading}
-              onChange={(value) => setState("body", value)}
-              onSave={() => void save()}
-              commandLabel={(id) => language.t(`secondBrain.notes.command.${id}`)}
-              fullscreenActions={
-                <>
-                  <Show when={state.error}>
-                    <span class="max-w-64 truncate type-meta text-v2-text-text-critical" title={state.error}>
-                      {state.error}
-                    </span>
-                  </Show>
+        <div class="min-h-0 flex-1 overflow-y-auto">
+          <div class={`${pageWideColumnClass} min-h-full`}>
+            <h1 class="type-display text-v2-text-text-base">
+              <input
+                class="w-full min-w-0 rounded-[12px] bg-transparent px-1 -mx-1 outline-none transition-colors duration-short ease-standard placeholder:text-v2-text-text-faint hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none"
+                aria-label={language.t("secondBrain.vault.pageTitle")}
+                placeholder={language.t("secondBrain.vault.untitled")}
+                value={state.title}
+                onInput={(event) => setState("title", event.currentTarget.value)}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter") return
+                  event.preventDefault()
+                  event.currentTarget.closest("article")?.querySelector("textarea")?.focus()
+                }}
+              />
+            </h1>
+            <div class="flex flex-wrap items-center gap-2 type-meta text-v2-text-text-muted">
+              <Show when={project()}>
+                {(item) => (
+                  <span class="rounded-full bg-v2-background-bg-accent-container px-2.5 py-0.5 text-v2-text-text-on-accent-container">
+                    {item().name}
+                  </span>
+                )}
+              </Show>
+              {/* A hand-edited `updated_at` may not parse; the server then sends "". */}
+              <Show when={Number.isFinite(Date.parse(state.updatedAt))}>
+                <span class="tabular-nums">
+                  {language.t("secondBrain.vault.edited", {
+                    time: new Date(state.updatedAt).toLocaleString(language.intl(), {
+                      day: "numeric",
+                      month: "short",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    }),
+                  })}
+                </span>
+              </Show>
+            </div>
+            {properties()}
+
+            <RevealShow when={!!page.error}>
+              {() => (
+                <div class="flex flex-wrap items-center gap-2">
+                  <p role="alert" class="type-meta text-v2-text-text-critical">
+                    {language.t("secondBrain.error.request")}
+                  </p>
+                  <ButtonV2 size="small" variant="outline" onClick={reload}>
+                    {language.t("secondBrain.error.retry")}
+                  </ButtonV2>
+                </div>
+              )}
+            </RevealShow>
+            <RevealShow when={state.error || (props.held ? language.t("secondBrain.vault.unsaved") : "")}>
+              {(error) => (
+                <div class="flex flex-wrap items-center gap-2">
+                  <p role="alert" class="type-meta text-v2-text-text-critical">
+                    {error()}
+                  </p>
                   {recoveryActions()}
-                  {savedState()}
-                  {saveButton()}
-                </>
-              }
-              labels={{
-                words: (count) => language.t("secondBrain.notes.words", { count }),
-                previewRegion: language.t("secondBrain.notes.previewRegion"),
-                fullscreen: language.t("secondBrain.notes.fullscreen"),
-                exitFullscreen: language.t("secondBrain.notes.exitFullscreen"),
-                sideBySide: language.t("secondBrain.notes.sideBySide"),
-                stacked: language.t("secondBrain.notes.stacked"),
-                resize: language.t("secondBrain.notes.resize"),
-                slashMenu: language.t("secondBrain.notes.slashMenu"),
-                slashEmpty: language.t("secondBrain.notes.slashEmpty"),
-                placeholder: language.t("secondBrain.notes.placeholder"),
-                insert: language.t("secondBrain.notes.insert"),
-                editor: language.t("secondBrain.notes.editor"),
-                toolbar: language.t("secondBrain.notes.format.toolbar"),
-                write: language.t("secondBrain.notes.write"),
-                split: language.t("secondBrain.notes.split"),
-                preview: language.t("secondBrain.notes.preview"),
-              }}
-            />
+                </div>
+              )}
+            </RevealShow>
+
+            <div class="flex min-h-[420px] flex-1">
+              <NoteEditor
+                value={state.body}
+                onOpenNote={props.onOpen}
+                preview={(text) => previewNoteLinks(text, linkLookup())}
+                loading={page.loading}
+                onChange={(value) => setState("body", value)}
+                onSave={() => void save()}
+                commandLabel={(id) => language.t(`secondBrain.notes.command.${id}`)}
+                fullscreenActions={
+                  <>
+                    <Show when={state.error}>
+                      <span class="max-w-64 truncate type-meta text-v2-text-text-critical" title={state.error}>
+                        {state.error}
+                      </span>
+                    </Show>
+                    {recoveryActions()}
+                    {savedState()}
+                    {saveButton()}
+                  </>
+                }
+                labels={{
+                  words: (count) => language.t("secondBrain.notes.words", { count }),
+                  previewRegion: language.t("secondBrain.notes.previewRegion"),
+                  fullscreen: language.t("secondBrain.notes.fullscreen"),
+                  exitFullscreen: language.t("secondBrain.notes.exitFullscreen"),
+                  sideBySide: language.t("secondBrain.notes.sideBySide"),
+                  stacked: language.t("secondBrain.notes.stacked"),
+                  resize: language.t("secondBrain.notes.resize"),
+                  slashMenu: language.t("secondBrain.notes.slashMenu"),
+                  slashEmpty: language.t("secondBrain.notes.slashEmpty"),
+                  placeholder: language.t("secondBrain.notes.placeholder"),
+                  insert: language.t("secondBrain.notes.insert"),
+                  editor: language.t("secondBrain.notes.editor"),
+                  toolbar: language.t("secondBrain.notes.format.toolbar"),
+                  write: language.t("secondBrain.notes.write"),
+                  split: language.t("secondBrain.notes.split"),
+                  preview: language.t("secondBrain.notes.preview"),
+                }}
+              />
+            </div>
           </div>
         </div>
-      </div>
-    </article>
+      </article>
+    </Show>
   )
 }

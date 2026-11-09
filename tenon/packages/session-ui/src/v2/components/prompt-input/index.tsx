@@ -1,4 +1,5 @@
-import { createEffect, createMemo, For, Show, type Accessor, type JSX } from "solid-js"
+import { createEffect, createMemo, createSignal, For, onCleanup, Show, type Accessor, type JSX } from "solid-js"
+import { Portal } from "solid-js/web"
 import { FileIcon } from "@tenon/ui/file-icon"
 import { Icon } from "@tenon/ui/icon"
 import { IconButton } from "@tenon/ui/icon-button"
@@ -26,6 +27,7 @@ import type {
 } from "./types"
 import type { PromptInputV2Interaction, PromptInputV2SelectControl } from "./interaction"
 import { promptInputV2KeyIntent, type PromptInputV2InteractionState } from "./machine"
+import { placePromptPopover, type PromptPopoverPlacement } from "./popover-position"
 import "./attachments.css"
 import "./responsive-controls.css"
 
@@ -89,6 +91,37 @@ export function PromptInputV2(props: PromptInputV2Props) {
   const popover = createMemo<{ popover: OpenPopover; items: PromptInputV2Suggestion[] } | undefined>((last) =>
     state.popover.type === "closed" ? last : { popover: state.popover, items: props.controller.suggestions() },
   )
+  // The popover is portalled above the page, so no panel edge clips it and no resize handle draws over it.
+  // It follows the composer while open, flipping below it when there is no room above.
+  let root: HTMLDivElement | undefined
+  const [placement, setPlacement] = createSignal<PromptPopoverPlacement>()
+  const place = () => {
+    if (!root) return
+    const rect = root.getBoundingClientRect()
+    setPlacement(placePromptPopover(rect, { width: window.innerWidth, height: window.innerHeight }))
+  }
+  createEffect(() => {
+    if (state.popover.type === "closed" || !root) return
+    place()
+    let frame: number | undefined
+    const schedule = () => {
+      if (frame !== undefined) return
+      frame = requestAnimationFrame(() => {
+        frame = undefined
+        place()
+      })
+    }
+    const observer = new ResizeObserver(schedule)
+    observer.observe(root)
+    window.addEventListener("resize", schedule)
+    window.addEventListener("scroll", schedule, true)
+    onCleanup(() => {
+      observer.disconnect()
+      window.removeEventListener("resize", schedule)
+      window.removeEventListener("scroll", schedule, true)
+      if (frame !== undefined) cancelAnimationFrame(frame)
+    })
+  })
   const buttons = createMemo(() => ({
     opacity: mode() === "normal" ? 1 : 0,
     "pointer-events": mode() === "normal" ? ("auto" as const) : ("none" as const),
@@ -106,7 +139,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
   })
 
   return (
-    <div class={`relative size-full flex flex-col gap-0 ${props.class ?? ""}`}>
+    <div ref={root} class={`relative size-full flex flex-col gap-0 ${props.class ?? ""}`}>
       <input
         ref={props.controller.setFileInput}
         type="file"
@@ -120,30 +153,33 @@ export function PromptInputV2(props: PromptInputV2Props) {
         }}
       />
       {/* Enters and exits like the other menus; while it fades out it keeps the list it last showed. */}
-      <Presence when={state.popover.type !== "closed"} class="relative z-40">
-        <Show when={popover()}>
-          {(open) => (
-            <PromptInputV2Popover
-              emptyLabel={i18n.t("ui.promptInput.noMatchingItems")}
-              items={open().items}
-              activeID={open().popover.activeID}
-              search={
-                open().popover.type === "command-menu"
-                  ? {
-                      value: open().popover.query,
-                      label: i18n.t("ui.promptInput.commands"),
-                      placeholder: "/",
-                      onValueChange: props.controller.setQuery,
-                      onKeyDown: props.controller.onKeyDown,
-                    }
-                  : undefined
-              }
-              onActiveChange={(item) => props.controller.dispatch({ type: "popover.active", id: item.id })}
-              onSelect={(item) => props.controller.dispatch({ type: "popover.select", item })}
-            />
-          )}
-        </Show>
-      </Presence>
+      <Portal>
+        <Presence when={state.popover.type !== "closed"} class="pointer-events-none fixed inset-0 z-[60]">
+          <Show when={popover()}>
+            {(open) => (
+              <PromptInputV2Popover
+                placement={placement()}
+                emptyLabel={i18n.t("ui.promptInput.noMatchingItems")}
+                items={open().items}
+                activeID={open().popover.activeID}
+                search={
+                  open().popover.type === "command-menu"
+                    ? {
+                        value: open().popover.query,
+                        label: i18n.t("ui.promptInput.commands"),
+                        placeholder: "/",
+                        onValueChange: props.controller.setQuery,
+                        onKeyDown: props.controller.onKeyDown,
+                      }
+                    : undefined
+                }
+                onActiveChange={(item) => props.controller.dispatch({ type: "popover.active", id: item.id })}
+                onSelect={(item) => props.controller.dispatch({ type: "popover.select", item })}
+              />
+            )}
+          </Show>
+        </Presence>
+      </Portal>
       <form
         data-component="prompt-input-v2"
         data-dock-border-underlay={props.borderUnderlay ? "v2" : undefined}
@@ -788,10 +824,25 @@ export function PromptInputV2Popover(props: {
   }
   onActiveChange: (item: PromptInputV2Suggestion) => void
   onSelect: (item: PromptInputV2Suggestion) => void
+  /** Viewport position; without one the popover sits just above its positioned parent. */
+  placement?: PromptPopoverPlacement
 }) {
   return (
     <div
-      class="absolute inset-x-0 -top-2 z-40 flex max-h-80 -translate-y-full flex-col overflow-auto rounded-[16px] bg-v2-background-bg-floating p-2 shadow-[var(--v2-elevation-floating)]"
+      class="pointer-events-auto flex flex-col overflow-auto rounded-[16px] bg-v2-background-bg-floating p-2 shadow-[var(--v2-elevation-floating)]"
+      classList={{ "absolute inset-x-0 -top-2 z-40 max-h-80 -translate-y-full": !props.placement }}
+      style={
+        props.placement
+          ? {
+              position: "fixed",
+              left: `${props.placement.left}px`,
+              width: `${props.placement.width}px`,
+              top: props.placement.top === undefined ? undefined : `${props.placement.top}px`,
+              bottom: props.placement.bottom === undefined ? undefined : `${props.placement.bottom}px`,
+              "max-height": `${props.placement.maxHeight}px`,
+            }
+          : undefined
+      }
       onMouseDown={(event) => event.preventDefault()}
     >
       <Show when={props.search}>

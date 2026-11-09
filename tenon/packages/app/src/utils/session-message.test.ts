@@ -386,3 +386,32 @@ describe("normalizeSessionMessages", () => {
     })
   })
 })
+
+describe("stopped turns", () => {
+  test("a turn the user stopped reads as interrupted, not as an error", () => {
+    const { messages } = normalizeSessionMessages("ses_1", [
+      { id: "msg_1", type: "user", text: "hi", time: { created: 1 } },
+      {
+        id: "msg_2",
+        type: "assistant",
+        agent: "build",
+        model: { id: "model", providerID: "provider" },
+        content: [],
+        error: { type: "unknown", message: "Provider turn interrupted" },
+        time: { created: 2 },
+      },
+      {
+        id: "msg_3",
+        type: "assistant",
+        agent: "build",
+        model: { id: "model", providerID: "provider" },
+        content: [],
+        error: { type: "unknown", message: "Rate limited" },
+        time: { created: 3 },
+      },
+    ] as SessionMessageInfo[])
+
+    expect(messages[1]).toMatchObject({ error: { name: "MessageAbortedError" } })
+    expect(messages[2]).toMatchObject({ error: { name: "UnknownError" } })
+  })
+})

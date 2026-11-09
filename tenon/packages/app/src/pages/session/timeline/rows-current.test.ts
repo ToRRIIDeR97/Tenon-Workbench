@@ -314,5 +314,12 @@ describe("current session timeline rows", () => {
     const running = parts.map((part) => (part.id === "t1" ? { ...part, state: { status: "running" } } : part)) as Part[]
     const live = Timeline.constructMessageRows(user, () => running, [assistant], 0, true, "idle", true, true)
     expect(live.flatMap((row) => (row._tag === "TurnSteps" ? [row.settled] : []))).toEqual([false, false])
+
+    // A declined call isn't a failure, so its card folds like any other.
+    const declined = parts.map((part) =>
+      part.id === "t1" ? { ...part, state: { status: "error", error: "The user declined this tool call" } } : part,
+    ) as Part[]
+    const folded = Timeline.constructMessageRows(user, () => declined, [assistant], 0, true, "idle", true, true)
+    expect(folded.flatMap((row) => (row._tag === "TurnSteps" ? [row.failed] : []))).toEqual([false, false])
   })
 })

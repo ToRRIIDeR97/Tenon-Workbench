@@ -28,6 +28,15 @@ export async function detectServerProtocol(
   return (await detectServerCapabilities(server, fetch)).protocol
 }
 
+// V2 has no equivalent of the instance routes /path, /vcs and /pty/shells. A V1 server serves them, and so does
+// the managed sidecar, which reports V2 but still answers /global/health (`legacyProjectsAndMcp`).
+export async function servesLegacyRoutes(input: {
+  protocol: Promise<ServerProtocol>
+  legacyProjectsAndMcp: Promise<boolean>
+}) {
+  return (await input.protocol) === "v1" || (await input.legacyProjectsAndMcp)
+}
+
 export async function detectServerCapabilities(
   server: ServerConnection.HttpBase,
   fetch: typeof globalThis.fetch,

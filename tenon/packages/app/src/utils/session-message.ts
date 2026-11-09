@@ -293,8 +293,11 @@ function assistantMessage(
   parentID: string,
   message: SessionMessageAssistant,
 ): AssistantMessage & { harnessInstanceID: string; contextWindow?: number; contextUsed?: number } {
+  // Core's runner ends a stopped turn with an "unknown" error worded "Provider turn interrupted" (runner/llm.ts).
   const error = message.error
-    ? message.error.type.toLowerCase().includes("abort") || message.error.type.toLowerCase().includes("interrupt")
+    ? message.error.type.toLowerCase().includes("abort") ||
+      message.error.type.toLowerCase().includes("interrupt") ||
+      message.error.message === "Provider turn interrupted"
       ? { name: "MessageAbortedError" as const, data: { message: message.error.message } }
       : { name: "UnknownError" as const, data: { message: message.error.message } }
     : undefined

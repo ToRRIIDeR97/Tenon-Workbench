@@ -66,34 +66,80 @@ function CardHeading(props: { id: string; title: string; actions?: JSX.Element }
   )
 }
 
-/** The manual progress, next milestone and blocker; a set blocker reads as a warning chip until clicked. */
-export function ProgressCard(props: { card: ProjectCard }) {
+/**
+ * Progress, next milestone and blocker; a set blocker reads as a warning chip until clicked. With tasks, progress is
+ * done of total and read-only; without any, it is the manual slider, labelled as such.
+ */
+export function ProgressCard(props: { card: ProjectCard; tasks?: { percent?: number; done: number; total: number } }) {
   const language = useLanguage()
   const state = props.card.state
   const setState = props.card.setState
   const [local, setLocal] = createStore({ editingBlocker: false })
   return (
     <section id="project-settings" aria-labelledby="project-progress-label" class={cardClass}>
-      <div class="flex min-h-7 items-center gap-2">
-        <label id="project-progress-label" for="project-progress" class="flex-1 type-section text-v2-text-text-base">
-          {language.t("secondBrain.projects.progress")}
-        </label>
-        <output for="project-progress" class="type-meta tabular-nums text-v2-text-text-muted">
-          {state.progress}%
-        </output>
-      </div>
-      <input
-        id="project-progress"
-        type="range"
-        min="0"
-        max="100"
-        value={state.progress}
-        class={sliderClass}
-        style={{
-          background: `linear-gradient(to right, var(--v2-background-bg-accent) ${state.progress}%, var(--v2-background-bg-layer-03) ${state.progress}%)`,
-        }}
-        onInput={(event) => setState("progress", Number(event.currentTarget.value))}
-      />
+      <Show
+        when={props.tasks}
+        fallback={
+          <>
+            <div class="flex min-h-7 items-center gap-2">
+              <label
+                id="project-progress-label"
+                for="project-progress"
+                class="flex-1 type-section text-v2-text-text-base"
+              >
+                {language.t("secondBrain.projects.progress")}
+              </label>
+              <output for="project-progress" class="type-meta tabular-nums text-v2-text-text-muted">
+                {state.progress}%
+              </output>
+            </div>
+            <input
+              id="project-progress"
+              type="range"
+              min="0"
+              max="100"
+              value={state.progress}
+              aria-describedby="project-progress-source"
+              class={sliderClass}
+              style={{
+                background: `linear-gradient(to right, var(--v2-background-bg-accent) ${state.progress}%, var(--v2-background-bg-layer-03) ${state.progress}%)`,
+              }}
+              onInput={(event) => setState("progress", Number(event.currentTarget.value))}
+            />
+            <p id="project-progress-source" class="type-caption text-v2-text-text-muted">
+              {language.t("secondBrain.projects.progress.manual")}
+            </p>
+          </>
+        }
+      >
+        {(tasks) => (
+          <>
+            <div class="flex min-h-7 items-center gap-2">
+              <h2 id="project-progress-label" class="flex-1 type-section text-v2-text-text-base">
+                {language.t("secondBrain.projects.progress")}
+              </h2>
+              <span class="type-meta tabular-nums text-v2-text-text-muted">{tasks().percent ?? 0}%</span>
+            </div>
+            <div
+              role="progressbar"
+              aria-labelledby="project-progress-label"
+              aria-describedby="project-progress-source"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={tasks().percent ?? 0}
+              class="h-1.5 w-full overflow-hidden rounded-full bg-v2-background-bg-layer-03"
+            >
+              <div
+                class="h-full rounded-full bg-v2-background-bg-accent"
+                style={{ width: `${tasks().percent ?? 0}%` }}
+              />
+            </div>
+            <p id="project-progress-source" class="type-caption text-v2-text-text-muted">
+              {language.t("secondBrain.projects.progress.fromTasks", { done: tasks().done, total: tasks().total })}
+            </p>
+          </>
+        )}
+      </Show>
       <label class={labelClass} for="project-next-milestone">
         {language.t("secondBrain.projects.nextMilestone")}
         <TextareaV2

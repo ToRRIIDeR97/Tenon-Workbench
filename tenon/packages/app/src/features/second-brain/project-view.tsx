@@ -14,6 +14,7 @@ import type { LogEntry, ProjectRecord, Timeline, TimelineItem, VaultPageInfo } f
 import {
   dueDatePatch,
   milestoneGroups,
+  milestoneStatus,
   restoreItem,
   timelineCounts,
   timelineLayout,
@@ -93,7 +94,7 @@ export function ProjectView(props: {
   const items = () => props.timeline.value?.items ?? []
   const counts = createMemo(() => timelineCounts(items()))
   const groups = createMemo(() => milestoneGroups(items(), state.show === "open"))
-  const percent = () => Math.round((props.timeline.value?.progress ?? 0) * 100)
+  const percent = () => counts().percent ?? 0
   const shortDate = (value: string) => {
     const date = new Date(`${value.slice(0, 10)}T00:00:00Z`)
     if (!Number.isFinite(date.getTime())) return ""
@@ -109,6 +110,24 @@ export function ProjectView(props: {
       date: next.start ? shortDate(next.start) : "",
     })
   }
+  // Progress has one source: done of total tasks. The card's stored percent mirrors it, so Home and the Projects
+  // lists (which read only the card) agree; the manual slider is used only while the Project has no tasks.
+  createEffect(
+    on(
+      // Only this Project's settled timeline: a reload can still hold the previous Project's items.
+      () =>
+        [
+          !props.timeline.loading && props.timeline.value?.projectId === props.project.id
+            ? counts().percent
+            : undefined,
+          props.project.progressPercent,
+        ] as const,
+      ([computed, stored]) => {
+        if (computed === undefined || computed === stored) return
+        void card.syncProgress(computed)
+      },
+    ),
+  )
   const outcome = () => props.project.outcome.trim()
   // A task's date is its due day (end); a milestone's is its day (start).
   const dueOf = (item: TimelineItem) => (item.kind === "milestone" ? item.start : (item.end ?? item.start))
@@ -178,114 +197,118 @@ export function ProjectView(props: {
   )
 
   /** A task line, or a milestone's heading line with its tasks' "n of m done". */
-  const row = (item: TimelineItem, group?: MilestoneGroup) => (
-    <div
-      data-task={item.id}
-      data-kind={item.kind}
-      data-status={item.status}
-      classList={{
-        "flex items-center gap-3 px-4": true,
-        "min-h-11": item.kind === "milestone",
-        "min-h-10": item.kind === "task",
-      }}
-    >
-      <Show
-        when={item.kind === "task"}
-        fallback={
-          <span aria-hidden="true" class="flex w-4 shrink-0 justify-center text-v2-icon-icon-accent">
-            ◆
-          </span>
-        }
+  const row = (item: TimelineItem, group?: MilestoneGroup) => {
+    // A milestone reads as done once every task under it is.
+    const status = () => (group && milestoneStatus(group)) || item.status
+    return (
+      <div
+        data-task={item.id}
+        data-kind={item.kind}
+        data-status={status()}
+        classList={{
+          "flex items-center gap-3 px-4": true,
+          "min-h-11": item.kind === "milestone",
+          "min-h-10": item.kind === "task",
+        }}
       >
-        <CheckboxV2
-          hideLabel
-          shape="round"
-          label={item.title}
-          checked={item.status === "done"}
-          disabled={state.saving}
-          onChange={(checked) => void setStatus(item, checked ? "done" : "todo")}
-        />
-      </Show>
-      <Show
-        when={state.renaming === item.id}
-        fallback={
-          // A button, so rename is one click or Enter away from the keyboard too.
-          <button
-            type="button"
-            title={item.title}
-            aria-label={language.t("secondBrain.project.renameItem", { title: item.title })}
+        <Show
+          when={item.kind === "task"}
+          fallback={
+            <span aria-hidden="true" class="flex w-4 shrink-0 justify-center text-v2-icon-icon-accent">
+              ◆
+            </span>
+          }
+        >
+          <CheckboxV2
+            hideLabel
+            shape="round"
+            label={item.title}
+            checked={item.status === "done"}
             disabled={state.saving}
-            classList={{
-              "min-w-0 flex-1 truncate rounded-[8px] text-left focus-visible:outline-offset-2": true,
-              "type-row-title": item.kind === "milestone",
-              "text-[13px]": item.kind === "task",
-              "text-v2-text-text-muted line-through": item.status === "done",
-              "text-v2-text-text-base": item.status !== "done",
+            onChange={(checked) => void setStatus(item, checked ? "done" : "todo")}
+          />
+        </Show>
+        <Show
+          when={state.renaming === item.id}
+          fallback={
+            // A button, so rename is one click or Enter away from the keyboard too.
+            <button
+              type="button"
+              title={item.title}
+              aria-label={language.t("secondBrain.project.renameItem", { title: item.title })}
+              disabled={state.saving}
+              classList={{
+                "min-w-0 flex-1 truncate rounded-[8px] text-left focus-visible:outline-offset-2": true,
+                "type-row-title": item.kind === "milestone",
+                "text-[13px]": item.kind === "task",
+                "text-v2-text-text-muted line-through": status() === "done",
+                "text-v2-text-text-base": status() !== "done",
+              }}
+              onClick={() => setState("renaming", item.id)}
+            >
+              {item.title}
+            </button>
+          }
+        >
+          <input
+            ref={focusWhenConnected}
+            class="h-7 min-w-0 flex-1 rounded-full bg-v2-background-bg-base px-2 text-[13px] text-v2-text-text-base outline-none [box-shadow:inset_0_0_0_1px_var(--v2-border-border-base)] focus:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)]"
+            aria-label={language.t("secondBrain.project.renameItem", { title: item.title })}
+            maxLength={200}
+            value={item.title}
+            onKeyDown={(event) => {
+              if (event.isComposing) return
+              if (event.key === "Enter") finishRename(item, event.currentTarget.value)
+              if (event.key === "Escape") finishRename(item, undefined)
             }}
-            onClick={() => setState("renaming", item.id)}
-          >
-            {item.title}
-          </button>
-        }
-      >
-        <input
-          ref={focusWhenConnected}
-          class="h-7 min-w-0 flex-1 rounded-full bg-v2-background-bg-base px-2 text-[13px] text-v2-text-text-base outline-none [box-shadow:inset_0_0_0_1px_var(--v2-border-border-base)] focus:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)]"
-          aria-label={language.t("secondBrain.project.renameItem", { title: item.title })}
-          maxLength={200}
-          value={item.title}
-          onKeyDown={(event) => {
-            if (event.isComposing) return
-            if (event.key === "Enter") finishRename(item, event.currentTarget.value)
-            if (event.key === "Escape") finishRename(item, undefined)
-          }}
-          onBlur={(event) => finishRename(item, event.currentTarget.value)}
-        />
-      </Show>
-      <Show when={group && group.total > 0 ? group : undefined}>
-        {(group) => (
-          <span class="shrink-0 type-meta tabular-nums text-v2-text-text-muted">
-            {language.t("secondBrain.project.milestoneDone", { done: group().done, total: group().total })}
-          </span>
-        )}
-      </Show>
-      <StatusMenu
-        value={item.status}
-        label={language.t("secondBrain.project.statusOf", { title: item.title })}
-        disabled={state.saving}
-        onChange={(status) => void setStatus(item, status)}
-      />
-      <DateChip
-        value={dueOf(item)?.slice(0, 10)}
-        label={language.t("secondBrain.project.dueDateOf", { title: item.title })}
-        disabled={state.saving}
-        onChange={(date) => void update(item.id, dueDatePatch(item, date))}
-      />
-      <MenuV2 gutter={4} modal={false} placement="bottom-end">
-        <MenuV2.Trigger
-          as={IconButtonV2}
-          variant="ghost-muted"
-          size="small"
+            onBlur={(event) => finishRename(item, event.currentTarget.value)}
+          />
+        </Show>
+        <Show when={group && group.total > 0 ? group : undefined}>
+          {(group) => (
+            <span class="shrink-0 type-meta tabular-nums text-v2-text-text-muted">
+              {language.t("secondBrain.project.milestoneDone", { done: group().done, total: group().total })}
+            </span>
+          )}
+        </Show>
+        <StatusMenu
+          value={status()}
+          label={language.t("secondBrain.project.statusOf", { title: item.title })}
           disabled={state.saving}
-          icon={<Icon name="outline-dots" size="small" />}
-          aria-label={language.t("secondBrain.project.itemActions", { title: item.title })}
+          onChange={(status) => void setStatus(item, status)}
         />
-        <MenuV2.Portal>
-          <MenuV2.Content
-            onCloseAutoFocus={() => {
-              if (renameFromMenu !== item.id) return
-              renameFromMenu = ""
-              // Kobalte focuses the trigger right after this handler, so the input opens after it.
-              queueMicrotask(() => setState("renaming", item.id))
-            }}
-          >
-            <MenuV2.Item onSelect={() => (renameFromMenu = item.id)}>{language.t("common.rename")}</MenuV2.Item>
-            <MenuV2.Item onSelect={() => void remove(item)}>{language.t("common.delete")}</MenuV2.Item>
-          </MenuV2.Content>
-        </MenuV2.Portal>
-      </MenuV2>
-    </div>
-  )
+        <DateChip
+          value={dueOf(item)?.slice(0, 10)}
+          label={language.t("secondBrain.project.dueDateOf", { title: item.title })}
+          disabled={state.saving}
+          onChange={(date) => void update(item.id, dueDatePatch(item, date))}
+        />
+        <MenuV2 gutter={4} modal={false} placement="bottom-end">
+          <MenuV2.Trigger
+            as={IconButtonV2}
+            variant="ghost-muted"
+            size="small"
+            disabled={state.saving}
+            icon={<Icon name="outline-dots" size="small" />}
+            aria-label={language.t("secondBrain.project.itemActions", { title: item.title })}
+          />
+          <MenuV2.Portal>
+            <MenuV2.Content
+              onCloseAutoFocus={() => {
+                if (renameFromMenu !== item.id) return
+                renameFromMenu = ""
+                // Kobalte focuses the trigger right after this handler, so the input opens after it.
+                queueMicrotask(() => setState("renaming", item.id))
+              }}
+            >
+              <MenuV2.Item onSelect={() => (renameFromMenu = item.id)}>{language.t("common.rename")}</MenuV2.Item>
+              <MenuV2.Item onSelect={() => void remove(item)}>{language.t("common.delete")}</MenuV2.Item>
+            </MenuV2.Content>
+          </MenuV2.Portal>
+        </MenuV2>
+      </div>
+    )
+  }
 
   return (
     <div class="mx-auto flex w-full max-w-[1320px] flex-col gap-6 px-6 pb-12 pt-6 sm:px-10">
@@ -395,12 +418,18 @@ export function ProjectView(props: {
             )}
           </RevealShow>
           <Show when={items().some((item) => item.start || item.end)}>
-            <TimelineGrid items={items()} dateLabel={shortDate} />
+            {/* Open hides done tasks here too, like the list above. */}
+            <TimelineGrid
+              items={items().filter(
+                (item) => state.show === "all" || item.kind === "milestone" || item.status !== "done",
+              )}
+              dateLabel={shortDate}
+            />
           </Show>
         </section>
 
         <aside class="flex min-w-0 flex-col gap-3" aria-label={language.t("secondBrain.project.context")}>
-          <ProgressCard card={card} />
+          <ProgressCard card={card} tasks={counts().percent === undefined ? undefined : counts()} />
           <PagesCard
             pages={props.pages}
             pageHref={props.pageHref}

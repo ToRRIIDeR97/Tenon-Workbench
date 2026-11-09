@@ -1,7 +1,8 @@
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { prefersReducedMotion } from "@tenon/ui/v2/motion"
-import { createEffect, For, on, Show } from "solid-js"
+import { createEffect, For, on, onCleanup, onMount, Show } from "solid-js"
 import { useLanguage } from "@/context/language"
+import { gridScrollTop } from "./calendar-domain"
 import { TaskCheck } from "./calendar-peek"
 import type { CalendarEvent, PlannerTask } from "./client"
 
@@ -39,22 +40,40 @@ export function CalendarGrid(props: {
     header: undefined as HTMLDivElement | undefined,
     hours: undefined as HTMLDivElement | undefined,
   }
-  // Each new day range opens at 07:00, or just above an earlier event, below the pinned day header.
+  // Each new day range opens at 07:00, or just above an earlier event, below the pinned day header. The grid can
+  // mount while detached or hidden (a view fade-through still shows the previous view), so the scroll waits
+  // until the scroller is attached and laid out; the observer fires once it gets a size.
+  const scroll = { pending: false, smooth: false }
+  const applyScroll = () => {
+    if (!scroll.pending || !view.scroller?.isConnected || !view.scroller.clientHeight || !view.hours || !view.header)
+      return
+    scroll.pending = false
+    view.scroller.scrollTo({
+      top: gridScrollTop({
+        starts: props.days.flatMap((day) => day.timed.map((event) => event.start!)),
+        hoursTop: view.hours.offsetTop,
+        headerHeight: view.header.offsetHeight,
+        hour: HOUR,
+      }),
+      behavior: scroll.smooth && !prefersReducedMotion() ? "smooth" : "instant",
+    })
+  }
   createEffect(
     on(
       () => props.days.map((day) => day.date).join(),
       (_, previous) => {
-        const first = Math.min(7 * 60, ...props.days.flatMap((day) => day.timed.map((event) => minutes(event.start!))))
-        requestAnimationFrame(() => {
-          if (!view.scroller || !view.hours || !view.header) return
-          view.scroller.scrollTo({
-            top: view.hours.offsetTop - view.header.offsetHeight + Math.floor(first / 60) * HOUR - 12,
-            behavior: previous === undefined || prefersReducedMotion() ? "instant" : "smooth",
-          })
-        })
+        scroll.pending = true
+        scroll.smooth = previous !== undefined
+        requestAnimationFrame(applyScroll)
       },
     ),
   )
+  onMount(() => {
+    if (!view.scroller) return
+    const observer = new ResizeObserver(applyScroll)
+    observer.observe(view.scroller)
+    onCleanup(() => observer.disconnect())
+  })
   const blocks = (day: CalendarGridDay) => {
     const lanes: number[] = []
     const placed = [...day.timed]
@@ -65,7 +84,7 @@ export function CalendarGrid(props: {
         const free = lanes.findIndex((end) => end <= from)
         const lane = free === -1 ? lanes.length : free
         lanes[lane] = to
-        return { event, from, to, lane }
+        return { event, from, to, lane, short: to - from < 60 }
       })
     return placed.map((item) => ({
       ...item,
@@ -210,19 +229,38 @@ export function CalendarGrid(props: {
                 <For each={blocks(day)}>
                   {(block) => (
                     <div class="absolute" style={block.style}>
-                      <TooltipV2 class="size-full" value={block.event.title}>
+                      {/* A short block has room for one line: the title, with the time in the tooltip and label. */}
+                      <TooltipV2
+                        class="size-full"
+                        value={
+                          block.short
+                            ? language.t("secondBrain.calendar.eventAtTime", {
+                                title: block.event.title,
+                                time: `${block.event.start} – ${block.event.end}`,
+                              })
+                            : block.event.title
+                        }
+                      >
                         <button
                           type="button"
+                          aria-label={language.t("secondBrain.calendar.eventAtTime", {
+                            title: block.event.title,
+                            time: `${block.event.start} – ${block.event.end}`,
+                          })}
                           classList={{
-                            "flex size-full flex-col gap-px overflow-hidden rounded-[8px] px-2 py-1 text-left text-[12px] leading-4 transition-[filter] duration-short ease-standard hover:brightness-110 focus-visible:outline-offset-[-2px] motion-reduce:transition-none": true,
+                            "flex size-full overflow-hidden rounded-[8px] px-2 text-left text-[12px] leading-4 transition-[filter] duration-short ease-standard hover:brightness-110 focus-visible:outline-offset-[-2px] motion-reduce:transition-none": true,
+                            "flex-col gap-px py-1": !block.short,
+                            "items-center py-0.5": block.short,
                             "bg-v2-background-bg-accent text-v2-text-text-contrast": props.selected === block.event.id,
                             "bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container":
                               props.selected !== block.event.id,
                           }}
                           onClick={() => props.onOpenEvent(block.event)}
                         >
-                          <span class="truncate [font-weight:600]">{block.event.title}</span>
-                          <span class="truncate opacity-85">{`${block.event.start} – ${block.event.end}`}</span>
+                          <span class="min-w-0 truncate [font-weight:600]">{block.event.title}</span>
+                          <Show when={!block.short}>
+                            <span class="truncate opacity-85">{`${block.event.start} – ${block.event.end}`}</span>
+                          </Show>
                         </button>
                       </TooltipV2>
                     </div>

@@ -41,7 +41,8 @@ export const SettingsProvidersV2: Component<{
 
   const connect = (provider?: string) => {
     providerConnect.select(provider)
-    void dialog.show(() => <DialogConnectProvider directory={props.directory} controller={providerConnect} />)
+    // Over Settings, so Close and Escape return to it.
+    void dialog.push(() => <DialogConnectProvider directory={props.directory} controller={providerConnect} />)
   }
 
   const connected = createMemo(() => {
@@ -244,7 +245,7 @@ export const SettingsProvidersV2: Component<{
                   variant="outline"
                   icon="plus"
                   onClick={() => {
-                    dialog.show(() => <DialogCustomProvider onBack={dialog.close} />)
+                    dialog.push(() => <DialogCustomProvider onBack={dialog.close} />)
                   }}
                 >
                   {language.t("common.connect")}

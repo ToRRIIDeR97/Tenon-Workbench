@@ -1,9 +1,12 @@
 import { describe, expect, test } from "bun:test"
 import {
   buildThreadTree,
+  childThreadsOpen,
   createThreadNodeCache,
   flattenThreads,
   groupSidebarThreads,
+  hasChildThreads,
+  mergeSidebarSessions,
   projectForDirectory,
 } from "./sidebar-threads"
 
@@ -167,5 +170,39 @@ describe("thread node cache", () => {
     const grown = regrown.find((node) => node.session.id === "parent")!
     expect(grown).not.toBe(before)
     expect(grown.children[0]).toBe(before.children[0])
+  })
+})
+
+describe("sidebar child threads", () => {
+  test("a root whose subagents are not loaded yet still offers them from the index's parent links", () => {
+    const [root] = buildThreadTree([session("root", "/work/repo", 1)])
+    expect(hasChildThreads(root, {})).toBe(false)
+    expect(hasChildThreads(root, { child: "root" })).toBe(true)
+  })
+
+  test("child rows open from the row's toggle without the parent being the active thread", () => {
+    const [root] = buildThreadTree([
+      session("root", "/work/repo", 1),
+      session("child", "/work/repo", 2, { parentID: "root" }),
+    ])
+    expect(childThreadsOpen(root, undefined)).toBe(false)
+    expect(childThreadsOpen(root, "other")).toBe(false)
+    expect(childThreadsOpen(root, undefined, true)).toBe(true)
+    // The active lineage opens them until the user closes the row.
+    expect(childThreadsOpen(root, "child")).toBe(true)
+    expect(childThreadsOpen(root, "child", false)).toBe(false)
+  })
+
+  test("children fetched on demand nest under a root that came from the session index", () => {
+    const groups = groupSidebarThreads({
+      projects,
+      sessions: mergeSidebarSessions(
+        [],
+        [session("root", "/work/repo", 1), session("child", "/work/repo", 2, { parentID: "root" })],
+      ),
+    })
+    const [root] = groups.projects[0].threads
+    expect(root.session.id).toBe("root")
+    expect(root.children.map((node) => node.session.id)).toEqual(["child"])
   })
 })

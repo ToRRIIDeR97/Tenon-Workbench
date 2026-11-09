@@ -1,6 +1,8 @@
 import { For, Match, Show, Switch, createEffect, createMemo, on, onCleanup, onMount, type JSX } from "solid-js"
 import { usePlatform } from "@/context/platform"
 import { createMediaQuery } from "@solid-primitives/media"
+import { createResizeObserver } from "@solid-primitives/resize-observer"
+import { createStore, reconcile } from "solid-js/store"
 import { DragDropProvider as DndKitProvider, PointerSensor } from "@dnd-kit/solid"
 import { isSortable } from "@dnd-kit/solid/sortable"
 import { Accessibility, AutoScroller, Feedback, PointerActivationConstraints } from "@dnd-kit/dom"
@@ -10,6 +12,7 @@ import { ResizeHandle } from "@tenon/ui/resize-handle"
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { KeybindV2 } from "@tenon/ui/v2/keybind-v2"
+import { MenuV2 } from "@tenon/ui/v2/menu-v2"
 import { TabsV2 } from "@tenon/ui/v2/tabs-v2"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { ViewSwitch } from "@tenon/ui/v2/view-switch"
@@ -55,6 +58,7 @@ import { useSessionLayout } from "@/pages/session/session-layout"
 import { panelSettled } from "@/pages/session/file-reference"
 import { pagePanelClass } from "@/components/page"
 import { SessionFileBrowserTab, type SessionFileBrowserState } from "@/pages/session/v2/session-file-browser-tab"
+import { REVIEW_SIDEBAR_OVERLAY_WIDTH } from "@/pages/session/v2/review-panel-v2-state"
 import { SessionCanvasTab } from "@/pages/session/canvas-tab"
 import { SessionBrowserTab } from "@/pages/session/browser-tab"
 import { SessionDeviceTab } from "@/pages/session/device-tab"
@@ -77,7 +81,7 @@ export function SessionSidePanel(props: {
   reviewCount: () => number
   reviewPanel: () => JSX.Element
   reviewSidebarToggle?: (disabled: boolean) => JSX.Element
-  fileBrowserState?: SessionFileBrowserState
+  fileBrowserState?: SessionFileBrowserState & { setNarrow?: (narrow: boolean) => void }
   activeDiff?: string
   focusReviewDiff: (path: string) => void
   reviewSnap: boolean
@@ -227,6 +231,73 @@ export function SessionSidePanel(props: {
 
   let fileFilter: HTMLInputElement | undefined
   let tabList: HTMLDivElement | undefined
+  let aside: HTMLElement | undefined
+
+  // A narrow panel floats the review/file tree over the viewer instead of squeezing the viewer to a sliver.
+  onMount(() => {
+    if (!aside) return
+    createResizeObserver(aside, ({ width }) =>
+      props.fileBrowserState?.setNarrow?.(width > 0 && width < REVIEW_SIDEBAR_OVERLAY_WIDTH),
+    )
+  })
+
+  // Tabs scrolled out of the strip are listed in an overflow menu, so they stay reachable.
+  const [overflow, setOverflow] = createStore({ hidden: [] as { value: string; label: string }[] })
+  let overflowFrame: number | undefined
+  const measureTabs = () => {
+    const list = tabList
+    if (!list) return
+    if (list.scrollWidth <= list.clientWidth + 1) return setOverflow("hidden", reconcile([]))
+    const box = list.getBoundingClientRect()
+    let start = box.left
+    let end = box.right
+    // The sidebar toggle sticks to the start; the open-browser and open-file buttons stick to the end.
+    for (const child of Array.from(list.children) as HTMLElement[]) {
+      if (!child.classList.contains("sticky")) continue
+      const rect = child.getBoundingClientRect()
+      if (child.classList.contains("left-0")) start = Math.max(start, rect.right)
+      else end = Math.min(end, rect.left)
+    }
+    const hidden: { value: string; label: string }[] = []
+    for (const trigger of Array.from(list.querySelectorAll<HTMLElement>('[data-slot="tabs-v2-trigger"]'))) {
+      const value = trigger.dataset.value
+      if (!value) continue
+      const rect = trigger.getBoundingClientRect()
+      if (rect.left >= start - 1 && rect.right <= end + 1) continue
+      hidden.push({ value, label: trigger.textContent?.trim() || value })
+    }
+    setOverflow("hidden", reconcile(hidden))
+  }
+  const scheduleMeasureTabs = () => {
+    if (overflowFrame !== undefined) return
+    overflowFrame = requestAnimationFrame(() => {
+      overflowFrame = undefined
+      measureTabs()
+    })
+  }
+  const watchTabOverflow = (list: HTMLDivElement) => {
+    list.addEventListener("scroll", scheduleMeasureTabs, { passive: true })
+    const resize = new ResizeObserver(scheduleMeasureTabs)
+    resize.observe(list)
+    const mutation = new MutationObserver(scheduleMeasureTabs)
+    mutation.observe(list, { childList: true, subtree: true, characterData: true })
+    scheduleMeasureTabs()
+    return () => {
+      list.removeEventListener("scroll", scheduleMeasureTabs)
+      resize.disconnect()
+      mutation.disconnect()
+      if (overflowFrame !== undefined) cancelAnimationFrame(overflowFrame)
+      overflowFrame = undefined
+    }
+  }
+  const revealTab = (value: string) => {
+    activateTab(value)
+    requestAnimationFrame(() =>
+      Array.from(tabList?.querySelectorAll<HTMLElement>('[data-slot="tabs-v2-trigger"]') ?? [])
+        .find((trigger) => trigger.dataset.value === value)
+        ?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" }),
+    )
+  }
   const temporaryTab = tabs().preview
   const previewTab = (value: string) => {
     const next = normalizeTab(value)
@@ -496,6 +567,34 @@ export function SessionSidePanel(props: {
     </div>
   )
 
+  const overflowMenu = () => (
+    <Show when={overflow.hidden.length > 0}>
+      <MenuV2 gutter={6} modal={false} placement="bottom-end">
+        <MenuV2.Trigger
+          as={IconButtonV2}
+          variant="ghost-muted"
+          size="large"
+          class="shrink-0"
+          data-action="side-panel-tab-overflow"
+          icon={<Icon name="outline-dots" />}
+          aria-label={language.t("secondBrain.sidePanel.moreTabs")}
+          title={language.t("secondBrain.sidePanel.moreTabs")}
+        />
+        <MenuV2.Portal>
+          <MenuV2.Content>
+            <For each={overflow.hidden}>
+              {(tab) => (
+                <MenuV2.Item onSelect={() => revealTab(tab.value)}>
+                  <span class="truncate">{tab.label}</span>
+                </MenuV2.Item>
+              )}
+            </For>
+          </MenuV2.Content>
+        </MenuV2.Portal>
+      </MenuV2>
+    </Show>
+  )
+
   const hideButton = () => (
     <TooltipV2
       value={
@@ -575,6 +674,7 @@ export function SessionSidePanel(props: {
   return (
     <Show when={isDesktop() && !!params.id}>
       <aside
+        ref={aside}
         id="review-panel"
         aria-label={language.t("session.panel.reviewAndFiles")}
         aria-hidden={!open()}
@@ -630,11 +730,16 @@ export function SessionSidePanel(props: {
                       <TabsV2 class="thread-tabs" value={activeTab()} onChange={activateTab}>
                         <div class="sticky top-0 shrink-0 flex items-center gap-1 bg-v2-background-bg-base px-2.5 pt-2.5 pb-1.5">
                           <TabsV2.List
-                            class="min-w-0 flex-1"
+                            // Scroll padding keeps a revealed tab clear of the sticky buttons at either edge.
+                            class="min-w-0 flex-1 scroll-ps-11 scroll-pe-22"
                             ref={(el: HTMLDivElement) => {
                               tabList = el
                               const stop = createFileTabListSync({ el, contextOpen })
-                              onCleanup(stop)
+                              const unwatch = watchTabOverflow(el)
+                              onCleanup(() => {
+                                stop()
+                                unwatch()
+                              })
                             }}
                           >
                             <Show when={props.reviewSidebarToggle}>
@@ -682,6 +787,7 @@ export function SessionSidePanel(props: {
                             {openBrowserButton()}
                             {openFileButton(() => openFileBrowser())}
                           </TabsV2.List>
+                          {overflowMenu()}
                           <div
                             class="session-review-v2-open-in-app-slot ml-auto flex shrink-0 items-center"
                             onPointerDown={(event) => event.stopPropagation()}

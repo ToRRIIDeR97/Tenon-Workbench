@@ -124,6 +124,9 @@ const sessionViewState = () => ({
 
 function isCurrentSessionNotFoundError(error: unknown, sessionID: string | undefined) {
   if (!sessionID) return false
+  // Thread IDs start with "ses" (schema/src/session-id.ts); the server rejects any other ID with a 400 instead of a
+  // not-found, so a malformed link would otherwise show the generic crash screen.
+  if (!sessionID.startsWith("ses")) return true
   return isSessionNotFoundError(error, sessionID) || isLocalSessionNotFoundError(error, sessionID)
 }
 

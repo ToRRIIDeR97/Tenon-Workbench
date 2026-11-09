@@ -1845,7 +1845,15 @@ Native forks copy the selected history into a new session through durable
 `session.next.message.imported` events. Forks receive new message IDs and do
 not inherit provider continuation handles or filesystem snapshots. The
 native `POST /api/session/:sessionID/fork` endpoint preserves the selected
-harness and model.
+harness and model. A fork is a top-level session: it does not set `parentID`,
+because the renderer treats any session with a parent as a subagent child
+(listed under its parent, composer replaced by "Subagent threads cannot be
+prompted"). Forks made before this rule still carry the source as `parentID`.
+Step timings are not copied, so a fork's copied turns show no durations.
+
+The sidebar loads a thread's subagent children on demand
+(`GET /session/:id/children`) when its row is expanded or the thread is
+opened, because folder thread lists only load top-level threads.
 
 `GET /api/session/:sessionID/diff` compares the first and last assistant
 snapshots after the selected user prompt, stopping at the next user prompt.

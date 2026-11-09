@@ -80,16 +80,20 @@ function applyModel(
     readonly name?: string
     readonly cost?: ModelV2Info["cost"]
     readonly request?: NonNullable<NonNullable<ModelsDev.Model["experimental"]>["modes"]>[string]["provider"]
+    readonly npm?: string
   } = {},
 ) {
   draft.name = input.name ?? model.name
   draft.family = model.family
-  draft.api = model.provider?.npm
+  // A model that overrides only the endpoint keeps its provider's SDK package, as in upstream OpenCode.
+  // Zen lists most of its models this way (provider.api set, no npm) under @ai-sdk/openai-compatible.
+  const npm = model.provider?.npm ?? (model.provider?.api ? input.npm : undefined)
+  draft.api = npm
     ? {
         id: model.id,
         type: "aisdk",
-        package: model.provider.npm,
-        url: model.provider.api,
+        package: npm,
+        url: model.provider?.api,
       }
     : {
         id: model.id,
@@ -161,13 +165,16 @@ export const ModelsDevPlugin = define({
 
           for (const model of Object.values(item.models)) {
             const baseCost = cost(model.cost)
-            catalog.model.update(providerID, model.id, (draft) => applyModel(draft, model, { cost: baseCost }))
+            catalog.model.update(providerID, model.id, (draft) =>
+              applyModel(draft, model, { cost: baseCost, npm: item.npm }),
+            )
             for (const [mode, options] of Object.entries(model.experimental?.modes ?? {})) {
               catalog.model.update(providerID, `${model.id}-${mode}`, (draft) =>
                 applyModel(draft, model, {
                   name: modeName(model, mode),
                   cost: mergeCost(baseCost, options.cost),
                   request: options.provider,
+                  npm: item.npm,
                 }),
               )
             }

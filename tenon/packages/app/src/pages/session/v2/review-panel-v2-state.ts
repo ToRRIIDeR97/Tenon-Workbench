@@ -8,6 +8,9 @@ import { createSignal } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Persist, persisted } from "@/utils/persist"
 
+/** Side panel width (px) below which the review/file tree turns into an overlay. */
+export const REVIEW_SIDEBAR_OVERLAY_WIDTH = 560
+
 export function createReviewPanelV2State() {
   const [store, setStore, , ready] = persisted(
     Persist.global("review-panel-v2"),
@@ -20,9 +23,18 @@ export function createReviewPanelV2State() {
   // The filter is transient by design: a persisted filter would silently hide
   // files after a reload.
   const [filter, setFilter] = createSignal("")
+  // Below REVIEW_SIDEBAR_OVERLAY_WIDTH the file tree would squeeze the viewer to a sliver, so it collapses and
+  // opens as an overlay instead; the persisted open state is left alone for when the panel is wide again.
+  const [panel, setPanel] = createStore({ narrow: false, overlay: false })
+  const narrow = () => panel.narrow
 
   return {
-    sidebarOpened: () => store.sidebarOpened,
+    sidebarOpened: () => (panel.narrow ? panel.overlay : store.sidebarOpened),
+    narrow,
+    setNarrow: (value: boolean) => {
+      if (value !== panel.narrow) setPanel({ narrow: value, overlay: false })
+    },
+    closeOverlay: () => setPanel("overlay", false),
     sidebarWidth: () => store.sidebarWidth,
     sidebarTransition: ready,
     filter,
@@ -34,7 +46,8 @@ export function createReviewPanelV2State() {
         "sidebarWidth",
         Math.min(SESSION_REVIEW_V2_SIDEBAR_WIDTH_MAX, Math.max(SESSION_REVIEW_V2_SIDEBAR_WIDTH_MIN, width)),
       ),
-    toggleSidebar: () => setStore("sidebarOpened", (opened) => !opened),
+    toggleSidebar: () =>
+      panel.narrow ? setPanel("overlay", (open) => !open) : setStore("sidebarOpened", (opened) => !opened),
   }
 }
 

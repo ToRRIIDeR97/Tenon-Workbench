@@ -7,8 +7,15 @@ export function sessionHref(server: ServerConnection.Key, sessionID: string) {
 }
 
 export function requireServerKey(segment: string | undefined) {
+  const key = parseServerKey(segment)
+  if (!key) throw new Error("Invalid server route")
+  return key
+}
+
+/** The server key a `/server/:serverKey/...` segment names, or undefined when the segment is malformed. */
+export function parseServerKey(segment: string | undefined) {
   const key = decode64(segment)
-  if (!key || base64Encode(key) !== segment) throw new Error("Invalid server route")
+  if (!key || base64Encode(key) !== segment) return
   return ServerConnection.Key.make(key)
 }
 

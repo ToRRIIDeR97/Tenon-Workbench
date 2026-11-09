@@ -8,6 +8,8 @@ import { ScrollView } from "@tenon/ui/scroll-view"
 import { TextShimmer } from "@tenon/ui/text-shimmer"
 import { Icon as StepIcon } from "@tenon/ui/icon"
 import {
+  isDeclined,
+  isStopped,
   stepIcon,
   stepOf,
   stepVerbKey,
@@ -24,6 +26,7 @@ import { DiffChanges } from "@tenon/ui/diff-changes"
 import { useFileComponent } from "@tenon/ui/context/file"
 import { Dynamic } from "solid-js/web"
 import { editDiffs } from "./step-diff"
+import { workspaceRelative } from "./step-path"
 import { SubagentLane, childLaneSteps, laneTokens, subagentLanes, taskSessionID } from "./subagent-lane"
 import "./turn-steps-summary.css"
 
@@ -59,21 +62,20 @@ function stepCountPhrase(language: ReturnType<typeof useLanguage>, kind: StepKin
 }
 
 /**
- * When a card's steps began and, once every step has finished, when the last one ended. A card after an update
- * to the user times its own steps instead of the whole turn.
+ * How long a turn took: from the user's message to the last assistant message's completion. It comes from message
+ * times rather than the parts a card shows, so it doesn't change with which parts are visible (reasoning shown or
+ * hidden), and the live counter, the card and the turn footer agree.
  */
-export function stepsSpan(parts: readonly Part[]) {
-  const times = parts.flatMap((part) => {
-    if (part.type === "reasoning") return part.time ? [{ start: part.time.start, end: part.time.end }] : []
-    if (part.type !== "tool" || part.state.status === "pending") return []
-    const time = part.state.time as { start: number; end?: number }
-    return [{ start: time.start, end: time.end }]
-  })
-  if (times.length === 0) return undefined
-  const start = Math.min(...times.map((time) => time.start))
-  const ends = times.map((time) => time.end)
-  const end = ends.every((value): value is number => value !== undefined) ? Math.max(...ends) : undefined
-  return { start, end }
+export function turnDuration(created: number | undefined, completed: readonly (number | undefined)[]) {
+  const ends = completed.filter((value): value is number => typeof value === "number")
+  if (created === undefined || ends.length === 0) return undefined
+  const end = Math.max(...ends)
+  return end < created ? undefined : end - created
+}
+
+/** Whether a card has anything to show: a tool step, or a reasoning note with text. */
+export function hasVisibleSteps(parts: readonly Part[], text: (part: ReasoningPart) => string | undefined) {
+  return parts.some((part) => part.type === "tool" || (part.type === "reasoning" && !!text(part)?.trim()))
 }
 
 /** How long the open card takes to fold, from its height: 300 ms for a few rows, up to 700 ms for a long list. */
@@ -83,6 +85,8 @@ export function foldDuration(height: number) {
 
 const GROUPED = new Set<StepKind>(["read", "search", "edit", "run", "fetch"])
 const isRunning = (part: ToolPart) => part.state.status === "pending" || part.state.status === "running"
+// A call the user declined or stopped errored, but it's the user's choice, so it reads muted rather than red.
+const isFailed = (part: ToolPart) => part.state.status === "error" && !isDeclined(part) && !isStopped(part)
 const isSubagent = (part: ToolPart) => stepOf(part).kind === "subagent"
 // Paths, patterns, commands and URLs read as code; a question or an agent's task reads as prose.
 const codeTarget = (kind: StepKind) =>
@@ -343,6 +347,9 @@ export function TurnStepsSummary(props: {
     const named = subagentName(part.state.input)
     return named.name ? named.tag : undefined
   }
+  // Paths read relative to the workspace; the full target stays in the tooltip.
+  const shortTarget = (target: string) => workspaceRelative(target, data.directory)
+  const fullTitle = (target: string) => (shortTarget(target) === target ? undefined : target)
   // The "Expand shell/edit tool parts" settings open those steps until the user toggles them.
   const startsOpen = (part: ToolPart) => {
     const kind = stepOf(part).kind
@@ -394,10 +401,7 @@ export function TurnStepsSummary(props: {
                 }}
               >
                 <StepIcon name={stepIcon(step().kind)} size="small" class="shrink-0 text-v2-text-text-muted" />
-                <span
-                  class="shrink-0 [font-weight:500]"
-                  classList={{ "text-v2-text-text-critical": tool().state.status === "error" }}
-                >
+                <span class="shrink-0 [font-weight:500]" classList={{ "text-v2-text-text-critical": isFailed(tool()) }}>
                   {label(tool())}
                 </span>
                 <Show when={rowTarget(tool())}>
@@ -405,12 +409,23 @@ export function TurnStepsSummary(props: {
                     <span
                       class="min-w-0 truncate text-v2-text-text-muted"
                       classList={{ "font-mono text-[12px]": codeTarget(step().kind) }}
+                      title={fullTitle(target())}
                     >
-                      {target()}
+                      {shortTarget(target())}
                     </span>
                   )}
                 </Show>
                 <span class="flex-1" />
+                <Show when={isDeclined(tool())}>
+                  <span data-slot="turn-steps-declined" class="shrink-0 text-[12px] text-v2-text-text-muted">
+                    {language.t("secondBrain.turnSteps.declinedStep")}
+                  </span>
+                </Show>
+                <Show when={isStopped(tool())}>
+                  <span data-slot="turn-steps-stopped" class="shrink-0 text-[12px] text-v2-text-text-muted">
+                    {language.t("secondBrain.turnSteps.stoppedStep")}
+                  </span>
+                </Show>
                 <Show when={isRunning(tool())}>
                   <LoaderV2 width={12} height={12} class="shrink-0 text-v2-icon-icon-accent" />
                 </Show>
@@ -443,7 +458,9 @@ export function TurnStepsSummary(props: {
                             {/* Several files in one patch each get their name above their diff. */}
                             <Show when={diffs().length > 1}>
                               <div class="flex min-w-0 items-center gap-2 px-3 pt-2 text-[12px] text-v2-text-text-muted">
-                                <span class="min-w-0 truncate font-mono">{diff.file}</span>
+                                <span class="min-w-0 truncate font-mono" title={fullTitle(diff.file)}>
+                                  {shortTarget(diff.file)}
+                                </span>
                                 <DiffChanges changes={diff} class="shrink-0" />
                               </div>
                             </Show>
@@ -519,6 +536,7 @@ export function TurnStepsSummary(props: {
     const open = () => !!body.expanded[id()]
     const kind = () => stepOf(run()[0]).kind
     const diffs = createMemo(() => run().flatMap(editDiffs))
+    const targets = createMemo(() => run().flatMap((part) => stepOf(part).target ?? []))
     return (
       <div data-slot="turn-steps-item" data-new={fresh()} style={{ "--i": index }} class="flex min-w-0 flex-col">
         <button
@@ -530,19 +548,15 @@ export function TurnStepsSummary(props: {
           onClick={(event) => toggle(id(), event.currentTarget)}
         >
           <StepIcon name={stepIcon(kind())} size="small" class="shrink-0 text-v2-text-text-muted" />
-          <span
-            class="shrink-0 [font-weight:500]"
-            classList={{ "text-v2-text-text-critical": run().some((part) => part.state.status === "error") }}
-          >
+          <span class="shrink-0 [font-weight:500]" classList={{ "text-v2-text-text-critical": run().some(isFailed) }}>
             {stepCountPhrase(language, kind(), run().length)}
           </span>
           <span
             class="min-w-0 truncate text-v2-text-text-muted"
             classList={{ "font-mono text-[12px]": codeTarget(kind()) }}
+            title={targets().some((target) => fullTitle(target)) ? targets().join("\n") : undefined}
           >
-            {run()
-              .flatMap((part) => stepOf(part).target ?? [])
-              .join(", ")}
+            {targets().map(shortTarget).join(", ")}
           </span>
           <span class="flex-1" />
           <Show when={run().some(isRunning)}>
@@ -635,6 +649,13 @@ export function TurnStepsSummary(props: {
             })}
           </span>
         </Show>
+        <Show when={summary().declined > 0}>
+          <span data-slot="turn-steps-declined" class="shrink-0 text-[13px] text-v2-text-text-muted">
+            {language.plural("secondBrain.turnSteps.declined", summary().declined, {
+              count: summary().declined.toLocaleString(language.intl()),
+            })}
+          </span>
+        </Show>
         <Icon
           name="chevron-right"
           size="small"
@@ -699,8 +720,9 @@ export function TurnStepsSummary(props: {
                           <span
                             class="min-w-0 truncate text-v2-text-text-muted"
                             classList={{ "font-mono text-[12px]": codeTarget(stepOf(part()).kind) }}
+                            title={fullTitle(target())}
                           >
-                            {target()}
+                            {shortTarget(target())}
                           </span>
                         )}
                       </Show>
