@@ -141,6 +141,30 @@ describe("PermissionV2", () => {
     }),
   )
 
+  it.effect("uses the default agent's rules when the Session's agent is not defined", () =>
+    Effect.gen(function* () {
+      yield* setup([{ action: "read", resource: "*", effect: "allow" }])
+      const agents = yield* AgentV2.Service
+      const service = yield* PermissionV2.Service
+
+      // `test` is the only primary agent, so it is the default for an agent this Location doesn't know.
+      expect(yield* service.ask(assertion({ agent: AgentV2.ID.make("removed") }))).toMatchObject({ effect: "allow" })
+      yield* service.assert(assertion({ agent: AgentV2.ID.make("removed") }))
+      // The default's deny rules still apply.
+      yield* setRules([{ action: "read", resource: "*", effect: "deny" }])
+      const blocked = yield* service.assert(assertion({ agent: AgentV2.ID.make("removed") })).pipe(Effect.flip)
+      expect(blocked).toBeInstanceOf(PermissionV2.BlockedError)
+      // With no agent to fall back to, nothing is allowed.
+      yield* agents.transform((editor) =>
+        editor.update(AgentV2.ID.make("test"), (agent) => {
+          agent.hidden = true
+          agent.permissions = [{ action: "read", resource: "*", effect: "allow" }]
+        }),
+      )
+      expect(yield* service.ask(assertion({ agent: AgentV2.ID.make("removed") }))).toMatchObject({ effect: "deny" })
+    }),
+  )
+
   it.effect("allows and denies from explicit rules without asking", () =>
     Effect.gen(function* () {
       yield* setup([{ action: "read", resource: "*", effect: "allow" }])

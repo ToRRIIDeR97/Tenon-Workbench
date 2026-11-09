@@ -396,7 +396,7 @@ function toolPart(sessionID: string, messageID: string, tool: SessionMessageAssi
         input: normalizeToolInput(tool.name, tool.state.input),
         error: tool.state.error.message,
         // metadata: normalizeToolMetadata(tool.name, tool.state.structured),
-        metadata: normalizeToolMetadata(tool.name, tool.state.metadata ?? {}),
+        metadata: { ...normalizeToolMetadata(tool.name, tool.state.metadata ?? {}), ...tenonBlocked(tool) },
         time: { start, end: tool.time.completed ?? start },
       }
     }
@@ -492,4 +492,12 @@ function acpPick<T>(tool: SessionMessageAssistantTool, pick: (acp: Record<string
     from(record(loose.provider) ? loose.provider.resultMetadata : undefined) ??
     from(record(loose.state) ? loose.state.structured : undefined)
   )
+}
+
+/** Tenon's note that it blocked a harness call without asking (core `markBlocked`), as the part's `blocked`. */
+function tenonBlocked(tool: SessionMessageAssistantTool) {
+  const loose: unknown = tool
+  const metadata = record(loose) && record(loose.provider) ? loose.provider.resultMetadata : undefined
+  const blocked = record(metadata) && record(metadata.tenon) ? metadata.tenon.blocked : undefined
+  return record(blocked) ? { blocked } : {}
 }

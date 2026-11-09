@@ -14,7 +14,20 @@ import {
 import { Harness } from "@tenon/schema/harness"
 import { SessionEvent } from "@tenon/schema/session-event"
 import { SessionID } from "@tenon/schema/session-id"
-import { Context, DateTime, Deferred, Effect, Exit, Layer, Option, Schedule, Schema, Scope, Stream } from "effect"
+import {
+  Cause,
+  Context,
+  DateTime,
+  Deferred,
+  Effect,
+  Exit,
+  Layer,
+  Option,
+  Schedule,
+  Schema,
+  Scope,
+  Stream,
+} from "effect"
 import { ChildProcess } from "effect/process"
 import { eq } from "drizzle-orm"
 import os from "os"
@@ -173,6 +186,8 @@ interface AcpRuntime {
   readonly beginTurn: () => void
   /** An approval or question is waiting on the user, so the agent's silence means nothing. */
   readonly waiting: () => boolean
+  /** This turn's tool calls Tenon blocked without asking, by the agent's toolCallId. */
+  readonly blocked: Map<string, Blocked>
   handoff: Handoff
 }
 
@@ -562,6 +577,7 @@ const layer = Layer.effect(
     ) {
       const runtimeScope = yield* Scope.make()
       const gate = turnGate()
+      const blocked = new Map<string, Blocked>()
       const revision = input.revision ?? 0
       const continuation = yield* readContinuation(database.db, input.sessionID, instance.id, revision)
       // Questions and approvals publish with the Location, which the turn's fiber doesn't carry; see HarnessAskUser.
@@ -590,18 +606,24 @@ const layer = Layer.effect(
             .guard(
               permissionSource(input, request.callID).pipe(
                 Effect.flatMap((source) =>
-                  approve(permissions, {
-                    sessionID: input.sessionID,
-                    action: request.action,
-                    resources: [...request.resources],
-                    save: request.resources.map(Wildcard.literal),
-                    metadata: {
-                      harness: instance.id,
-                      title: request.title,
-                      ...(request.kind ? { kind: request.kind } : {}),
+                  approve(
+                    permissions,
+                    {
+                      sessionID: input.sessionID,
+                      action: request.action,
+                      resources: [...request.resources],
+                      save: request.resources.map(Wildcard.literal),
+                      metadata: {
+                        harness: instance.id,
+                        title: request.title,
+                        ...(request.kind ? { kind: request.kind } : {}),
+                      },
+                      ...(source ? { source } : {}),
                     },
-                    ...(source ? { source } : {}),
-                  }),
+                    (found) => {
+                      if (request.callID) blocked.set(request.callID, found)
+                    },
+                  ),
                 ),
               ),
               false,
@@ -634,8 +656,12 @@ const layer = Layer.effect(
         workspace: yield* workspaceOf(input.directory),
         askUser: delegation !== undefined && session.mcpAttached,
         endTurn: asker.endTurn.pipe(Effect.andThen(gate.end)),
-        beginTurn: gate.begin,
+        beginTurn: () => {
+          blocked.clear()
+          gate.begin()
+        },
         waiting: () => gate.pending() || asker.pending(),
+        blocked,
         handoff: session.resumed && continuation ? continuation.handoff : "full",
       } satisfies AcpRuntime
     })
@@ -684,6 +710,8 @@ const layer = Layer.effect(
                   watch: { name: instance.name, waiting: runtime.waiting },
                 })
                 .pipe(
+                  // The agent reports a call Tenon blocked as one the user declined.
+                  Stream.map((event) => markBlocked(event, runtime.blocked)),
                   // However the turn ends, a question it left open in the dock has nobody waiting.
                   Stream.ensuring(runtime.endTurn),
                   Stream.catch((error) =>
@@ -1960,12 +1988,58 @@ function askInDock(asker: HarnessAskUser.Asker) {
     )
 }
 
-function approve(
+/** Why Tenon refused a harness's approval request itself: a deny rule, or a permission check that failed. */
+export type Blocked = { readonly reason: "rules" | "error"; readonly action: string }
+
+/**
+ * Whether Tenon allows a harness's tool call. Only the user's reply (or the turn ending first) declines it. A
+ * deny rule or a failed check blocks it instead: that is logged and passed to `onBlocked`, so its tool row can
+ * say so rather than show the harness's "the user declined" wording.
+ */
+export function approve(
   permissions: PermissionV2.Interface,
   input: PermissionV2.AssertInput,
-  options?: PermissionV2.AssertOptions,
+  onBlocked?: (blocked: Blocked) => void,
 ) {
-  return Effect.exit(permissions.assert(input, options)).pipe(Effect.map(Exit.isSuccess))
+  return Effect.exit(permissions.assert(input)).pipe(
+    Effect.flatMap((exit) => {
+      if (Exit.isSuccess(exit)) return Effect.succeed(true)
+      const error = Cause.squash(exit.cause)
+      if (
+        Cause.hasInterrupts(exit.cause) ||
+        error instanceof PermissionV2.DeclinedError ||
+        error instanceof PermissionV2.CorrectedError
+      )
+        return Effect.succeed(false)
+      const blocked: Blocked = {
+        reason: error instanceof PermissionV2.BlockedError ? "rules" : "error",
+        action: input.action,
+      }
+      return Effect.logWarning("harness tool call blocked without asking", {
+        action: input.action,
+        reason: blocked.reason,
+        ...(error instanceof PermissionV2.BlockedError ? { rules: error.rules } : { error: errorMessage(error) }),
+      }).pipe(Effect.andThen(Effect.sync(() => onBlocked?.(blocked))), Effect.as(false))
+    }),
+  )
+}
+
+/** A failed tool result for a call Tenon blocked, worded and tagged as a block rather than a decline. */
+export function markBlocked(event: LLMEvent, blocked: ReadonlyMap<string, Blocked>): LLMEvent {
+  if (!LLMEvent.is.toolResult(event) || event.result.type !== "error") return event
+  const found = blocked.get(event.id)
+  if (!found) return event
+  return {
+    ...event,
+    result: {
+      type: "error",
+      value:
+        found.reason === "rules"
+          ? `Blocked by permission rules: ${found.action}`
+          : `Blocked: the permission check for ${found.action} failed`,
+    },
+    providerMetadata: { ...event.providerMetadata, tenon: { blocked: found } },
+  }
 }
 
 function permissionSource(input: StreamInput, callID: string | undefined) {

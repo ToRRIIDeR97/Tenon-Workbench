@@ -1,8 +1,9 @@
 import { describe, expect, test } from "bun:test"
 import { Effect } from "effect"
-import { handleCodexRequest, turnGate, type StreamInput } from "../src/harness"
+import { LLMEvent } from "@tenon/llm"
+import { approve, handleCodexRequest, markBlocked, turnGate, type Blocked, type StreamInput } from "../src/harness"
 import { handleRequest, type PermissionRequest } from "../src/harness/acp"
-import type { PermissionV2 } from "../src/permission"
+import { PermissionV2 } from "../src/permission"
 import { SessionID } from "@tenon/schema/session-id"
 
 const sessionID = SessionID.make("ses_permission_source")
@@ -68,5 +69,51 @@ describe("harness approvals", () => {
       ),
     )
     expect(requests[0]?.callID).toBe("call_3")
+  })
+})
+
+describe("harness approvals blocked without asking", () => {
+  const assertion = { sessionID, action: "bash", resources: ["echo hello"] } satisfies PermissionV2.AssertInput
+  const outcome = async (assert: Effect.Effect<void, unknown>) => {
+    const blocked: Blocked[] = []
+    const permissions = { assert: () => assert } as unknown as PermissionV2.Interface
+    const allowed = await Effect.runPromise(approve(permissions, assertion, (item) => blocked.push(item)))
+    return { allowed, blocked }
+  }
+
+  test("a deny rule or a failed check blocks the call; only the user's reply declines it", async () => {
+    expect(await outcome(Effect.void)).toEqual({ allowed: true, blocked: [] })
+    expect(await outcome(Effect.fail(new PermissionV2.BlockedError({ rules: [] })))).toEqual({
+      allowed: false,
+      blocked: [{ reason: "rules", action: "bash" }],
+    })
+    expect(await outcome(Effect.die(new Error("database closed")))).toEqual({
+      allowed: false,
+      blocked: [{ reason: "error", action: "bash" }],
+    })
+    // The user's Reject arrives as a defect (assert dies on DeclinedError) or, with feedback, as CorrectedError.
+    expect(await outcome(Effect.die(new PermissionV2.DeclinedError()))).toEqual({ allowed: false, blocked: [] })
+    expect(await outcome(Effect.fail(new PermissionV2.CorrectedError({ feedback: "no" })))).toEqual({
+      allowed: false,
+      blocked: [],
+    })
+    expect(await outcome(Effect.interrupt)).toEqual({ allowed: false, blocked: [] })
+  })
+
+  test("a blocked call's failed result says it was blocked instead of declined", () => {
+    const blocked = new Map<string, Blocked>([["call_1", { reason: "rules", action: "bash" }]])
+    const failed = (id: string) =>
+      LLMEvent.toolResult({
+        id,
+        name: "acp_execute",
+        providerExecuted: true,
+        result: { type: "error", value: "The user declined this tool call" },
+      })
+    expect(markBlocked(failed("call_1"), blocked)).toMatchObject({
+      result: { type: "error", value: "Blocked by permission rules: bash" },
+      providerMetadata: { tenon: { blocked: { reason: "rules", action: "bash" } } },
+    })
+    // A call the user declined keeps the agent's wording.
+    expect(markBlocked(failed("call_2"), blocked)).toEqual(failed("call_2"))
   })
 })
