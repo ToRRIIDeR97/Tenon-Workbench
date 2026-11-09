@@ -325,7 +325,6 @@
         "@tsconfig/node24": "catalog:",
         "@types/node": "catalog:",
         "@typescript/native-preview": "catalog:",
-        "typescript": "catalog:",
       },
       "peerDependencies": {
         "@opentui/core": ">=0.4.5",
@@ -550,7 +549,6 @@
         "@typescript/native-preview": "catalog:",
         "solid-js": "catalog:",
         "tailwindcss": "catalog:",
-        "typescript": "catalog:",
         "vite": "catalog:",
         "vite-plugin-icons-spritesheet": "3.0.1",
         "vite-plugin-solid": "catalog:",

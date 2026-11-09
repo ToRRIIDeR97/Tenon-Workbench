@@ -53,7 +53,7 @@
     "./v2/styles/*": "./src/v2/styles/*"
   },
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "build": "rm -rf dist && tsgo -p tsconfig.build.json",
     "typecheck": "tsgo --noEmit",
     "test": "bun test src --only-failures",
     "dev": "vite",
@@ -68,7 +68,6 @@
     "@typescript/native-preview": "catalog:",
     "solid-js": "catalog:",
     "tailwindcss": "catalog:",
-    "typescript": "catalog:",
     "vite": "catalog:",
     "vite-plugin-icons-spritesheet": "3.0.1",
     "vite-plugin-solid": "catalog:"
