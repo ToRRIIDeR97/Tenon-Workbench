@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, spyOn } from "bun:test"
+import { afterEach, describe, expect, spyOn, test } from "bun:test"
 import { LayerNode } from "@tenon/core/effect/layer-node"
 import { Effect, Layer } from "effect"
 import fs from "fs/promises"
@@ -12,6 +12,7 @@ import { testEffect } from "../lib/effect"
 
 const { Plugin } = await import("../../src/plugin/index")
 const { PluginLoader } = await import("../../src/plugin/loader")
+const { isTuiOnlyPlugin } = await import("../../src/plugin/shared")
 const { Npm } = await import("@tenon/core/npm")
 const { TestConfig } = await import("../fixture/config")
 const { RuntimeFlags } = await import("../../src/effect/runtime-flags")
@@ -246,6 +247,15 @@ describe("plugin.loader.shared", () => {
         }),
     ),
   )
+
+  test("treats only a default export with tui() and no server() as a terminal UI plugin", () => {
+    const fn = async () => ({})
+    expect(isTuiOnlyPlugin({ default: { id: "demo", tui: fn } })).toBe(true)
+    expect(isTuiOnlyPlugin({ default: { id: "demo", tui: fn, server: fn } })).toBe(false)
+    expect(isTuiOnlyPlugin({ default: { id: "demo", server: fn } })).toBe(false)
+    expect(isTuiOnlyPlugin({ default: fn })).toBe(false)
+    expect(isTuiOnlyPlugin({ tui: fn })).toBe(false)
+  })
 
   it.live("skips a v1 plugin that only exports tui and still loads the next plugin", () =>
     withTmp(
