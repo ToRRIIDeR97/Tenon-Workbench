@@ -3,6 +3,7 @@ import { Markdown } from "@tenon/session-ui/markdown"
 import { For, Match, Show, Switch, createMemo, createResource, createSignal, onMount, type JSX } from "solid-js"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
+import { sheetRows } from "./sheet-rows"
 
 /** File types the Workbench panel renders instead of showing their source or bytes. */
 export type ViewerKind = "markdown" | "csv" | "json" | "pdf" | "video" | "sheet" | "doc"
@@ -260,23 +261,9 @@ function Sheet(props: { url: string }) {
   const [book] = createResource(
     () => props.url,
     async (url) => {
-      const { read, utils } = await import("xlsx")
       const bytes = await bytesOf(url)
       if (!bytes) return []
-      const workbook = (() => {
-        try {
-          return read(bytes, { type: "array" })
-        } catch {
-          return undefined
-        }
-      })()
-      if (!workbook) return []
-      return workbook.SheetNames.map((name) => ({
-        name,
-        rows: utils
-          .sheet_to_json<unknown[]>(workbook.Sheets[name]!, { header: 1, blankrows: false, defval: "" })
-          .map((row) => row.map((cell) => String(cell ?? ""))),
-      }))
+      return sheetRows(bytes)
     },
   )
   const [active, setActive] = createSignal(0)
