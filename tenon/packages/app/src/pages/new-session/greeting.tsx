@@ -31,7 +31,7 @@ export function Greeting() {
 
   return (
     <div data-component="new-thread-greeting" class="flex flex-col items-center gap-[clamp(2px,0.6vh,8px)] text-center">
-      <p class="new-thread-welcome text-[clamp(13px,0.25cqw+11px,16px)] text-v2-text-text-faint">
+      <p class="new-thread-welcome text-[clamp(13px,0.25cqw+11px,16px)] text-v2-text-text-muted">
         {language.t("secondBrain.newThread.welcome", { name: userName })}
       </p>
       <div

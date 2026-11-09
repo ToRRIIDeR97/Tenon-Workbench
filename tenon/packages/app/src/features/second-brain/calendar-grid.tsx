@@ -65,7 +65,7 @@ export function CalendarGrid(props: {
   return (
     <div class="flex flex-col pb-4">
       <div
-        class="sticky top-0 z-10 grid bg-v2-background-bg-base shadow-[inset_0_-0.5px_0_var(--v2-border-border-muted)]"
+        class="sticky top-0 z-10 grid bg-v2-background-bg-base shadow-[inset_0_-1px_0_var(--v2-border-border-muted)]"
         style={{ "grid-template-columns": columns() }}
       >
         <span />
@@ -77,9 +77,7 @@ export function CalendarGrid(props: {
               aria-current={day.today ? "date" : undefined}
               onClick={() => props.onOpenDay(day.date)}
             >
-              <span class="text-[11px] uppercase tracking-[0.04em] text-v2-text-text-muted [font-weight:600]">
-                {day.weekday}
-              </span>
+              <span class="type-caption text-v2-text-text-muted">{day.weekday}</span>
               <span
                 classList={{
                   "flex size-8 items-center justify-center rounded-full text-[15px]": true,
@@ -93,7 +91,7 @@ export function CalendarGrid(props: {
           )}
         </For>
         <Show when={props.days.some((day) => day.allDay.length > 0 || day.tasks.length > 0)}>
-          <span class="pt-2 text-[11px] text-v2-text-text-faint">{language.t("secondBrain.calendar.allDay")}</span>
+          <span class="pt-2 type-caption text-v2-text-text-muted">{language.t("secondBrain.calendar.allDay")}</span>
           <For each={props.days}>
             {(day) => (
               <div class="flex min-w-0 flex-col gap-1 px-0.5 pb-2 pt-1">
@@ -147,7 +145,7 @@ export function CalendarGrid(props: {
           <For each={hours()}>
             {(hour, index) => (
               <span
-                class="absolute left-0 w-12 -translate-y-2 text-[11px] tabular-nums text-v2-text-text-faint"
+                class="absolute left-0 w-12 -translate-y-2 type-caption tabular-nums text-v2-text-text-muted"
                 style={{ top: `${index() * HOUR}px` }}
               >
                 {`${String(hour).padStart(2, "0")}:00`}
@@ -159,14 +157,14 @@ export function CalendarGrid(props: {
           {(day) => (
             <div
               classList={{
-                "relative shadow-[inset_0.5px_0_0_var(--v2-border-border-muted)]": true,
+                "relative shadow-[inset_1px_0_0_var(--v2-border-border-muted)]": true,
                 // Today stands out among several days; alone (the Today view) a tint would just fill the grid.
                 "bg-[color-mix(in_srgb,var(--v2-background-bg-accent-container)_35%,transparent)]":
                   day.today && props.days.length > 1,
               }}
               style={{
                 height: `${hours().length * HOUR}px`,
-                "background-image": `repeating-linear-gradient(to bottom, var(--v2-border-border-muted) 0 0.5px, transparent 0.5px ${HOUR}px)`,
+                "background-image": `repeating-linear-gradient(to bottom, var(--v2-border-border-muted) 0 1px, transparent 1px ${HOUR}px)`,
               }}
             >
               {/* Out of the tab order: New stays the keyboard path, and a week would add over 100 stops. */}

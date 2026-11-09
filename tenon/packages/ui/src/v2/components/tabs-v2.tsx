@@ -103,7 +103,7 @@ function TabsV2Trigger(props: ParentProps<TabsV2TriggerProps>) {
           {split.children}
           <Show when={split.subtext}>
             {(subtext) => (
-              <span data-slot="tabs-v2-subtext" class="ms-2 text-xs text-text-weak">
+              <span data-slot="tabs-v2-subtext" class="ms-2 text-xs text-v2-text-text-muted">
                 {subtext()}
               </span>
             )}

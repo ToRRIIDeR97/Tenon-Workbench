@@ -236,7 +236,7 @@ test("Home opens the selected event, task and project; Today resets the displaye
   await page.getByRole("button", { name: "Next month", exact: true }).click()
   await page
     .getByRole("navigation", { name: "Calendar views" })
-    .getByRole("button", { name: "Today", exact: true })
+    .getByRole("button", { name: "Day", exact: true })
     .click()
   await expect(page.getByRole("button", { name: /Audit Event/ })).toBeVisible()
   await expect(page.getByRole("button", { name: "Previous day" })).toBeVisible()
@@ -246,14 +246,14 @@ test("Home opens the selected event, task and project; Today resets the displaye
 test("an archived Project restores from the Archived fold and its Pages open", async ({ page }, testInfo) => {
   await setup(page)
   await page.goto("/projects?project=project_audit&section=settings")
-  await page.getByRole("button", { name: "Archive Project", exact: true }).click()
+  await page.getByRole("button", { name: "Archive project", exact: true }).click()
   await expect(page).toHaveURL(/\/projects$/)
   await page.getByRole("button", { name: /^Archived/ }).click()
   await page.locator('[data-project-row="project_audit"]').click()
   await expect(page).toHaveURL(/\/projects\?project=project_audit$/)
   await page.locator('[data-section-link="settings"]').click()
-  await page.getByRole("button", { name: "Restore Project", exact: true }).click()
-  await expect(page.getByRole("button", { name: "Pause Project", exact: true })).toBeVisible()
+  await page.getByRole("button", { name: "Restore project", exact: true }).click()
+  await expect(page.getByRole("button", { name: "Pause project", exact: true })).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath("project-pages.png"), fullPage: true })
   await page
     .getByRole("region", { name: "Pages" })

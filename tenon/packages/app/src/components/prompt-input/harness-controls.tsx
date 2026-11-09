@@ -45,7 +45,7 @@ export async function openHarnessSettings(dialog: ReturnType<typeof useDialog>) 
 }
 
 const SELECT_CLASS =
-  "prompt-input-responsive-select !h-7 !w-auto min-w-0 max-w-[220px] !bg-transparent !shadow-none hover:!bg-v2-overlay-simple-overlay-hover"
+  "prompt-input-responsive-select !h-8 !w-auto min-w-0 max-w-[220px] !bg-transparent !shadow-none hover:!bg-v2-overlay-simple-overlay-hover"
 
 /**
  * The harness the controls show and its chosen model, shared by the separate pickers and the one-pill panel.
@@ -125,7 +125,7 @@ export function PromptInputHarnessControls(props: { controller: PromptInputHarne
           <Show
             when={harnessModelSlot({ models: item().models.length, checking: checking() }) === "select"}
             fallback={
-              <span class="px-2 text-[12px] text-v2-text-text-faint">
+              <span class="px-2 text-[12px] text-v2-text-text-muted">
                 {harnessModelSlot({ models: 0, checking: checking() }) === "loading"
                   ? language.t("harness.models.loading")
                   : language.t("harness.models.none")}

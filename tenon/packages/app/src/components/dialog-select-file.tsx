@@ -126,8 +126,10 @@ function DialogSelectFileLegacy(props: { filesOnly: () => boolean; onOpenFile?: 
               <div class="flex w-full min-w-0 items-center gap-x-3">
                 <FileIcon node={{ path: item.path ?? "", type: "file" }} class="size-4 shrink-0" />
                 <div class="flex min-w-0 items-center">
-                  <span class="min-w-0 truncate whitespace-nowrap opacity-70">{getDirectory(item.path ?? "")}</span>
-                  <span class="whitespace-nowrap [font-weight:500]">{getFilename(item.path ?? "")}</span>
+                  <span class="min-w-0 truncate whitespace-nowrap text-v2-text-text-muted">
+                    {getDirectory(item.path ?? "")}
+                  </span>
+                  <span class="whitespace-nowrap font-medium">{getFilename(item.path ?? "")}</span>
                 </div>
               </div>
             </Show>

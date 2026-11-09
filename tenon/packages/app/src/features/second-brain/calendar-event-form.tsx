@@ -150,11 +150,11 @@ export function CalendarEventForm(props: {
       }}
     >
       <div class="flex items-center gap-2">
-        <h2 class="min-w-0 flex-1 text-[14px] text-v2-text-text-base [font-weight:500]">
+        <h2 class="min-w-0 flex-1 type-section text-v2-text-text-base">
           {props.state.draft.id ? language.t("secondBrain.calendar.edit") : language.t("secondBrain.calendar.new")}
         </h2>
         <Show when={props.state.draft.id}>
-          <span class="rounded-full bg-v2-background-bg-base px-2 py-1 text-[10px] capitalize text-v2-text-text-faint">
+          <span class="rounded-full bg-v2-background-bg-layer-02 px-2 py-1 type-caption text-v2-text-text-muted">
             {props.sourceLabel(props.state.draft.source)} · {props.syncLabel(props.state.draft.syncState)}
           </span>
         </Show>
@@ -269,7 +269,7 @@ export function CalendarEventForm(props: {
         </label>
       </div>
       <Show when={props.state.draft.source === "google" && (props.state.draft.start || props.state.draft.end)}>
-        <p class="-mt-1 text-[11px] leading-4 text-v2-text-text-faint">
+        <p class="-mt-1 text-[11px] leading-4 text-v2-text-text-muted">
           {language.t("secondBrain.calendar.google.timezone", { timezone: props.state.draft.timezone })}
         </p>
       </Show>
@@ -293,7 +293,7 @@ export function CalendarEventForm(props: {
         </p>
       </Show>
       <Show when={props.state.draft.syncState === "conflict" && props.state.draft.outboxKey}>
-        <div class="flex flex-col items-start gap-2 rounded-[16px] bg-v2-background-bg-base p-3 shadow-[0_0_0_0.5px_var(--v2-border-border-muted)]">
+        <div class="flex flex-col items-start gap-2 rounded-[16px] bg-v2-background-bg-base p-3 shadow-[0_0_0_1px_var(--v2-border-border-muted)]">
           <p class="text-[12px] leading-5 text-v2-text-text-muted">
             {language.t("secondBrain.calendar.google.conflictNote")}
           </p>
@@ -312,14 +312,14 @@ export function CalendarEventForm(props: {
         <div
           role="group"
           aria-label={language.t("secondBrain.calendar.google.confirm.title")}
-          class="rounded-[16px] bg-v2-background-bg-base p-3 shadow-[0_0_0_0.5px_var(--v2-border-border-muted)]"
+          class="rounded-[16px] bg-v2-background-bg-base p-3 shadow-[0_0_0_1px_var(--v2-border-border-muted)]"
         >
           <p class="text-[12px] leading-5 text-v2-text-text-base [font-weight:500]">
             {props.state.googleConfirm === "delete"
               ? language.t("secondBrain.calendar.google.confirm.delete")
               : language.t("secondBrain.calendar.google.confirm.save")}
           </p>
-          <p class="mt-1 text-[11px] leading-4 text-v2-text-text-faint">
+          <p class="mt-1 text-[11px] leading-4 text-v2-text-text-muted">
             {props.formatDay(props.state.draft.date)}
             <Show when={props.state.draft.start && props.state.draft.end}>
               {` · ${props.state.draft.start}–${props.state.draft.end} · ${props.state.draft.timezone}`}

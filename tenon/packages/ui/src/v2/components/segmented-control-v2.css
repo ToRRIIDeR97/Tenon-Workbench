@@ -9,14 +9,15 @@
   display: flex;
   flex-direction: row;
   align-items: center;
-  padding: 0;
+  padding: 2px;
+  gap: 2px;
   width: 232px;
   max-width: 100%;
-  height: 28px;
-  background: var(--v2-background-bg-layer-01);
+  height: 32px;
+  background: var(--v2-background-bg-layer-02);
   border: none;
   border-radius: 6px;
-  box-shadow: 0 0 0 0.5px var(--v2-border-border-base);
+  box-shadow: none;
   flex: none;
 }
 
@@ -37,10 +38,9 @@
   box-shadow: none;
   cursor: default;
   font-style: normal;
-  font-weight: 440;
+  font-weight: 500;
   font-size: 13px;
   line-height: 16px;
-  letter-spacing: -0.04px;
   font-variant-numeric: tabular-nums;
   font-variation-settings: "slnt" 0;
   color: var(--v2-text-text-muted);
@@ -48,7 +48,7 @@
 
 [data-slot="segmented-control-v2-item"]:where(:disabled) {
   cursor: not-allowed;
-  opacity: 0.5;
+  color: var(--v2-text-text-disabled);
 }
 
 /* Hover and press lay an overlay over the item, the selected one included (over the sliding fill). */
@@ -67,14 +67,18 @@
   z-index: 2;
 }
 
-/* Selected: accent tonal fill with on-accent text, as in the sidebar. */
+/* Selected: a bg-base thumb with a subtle shadow on the grey track. */
 [data-slot="segmented-control-v2-item"]:where([data-pressed]) {
-  color: var(--v2-text-text-on-accent-container);
+  color: var(--v2-text-text-base);
+  font-weight: 600;
   z-index: 1;
 }
 
 [data-slot="segmented-control-v2"]:not([data-indicator]) [data-slot="segmented-control-v2-item"]:where([data-pressed]) {
-  background-color: var(--v2-background-bg-accent-container);
+  background-color: var(--v2-background-bg-base);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.08),
+    0 0 0 1px var(--v2-border-border-muted);
 }
 
 [data-slot="segmented-control-v2"]:not([data-indicator])
@@ -97,7 +101,10 @@
   height: var(--segmented-control-v2-indicator-height);
   transform: translate(var(--segmented-control-v2-indicator-x), var(--segmented-control-v2-indicator-y));
   border-radius: var(--v2-radius-full);
-  background-color: var(--v2-background-bg-accent-container);
+  background-color: var(--v2-background-bg-base);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.08),
+    0 0 0 1px var(--v2-border-border-muted);
   pointer-events: none;
   transition:
     transform var(--v2-duration-medium) var(--v2-ease-standard),

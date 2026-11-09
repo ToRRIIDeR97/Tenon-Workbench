@@ -31,7 +31,7 @@ import { NotesPageView } from "@/features/second-brain/notes-page"
 import { matchProjects, newPagePath } from "@/features/second-brain/notes-timeline"
 import { ProjectCreate, ProjectDetails, projectWorkPrompt } from "@/features/second-brain/project-details"
 import { ProjectView, sectionFromTab } from "@/features/second-brain/project-view"
-import { PageEmpty, pagePanelClass, pageRowClass } from "@/components/page"
+import { PageEmpty, PageHeader, pagePanelClass, pageRowClass } from "@/components/page"
 import { useBrainProjects } from "@/components/sidebar/sidebar-controller"
 import { useVaultPages, vaultMigration } from "@/features/second-brain/vault-pages"
 import { settled } from "@/utils/resource"
@@ -325,7 +325,7 @@ ${path}`
         {(moved) => (
           <div
             role="status"
-            class="mx-4 mt-3 flex items-center gap-2 rounded-[16px] bg-v2-background-bg-layer-01 py-1.5 pl-4 pr-1.5 text-[13px] text-v2-text-text-base sm:mx-6"
+            class="mx-6 mt-3 flex items-center gap-2 rounded-[16px] bg-v2-background-bg-layer-01 py-1.5 pl-4 pr-1.5 text-[13px] text-v2-text-text-base shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)] sm:mx-10"
           >
             <span class="min-w-0 flex-1">
               {language.plural("secondBrain.vault.moved", moved(), {
@@ -353,13 +353,13 @@ ${path}`
       {(list) => (
         <div
           role="status"
-          class="mx-4 mt-3 flex flex-col gap-1.5 rounded-[16px] bg-v2-background-bg-layer-01 px-4 py-3 text-[13px] sm:mx-6"
+          class="mx-6 mt-3 flex flex-col gap-1.5 rounded-[16px] bg-v2-background-bg-layer-01 px-4 py-3 text-[13px] shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)] sm:mx-10"
         >
           <p class="flex items-center gap-2 text-v2-text-text-base [font-weight:500]">
             <Icon name="warning" size="small" class="text-v2-icon-icon-muted" />
             {language.t("secondBrain.vault.conflicts.title")}
           </p>
-          <p class="text-[12px] text-v2-text-text-muted">{language.t("secondBrain.vault.conflicts.body")}</p>
+          <p class="type-meta text-v2-text-text-muted">{language.t("secondBrain.vault.conflicts.body")}</p>
           <ul class="flex flex-wrap gap-1.5">
             <For each={list()}>
               {(conflict) => (
@@ -397,11 +397,11 @@ ${path}`
     <li>
       <button type="button" class={pageRowClass} data-project-row={record.id} onClick={() => openProject(record.id)}>
         <span class="min-w-0 flex-1">
-          <span class="block truncate text-[14px] text-v2-text-text-base [font-weight:500]">{record.name}</span>
-          <span class="block truncate text-[12px] text-v2-text-text-faint">{record.outcome}</span>
+          <span class="block truncate type-row-title text-v2-text-text-base">{record.name}</span>
+          <span class="block truncate type-meta text-v2-text-text-muted">{record.outcome}</span>
         </span>
         <Show when={record.status === "paused"}>
-          <span class="shrink-0 text-[12px] text-v2-text-text-muted">
+          <span class="shrink-0 type-meta text-v2-text-text-muted">
             {language.t("secondBrain.projects.filter.paused")}
           </span>
         </Show>
@@ -411,7 +411,7 @@ ${path}`
             style={{ width: `${record.progressPercent}%` }}
           />
         </span>
-        <span class="w-9 shrink-0 text-right text-[12px] tabular-nums text-v2-text-text-faint">
+        <span class="w-9 shrink-0 text-right type-meta tabular-nums text-v2-text-text-muted">
           {record.progressPercent}%
         </span>
       </button>
@@ -419,7 +419,7 @@ ${path}`
   )
   const pageRow = (page: VaultPageInfo) => (
     <li>
-      <button type="button" class={`${pageRowClass} text-[13px]`} onClick={() => openPage(page.path)}>
+      <button type="button" class={`${pageRowClass} type-row-title`} onClick={() => openPage(page.path)}>
         <svg
           width="14"
           height="14"
@@ -433,7 +433,7 @@ ${path}`
         <span class="min-w-0 flex-1 truncate text-v2-text-text-base">{page.title}</span>
         <Show when={page.projectId && known().has(page.projectId) ? page.projectId : undefined}>
           {(id) => (
-            <span class="shrink-0 truncate text-[12px] text-v2-text-text-faint">
+            <span class="shrink-0 truncate type-meta text-v2-text-text-muted">
               {projects().find((item) => item.id === id())?.name}
             </span>
           )}
@@ -442,7 +442,7 @@ ${path}`
     </li>
   )
   const sectionTitle = (id: string, text: string) => (
-    <h2 id={id} class="px-3 text-[12px] text-v2-text-text-muted [font-weight:500]">
+    <h2 id={id} class="px-3 type-section text-v2-text-text-base">
       {text}
     </h2>
   )
@@ -451,29 +451,32 @@ ${path}`
     const active = () => projects().filter((record) => record.status !== "archived")
     const archived = () => projects().filter((record) => record.status === "archived")
     return (
-      <div class="mx-auto flex w-full max-w-[860px] flex-col gap-6 px-6 pb-10 pt-8 sm:px-10">
-        <header class="flex flex-wrap items-center gap-2">
-          <h1
+      <div class="mx-auto flex w-full max-w-[720px] flex-col gap-6 px-6 pb-10 sm:px-10">
+        {/* The header keeps its own gutter; the negative margin lines its title up with the column. */}
+        <div class="-mx-6">
+          <PageHeader
             id="projects-title"
-            class="min-w-0 flex-1 text-[28px] leading-[38px] text-v2-text-text-base [font-weight:700]"
-          >
-            {language.t("secondBrain.projects.title")}
-          </h1>
-          <ButtonV2 variant="ghost" icon="plus" disabled={state.creating} onClick={() => void createPage()}>
-            {language.t("secondBrain.vault.newPage")}
-          </ButtonV2>
-          <ButtonV2
-            variant="contrast"
-            icon="plus"
-            data-action="new-project"
-            onClick={() => navigate("/projects?new=1")}
-          >
-            {language.t("secondBrain.projects.new")}
-          </ButtonV2>
-        </header>
+            title={language.t("secondBrain.projects.title")}
+            actions={
+              <>
+                <ButtonV2 variant="ghost" icon="plus" disabled={state.creating} onClick={() => void createPage()}>
+                  {language.t("secondBrain.vault.newPage")}
+                </ButtonV2>
+                <ButtonV2
+                  variant="contrast"
+                  icon="plus"
+                  data-action="new-project"
+                  onClick={() => navigate("/projects?new=1")}
+                >
+                  {language.t("secondBrain.projects.new")}
+                </ButtonV2>
+              </>
+            }
+          />
+        </div>
         <RevealShow when={state.error}>
           {(error) => (
-            <p role="alert" class="px-1 text-[12px] text-v2-text-text-critical">
+            <p role="alert" class="px-1 type-meta text-v2-text-text-critical">
               {error()}
             </p>
           )}
@@ -483,7 +486,7 @@ ${path}`
             <Icon name="magnifying-glass" size="small" />
           </span>
           <input
-            class="h-9 w-full rounded-full bg-v2-background-bg-layer-01 pl-9 pr-3 text-[13px] text-v2-text-text-base transition-[background-color,box-shadow] duration-short ease-standard placeholder:text-v2-text-text-faint hover:bg-v2-background-bg-layer-02 motion-reduce:transition-none"
+            class="h-9 w-full rounded-full bg-v2-background-bg-layer-01 pl-9 pr-3 text-[13px] text-v2-text-text-base outline-none transition-[background-color,box-shadow] duration-short ease-standard [box-shadow:inset_0_0_0_1px_var(--v2-border-border-base)] placeholder:text-v2-text-text-faint focus:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)] motion-reduce:transition-none"
             aria-label={language.t("secondBrain.vault.search")}
             placeholder={language.t("secondBrain.vault.search")}
             value={state.search}
@@ -495,7 +498,7 @@ ${path}`
           fallback={
             <Show
               when={!matches.loading && state.query}
-              fallback={<p class="px-3 text-[12px] text-v2-text-text-faint">{language.t("common.loading")}</p>}
+              fallback={<p class="px-3 type-meta text-v2-text-text-muted">{language.t("common.loading")}</p>}
             >
               <Show
                 when={foundProjects().length + foundPages().length > 0}
@@ -526,10 +529,10 @@ ${path}`
                     <Icon name="workspace" size="small" />
                   </span>
                   <span class="min-w-0 flex-1">
-                    <span class="block truncate text-[13px] text-v2-text-text-base [font-weight:500]">
+                    <span class="block truncate type-row-title text-v2-text-text-base">
                       {language.t("secondBrain.projects.overview.title")}
                     </span>
-                    <span class="block truncate text-[12px] text-v2-text-text-faint">
+                    <span class="block truncate type-meta text-v2-text-text-muted">
                       {language.t("secondBrain.projects.overview.description")}
                     </span>
                   </span>
@@ -538,7 +541,7 @@ ${path}`
               <For each={active()}>{(record) => projectRow(record)}</For>
             </ul>
             <Show when={!brainProjects.loading() && active().length === 0}>
-              <p class="px-3 py-2 text-[13px] text-v2-text-text-faint">
+              <p class="px-3 py-2 type-control text-v2-text-text-muted">
                 {language.t("secondBrain.projects.emptyActive")}
               </p>
             </Show>
@@ -546,7 +549,7 @@ ${path}`
               <button
                 type="button"
                 aria-expanded={state.archivedOpen}
-                class="mt-1 flex w-fit items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base motion-reduce:transition-none"
+                class="mt-1 flex w-fit items-center gap-1.5 rounded-full px-3 py-1.5 type-control text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base motion-reduce:transition-none"
                 onClick={() => setState("archivedOpen", (open) => !open)}
               >
                 <Icon
@@ -587,7 +590,7 @@ ${path}`
               <Show
                 when={generalPages().length > 0}
                 fallback={
-                  <p class="px-3 py-2 text-[13px] text-v2-text-text-faint">
+                  <p class="px-3 py-2 type-control text-v2-text-text-muted">
                     {vault.loading() ? language.t("common.loading") : language.t("secondBrain.project.generalEmpty")}
                   </p>
                 }
@@ -647,7 +650,7 @@ ${path}`
               when={pagePath() ? { path: pagePath(), directory: directory() } : undefined}
               keyed
               fallback={
-                <main class="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+                <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
                   {conflictBanner()}
                   <Show
                     when={search.new !== "1"}
@@ -727,7 +730,7 @@ ${path}`
                       </Show>
                     </Show>
                   </Show>
-                </main>
+                </div>
               }
             >
               {(open) => (

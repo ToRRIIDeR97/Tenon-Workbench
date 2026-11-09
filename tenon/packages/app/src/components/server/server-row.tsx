@@ -70,7 +70,10 @@ export function ServerRow(props: ServerRowProps) {
       placement="top-start"
       inactive={!truncated() && !props.conn.displayName}
     >
-      <div class={props.class} classList={{ "opacity-50": props.dimmed }}>
+      <div
+        class={props.class}
+        classList={{ "text-v2-text-text-disabled [&_*]:!text-v2-text-text-disabled": props.dimmed }}
+      >
         <div class="flex flex-col items-start min-w-0 w-full">
           <div class="flex flex-row items-center gap-2 min-w-0 w-full">
             <span ref={nameRef} class={`${props.nameClass ?? "truncate"} min-w-0`}>
@@ -82,7 +85,7 @@ export function ServerRow(props: ServerRowProps) {
                 <Show when={props.status?.version}>
                   <span
                     ref={versionRef}
-                    class={`${props.versionClass ?? "text-[13px] text-v2-text-text-muted truncate"} min-w-0`}
+                    class={`${props.versionClass ?? "type-meta text-v2-text-text-muted truncate"} min-w-0`}
                   >
                     v{props.status?.version}
                   </span>
@@ -99,7 +102,7 @@ export function ServerRow(props: ServerRowProps) {
                   {conn().http.username ? (
                     <span class="text-v2-text-text-muted">{conn().http.username}</span>
                   ) : (
-                    <span class="text-v2-text-text-faint">{language.t("server.row.noUsername")}</span>
+                    <span class="text-v2-text-text-muted">{language.t("server.row.noUsername")}</span>
                   )}
                 </span>
                 {conn().http.password && <span class="text-v2-text-text-muted">••••••••</span>}

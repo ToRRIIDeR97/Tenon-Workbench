@@ -121,20 +121,17 @@ export default function ProjectOverviewPage() {
               onClick={() => navigate("/projects")}
             />
           </TooltipV2>
-          <h1
-            id="project-overview-title"
-            class="min-w-0 flex-1 truncate text-[17px] leading-6 text-v2-text-text-base [font-weight:600]"
-          >
+          <h1 id="project-overview-title" class="min-w-0 flex-1 truncate type-page-title text-v2-text-text-base">
             {language.t("secondBrain.projects.overview.title")}
           </h1>
         </header>
-        <div class="mx-auto flex w-full max-w-4xl flex-col gap-6 px-6 pb-10 pt-2">
+        <div class="mx-auto flex w-full max-w-[1040px] flex-col gap-6 px-6 pb-10 pt-2 sm:px-10">
           <label class="relative block">
             <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-v2-icon-icon-muted">
               <Icon name="magnifying-glass" size="small" />
             </span>
             <input
-              class="h-9 w-full rounded-full bg-v2-background-bg-layer-01 pl-9 pr-3 text-[13px] text-v2-text-text-base transition-[background-color,box-shadow] duration-short ease-standard placeholder:text-v2-text-text-faint hover:bg-v2-background-bg-layer-02 motion-reduce:transition-none"
+              class="h-9 w-full rounded-full bg-v2-background-bg-layer-01 pl-9 pr-3 text-[13px] text-v2-text-text-base outline-none transition-[background-color,box-shadow] duration-short ease-standard [box-shadow:inset_0_0_0_1px_var(--v2-border-border-base)] placeholder:text-v2-text-text-faint focus:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)] motion-reduce:transition-none"
               aria-label={language.t("secondBrain.projects.overview.filter")}
               placeholder={language.t("secondBrain.projects.overview.filter")}
               value={state.filter}
@@ -143,7 +140,7 @@ export default function ProjectOverviewPage() {
           </label>
           <Show
             when={!loading()}
-            fallback={<p class="px-3 py-2 text-[13px] text-v2-text-text-faint">{language.t("common.loading")}</p>}
+            fallback={<p class="px-3 py-2 type-control text-v2-text-text-muted">{language.t("common.loading")}</p>}
           >
             <Show
               when={!failed()}
@@ -187,14 +184,14 @@ export default function ProjectOverviewPage() {
                           </h2>
                           <Show when={group.status}>
                             {(status) => (
-                              <span class="shrink-0 text-[12px] text-v2-text-text-faint">
+                              <span class="shrink-0 type-meta text-v2-text-text-muted">
                                 {language.t(statusKey[status()])}
                               </span>
                             )}
                           </Show>
                           <Show when={group.projectId}>
                             {(id) => (
-                              <span class="w-10 shrink-0 text-right text-[12px] tabular-nums text-v2-text-text-muted">
+                              <span class="w-10 shrink-0 text-right type-meta tabular-nums text-v2-text-text-muted">
                                 {progress().get(id()) ?? 0}%
                               </span>
                             )}
@@ -203,7 +200,7 @@ export default function ProjectOverviewPage() {
                         <Show when={group.nextMilestone}>
                           {(milestone) => (
                             <div class="px-3">
-                              <p class="text-[12px] text-v2-text-text-muted">
+                              <p class="type-meta text-v2-text-text-muted">
                                 {language.t("secondBrain.projects.nextMilestone")}
                               </p>
                               <p class="mt-1 text-[13px] leading-5 text-v2-text-text-base">{milestone()}</p>
@@ -211,14 +208,14 @@ export default function ProjectOverviewPage() {
                           )}
                         </Show>
                         <Show when={group.items.length === 0 && group.notes.length === 0}>
-                          <p class="px-3 text-[13px] text-v2-text-text-faint">
+                          <p class="px-3 type-control text-v2-text-text-muted">
                             {language.t("secondBrain.projects.overview.nothing")}
                           </p>
                         </Show>
                         <Show when={group.items.length > 0}>
                           <div class="flex flex-col gap-1">
                             <div class="flex h-8 items-center gap-1 pl-3">
-                              <h3 class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-muted [font-weight:500]">
+                              <h3 class="min-w-0 flex-1 truncate type-section text-v2-text-text-base">
                                 {language.t("secondBrain.projects.overview.upcoming")}
                               </h3>
                               <Show when={group.items.length > preview}>
@@ -230,11 +227,11 @@ export default function ProjectOverviewPage() {
                             <ul class="flex flex-col gap-0.5">
                               <For each={group.items.slice(0, preview)}>
                                 {(item) => (
-                                  <li class="grid min-h-10 grid-cols-[100px_minmax(0,1fr)] items-center gap-3 rounded-[16px] px-3">
-                                    <span class="text-[11px] tabular-nums text-v2-text-text-faint">
+                                  <li class="grid min-h-10 grid-cols-[100px_minmax(0,1fr)] items-center gap-3 rounded-[12px] px-3">
+                                    <span class="type-meta tabular-nums text-v2-text-text-muted">
                                       {item.date ? formatDate(item.date) : language.t("secondBrain.tasks.unscheduled")}
                                     </span>
-                                    <span class="truncate text-[13px] text-v2-text-text-base">{item.title}</span>
+                                    <span class="truncate type-row-title text-v2-text-text-base">{item.title}</span>
                                   </li>
                                 )}
                               </For>
@@ -244,7 +241,7 @@ export default function ProjectOverviewPage() {
                         <Show when={group.notes.length > 0}>
                           <div class="flex flex-col gap-1">
                             <div class="flex h-8 items-center gap-1 pl-3">
-                              <h3 class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-muted [font-weight:500]">
+                              <h3 class="min-w-0 flex-1 truncate type-section text-v2-text-text-base">
                                 {language.t("secondBrain.projects.overview.notes")}
                               </h3>
                               <Show when={group.notes.length > preview}>
@@ -258,7 +255,7 @@ export default function ProjectOverviewPage() {
                                 {(note) => (
                                   <li>
                                     <button type="button" class={pageRowClass} onClick={() => openNote(note.path)}>
-                                      <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base">
+                                      <span class="min-w-0 flex-1 truncate type-row-title text-v2-text-text-base">
                                         {note.title}
                                       </span>
                                     </button>

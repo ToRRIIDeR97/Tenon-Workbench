@@ -105,7 +105,7 @@ export function SettingsCalendarV2() {
           <div class="settings-v2-section">
             <div class="flex items-center gap-2">
               <h4 class="settings-v2-section-title flex-1">{language.t("secondBrain.settings.calendar.sync")}</h4>
-              <span class="text-12-regular text-text-weak" data-slot="calendar-last-synced">
+              <span class="type-meta text-v2-text-text-muted" data-slot="calendar-last-synced">
                 {calendarSync.busy() ? language.t("secondBrain.settings.calendar.syncing") : ago()}
               </span>
               <ButtonV2

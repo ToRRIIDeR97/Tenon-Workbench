@@ -169,8 +169,8 @@ const FileTreeNode = (
       <span
         classList={{
           "flex-1 min-w-0 text-[13px] [font-weight:500] whitespace-nowrap truncate": true,
-          "text-v2-text-text-faint": local.node.ignored,
-          "text-v2-text-text-muted": !local.node.ignored && !active() && !selected(),
+          "text-v2-text-text-muted": local.node.ignored,
+          "text-v2-text-text-base": !local.node.ignored && !active() && !selected(),
         }}
         style={active() ? color() : undefined}
       >

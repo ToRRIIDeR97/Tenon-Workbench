@@ -226,7 +226,7 @@ function SessionErrorFallback(props: { error: unknown; sessionID?: string; serve
           <Show when={props.sessionID}>
             {(sessionID) => (
               <div class="max-w-full flex flex-col items-center gap-1">
-                <div class="max-w-full text-[11px] text-v2-text-text-faint break-all">{displayServer()}</div>
+                <div class="max-w-full text-[12px] leading-4 text-v2-text-text-muted break-all">{displayServer()}</div>
                 <code class="max-w-full rounded-full bg-v2-background-bg-layer-01 px-2.5 py-0.5 font-mono text-xs font-medium leading-5 text-v2-text-text-base break-all">
                   {sessionID()}
                 </code>
@@ -1299,9 +1299,7 @@ export default function Page() {
 
   const createGit = (input: { emptyClass: string }) => (
     <div class={input.emptyClass}>
-      <div class="text-[14px] text-v2-text-text-base [font-weight:500]">
-        {language.t("session.review.noVcs.createGit.title")}
-      </div>
+      <div class="type-row-title text-v2-text-text-base">{language.t("session.review.noVcs.createGit.title")}</div>
       <ButtonV2 variant="contrast" size="large" disabled={gitMutation.isPending} onClick={initGit}>
         {gitMutation.isPending
           ? language.t("session.review.noVcs.createGit.actionLoading")

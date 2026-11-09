@@ -57,7 +57,7 @@
       background-color: var(--surface-base-active);
     }
     &:disabled {
-      color: var(--text-weak);
+      color: var(--v2-text-text-disabled);
       cursor: not-allowed;
 
       [data-slot="icon-svg"] {
@@ -97,7 +97,7 @@
     &:disabled {
       border-color: var(--border-disabled);
       background-color: var(--surface-disabled);
-      color: var(--text-weak);
+      color: var(--v2-text-text-disabled);
       cursor: not-allowed;
     }
 

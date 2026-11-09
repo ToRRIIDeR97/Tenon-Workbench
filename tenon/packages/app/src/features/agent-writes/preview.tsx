@@ -104,7 +104,7 @@ function EmailDraft(props: { preview: EmailPreview; typing?: boolean }) {
         <span class="truncate font-[500]">{props.preview.subject}</span>
       </div>
       <p class="whitespace-pre-wrap break-words line-clamp-6">{body()}</p>
-      <p class="text-v2-text-text-faint">{language.t("secondBrain.agentWrites.email.draft")}</p>
+      <p class="text-[12px] leading-4 text-v2-text-text-muted">{language.t("secondBrain.agentWrites.email.draft")}</p>
     </div>
   )
 }

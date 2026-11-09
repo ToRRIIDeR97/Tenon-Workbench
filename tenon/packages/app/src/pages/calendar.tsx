@@ -2,6 +2,7 @@ import { useSearchParams } from "@solidjs/router"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
+import { MenuV2 } from "@tenon/ui/v2/menu-v2"
 import { SegmentedControlItemV2, SegmentedControlV2 } from "@tenon/ui/v2/segmented-control-v2"
 import { SelectV2 } from "@tenon/ui/v2/select-v2"
 import { TextInputV2 } from "@tenon/ui/v2/text-input-v2"
@@ -825,18 +826,10 @@ export default function CalendarPage() {
         id="calendar-title"
         title={language.t("secondBrain.calendar.title")}
         actions={
-          <Show when={directory()}>
-            <nav aria-label={language.t("secondBrain.calendar.views")}>
-              <SegmentedControlV2 class="!w-auto" value={taskView() ? "tasks" : state.view}>
-                <For each={calendarNavigation}>
-                  {(view) => (
-                    <SegmentedControlItemV2 value={view} class="!flex-auto" onClick={() => selectView(view)}>
-                      {language.t(`secondBrain.calendar.view.${view}`)}
-                    </SegmentedControlItemV2>
-                  )}
-                </For>
-              </SegmentedControlV2>
-            </nav>
+          <Show when={directory() && !taskView()}>
+            <ButtonV2 variant="contrast" icon="plus" onClick={() => openNew()}>
+              {language.t("secondBrain.calendar.new")}
+            </ButtonV2>
           </Show>
         }
       />
@@ -858,16 +851,6 @@ export default function CalendarPage() {
       >
         <div class="flex shrink-0 flex-wrap items-center gap-1 px-5 pb-3 pt-1">
           <Show when={!taskView() && state.view !== "agenda"}>
-            <ButtonV2
-              size="small"
-              variant="outline"
-              class="mr-1"
-              onClick={() =>
-                setState("cursor", new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate(), 12))
-              }
-            >
-              {language.t("secondBrain.calendar.today")}
-            </ButtonV2>
             <TooltipV2
               value={language.t(
                 state.view === "week"
@@ -914,14 +897,23 @@ export default function CalendarPage() {
                 onClick={() => shiftCursor(1)}
               />
             </TooltipV2>
+            <ButtonV2
+              size="small"
+              variant="ghost"
+              onClick={() =>
+                setState("cursor", new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate(), 12))
+              }
+            >
+              {language.t("secondBrain.calendar.today")}
+            </ButtonV2>
           </Show>
-          <h2 class="ml-1 min-w-0 flex-1 truncate text-[15px] text-v2-text-text-base [font-weight:600]">
+          <h2 class="ml-1 min-w-0 flex-1 truncate text-[15px] leading-[22px] text-v2-text-text-base [font-weight:600]">
             <Show when={!taskView()}>{viewTitle()}</Show>
           </h2>
           <Show when={!taskView()}>
             <SelectV2
               aria-label={language.t("secondBrain.calendar.filterProject")}
-              class="!h-8 !w-auto max-w-44"
+              class="!h-8 !w-auto max-w-44 !rounded-full !bg-transparent !shadow-none hover:!bg-v2-overlay-simple-overlay-hover"
               options={["__all__", ...(brainProjects.list() ?? []).map((project) => project.id)]}
               current={state.projectFilter || "__all__"}
               label={(projectID) =>
@@ -935,32 +927,56 @@ export default function CalendarPage() {
           <RevealShow when={state.googleError} class="max-w-48 min-w-0">
             {(error) => (
               <TooltipV2 placement="bottom" class="min-w-0" value={error()}>
-                <span role="alert" class="block truncate text-[11px] text-v2-text-text-critical">
+                <span role="alert" class="block truncate type-caption text-v2-text-text-critical">
                   {error()}
                 </span>
               </TooltipV2>
             )}
           </RevealShow>
-          <ButtonV2
-            variant="ghost"
-            size="small"
-            aria-expanded={state.googlePanel}
-            onClick={() =>
-              setState({
-                googlePanel: !state.googlePanel,
-                peek: "",
-                editing: false,
-                ...(taskView() ? { view: "today" as const } : {}),
-              })
-            }
-          >
-            {googleStatus()}
-          </ButtonV2>
-          <Show when={!taskView()}>
-            <ButtonV2 variant="contrast" size="small" icon="plus" onClick={() => openNew()}>
-              {language.t("secondBrain.calendar.new")}
-            </ButtonV2>
-          </Show>
+          <nav aria-label={language.t("secondBrain.calendar.views")}>
+            <SegmentedControlV2 class="!w-auto" value={taskView() ? "tasks" : state.view}>
+              <For each={calendarNavigation}>
+                {(view) => (
+                  <SegmentedControlItemV2 value={view} class="!flex-auto" onClick={() => selectView(view)}>
+                    {language.t(`secondBrain.calendar.view.${view}`)}
+                  </SegmentedControlItemV2>
+                )}
+              </For>
+            </SegmentedControlV2>
+          </nav>
+          {/* Google sync and accounts. The accounts panel sits beside the calendar views, so the tasks view offers
+              only Sync now: opening the menu never changes the view. */}
+          <MenuV2 gutter={4} placement="bottom-end">
+            <MenuV2.Trigger
+              as={IconButtonV2}
+              variant="ghost"
+              icon={<Icon name="outline-dots" />}
+              aria-label={language.t("secondBrain.calendar.moreActions")}
+            />
+            <MenuV2.Portal>
+              <MenuV2.Content>
+                <MenuV2.Group>
+                  <MenuV2.GroupLabel>{googleStatus()}</MenuV2.GroupLabel>
+                  <Show when={settled(googleConnection)?.connected}>
+                    <MenuV2.Item disabled={state.googleBusy} onSelect={() => void syncGoogle()}>
+                      {state.googleBusy
+                        ? language.t("secondBrain.calendar.google.syncing")
+                        : language.t("secondBrain.calendar.google.sync")}
+                    </MenuV2.Item>
+                  </Show>
+                  <Show when={!taskView()}>
+                    <MenuV2.Item onSelect={() => setState({ googlePanel: true, peek: "", editing: false })}>
+                      {language.t(
+                        settled(googleConnection)?.connected
+                          ? "secondBrain.calendar.google.accounts"
+                          : "secondBrain.calendar.google.connect",
+                      )}
+                    </MenuV2.Item>
+                  </Show>
+                </MenuV2.Group>
+              </MenuV2.Content>
+            </MenuV2.Portal>
+          </MenuV2>
         </div>
 
         {/* Tasks and the calendar fade through; inside the calendar, month, day/week and agenda do. */}
@@ -1011,7 +1027,7 @@ export default function CalendarPage() {
                   <Show
                     when={!events.loading()}
                     fallback={
-                      <div class="flex flex-1 items-center justify-center text-[13px] text-v2-text-text-faint">
+                      <div class="flex flex-1 items-center justify-center text-[13px] text-v2-text-text-muted">
                         {language.t("common.loading")}
                       </div>
                     }
@@ -1039,11 +1055,9 @@ export default function CalendarPage() {
                                 >
                                   <For each={scheduleDays()}>
                                     {(day) => (
-                                      <section class="flex gap-2 py-2 shadow-[inset_0_0.5px_0_var(--v2-border-border-muted)] first:shadow-none [content-visibility:auto] [contain-intrinsic-size:auto_96px]">
+                                      <section class="flex gap-2 py-2 shadow-[inset_0_1px_0_var(--v2-border-border-muted)] first:shadow-none [content-visibility:auto] [contain-intrinsic-size:auto_96px]">
                                         <div class="flex w-16 shrink-0 flex-col items-center pt-1.5">
-                                          <span class="text-[11px] uppercase tracking-[0.04em] text-v2-text-text-muted [font-weight:600]">
-                                            {day.weekday}
-                                          </span>
+                                          <span class="type-caption text-v2-text-text-muted">{day.weekday}</span>
                                           <span
                                             classList={{
                                               "mt-1 flex size-9 items-center justify-center rounded-full text-[17px]": true,
@@ -1137,10 +1151,10 @@ export default function CalendarPage() {
                   <div class="flex flex-col gap-3 p-4">
                     <div class="flex items-start gap-2">
                       <div class="min-w-0 flex-1">
-                        <h2 class="text-[14px] text-v2-text-text-base [font-weight:500]">
+                        <h2 class="type-section text-v2-text-text-base">
                           {language.t("secondBrain.calendar.google.title")}
                         </h2>
-                        <p class="mt-1 text-[11px] leading-4 text-v2-text-text-faint">
+                        <p class="mt-1 type-meta text-v2-text-text-muted">
                           {language.t("secondBrain.calendar.google.description")}
                         </p>
                       </div>
@@ -1157,7 +1171,7 @@ export default function CalendarPage() {
                     </div>
                     <Show
                       when={!googleConnection.loading}
-                      fallback={<p class="text-[12px] text-v2-text-text-faint">{language.t("common.loading")}</p>}
+                      fallback={<p class="text-[12px] text-v2-text-text-muted">{language.t("common.loading")}</p>}
                     >
                       <Show
                         when={settled(googleConnection)?.available}
@@ -1214,7 +1228,7 @@ export default function CalendarPage() {
                                   }
                                 />
                               </label>
-                              <p class="text-[11px] leading-4 text-v2-text-text-faint">
+                              <p class="text-[11px] leading-4 text-v2-text-text-muted">
                                 {googleTypedClient()
                                   ? language.t("secondBrain.calendar.google.credentialNote")
                                   : language.t("secondBrain.calendar.google.signInNote")}
@@ -1266,7 +1280,7 @@ export default function CalendarPage() {
                             >
                               <For each={settled(googleConnection)?.accounts ?? []}>
                                 {(account) => (
-                                  <li class="flex flex-col gap-2 rounded-[12px] bg-v2-background-bg-base p-3">
+                                  <li class="flex flex-col gap-2 rounded-[12px] bg-v2-background-bg-base p-3 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]">
                                     <div class="flex items-center gap-2">
                                       <span class="min-w-0 flex-1 truncate text-[12px] text-v2-text-text-base [font-weight:500]">
                                         {account.label || language.t("secondBrain.calendar.google.accountFallback")}
@@ -1283,14 +1297,14 @@ export default function CalendarPage() {
                                         {language.t("secondBrain.calendar.google.disconnectAccount")}
                                       </ButtonV2>
                                     </div>
-                                    <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-[11px]">
+                                    <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 type-meta">
                                       <Show when={account.email && account.email !== account.label}>
-                                        <dt class="text-v2-text-text-faint">
+                                        <dt class="text-v2-text-text-muted">
                                           {language.t("secondBrain.calendar.google.account")}
                                         </dt>
                                         <dd class="truncate text-v2-text-text-base">{account.email}</dd>
                                       </Show>
-                                      <dt class="text-v2-text-text-faint">
+                                      <dt class="text-v2-text-text-muted">
                                         {language.t("secondBrain.calendar.google.access")}
                                       </dt>
                                       <dd class="text-v2-text-text-base">
@@ -1298,7 +1312,7 @@ export default function CalendarPage() {
                                           ? language.t("secondBrain.calendar.google.access.write")
                                           : language.t("secondBrain.calendar.google.access.read")}
                                       </dd>
-                                      <dt class="text-v2-text-text-faint">
+                                      <dt class="text-v2-text-text-muted">
                                         {language.t("secondBrain.calendar.google.lastSync")}
                                       </dt>
                                       <dd class="text-v2-text-text-base">
@@ -1412,7 +1426,7 @@ function ScheduleRow(props: {
   return (
     <div
       classList={{
-        "flex min-h-11 items-center gap-1.5 rounded-[16px] pr-3 transition-colors duration-short ease-standard motion-reduce:transition-none": true,
+        "flex min-h-11 items-center gap-1.5 rounded-[12px] pr-3 transition-colors duration-short ease-standard motion-reduce:transition-none": true,
         "bg-v2-background-bg-accent-container": props.selected,
         "hover:bg-v2-overlay-simple-overlay-hover": !props.selected,
       }}
@@ -1428,26 +1442,26 @@ function ScheduleRow(props: {
         aria-pressed={props.selected}
         onClick={props.onOpen}
       >
-        <span class="w-28 shrink-0 text-[12px] tabular-nums text-v2-text-text-muted">{time()}</span>
+        <span class="w-28 shrink-0 type-meta tabular-nums text-v2-text-text-muted">{time()}</span>
         <span class="min-w-0 flex-1">
           <span
             classList={{
               "block truncate text-[13px]": true,
               "text-v2-text-on-accent-container [font-weight:600]": props.selected,
-              "text-v2-text-text-base [font-weight:400]": !props.selected,
+              "text-v2-text-text-base [font-weight:450]": !props.selected,
             }}
           >
             {props.item.title}
           </span>
           <Show when={props.item.projectId}>
             {(id) => (
-              <span class="block truncate text-[11px] text-v2-text-text-faint">
+              <span class="block truncate type-meta text-v2-text-text-muted">
                 {props.projects.find((project) => project.id === id())?.name ?? id()}
               </span>
             )}
           </Show>
         </span>
-        <span class="shrink-0 text-[11px] text-v2-text-text-faint">
+        <span class="shrink-0 type-meta text-v2-text-text-muted">
           {props.eventSource(event?.source ?? task?.source ?? "local")}
         </span>
       </button>

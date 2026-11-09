@@ -1,9 +1,9 @@
+import { Icon } from "@tenon/ui/v2/icon"
 import { LoaderV2 } from "@tenon/ui/v2/loader-v2"
 import { children, Show, type JSX, type ParentProps } from "solid-js"
 
 /** The rounded surface every page sits on, next to the nav rail and projects panel. */
-export const pagePanelClass =
-  "rounded-[24px] bg-v2-background-bg-base shadow-[0_0_0_0.5px_var(--v2-border-border-muted)]"
+export const pagePanelClass = "rounded-[24px] bg-v2-background-bg-base shadow-[0_0_0_1px_var(--v2-border-border-muted)]"
 
 /** Full-height page: one rounded panel that scrolls. Pages with their own layout use `pagePanelClass`. */
 export function PageFrame(props: ParentProps<{ labelledBy?: string; class?: string }>) {
@@ -18,10 +18,7 @@ export function PageFrame(props: ParentProps<{ labelledBy?: string; class?: stri
 export function PageHeader(props: { id?: string; title: string; actions?: JSX.Element }) {
   return (
     <header class="flex min-h-14 shrink-0 flex-wrap items-center gap-2 px-6 pt-3">
-      <h1
-        id={props.id}
-        class="max-w-full flex-1 shrink-0 truncate text-[17px] leading-6 text-v2-text-text-base [font-weight:600]"
-      >
+      <h1 id={props.id} class="max-w-full flex-1 shrink-0 truncate type-page-title text-v2-text-text-base">
         {props.title}
       </h1>
       <Show when={props.actions}>
@@ -38,17 +35,15 @@ export function PageSection(
   return (
     <section class={`flex flex-col gap-1 ${props.class ?? ""}`} aria-labelledby={props.id}>
       <div class="flex h-8 items-center gap-1 pl-3">
-        <h2
-          id={props.id}
-          class="min-w-0 flex-1 truncate text-[12px] leading-4 text-v2-text-text-muted [font-weight:500]"
-        >
-          <Show when={props.onTitle} fallback={props.title}>
+        <h2 id={props.id} class="flex min-w-0 flex-1 type-section text-v2-text-text-base">
+          <Show when={props.onTitle} fallback={<span class="truncate">{props.title}</span>}>
             <button
               type="button"
-              class="rounded-full text-left transition-colors duration-short ease-standard hover:text-v2-text-text-base"
+              class="-ml-2 flex h-7 min-w-0 items-center gap-0.5 rounded-full pr-1 pl-2 text-left transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover active:bg-v2-overlay-simple-overlay-pressed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
               onClick={() => props.onTitle?.()}
             >
-              {props.title}
+              <span class="truncate">{props.title}</span>
+              <Icon name="chevron-right" size="small" class="shrink-0 text-v2-icon-icon-muted" />
             </button>
           </Show>
         </h2>
@@ -60,8 +55,8 @@ export function PageSection(
 }
 
 /**
- * The one empty, loading and error block: centred in the space the view would fill, with a title (15/22 600),
- * a muted body (13/20) and at most one pill action. `loading` puts a spinner before the title; `error` marks it
+ * The one empty, loading and error block: centred near the top of the space the view would fill, with a title
+ * (15/22 600), a muted body (type-body) and at most one pill action. `loading` puts a spinner before the title; `error` marks it
  * as an alert and pairs with a plain-language body and an outline "Try again" action, never a raw error code.
  */
 export function PageEmpty(
@@ -71,7 +66,7 @@ export function PageEmpty(
   return (
     <div
       role={props.error ? "alert" : props.loading ? "status" : undefined}
-      class={`flex flex-1 flex-col items-center px-6 pt-[15vh] pb-16 text-center ${props.class ?? ""}`}
+      class={`flex flex-1 flex-col items-center px-6 pt-24 pb-16 text-center ${props.class ?? ""}`}
     >
       <Show when={props.title}>
         <div class="flex max-w-sm items-center gap-2">
@@ -82,9 +77,7 @@ export function PageEmpty(
         </div>
       </Show>
       <Show when={body()}>
-        <p classList={{ "max-w-sm text-[13px] leading-5 text-v2-text-text-muted": true, "mt-1": !!props.title }}>
-          {body()}
-        </p>
+        <p classList={{ "max-w-sm type-body text-v2-text-text-muted": true, "mt-1": !!props.title }}>{body()}</p>
       </Show>
       <Show when={props.action}>
         <div class="mt-4">{props.action}</div>
@@ -93,6 +86,6 @@ export function PageEmpty(
   )
 }
 
-/** Shared list-row look: a pill-shaped hover target. */
+/** Shared list-row look: a 12px-radius row with hover, pressed and focus states. */
 export const pageRowClass =
-  "flex w-full min-w-0 items-center gap-3 rounded-[16px] px-3 py-2.5 text-left transition-[background-color,border-radius] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover active:rounded-[12px] focus-visible:outline-offset-[-2px] motion-reduce:transition-none"
+  "flex w-full min-w-0 items-center gap-3 rounded-[12px] px-3 py-2 text-left transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover active:bg-v2-overlay-simple-overlay-pressed focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"

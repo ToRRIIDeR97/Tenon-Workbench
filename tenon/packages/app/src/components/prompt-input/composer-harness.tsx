@@ -133,7 +133,7 @@ export function ComposerModelPill(props: { harness: ComposerHarness }) {
     // The harness query suspends while it loads; this boundary keeps the rest of the page on screen.
     <Suspense
       fallback={
-        <span class="flex h-8 items-center px-2 text-[12px] text-v2-text-text-faint">
+        <span class="flex h-8 items-center px-3 type-control text-v2-text-text-muted">
           {language.t("harness.checking")}
         </span>
       }

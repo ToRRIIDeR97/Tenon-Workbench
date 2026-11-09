@@ -230,7 +230,7 @@ test("merge AC-5 /notes links open the same Project under /projects", async ({ p
 test("merge AC-3 Settings holds the Project's card", async ({ page }) => {
   await open(page)
   await page.goto(`/projects?project=${project.project.id}&section=settings`)
-  await expect(page.getByRole("button", { name: "Archive Project", exact: true })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Archive project", exact: true })).toBeVisible()
 })
 
 test("merge AC-4 New Project opens the create form", async ({ page }) => {
@@ -238,6 +238,6 @@ test("merge AC-4 New Project opens the create form", async ({ page }) => {
   await page.goto("/projects")
   await page.locator('[data-action="new-project"]').click()
   await expect(page).toHaveURL(/\/projects\?new=1$/)
-  await expect(page.getByRole("heading", { name: "Create a Project" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Create a project" })).toBeVisible()
   await expect(page.getByRole("textbox", { name: "Project name" })).toBeFocused()
 })

@@ -76,7 +76,7 @@ export function FileViewer(props: {
             {(value) => (
               <button
                 type="button"
-                class="h-7 rounded-full px-3 text-12-medium text-v2-text-text-weak transition-[background-color,color] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base active:bg-v2-overlay-simple-overlay-pressed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none aria-pressed:bg-v2-background-bg-accent-container aria-pressed:text-v2-text-text-on-accent-container"
+                class="h-7 rounded-full px-3 text-12-medium text-v2-text-text-muted transition-[background-color,color] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base active:bg-v2-overlay-simple-overlay-pressed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none aria-pressed:bg-v2-background-bg-accent-container aria-pressed:text-v2-text-text-on-accent-container"
                 aria-pressed={mode() === value}
                 data-action={`file-viewer-${value}`}
                 onClick={() => setMode(value)}
@@ -116,7 +116,7 @@ export function FileViewer(props: {
             <Doc url={url()!} />
           </Match>
           <Match when={!url.loading && !url()}>
-            <div class="px-6 py-4 text-13-regular text-v2-text-text-weak">
+            <div class="px-6 py-4 text-13-regular text-v2-text-text-muted">
               {language.t("secondBrain.fileViewer.unavailable")}
             </div>
           </Match>
@@ -132,13 +132,13 @@ function Table(props: { rows: string[][]; header?: boolean }) {
   const body = () => props.rows.slice(1, MAX_ROWS + 1)
   return (
     <div class="px-4 pb-40">
-      <div class="overflow-auto rounded-xl border border-v2-border-border-base">
+      <div class="overflow-auto rounded-xl border border-v2-border-border-muted">
         <table class="min-w-full border-collapse text-12-regular tabular-nums">
           <thead>
             <tr>
               <For each={head()}>
                 {(cell) => (
-                  <th class="sticky top-0 border-b border-v2-border-border-base bg-v2-background-bg-layer-01 px-3 py-1.5 text-left text-12-medium">
+                  <th class="sticky top-0 border-b border-v2-border-border-muted bg-v2-background-bg-layer-01 px-3 py-1.5 text-left text-12-medium text-v2-text-text-base">
                     {cell}
                   </th>
                 )}
@@ -148,7 +148,7 @@ function Table(props: { rows: string[][]; header?: boolean }) {
           <tbody>
             <For each={body()}>
               {(row) => (
-                <tr class="border-b border-v2-border-border-weak last:border-b-0">
+                <tr class="border-b border-v2-border-border-muted last:border-b-0">
                   <For each={row}>{(cell) => <td class="whitespace-nowrap px-3 py-1">{cell}</td>}</For>
                 </tr>
               )}
@@ -157,7 +157,7 @@ function Table(props: { rows: string[][]; header?: boolean }) {
         </table>
       </div>
       <Show when={props.rows.length - 1 > MAX_ROWS}>
-        <p class="px-1 pt-2 text-12-regular text-v2-text-text-weak">
+        <p class="px-1 pt-2 text-12-regular text-v2-text-text-muted">
           {language.t("secondBrain.fileViewer.rowsShown", { shown: MAX_ROWS, total: props.rows.length - 1 })}
         </p>
       </Show>
@@ -231,7 +231,7 @@ function JsonNode(props: { name?: string; value: unknown; depth: number }): JSX.
       when={branch()}
       fallback={
         <div>
-          <span class="text-v2-text-text-weak">{label()}</span>
+          <span class="text-v2-text-text-muted">{label()}</span>
           <span class={typeof props.value === "string" ? "text-v2-state-fg-success" : "text-v2-text-text-base"}>
             {JSON.stringify(props.value)}
           </span>
@@ -240,7 +240,7 @@ function JsonNode(props: { name?: string; value: unknown; depth: number }): JSX.
     >
       <details open={props.depth < 2} class="pl-3">
         <summary class="-ml-3 select-none">
-          <span class="text-v2-text-text-weak">{label()}</span>
+          <span class="text-v2-text-text-muted">{label()}</span>
           {Array.isArray(props.value) ? `[ ${entries().length} ]` : `{ ${entries().length} }`}
         </summary>
         <For each={entries()}>{([name, value]) => <JsonNode name={name} value={value} depth={props.depth + 1} />}</For>
@@ -273,7 +273,7 @@ function Sheet(props: { url: string }) {
         <Show
           when={sheets().length > 0}
           fallback={
-            <div class="px-6 py-4 text-13-regular text-v2-text-text-weak">
+            <div class="px-6 py-4 text-13-regular text-v2-text-text-muted">
               {language.t("secondBrain.fileViewer.unavailable")}
             </div>
           }
@@ -291,7 +291,7 @@ function Sheet(props: { url: string }) {
                     type="button"
                     role="tab"
                     aria-selected={index() === active()}
-                    class="h-7 rounded-full px-3 text-12-medium text-v2-text-text-weak transition-[background-color,color] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base active:bg-v2-overlay-simple-overlay-pressed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none aria-selected:bg-v2-background-bg-accent-container aria-selected:text-v2-text-text-on-accent-container"
+                    class="h-7 rounded-full px-3 text-12-medium text-v2-text-text-muted transition-[background-color,color] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base active:bg-v2-overlay-simple-overlay-pressed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none aria-selected:bg-v2-background-bg-accent-container aria-selected:text-v2-text-text-on-accent-container"
                     onClick={() => setActive(index())}
                   >
                     {sheet.name}
@@ -328,7 +328,7 @@ function Doc(props: { url: string }) {
       <Show
         when={html()}
         fallback={
-          <div class="px-6 py-4 text-13-regular text-v2-text-text-weak">
+          <div class="px-6 py-4 text-13-regular text-v2-text-text-muted">
             {language.t("secondBrain.fileViewer.unavailable")}
           </div>
         }

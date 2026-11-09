@@ -108,7 +108,7 @@ export function DialogAddProject(props: { server: ServerConnection.Any; onAdd: (
                       <Icon name="folder" size="small" class="shrink-0 text-v2-icon-icon-muted" />
                       <span class="shrink-0 text-v2-text-text-base">{getFilename(folder)}</span>
                       {/* Long paths keep their end visible: the start is what the name already implies. */}
-                      <span class="min-w-0 flex-1 truncate text-right font-mono text-[11px] text-v2-text-text-faint [direction:rtl]">
+                      <span class="min-w-0 flex-1 truncate text-right font-mono text-[11px] text-v2-text-text-muted [direction:rtl]">
                         <bdi>{folder}</bdi>
                       </span>
                     </button>

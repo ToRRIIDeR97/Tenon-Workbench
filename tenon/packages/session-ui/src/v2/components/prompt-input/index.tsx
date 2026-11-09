@@ -379,7 +379,7 @@ function renderPromptInputV2Editor(
           mention.dataset.modeLabel = part.url?.includes("full=1") ? labels.full : labels.summary
           mention.title = labels.toggle
           mention.className =
-            "cursor-pointer text-syntax-property after:ml-1 after:rounded-full after:bg-v2-background-bg-layer-02 after:px-1.5 after:py-px after:text-[11px] after:font-medium after:text-v2-text-text-weak after:content-[attr(data-mode-label)]"
+            "cursor-pointer text-syntax-property after:ml-1 after:rounded-full after:bg-v2-background-bg-layer-02 after:px-1.5 after:py-px after:text-[11px] after:font-medium after:text-v2-text-text-muted after:content-[attr(data-mode-label)]"
         }
       }
       return [mention]
@@ -567,7 +567,7 @@ export function PromptInputV2Attachments(props: {
                       class="w-[58px] h-[46px] rounded-[12px] object-cover"
                       onClick={() => props.onAttachmentClick?.(attachment)}
                     />
-                    <div class="absolute inset-0 rounded-[12px] shadow-[inset_0_0_0_0.5px_var(--v2-border-border-base)] pointer-events-none" />
+                    <div class="absolute inset-0 rounded-[12px] shadow-[inset_0_0_0_1px_var(--v2-border-border-base)] pointer-events-none" />
                   </Show>
                 </TooltipV2>
                 <button
@@ -791,7 +791,7 @@ export function PromptInputV2Popover(props: {
 }) {
   return (
     <div
-      class="absolute inset-x-0 -top-2 z-40 flex max-h-80 -translate-y-full flex-col overflow-auto rounded-[16px] bg-v2-background-bg-layer-01 p-2 shadow-[var(--v2-elevation-floating)]"
+      class="absolute inset-x-0 -top-2 z-40 flex max-h-80 -translate-y-full flex-col overflow-auto rounded-[16px] bg-v2-background-bg-base p-2 shadow-[var(--v2-elevation-floating)]"
       onMouseDown={(event) => event.preventDefault()}
     >
       <Show when={props.search}>

@@ -137,7 +137,7 @@ export function DateChip(props: {
             onClick={() => shift(1)}
           />
         </div>
-        <div class="grid grid-cols-7 text-center text-[11px] text-v2-text-text-faint">
+        <div class="grid grid-cols-7 text-center text-[11px] text-v2-text-text-muted">
           <For each={weekdays()}>{(name) => <span>{name}</span>}</For>
         </div>
         <div class="grid grid-cols-7 gap-0.5">

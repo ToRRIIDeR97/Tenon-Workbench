@@ -352,7 +352,7 @@ const ConnectView: Component<{ setup: Setup; item: Harness.SetupStatus }> = (pro
               <Terminal
                 pty={{ id: props.setup.state.terminal!.id, title: props.item.name, titleNumber: 0 }}
                 autoFocus
-                class="!px-[10px]"
+                class="!px-3"
               />
             </div>
             <div class="settings-v2-harness-setup-actions">
@@ -450,7 +450,7 @@ const HarnessSetupDialog: Component<{ directory: string; harness?: string; onClo
   return (
     <DialogV2
       containerClass="!h-[min(calc(100vh_-_16px),560px)] !w-[min(calc(100vw_-_16px),640px)]"
-      class="[font-family:var(--v2-font-family-sans)] [&_[data-slot=dialog-header]]:!px-5 [&_[data-slot=dialog-header-title]]:!text-[15px] [&_[data-slot=dialog-header-title]]:!tracking-[-0.13px]"
+      class="[font-family:var(--v2-font-family-sans)] [&_[data-slot=dialog-header]]:!px-6"
     >
       <DialogHeader closeLabel={language.t("common.close")}>
         <Show when={selected()} fallback={<DialogTitle>{language.t("harness.setup.title")}</DialogTitle>}>

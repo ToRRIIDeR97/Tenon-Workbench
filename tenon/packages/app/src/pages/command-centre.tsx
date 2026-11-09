@@ -110,12 +110,9 @@ export default function CommandCentrePage() {
                   </ButtonV2>
                 )}
               </Show>
-              <A
-                href="/routines"
-                class="rounded-full px-3 py-1.5 text-[13px] text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base motion-reduce:transition-none"
-              >
+              <ButtonV2 size="small" variant="ghost" icon="refresh" onClick={() => navigate("/routines")}>
                 {language.t("secondBrain.routines.title")}
-              </A>
+              </ButtonV2>
             </>
           }
         />
@@ -129,7 +126,7 @@ export default function CommandCentrePage() {
             >
               <input
                 type="search"
-                class="h-8 w-full rounded-full border border-v2-border-border-muted bg-v2-background-bg-deep px-3 text-[12px] text-v2-text-text-base outline-none placeholder:text-v2-text-text-faint focus:border-v2-border-border-focus"
+                class="h-8 w-full rounded-full bg-v2-background-bg-layer-01 px-3 type-control text-v2-text-text-base outline-none [box-shadow:inset_0_0_0_1px_var(--v2-border-border-base)] placeholder:text-v2-text-text-faint focus:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)]"
                 placeholder={language.t("secondBrain.commandCentre.memory.placeholder")}
                 aria-label={language.t("secondBrain.commandCentre.memory.label")}
                 value={state.memory}
@@ -143,7 +140,7 @@ export default function CommandCentrePage() {
               <Show
                 when={!hits.loading}
                 fallback={
-                  <p role="status" class="px-3 text-[12px] text-v2-text-text-faint">
+                  <p role="status" class="px-3 type-meta text-v2-text-text-muted">
                     {language.t("secondBrain.commandCentre.memory.searching")}
                   </p>
                 }
@@ -152,7 +149,7 @@ export default function CommandCentrePage() {
                   <For
                     each={hits()?.items ?? []}
                     fallback={
-                      <li role={hits()?.failed ? "alert" : undefined} class="px-3 text-[12px] text-v2-text-text-faint">
+                      <li role={hits()?.failed ? "alert" : undefined} class="px-3 type-meta text-v2-text-text-muted">
                         {language.t(hits()?.failed ? "common.requestFailed" : "secondBrain.commandCentre.memory.empty")}
                       </li>
                     }
@@ -170,7 +167,7 @@ export default function CommandCentrePage() {
                           }}
                         >
                           <span
-                            class="min-w-0 flex-1 whitespace-pre-wrap text-[12px] text-v2-text-text-muted"
+                            class="min-w-0 flex-1 whitespace-pre-wrap type-meta text-v2-text-text-muted"
                             classList={{ "line-clamp-2": state.hit !== index() }}
                           >
                             {hit.text}
@@ -185,7 +182,7 @@ export default function CommandCentrePage() {
             <Show
               when={centre.threads().length > 0}
               fallback={
-                <p role={centre.loading() ? "status" : undefined} class="px-3 py-2 text-[12px] text-v2-text-text-faint">
+                <p role={centre.loading() ? "status" : undefined} class="px-3 py-2 type-meta text-v2-text-text-muted">
                   {centre.loading()
                     ? language.t("common.loading")
                     : language.t("secondBrain.commandCentre.threads.empty")}
@@ -205,9 +202,11 @@ export default function CommandCentrePage() {
             </Show>
           </aside>
           <div class="@container flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-6 overflow-y-auto rounded-[20px] bg-v2-background-bg-deep px-6 py-8">
-            <PageEmpty title={language.t("secondBrain.commandCentre.empty.title")}>
-              {language.t("secondBrain.commandCentre.empty.body")}
-            </PageEmpty>
+            <Show when={!centre.loading() && centre.threads().length === 0}>
+              <PageEmpty title={language.t("secondBrain.commandCentre.empty.title")}>
+                {language.t("secondBrain.commandCentre.empty.body")}
+              </PageEmpty>
+            </Show>
             <ComposerBox
               size="large"
               class="w-full max-w-[720px]"
@@ -218,7 +217,7 @@ export default function CommandCentrePage() {
               controls={<ComposerModelPill harness={harness} />}
             />
             <Show when={centre.error()}>
-              <p role="alert" class="text-[12px] text-v2-text-text-critical">
+              <p role="alert" class="type-meta text-v2-text-text-critical">
                 {language.t("common.requestFailed")}
               </p>
             </Show>
@@ -252,7 +251,7 @@ function ThreadRow(props: { thread: CommandThread; href: string }) {
         fallback={
           <input
             ref={input}
-            class="h-9 w-full min-w-0 rounded-full bg-v2-background-bg-base pl-3 pr-9 text-[13px] text-v2-text-text-base outline-none [box-shadow:inset_0_0_0_0.5px_var(--v2-border-border-muted)] focus:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)]"
+            class="h-9 w-full min-w-0 rounded-full bg-v2-background-bg-layer-01 pl-3 pr-9 text-[13px] text-v2-text-text-base outline-none [box-shadow:inset_0_0_0_1px_var(--v2-border-border-base)] focus:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)]"
             value={label()}
             aria-label={language.t("secondBrain.sidebar.renameThread")}
             onKeyDown={(event) => {
@@ -264,20 +263,20 @@ function ThreadRow(props: { thread: CommandThread; href: string }) {
           />
         }
       >
-        <A href={props.href} class={pageRowClass}>
-          <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base">
+        <A href={props.href} class={`${pageRowClass} group-hover/row:pr-10 group-focus-within/row:pr-10`}>
+          <span class="min-w-0 flex-1 truncate type-row-title text-v2-text-text-base">
             {label() || language.t("secondBrain.commandCentre.threads.untitled")}
           </span>
           <Show
             when={centre.working(props.thread.id)}
             fallback={
-              <span class="shrink-0 text-[11px] text-v2-text-text-faint group-hover/row:opacity-0">
+              <span class="shrink-0 type-caption text-v2-text-text-muted">
                 {getRelativeTime(new Date(props.thread.updated).toISOString(), language.t)}
               </span>
             }
           >
             <span
-              class="size-2 shrink-0 rounded-full bg-v2-icon-icon-accent running-pulse group-hover/row:opacity-0"
+              class="size-2 shrink-0 rounded-full bg-v2-icon-icon-accent running-pulse"
               role="img"
               aria-label={language.t("secondBrain.commandCentre.working")}
             />

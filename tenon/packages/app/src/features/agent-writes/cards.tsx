@@ -119,7 +119,7 @@ function Pill(props: { write: AgentWrite; store: AgentWrites }) {
       data-phase={props.write.phase}
       role="status"
       aria-label={language.t(`secondBrain.agentWrites.kind.${props.write.kind}`)}
-      class="pointer-events-auto w-fit max-w-[min(560px,100%)] rounded-[20px] border border-v2-border-border-muted bg-v2-background-bg-layer-01 shadow-[0_4px_16px_rgb(0_0_0/0.12)]"
+      class="pointer-events-auto w-fit max-w-[min(560px,100%)] rounded-[20px] bg-v2-background-bg-base shadow-[var(--v2-elevation-floating)]"
       onMouseEnter={() => setHeld(true)}
       onMouseLeave={() => setHeld(false)}
       onFocusIn={() => setHeld(true)}

@@ -88,7 +88,7 @@ export function DialogInstructions(props: { workspaceDirectory: string; project?
             : language.t("secondBrain.instructions.workspaceHint")}
         </p>
         <Show when={ownFile()}>
-          {(file) => <code class="truncate text-[12px] text-v2-text-text-faint">{file().path}</code>}
+          {(file) => <code class="truncate text-[12px] text-v2-text-text-muted">{file().path}</code>}
         </Show>
         <Show when={loadFailed()}>
           <div class="flex flex-wrap items-center gap-2">

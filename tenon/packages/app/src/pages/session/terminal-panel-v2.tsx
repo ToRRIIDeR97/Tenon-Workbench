@@ -214,7 +214,7 @@ export function TerminalPanelV2(props: { stacked?: boolean } = {}) {
               <div class="flex h-12 shrink-0 items-center gap-0.5 overflow-hidden px-2.5 pt-2 pb-1">
                 <For each={handoff()}>
                   {(title) => (
-                    <div class="flex h-8 max-w-40 items-center truncate rounded-full px-3 text-[12px] text-v2-text-text-muted [font-weight:500]">
+                    <div class="flex h-8 max-w-40 items-center truncate rounded-full px-3 text-[13px] font-medium text-v2-text-text-muted">
                       {title}
                     </div>
                   )}

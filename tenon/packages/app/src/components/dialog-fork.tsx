@@ -100,7 +100,7 @@ export const DialogFork: Component = () => {
           {(item) => (
             <div class="flex w-full items-center gap-2">
               <span class="min-w-0 flex-1 truncate text-left">{item.text}</span>
-              <span class="shrink-0 text-[12px] opacity-70">{item.time}</span>
+              <span class="shrink-0 type-meta text-v2-text-text-muted">{item.time}</span>
             </div>
           )}
         </List>

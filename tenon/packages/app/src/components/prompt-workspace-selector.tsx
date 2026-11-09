@@ -58,7 +58,7 @@ export function PromptGitStatus(props: { branch?: string; noGit?: boolean }) {
           class="min-w-0 max-w-[220px]"
           contentClass="max-w-[calc(100vw-32px)] break-all"
         >
-          <div class="flex h-8 min-w-0 max-w-[220px] items-center gap-1.5 px-2 text-[13px] font-[400] leading-5 tracking-[-0.04px] text-v2-text-text-muted">
+          <div class="flex h-8 min-w-0 max-w-[220px] items-center gap-1.5 px-3 type-control text-v2-text-text-muted">
             <Icon name="branch" size="small" class="shrink-0 text-v2-icon-icon-muted" />
             <span class="min-w-0 truncate">{value()}</span>
           </div>
@@ -143,13 +143,13 @@ export function PromptBranchPicker(props: { directory: string; branch?: string; 
         triggerProps={{
           type: "button",
           class:
-            "flex h-8 min-w-0 max-w-[220px] items-center gap-1.5 rounded-full px-2 text-[13px] font-[400] leading-5 text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base active:bg-v2-overlay-simple-overlay-pressed data-[expanded]:bg-v2-overlay-simple-overlay-hover data-[expanded]:text-v2-text-text-base focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none",
+            "flex h-8 min-w-0 max-w-[220px] items-center gap-1.5 rounded-full px-3 type-control text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base active:bg-v2-overlay-simple-overlay-pressed data-[expanded]:bg-v2-overlay-simple-overlay-hover data-[expanded]:text-v2-text-text-base focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none",
         }}
         trigger={
           <>
             <Icon name="branch" size="small" class="shrink-0 text-v2-icon-icon-muted" />
             <span class="min-w-0 truncate">{props.branch ?? language.t("secondBrain.composer.branch.detached")}</span>
-            <Icon name="chevron-down" size="small" class="shrink-0 opacity-70" />
+            <Icon name="chevron-down" size="small" class="shrink-0 text-v2-icon-icon-muted" />
           </>
         }
       >
@@ -163,7 +163,7 @@ export function PromptBranchPicker(props: { directory: string; branch?: string; 
                 <For
                   each={branches()}
                   fallback={
-                    <p class="px-2.5 py-2 text-[12px] text-v2-text-text-faint">
+                    <p class="px-2.5 py-2 text-[12px] leading-4 text-v2-text-text-muted">
                       {language.t(
                         state.failed ? "secondBrain.composer.branch.error" : "secondBrain.composer.branch.none",
                       )}

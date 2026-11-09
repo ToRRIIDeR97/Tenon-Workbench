@@ -43,7 +43,7 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    color: var(--v2-text-text-faint);
+    color: var(--v2-icon-icon-muted);
 
     [data-component="spinner"] {
       width: 16px;
@@ -59,7 +59,7 @@
     flex: 0 1 auto;
     min-width: 0;
     max-width: 100%;
-    font-size: 14px;
+    font-size: 13px;
   }
 
   [data-slot="basic-tool-tool-info-structured"] {
@@ -84,7 +84,7 @@
   [data-slot="basic-tool-tool-title"] {
     flex-shrink: 0;
     font-family: var(--font-family-sans);
-    font-size: 14px;
+    font-size: 13px;
     font-style: normal;
     font-weight: var(--font-weight-medium);
     line-height: var(--line-height-large);
@@ -109,7 +109,7 @@
     white-space: nowrap;
     font-family: var(--font-family-sans);
     font-variant-numeric: tabular-nums;
-    font-size: 14px;
+    font-size: 13px;
     font-style: normal;
     font-weight: var(--font-weight-regular);
     line-height: var(--line-height-large);
@@ -152,7 +152,7 @@
     white-space: nowrap;
     font-family: var(--font-family-sans);
     font-variant-numeric: tabular-nums;
-    font-size: 14px;
+    font-size: 13px;
     font-style: normal;
     font-weight: var(--font-weight-regular);
     line-height: var(--line-height-large);
@@ -216,7 +216,7 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    color: var(--v2-text-text-faint);
+    color: var(--v2-icon-icon-muted);
     margin-left: auto;
     opacity: 0;
     transition:
@@ -227,7 +227,7 @@
   [data-component="task-tool-title"] {
     flex-shrink: 0;
     font-family: var(--font-family-sans);
-    font-size: 14px;
+    font-size: 13px;
     font-style: normal;
     font-weight: var(--font-weight-medium);
     line-height: var(--line-height-large);
@@ -286,7 +286,7 @@ body[data-new-layout] {
       font-weight: 500;
       font-size: 13px;
       line-height: 20px;
-      letter-spacing: -0.04px;
+      letter-spacing: 0;
       color: var(--v2-text-text-base);
       flex: none;
       flex-grow: 0;
@@ -298,7 +298,7 @@ body[data-new-layout] {
       font-weight: 400;
       font-size: 13px;
       line-height: 20px;
-      letter-spacing: -0.04px;
+      letter-spacing: 0;
       color: var(--v2-text-text-base);
       font-variation-settings: "slnt" 0;
       flex: none;

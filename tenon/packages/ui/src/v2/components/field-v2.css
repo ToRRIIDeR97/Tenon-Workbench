@@ -19,10 +19,9 @@
   border: 0;
   font-style: normal;
   font-weight: 500;
-  font-size: 13px;
-  line-height: 1;
-  letter-spacing: -0.04px;
-  color: var(--v2-text-text-base);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--v2-text-text-muted);
   font-variation-settings: "slnt" 0;
   cursor: default;
   user-select: none;
@@ -74,12 +73,11 @@
 [data-component="field-v2"] [data-slot="field-v2-suffix"] {
   align-self: stretch;
   width: 100%;
-  min-height: 11px;
+  min-height: 16px;
   font-style: normal;
-  font-weight: 400;
-  font-size: 11px;
-  line-height: 1;
-  letter-spacing: 0.05px;
+  font-weight: 450;
+  font-size: 12px;
+  line-height: 16px;
   color: var(--v2-text-text-muted);
   font-variation-settings: "slnt" 0;
   user-select: none;

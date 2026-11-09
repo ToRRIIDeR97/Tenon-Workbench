@@ -10,9 +10,8 @@
   [data-slot="diff-changes-deletions"] {
     font-size: 11px;
     font-style: normal;
-    font-weight: 400;
+    font-weight: 450;
     line-height: 1;
-    letter-spacing: 0.05px;
     text-align: right;
   }
 

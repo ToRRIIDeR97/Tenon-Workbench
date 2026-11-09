@@ -247,6 +247,7 @@
   --color-v2-text-text-base: var(--v2-text-text-base);
   --color-v2-text-text-muted: var(--v2-text-text-muted);
   --color-v2-text-text-faint: var(--v2-text-text-faint);
+  --color-v2-text-text-disabled: var(--v2-text-text-disabled);
   --color-v2-text-text-inverse: var(--v2-text-text-inverse);
   --color-v2-text-text-contrast: var(--v2-text-text-contrast);
   --color-v2-text-text-accent: var(--v2-text-text-accent);
@@ -262,6 +263,7 @@
   --color-v2-border-border-muted: var(--v2-border-border-muted);
   --color-v2-border-border-base: var(--v2-border-border-base);
   --color-v2-border-border-strong: var(--v2-border-border-strong);
+  --color-v2-border-border-control: var(--v2-border-border-control);
   --color-v2-border-border-inverse: var(--v2-border-border-inverse);
   --color-v2-border-border-focus: var(--v2-border-border-focus);
   --color-v2-overlay-simple-overlay-hover: var(--v2-overlay-simple-overlay-hover);

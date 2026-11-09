@@ -97,7 +97,7 @@ export function CommandStrip() {
         aria-hidden={state.open ? true : undefined}
         onClick={() => setState("open", true)}
       >
-        <span class="h-1 w-12 rounded-full bg-v2-border-border-muted transition-colors duration-short ease-standard group-hover:bg-v2-text-text-faint motion-reduce:transition-none" />
+        <span class="h-1 w-12 rounded-full bg-v2-border-border-strong transition-colors duration-short ease-standard group-hover:bg-v2-icon-icon-muted motion-reduce:transition-none" />
       </button>
       <div
         data-command-strip-card
@@ -115,7 +115,7 @@ export function CommandStrip() {
             !state.open,
         }}
       >
-        <div class="flex flex-col gap-1 rounded-[16px] border border-v2-border-border-muted bg-v2-background-bg-base px-3 py-2 shadow-[var(--v2-elevation-floating)]">
+        <div class="flex flex-col gap-1 rounded-[16px] bg-v2-background-bg-base px-3 py-2 shadow-[var(--v2-elevation-floating)]">
           <div class="flex h-7 min-w-0 items-center gap-2">
             <p
               class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-muted"
@@ -133,7 +133,7 @@ export function CommandStrip() {
                 <Show
                   when={write.undoState === "idle" || write.undoState === "pending"}
                   fallback={
-                    <span class="shrink-0 text-[12px] text-v2-text-text-muted" role="status">
+                    <span class="shrink-0 type-meta text-v2-text-text-muted" role="status">
                       {language.t(
                         write.undoState === "undone"
                           ? "secondBrain.agentWrites.undone"

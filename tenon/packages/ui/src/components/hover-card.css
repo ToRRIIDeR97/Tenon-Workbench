@@ -9,13 +9,11 @@
   min-width: 200px;
   max-width: 320px;
   max-height: calc(100vh - 1rem);
-  border-radius: 8px;
-  background-color: var(--surface-raised-stronger-non-alpha);
+  border-radius: var(--v2-radius-lg);
+  background-color: var(--v2-background-bg-base);
   pointer-events: auto;
-
-  border: 1px solid color-mix(in oklch, var(--border-base) 50%, transparent);
-  background-clip: padding-box;
-  box-shadow: var(--shadow-md);
+  border: 0;
+  box-shadow: var(--v2-elevation-floating);
 
   transform-origin: var(--kb-hovercard-content-transform-origin);
 

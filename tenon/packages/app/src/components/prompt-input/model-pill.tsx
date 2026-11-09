@@ -176,13 +176,13 @@ export function PromptModelPill(props: {
         ...PILL_ACTION,
         disabled: props.harness.disabled?.(),
         class:
-          "flex h-7 min-w-0 max-w-[280px] items-center gap-1.5 rounded-full px-2.5 text-[13px] font-[400] leading-5 text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base active:bg-v2-overlay-simple-overlay-pressed data-[expanded]:bg-v2-overlay-simple-overlay-hover data-[expanded]:text-v2-text-text-base focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus disabled:opacity-50 disabled:hover:bg-transparent motion-reduce:transition-none",
+          "flex h-8 min-w-0 max-w-[280px] items-center gap-1.5 rounded-full px-3 type-control text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base active:bg-v2-overlay-simple-overlay-pressed data-[expanded]:bg-v2-overlay-simple-overlay-hover data-[expanded]:text-v2-text-text-base focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus disabled:text-v2-text-text-disabled disabled:hover:bg-transparent motion-reduce:transition-none",
       }}
       trigger={
         <>
           <Icon name="monitor" size="small" class="shrink-0" />
           <span class="min-w-0 truncate">{label() || language.t("harness.checking")}</span>
-          <Icon name="chevron-down" size="small" class="shrink-0 opacity-70" />
+          <Icon name="chevron-down" size="small" class="shrink-0 text-v2-icon-icon-muted" />
         </>
       }
     >
@@ -206,7 +206,7 @@ export function PromptModelPill(props: {
                     onClick={() => go(row.step as Exclude<Step, "summary">)}
                   >
                     <span class="flex min-w-0 flex-1 flex-col leading-[18px]">
-                      <span class="text-[12px] text-v2-text-text-faint">{row.title}</span>
+                      <span class="text-[12px] text-v2-text-text-muted">{row.title}</span>
                       <span class="break-words text-[13px] text-v2-text-text-base">{row.value}</span>
                     </span>
                     <Icon name="chevron-down" size="small" class="shrink-0 -rotate-90 text-v2-icon-icon-muted" />
@@ -217,11 +217,11 @@ export function PromptModelPill(props: {
           </Match>
           <Match when={state.step !== "summary"}>
             <div data-slot="model-pill-step" data-motion={state.motion} class="flex flex-col">
-              <div class="mb-1 flex h-10 items-center gap-1.5 border-b border-v2-border-border-muted px-1 text-[13px] font-[500] text-v2-text-text-base">
+              <div class="mb-1 flex h-10 items-center gap-1.5 border-b border-v2-border-border-muted px-1 type-control text-v2-text-text-base">
                 <button
                   type="button"
                   aria-label={language.t("secondBrain.composer.modelPill.back")}
-                  class="flex size-[30px] items-center justify-center rounded-full text-v2-icon-icon-muted transition-colors outline-none hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-icon-icon-base focus-visible:shadow-[inset_0_0_0_1.5px_var(--v2-border-border-focus)]"
+                  class="flex size-8 items-center justify-center rounded-full text-v2-icon-icon-muted transition-colors duration-short ease-standard outline-none hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-icon-icon-base active:bg-v2-overlay-simple-overlay-pressed focus-visible:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)] motion-reduce:transition-none"
                   onClick={back}
                 >
                   <Icon name="arrow-left" size="small" />
@@ -266,7 +266,7 @@ export function PromptModelPill(props: {
                     )}
                   </Match>
                   <Match when={state.step === "model" && props.builtIn}>
-                    <p class="px-2.5 py-2 text-[12px] leading-[17px] text-v2-text-text-faint">
+                    <p class="px-2.5 py-2 text-[12px] leading-4 text-v2-text-text-muted">
                       {language.t("secondBrain.composer.modelPill.chooseInThread")}
                     </p>
                   </Match>
@@ -279,7 +279,7 @@ export function PromptModelPill(props: {
                         }) === "select"
                       }
                       fallback={
-                        <p class="px-2.5 py-2 text-[12px] text-v2-text-text-faint">
+                        <p class="px-2.5 py-2 text-[12px] leading-4 text-v2-text-text-muted">
                           {view.checking() ? language.t("harness.models.loading") : language.t("harness.models.none")}
                         </p>
                       }
@@ -344,7 +344,7 @@ const PILL_ACTION = { "data-action": "prompt-model-pill" }
 
 // Rows show a ring only for keyboard focus; a pointer opening the panel never draws one.
 const ROW_CLASS =
-  "flex w-full min-w-0 items-center gap-2.5 rounded-[12px] px-2.5 py-1.5 text-left transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover active:bg-v2-overlay-simple-overlay-pressed outline-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus disabled:opacity-50 disabled:hover:bg-transparent disabled:active:bg-transparent motion-reduce:transition-none"
+  "flex w-full min-w-0 items-center gap-2.5 rounded-[12px] px-2.5 py-1.5 text-left transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover active:bg-v2-overlay-simple-overlay-pressed outline-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus disabled:text-v2-text-text-disabled disabled:hover:bg-transparent disabled:active:bg-transparent motion-reduce:transition-none"
 
 function Choice(props: {
   label: string
@@ -376,7 +376,9 @@ function Choice(props: {
           {props.label}
         </span>
         <Show when={props.detail}>
-          <span class="text-[12px] opacity-75">{props.detail}</span>
+          <span class="text-[12px] leading-4" classList={{ "text-v2-text-text-muted": !props.selected }}>
+            {props.detail}
+          </span>
         </Show>
       </span>
       <Show when={props.selected}>

@@ -112,7 +112,7 @@ export function SessionComposerRegion(props: {
                 <div style={{ "margin-top": `${-36 * controller.dockProgress()}px` }}>
                   {/* The live composer carries the rollback rows in its own tray; the placeholder stands in for it. */}
                   <SessionRevertTray dock={controller.revert} />
-                  <div class="w-full min-h-32 md:min-h-40 rounded-[28px] bg-v2-background-bg-layer-01 px-5 py-4 text-v2-text-text-faint whitespace-pre-wrap pointer-events-none">
+                  <div class="w-full min-h-32 md:min-h-40 rounded-[28px] bg-v2-background-bg-layer-01 px-5 py-4 text-v2-text-text-muted whitespace-pre-wrap pointer-events-none">
                     {controller.handoffPrompt() || language.t("prompt.loading")}
                   </div>
                 </div>

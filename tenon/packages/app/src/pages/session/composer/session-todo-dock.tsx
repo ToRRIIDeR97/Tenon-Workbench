@@ -69,7 +69,7 @@ export function SessionTodoDock(props: {
   return (
     <div
       data-component="session-todo-dock"
-      class="w-full overflow-hidden rounded-[24px] bg-v2-background-bg-layer-01"
+      class="w-full overflow-hidden rounded-[24px] bg-v2-background-bg-layer-01 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]"
       style={{
         "overflow-x": "visible",
         "overflow-y": "hidden",
@@ -90,7 +90,7 @@ export function SessionTodoDock(props: {
           }}
         >
           <span
-            class="cursor-default inline-flex items-baseline shrink-0 overflow-visible font-[400] text-[13px] leading-5 tracking-[-0.04px] text-v2-text-text-muted"
+            class="cursor-default inline-flex items-baseline shrink-0 overflow-visible [font-weight:450] text-[13px] leading-5 text-v2-text-text-muted"
             aria-label={label()}
             style={{
               "--tool-motion-odometer-ms": "var(--v2-duration-long)",
@@ -122,7 +122,7 @@ export function SessionTodoDock(props: {
             }}
           >
             <TextReveal
-              class="cursor-default text-[13px] font-[400] leading-5 tracking-[-0.04px] text-v2-text-text-faint"
+              class="cursor-default text-[13px] [font-weight:450] leading-5 text-v2-text-text-muted"
               text={props.collapsed ? preview() : undefined}
               duration="var(--v2-duration-long)"
               travel={25}
@@ -210,9 +210,9 @@ function TodoList(props: { todos: Todo[] }) {
                       "color var(--v2-duration-short) var(--v2-ease-standard), opacity var(--v2-duration-short) var(--v2-ease-standard)",
                     color:
                       todo().status === "completed" || todo().status === "cancelled"
-                        ? "var(--v2-text-text-faint)"
+                        ? "var(--v2-text-text-muted)"
                         : "var(--v2-text-text-base)",
-                    opacity: todo().status === "pending" ? "0.92" : "1",
+                    opacity: "1",
                   }}
                 />
               }

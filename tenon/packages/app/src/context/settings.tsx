@@ -128,7 +128,7 @@ export function modelProvider(modelID: string) {
 }
 
 export const monoDefault = "System Mono"
-export const sansDefault = "System Sans"
+export const sansDefault = "Inter"
 export const terminalDefault = "JetBrainsMono Nerd Font Mono"
 export function hasExistingWebState(settings: Promise<string> | string | null, previousVersion: string | undefined) {
   return settings !== null || previousVersion !== undefined
@@ -146,7 +146,7 @@ const terminalFallback =
   '"JetBrainsMono Nerd Font Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
 
 const monoBase = monoFallback
-const sansBase = sansFallback
+const sansBase = `Inter, ${sansFallback}`
 const terminalBase = terminalFallback
 
 function input(font: string | undefined) {

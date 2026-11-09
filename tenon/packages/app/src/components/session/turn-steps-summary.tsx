@@ -591,7 +591,9 @@ export function TurnStepsSummary(props: {
       data-layout={props.layout ?? "grouped"}
       data-transcript={transcript() ? "" : undefined}
       class="flex w-full min-w-0 flex-col rounded-[16px] transition-colors motion-reduce:transition-none"
-      classList={{ "bg-v2-background-bg-layer-01": !transcript() }}
+      classList={{
+        "bg-v2-background-bg-layer-01 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]": !transcript(),
+      }}
     >
       <button
         type="button"

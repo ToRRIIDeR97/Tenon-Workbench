@@ -176,7 +176,7 @@ function ServerStatusPopoverView(props: { state: ServerStatusState }) {
       aria-label={props.state.ariaLabel}
       class={`flex w-[360px] max-w-full flex-col gap-0.5 ${popoverSurfaceClass}`}
     >
-      <h2 class="px-3 pt-1.5 pb-1 text-[12px] text-v2-text-text-faint [font-weight:500]">
+      <h2 class="px-3 pt-2 pb-1 type-meta font-medium text-v2-text-text-muted">
         {props.state.servers().length > 0 ? `${props.state.servers().length} ` : ""}
         {props.state.serversLabel}
       </h2>
@@ -184,9 +184,9 @@ function ServerStatusPopoverView(props: { state: ServerStatusState }) {
         {(item) => (
           <button
             type="button"
-            class="flex min-h-11 w-full items-center gap-2.5 rounded-[16px] py-1.5 pr-2.5 pl-3 text-left text-[13px] transition-[background-color,border-radius] duration-short ease-standard focus-visible:outline-offset-[-2px] motion-reduce:transition-none"
+            class="flex min-h-10 w-full items-center gap-2 rounded-[12px] px-3 py-2 text-left text-[13px] transition-colors duration-short ease-standard focus-visible:outline-offset-[-2px] motion-reduce:transition-none"
             classList={{
-              "hover:bg-v2-overlay-simple-overlay-hover active:rounded-[12px]": !item.blocked,
+              "hover:bg-v2-overlay-simple-overlay-hover active:bg-v2-overlay-simple-overlay-pressed": !item.blocked,
               "cursor-not-allowed": item.blocked,
               "bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container": item.active,
             }}
@@ -203,11 +203,11 @@ function ServerStatusPopoverView(props: { state: ServerStatusState }) {
               dimmed={item.blocked}
               status={item.health}
               class="flex w-full min-w-0 items-center gap-2"
-              nameClass="truncate [font-weight:500]"
-              versionClass="truncate text-[12px] text-v2-text-text-faint"
+              nameClass="truncate font-medium"
+              versionClass="truncate type-meta text-v2-text-text-muted"
               badge={
                 <Show when={item.key === props.state.defaultKey()}>
-                  <span class="inline-flex h-5 items-center rounded-full bg-v2-background-bg-layer-02 px-2 text-[11px] text-v2-text-text-muted [font-weight:600]">
+                  <span class="inline-flex h-5 items-center rounded-full bg-v2-background-bg-layer-02 px-2 type-caption text-v2-text-text-muted">
                     {props.state.defaultLabel}
                   </span>
                 </Show>
@@ -221,7 +221,7 @@ function ServerStatusPopoverView(props: { state: ServerStatusState }) {
           </button>
         )}
       </For>
-      <div class="flex justify-end px-1 pt-1.5 pb-0.5">
+      <div class="flex justify-end px-1 pt-2">
         <ButtonV2 variant="ghost" size="small" onClick={props.state.onManage}>
           {props.state.manageLabel}
         </ButtonV2>
@@ -260,14 +260,14 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
   const pluginEmpty = createMemo(() => pluginEmptyMessage(language.t("dialog.plugins.empty"), "tenon.json"))
   const [view, setView] = createStore({ tab: "mcp" })
   const empty = "my-auto px-3 py-4 text-center text-[13px] text-v2-text-text-muted"
-  const row = "flex min-h-11 w-full items-center gap-2.5 rounded-[16px] py-1.5 pr-2.5 pl-3 text-[13px]"
+  const row = "flex min-h-10 w-full items-center gap-2 rounded-[12px] px-3 py-2 text-[13px]"
 
   return (
     <section
       aria-label={language.t("status.popover.ariaLabel")}
       class={`flex w-[360px] max-w-full flex-col gap-0.5 ${popoverSurfaceClass}`}
     >
-      <div class="px-1.5 pt-1.5 pb-2">
+      <div class="px-1 pt-1 pb-2">
         <SegmentedControlV2
           aria-label={language.t("status.popover.ariaLabel")}
           value={view.tab}
@@ -307,15 +307,15 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
                   }}
                 >
                   <span class={`size-2 shrink-0 rounded-full ${statusDotClass(status())}`} />
-                  <span class="flex min-w-0 flex-1 flex-col gap-px">
-                    <span class="truncate [font-weight:500]">{name}</span>
+                  <span class="flex min-w-0 flex-1 flex-col">
+                    <span class="truncate font-medium">{name}</span>
                     <Show when={status() === "needs_auth"}>
-                      <span class="truncate text-[12px] text-v2-text-text-faint">
+                      <span class="truncate type-meta text-v2-text-text-muted">
                         {language.t("mcp.auth.clickToAuthenticate")}
                       </span>
                     </Show>
                     <Show when={status() === "failed"}>
-                      <span class="truncate text-[12px] text-v2-text-text-critical">
+                      <span class="truncate type-meta text-v2-text-text-critical">
                         {language.t("mcp.status.failed")}
                       </span>
                     </Show>
@@ -333,7 +333,7 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
             {(item) => (
               <div class={row}>
                 <span class={`size-2 shrink-0 rounded-full ${statusDotClass(item.status)}`} />
-                <span class="truncate [font-weight:500]">{item.name || item.id}</span>
+                <span class="truncate font-medium">{item.name || item.id}</span>
               </div>
             )}
           </For>
@@ -346,7 +346,7 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
             {(plugin) => (
               <div class={row}>
                 <span class={`size-2 shrink-0 rounded-full ${statusDotClass("connected")}`} />
-                <span class="truncate [font-weight:500]">{plugin}</span>
+                <span class="truncate font-medium">{plugin}</span>
               </div>
             )}
           </For>

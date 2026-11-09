@@ -102,7 +102,7 @@ body:not([data-new-layout]) [data-component="card"] {
   }
 
   :where([data-slot="card-title-icon"][data-placeholder]) [data-component="icon"] {
-    color: var(--text-weak);
+    color: var(--v2-icon-icon-muted);
   }
 
   :where([data-card="description"], [data-slot="card-description"]) {

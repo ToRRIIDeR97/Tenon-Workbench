@@ -34,6 +34,8 @@ const unsafeCSS = `
   --diffs-bg-addition-number-override: var(--diffs-bg-addition-override);
   --diffs-selection-base: var(--v2-background-bg-accent);
   --diffs-selection-number-fg: var(--v2-text-text-accent);
+  /* Line numbers are read, so they use muted text rather than a faint mix of the code colour. */
+  --diffs-fg-number-override: var(--v2-text-text-muted);
   --diffs-comment-bg: rgb(from var(--v2-background-bg-accent) r g b / 0.06);
   /* Use explicit alpha instead of color-mix(..., transparent) to avoid Safari's non-premultiplied interpolation bugs. */
   --diffs-bg-selection: var(--diffs-bg-selection-override, rgb(from var(--diffs-selection-base) r g b / 0.2));

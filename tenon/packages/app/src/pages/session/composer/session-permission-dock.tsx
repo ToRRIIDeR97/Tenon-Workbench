@@ -23,7 +23,7 @@ export function SessionPermissionDock(props: {
       data-component="dock-prompt"
       data-kind="permission"
       aria-labelledby="permission-dock-title"
-      class="mb-2 rounded-[24px] bg-v2-state-bg-warning px-4 pt-3.5 pb-3"
+      class="mb-2 rounded-[24px] bg-v2-state-bg-warning px-4 pt-3.5 pb-3 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]"
     >
       <div class="flex items-center gap-2.5">
         <span class="flex size-8 shrink-0 items-center justify-center rounded-full bg-v2-background-bg-base text-v2-state-fg-warning">

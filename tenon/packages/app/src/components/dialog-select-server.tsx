@@ -124,7 +124,7 @@ function ServerForm(props: ServerFormProps) {
 
   return (
     <div>
-      <div class="bg-surface-base rounded-[20px] p-5 flex flex-col gap-3">
+      <div class="flex flex-col gap-3 rounded-[16px] border border-v2-border-border-muted bg-v2-background-bg-layer-01 p-4">
         <div class="flex-1 min-w-0 [&_[data-slot=input-wrapper]]:relative">
           <TextField
             type="text"
@@ -179,7 +179,7 @@ export function DialogSelectServer() {
 
   return (
     <Dialog title={controller.formTitle()}>
-      <div class="flex flex-1 min-h-0 flex-col px-5">
+      <div class="flex flex-1 min-h-0 flex-col px-6">
         <Show when={controller.isFormMode()} fallback={<ServerConnectionList controller={controller} />}>
           <ServerConnectionForm controller={controller} />
         </Show>
@@ -556,7 +556,7 @@ export function ServerConnectionList(props: { controller: ReturnType<typeof useS
   return (
     <div class="flex flex-1 min-h-0 flex-col gap-4">
       <List
-        class="flex-1 min-h-0 [&_[data-slot=list-search-wrapper]]:w-full [&_[data-slot=list-scroll]]:flex-1 [&_[data-slot=list-scroll]]:overflow-y-auto [&_[data-slot=list-items]]:bg-surface-base [&_[data-slot=list-items]]:rounded-[20px] [&_[data-slot=list-item]]:min-h-14 [&_[data-slot=list-item]]:p-3 [&_[data-slot=list-item]]:!bg-transparent"
+        class="flex-1 min-h-0 [&_[data-slot=list-search-wrapper]]:w-full [&_[data-slot=list-scroll]]:flex-1 [&_[data-slot=list-scroll]]:overflow-y-auto [&_[data-slot=list-items]]:border [&_[data-slot=list-items]]:border-v2-border-border-muted [&_[data-slot=list-items]]:bg-v2-background-bg-layer-01 [&_[data-slot=list-items]]:rounded-[16px] [&_[data-slot=list-item]]:min-h-14 [&_[data-slot=list-item]]:p-3 [&_[data-slot=list-item]]:!bg-transparent"
         search={{
           placeholder: language.t("dialog.server.search.placeholder"),
           autofocus: false,
@@ -581,7 +581,7 @@ export function ServerConnectionList(props: { controller: ReturnType<typeof useS
                 class="flex items-center gap-3 min-w-0 flex-1"
                 badge={
                   <Show when={props.controller.defaultKey() === ServerConnection.key(i)}>
-                    <span class="text-text-base bg-surface-base text-14-regular px-1.5 rounded-xs">
+                    <span class="rounded-full bg-v2-background-bg-layer-02 px-2 type-caption leading-5 text-v2-text-text-muted">
                       {language.t("dialog.server.status.default")}
                     </span>
                   </Show>
@@ -595,7 +595,7 @@ export function ServerConnectionList(props: { controller: ReturnType<typeof useS
                       as={IconButton}
                       icon="dot-grid"
                       variant="ghost"
-                      class="shrink-0 size-8 hover:bg-surface-base-hover data-[expanded]:bg-surface-base-active"
+                      class="shrink-0 size-8 text-v2-icon-icon-muted hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-icon-icon-base data-[expanded]:bg-v2-overlay-simple-overlay-pressed"
                       onClick={(e: MouseEvent) => e.stopPropagation()}
                       onPointerDown={(e: PointerEvent) => e.stopPropagation()}
                     />
@@ -624,7 +624,7 @@ export function ServerConnectionList(props: { controller: ReturnType<typeof useS
                         <DropdownMenu.Separator />
                         <DropdownMenu.Item
                           onSelect={() => props.controller.handleRemove(ServerConnection.key(i))}
-                          class="text-text-on-critical-base hover:bg-surface-critical-weak"
+                          class="text-v2-state-fg-danger hover:bg-v2-state-bg-danger"
                         >
                           <DropdownMenu.ItemLabel>{language.t("dialog.server.menu.delete")}</DropdownMenu.ItemLabel>
                         </DropdownMenu.Item>
@@ -638,7 +638,7 @@ export function ServerConnectionList(props: { controller: ReturnType<typeof useS
         }}
       </List>
 
-      <div class="shrink-0 pb-5">
+      <div class="shrink-0 pb-6">
         <Button
           variant="secondary"
           icon="plus-small"
@@ -674,7 +674,7 @@ export function ServerConnectionForm(props: { controller: ReturnType<typeof useS
         onSubmit={props.controller.submitForm}
         onBack={props.controller.resetForm}
       />
-      <div class="shrink-0 pb-5">
+      <div class="shrink-0 pb-6">
         <Button
           variant="primary"
           size="large"

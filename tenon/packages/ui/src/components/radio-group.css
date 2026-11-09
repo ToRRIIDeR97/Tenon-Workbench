@@ -7,9 +7,9 @@
 
   [data-slot="radio-group-wrapper"] {
     all: unset;
-    background-color: var(--surface-inset-base);
+    background-color: var(--v2-background-bg-layer-02);
     border-radius: var(--radius-sm);
-    box-shadow: var(--shadow-xxs-border);
+    box-shadow: none;
     display: inline-flex;
     height: var(--radio-group-height);
     margin: 0;
@@ -38,9 +38,11 @@
   }
 
   [data-slot="radio-group-indicator"] {
-    background: var(--button-secondary-base);
+    background: var(--v2-background-bg-base);
     border-radius: var(--radius-sm);
-    box-shadow: var(--shadow-xs-border-base);
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.08),
+      0 0 0 1px var(--v2-border-border-muted);
     content: "";
     opacity: var(--indicator-opacity, 1);
     pointer-events: none;
@@ -79,14 +81,14 @@
   }
 
   [data-slot="radio-group-item-label"] {
-    color: var(--text-weak);
+    color: var(--v2-text-text-muted);
     cursor: default;
     display: flex;
     align-items: center;
     justify-content: center;
     font-family: var(--font-family-sans);
     font-size: var(--font-size-small);
-    font-weight: var(--font-weight-medium);
+    font-weight: 500;
     flex: 1;
     height: 100%;
     line-height: 1;
@@ -120,14 +122,15 @@
 
   /* Checked state */
   [data-slot="radio-group-item-input"][data-checked] + [data-slot="radio-group-item-label"] {
-    color: var(--text-strong);
+    color: var(--v2-text-text-base);
+    font-weight: 600;
   }
 
   /* Hover state: match the inset background (adds subtle density) */
   [data-slot="radio-group-item-input"]:not([data-checked], [data-disabled])
     + [data-slot="radio-group-item-label"]:hover
     [data-slot="radio-group-item-control"] {
-    background-color: var(--surface-inset-base);
+    background-color: var(--v2-overlay-simple-overlay-hover);
   }
 
   /* Do not overlay hover on the active segment */
@@ -140,13 +143,13 @@
   /* Disabled state */
   [data-slot="radio-group-item-input"][data-disabled] + [data-slot="radio-group-item-label"] {
     cursor: not-allowed;
-    opacity: 0.5;
+    color: var(--v2-text-text-disabled);
   }
 
   /* Focus state */
   [data-slot="radio-group-wrapper"]:has([data-slot="radio-group-item-input"]:focus-visible)
     [data-slot="radio-group-indicator"] {
-    box-shadow: var(--shadow-xs-border-focus);
+    box-shadow: 0 0 0 2px var(--v2-border-border-focus);
   }
 
   /* Hide indicator when nothing is checked */
@@ -181,8 +184,11 @@
 
   /* Disabled root state */
   &[data-disabled] {
-    opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  &[data-disabled] [data-slot="radio-group-item-label"] {
+    color: var(--v2-text-text-disabled);
   }
 }
 

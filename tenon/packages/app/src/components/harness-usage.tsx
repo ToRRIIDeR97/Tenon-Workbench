@@ -27,7 +27,7 @@ export function HarnessUsageWindows(props: { report: Harness.UsageReport; now: n
           {(window) => (
             <div
               data-slot="context-sheet-usage-window"
-              class="grid grid-cols-[96px_minmax(0,1fr)_auto] items-center gap-x-2.5"
+              class="grid grid-cols-[96px_minmax(0,1fr)_auto] items-center gap-x-2"
             >
               <span class="truncate">{window.label}</span>
               <span
@@ -54,7 +54,7 @@ export function HarnessUsageWindows(props: { report: Harness.UsageReport; now: n
                 </span>
                 <Show when={window.resetsAt}>
                   {(resetsAt) => (
-                    <span>
+                    <span class="text-v2-text-text-muted">
                       {language.t("secondBrain.contextStrip.usage.resets", {
                         time: formatResetIn(resetsAt(), props.now, language.intl()),
                       })}

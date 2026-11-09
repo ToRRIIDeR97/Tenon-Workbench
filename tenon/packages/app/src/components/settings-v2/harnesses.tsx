@@ -257,7 +257,7 @@ export const SettingsHarnessesV2: Component<{
                       <span class="min-w-0 flex-1 truncate">{entry.name}</span>
                       <Show when={entry.enabled && fullestWindow(usageReport(entry.id))}>
                         {(window) => (
-                          <span class="shrink-0 text-[12px] font-normal tabular-nums text-v2-text-text-muted">
+                          <span class="shrink-0 type-meta tabular-nums text-v2-text-text-muted">
                             {percent(window().usedPercent)}
                           </span>
                         )}
@@ -481,7 +481,7 @@ const HarnessDetails: Component<{
         {(report) => (
           <div class="settings-v2-section" data-component="harness-usage">
             <h4 class="settings-v2-section-title">{language.t("secondBrain.contextStrip.usage.title")}</h4>
-            <div class="flex flex-col gap-2.5 text-[12px] leading-4 text-v2-text-text-muted">
+            <div class="flex flex-col gap-2 type-meta text-v2-text-text-muted">
               <HarnessUsageWindows report={report()} now={props.usageNow} />
             </div>
           </div>
@@ -720,7 +720,7 @@ const DialogAddHarness: Component<{
         <DialogTitle>{language.t("harness.settings.add.title")}</DialogTitle>
       </DialogHeader>
       <DividerV2 />
-      <DialogBody class="flex w-full min-w-0 flex-1 flex-col px-4 pt-4 pb-2">
+      <DialogBody class="flex w-full min-w-0 flex-1 flex-col px-6 pt-6 pb-0">
         <div class="flex w-full min-w-0 flex-col gap-4">
           {field(language.t("harness.settings.add.id"), "harness-id", id, setID, "opencode-cli")}
           {field(language.t("harness.settings.add.name"), "harness-name", name, setName, "OpenCode CLI")}

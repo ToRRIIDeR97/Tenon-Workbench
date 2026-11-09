@@ -61,7 +61,7 @@
   [data-component="text-reveal"].session-turn-thinking-heading {
     flex: 1 1 auto;
     min-width: 0;
-    color: var(--v2-text-text-faint);
+    color: var(--v2-text-text-muted);
     font-weight: var(--font-weight-regular);
   }
 

@@ -3,8 +3,8 @@
   --tec-title: var(--v2-text-text-base);
   --tec-sep: var(--v2-text-text-muted);
   --tec-subtitle: var(--v2-text-text-muted);
-  --tec-suffix: var(--v2-text-text-faint);
-  --tec-chevron: var(--v2-text-text-faint);
+  --tec-suffix: var(--v2-text-text-muted);
+  --tec-chevron: var(--v2-icon-icon-muted);
   --tec-icon: var(--v2-icon-icon-base);
 
   box-sizing: border-box;
@@ -95,7 +95,7 @@
     font-size: 13px;
     font-weight: 500;
     line-height: 20px;
-    letter-spacing: -0.04px;
+    letter-spacing: 0;
     color: var(--tec-title);
     user-select: none;
   }
@@ -109,7 +109,7 @@
     font-size: 11px;
     font-weight: 500;
     line-height: 20px;
-    letter-spacing: 0.05px;
+    letter-spacing: 0;
     color: var(--tec-sep);
     user-select: none;
   }
@@ -127,7 +127,7 @@
     font-size: 13px;
     font-weight: 400;
     line-height: 20px;
-    letter-spacing: -0.04px;
+    letter-spacing: 0;
     color: var(--tec-subtitle);
     user-select: none;
   }
@@ -145,7 +145,7 @@
     font-size: 13px;
     font-weight: 400;
     line-height: 20px;
-    letter-spacing: -0.04px;
+    letter-spacing: 0;
     color: inherit;
     text-decoration: underline;
     text-underline-offset: 2px;
@@ -186,7 +186,7 @@
     font-size: 13px;
     font-weight: 400;
     line-height: 1;
-    letter-spacing: -0.04px;
+    letter-spacing: 0;
     color: var(--tec-suffix);
     white-space: pre-wrap;
     word-break: break-word;

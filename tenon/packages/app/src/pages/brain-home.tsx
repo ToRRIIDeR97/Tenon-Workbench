@@ -1,7 +1,6 @@
 import { useNavigate } from "@solidjs/router"
 import { Icon } from "@tenon/ui/v2/icon"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
-import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { KeybindV2 } from "@tenon/ui/v2/keybind-v2"
 import { Reveal, RevealShow } from "@tenon/ui/v2/reveal"
 import { PathTooltip, TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
@@ -182,22 +181,12 @@ export default function BrainHomePage() {
       <div class="flex h-14 items-center gap-2 px-4">
         <span class="flex-1" />
         <TooltipV2
-          value={
-            <>
-              {language.t("secondBrain.home.openWorkspace")}
-              <KeybindV2 keys={command.keybindParts("project.open")} variant="neutral" />
-            </>
-          }
+          value={<KeybindV2 keys={command.keybindParts("project.open")} variant="neutral" />}
           placement="bottom"
         >
-          <IconButtonV2
-            variant="ghost"
-            size="large"
-            class="!size-9"
-            aria-label={language.t("secondBrain.home.openWorkspace")}
-            icon={<Icon name="folder-open" />}
-            onClick={() => command.trigger("project.open")}
-          />
+          <ButtonV2 variant="neutral" icon="folder-open" onClick={() => command.trigger("project.open")}>
+            {language.t("secondBrain.home.openWorkspace")}
+          </ButtonV2>
         </TooltipV2>
       </div>
 
@@ -264,7 +253,7 @@ export default function BrainHomePage() {
             <RevealShow when={!!(projects.failed() || calendar.error())}>
               {() => (
                 <div class="flex flex-wrap items-center justify-center gap-2">
-                  <p role="alert" class="text-[12px] text-v2-text-text-critical">
+                  <p role="alert" class="type-meta text-v2-text-text-critical">
                     {language.t("secondBrain.error.request")}
                   </p>
                   <ButtonV2
@@ -283,7 +272,10 @@ export default function BrainHomePage() {
 
             <Show when={projects.list()?.length === 0}>
               <section class="flex flex-col items-center gap-3 text-center" aria-labelledby="brain-home-first-run">
-                <h2 id="brain-home-first-run" class="text-[15px] text-v2-text-text-base [font-weight:600]">
+                <h2
+                  id="brain-home-first-run"
+                  class="text-[15px] leading-[22px] text-v2-text-text-base [font-weight:600]"
+                >
                   {language.t("secondBrain.home.firstRun.title")}
                 </h2>
                 <div class="flex flex-wrap justify-center gap-2">
@@ -325,15 +317,15 @@ export default function BrainHomePage() {
                             onClick={() => tenonSessions.session.open(record.session)}
                           >
                             <span class="size-2 shrink-0 rounded-full bg-v2-icon-icon-accent running-pulse" />
-                            <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base [font-weight:400]">
-                              {record.session.title}
+                            <span class="min-w-0 flex-1 truncate type-row-title text-v2-text-text-base">
+                              {sessionTitle(record.session.title) || record.session.id}
                             </span>
                             <Show when={approvals() > 0}>
-                              <span class="shrink-0 rounded-full bg-v2-state-bg-warning px-2 py-0.5 text-[11px] text-v2-state-fg-warning">
+                              <span class="shrink-0 rounded-full bg-v2-state-bg-warning px-2 py-0.5 type-caption text-v2-state-fg-warning">
                                 {language.t("secondBrain.activity.approvals", { count: approvals() })}
                               </span>
                             </Show>
-                            <span class="max-w-40 shrink-0 truncate text-[12px] text-v2-text-text-faint">
+                            <span class="max-w-40 shrink-0 truncate type-meta text-v2-text-text-muted">
                               {record.projectName}
                             </span>
                           </button>
@@ -345,14 +337,28 @@ export default function BrainHomePage() {
               </PageSection>
             </Reveal>
 
-            <Show when={todayItems().length > 0}>
+            {/* Today stays once the calendar has loaded, with a one-line row when nothing is due. */}
+            <Show when={calendar.snapshot()}>
               <PageSection
                 id="brain-home-today"
                 title={language.t("secondBrain.home.today")}
                 onTitle={() => navigate("/calendar")}
               >
                 <ul class="flex flex-col">
-                  <For each={todayItems()}>
+                  <For
+                    each={todayItems()}
+                    fallback={
+                      <li>
+                        <button
+                          type="button"
+                          class={`${pageRowClass} type-control text-v2-text-text-muted`}
+                          onClick={() => navigate("/calendar")}
+                        >
+                          {language.t("secondBrain.home.nothingToday")}
+                        </button>
+                      </li>
+                    }
+                  >
                     {(item) => {
                       const value = item.value
                       const overdue = item.kind === "task" && item.overdue
@@ -368,24 +374,24 @@ export default function BrainHomePage() {
                               )
                             }
                           >
-                            <span class="flex w-12 shrink-0 justify-center">
+                            <span class="flex w-12 shrink-0">
                               <Show when={item.kind === "event"}>
-                                <span class="text-[12px] tabular-nums text-v2-text-text-muted">
-                                  {value.start || language.t("secondBrain.home.kind.event")}
+                                <span class="type-meta tabular-nums text-v2-text-text-muted">
+                                  {value.start || language.t("secondBrain.home.allDay")}
                                 </span>
                               </Show>
                             </span>
-                            <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base [font-weight:400]">
+                            <span class="min-w-0 flex-1 truncate type-row-title text-v2-text-text-base">
                               {value.title}
                             </span>
                             <Show when={overdue}>
-                              <span class="shrink-0 text-[12px] text-v2-state-fg-danger">
+                              <span class="shrink-0 type-meta text-v2-state-fg-danger">
                                 {language.t("secondBrain.tasks.overdue")}
                               </span>
                             </Show>
                             <Show when={project()}>
                               {(name) => (
-                                <span class="max-w-40 shrink-0 truncate text-[12px] text-v2-text-text-faint">
+                                <span class="max-w-40 shrink-0 truncate type-meta text-v2-text-text-muted">
                                   {name()}
                                 </span>
                               )}
@@ -394,7 +400,7 @@ export default function BrainHomePage() {
                           {/* Beside the row's button, since a checkbox can't sit inside one. */}
                           <Show when={item.kind === "task" && item.value}>
                             {(task) => (
-                              <span class="absolute inset-y-0 left-3 flex w-12 items-center justify-center">
+                              <span class="absolute inset-y-0 left-3 flex w-12 items-center">
                                 <TaskCheck small task={task()} onToggle={tasks.toggle} />
                               </span>
                             )}
@@ -407,7 +413,7 @@ export default function BrainHomePage() {
                     <li>
                       <button
                         type="button"
-                        class={`${pageRowClass} text-[13px] text-v2-text-text-muted`}
+                        class={`${pageRowClass} type-control text-v2-text-text-muted`}
                         onClick={() => navigate("/calendar")}
                       >
                         {language.t("secondBrain.home.more", { count: allToday().length - TODAY_LIMIT })}
@@ -429,13 +435,13 @@ export default function BrainHomePage() {
                           class={pageRowClass}
                           onClick={() => tenonSessions.session.open(record.session)}
                         >
-                          <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base [font-weight:400]">
+                          <span class="min-w-0 flex-1 truncate type-row-title text-v2-text-text-base">
                             {sessionTitle(record.session.title) || record.session.id}
                           </span>
-                          <span class="max-w-40 shrink-0 truncate text-[12px] text-v2-text-text-faint">
+                          <span class="max-w-40 shrink-0 truncate type-meta text-v2-text-text-muted">
                             {record.projectName}
                           </span>
-                          <span class="shrink-0 text-[12px] text-v2-text-text-faint">
+                          <span class="shrink-0 type-meta text-v2-text-text-muted">
                             {getRelativeTime(new Date(record.session.time.updated).toISOString(), language.t)}
                           </span>
                         </button>
@@ -461,7 +467,7 @@ export default function BrainHomePage() {
                           class={pageRowClass}
                           onClick={() => navigate(`/projects?project=${encodeURIComponent(project.id)}`)}
                         >
-                          <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base [font-weight:400]">
+                          <span class="min-w-0 flex-1 truncate type-row-title text-v2-text-text-base">
                             {project.name}
                           </span>
                           <span class="h-1 w-16 shrink-0 overflow-hidden rounded-full bg-v2-background-bg-layer-03">
@@ -470,7 +476,7 @@ export default function BrainHomePage() {
                               style={{ width: `${project.progressPercent}%` }}
                             />
                           </span>
-                          <span class="w-9 shrink-0 text-right text-[12px] tabular-nums text-v2-text-text-faint">
+                          <span class="w-9 shrink-0 text-right type-meta tabular-nums text-v2-text-text-muted">
                             {project.progressPercent}%
                           </span>
                         </button>

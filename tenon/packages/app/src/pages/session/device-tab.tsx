@@ -115,7 +115,7 @@ export function SessionDeviceTab() {
             {(os) => (
               <button
                 type="button"
-                class="h-7 rounded-full px-3 text-12-medium text-v2-text-text-weak transition-[background-color,color] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base active:bg-v2-overlay-simple-overlay-pressed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none aria-pressed:bg-v2-background-bg-accent-container aria-pressed:text-v2-text-text-on-accent-container"
+                class="h-7 rounded-full px-3 text-12-medium text-v2-text-text-muted transition-[background-color,color] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base active:bg-v2-overlay-simple-overlay-pressed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none aria-pressed:bg-v2-background-bg-accent-container aria-pressed:text-v2-text-text-on-accent-container"
                 aria-pressed={state.os === os}
                 data-action={`device-os-${os}`}
                 onClick={() => setState({ os, selected: "", frame: "", error: "" })}
@@ -136,7 +136,7 @@ export function SessionDeviceTab() {
           </select>
         </Show>
         <span class="flex-1" />
-        <span class="rounded-full bg-v2-background-bg-layer-02 px-2 py-0.5 text-11-medium text-v2-text-text-weak">
+        <span class="rounded-full bg-v2-background-bg-layer-02 px-2 py-0.5 text-11-medium text-v2-text-text-muted">
           {current() ? current()!.name : language.t("secondBrain.device.none")}
         </span>
       </div>
@@ -145,7 +145,7 @@ export function SessionDeviceTab() {
         when={!unavailable()}
         fallback={
           <div
-            class="m-auto max-w-80 px-6 text-center text-13-regular leading-6 text-v2-text-text-weak"
+            class="m-auto max-w-80 px-6 text-center text-13-regular leading-6 text-v2-text-text-muted"
             data-slot="device-unavailable"
           >
             {unavailable()}
@@ -162,7 +162,7 @@ export function SessionDeviceTab() {
         <Show
           when={current()}
           fallback={
-            <div class="m-auto flex max-w-80 flex-col items-center gap-3 px-6 text-center text-13-regular text-v2-text-text-weak">
+            <div class="m-auto flex max-w-80 flex-col items-center gap-3 px-6 text-center text-13-regular text-v2-text-text-muted">
               <span>{language.t("secondBrain.device.start")}</span>
               <For each={state.os === "android" ? (status()?.android.avds ?? []) : devices().map((item) => item.id)}>
                 {(id) => (
@@ -213,7 +213,7 @@ export function SessionDeviceTab() {
         </div>
       </Show>
       <Show when={state.activity.length > 0}>
-        <div class="max-h-20 overflow-auto rounded-xl bg-v2-background-bg-layer-01 px-3 py-2 font-mono text-11-regular text-v2-text-text-weak">
+        <div class="max-h-20 overflow-auto rounded-xl bg-v2-background-bg-layer-01 px-3 py-2 font-mono text-11-regular text-v2-text-text-muted">
           <For each={state.activity.slice(-8)}>{(line) => <div>{line}</div>}</For>
         </div>
       </Show>

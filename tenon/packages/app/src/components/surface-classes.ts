@@ -1,10 +1,11 @@
 // Shared Material 3 classes for dialogs, popovers and composer menus.
-// Floating surfaces sit on bg-layer-01 like DialogV2 and MenuV2; fills inside them use bg-layer-02.
+// Floating surfaces are bg-base with elevation-floating, like DialogV2 and MenuV2; fills inside them use bg-layer-02.
+// Fields have a bg-layer-01 fill, a 1px border-base edge (border-strong on hover) and a 2px border-focus ring.
 // v2 component CSS is unlayered, so overrides of it need Tailwind's `!` modifier.
 
-/** Floating popover surface: 24px corners. */
+/** Floating popover surface: 16px corners. */
 export const popoverSurfaceClass =
-  "rounded-[24px] bg-v2-background-bg-layer-01 p-2 text-v2-text-text-base shadow-[var(--v2-elevation-floating)]"
+  "rounded-[16px] bg-v2-background-bg-base p-2 text-v2-text-text-base shadow-[var(--v2-elevation-floating)]"
 
 /** MenuV2 items: 36px tall, 12px corners, accent container when checked. */
 export const menuItemsClass =
@@ -19,18 +20,18 @@ export const activeOverlayClass =
 
 /** Pill search field; pair with a leading search icon positioned at `left-3`. */
 export const searchFieldClass =
-  "h-9 w-full min-w-0 rounded-full border-0 bg-v2-background-bg-layer-02 pl-9 pr-3 text-[13px] text-v2-text-text-base outline-none transition-shadow duration-short ease-standard placeholder:text-v2-text-text-faint focus-visible:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)] motion-reduce:transition-none"
+  "h-9 w-full min-w-0 rounded-full border-0 bg-v2-background-bg-layer-01 pl-9 pr-3 text-[13px] text-v2-text-text-base shadow-[inset_0_0_0_1px_var(--v2-border-border-base)] outline-none transition-shadow duration-short ease-standard placeholder:text-v2-text-text-faint hover:shadow-[inset_0_0_0_1px_var(--v2-border-border-strong)] focus-visible:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)] motion-reduce:transition-none"
 
-/** Filled TextInputV2: 40px, 12px corners (from TextInputV2), focus ring from TextInputV2's outline. */
-export const filledFieldClass = "!h-10 !w-full !bg-v2-background-bg-layer-02 !shadow-none"
+/** Large TextInputV2: 40px tall and full width; fill, edge and focus ring come from TextInputV2. */
+export const filledFieldClass = "!h-10 !w-full"
 
-/** Selectable list row: 16px corners, accent container when selected. */
+/** Selectable list row: 36px, 12px corners, accent container when selected. */
 export const listRowClass =
-  "flex w-full min-w-0 items-center gap-3 rounded-[16px] px-3 py-2 text-left text-[13px] text-v2-text-text-base transition-[background-color,border-radius] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover active:rounded-[12px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus aria-selected:bg-v2-background-bg-accent-container aria-selected:text-v2-text-text-on-accent-container motion-reduce:transition-none"
+  "flex min-h-9 w-full min-w-0 items-center gap-3 rounded-[12px] px-3 py-2 text-left text-[13px] text-v2-text-text-base transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover active:bg-v2-overlay-simple-overlay-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus aria-selected:bg-v2-background-bg-accent-container aria-selected:text-v2-text-text-on-accent-container motion-reduce:transition-none"
 
-/** Restyles the legacy fuzzy-search `List` (no v2 equivalent): pill search, 16px rows, accent active row. */
+/** Restyles the legacy fuzzy-search `List` (no v2 equivalent): edged pill search, 36px rows, overlay keyboard row. */
 export const listV2Class =
-  "[&_[data-slot=list-search-wrapper]]:!pb-1 [&_[data-slot=list-search]]:!h-9 [&_[data-slot=list-search]]:!rounded-full [&_[data-slot=list-search]]:!bg-v2-background-bg-layer-02 [&_[data-slot=list-search]]:!px-3 [&_[data-slot=list-search]:focus-within]:!shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)] [&_[data-slot=list-search]]:!text-[13px] [&_[data-slot=list-search]]:!text-v2-text-text-base [&_[data-slot=list-header]]:!bg-v2-background-bg-layer-01 [&_[data-slot=list-header]]:!text-[12px] [&_[data-slot=list-header]]:!text-v2-text-text-faint [&_[data-slot=list-header]]:![font-weight:500] [&_[data-slot=list-header]::after]:!hidden [&_[data-slot=list-message]]:!text-[13px] [&_[data-slot=list-message]]:!text-v2-text-text-muted [&_[data-slot=list-items]]:!gap-0.5 [&_[data-slot=list-item]]:!min-h-10 [&_[data-slot=list-item]]:!rounded-[16px] [&_[data-slot=list-item]]:!px-3 [&_[data-slot=list-item]]:!text-[13px] [&_[data-slot=list-item]]:![font-weight:400] [&_[data-slot=list-item]]:!text-v2-text-text-base [&_[data-slot=list-item]]:transition-[background-color,border-radius] [&_[data-slot=list-item]]:duration-short [&_[data-slot=list-item]]:ease-standard [&_[data-slot=list-item]:active]:!rounded-[12px] [&_[data-slot=list-item][data-active=true]]:!bg-v2-background-bg-accent-container [&_[data-slot=list-item][data-active=true]]:!text-v2-text-text-on-accent-container [&_[data-slot=list-item-divider]]:!hidden motion-reduce:[&_[data-slot=list-item]]:transition-none"
+  "[&_[data-slot=list-search-wrapper]]:!pb-1 [&_[data-slot=list-search]]:!h-9 [&_[data-slot=list-search]]:!rounded-full [&_[data-slot=list-search]]:!bg-v2-background-bg-layer-01 [&_[data-slot=list-search]]:!px-3 [&_[data-slot=list-search]]:!shadow-[inset_0_0_0_1px_var(--v2-border-border-base)] [&_[data-slot=list-search]:focus-within]:!shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)] [&_[data-slot=list-search]]:!text-[13px] [&_[data-slot=list-search]]:!text-v2-text-text-base [&_[data-slot=list-header]]:!bg-v2-background-bg-base [&_[data-slot=list-header]]:!text-[11px] [&_[data-slot=list-header]]:!leading-[14px] [&_[data-slot=list-header]]:!text-v2-text-text-muted [&_[data-slot=list-header]]:![font-weight:500] [&_[data-slot=list-header]::after]:!hidden [&_[data-slot=list-message]]:!text-[13px] [&_[data-slot=list-message]]:!text-v2-text-text-muted [&_[data-slot=list-items]]:!gap-0.5 [&_[data-slot=list-item]]:!min-h-9 [&_[data-slot=list-item]]:!rounded-[12px] [&_[data-slot=list-item]]:!px-3 [&_[data-slot=list-item]]:!text-[13px] [&_[data-slot=list-item]]:![font-weight:450] [&_[data-slot=list-item]]:!text-v2-text-text-base [&_[data-slot=list-item]]:transition-colors [&_[data-slot=list-item]]:duration-short [&_[data-slot=list-item]]:ease-standard [&_[data-slot=list-item]:active]:!bg-v2-overlay-simple-overlay-pressed [&_[data-slot=list-item][data-active=true]]:!bg-v2-overlay-simple-overlay-hover [&_[data-slot=list-item-divider]]:!hidden motion-reduce:[&_[data-slot=list-item]]:transition-none"
 
 /** Turns a SwitchV2 into a hoverable row whose label (dot, name, sub-line) fills the space before the switch. */
 export const switchRowClass =

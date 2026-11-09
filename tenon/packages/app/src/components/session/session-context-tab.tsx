@@ -48,7 +48,7 @@ function Stat(props: { label: string; value: JSX.Element }) {
 }
 
 function SectionLabel(props: { children: JSX.Element }) {
-  return <div class="pl-1 text-[12px] text-v2-text-text-muted [font-weight:500]">{props.children}</div>
+  return <div class="pl-1 type-section text-v2-text-text-base">{props.children}</div>
 }
 
 function RawMessageContent(props: { message: Message; getParts: (id: string) => Part[]; onRendered: () => void }) {
@@ -458,7 +458,7 @@ export function SessionContextTab() {
                   <div class="flex items-center gap-1.5 text-[12px] text-v2-text-text-muted">
                     <div class="size-2 rounded-full" style={{ "background-color": BREAKDOWN_COLOR[segment.key] }} />
                     <div>{breakdownLabel(segment.key)}</div>
-                    <div class="text-v2-text-text-faint">
+                    <div class="text-v2-text-text-base tabular-nums">
                       {Math.round(segment.percent).toLocaleString(language.intl())}%
                     </div>
                   </div>
