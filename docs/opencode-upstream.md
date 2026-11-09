@@ -17,7 +17,10 @@ runtime calls and links to `opencode.ai` listed in the
 The terminal UI is gone too: the `tui` and `cli` packages,
 `packages/tenon/src/cli/tui`, the `run` command, and the upstream
 `github`, `pr`, `account`, `upgrade`, `uninstall`, `web`, `acp`, `attach`,
-`stats`, `plug`, `export`, and `import` commands. The ACP harness driver in
+`stats`, `plug`, `export`, and `import` commands, and TUI plugin support: the
+`@opencode-ai/plugin/tui` entry point and the OpenTUI packages. The plugin
+loader skips a plugin that only exports `tui()` and loads the `server()` part
+of one that exports both. The ACP harness driver in
 `packages/core/src/harness/acp.ts` is unrelated and stays. A headless CLI
 remains for development only; the SDK build runs its `generate` command. The
 fork no longer builds or ships an `opencode` binary.

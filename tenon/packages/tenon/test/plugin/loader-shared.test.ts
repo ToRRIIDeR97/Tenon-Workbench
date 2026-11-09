@@ -12,7 +12,6 @@ import { testEffect } from "../lib/effect"
 
 const { Plugin } = await import("../../src/plugin/index")
 const { PluginLoader } = await import("../../src/plugin/loader")
-const { readPackageThemes } = await import("../../src/plugin/shared")
 const { Npm } = await import("@tenon/core/npm")
 const { TestConfig } = await import("../fixture/config")
 const { RuntimeFlags } = await import("../../src/effect/runtime-flags")
@@ -213,7 +212,7 @@ describe("plugin.loader.shared", () => {
     ),
   )
 
-  it.live("rejects v1 plugin that exports server and tui together", () =>
+  it.live("loads the server part of a v1 plugin that also exports tui", () =>
     withTmp(
       async (dir) => {
         const file = path.join(dir, "plugin.ts")
@@ -243,14 +242,43 @@ describe("plugin.loader.shared", () => {
       (tmp) =>
         Effect.gen(function* () {
           yield* load(tmp.path)
-          const called = yield* Effect.promise(() =>
-            Bun.file(tmp.extra.mark)
-              .text()
-              .then(() => true)
-              .catch(() => false),
-          )
+          expect(yield* Effect.promise(() => Bun.file(tmp.extra.mark).text())).toBe("server")
+        }),
+    ),
+  )
 
-          expect(called).toBe(false)
+  it.live("skips a v1 plugin that only exports tui and still loads the next plugin", () =>
+    withTmp(
+      async (dir) => {
+        const tui = path.join(dir, "tui-only.ts")
+        const server = path.join(dir, "server.ts")
+        const mark = path.join(dir, "called.txt")
+        await Bun.write(tui, 'export default { id: "demo.tui", tui: async () => {} }\n')
+        await Bun.write(
+          server,
+          [
+            "export default {",
+            '  id: "demo.server",',
+            "  server: async () => {",
+            `    await Bun.write(${JSON.stringify(mark)}, "server")`,
+            "    return {}",
+            "  },",
+            "}",
+            "",
+          ].join("\n"),
+        )
+
+        await Bun.write(
+          path.join(dir, "opencode.json"),
+          JSON.stringify({ plugin: [pathToFileURL(tui).href, pathToFileURL(server).href] }, null, 2),
+        )
+
+        return { mark }
+      },
+      (tmp) =>
+        Effect.gen(function* () {
+          yield* load(tmp.path)
+          expect(yield* Effect.promise(() => Bun.file(tmp.extra.mark).text())).toBe("server")
         }),
     ),
   )
@@ -940,69 +968,6 @@ export default {
     ),
   )
 
-  it.live("reads oc-themes from package manifest", () =>
-    withTmp(
-      async (dir) => {
-        const mod = path.join(dir, "mod")
-        await fs.mkdir(path.join(mod, "themes"), { recursive: true })
-        await Bun.write(
-          path.join(mod, "package.json"),
-          JSON.stringify(
-            {
-              name: "acme-plugin",
-              version: "1.0.0",
-              "oc-themes": ["themes/one.json", "./themes/one.json", "themes/two.json"],
-            },
-            null,
-            2,
-          ),
-        )
-
-        return { mod }
-      },
-      (tmp) =>
-        Effect.gen(function* () {
-          const file = path.join(tmp.extra.mod, "package.json")
-          const fsys = yield* FSUtil.Service
-          const json = (yield* fsys.readJson(file)) as Record<string, unknown>
-          const list = readPackageThemes("acme-plugin", {
-            dir: tmp.extra.mod,
-            pkg: file,
-            json,
-          })
-
-          expect(list).toEqual([
-            FSUtil.resolve(path.join(tmp.extra.mod, "themes", "one.json")),
-            FSUtil.resolve(path.join(tmp.extra.mod, "themes", "two.json")),
-          ])
-        }),
-    ),
-  )
-
-  it.live("rejects oc-themes path traversal", () =>
-    withTmp(
-      async (dir) => {
-        const mod = path.join(dir, "mod")
-        await fs.mkdir(mod, { recursive: true })
-        const file = path.join(mod, "package.json")
-        await Bun.write(file, JSON.stringify({ name: "acme", "oc-themes": ["../escape.json"] }, null, 2))
-        return { mod, file }
-      },
-      (tmp) =>
-        Effect.gen(function* () {
-          const fsys = yield* FSUtil.Service
-          const json = (yield* fsys.readJson(tmp.extra.file)) as Record<string, unknown>
-          expect(() =>
-            readPackageThemes("acme", {
-              dir: tmp.extra.mod,
-              pkg: tmp.extra.file,
-              json,
-            }),
-          ).toThrow("outside plugin directory")
-        }),
-    ),
-  )
-
   it.live("retries failed file plugins once after wait and keeps order", () =>
     withTmp(
       async (dir) => {
@@ -1026,7 +991,6 @@ export default {
                 scope: "local" as const,
                 source: tmp.path,
               })),
-              kind: "tui",
               wait: async () => {
                 wait += 1
                 await Bun.write(path.join(tmp.extra.a, "index.ts"), "export default {}\n")
@@ -1060,7 +1024,7 @@ export default {
         await fs.mkdir(mod, { recursive: true })
         await Bun.write(
           path.join(mod, "package.json"),
-          JSON.stringify({ exports: { "./tui": "../outside.js" } }, null, 2),
+          JSON.stringify({ exports: { "./server": "../outside.js" } }, null, 2),
         )
         return { spec }
       },
@@ -1078,7 +1042,6 @@ export default {
                   source: tmp.path,
                 },
               ],
-              kind: "tui",
               wait: async () => {
                 wait += 1
               },
@@ -1119,7 +1082,6 @@ export default {
                   source: tmp.path,
                 },
               ],
-              kind: "tui",
               wait: async () => {
                 wait += 1
               },
@@ -1152,7 +1114,6 @@ export default {
                 source: "test",
               },
             ],
-            kind: "tui",
             wait: async () => {
               wait += 1
             },
