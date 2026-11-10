@@ -207,8 +207,12 @@ recent-session index keeps only roots, so a collapsed Project's roots have no
 child nodes. The index therefore also keeps child-to-parent links, read from
 the same session list and updated by the same session events, and
 `linkedStates` carries each working child's state up through them with no
-per-directory request. Home's root list doesn't use the links. A card shows its
-marks and, while `summary.running` is above zero, the top line
+per-directory request. Home's root list doesn't use the links. The controller
+also counts the roots waiting for approval in every grouping (`needsYou`), for
+the Attention tab. The view draws the switch as text tabs and each card as a
+flat group with its marks; a single highlight in the list follows the row with
+`data-glide` and `data-selected`. In Attention, Needs you and Running list
+their threads as cards, and a running one shows the top line
 (`.sidebar-card-line`, animated with `transform` only and still under reduced
 motion). The view keys cards by ID and rows by thread node, because card objects
 are rebuilt on every status change. Previous and next thread walk the open cards

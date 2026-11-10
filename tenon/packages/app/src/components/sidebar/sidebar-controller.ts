@@ -414,6 +414,13 @@ export function createSidebarController() {
       ? attentionCards(roots, stateOf, linked)
       : recentCards(roots, stateOf, Date.now(), linked)
   })
+  /** Root threads waiting on the user anywhere in the workspace, whichever grouping is showing. */
+  const needsYou = createMemo(() => {
+    const value = groups()
+    return [...value.projects.flatMap((group) => group.threads), ...value.workspace].filter(
+      (node) => nodeState(node, stateOf, linked) === "approval",
+    ).length
+  })
   /** Each Project's root threads by Project ID, so a row looks its threads up instead of scanning every group. */
   const projectThreads = createMemo(
     () => new Map(groups().projects.map((group) => [group.project.id, group.threads] as const)),
@@ -977,6 +984,7 @@ export function createSidebarController() {
     card: (id: string) => cardByID().get(id),
     grouping,
     setGrouping: (value: ThreadGrouping) => setState("grouping", value),
+    needsYou,
     stateOf,
     subtreeState: (node: ThreadNode<Session>) => nodeState(node, stateOf, linked),
     projectThreads,

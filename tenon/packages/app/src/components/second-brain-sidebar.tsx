@@ -1,12 +1,26 @@
 import { THREAD_DRAG_PREFIX } from "@/utils/thread-reference"
 import type { Session } from "@opencode-ai/sdk/v2/client"
 import { useNavigate } from "@solidjs/router"
-import { createSignal, For, Match, Show, splitProps, Switch, type ComponentProps } from "solid-js"
+import {
+  createEffect,
+  createSignal,
+  For,
+  Match,
+  on,
+  onCleanup,
+  onMount,
+  Show,
+  splitProps,
+  Switch,
+  type ComponentProps,
+  type ParentProps,
+} from "solid-js"
+import { createStore } from "solid-js/store"
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { MenuV2 } from "@tenon/ui/v2/menu-v2"
+import { prefersReducedMotion } from "@tenon/ui/v2/motion"
 import { createReveal, Reveal } from "@tenon/ui/v2/reveal"
-import { SegmentedControlItemV2, SegmentedControlV2 } from "@tenon/ui/v2/segmented-control-v2"
 import { PathTooltip, TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { useDialog } from "@tenon/ui/context/dialog"
 import { useCommand } from "@/context/command"
@@ -25,17 +39,18 @@ import { DialogArchivedThreads } from "@/components/sidebar/dialog-archived-thre
 import { DialogInstructions } from "@/components/sidebar/dialog-instructions"
 import { DialogAddProject, DialogRemoveProject } from "@/components/sidebar/dialog-project-folder"
 import { useServer } from "@/context/server"
-import { parseGrouping, type CardSummary, type ThreadState } from "@/features/second-brain/sidebar-grouping"
-import type { ThreadNode } from "@/features/second-brain/sidebar-threads"
+import type { CardSummary, ThreadState } from "@/features/second-brain/sidebar-grouping"
+import { projectForDirectory, type ThreadNode } from "@/features/second-brain/sidebar-threads"
 import { createFreshItems } from "@/utils/fresh-items"
 import { sessionPinnedAt } from "@/utils/session"
 import { sessionHref } from "@/utils/session-route"
 import { sessionTitle } from "@/utils/session-title"
 
 // Rows clip, so keyboard focus draws an inset ring on the row: when the row is the button, or while its
-// main button (a direct child) has focus.
+// main button (a direct child) has focus. A selected row has no fill of its own: SelectionGlide draws one
+// highlight behind it that slides from row to row.
 const rowClass =
-  "group/row relative grid h-9 w-full min-w-0 shrink-0 cursor-default items-center overflow-hidden rounded-full bg-transparent text-left text-[13px] leading-5 text-v2-text-text-muted [font-weight:500] transition-[background-color,color,border-radius] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base active:rounded-[12px] active:bg-v2-overlay-simple-overlay-pressed data-[selected]:bg-v2-background-bg-accent-container data-[selected]:text-v2-text-text-on-accent-container data-[selected]:[font-weight:600] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus has-[>button:focus-visible]:outline has-[>button:focus-visible]:outline-2 has-[>button:focus-visible]:-outline-offset-2 has-[>button:focus-visible]:outline-v2-border-border-focus motion-reduce:transition-none"
+  "group/row relative grid h-8 w-full min-w-0 shrink-0 cursor-default items-center overflow-hidden rounded-[8px] bg-transparent text-left text-[13px] leading-5 text-v2-text-text-muted [font-weight:500] transition-[background-color,color] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base active:bg-v2-overlay-simple-overlay-pressed data-[selected]:text-v2-text-text-base data-[selected]:hover:bg-transparent data-[selected]:[font-weight:600] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus has-[>button:focus-visible]:outline has-[>button:focus-visible]:outline-2 has-[>button:focus-visible]:-outline-offset-2 has-[>button:focus-visible]:outline-v2-border-border-focus motion-reduce:transition-none"
 
 // Card header actions take no width at rest and open beside the status marks on hover, focus or an open menu.
 const headerActionsClass =
@@ -181,8 +196,8 @@ export function SecondBrainSidebar() {
                 <MissingFolder ctrl={ctrl} directory={ctrl.brainDirectory()!} />
               </Show>
               <Show when={ctrl.folderMissing(ctrl.brainDirectory()!) !== true}>
-                <GroupBySwitch ctrl={ctrl} />
-                <div class="flex flex-col gap-2">
+                <GroupTabs ctrl={ctrl} />
+                <SelectionGlide ctrl={ctrl}>
                   <Show
                     when={ctrl.grouping() === "project"}
                     fallback={
@@ -217,7 +232,7 @@ export function SecondBrainSidebar() {
                       archivedDirectory={ctrl.brainDirectory()}
                     />
                   </Show>
-                </div>
+                </SelectionGlide>
               </Show>
             </Show>
           </div>
@@ -429,23 +444,156 @@ function ProjectsFailed(props: { ctrl: SidebarController }) {
   )
 }
 
-function GroupBySwitch(props: { ctrl: SidebarController }) {
+const groupings = ["project", "attention", "recent"] as const
+const groupingLabel = {
+  project: "secondBrain.sidebar.groupByProject",
+  attention: "secondBrain.sidebar.groupByAttention",
+  recent: "secondBrain.sidebar.groupByRecent",
+} as const
+
+/** Project, Attention and Recent as text tabs; an underline slides to the chosen one. */
+function GroupTabs(props: { ctrl: SidebarController }) {
   const language = useLanguage()
+  const tabs: HTMLButtonElement[] = []
+  const [ink, setInk] = createStore({ left: 0, width: 0, ready: false })
+  const measure = () => {
+    const tab = tabs[groupings.indexOf(props.ctrl.grouping())]
+    if (tab) setInk({ left: tab.offsetLeft, width: tab.offsetWidth })
+  }
+  onMount(() => {
+    measure()
+    // The Attention count and late fonts change a tab's width.
+    const observer = new ResizeObserver(measure)
+    tabs.forEach((tab) => observer.observe(tab))
+    onCleanup(() => observer.disconnect())
+    // The underline starts in place, then slides on later changes.
+    requestAnimationFrame(() => setInk("ready", true))
+  })
+  createEffect(on(props.ctrl.grouping, measure, { defer: true }))
+  const step = (event: KeyboardEvent) => {
+    const delta = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0
+    if (!delta) return
+    event.preventDefault()
+    const index = (groupings.indexOf(props.ctrl.grouping()) + delta + groupings.length) % groupings.length
+    props.ctrl.setGrouping(groupings[index])
+    tabs[index]?.focus()
+  }
   return (
-    <SegmentedControlV2
-      class="segmented-control-v2--full-width mb-2 shrink-0"
+    <div
+      role="tablist"
       aria-label={language.t("secondBrain.sidebar.groupBy")}
-      value={props.ctrl.grouping()}
-      onChange={(value) => props.ctrl.setGrouping(parseGrouping(value))}
+      class="relative mb-1 flex shrink-0 gap-4 border-b border-v2-border-border-muted px-3"
+      onKeyDown={step}
     >
-      <SegmentedControlItemV2 value="project">
-        {language.t("secondBrain.sidebar.groupByProject")}
-      </SegmentedControlItemV2>
-      <SegmentedControlItemV2 value="attention">
-        {language.t("secondBrain.sidebar.groupByAttention")}
-      </SegmentedControlItemV2>
-      <SegmentedControlItemV2 value="recent">{language.t("secondBrain.sidebar.groupByRecent")}</SegmentedControlItemV2>
-    </SegmentedControlV2>
+      <For each={groupings}>
+        {(mode, index) => (
+          <button
+            ref={(element) => (tabs[index()] = element)}
+            type="button"
+            role="tab"
+            id={`sidebar-tab-${mode}`}
+            aria-controls="sidebar-threads"
+            aria-selected={props.ctrl.grouping() === mode}
+            tabIndex={props.ctrl.grouping() === mode ? 0 : -1}
+            class="flex items-center gap-1 pb-2 pt-1.5 text-[13px] leading-5 text-v2-text-text-muted [font-weight:500] transition-colors duration-short ease-standard hover:text-v2-text-text-base aria-selected:text-v2-text-text-base focus-visible:rounded-[4px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
+            onClick={() => props.ctrl.setGrouping(mode)}
+          >
+            {language.t(groupingLabel[mode])}
+            <Show when={mode === "attention" && props.ctrl.needsYou()}>
+              {(count) => (
+                <span class="text-[11px] leading-4 text-v2-state-fg-warning [font-weight:600]">{count()}</span>
+              )}
+            </Show>
+          </button>
+        )}
+      </For>
+      <span
+        aria-hidden="true"
+        class="pointer-events-none absolute -bottom-px left-0 h-0.5 rounded-full bg-v2-text-text-base"
+        classList={{
+          "transition-[transform,width] duration-medium ease-standard motion-reduce:transition-none": ink.ready,
+        }}
+        style={{ width: `${ink.width}px`, transform: `translateX(${ink.left}px)` }}
+      />
+    </div>
+  )
+}
+
+/**
+ * The thread list under the tabs. One highlight sits behind the selected row (`data-glide` with
+ * `data-selected`): it slides when the selection or the row order changes, and follows the row while a
+ * group above it opens or closes. A switch of tab slides the list in from the side of the new tab.
+ */
+function SelectionGlide(props: ParentProps<{ ctrl: SidebarController }>) {
+  let list!: HTMLDivElement
+  const [glide, setGlide] = createStore({ top: 0, height: 0, shown: false, animate: false })
+  const place = (animate: boolean) => {
+    const row = list.querySelector<HTMLElement>("[data-glide][data-selected]")
+    if (!row || row.closest('[data-component="reveal-v2"]:not([data-open])')) return setGlide("shown", false)
+    const rect = row.getBoundingClientRect()
+    setGlide({
+      top: rect.top - list.getBoundingClientRect().top,
+      height: rect.height,
+      // A highlight that is just appearing starts in place instead of sliding in from the top.
+      animate: animate && glide.shown,
+      shown: true,
+    })
+  }
+  onMount(() => {
+    // Size changes come from groups opening, frame by frame, so the highlight follows without easing.
+    const resize = new ResizeObserver(() => place(false))
+    resize.observe(list)
+    let frame = 0
+    const mutate = new MutationObserver(() => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => place(true))
+    })
+    mutate.observe(list, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-selected"] })
+    onCleanup(() => {
+      resize.disconnect()
+      mutate.disconnect()
+      cancelAnimationFrame(frame)
+    })
+  })
+  createEffect(
+    on(
+      props.ctrl.grouping,
+      (mode, previous) => {
+        if (!previous || prefersReducedMotion()) return
+        const side = groupings.indexOf(mode) > groupings.indexOf(previous) ? 1 : -1
+        list.animate(
+          [
+            { opacity: 0, transform: `translateX(${side * 12}px)` },
+            { opacity: 1, transform: "none" },
+          ],
+          {
+            duration: 220,
+            easing: "cubic-bezier(0.2, 0, 0, 1)",
+          },
+        )
+      },
+      { defer: true },
+    ),
+  )
+  return (
+    <div
+      ref={list}
+      id="sidebar-threads"
+      role="tabpanel"
+      aria-labelledby={`sidebar-tab-${props.ctrl.grouping()}`}
+      class="relative flex flex-col gap-0.5"
+    >
+      <span
+        aria-hidden="true"
+        class="pointer-events-none absolute inset-x-0 top-0 rounded-[8px] bg-v2-overlay-simple-overlay-pressed"
+        classList={{
+          "opacity-0": !glide.shown,
+          "transition-[transform,height] duration-medium ease-standard motion-reduce:transition-none": glide.animate,
+        }}
+        style={{ height: `${glide.height}px`, transform: `translateY(${glide.top}px)` }}
+      />
+      {props.children}
+    </div>
   )
 }
 
@@ -489,7 +637,7 @@ function CardMarks(props: { summary?: CardSummary }) {
   )
 }
 
-/** The rounded surface every group of threads sits on. It clips the top line to its corners. */
+/** A group of threads: a header row and its list, flat on the panel. */
 function SidebarCard(props: ComponentProps<"div"> & { cardID: string; label: string; summary?: CardSummary }) {
   const language = useLanguage()
   const [local, rest] = splitProps(props, ["cardID", "label", "summary", "children"])
@@ -504,11 +652,8 @@ function SidebarCard(props: ComponentProps<"div"> & { cardID: string; label: str
           ? language.plural("secondBrain.sidebar.cardRunning", running(), { name: local.label, count: running() })
           : local.label
       }
-      class="relative flex shrink-0 flex-col overflow-hidden rounded-[16px] bg-v2-background-bg-layer-01 p-1 shadow-[0_0_0_1px_var(--v2-border-border-muted)]"
+      class="relative flex shrink-0 flex-col"
     >
-      <Show when={running() > 0}>
-        <span aria-hidden="true" class="sidebar-card-line" />
-      </Show>
       {local.children}
     </div>
   )
@@ -541,7 +686,7 @@ function GroupedCard(props: { ctrl: SidebarController; id: keyof typeof groupedC
       <div class={`${rowClass} grid-cols-[1fr]`}>
         <button
           type="button"
-          class="flex h-9 min-w-0 items-center gap-1.5 pl-3 pr-3 text-left focus-visible:outline-none"
+          class="flex h-8 min-w-0 items-center gap-1.5 pl-3 pr-3 text-left focus-visible:outline-none"
           aria-expanded={open()}
           onClick={() => props.ctrl.toggleExpanded(props.id)}
         >
@@ -552,9 +697,60 @@ function GroupedCard(props: { ctrl: SidebarController; id: keyof typeof groupedC
         </button>
       </div>
       <Reveal open={open()} variant="even">
-        <ThreadList ctrl={props.ctrl} threads={card()?.threads ?? []} />
+        <Show
+          when={props.id === "attention:needs" || props.id === "attention:running"}
+          fallback={<ThreadList ctrl={props.ctrl} threads={card()?.threads ?? []} />}
+        >
+          <InboxCards ctrl={props.ctrl} threads={card()?.threads ?? []} />
+        </Show>
       </Reveal>
     </SidebarCard>
+  )
+}
+
+/** Needs you and Running in Attention: each thread as a card naming its folder and, for an approval, what it waits on. */
+function InboxCards(props: { ctrl: SidebarController; threads: ThreadNode<Session>[] }) {
+  const language = useLanguage()
+  const fresh = createFreshItems()
+  return (
+    <div class="flex flex-col gap-1.5 px-1 pb-2 pt-0.5">
+      <For each={props.threads}>
+        {(node) => {
+          const enter = fresh(node.session.id)
+          const state = () => props.ctrl.subtreeState(node)
+          const folder = () =>
+            projectForDirectory(props.ctrl.projects(), node.session.directory)?.name ??
+            language.t("secondBrain.sidebar.workspaceThreads")
+          return (
+            <button
+              type="button"
+              data-sidebar-thread={node.session.id}
+              data-sidebar-thread-open
+              data-selected={props.ctrl.activeSessionID() === node.session.id ? "" : undefined}
+              aria-current={props.ctrl.activeSessionID() === node.session.id ? "page" : undefined}
+              class={`relative flex w-full min-w-0 flex-col gap-0.5 overflow-hidden rounded-[12px] bg-v2-background-bg-layer-01 px-3 py-2 text-left shadow-[0_0_0_1px_var(--v2-border-border-muted)] transition-[background-color,box-shadow] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover data-[selected]:shadow-[0_0_0_1px_var(--v2-border-border-focus)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none ${enter ? "animate-enter" : ""}`}
+              onClick={() => props.ctrl.openThread(node.session)}
+            >
+              <Show when={state() === "running"}>
+                <span aria-hidden="true" class="sidebar-card-line" />
+              </Show>
+              <span class="flex min-w-0 items-center gap-1.5">
+                <span class="min-w-0 flex-1 truncate text-[13px] leading-5 text-v2-text-text-base [font-weight:500]">
+                  {sessionTitle(node.session.title) || node.session.id}
+                </span>
+                <ThreadStatusMark state={state()} />
+              </span>
+              <span class="truncate text-[12px] leading-4 text-v2-text-text-muted">{folder()}</span>
+              <Show when={state() === "approval"}>
+                <span class="text-[12px] leading-4 text-v2-state-fg-warning">
+                  {language.t("secondBrain.activity.run.approval")}
+                </span>
+              </Show>
+            </button>
+          )
+        }}
+      </For>
+    </div>
   )
 }
 
@@ -595,12 +791,13 @@ function ProjectGroup(props: { ctrl: SidebarController; project: SidebarProjectI
     >
       <div
         class={`${rowClass} grid-cols-[minmax(0,1fr)_auto]`}
+        data-glide
         data-selected={props.ctrl.activeProjectID() === props.project.id && !open() ? "" : undefined}
         onContextMenu={(event) => openRowMenu(event, setMenuOpen)}
       >
         <button
           type="button"
-          class="flex h-9 min-w-0 items-center gap-1.5 pl-3 pr-3 text-left focus-visible:outline-none"
+          class="flex h-8 min-w-0 items-center gap-1.5 pl-3 pr-3 text-left focus-visible:outline-none"
           aria-expanded={open()}
           onClick={() => props.ctrl.toggleExpanded(props.project.id)}
         >
@@ -680,7 +877,12 @@ function ProjectGroup(props: { ctrl: SidebarController; project: SidebarProjectI
         </div>
       </div>
       <Reveal open={open()} variant="even">
-        <ThreadList ctrl={props.ctrl} threads={props.threads} onNewThread={() => props.ctrl.newThread(props.project)} />
+        <ThreadList
+          ctrl={props.ctrl}
+          threads={props.threads}
+          onNewThread={() => props.ctrl.newThread(props.project)}
+          guide
+        />
       </Reveal>
     </SidebarCard>
   )
@@ -708,7 +910,7 @@ function ThreadGroup(props: {
       >
         <button
           type="button"
-          class="flex h-9 min-w-0 items-center gap-1.5 pl-3 pr-3 text-left focus-visible:outline-none"
+          class="flex h-8 min-w-0 items-center gap-1.5 pl-3 pr-3 text-left focus-visible:outline-none"
           aria-expanded={open()}
           onClick={() => props.ctrl.toggleExpanded(props.id)}
         >
@@ -760,22 +962,37 @@ function ThreadGroup(props: {
         </div>
       </div>
       <Reveal open={open()} variant="even">
-        <ThreadList ctrl={props.ctrl} threads={props.threads} onNewThread={props.onNewThread} />
+        <ThreadList ctrl={props.ctrl} threads={props.threads} onNewThread={props.onNewThread} guide />
       </Reveal>
     </SidebarCard>
   )
 }
 
-function ThreadList(props: { ctrl: SidebarController; threads: ThreadNode<Session>[]; onNewThread?: () => void }) {
+/** Under a Project or the workspace (`guide`), a line runs down from the chevron and each thread branches off it. */
+function ThreadList(props: {
+  ctrl: SidebarController
+  threads: ThreadNode<Session>[]
+  onNewThread?: () => void
+  guide?: boolean
+}) {
   const language = useLanguage()
   // The list is rebuilt on every thread change, so `For` recreates its rows. Only a thread that was not
   // listed before animates in; the rows of the first render, and later reorders, do not.
   const fresh = createFreshItems()
   return (
-    <div class="flex flex-col">
+    <div
+      class="relative flex flex-col"
+      classList={{
+        "before:absolute before:bottom-2 before:left-5 before:top-0 before:w-px before:bg-v2-border-border-muted":
+          props.guide,
+      }}
+    >
       <Show when={props.onNewThread}>
         {(run) => (
           <button type="button" data-sidebar-new-thread class={`${rowClass} grid-cols-[1fr] pl-[34px]`} onClick={run()}>
+            <Show when={props.guide}>
+              <GuideTick />
+            </Show>
             <span class="flex min-w-0 items-center gap-1.5">
               <Icon name="plus" size="small" class="shrink-0 text-v2-icon-icon-muted" />
               <span class="truncate">{language.t("secondBrain.sidebar.newThread")}</span>
@@ -786,7 +1003,7 @@ function ThreadList(props: { ctrl: SidebarController; threads: ThreadNode<Sessio
       <For each={props.threads}>
         {(node) => {
           const enter = fresh(node.session.id)
-          return <ThreadRow ctrl={props.ctrl} node={node} depth={0} enter={enter} />
+          return <ThreadRow ctrl={props.ctrl} node={node} depth={0} enter={enter} guide={props.guide} />
         }}
       </For>
       <Show when={!props.onNewThread && props.threads.length === 0}>
@@ -798,7 +1015,17 @@ function ThreadList(props: { ctrl: SidebarController; threads: ThreadNode<Sessio
   )
 }
 
-function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; depth: number; enter?: boolean }) {
+const GuideTick = () => (
+  <span aria-hidden="true" class="pointer-events-none absolute left-5 top-1/2 h-px w-2 bg-v2-border-border-muted" />
+)
+
+function ThreadRow(props: {
+  ctrl: SidebarController
+  node: ThreadNode<Session>
+  depth: number
+  enter?: boolean
+  guide?: boolean
+}) {
   const language = useLanguage()
   const [editing, setEditing] = createSignal(false)
   const session = () => props.node.session
@@ -840,11 +1067,15 @@ function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; 
     <>
       <div
         data-sidebar-thread={session().id}
+        data-glide
         data-selected={active() ? "" : undefined}
         class={`${rowClass} grid-cols-[1fr_auto] ${props.enter ? "animate-enter" : ""}`}
         style={{ "padding-left": `${26 + props.depth * 12}px` }}
         onContextMenu={(event) => openRowMenu(event, setMenuOpen)}
       >
+        <Show when={props.guide}>
+          <GuideTick />
+        </Show>
         <Show when={props.ctrl.hasChildren(props.node)}>
           <button
             type="button"
@@ -865,7 +1096,7 @@ function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; 
           fallback={
             <button
               type="button"
-              class="flex h-9 min-w-0 items-center gap-1.5 pl-2 pr-1 text-left focus-visible:outline-none"
+              class="flex h-8 min-w-0 items-center gap-1.5 pl-2 pr-1 text-left focus-visible:outline-none"
               data-sidebar-thread-open
               aria-current={active() ? "page" : undefined}
               draggable="true"

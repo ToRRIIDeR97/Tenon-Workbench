@@ -3,7 +3,7 @@ import { fixture } from "../smoke/session-timeline.fixture"
 import type { MockServerConfig } from "../utils/mock-server"
 import { openApp, sidebar } from "./open-app"
 
-// implementations/sidebar-folder-cards: Group by, cards, status marks and the top line.
+// implementations/sidebar-folder-cards: Group by tabs, flat groups, status marks, the Attention inbox and its top line.
 
 const repo = "C:/OpenCode/Repo"
 const project = {
@@ -50,7 +50,7 @@ const open = (page: Page, input: Partial<MockServerConfig> = {}) =>
     ...input,
   })
 
-const groupBy = (page: Page) => sidebar(page).getByRole("group", { name: "Group by" })
+const groupBy = (page: Page) => sidebar(page).getByRole("tablist", { name: "Group by" })
 const card = (page: Page, id: string) => sidebar(page).locator(`[data-sidebar-card="${id}"]`)
 const cardIDs = (page: Page) =>
   sidebar(page)
@@ -59,48 +59,48 @@ const cardIDs = (page: Page) =>
 
 test.use({ viewport: { width: 1280, height: 800 } })
 
-test("Project mode shows a rounded card per Project and one for the workspace, in today's order", async ({ page }) => {
+test("Project mode shows a flat group per Project and one for the workspace, in today's order", async ({ page }) => {
   await open(page)
   await page.goto("/")
-  await expect(groupBy(page).getByRole("button", { name: "Project" })).toHaveAttribute("aria-pressed", "true")
+  await expect(groupBy(page).getByRole("tab", { name: "Project" })).toHaveAttribute("aria-selected", "true")
   await expect(sidebar(page).locator('[data-sidebar-project="prj_repo"][data-sidebar-card]')).toBeVisible()
   await expect(sidebar(page).locator('[data-sidebar-group="__brain__"][data-sidebar-card]')).toBeVisible()
   await expect.poll(() => cardIDs(page)).toEqual(["prj_repo", "__brain__"])
   const style = await card(page, "prj_repo").evaluate((element) => {
     const css = getComputedStyle(element)
-    return { radius: parseFloat(css.borderTopLeftRadius), overflow: css.overflowX, position: css.position }
+    return { radius: parseFloat(css.borderTopLeftRadius), background: css.backgroundColor }
   })
-  expect(style).toEqual({ radius: 16, overflow: "hidden", position: "relative" })
+  expect(style).toEqual({ radius: 0, background: "rgba(0, 0, 0, 0)" })
 })
 
 test("Group by switches between the three modes", async ({ page }) => {
   await open(page)
   await page.goto("/")
-  await groupBy(page).getByRole("button", { name: "Attention" }).click()
+  await groupBy(page).getByRole("tab", { name: "Attention" }).click()
   await expect.poll(() => cardIDs(page)).toEqual(["attention:running", "attention:other"])
   await expect(card(page, "attention:running").getByRole("button", { name: /^Running/ })).toHaveAttribute(
     "aria-expanded",
     "true",
   )
 
-  await groupBy(page).getByRole("button", { name: "Recent" }).click()
+  await groupBy(page).getByRole("tab", { name: "Recent" }).click()
   await expect.poll(() => cardIDs(page)).toEqual(["recent:today", "recent:earlier"])
 
-  await groupBy(page).getByRole("button", { name: "Project" }).click()
+  await groupBy(page).getByRole("tab", { name: "Project" }).click()
   await expect.poll(() => cardIDs(page)).toEqual(["prj_repo", "__brain__"])
 })
 
 test("the choice survives a reload", async ({ page }) => {
   await open(page)
   await page.goto("/")
-  await groupBy(page).getByRole("button", { name: "Recent" }).click()
+  await groupBy(page).getByRole("tab", { name: "Recent" }).click()
   await expect(card(page, "recent:today")).toBeVisible()
   await expect
     .poll(() => page.evaluate(() => JSON.parse(localStorage["tenon.window.browser.dat:sidebar"] ?? "{}").grouping))
     .toBe("recent")
 
   await page.reload()
-  await expect(groupBy(page).getByRole("button", { name: "Recent" })).toHaveAttribute("aria-pressed", "true")
+  await expect(groupBy(page).getByRole("tab", { name: "Recent" })).toHaveAttribute("aria-selected", "true")
   await expect(card(page, "recent:today")).toBeVisible()
 })
 
@@ -110,7 +110,7 @@ test("a stored value that isn't a mode falls back to Project", async ({ page }) 
     localStorage.setItem("tenon.window.browser.dat:sidebar", JSON.stringify({ grouping: "kanban" }))
   })
   await page.goto("/")
-  await expect(groupBy(page).getByRole("button", { name: "Project" })).toHaveAttribute("aria-pressed", "true")
+  await expect(groupBy(page).getByRole("tab", { name: "Project" })).toHaveAttribute("aria-selected", "true")
   await expect(card(page, "prj_repo")).toBeVisible()
 })
 
@@ -121,7 +121,7 @@ for (const [mode, id, thread] of [
   test(`a thread opens from ${mode}`, async ({ page }) => {
     await open(page)
     await page.goto("/")
-    await groupBy(page).getByRole("button", { name: mode }).click()
+    await groupBy(page).getByRole("tab", { name: mode }).click()
     await card(page, id).locator(`[data-sidebar-thread="${thread}"] [data-sidebar-thread-open]`).click()
     await expect(page).toHaveURL(new RegExp(thread))
     await expect(card(page, id).locator(`[data-sidebar-thread="${thread}"]`)).toHaveAttribute("data-selected", "")
@@ -138,24 +138,59 @@ test("a thread opens from Project", async ({ page }) => {
   await expect(page).toHaveURL(/ses_busy/)
 })
 
-test("a collapsed card shows the running mark and the top line, and names the count", async ({ page }) => {
+test("a collapsed group shows the running mark and names the count", async ({ page }) => {
   await open(page)
   await page.goto("/")
   const repoCard = sidebar(page).getByRole("group", { name: "Repo project, 1 running" })
   await expect(repoCard).toBeVisible()
   await expect(repoCard.getByRole("button", { name: /^Repo project/ })).toHaveAttribute("aria-expanded", "false")
   await expect(repoCard.getByRole("img", { name: "Running" })).toBeVisible()
-  const line = repoCard.locator(".sidebar-card-line")
+  await expect(sidebar(page).locator(".sidebar-card-line")).toHaveCount(0)
+  await expect(card(page, "__brain__").getByRole("img")).toHaveCount(0)
+})
+
+test("Attention shows running threads as cards with the top line, naming their folder", async ({ page }) => {
+  await open(page)
+  await page.goto("/")
+  await groupBy(page).getByRole("tab", { name: "Attention" }).click()
+  const busy = card(page, "attention:running").locator('[data-sidebar-thread="ses_busy"]')
+  await expect(busy).toContainText("Repo project")
+  const line = busy.locator(".sidebar-card-line")
   await expect(line).toHaveAttribute("aria-hidden", "true")
   await expect.poll(() => line.evaluate((element) => getComputedStyle(element).animationName)).toBe("sidebar-card-line")
-  await expect(card(page, "__brain__").locator(".sidebar-card-line")).toHaveCount(0)
-  await expect(card(page, "__brain__").getByRole("img")).toHaveCount(0)
+  await busy.click()
+  await expect(page).toHaveURL(/ses_busy/)
+  await expect(busy).toHaveAttribute("data-selected", "")
+})
+
+test("one highlight sits behind the selected row and moves with the selection", async ({ page }) => {
+  await open(page)
+  await page.goto("/")
+  await groupBy(page).getByRole("tab", { name: "Recent" }).click()
+  const glide = sidebar(page).locator("#sidebar-threads > span[aria-hidden]").first()
+  const row = (id: string) => sidebar(page).locator(`[data-sidebar-thread="${id}"]`)
+  const offset = (id: string) =>
+    Promise.all([glide.boundingBox(), row(id).boundingBox()]).then(([a, b]) => Math.round((a?.y ?? 0) - (b?.y ?? 0)))
+  await row("ses_quiet").locator("[data-sidebar-thread-open]").click()
+  await expect.poll(() => offset("ses_quiet")).toBe(0)
+  await row("ses_busy").locator("[data-sidebar-thread-open]").click()
+  await expect.poll(() => offset("ses_busy")).toBe(0)
+})
+
+test("the Attention tab counts threads that need you, and arrow keys move between tabs", async ({ page }) => {
+  await open(page)
+  await page.goto("/")
+  await expect(groupBy(page).getByRole("tab", { name: "Attention" })).toHaveText("Attention")
+  await groupBy(page).getByRole("tab", { name: "Project" }).focus()
+  await page.keyboard.press("ArrowRight")
+  await expect(groupBy(page).getByRole("tab", { name: "Attention" })).toHaveAttribute("aria-selected", "true")
+  await expect(groupBy(page).getByRole("tab", { name: "Attention" })).toBeFocused()
 })
 
 test("a row shows its state, idle shows nothing, and the sidebar no longer pulses", async ({ page }) => {
   await open(page)
   await page.goto("/")
-  await groupBy(page).getByRole("button", { name: "Attention" }).click()
+  await groupBy(page).getByRole("tab", { name: "Attention" }).click()
   const row = sidebar(page).locator('[data-sidebar-thread="ses_busy"]')
   await expect(row.getByRole("img", { name: "Running" })).toBeVisible()
   await expect(sidebar(page).locator(".running-pulse")).toHaveCount(0)
@@ -195,6 +230,25 @@ test("an approval on a child that was never listed moves its root to Needs you",
   await expect(card(page, "attention:other")).toHaveCount(0)
 })
 
+test("Attention counts a thread waiting for approval and shows it as a card saying so", async ({ page }) => {
+  const permission = {
+    id: "per_quiet",
+    sessionID: "ses_quiet",
+    permission: "bash",
+    patterns: ["git status"],
+    metadata: {},
+    always: [],
+  }
+  await open(page, { permissions: [permission] })
+  await page.goto("/")
+  const tab = groupBy(page).getByRole("tab", { name: /^Attention/ })
+  await expect(tab).toHaveText("Attention1")
+  await tab.click()
+  await expect(card(page, "attention:needs").locator('[data-sidebar-thread="ses_quiet"]')).toContainText(
+    "Waiting for approval",
+  )
+})
+
 test("a status change keeps the other rows and an open menu", async ({ page }) => {
   const events: unknown[] = []
   // The app re-reads statuses on each reconnect, so the mock's answer has to change along with the event.
@@ -225,7 +279,8 @@ test("with reduced motion the line is still and full width", async ({ page }) =>
   await page.emulateMedia({ reducedMotion: "reduce" })
   await open(page)
   await page.goto("/")
-  const line = card(page, "prj_repo").locator(".sidebar-card-line")
+  await groupBy(page).getByRole("tab", { name: "Attention" }).click()
+  const line = card(page, "attention:running").locator(".sidebar-card-line")
   await expect(line).toBeVisible()
   const style = await line.evaluate((element) => {
     const parent = element.parentElement?.getBoundingClientRect().width
