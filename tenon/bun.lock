@@ -559,11 +559,11 @@
     "@ai-sdk/google@3.0.141": "patches/@ai-sdk%2Fgoogle@3.0.141.patch",
     "@ai-sdk/mistral@3.0.79": "patches/@ai-sdk%2Fmistral@3.0.79.patch",
     "@dnd-kit/dom@0.5.3": "patches/@dnd-kit%2Fdom@0.5.3.patch",
-    "pacote@21.5.2": "patches/pacote@21.5.2.patch",
     "@ai-sdk/groq@3.0.81": "patches/@ai-sdk%2Fgroq@3.0.81.patch",
     "solid-js@1.9.18": "patches/solid-js@1.9.18.patch",
     "@modelcontextprotocol/sdk@1.32.2": "patches/@modelcontextprotocol%2Fsdk@1.32.2.patch",
     "@ai-sdk/xai@3.0.149": "patches/@ai-sdk%2Fxai@3.0.149.patch",
+    "pacote@21.5.3": "patches/pacote@21.5.3.patch",
   },
   "overrides": {
     "@types/bun": "catalog:",
@@ -571,7 +571,7 @@
     "@xmldom/xmldom": "0.8.15",
     "fast-uri": "3.1.9",
     "ip-address": "10.7.6",
-    "pacote": "21.5.2",
+    "pacote": "21.5.3",
     "tar": "7.5.22",
     "ws": "8.22.1",
   },
@@ -2365,7 +2365,7 @@
 
     "package-json-from-dist": ["package-json-from-dist@1.0.1", "", {}, "sha512-UEZIS3/by4OC8vL3P2dTXRETpebLI2NiI5vIrjaD/5UtrkFX/tNbwjTSRAGC/+7CAo2pIcBaRgWmcBBHcsaCIw=="],
 
-    "pacote": ["pacote@21.5.2", "", { "dependencies": { "@gar/promise-retry": "^1.0.0", "@npmcli/git": "^7.0.0", "@npmcli/installed-package-contents": "^4.0.0", "@npmcli/package-json": "^7.0.0", "@npmcli/promise-spawn": "^9.0.0", "@npmcli/run-script": "^10.0.0", "cacache": "^20.0.0", "fs-minipass": "^3.0.0", "minipass": "^7.0.2", "npm-package-arg": "^13.0.0", "npm-packlist": "^10.0.1", "npm-pick-manifest": "^11.0.1", "npm-registry-fetch": "^19.0.0", "proc-log": "^6.0.0", "sigstore": "^4.0.0", "ssri": "^13.0.0", "tar": "^7.4.3" }, "bin": { "pacote": "bin/index.js" } }, "sha512-rifBXawDMv3nLvABWr1kTpSk0UjeglTT4Vt9t8nU9xSnfdZcCTy+FOjO6TgXWAS77lIfbZlRkl2eKQcdY0++jA=="],
+    "pacote": ["pacote@21.5.3", "", { "dependencies": { "@gar/promise-retry": "^1.0.0", "@npmcli/git": "^7.0.0", "@npmcli/installed-package-contents": "^4.0.0", "@npmcli/package-json": "^7.0.0", "@npmcli/promise-spawn": "^9.0.0", "@npmcli/run-script": "^10.0.0", "cacache": "^20.0.0", "fs-minipass": "^3.0.0", "minipass": "^7.0.2", "npm-package-arg": "^13.0.0", "npm-packlist": "^10.0.1", "npm-pick-manifest": "^11.0.1", "npm-registry-fetch": "^19.0.0", "proc-log": "^6.0.0", "sigstore": "^4.0.0", "ssri": "^13.0.0", "tar": "^7.4.3" }, "bin": { "pacote": "bin/index.js" } }, "sha512-XAHnxRzERPW/Y3sLaCgfUVdfP5Di1K0wiUWsDaK4reodu20Kl0pVZcw8Mdd2LaLsUpot6YLVOEgmIqMEL9Tjog=="],
 
     "pako": ["pako@1.0.11", "", {}, "sha512-4hLB8Py4zZce5s4yd9XzopqwVv/yGNhV1Bl8NTmCq1763HeK2+EwVTv+leGeL13Dnh2wfbqowVPXCIO0z4taYw=="],
 
