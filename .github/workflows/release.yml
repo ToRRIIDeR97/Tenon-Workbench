@@ -13,8 +13,8 @@ jobs:
       TENON_CHANNEL: dev
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "24"
       - uses: oven-sh/setup-bun@v2
@@ -34,7 +34,7 @@ jobs:
               $digest = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLower()
               "$digest  $($_.Name)"
             } | Set-Content tenon/packages/desktop/dist/SHA256SUMS
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: tenon-workbench-unsigned-windows
           path: |
