@@ -333,18 +333,13 @@ export function createSidebarController() {
   )
   // Reconciled so a refetch that returns the same threads (e.g. after a reconnect) keeps
   // their identity and does not re-render every row.
+  // Most session events leave this list as the same array; the memo stops them before the group and sort.
+  const indexSessions = createMemo(() => homeSessions().sessions(sessionIndex.data, sessionEvents.data))
   const [indexStore, setIndexStore] = createStore({ sessions: [] as Session[] })
   createComputed(() =>
     setIndexStore(
       "sessions",
-      reconcile(
-        retainHomeSessions(
-          homeSessions().sessions(sessionIndex.data, sessionEvents.data),
-          HOME_SESSION_LIMIT,
-          Date.now(),
-        ),
-        { key: "id" },
-      ),
+      reconcile(retainHomeSessions(indexSessions(), HOME_SESSION_LIMIT, Date.now()), { key: "id" }),
     ),
   )
 
