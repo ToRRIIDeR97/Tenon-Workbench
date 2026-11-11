@@ -853,10 +853,10 @@ const workspaceCandidates = Effect.fnUntraced(function* () {
   const vaults = yield* Effect.promise(() => KnowledgeVault.currentWorkspaces(CommandMemory.root(), data))
   const recent = (yield* sessions.listGlobal({ roots: true, limit: 200 })).map((item) => item.directory)
   const folders = [...known, ...vaults, ...recent.flatMap((directory) => parents(canonicalDirectory(directory)))]
-    .map((directory) => canonicalDirectory(directory))
-    .filter((directory, index, all) => all.findIndex((other) => key(other) === key(directory)) === index)
-  return yield* Effect.filter(folders, (directory) =>
-    Effect.promise(() => isDirectory(path.join(directory, ".tenon", "projects"))),
+  return yield* Effect.filter(
+    distinctDirectories(folders.map((directory) => canonicalDirectory(directory))),
+    (directory) => Effect.promise(() => isDirectory(path.join(directory, ".tenon", "projects"))),
+    { concurrency: 8 },
   )
 })
 
@@ -1001,13 +1001,15 @@ const scopeOf = Effect.fnUntraced(function* (sessionID: string) {
     Effect.provideService(Global.Service, Global.make()),
     Effect.orElseSucceed((): string[] => []),
   )
-  const candidates = [
+  const candidates = distinctDirectories([
     ...ancestors,
     ...known.map((project) => canonicalDirectory(project.worktree)),
     ...opened.map((directory) => canonicalDirectory(directory)),
-  ].filter((directory, index, all) => all.findIndex((other) => key(other) === key(directory)) === index)
-  const brains = yield* Effect.filter(candidates, (directory) =>
-    Effect.promise(() => isDirectory(path.join(directory, ".tenon", "projects"))),
+  ])
+  const brains = yield* Effect.filter(
+    candidates,
+    (directory) => Effect.promise(() => isDirectory(path.join(directory, ".tenon", "projects"))),
+    { concurrency: 8 },
   )
   const workspaces = known.map(
     (project): BrainProject.Workspace => ({
@@ -1113,6 +1115,16 @@ function preview(text: string) {
 function key(directory: string) {
   const value = canonicalDirectory(directory)
   return process.platform === "win32" ? value.toLowerCase() : value
+}
+
+/** Drops folders that name one already listed (same `key`), keeping the first spelling and the order. */
+export function distinctDirectories(directories: ReadonlyArray<string>) {
+  const seen = new Map<string, string>()
+  for (const directory of directories) {
+    const id = key(directory)
+    if (!seen.has(id)) seen.set(id, directory)
+  }
+  return [...seen.values()]
 }
 
 function parents(directory: string): string[] {

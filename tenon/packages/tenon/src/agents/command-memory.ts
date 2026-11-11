@@ -5,9 +5,10 @@ import { Session } from "@/session/session"
 import { Database } from "@tenon/core/database/database"
 import { Global } from "@tenon/core/global"
 import { HarnessAppTools } from "@tenon/core/harness/app-tools"
-import { sql } from "drizzle-orm"
+import { MessageTable, PartTable } from "@tenon/core/session/sql"
+import { count, eq, inArray, max, sql } from "drizzle-orm"
 import { Effect, Schema, Semaphore } from "effect"
-import { mkdir, readdir, readFile, realpath, rename, writeFile } from "node:fs/promises"
+import { mkdir, readdir, readFile, realpath, rename, stat, writeFile } from "node:fs/promises"
 import path from "node:path"
 import COMMAND_AGENT from "./command-agent.md" with { type: "text" }
 
@@ -16,7 +17,8 @@ import COMMAND_AGENT from "./command-agent.md" with { type: "text" }
  * Project points at, so they never show among Project threads. Old threads are summarised into
  * readable memory files (`.command-centre/memory/<thread>.md`, synced with the vault) and then
  * deleted. Search runs SQLite FTS5 over thread titles, message text and those summaries; the index is
- * a temporary table rebuilt per search, so nothing but the files and threads needs keeping.
+ * a temporary table kept for the process and brought up to date on each search, so nothing but the files
+ * and threads needs keeping.
  */
 
 export const Hit = Schema.Struct({
@@ -38,8 +40,10 @@ export interface Thread {
 const hitLimit = 20
 const textLimit = 600
 const threadLimit = 2_000
-// Rows per index insert: three bound values each, well under SQLite's variable limit.
+// Rows per index insert: four bound values each, well under SQLite's variable limit.
 const insertBatch = 200
+// Bound IDs per change-stamp lookup or row delete.
+const idBatch = 500
 const day = 24 * 60 * 60 * 1000
 // One search or thread removal at a time: both change the same rows.
 const lock = Semaphore.makeUnsafe(1)
@@ -166,24 +170,31 @@ const threadText = Effect.fnUntraced(function* (sessionID: Session.Info["id"]) {
 
 const memoryFolder = () => path.join(root(), HarnessAppTools.COMMAND_CENTRE_FOLDER, "memory")
 
-type MemoryEntry = { id: string; text: string; at: number }
-
-const readMemory = Effect.promise(async (): Promise<MemoryEntry[]> => {
+// Each memory file with a stamp that changes when the file is rewritten.
+const memoryFiles = Effect.promise(async () => {
   const folder = memoryFolder()
   const names = await readdir(folder).catch(() => [] as string[])
-  const entries = await Promise.all(
+  const files = await Promise.all(
     names
       .filter((name) => name.endsWith(".md"))
       .map(async (name) => {
-        const source = await readFile(path.join(folder, name), "utf8").catch(() => undefined)
-        if (source === undefined) return undefined
-        // `<!-- at: <epoch ms> -->` on the first line keeps the original thread's time.
-        const at = Number(/^<!-- at: (\d+) -->/.exec(source)?.[1] ?? 0)
-        return { id: name.slice(0, -3), text: source.replace(/^<!-- at: \d+ -->\r?\n/, "").trim(), at }
+        const file = path.join(folder, name)
+        const info = await stat(file).catch(() => undefined)
+        return info?.isFile() ? { file, stamp: `${info.mtimeMs}:${info.size}` } : undefined
       }),
   )
-  return entries.filter((entry): entry is MemoryEntry => entry !== undefined)
+  return files.filter((entry) => entry !== undefined)
 })
+
+const readMemory = (file: string) =>
+  readFile(file, "utf8").then(
+    (source) => ({
+      text: source.replace(/^<!-- at: \d+ -->\r?\n/, "").trim(),
+      // `<!-- at: <epoch ms> -->` on the first line keeps the original thread's time.
+      at: Number(/^<!-- at: (\d+) -->/.exec(source)?.[1] ?? 0),
+    }),
+    () => undefined,
+  )
 
 const writeMemory = (id: string, text: string, at: number) =>
   Effect.promise(async () => {
@@ -204,6 +215,19 @@ export function matchQuery(query: string) {
     .join(" ")
 }
 
+type Indexed = { rowid: number; stamp: string }
+
+/**
+ * What `temp.command_memory_fts` holds: the row and change stamp of each thread (by session ID) and memory
+ * file (by path). Searches bring it up to date, so only new or changed threads and files are read again.
+ */
+const indexed = { threads: new Map<string, Indexed>(), memory: new Map<string, Indexed>(), next: 1 }
+
+const forget = () => {
+  indexed.threads.clear()
+  indexed.memory.clear()
+}
+
 /** Search Command Centre threads and memory summaries. */
 export const search = Effect.fn("CommandMemory.search")(function* (query: string) {
   const match = matchQuery(query)
@@ -211,22 +235,6 @@ export const search = Effect.fn("CommandMemory.search")(function* (query: string
   return yield* lock
     .withPermits(1)(
       Effect.gen(function* () {
-        const list = yield* threads()
-        const rows = [
-          ...(yield* Effect.forEach(
-            list,
-            (session) =>
-              threadText(session.id).pipe(
-                Effect.map((text) => ({
-                  sessionID: session.id as string,
-                  text: `${session.title}\n\n${text}`,
-                  at: session.time.updated,
-                })),
-              ),
-            { concurrency: 4 },
-          )),
-          ...(yield* readMemory).map((entry) => ({ sessionID: "", text: entry.text, at: entry.at })),
-        ]
         const { db } = yield* Database.Service
         // A temporary table lives only on this connection; the lock keeps searches from sharing it.
         yield* db.run(
@@ -234,29 +242,115 @@ export const search = Effect.fn("CommandMemory.search")(function* (query: string
             "CREATE VIRTUAL TABLE IF NOT EXISTS temp.command_memory_fts USING fts5(session_id UNINDEXED, at UNINDEXED, body)",
           ),
         )
-        return yield* Effect.gen(function* () {
-          // A few multi-row inserts instead of one statement per row; each keeps the rows' order.
-          for (let start = 0; start < rows.length; start += insertBatch)
-            yield* db.run(
-              sql`INSERT INTO temp.command_memory_fts (session_id, at, body) VALUES ${sql.join(
-                rows.slice(start, start + insertBatch).map((row) => sql`(${row.sessionID}, ${row.at}, ${row.text})`),
-                sql`, `,
-              )}`,
-            )
-          const found = yield* db.all<{ session_id: string; at: number; body: string }>(
-            sql`SELECT session_id, at, body FROM temp.command_memory_fts WHERE command_memory_fts MATCH ${match} ORDER BY rank LIMIT ${hitLimit}`,
+        // A new connection starts with an empty table, so `indexed` no longer describes it.
+        const held = yield* db.all<{ rows: number }>(sql`SELECT count(*) AS rows FROM temp.command_memory_fts`)
+        if ((held[0]?.rows ?? 0) !== indexed.threads.size + indexed.memory.size) {
+          yield* db.run(sql.raw("DELETE FROM temp.command_memory_fts"))
+          forget()
+        }
+
+        const list = yield* threads()
+        const stamp = yield* threadStamps(list.map((session) => session.id))
+        const files = yield* memoryFiles
+        const staleThreads = stale(indexed.threads, new Map(list.map((session) => [session.id, stamp(session)])))
+        const staleMemory = stale(indexed.memory, new Map(files.map((entry) => [entry.file, entry.stamp])))
+        const removed = [...staleThreads, ...staleMemory].map((item) => item.rowid)
+        for (let start = 0; start < removed.length; start += idBatch)
+          yield* db.run(
+            sql`DELETE FROM temp.command_memory_fts WHERE rowid IN (${sql.join(
+              removed.slice(start, start + idBatch).map((rowid) => sql`${rowid}`),
+              sql`, `,
+            )})`,
           )
-          return found.map(
-            (row): Hit => ({
-              ...(row.session_id ? { sessionID: row.session_id } : {}),
-              text: row.body.length > textLimit ? `${row.body.slice(0, textLimit - 1)}…` : row.body,
-              at: Number(row.at),
-            }),
+        for (const item of staleThreads) indexed.threads.delete(item.id)
+        for (const item of staleMemory) indexed.memory.delete(item.id)
+
+        // Only threads and memory files that are new or changed since they were indexed are read.
+        const threadRows = yield* Effect.forEach(
+          list.filter((session) => !indexed.threads.has(session.id)),
+          (session) =>
+            threadText(session.id).pipe(
+              Effect.map((text) => ({
+                kind: "threads" as const,
+                id: session.id as string,
+                stamp: stamp(session),
+                sessionID: session.id as string,
+                text: `${session.title}\n\n${text}`,
+                at: session.time.updated,
+              })),
+            ),
+          { concurrency: 4 },
+        )
+        const memoryRows = yield* Effect.promise(() =>
+          Promise.all(
+            files
+              .filter((entry) => !indexed.memory.has(entry.file))
+              .map((entry) =>
+                readMemory(entry.file).then((memory) =>
+                  memory
+                    ? { kind: "memory" as const, id: entry.file, stamp: entry.stamp, sessionID: "", ...memory }
+                    : undefined,
+                ),
+              ),
+          ),
+        )
+        const rows = [...threadRows, ...memoryRows.filter((row) => row !== undefined)].map((row) => ({
+          ...row,
+          rowid: indexed.next++,
+        }))
+        // A few multi-row inserts instead of one statement per row.
+        for (let start = 0; start < rows.length; start += insertBatch) {
+          const batch = rows.slice(start, start + insertBatch)
+          yield* db.run(
+            sql`INSERT INTO temp.command_memory_fts (rowid, session_id, at, body) VALUES ${sql.join(
+              batch.map((row) => sql`(${row.rowid}, ${row.sessionID}, ${row.at}, ${row.text})`),
+              sql`, `,
+            )}`,
           )
-        }).pipe(Effect.ensuring(db.run(sql.raw("DELETE FROM temp.command_memory_fts")).pipe(Effect.ignore)))
-      }),
+          for (const row of batch) indexed[row.kind].set(row.id, { rowid: row.rowid, stamp: row.stamp })
+        }
+
+        // Equal ranks keep the order a fresh index gave them: threads newest first, then memory files.
+        const found = yield* db.all<{ session_id: string; at: number; body: string }>(
+          sql`SELECT session_id, at, body FROM temp.command_memory_fts WHERE command_memory_fts MATCH ${match} ORDER BY rank, session_id = '', at DESC LIMIT ${hitLimit}`,
+        )
+        return found.map(
+          (row): Hit => ({
+            ...(row.session_id ? { sessionID: row.session_id } : {}),
+            text: row.body.length > textLimit ? `${row.body.slice(0, textLimit - 1)}…` : row.body,
+            at: Number(row.at),
+          }),
+        )
+      }).pipe(
+        // A search that stopped part way may have left rows `indexed` doesn't know; the next one rebuilds.
+        Effect.onError(() => Effect.sync(forget)),
+      ),
     )
     .pipe(Effect.orDie)
+})
+
+// Indexed entries that `current` no longer has, or has with another stamp.
+const stale = (held: Map<string, Indexed>, current: Map<string, string>) =>
+  [...held].flatMap(([id, item]) => (current.get(id) === item.stamp ? [] : [{ id, rowid: item.rowid }]))
+
+/**
+ * Each thread's change stamp. Neither a reply nor a rename moves a session's `time.updated`, so the stamp
+ * adds the title and its parts' count and latest write (every part write moves its `time_updated`).
+ */
+const threadStamps = Effect.fnUntraced(function* (ids: ReadonlyArray<Session.Info["id"]>) {
+  const { db } = yield* Database.Service
+  const found = new Map<string, string>()
+  for (let start = 0; start < ids.length; start += idBatch) {
+    const rows = yield* db
+      .select({ sessionID: MessageTable.session_id, parts: count(), updated: max(PartTable.time_updated) })
+      .from(MessageTable)
+      .innerJoin(PartTable, eq(PartTable.message_id, MessageTable.id))
+      .where(inArray(MessageTable.session_id, ids.slice(start, start + idBatch)))
+      .groupBy(MessageTable.session_id)
+      .all()
+    for (const row of rows) found.set(row.sessionID, `${row.parts}:${row.updated}`)
+  }
+  return (session: Session.Info) => JSON.stringify([session.time.updated, session.title, found.get(session.id) ?? ""])
 })
 
 /**

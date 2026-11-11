@@ -37,3 +37,13 @@ describe("AgentAppTools.catalogFor", () => {
     )
   })
 })
+
+describe("AgentAppTools.distinctDirectories", () => {
+  test("keeps each folder's first spelling, in the order they came", () => {
+    const a = path.resolve("dedupe-root", "a")
+    const b = path.resolve("dedupe-root", "b")
+    expect(
+      AgentAppTools.distinctDirectories([`${a}${path.sep}`, b, a, path.join(b, "..", "b"), path.dirname(a), b]),
+    ).toEqual([`${a}${path.sep}`, b, path.dirname(a)])
+  })
+})
