@@ -536,9 +536,11 @@ const main = Effect.gen(function* () {
         }),
       ]),
     )
-    if (bridge) Object.assign(process.env, { TENON_BROWSER_URL: bridge.url, TENON_BROWSER_TOKEN: bridge.token })
-    if (mailEndpoint)
-      Object.assign(process.env, { TENON_MAIL_URL: mailEndpoint.url, TENON_MAIL_TOKEN: mailEndpoint.token })
+    // Passed to the server only: in this process's env, every later child (editors, terminals) would inherit them.
+    const bridgeEnv = {
+      ...(bridge && { TENON_BROWSER_URL: bridge.url, TENON_BROWSER_TOKEN: bridge.token }),
+      ...(mailEndpoint && { TENON_MAIL_URL: mailEndpoint.url, TENON_MAIL_TOKEN: mailEndpoint.token }),
+    }
     const startSidecar = (port: number) =>
       superviseSidecar({
         spawn: () => {
@@ -548,6 +550,7 @@ const main = Effect.gen(function* () {
             onStdout: (message) => writeLog("server", "stdout", { message }),
             onStderr: (message) => writeLog("server", "stderr", { message }, "warn"),
             onExit: (code) => writeLog("utility", "sidecar exited", { code }, "warn"),
+            env: bridgeEnv,
           })
         },
         log: (message, meta) => writeLog("utility", message, meta, "warn"),
