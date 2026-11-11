@@ -1169,6 +1169,8 @@ export const dict = {
   "secondBrain.skills.all": "All",
   "secondBrain.skills.noMatch": "No skills match this search.",
   "secondBrain.skills.alsoIn": "also in {{names}}",
+  "secondBrain.home.pickProject": "Start in a project",
+  "secondBrain.home.usage": "Plan usage",
   "secondBrain.agents.quiet": "No activity for {{duration}}",
   "secondBrain.permission.bash.one": "Run {{count}} command",
   "secondBrain.permission.bash.other": "Run {{count}} commands",

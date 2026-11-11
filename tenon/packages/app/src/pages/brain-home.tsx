@@ -5,7 +5,7 @@ import { KeybindV2 } from "@tenon/ui/v2/keybind-v2"
 import { Reveal, RevealShow } from "@tenon/ui/v2/reveal"
 import { PathTooltip, TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { makeEventListener } from "@solid-primitives/event-listener"
-import { createEffect, createMemo, createResource, createSignal, For, Show } from "solid-js"
+import { createEffect, createMemo, createResource, createSignal, For, onCleanup, Show } from "solid-js"
 import { useLanguage } from "@/context/language"
 import { createFreshItems } from "@/utils/fresh-items"
 import { useLayout } from "@/context/layout"
@@ -21,12 +21,14 @@ import { createCalendarResource } from "@/features/second-brain/calendar-cache"
 import { TaskCheck } from "@/features/second-brain/calendar-peek"
 import { createTaskActions } from "@/features/second-brain/task-actions"
 import { type CalendarEvent, type PlannerTask } from "@/features/second-brain/client"
-import { useBrainProjects } from "@/components/sidebar/sidebar-controller"
+import { useBrainProjects, useProjectThreads } from "@/components/sidebar/sidebar-controller"
+import { MenuV2 } from "@tenon/ui/v2/menu-v2"
 import { createHomeController } from "@/pages/home/home-controller"
 import { createHomeSessionsController } from "@/pages/home/home-sessions-controller"
 import { agentRunStatus } from "@/pages/activity-runs"
 import { Harness } from "@tenon/schema/harness"
-import { harnessAssistantDirectory, listHarnessSetup } from "@/utils/server"
+import { harnessAssistantDirectory, listHarnessSetup, listHarnessUsage } from "@/utils/server"
+import { HarnessUsageWindows } from "@/components/harness-usage"
 import { ComposerBox } from "@/components/prompt-input/composer-box"
 import { createComposerController } from "@/components/prompt-input/composer-controller"
 import { ComposerModelPill, createComposerHarness } from "@/components/prompt-input/composer-harness"
@@ -75,6 +77,26 @@ export default function BrainHomePage() {
       return choice && { harnessID: choice.harnessID, model: choice.model as Harness.ModelSelection | undefined }
     },
   })
+
+  // Usage left per harness, for the Home card. The server caches each harness's answer for a minute.
+  const [usageTick, setUsageTick] = createSignal(0)
+  const usageTimer = setInterval(() => setUsageTick((value) => value + 1), 60_000)
+  onCleanup(() => clearInterval(usageTimer))
+  const [usage] = createResource(
+    () => (directory() ? { directory: directory(), tick: usageTick() } : undefined),
+    (input) => listHarnessUsage({ server: serverSDK().server.http, fetch: platform.fetch }, input.directory),
+  )
+  const usageReports = createMemo(() =>
+    (usage.latest ?? []).filter((report) => report.status === "available" && report.windows.length > 0),
+  )
+  const usageNow = () => (usageTick(), Date.now())
+  const projectThreadsQuery = useProjectThreads()
+  const projectThreads = createMemo(() =>
+    (Array.isArray(projectThreadsQuery.data) ? projectThreadsQuery.data : [])
+      .filter((entry) => entry.project.status === "active")
+      .toSorted((a, b) => a.project.name.localeCompare(b.project.name)),
+  )
+  const harnessName = (id: string) => harness.controller.instances()?.find((item) => item.id === id)?.name ?? id
 
   // First run: offer the built-in agent setup once, unless every built-in agent is already installed and signed in.
   // It runs in the server's non-project assistant folder, so a new user needs no workspace for it.
@@ -234,19 +256,42 @@ export default function BrainHomePage() {
               }
               header={
                 <div class="flex h-10 min-w-0 items-center gap-0.5 border-b border-v2-border-border-muted pl-2.5 pr-2">
-                  {/* A label, not a picker (the sidebar picks the folder): the tooltip's trigger is the chip itself,
-                      so it opens right above it. */}
-                  <PathTooltip
-                    placement="top"
-                    class="h-8 min-w-0 shrink cursor-default items-center gap-1.5 px-2 text-[13px] leading-5 text-v2-text-text-muted"
-                    name={getFilename(directory())}
-                    path={directory()}
-                  >
-                    <Icon name="folder" size="small" class="shrink-0 text-v2-icon-icon-muted" />
-                    <span class="min-w-0 truncate text-v2-text-text-base [font-weight:500]">
-                      {getFilename(directory())}
-                    </span>
-                  </PathTooltip>
+                  {/* The workspace, or a Project: picking one opens a new thread there with what you've typed. */}
+                  <MenuV2 gutter={4} placement="bottom-start">
+                    <MenuV2.Trigger
+                      as="button"
+                      type="button"
+                      class="flex h-8 min-w-0 shrink items-center gap-1.5 rounded-full px-2 text-[13px] leading-5 text-v2-text-text-muted hover:bg-v2-overlay-simple-overlay-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-v2-border-border-focus"
+                      aria-label={language.t("secondBrain.home.pickProject")}
+                    >
+                      <Icon name="folder" size="small" class="shrink-0 text-v2-icon-icon-muted" />
+                      <span class="min-w-0 truncate text-v2-text-text-base [font-weight:500]">
+                        {getFilename(directory())}
+                      </span>
+                      <Icon name="chevron-down" size="small" class="shrink-0 text-v2-icon-icon-muted" />
+                    </MenuV2.Trigger>
+                    <MenuV2.Portal>
+                      <MenuV2.Content class="max-h-[360px] overflow-y-auto">
+                        <For each={projectThreads()}>
+                          {(entry) => (
+                            <MenuV2.Item
+                              onSelect={() =>
+                                void drafts.create(
+                                  { server: server.key, directory: entry.threadDirectory, projectID: entry.project.id },
+                                  composer.value(),
+                                  harness.builtInModel(),
+                                  harness.harnessID(),
+                                  { harnessModel: harness.harnessModel() },
+                                )
+                              }
+                            >
+                              {entry.project.name}
+                            </MenuV2.Item>
+                          )}
+                        </For>
+                      </MenuV2.Content>
+                    </MenuV2.Portal>
+                  </MenuV2>
                   <Icon name="chevron-down" size="small" class="shrink-0 -rotate-90 text-v2-icon-icon-muted" />
                   <PromptBranchPicker directory={directory()} branch={serverSync().child(directory())[0].vcs?.branch} />
                 </div>
@@ -425,6 +470,22 @@ export default function BrainHomePage() {
                     </li>
                   </Show>
                 </ul>
+              </PageSection>
+            </Show>
+
+            {/* Usage left per harness: only harnesses that report plan windows show; none hides the section. */}
+            <Show when={usageReports().length > 0}>
+              <PageSection id="brain-home-usage" title={language.t("secondBrain.home.usage")}>
+                <div class="flex flex-col gap-4 text-[13px]">
+                  <For each={usageReports()}>
+                    {(report) => (
+                      <div class="flex flex-col gap-1.5">
+                        <span class="type-row-title text-v2-text-text-base">{harnessName(report.instanceID)}</span>
+                        <HarnessUsageWindows report={report} now={usageNow()} />
+                      </div>
+                    )}
+                  </For>
+                </div>
               </PageSection>
             </Show>
 

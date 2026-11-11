@@ -8,6 +8,8 @@ import { For, Match, Show, Switch, createEffect, createMemo, onCleanup, onMount,
 import { createStore } from "solid-js/store"
 import { openSessionContext } from "@/components/session-context-usage"
 import { createSessionContextFormatter } from "@/components/session/session-context-format"
+import { PromptProjectSelector, createPromptProjectController } from "@/components/prompt-project-selector"
+import { createPromptProjectControls } from "@/pages/session/composer/session-composer-controls"
 import { getSessionContext } from "@/components/session/session-context-metrics"
 import {
   getSessionTotals,
@@ -137,23 +139,27 @@ export function ComposerWhereRow() {
   const directory = () => (params.id ? sync().session.get(params.id)?.directory : undefined) ?? sdk().directory
   const worktree = createMemo(() => threadWorktree({ directory: directory(), project: sync().project }))
   const git = () => sync().project?.vcs === "git"
+  // Picking another Project starts a new thread there; this thread keeps its own folder.
+  const projects = createPromptProjectController({ controls: createPromptProjectControls(), onDone: () => {} })
 
   return (
     <>
       <Show when={worktree()}>
         {(value) => (
-          <PathTooltip placement="top" class="min-w-0 shrink" name={value().name} path={directory()}>
-            <span
-              data-slot="composer-where-folder"
-              class="flex h-8 min-w-0 shrink items-center gap-1.5 px-2 text-[13px] leading-5 text-v2-text-text-muted"
-            >
-              <Icon name="folder" size="small" class="shrink-0 text-v2-icon-icon-muted" />
-              <Show when={value().linked}>
-                <span class="shrink-0">{language.t("secondBrain.contextStrip.worktree")}</span>
-              </Show>
-              <span class="min-w-0 truncate text-v2-text-text-base [font-weight:500]">{value().name}</span>
-            </span>
-          </PathTooltip>
+          <>
+            <PromptProjectSelector controller={projects} placement="bottom-start" />
+            <Show when={value().linked}>
+              <PathTooltip placement="top" class="min-w-0 shrink" name={value().name} path={directory()}>
+                <span
+                  data-slot="composer-where-folder"
+                  class="flex h-8 min-w-0 shrink items-center gap-1.5 px-2 text-[13px] leading-5 text-v2-text-text-muted"
+                >
+                  <span class="shrink-0">{language.t("secondBrain.contextStrip.worktree")}</span>
+                  <span class="min-w-0 truncate text-v2-text-text-base [font-weight:500]">{value().name}</span>
+                </span>
+              </PathTooltip>
+            </Show>
+          </>
         )}
       </Show>
       <Icon name="chevron-down" size="small" class="shrink-0 -rotate-90 text-v2-icon-icon-muted" />
