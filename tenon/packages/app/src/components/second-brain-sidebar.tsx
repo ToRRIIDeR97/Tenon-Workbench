@@ -19,7 +19,7 @@ import { createStore } from "solid-js/store"
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { MenuV2 } from "@tenon/ui/v2/menu-v2"
-import { prefersReducedMotion } from "@tenon/ui/v2/motion"
+import { motionDuration, prefersReducedMotion } from "@tenon/ui/v2/motion"
 import { createReveal, Reveal } from "@tenon/ui/v2/reveal"
 import { PathTooltip, TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { useDialog } from "@tenon/ui/context/dialog"
@@ -50,7 +50,7 @@ import { sessionTitle } from "@/utils/session-title"
 // main button (a direct child) has focus. A selected row has no fill of its own: SelectionGlide draws one
 // highlight behind it that slides from row to row.
 const rowClass =
-  "group/row relative grid h-8 w-full min-w-0 shrink-0 cursor-default items-center overflow-hidden rounded-[8px] bg-transparent text-left text-[13px] leading-5 text-v2-text-text-muted [font-weight:500] transition-[background-color,color] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base active:bg-v2-overlay-simple-overlay-pressed data-[selected]:text-v2-text-text-base data-[selected]:hover:bg-transparent data-[selected]:[font-weight:600] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus has-[>button:focus-visible]:outline has-[>button:focus-visible]:outline-2 has-[>button:focus-visible]:-outline-offset-2 has-[>button:focus-visible]:outline-v2-border-border-focus motion-reduce:transition-none"
+  "group/row relative grid h-8 w-full min-w-0 shrink-0 cursor-default items-center overflow-hidden rounded-[8px] bg-transparent text-left type-control text-v2-text-text-muted transition-[background-color,color] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base active:bg-v2-overlay-simple-overlay-pressed data-[selected]:text-v2-text-text-base data-[selected]:hover:bg-transparent data-[selected]:[font-weight:600] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus has-[>button:focus-visible]:outline has-[>button:focus-visible]:outline-2 has-[>button:focus-visible]:-outline-offset-2 has-[>button:focus-visible]:outline-v2-border-border-focus motion-reduce:transition-none"
 
 // Card header actions take no width at rest and open beside the status marks on hover, focus or an open menu.
 const headerActionsClass =
@@ -187,7 +187,7 @@ export function SecondBrainSidebar() {
             <Show
               when={ctrl.brainDirectory()}
               fallback={
-                <p class="px-3 py-1 text-[12px] leading-4 text-v2-text-text-muted">
+                <p class="px-3 py-1 type-meta text-v2-text-text-muted">
                   {language.t("secondBrain.sidebar.noWorkspace")}
                 </p>
               }
@@ -219,7 +219,7 @@ export function SecondBrainSidebar() {
                     </For>
                     <ProjectsFailed ctrl={ctrl} />
                     <Show when={!ctrl.loading() && !ctrl.failed() && ctrl.projects().length === 0}>
-                      <p class="px-3 py-1 text-[12px] leading-4 text-v2-text-text-muted">
+                      <p class="px-3 py-1 type-meta text-v2-text-text-muted">
                         {language.t("secondBrain.sidebar.noProjectFolders")}
                       </p>
                     </Show>
@@ -289,7 +289,7 @@ function MissingFolder(props: { ctrl: SidebarController; directory: string }) {
       <p class="text-[12px] text-v2-text-text-critical [font-weight:600]">
         {language.t("secondBrain.sidebar.folderMissing")}
       </p>
-      <p class="break-all text-[12px] leading-4 text-v2-text-text-muted">
+      <p class="break-all type-meta text-v2-text-text-muted">
         {language.t("secondBrain.sidebar.folderMissingDescription", { path: props.directory })}
       </p>
       <div class="-ml-2 flex flex-wrap gap-1">
@@ -361,7 +361,7 @@ function WorkspaceHeader(props: { ctrl: SidebarController }) {
                       <span class="min-w-0 truncate">{name(workspace.worktree)}</span>
                     </PathTooltip>
                     <Show when={props.ctrl.folderMissing(workspace.worktree)}>
-                      <span class="shrink-0 text-[12px] leading-4 text-v2-text-text-muted">
+                      <span class="shrink-0 type-meta text-v2-text-text-muted">
                         {language.t("secondBrain.sidebar.folderMissing")}
                       </span>
                     </Show>
@@ -429,7 +429,7 @@ function ProjectsFailed(props: { ctrl: SidebarController }) {
   return (
     <Show when={props.ctrl.failed()}>
       <div class="flex items-center gap-1 px-3 py-1">
-        <p role="alert" class="min-w-0 flex-1 text-[12px] text-v2-text-text-critical">
+        <p role="alert" class="min-w-0 flex-1 type-meta text-v2-text-text-critical">
           {language.t("common.requestFailed")}
         </p>
         <button
@@ -495,14 +495,12 @@ function GroupTabs(props: { ctrl: SidebarController }) {
             aria-controls="sidebar-threads"
             aria-selected={props.ctrl.grouping() === mode}
             tabIndex={props.ctrl.grouping() === mode ? 0 : -1}
-            class="flex items-center gap-1 pb-2 pt-1.5 text-[13px] leading-5 text-v2-text-text-muted [font-weight:500] transition-colors duration-short ease-standard hover:text-v2-text-text-base aria-selected:text-v2-text-text-base focus-visible:rounded-[4px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
+            class="flex items-center gap-1 pb-2 pt-1.5 type-control text-v2-text-text-muted transition-colors duration-short ease-standard hover:text-v2-text-text-base aria-selected:text-v2-text-text-base focus-visible:rounded-[4px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
             onClick={() => props.ctrl.setGrouping(mode)}
           >
             {language.t(groupingLabel[mode])}
             <Show when={mode === "attention" && props.ctrl.needsYou()}>
-              {(count) => (
-                <span class="text-[11px] leading-4 text-v2-state-fg-warning [font-weight:600]">{count()}</span>
-              )}
+              {(count) => <span class="type-caption text-v2-state-fg-warning [font-weight:600]">{count()}</span>}
             </Show>
           </button>
         )}
@@ -567,8 +565,8 @@ function SelectionGlide(props: ParentProps<{ ctrl: SidebarController }>) {
             { opacity: 1, transform: "none" },
           ],
           {
-            duration: 220,
-            easing: "cubic-bezier(0.2, 0, 0, 1)",
+            duration: motionDuration("swap-in"),
+            easing: getComputedStyle(list).getPropertyValue("--v2-ease-standard").trim() || "ease-out",
           },
         )
       },
@@ -666,9 +664,7 @@ function GroupedCards(props: { ctrl: SidebarController }) {
     <For
       each={props.ctrl.cards().map((card) => card.id)}
       fallback={
-        <p class="px-3 py-1 text-[12px] leading-4 text-v2-text-text-muted">
-          {language.t("secondBrain.sidebar.noThreads")}
-        </p>
+        <p class="px-3 py-1 type-meta text-v2-text-text-muted">{language.t("secondBrain.sidebar.noThreads")}</p>
       }
     >
       {(id) => <GroupedCard ctrl={props.ctrl} id={id as keyof typeof groupedCardLabel} />}
@@ -735,14 +731,14 @@ function InboxCards(props: { ctrl: SidebarController; threads: ThreadNode<Sessio
                 <span aria-hidden="true" class="sidebar-card-line" />
               </Show>
               <span class="flex min-w-0 items-center gap-1.5">
-                <span class="min-w-0 flex-1 truncate text-[13px] leading-5 text-v2-text-text-base [font-weight:500]">
+                <span class="min-w-0 flex-1 truncate type-control text-v2-text-text-base">
                   {sessionTitle(node.session.title) || node.session.id}
                 </span>
                 <ThreadStatusMark state={state()} />
               </span>
-              <span class="truncate text-[12px] leading-4 text-v2-text-text-muted">{folder()}</span>
+              <span class="truncate type-meta text-v2-text-text-muted">{folder()}</span>
               <Show when={state() === "approval"}>
-                <span class="text-[12px] leading-4 text-v2-state-fg-warning">
+                <span class="type-meta text-v2-state-fg-warning">
                   {language.t("secondBrain.activity.run.approval")}
                 </span>
               </Show>
@@ -1007,9 +1003,7 @@ function ThreadList(props: {
         }}
       </For>
       <Show when={!props.onNewThread && props.threads.length === 0}>
-        <p class="py-1 pl-8 text-[12px] leading-4 text-v2-text-text-muted">
-          {language.t("secondBrain.sidebar.noThreads")}
-        </p>
+        <p class="py-1 pl-8 type-meta text-v2-text-text-muted">{language.t("secondBrain.sidebar.noThreads")}</p>
       </Show>
     </div>
   )

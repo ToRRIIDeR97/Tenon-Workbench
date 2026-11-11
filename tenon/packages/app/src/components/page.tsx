@@ -137,6 +137,6 @@ export function PageEmpty(
   )
 }
 
-/** Shared list-row look: a 12px-radius row with hover, pressed and focus states. */
+/** Shared list-row look: an 8px-radius row with hover, pressed and focus states. */
 export const pageRowClass =
-  "flex w-full min-w-0 items-center gap-3 rounded-[12px] px-3 py-2 text-left transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover active:bg-v2-overlay-simple-overlay-pressed focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
+  "flex w-full min-w-0 items-center gap-3 rounded-[8px] px-3 py-2 text-left transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover active:bg-v2-overlay-simple-overlay-pressed focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
