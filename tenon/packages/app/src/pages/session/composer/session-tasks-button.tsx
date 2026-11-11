@@ -105,7 +105,10 @@ export function SessionTasksButton(props: { groups: () => SubagentGroup[] }) {
             class="flex max-h-[min(520px,70vh)] flex-col gap-3 overflow-y-auto text-[13px]"
           >
             <Section title={language.t("secondBrain.backgroundTasks.subagents")}>
-              <Show when={running().length > 0} fallback={<Empty text={language.t("secondBrain.backgroundTasks.noSubagents")} />}>
+              <Show
+                when={running().length > 0}
+                fallback={<Empty text={language.t("secondBrain.backgroundTasks.noSubagents")} />}
+              >
                 <For each={running()}>
                   {(item) => (
                     <div class="rounded-[16px] bg-v2-background-bg-layer-01 px-3 py-2">

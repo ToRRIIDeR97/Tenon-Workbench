@@ -272,6 +272,20 @@ export default function BrainHomePage() {
                     </MenuV2.Trigger>
                     <MenuV2.Portal>
                       <MenuV2.Content class="max-h-[360px] overflow-y-auto">
+                        <MenuV2.Item
+                          onSelect={() =>
+                            void drafts.create(
+                              { server: server.key, directory: directory() },
+                              composer.value(),
+                              harness.builtInModel(),
+                              harness.harnessID(),
+                              { harnessModel: harness.harnessModel() },
+                            )
+                          }
+                        >
+                          {language.t("secondBrain.sidebar.workspaceThreads")}
+                        </MenuV2.Item>
+                        <MenuV2.Separator />
                         <For each={projectThreads()}>
                           {(entry) => (
                             <MenuV2.Item

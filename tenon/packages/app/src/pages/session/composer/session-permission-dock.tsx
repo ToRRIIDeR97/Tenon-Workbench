@@ -1,4 +1,4 @@
-import { For, Show } from "solid-js"
+import { For, Show, createSignal } from "solid-js"
 import type { PermissionRequest } from "@opencode-ai/sdk/v2"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Icon } from "@tenon/ui/v2/icon"
@@ -14,12 +14,13 @@ import { permissionSummary } from "./permission-summary"
 export function SessionPermissionDock(props: {
   request: PermissionRequest
   responding: boolean
-  onDecide: (response: "once" | "always" | "reject") => void
+  onDecide: (response: "once" | "always" | "reject", message?: string) => void
   /** Allows this request and switches the thread to Full auto. Left out where there is no thread. */
   onAllowThread?: () => void
 }) {
   const language = useLanguage()
   const summary = () => permissionSummary(props.request)
+  const [reason, setReason] = createSignal("")
 
   const toolDescription = () => {
     const key = `settings.permissions.tool.${props.request.permission}.description`
@@ -74,7 +75,18 @@ export function SessionPermissionDock(props: {
       </Show>
 
       <div data-slot="permission-footer-actions" class="flex items-center justify-end gap-2">
-        <ButtonV2 variant="outline" onClick={() => props.onDecide("reject")} disabled={props.responding}>
+        <input
+          type="text"
+          value={reason()}
+          placeholder={language.t("secondBrain.permission.reason")}
+          aria-label={language.t("secondBrain.permission.reason")}
+          class="h-9 min-w-0 flex-1 rounded-[12px] bg-v2-background-bg-layer-01 px-3 text-[13px] text-v2-text-text-base outline-none placeholder:text-v2-text-text-muted focus-visible:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)]"
+          onInput={(event) => setReason(event.currentTarget.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && reason().trim()) props.onDecide("reject", reason())
+          }}
+        />
+        <ButtonV2 variant="outline" onClick={() => props.onDecide("reject", reason())} disabled={props.responding}>
           {language.t("ui.permission.deny")}
         </ButtonV2>
         <div class="flex items-center gap-px">

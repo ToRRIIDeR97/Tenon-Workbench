@@ -1229,6 +1229,7 @@ export const dict = {
   "secondBrain.permission.other.other": "Use {{tool}}",
   "secondBrain.permission.details.one": "{{count}} item",
   "secondBrain.permission.details.other": "{{count}} items",
+  "secondBrain.permission.reason": "Reason, if you deny (optional)",
   "secondBrain.permission.more": "More ways to allow",
   "secondBrain.permission.always": "Always allow this",
   "secondBrain.permission.thread": "Allow everything in this thread",

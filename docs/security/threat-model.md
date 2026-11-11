@@ -1299,6 +1299,20 @@ location and canonical Git worktree.
 - A cloned repository is not trusted by being opened. See
   [Folder trust](#folder-trust).
 
+### Permission modes, model profiles and imported themes
+
+- **Modes.** Auto-edit answers only `edit` requests; Full auto answers every
+  request in the thread's folder. A request with the `external_directory` kind
+  always reaches the user in both modes, so neither mode lets an agent read or
+  write outside the folder unasked. The choice is stored per thread or folder in
+  the renderer, as auto-accept was.
+- **Model profiles.** Profile rules are the user's own text, added to prompts as
+  a hidden attachment. They are trusted like a typed message; an imported
+  `profile.md` is read only as text.
+- **VS Code themes.** An imported theme file is parsed as JSON; only colour
+  values that match `#rgb`, `#rrggbb` or `#rrggbbaa` are used, and nothing in it
+  runs. Imported themes stay in the window's local storage.
+
 ### Folder trust
 
 The user's approved folders are a JSON array in `trusted-folders.json` in the

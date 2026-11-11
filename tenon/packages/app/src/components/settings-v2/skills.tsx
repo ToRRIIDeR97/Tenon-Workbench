@@ -126,6 +126,7 @@ export const SettingsSkillsV2: Component<{ directory: Accessor<string | undefine
                 <div class="flex flex-col gap-3">
                   <TextInputV2
                     type="search"
+                    class="!w-full"
                     value={filter.query}
                     placeholder={language.t("secondBrain.skills.search", { count: total() })}
                     aria-label={language.t("secondBrain.skills.searchLabel")}
