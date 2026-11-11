@@ -156,8 +156,8 @@ must preserve both canonical workspace files and session/draft profile state.
 ## Renderer content policy
 
 Rendered Markdown drops every image and media source that is not `data:` or
-`blob:` before it reaches the DOM (`session-ui/src/components/markdown-media.ts`),
-so a note or model reply cannot beacon to a remote host.
+`blob:`, and every legacy `background` attribute, before it reaches the DOM
+(`session-ui/src/components/markdown-media.ts`), so a note or model reply cannot beacon to a remote host.
 
 The renderer's HTML is served with a partial Content-Security-Policy
 (`addDocumentPolicy` and `addRendererHeaders` in `desktop/src/main/windows.ts`):
@@ -1188,8 +1188,11 @@ message and shows in a toast. It doesn't run outside git.
 - **`tenon-file://`.** The renderer names a folder and a relative path; main
   refuses UNC folders, paths that leave the folder (checked again after
   resolving symlinks on both sides, case-insensitively on Windows and macOS)
-  and non-files, then issues an opaque URL for the resolved file.
-  The protocol serves only issued URLs (the most recent 500), read-only, and
+  non-files, and symlinks whose target has a different extension (compared
+  case-insensitively; the renderer picks the viewer from the requested name,
+  the served content type follows the target), then issues an opaque URL for
+  the resolved file. The protocol serves only issued URLs (the most recent
+  500), read-only, with `X-Content-Type-Options: nosniff`, and
   sub-frames may load only those URLs and Chromium's PDF viewer. `plugins: true`
   is set on app windows for that viewer. Word documents are converted to HTML
   and passed through the markdown sanitizer before they reach the page.

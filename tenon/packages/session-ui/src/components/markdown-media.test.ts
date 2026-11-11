@@ -32,6 +32,10 @@ test("remote image and media sources are removed before the HTML renders", () =>
   stripRemoteMedia(video as unknown as Element)
   expect(video.values.size).toBe(0)
 
+  const table = element("TABLE", { background: "https://tracker.example/p.gif", class: "grid" })
+  stripRemoteMedia(table as unknown as Element)
+  expect([...table.values.keys()]).toEqual(["class"])
+
   const link = element("A", { href: "https://example.com" })
   stripRemoteMedia(link as unknown as Element)
   expect(link.values.get("href")).toBe("https://example.com")
