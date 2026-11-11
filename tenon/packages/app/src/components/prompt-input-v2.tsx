@@ -1,6 +1,7 @@
 import { THREAD_REFERENCE_MIME, threadReferenceURI } from "@/utils/thread-reference"
 import { SKILL_REFERENCE_MIME, pickerSkills, skillReferenceURI } from "@/utils/skill-reference"
 import { rememberingHarness } from "@/components/prompt-input/harness-choice"
+import { PermissionModePill } from "@/components/prompt-input/permission-mode-pill"
 import { listSkillCatalog, listSkills } from "@/utils/server"
 import { useServerSDK } from "@/context/server-sdk"
 import type { Skill } from "@tenon/schema/skill"
@@ -100,20 +101,23 @@ export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
         quoteRemoveLabel={language.t("secondBrain.quote.remove")}
         runtimeControl={
           harness() ? (
-            <PromptModelPill
-              harness={harness()!}
-              builtIn={builtInLoop()}
-              builtInModel={{
-                name: props.controller.model.selection.current()?.name ?? language.t("dialog.model.select.title"),
-                choose: chooseBuiltInModel,
-              }}
-              builtInVariant={{
-                options: () => ["default", ...props.controller.model.selection.variant.list()],
-                current: () => props.controller.model.selection.variant.current() ?? "default",
-                set: (value) => props.controller.model.selection.variant.set(value === "default" ? undefined : value),
-                disabled: () => props.controller.model.loading,
-              }}
-            />
+            <>
+              <PromptModelPill
+                harness={harness()!}
+                builtIn={builtInLoop()}
+                builtInModel={{
+                  name: props.controller.model.selection.current()?.name ?? language.t("dialog.model.select.title"),
+                  choose: chooseBuiltInModel,
+                }}
+                builtInVariant={{
+                  options: () => ["default", ...props.controller.model.selection.variant.list()],
+                  current: () => props.controller.model.selection.variant.current() ?? "default",
+                  set: (value) => props.controller.model.selection.variant.set(value === "default" ? undefined : value),
+                  disabled: () => props.controller.model.loading,
+                }}
+              />
+              <PermissionModePill />
+            </>
           ) : undefined
         }
         agentControlVisible={builtInLoop()}

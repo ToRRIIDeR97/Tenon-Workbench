@@ -384,7 +384,7 @@ const PILL_ACTION = { "data-action": "prompt-model-pill" }
 const ROW_CLASS =
   "flex w-full min-w-0 items-center gap-2.5 rounded-[12px] px-2.5 py-1.5 text-left transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover active:bg-v2-overlay-simple-overlay-pressed outline-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus disabled:text-v2-text-text-disabled disabled:hover:bg-transparent disabled:active:bg-transparent motion-reduce:transition-none"
 
-function Choice(props: {
+export function Choice(props: {
   label: string
   detail?: string
   title?: string
