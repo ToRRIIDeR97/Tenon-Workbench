@@ -1,3 +1,4 @@
+import type { Message, Part } from "@opencode-ai/sdk/v2/client"
 import { createSimpleContext } from "@tenon/ui/context"
 import { readPartText } from "@tenon/session-ui/message-part-text"
 import { Harness } from "@tenon/schema/harness"
@@ -98,6 +99,56 @@ export function threadWorking(
   if (status !== undefined && status !== "idle") return true
   const last = messages.at(-1)
   return last !== undefined && (!last.done || (last.role === "user" && status === undefined))
+}
+
+/** The synced messages and parts a thread's transcript is read from. */
+export type CommandTranscript = {
+  message: Record<string, ReadonlyArray<Message> | undefined>
+  part: Record<string, ReadonlyArray<Part> | undefined>
+  part_text_accum_delta: Record<string, string>
+}
+
+/** A thread's whole transcript, oldest first. */
+export function commandMessages(data: CommandTranscript, sessionID: string | undefined): CommandMessage[] {
+  if (!sessionID) return []
+  return (data.message[sessionID] ?? []).flatMap((message) => {
+    const state = messageState(message)
+    return state ? [{ id: message.id, ...state, text: messageText(data, message.id) }] : []
+  })
+}
+
+/** The thread's last assistant reply on one line, reading only that message's parts. */
+export function lastReplyText(data: CommandTranscript, sessionID: string | undefined) {
+  const reply = sessionID ? data.message[sessionID]?.findLast((message) => message.role === "assistant") : undefined
+  return reply ? messageText(data, reply.id).trim().replace(/\s+/g, " ") : ""
+}
+
+/** `threadWorking` from the thread's last message alone, which needs no text. */
+export function commandWorking(status: string | undefined, data: CommandTranscript, sessionID: string) {
+  const last = data.message[sessionID]?.findLast((message) => messageState(message) !== undefined)
+  const state = last && messageState(last)
+  return threadWorking(status, state ? [state] : [])
+}
+
+/** `threadLabel`, reading the first user message only when the thread has no title of its own. */
+export function commandLabel(title: string, data: CommandTranscript, sessionID: string) {
+  // Without a first message, threadLabel returns a real title as is and "" for none or the placeholder.
+  if (threadLabel(title, undefined)) return title
+  const first = data.message[sessionID]?.find((message) => message.role === "user")
+  return threadLabel(title, first && messageText(data, first.id))
+}
+
+/** A user or assistant message's role and whether it is complete; other messages are not shown. */
+function messageState(message: Message) {
+  if (message.role !== "user" && message.role !== "assistant") return undefined
+  return { role: message.role, done: message.role === "user" || message.time.completed !== undefined }
+}
+
+/** A message's text parts, streamed text included, one per line. */
+function messageText(data: CommandTranscript, messageID: string) {
+  return (data.part[messageID] ?? [])
+    .flatMap((part) => (part.type === "text" ? [readPartText(data.part_text_accum_delta, part)] : []))
+    .join("\n")
 }
 
 /** Whether the daily compaction is due: never ran, or last ran a day or more ago. */
@@ -201,24 +252,9 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
     )
     const latest = () => list()[0]
 
-    const messages = (sessionID: string | undefined): CommandMessage[] => {
-      if (!sessionID) return []
-      const data = serverSync().session.data
-      return (data.message[sessionID] ?? []).flatMap((message) => {
-        if (message.role !== "user" && message.role !== "assistant") return []
-        const text = (data.part[message.id] ?? [])
-          .flatMap((part) => (part.type === "text" ? [readPartText(data.part_text_accum_delta, part)] : []))
-          .join("\n")
-        return [
-          {
-            id: message.id,
-            role: message.role,
-            text,
-            done: message.role === "user" || message.time.completed !== undefined,
-          },
-        ]
-      })
-    }
+    const messages = (sessionID: string | undefined) => commandMessages(serverSync().session.data, sessionID)
+    // The K3 strip shows this on every page: a streamed delta re-reads only the latest reply's parts, once.
+    const lastReply = createMemo(() => lastReplyText(serverSync().session.data, latest()?.id))
     const sync = (sessionID: string) => void serverSync().session.sync(sessionID)
     const agentWrites = useAgentWrites()
     // When the thread's latest turn began (its last user message), so writes can be grouped per turn.
@@ -322,16 +358,12 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
       waiting: () => (serverSync().session.data.permission[latest()?.id ?? ""]?.length ?? 0) > 0,
       /** Whether the thread's agent is working on a reply. */
       working: (sessionID: string | undefined) =>
-        !!sessionID && threadWorking(serverSync().session.data.session_status[sessionID]?.type, messages(sessionID)),
+        !!sessionID &&
+        commandWorking(serverSync().session.data.session_status[sessionID]?.type, serverSync().session.data, sessionID),
       /** The thread's label, or "" when it has neither a title nor a known first message. */
-      label: (thread: CommandThread) =>
-        threadLabel(thread.title, messages(thread.id).find((message) => message.role === "user")?.text),
+      label: (thread: CommandThread) => commandLabel(thread.title, serverSync().session.data, thread.id),
       sync,
-      lastReply: () =>
-        messages(latest()?.id)
-          .findLast((message) => message.role === "assistant")
-          ?.text.trim()
-          .replace(/\s+/g, " ") ?? "",
+      lastReply,
       sending: () => state.sending,
       error: () => state.error,
       clearError: () => setState("error", ""),
