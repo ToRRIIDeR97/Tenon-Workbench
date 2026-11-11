@@ -591,9 +591,16 @@ assistant that spans workspaces, with its own threads, memory and routines.
   deletes those threads. A thread whose summary fails, or that has no text to
   summarise, is kept. A thread over 24,000 characters reaches the summariser as
   its start and end. Project threads are never read.
-  `CommandMemory.search(query)` builds a temporary SQLite FTS5
-  table on the profile database's connection from thread titles, message text
-  and the memory files, so the index is never stored. Compactions run one at a
+  `CommandMemory.search(query)` searches a temporary SQLite FTS5
+  table on the profile database's connection, holding thread titles, message
+  text and the memory files. The table lasts as long as that connection (the
+  server process). Each search brings it up to date: it re-reads only threads
+  whose time, title or parts changed and memory files whose mtime or size
+  changed, and deletes the rows of the ones that are gone. A thread or file
+  written within the instant it was indexed is read again by the next search.
+  The index is never written to the profile database file and is rebuilt after
+  a restart or a reconnect; SQLite may spill it to its unnamed temporary file
+  (see the [threat model](../security/threat-model.md)). Compactions run one at a
   time and share a lock with search only while removing a thread, so search
   doesn't wait on model calls. The renderer calls
   `POST /command-centre/memory/compact` at most once a day with the age from

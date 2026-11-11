@@ -170,9 +170,15 @@ const threadText = Effect.fnUntraced(function* (sessionID: Session.Info["id"]) {
 
 const memoryFolder = () => path.join(root(), HarnessAppTools.COMMAND_CENTRE_FOLDER, "memory")
 
-// Each memory file with a stamp that changes when the file is rewritten.
+// File times can trail the wall clock (coarse kernel clocks; FAT keeps 2-second times), so a file
+// changed this recently may be rewritten without its stamp changing.
+const fileClockSlack = 2_000
+
+// Each memory file with a stamp that changes when the file is rewritten, and whether the stamp can be
+// trusted yet (see `Indexed`).
 const memoryFiles = Effect.promise(async () => {
   const folder = memoryFolder()
+  const readAt = Date.now()
   const names = await readdir(folder).catch(() => [] as string[])
   const files = await Promise.all(
     names
@@ -180,7 +186,8 @@ const memoryFiles = Effect.promise(async () => {
       .map(async (name) => {
         const file = path.join(folder, name)
         const info = await stat(file).catch(() => undefined)
-        return info?.isFile() ? { file, stamp: `${info.mtimeMs}:${info.size}` } : undefined
+        if (!info?.isFile()) return undefined
+        return { file, stamp: `${info.mtimeMs}:${info.size}`, settled: info.mtimeMs < readAt - fileClockSlack }
       }),
   )
   return files.filter((entry) => entry !== undefined)
@@ -215,17 +222,33 @@ export function matchQuery(query: string) {
     .join(" ")
 }
 
-type Indexed = { rowid: number; stamp: string }
+/**
+ * An indexed row and the change stamp it was read at. A stamp is a time that was still current when it was
+ * read, so a write in that same instant can leave it unchanged: such a row keeps no stamp and is read again
+ * by the next search, until one sees its latest write strictly before the read.
+ */
+type Indexed = { rowid: number; stamp: string | undefined }
 
 /**
- * What `temp.command_memory_fts` holds: the row and change stamp of each thread (by session ID) and memory
+ * What `temp.command_memory_fts` holds on one connection: the row of each thread (by session ID) and memory
  * file (by path). Searches bring it up to date, so only new or changed threads and files are read again.
  */
-const indexed = { threads: new Map<string, Indexed>(), memory: new Map<string, Indexed>(), next: 1 }
+type Index = { threads: Map<string, Indexed>; memory: Map<string, Indexed>; next: number }
 
-const forget = () => {
-  indexed.threads.clear()
-  indexed.memory.clear()
+// A temporary table belongs to its connection, so each database keeps its own record of it.
+const indexes = new WeakMap<object, Index>()
+
+const indexFor = (db: object) => {
+  const found = indexes.get(db)
+  if (found) return found
+  const created: Index = { threads: new Map(), memory: new Map(), next: 1 }
+  indexes.set(db, created)
+  return created
+}
+
+const forget = (index: Index) => {
+  index.threads.clear()
+  index.memory.clear()
 }
 
 /** Search Command Centre threads and memory summaries. */
@@ -236,121 +259,149 @@ export const search = Effect.fn("CommandMemory.search")(function* (query: string
     .withPermits(1)(
       Effect.gen(function* () {
         const { db } = yield* Database.Service
-        // A temporary table lives only on this connection; the lock keeps searches from sharing it.
-        yield* db.run(
-          sql.raw(
-            "CREATE VIRTUAL TABLE IF NOT EXISTS temp.command_memory_fts USING fts5(session_id UNINDEXED, at UNINDEXED, body)",
-          ),
-        )
-        // A new connection starts with an empty table, so `indexed` no longer describes it.
-        const held = yield* db.all<{ rows: number }>(sql`SELECT count(*) AS rows FROM temp.command_memory_fts`)
-        if ((held[0]?.rows ?? 0) !== indexed.threads.size + indexed.memory.size) {
-          yield* db.run(sql.raw("DELETE FROM temp.command_memory_fts"))
-          forget()
-        }
-
-        const list = yield* threads()
-        const stamp = yield* threadStamps(list.map((session) => session.id))
-        const files = yield* memoryFiles
-        const staleThreads = stale(indexed.threads, new Map(list.map((session) => [session.id, stamp(session)])))
-        const staleMemory = stale(indexed.memory, new Map(files.map((entry) => [entry.file, entry.stamp])))
-        const removed = [...staleThreads, ...staleMemory].map((item) => item.rowid)
-        for (let start = 0; start < removed.length; start += idBatch)
+        const indexed = indexFor(db)
+        return yield* Effect.gen(function* () {
+          // A temporary table lives only on this connection; the lock keeps searches from sharing it.
           yield* db.run(
-            sql`DELETE FROM temp.command_memory_fts WHERE rowid IN (${sql.join(
-              removed.slice(start, start + idBatch).map((rowid) => sql`${rowid}`),
-              sql`, `,
-            )})`,
-          )
-        for (const item of staleThreads) indexed.threads.delete(item.id)
-        for (const item of staleMemory) indexed.memory.delete(item.id)
-
-        // Only threads and memory files that are new or changed since they were indexed are read.
-        const threadRows = yield* Effect.forEach(
-          list.filter((session) => !indexed.threads.has(session.id)),
-          (session) =>
-            threadText(session.id).pipe(
-              Effect.map((text) => ({
-                kind: "threads" as const,
-                id: session.id as string,
-                stamp: stamp(session),
-                sessionID: session.id as string,
-                text: `${session.title}\n\n${text}`,
-                at: session.time.updated,
-              })),
+            sql.raw(
+              "CREATE VIRTUAL TABLE IF NOT EXISTS temp.command_memory_fts USING fts5(session_id UNINDEXED, at UNINDEXED, body)",
             ),
-          { concurrency: 4 },
-        )
-        const memoryRows = yield* Effect.promise(() =>
-          Promise.all(
-            files
-              .filter((entry) => !indexed.memory.has(entry.file))
-              .map((entry) =>
-                readMemory(entry.file).then((memory) =>
-                  memory
-                    ? { kind: "memory" as const, id: entry.file, stamp: entry.stamp, sessionID: "", ...memory }
-                    : undefined,
-                ),
-              ),
-          ),
-        )
-        const rows = [...threadRows, ...memoryRows.filter((row) => row !== undefined)].map((row) => ({
-          ...row,
-          rowid: indexed.next++,
-        }))
-        // A few multi-row inserts instead of one statement per row.
-        for (let start = 0; start < rows.length; start += insertBatch) {
-          const batch = rows.slice(start, start + insertBatch)
-          yield* db.run(
-            sql`INSERT INTO temp.command_memory_fts (rowid, session_id, at, body) VALUES ${sql.join(
-              batch.map((row) => sql`(${row.rowid}, ${row.sessionID}, ${row.at}, ${row.text})`),
-              sql`, `,
-            )}`,
           )
-          for (const row of batch) indexed[row.kind].set(row.id, { rowid: row.rowid, stamp: row.stamp })
-        }
+          // A reopened connection starts with an empty table, so `indexed` no longer describes it.
+          const held = yield* db.all<{ rows: number }>(sql`SELECT count(*) AS rows FROM temp.command_memory_fts`)
+          if ((held[0]?.rows ?? 0) !== indexed.threads.size + indexed.memory.size) {
+            yield* db.run(sql.raw("DELETE FROM temp.command_memory_fts"))
+            forget(indexed)
+          }
 
-        // Equal ranks keep the order a fresh index gave them: threads newest first, then memory files.
-        const found = yield* db.all<{ session_id: string; at: number; body: string }>(
-          sql`SELECT session_id, at, body FROM temp.command_memory_fts WHERE command_memory_fts MATCH ${match} ORDER BY rank, session_id = '', at DESC LIMIT ${hitLimit}`,
+          const list = yield* threads()
+          const stamps = yield* threadStamps(list)
+          const files = yield* memoryFiles
+          const staleThreads = stale(indexed.threads, new Map(list.map((session) => [session.id, stamps.of(session)])))
+          const staleMemory = stale(indexed.memory, new Map(files.map((entry) => [entry.file, entry.stamp])))
+          const removed = [...staleThreads, ...staleMemory].map((item) => item.rowid)
+          for (let start = 0; start < removed.length; start += idBatch)
+            yield* db.run(
+              sql`DELETE FROM temp.command_memory_fts WHERE rowid IN (${sql.join(
+                removed.slice(start, start + idBatch).map((rowid) => sql`${rowid}`),
+                sql`, `,
+              )})`,
+            )
+          for (const item of staleThreads) indexed.threads.delete(item.id)
+          for (const item of staleMemory) indexed.memory.delete(item.id)
+
+          // Only threads and memory files that are new or changed since they were indexed are read.
+          const threadRows = yield* Effect.forEach(
+            list.filter((session) => !indexed.threads.has(session.id)),
+            (session) =>
+              threadText(session.id).pipe(
+                Effect.map((text) => ({
+                  kind: "threads" as const,
+                  id: session.id as string,
+                  stamp: stamps.settled(session) ? stamps.of(session) : undefined,
+                  sessionID: session.id as string,
+                  text: `${session.title}\n\n${text}`,
+                  at: session.time.updated,
+                })),
+              ),
+            { concurrency: 4 },
+          )
+          const memoryRows = yield* Effect.promise(() =>
+            Promise.all(
+              files
+                .filter((entry) => !indexed.memory.has(entry.file))
+                .map((entry) =>
+                  readMemory(entry.file).then((memory) =>
+                    memory
+                      ? {
+                          kind: "memory" as const,
+                          id: entry.file,
+                          stamp: entry.settled ? entry.stamp : undefined,
+                          sessionID: "",
+                          ...memory,
+                        }
+                      : undefined,
+                  ),
+                ),
+            ),
+          )
+          const rows = [...threadRows, ...memoryRows.filter((row) => row !== undefined)].map((row) => ({
+            ...row,
+            rowid: indexed.next++,
+          }))
+          // A few multi-row inserts instead of one statement per row.
+          for (let start = 0; start < rows.length; start += insertBatch) {
+            const batch = rows.slice(start, start + insertBatch)
+            yield* db.run(
+              sql`INSERT INTO temp.command_memory_fts (rowid, session_id, at, body) VALUES ${sql.join(
+                batch.map((row) => sql`(${row.rowid}, ${row.sessionID}, ${row.at}, ${row.text})`),
+                sql`, `,
+              )}`,
+            )
+            for (const row of batch) indexed[row.kind].set(row.id, { rowid: row.rowid, stamp: row.stamp })
+          }
+
+          // Equal ranks keep the order a fresh index gave them: threads newest first, then memory files.
+          const found = yield* db.all<{ session_id: string; at: number; body: string }>(
+            sql`SELECT session_id, at, body FROM temp.command_memory_fts WHERE command_memory_fts MATCH ${match} ORDER BY rank, session_id = '', at DESC LIMIT ${hitLimit}`,
+          )
+          return found.map(
+            (row): Hit => ({
+              ...(row.session_id ? { sessionID: row.session_id } : {}),
+              text: row.body.length > textLimit ? `${row.body.slice(0, textLimit - 1)}…` : row.body,
+              at: Number(row.at),
+            }),
+          )
+        }).pipe(
+          // A search that stopped part way may have left rows `indexed` doesn't know; the next one rebuilds.
+          Effect.onError(() => Effect.sync(() => forget(indexed))),
         )
-        return found.map(
-          (row): Hit => ({
-            ...(row.session_id ? { sessionID: row.session_id } : {}),
-            text: row.body.length > textLimit ? `${row.body.slice(0, textLimit - 1)}…` : row.body,
-            at: Number(row.at),
-          }),
-        )
-      }).pipe(
-        // A search that stopped part way may have left rows `indexed` doesn't know; the next one rebuilds.
-        Effect.onError(() => Effect.sync(forget)),
-      ),
+      }),
     )
     .pipe(Effect.orDie)
 })
 
-// Indexed entries that `current` no longer has, or has with another stamp.
+// Indexed entries that `current` no longer has, has with another stamp, or that kept no stamp.
 const stale = (held: Map<string, Indexed>, current: Map<string, string>) =>
-  [...held].flatMap(([id, item]) => (current.get(id) === item.stamp ? [] : [{ id, rowid: item.rowid }]))
+  [...held].flatMap(([id, item]) =>
+    item.stamp !== undefined && current.get(id) === item.stamp ? [] : [{ id, rowid: item.rowid }],
+  )
 
 /**
  * Each thread's change stamp. Neither a reply nor a rename moves a session's `time.updated`, so the stamp
  * adds the title and its parts' count and latest write (every part write moves its `time_updated`).
+ * `settled` says whether the thread's latest write came strictly before the stamps were read; the
+ * timestamps are milliseconds of this process's clock, so a write later in the same millisecond is possible.
  */
-const threadStamps = Effect.fnUntraced(function* (ids: ReadonlyArray<Session.Info["id"]>) {
+const threadStamps = Effect.fnUntraced(function* (list: ReadonlyArray<Session.Info>) {
   const { db } = yield* Database.Service
-  const found = new Map<string, string>()
-  for (let start = 0; start < ids.length; start += idBatch) {
+  const readAt = Date.now()
+  const found = new Map<string, { parts: number; updated: number }>()
+  for (let start = 0; start < list.length; start += idBatch) {
     const rows = yield* db
       .select({ sessionID: MessageTable.session_id, parts: count(), updated: max(PartTable.time_updated) })
       .from(MessageTable)
       .innerJoin(PartTable, eq(PartTable.message_id, MessageTable.id))
-      .where(inArray(MessageTable.session_id, ids.slice(start, start + idBatch)))
+      .where(
+        inArray(
+          MessageTable.session_id,
+          list.slice(start, start + idBatch).map((session) => session.id),
+        ),
+      )
       .groupBy(MessageTable.session_id)
       .all()
-    for (const row of rows) found.set(row.sessionID, `${row.parts}:${row.updated}`)
+    for (const row of rows) found.set(row.sessionID, { parts: row.parts, updated: row.updated ?? 0 })
   }
-  return (session: Session.Info) => JSON.stringify([session.time.updated, session.title, found.get(session.id) ?? ""])
+  return {
+    of: (session: Session.Info) =>
+      JSON.stringify([
+        session.time.updated,
+        session.title,
+        found.get(session.id)?.parts ?? 0,
+        found.get(session.id)?.updated ?? 0,
+      ]),
+    settled: (session: Session.Info) => Math.max(session.time.updated, found.get(session.id)?.updated ?? 0) < readAt,
+  }
 })
 
 /**

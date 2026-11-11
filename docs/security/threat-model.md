@@ -927,9 +927,18 @@ is an assistant whose threads span workspaces.
   model provider, which is the same exposure the thread already had. The
   renderer triggers compaction at most once a day; the server clamps `days`
   to 1–365. Project threads are never read or deleted.
-- **Search.** Memory search builds a temporary FTS5 table on the profile
-  database connection and empties it after each query; nothing is indexed at
-  rest. Hits carry at most 600 characters of text.
+- **Search.** Memory search indexes Command Centre thread titles, message
+  text and the memory files in a temporary FTS5 table on the profile
+  database's connection. The table lives as long as that connection (the
+  server process) and each search updates it, re-reading only threads and
+  files that changed. It is never written to the profile database file, and
+  it is gone after a restart or a reconnect. It is not purely in memory,
+  though: the SQLite builds in Bun and Node keep the default temporary store
+  (`TEMP_STORE=1`, `temp_store` 0), so SQLite may spill the table's pages,
+  in plaintext, to an unnamed temporary file in the OS temp folder. On macOS
+  and Linux that file is deleted as soon as it is opened; on Windows it is
+  opened delete-on-close. Either way it disappears when the connection
+  closes. Hits carry at most 600 characters of text.
 - **Project setup.** `CommandSetup.run` writes only into a folder that does
   not exist or is empty (a non-empty folder is refused untouched), runs
   `git init` from PATH without a shell, and removes a folder only when its own
