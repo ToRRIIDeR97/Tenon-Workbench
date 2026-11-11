@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import type { Message, Part } from "@opencode-ai/sdk/v2"
 import { childTranscript, splitResult, subagentCounts, taskResult, threadSubagents } from "./subagent-list"
-import { childLaneSteps, laneElapsed, laneTokens } from "./subagent-lane"
+import { childLaneSteps, laneElapsed, laneQuiet, laneTokens } from "./subagent-lane"
 
 const user = (id: string, created: number) => ({ id, role: "user", time: { created } }) as unknown as Message
 const assistant = (id: string, parentID: string) =>
@@ -92,5 +92,13 @@ describe("detail helpers", () => {
       { type: "text", text: "Looking" },
       { type: "tool", tool: "read", status: "completed", title: "src/a.ts", output: "ok" },
     ])
+  })
+})
+
+describe("laneQuiet", () => {
+  test("a running lane is quiet once no step has changed for five minutes", () => {
+    expect(laneQuiet(true, 10 * 60_000, 6 * 60_000)).toBeUndefined()
+    expect(laneQuiet(true, 12 * 60_000, 6 * 60_000)).toBe(6 * 60_000)
+    expect(laneQuiet(false, 60 * 60_000, 0)).toBeUndefined()
   })
 })

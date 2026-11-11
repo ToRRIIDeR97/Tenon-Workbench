@@ -41,6 +41,19 @@ export type PromptDelivery = "steer" | "queue"
 export type PromptSubmitOptions = { opposite?: boolean; background?: boolean }
 
 /** Delivery for a message sent to a working agent; idle sessions take the server default. */
+/**
+ * The delivery a follow-up uses before Ctrl+Enter flips it. An external harness (Codex, OpenCode, ACP agents) runs
+ * its subagents inside one turn, and a steer stops that turn, so while they run a message waits in the queue
+ * instead; Ctrl+Enter, or "send now" on the queued message, still stops them and sends.
+ */
+export function followupPreference(input: {
+  preference: PromptDelivery
+  external: boolean
+  runningSubagents: number
+}): PromptDelivery {
+  return input.external && input.runningSubagents > 0 ? "queue" : input.preference
+}
+
 export function promptDelivery(input: { working: boolean; preference: PromptDelivery; opposite?: boolean }) {
   if (!input.working) return undefined
   if (!input.opposite) return input.preference

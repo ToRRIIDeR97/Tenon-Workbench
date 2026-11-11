@@ -1153,6 +1153,8 @@ export const dict = {
   "secondBrain.sidebar.workspaceInstructions": "Workspace instructions",
   "secondBrain.sidebar.projectInstructions": "Instructions",
   "secondBrain.permissionMode.title": "Permissions",
+  "secondBrain.contextMenu.subagentContext": "Subagents' context",
+  "secondBrain.agents.quiet": "No activity for {{duration}}",
   "secondBrain.permission.bash.one": "Run {{count}} command",
   "secondBrain.permission.bash.other": "Run {{count}} commands",
   "secondBrain.permission.edit.one": "Edit {{count}} file",

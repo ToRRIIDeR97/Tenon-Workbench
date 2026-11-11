@@ -1,6 +1,7 @@
 import { THREAD_REFERENCE_MIME, threadReferenceURI } from "@/utils/thread-reference"
 import { SKILL_REFERENCE_MIME, pickerSkills, skillReferenceURI } from "@/utils/skill-reference"
 import { rememberingHarness } from "@/components/prompt-input/harness-choice"
+import { subagentCounts, threadSubagents } from "@/components/session/subagent-list"
 import { PermissionModePill } from "@/components/prompt-input/permission-mode-pill"
 import { listSkillCatalog, listSkills } from "@/utils/server"
 import { useServerSDK } from "@/context/server-sdk"
@@ -26,7 +27,7 @@ import type { PromptInputHarnessController } from "@/components/prompt-input/har
 import { normalizePromptHistoryEntry, promptLength, type PromptHistoryComment } from "@/components/prompt-input/history"
 import { createPersistedPromptInputHistory } from "@/components/prompt-input/history-store"
 import { promptDesignPlaceholder, promptPlaceholder } from "@/components/prompt-input/placeholder"
-import { createPromptSubmit } from "@/components/prompt-input/submit"
+import { createPromptSubmit, followupPreference } from "@/components/prompt-input/submit"
 import { createPersistedPromptStash, type PromptStash } from "@/components/prompt-input/stash-store"
 import { selectionFromLines, type SelectedLineRange, useFile } from "@/context/file"
 import { useComments } from "@/context/comments"
@@ -221,6 +222,12 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
     )
   })
   const working = createMemo(() => sync().data.session_working(props.controls.session.id ?? ""))
+  const runningSubagents = createMemo(() => {
+    const id = props.controls.session.id
+    if (!id) return 0
+    return subagentCounts(threadSubagents(sync().data.message[id] ?? [], (messageID) => sync().data.part[messageID]))
+      .running
+  })
   const attachments = createMemo(() =>
     prompt.current().filter((part): part is ImageAttachmentPart => part.type === "image"),
   )
@@ -329,7 +336,12 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
     harnessDriver: () => props.harnessDriver,
     harnessChanging: () => props.harnessChanging,
     onNewSessionWorktreeReset: props.onNewSessionWorktreeReset,
-    followup: () => settings.general.followup(),
+    followup: () =>
+      followupPreference({
+        preference: settings.general.followup(),
+        external: !!props.harnessDriver && props.harnessDriver !== Harness.OpenCodeDriver,
+        runningSubagents: runningSubagents(),
+      }),
     onAbort: props.onAbort,
     onSubmit: props.onSubmit,
     model: props.controls.model.selection,

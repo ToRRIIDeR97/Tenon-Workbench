@@ -39,3 +39,35 @@ describe("getSessionContext reported", () => {
     expect(context?.reported).toBe(true)
   })
 })
+
+describe("latestSubagentContexts", () => {
+  test("lists the latest turn's subagents with the context each reported", async () => {
+    const { latestSubagentContexts } = await import("./session-usage")
+    const tool = (id: string, tool: string, extra: Record<string, unknown>) =>
+      ({
+        id,
+        type: "tool",
+        tool,
+        state: { status: "running", input: { description: id }, ...extra },
+        metadata: {},
+      }) as Record<string, unknown>
+    const messages = [
+      { id: "u1", role: "user" },
+      { id: "a1", role: "assistant" },
+    ] as unknown as Message[]
+    const parts = () => [
+      {
+        ...tool("review", "acp_subagent", {}),
+        metadata: { acpSubagent: { usage: { used: 50_000, size: 200_000 } } },
+      },
+      tool("tests", "task", { metadata: { sessionId: "ses_child" } }),
+    ]
+    const list = latestSubagentContexts(messages, parts as never, (id) =>
+      id === "ses_child" ? { used: 10_000 } : undefined,
+    )
+    expect(list.map((item) => [item.name, item.running, item.used, item.size])).toEqual([
+      ["review", true, 50_000, 200_000],
+      ["tests", true, 10_000, undefined],
+    ])
+  })
+})

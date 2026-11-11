@@ -9,7 +9,12 @@ import { createStore } from "solid-js/store"
 import { openSessionContext } from "@/components/session-context-usage"
 import { createSessionContextFormatter } from "@/components/session/session-context-format"
 import { getSessionContext } from "@/components/session/session-context-metrics"
-import { getSessionTotals, getSubagentUsage, getTurnUsage } from "@/components/session/session-usage"
+import {
+  getSessionTotals,
+  getSubagentUsage,
+  getTurnUsage,
+  latestSubagentContexts,
+} from "@/components/session/session-usage"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
@@ -48,7 +53,14 @@ export function createComposerContext() {
   // The server keeps whole-session totals on the session info; the loaded messages may be only part of the thread.
   const totals = createMemo(() => getSessionTotals(params.id ? sync().session.get(params.id) : undefined, messages()))
   const subagents = createMemo(() => getSubagentUsage(messages(), parts, (id) => sync().session.get(id)))
-  return { messages, context, totals, subagents }
+  // Each subagent's own context, beside the main agent's: a `task` child reads its last step once loaded.
+  const agents = createMemo(() =>
+    latestSubagentContexts(messages(), parts, (id) => {
+      const child = getSessionContext(sync().data.message[id] ?? [], [...providers.all().values()])
+      return child?.reported ? { used: child.total, size: child.limit } : undefined
+    }),
+  )
+  return { messages, context, totals, subagents, agents }
 }
 
 /**
@@ -102,6 +114,7 @@ export function ComposerContextRing(props: { context: ComposerContext; harness?:
             messages={props.context.messages()}
             cost={props.context.totals().cost}
             subagents={props.context.subagents()}
+            agents={props.context.agents()}
             harness={props.harness}
             usage={usage}
             onView={() => setState("open", false)}
@@ -159,6 +172,7 @@ function ContextMenu(props: {
   messages: ReturnType<ComposerContext["messages"]>
   cost: number | undefined
   subagents: ReturnType<ComposerContext["subagents"]>
+  agents: ReturnType<ComposerContext["agents"]>
   harness?: ComposerHarness
   usage: PlanUsage
   onView: () => void
@@ -234,6 +248,39 @@ function ContextMenu(props: {
           </Show>
         </Show>
       </Group>
+
+      <Show when={props.agents.length > 0}>
+        <Group title={language.t("secondBrain.contextMenu.subagentContext")}>
+          <For each={props.agents}>
+            {(agent) => (
+              <Row label={agent.name ?? language.t("secondBrain.agentTab.agentFallback")}>
+                <Show
+                  when={agent.used !== undefined}
+                  fallback={
+                    <span class="text-[12px] font-normal text-v2-text-text-muted">
+                      {language.t("secondBrain.contextMenu.notReported")}
+                    </span>
+                  }
+                >
+                  <Show
+                    when={agent.size}
+                    fallback={language.t("secondBrain.contextMenu.usedTokens", {
+                      count: formatter().number(agent.used),
+                    })}
+                  >
+                    {(size) => (
+                      <>
+                        <Meter value={(agent.used! / size()) * 100} />
+                        <span class="w-[34px] text-right">{percent((agent.used! / size()) * 100)}</span>
+                      </>
+                    )}
+                  </Show>
+                </Show>
+              </Row>
+            )}
+          </For>
+        </Group>
+      </Show>
 
       <Group title={language.t("secondBrain.contextMenu.turn")}>
         <Show when={turn().cacheHit}>
