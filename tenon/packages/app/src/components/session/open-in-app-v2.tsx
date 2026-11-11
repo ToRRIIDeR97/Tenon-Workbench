@@ -1,6 +1,6 @@
 import { For, Show } from "solid-js"
 import { AppIcon } from "@tenon/ui/app-icon"
-import { Spinner } from "@tenon/ui/spinner"
+import { LoaderV2 } from "@tenon/ui/v2/loader-v2"
 import { Icon as IconV2 } from "@tenon/ui/v2/icon"
 import { MenuV2 } from "@tenon/ui/v2/menu-v2"
 import { SplitButtonV2, SplitButtonV2Action, SplitButtonV2MenuTrigger } from "@tenon/ui/v2/split-button-v2"
@@ -31,7 +31,7 @@ export function OpenInAppV2(props: { directory: () => string }) {
             aria-label={language.t("session.header.open.ariaLabel", { app: state.current().label })}
           >
             <Show when={state.opening()} fallback={<AppIcon id={state.current().icon} class="size-[18px]" />}>
-              <Spinner class="size-3.5" />
+              <LoaderV2 class="size-3.5" style={{ color: "inherit" }} />
             </Show>
           </SplitButtonV2Action>
         </TooltipV2>

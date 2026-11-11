@@ -1031,7 +1031,7 @@ export default function CalendarPage() {
               <div class="flex min-h-[560px] min-w-0 flex-col self-stretch">
                 {/* A failed refresh keeps the last snapshot on screen with an inline retry. */}
                 <Show when={events.error() && events.snapshot()}>
-                  <div role="alert" class="flex items-center gap-2 pb-2 text-[12px] text-v2-text-text-critical">
+                  <div role="alert" class="flex items-center gap-2 pb-2 type-meta text-v2-text-text-critical">
                     <span class="min-w-0 flex-1">{language.t("secondBrain.calendar.loadFailed")}</span>
                     <ButtonV2 size="small" variant="outline" onClick={() => void events.refetch()}>
                       {language.t("secondBrain.state.retry")}
@@ -1201,7 +1201,7 @@ export default function CalendarPage() {
                     </div>
                     <Show
                       when={!googleConnection.loading}
-                      fallback={<p class="text-[12px] text-v2-text-text-muted">{language.t("common.loading")}</p>}
+                      fallback={<p class="type-meta text-v2-text-text-muted">{language.t("common.loading")}</p>}
                     >
                       <Show
                         when={settled(googleConnection)?.available}
@@ -1258,13 +1258,13 @@ export default function CalendarPage() {
                                   }
                                 />
                               </label>
-                              <p class="text-[11px] leading-4 text-v2-text-text-muted">
+                              <p class="type-meta text-v2-text-text-muted">
                                 {googleTypedClient()
                                   ? language.t("secondBrain.calendar.google.credentialNote")
                                   : language.t("secondBrain.calendar.google.signInNote")}
                               </p>
                               <Show when={state.googleError}>
-                                <p role="alert" class="text-[12px] text-v2-text-text-critical">
+                                <p role="alert" class="type-meta text-v2-text-text-critical">
                                   {state.googleError}
                                 </p>
                               </Show>
@@ -1312,7 +1312,7 @@ export default function CalendarPage() {
                                 {(account) => (
                                   <li class="flex flex-col gap-2 rounded-[12px] bg-v2-background-bg-base p-3 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]">
                                     <div class="flex items-center gap-2">
-                                      <span class="min-w-0 flex-1 truncate text-[12px] text-v2-text-text-base [font-weight:500]">
+                                      <span class="min-w-0 flex-1 truncate type-meta text-v2-text-text-base [font-weight:500]">
                                         {account.label || language.t("secondBrain.calendar.google.accountFallback")}
                                       </span>
                                       <ButtonV2
@@ -1370,7 +1370,7 @@ export default function CalendarPage() {
                                     </Show>
                                     <Show when={account.errorCode}>
                                       {(code) => (
-                                        <p role="alert" class="text-[11px] text-v2-text-text-critical">
+                                        <p role="alert" class="type-meta text-v2-text-text-critical">
                                           {googleMessage(new Error(code()))}
                                         </p>
                                       )}
@@ -1380,7 +1380,7 @@ export default function CalendarPage() {
                               </For>
                             </ul>
                             <Show when={state.googleError}>
-                              <p role="alert" class="text-[12px] text-v2-text-text-critical">
+                              <p role="alert" class="type-meta text-v2-text-text-critical">
                                 {state.googleError}
                               </p>
                             </Show>
@@ -1456,8 +1456,8 @@ function ScheduleRow(props: {
   return (
     <div
       classList={{
-        "flex min-h-11 items-center gap-1.5 rounded-[12px] pr-3 transition-colors duration-short ease-standard motion-reduce:transition-none": true,
-        "bg-v2-background-bg-accent-container": props.selected,
+        "flex min-h-11 items-center gap-1.5 rounded-[8px] pr-3 transition-colors duration-short ease-standard motion-reduce:transition-none": true,
+        "bg-v2-overlay-simple-overlay-pressed": props.selected,
         "hover:bg-v2-overlay-simple-overlay-hover": !props.selected,
       }}
     >
@@ -1468,7 +1468,7 @@ function ScheduleRow(props: {
       </span>
       <button
         type="button"
-        class="flex min-w-0 flex-1 items-center gap-3.5 rounded-[12px] py-2 text-left focus-visible:outline-offset-[-2px]"
+        class="flex min-w-0 flex-1 items-center gap-3.5 rounded-[8px] py-2 text-left focus-visible:outline-offset-[-2px]"
         aria-pressed={props.selected}
         onClick={props.onOpen}
       >
@@ -1476,9 +1476,9 @@ function ScheduleRow(props: {
         <span class="min-w-0 flex-1">
           <span
             classList={{
-              "block truncate text-[13px]": true,
-              "text-v2-text-on-accent-container [font-weight:600]": props.selected,
-              "text-v2-text-text-base [font-weight:450]": !props.selected,
+              "block truncate text-[13px] text-v2-text-text-base": true,
+              "[font-weight:600]": props.selected,
+              "[font-weight:450]": !props.selected,
             }}
           >
             {props.item.title}

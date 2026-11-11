@@ -142,12 +142,13 @@ export function createHomeSessionIndexCache(queryClient: QueryClient, server: st
       }
 
       const index = queryClient.getQueryData<HomeSessionIndex>(indexKey)
-      if (index) {
-        queryClient.setQueryData<HomeSessionIndex>(indexKey, {
-          sessions: homeSessionIndexSessions(index, next),
-          eventSequence: next.sequence,
-          parents: homeSessionIndexParents(index, next),
-        })
+      const sessions = homeSessionIndexSessions(index, next)
+      const parents = homeSessionIndexParents(index, next)
+      // Most events (subagents, archived threads, known children) change neither list. The index then keeps
+      // its older `eventSequence`: the pending events it skips were no-ops on it and are cleared below, and
+      // the next fetch reads its baseline from the events counter, not from the index.
+      if (index && (sessions !== index.sessions || parents !== index.parents)) {
+        queryClient.setQueryData<HomeSessionIndex>(indexKey, { sessions, eventSequence: next.sequence, parents })
       }
       queryClient.setQueryData<HomeSessionEvents>(eventsKey, { sequence: next.sequence, entries: [] })
     },

@@ -156,8 +156,8 @@ must preserve both canonical workspace files and session/draft profile state.
 ## Renderer content policy
 
 Rendered Markdown drops every image and media source that is not `data:` or
-`blob:` before it reaches the DOM (`session-ui/src/components/markdown-media.ts`),
-so a note or model reply cannot beacon to a remote host.
+`blob:`, and every legacy `background` attribute, before it reaches the DOM
+(`session-ui/src/components/markdown-media.ts`), so a note or model reply cannot beacon to a remote host.
 
 The renderer's HTML is served with a partial Content-Security-Policy
 (`addDocumentPolicy` and `addRendererHeaders` in `desktop/src/main/windows.ts`):
@@ -173,11 +173,11 @@ the Markdown rule above.
 `file://` links (terminal output, Markdown) open with the default app only for
 documents. Executables (the default Windows `PATHEXT` and the user's own, which
 adds to it, plus shell launchers such as `.lnk`, `.hta`, `.msi`, `.scr`, `.cpl`,
-`.jar`, `.chm`, `.msix`, `.rdp`, `.scf`, `.inf`, `.library-ms`, `.search-ms`,
-`.xll` and `.diagcab`, and any file name with
+`.chm`, `.msix`, `.msixbundle`, `.appx`, `.appxbundle`, `.msu`, `.rdp`, `.scf`, `.inf`, `.library-ms`, `.search-ms`,
+`.searchconnector-ms`, `.desktopthemepackfile`, `.xll` and `.diagcab`, and any file name with
 a colon, which names an alternate data stream; macOS bundles and scripts such as
 `.app`, `.command`, `.terminal`, `.workflow`, `.fileloc`, `.webloc`,
-`.mobileconfig`, `.dmg` and `.vncloc`; any POSIX file with an execute bit) and anything that cannot be
+`.mobileconfig`, `.dmg`, `.vncloc` and `.py`; `.jar` on every platform (off Windows, `.py` and `.jar` only for files, so a project folder named `x.py` still opens); any POSIX file with an execute bit) and anything that cannot be
 inspected are revealed in the file manager instead
 (`desktop/src/main/local-file-policy.ts`). A file name ending in a dot or space
 is not handled: `stat` fails on it on Windows, so it is revealed.
@@ -927,9 +927,18 @@ is an assistant whose threads span workspaces.
   model provider, which is the same exposure the thread already had. The
   renderer triggers compaction at most once a day; the server clamps `days`
   to 1–365. Project threads are never read or deleted.
-- **Search.** Memory search builds a temporary FTS5 table on the profile
-  database connection and empties it after each query; nothing is indexed at
-  rest. Hits carry at most 600 characters of text.
+- **Search.** Memory search indexes Command Centre thread titles, message
+  text and the memory files in a temporary FTS5 table on the profile
+  database's connection. The table lives as long as that connection (the
+  server process) and each search updates it, re-reading only threads and
+  files that changed. It is never written to the profile database file, and
+  it is gone after a restart or a reconnect. It is not purely in memory,
+  though: the SQLite builds in Bun and Node keep the default temporary store
+  (`TEMP_STORE=1`, `temp_store` 0), so SQLite may spill the table's pages,
+  in plaintext, to an unnamed temporary file in the OS temp folder. On macOS
+  and Linux that file is deleted as soon as it is opened; on Windows it is
+  opened delete-on-close. Either way it disappears when the connection
+  closes. Hits carry at most 600 characters of text.
 - **Project setup.** `CommandSetup.run` writes only into a folder that does
   not exist or is empty (a non-empty folder is refused untouched), runs
   `git init` from PATH without a shell, and removes a folder only when its own
@@ -999,8 +1008,11 @@ Mail lives in the desktop main process (`desktop/src/main/mail/`; see
   port and needs `Authorization: Bearer <32 random bytes>` (compared in
   constant time); requests with an `Origin` header are refused. Only the
   server process receives the URL and token (`TENON_MAIL_URL`,
-  `TENON_MAIL_TOKEN`); `ChildEnv.from` removes them, and the browser bridge's
-  pair, from every child it builds. Routes are `/search`, `/thread` and `/draft`; bodies
+  `TENON_MAIL_TOKEN`): the main process adds them, and the browser bridge's
+  pair, to the server's environment only (`spawnLocalServer`, again on each
+  supervised restart), never to its own `process.env`, so editors, terminals
+  and other children it starts don't inherit them. The WSL server doesn't get
+  them. `ChildEnv.from` removes both pairs from every child the server builds. Routes are `/search`, `/thread` and `/draft`; bodies
   are capped at 256 KiB. Logs record the route and error message, never mail
   content.
 - **Mail is data.** Message text reaches the model only as tool results in
@@ -1188,8 +1200,11 @@ message and shows in a toast. It doesn't run outside git.
 - **`tenon-file://`.** The renderer names a folder and a relative path; main
   refuses UNC folders, paths that leave the folder (checked again after
   resolving symlinks on both sides, case-insensitively on Windows and macOS)
-  and non-files, then issues an opaque URL for the resolved file.
-  The protocol serves only issued URLs (the most recent 500), read-only, and
+  non-files, and symlinks whose target has a different extension (compared
+  case-insensitively; the renderer picks the viewer from the requested name,
+  the served content type follows the target), then issues an opaque URL for
+  the resolved file. The protocol serves only issued URLs (the most recent
+  500), read-only, with `X-Content-Type-Options: nosniff`, and
   sub-frames may load only those URLs and Chromium's PDF viewer. `plugins: true`
   is set on app windows for that viewer. Word documents are converted to HTML
   and passed through the markdown sanitizer before they reach the page.
@@ -1382,7 +1397,12 @@ fix lands.
   (`\\host\share`, `\\?\`, `//host`) on every platform, so a stat cannot make
   Windows authenticate to a remote host. Without an app, `open-path` applies the local-file policy
   (`localFileAction`): an executable is revealed in the file manager, never
-  opened. With an app, the path must be a directory. Opening other files from a
+  opened. With an app, the path must be a directory. "Open in PowerShell" on
+  Windows runs the System32 `cmd.exe /d /c start "" <resolved powershell.exe> -NoExit`
+  with that directory as the working directory, so PowerShell gets its own console
+  and the path is never an argument: PowerShell reads a positional argument as
+  `-Command` and would run a folder name such as `x;iex(...)` as code, and cmd
+  would re-parse `&` (`openWithLaunch`). Opening other files from a
   compromised main-frame renderer remains possible until the workspace-ID
   contract lands.
 - `store-*` handlers accept only the renderer's own store files, `default.dat`

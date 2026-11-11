@@ -57,7 +57,7 @@ import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { readQuoteMetadata } from "./quote-note"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { PathTooltip, TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
-import { Spinner } from "@tenon/ui/spinner"
+import { LoaderV2 } from "@tenon/ui/v2/loader-v2"
 import { TextShimmer } from "@tenon/ui/text-shimmer"
 import { AnimatedCountList } from "./tool-count-summary"
 import { AnimatedCountLabel } from "./tool-count-label"
@@ -2131,7 +2131,7 @@ ToolRegistry.register({
                 }
               >
                 <span data-component="task-tool-spinner" style={{ color: tone() ?? "var(--v2-icon-icon-accent)" }}>
-                  <Show when={newLayout()} fallback={<Spinner />}>
+                  <Show when={newLayout()} fallback={<LoaderV2 style={{ color: "inherit" }} />}>
                     <SessionProgressIndicatorV2
                       style={{ color: tone() ?? "light-dark(var(--v2-text-text-base), #ffffff)" }}
                     />
@@ -2216,7 +2216,7 @@ ToolRegistry.register({
                         }
                       >
                         <span data-component="task-tool-spinner" style={{ color: "var(--v2-icon-icon-accent)" }}>
-                          <Show when={newLayout()} fallback={<Spinner />}>
+                          <Show when={newLayout()} fallback={<LoaderV2 style={{ color: "inherit" }} />}>
                             <SessionProgressIndicatorV2
                               style={{ color: "light-dark(var(--v2-text-text-base), #ffffff)" }}
                             />

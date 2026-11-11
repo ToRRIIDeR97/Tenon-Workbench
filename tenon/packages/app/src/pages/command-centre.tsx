@@ -12,6 +12,7 @@ import { createComposerController } from "@/components/prompt-input/composer-con
 import { ComposerModelPill, createComposerHarness } from "@/components/prompt-input/composer-harness"
 import { DialogArchivedThreads } from "@/components/sidebar/dialog-archived-threads"
 import { useSidebarController } from "@/components/sidebar/sidebar-controller"
+import { searchFieldClass } from "@/components/surface-classes"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
@@ -128,7 +129,7 @@ export default function CommandCentrePage() {
               </span>
               <input
                 type="search"
-                class="h-9 w-full rounded-full bg-v2-background-bg-layer-01 pl-9 pr-3 text-[13px] text-v2-text-text-base outline-none transition-[background-color,box-shadow] duration-short ease-standard [box-shadow:inset_0_0_0_1px_var(--v2-border-border-base)] placeholder:text-v2-text-text-faint focus:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)] motion-reduce:transition-none"
+                class={searchFieldClass}
                 placeholder={language.t("secondBrain.commandCentre.memory.placeholder")}
                 aria-label={language.t("secondBrain.commandCentre.memory.label")}
                 value={state.memory}

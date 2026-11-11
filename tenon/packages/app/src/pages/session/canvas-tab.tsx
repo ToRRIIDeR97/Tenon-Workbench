@@ -48,10 +48,11 @@ export function SessionCanvasTab() {
               <div class="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
                 <For each={designs()}>
                   {(design) => (
-                    <div class="flex min-w-0 flex-col gap-1.5 rounded-[12px] border border-v2-border-border-muted bg-v2-background-bg-layer-01 p-1.5">
+                    <div class="flex min-w-0 flex-col gap-1.5 rounded-[16px] bg-v2-background-bg-layer-01 p-1.5 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]">
+                      {/* Fixed white: a design is a standalone page that assumes a white canvas. */}
                       <button
                         type="button"
-                        class="relative block aspect-[16/10] w-full overflow-hidden rounded-[8px] bg-white"
+                        class="relative block aspect-[16/10] w-full overflow-hidden rounded-[10px] bg-[#fff]"
                         aria-label={language.t("secondBrain.canvas.view", { title: title(design) })}
                         onClick={() => canvas.select(design.id)}
                       >
@@ -93,7 +94,7 @@ export function SessionCanvasTab() {
               </ButtonV2>
             </div>
             <div class="min-h-0 flex-1 px-3 pb-3">
-              <div class="size-full overflow-hidden rounded-[12px] border border-v2-border-border-muted bg-white">
+              <div class="size-full overflow-hidden rounded-[12px] border border-v2-border-border-muted bg-[#fff]">
                 <DesignFrame design={design} title={title(design)} class="block size-full border-0" />
               </div>
             </div>

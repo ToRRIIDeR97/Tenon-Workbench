@@ -50,8 +50,8 @@
   }
 }
 
-/* Open card: the body grows from zero height (a 0fr to 1fr grid row animates to the content's height) on the long
-   emphasized curve, and its steps follow one after another. Folding takes longer the taller the card is
+/* Open card: the body grows from zero height (a 0fr to 1fr grid row animates to the content's height) with Reveal's
+   open timing (medium, emphasized-decelerate), and its steps follow one after another. Folding takes longer the taller the card is
    (`--turn-steps-close`, set from its height) and settles on the standard curve instead of accelerating into the
    end; the rows fade over most of it rather than vanishing first. Rendering open from the start doesn't animate. */
 [data-slot="turn-steps-body"] {
@@ -61,7 +61,7 @@
 
   &[data-open] {
     grid-template-rows: 1fr;
-    transition: grid-template-rows var(--v2-duration-long) var(--v2-ease-emphasized-decelerate);
+    transition: grid-template-rows var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate);
   }
 
   > div {
@@ -91,15 +91,15 @@
   }
 }
 
-/* A row's output and a reasoning note open the same way as the card: the height follows a grid row, long and
-   decelerating to open, shorter and accelerating to close. A folded note keeps its first line (20px) showing. */
+/* A row's output and a reasoning note open and close with Reveal's timing: the height follows a grid row, medium
+   and decelerating to open, short and accelerating to close. A folded note keeps its first line (20px) showing. */
 [data-slot="turn-steps-reveal"],
 [data-slot="turn-steps-note-text"] {
   display: grid;
-  transition: grid-template-rows var(--v2-duration-medium) var(--v2-ease-emphasized-accelerate);
+  transition: grid-template-rows var(--v2-duration-short) var(--v2-ease-emphasized-accelerate);
 
   &[data-open] {
-    transition: grid-template-rows var(--v2-duration-long) var(--v2-ease-emphasized-decelerate);
+    transition: grid-template-rows var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate);
   }
 
   > * {

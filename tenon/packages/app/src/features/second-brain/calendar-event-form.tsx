@@ -278,7 +278,7 @@ export function CalendarEventForm(props: {
         </label>
       </div>
       <Show when={props.state.draft.source === "google" && (props.state.draft.start || props.state.draft.end)}>
-        <p class="-mt-1 text-[11px] leading-4 text-v2-text-text-muted">
+        <p class="-mt-1 type-meta text-v2-text-text-muted">
           {language.t("secondBrain.calendar.google.timezone", { timezone: props.state.draft.timezone })}
         </p>
       </Show>
@@ -304,9 +304,7 @@ export function CalendarEventForm(props: {
       </Show>
       <Show when={props.state.draft.syncState === "conflict" && props.state.draft.outboxKey}>
         <div class="flex flex-col items-start gap-2 rounded-[16px] bg-v2-background-bg-base p-3 shadow-[0_0_0_1px_var(--v2-border-border-muted)]">
-          <p class="text-[12px] leading-5 text-v2-text-text-muted">
-            {language.t("secondBrain.calendar.google.conflictNote")}
-          </p>
+          <p class="type-meta text-v2-text-text-muted">{language.t("secondBrain.calendar.google.conflictNote")}</p>
           <ButtonV2
             type="button"
             size="small"
@@ -329,7 +327,7 @@ export function CalendarEventForm(props: {
               ? language.t("secondBrain.calendar.google.confirm.delete")
               : language.t("secondBrain.calendar.google.confirm.save")}
           </p>
-          <p class="mt-1 text-[11px] leading-4 text-v2-text-text-muted">
+          <p class="mt-1 type-meta text-v2-text-text-muted">
             {props.formatDay(props.state.draft.date)}
             <Show when={props.state.draft.start && props.state.draft.end}>
               {` · ${props.state.draft.start}–${props.state.draft.end} · ${props.state.draft.timezone}`}
@@ -360,7 +358,7 @@ export function CalendarEventForm(props: {
         </div>
       </Show>
       <Show when={props.state.error}>
-        <p id="calendar-event-error" role="alert" class="text-[12px] text-v2-text-text-critical">
+        <p id="calendar-event-error" role="alert" class="type-meta text-v2-text-text-critical">
           {props.state.error}
         </p>
       </Show>

@@ -56,4 +56,15 @@ describe.skipIf(process.platform === "win32")("fileViewerURL", () => {
     expect(await fileViewerURL(repo, "up/id_rsa")).toBeUndefined()
     expect(await fileViewerURL(repo, "missing.pdf")).toBeUndefined()
   })
+
+  test("serves a symlink only when its target has the same extension", async () => {
+    const repo = join(await base, "links")
+    await mkdir(join(repo, "docs"), { recursive: true })
+    await writeFile(join(repo, "docs", "x.html"), "<script>1</script>")
+    await writeFile(join(repo, "docs", "real.PDF"), "pdf")
+    await symlink(join(repo, "docs", "x.html"), join(repo, "report.pdf"))
+    await symlink(join(repo, "docs", "real.PDF"), join(repo, "copy.pdf"))
+    expect(await fileViewerURL(repo, "report.pdf")).toBeUndefined()
+    expect(await fileViewerURL(repo, "copy.pdf")).toMatch(/^tenon-file:\/\/local\/[\w-]+\/real\.PDF$/)
+  })
 })

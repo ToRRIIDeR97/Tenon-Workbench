@@ -442,7 +442,7 @@ function ConnectionError(props: { onRetry?: () => void; onServerSelected?: (key:
           </svg>
         </span>
         <div class="flex flex-col gap-1.5">
-          <h1 class="text-[20px] text-v2-text-text-base [font-weight:600]">
+          <h1 class="type-page-title text-v2-text-text-base">
             {unreachable()[0]}
             <span class="font-mono text-[18px]">{name()}</span>
             {unreachable()[1]}
