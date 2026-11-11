@@ -47,6 +47,7 @@
   padding: 28px 64px 0 40px;
 }
 
+.settings-v2-fit > [data-slot="segmented-control-v2"],
 .settings-v2-subtabs > [data-slot="segmented-control-v2"] {
   width: fit-content;
 }

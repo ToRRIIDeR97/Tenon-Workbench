@@ -132,7 +132,7 @@ export const DialogSettings: Component<{
                       {language.t("secondBrain.skills.title")}
                     </TabsV2.Trigger>
                     <TabsV2.Trigger value="mcp">
-                      <Icon name="link" />
+                      <Icon name="grid-plus" />
                       {language.t("secondBrain.mcp.title")}
                     </TabsV2.Trigger>
                     <TabsV2.Trigger value="model-profiles">

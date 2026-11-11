@@ -42,7 +42,7 @@ export function PermissionModePill() {
         onOpenChange={(open) => setState("open", open)}
         placement="top-start"
         gutter={6}
-        class="w-[300px] [&_[data-slot=popover-body]]:p-1.5"
+        class="w-[220px] [&_[data-slot=popover-body]]:p-1.5"
         triggerAs="button"
         triggerProps={{
           type: "button",

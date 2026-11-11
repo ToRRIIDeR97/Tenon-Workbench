@@ -2318,9 +2318,11 @@ From the 11 Nov feedback list ([triage](../product/FEEDBACK-2026-11-11.md)):
   harness maps its approvals to these kinds (Codex `commandExecution` → `bash`,
   `fileChange` → `edit`; ACP `execute` → `bash`, `edit`/`delete`/`move` → `edit`).
 - **Approval card.** `session-permission-dock.tsx` shows one line from
-  `permissionSummary`, the patterns folded under it, Deny, and Allow once with a
-  menu: Always allow this (`always`) and Allow everything in this thread (Full
-  auto). Outside-folder requests keep the warning tone and get no menu.
+  `permissionSummary` and the first three commands or paths ("Show N more" for
+  the rest). Deny and Allow once are split buttons: Allow once offers Always
+  allow this (`always`) and Allow everything in this thread (Full auto); Deny
+  offers Deny with a reason, sent as the reply's `message`. Outside-folder
+  requests keep the warning tone and offer no "always".
 - **Subagents.** The context menu lists the latest turn's subagents with their
   own context (`latestSubagentContexts`). A running lane with no new step for five
   minutes says so (`laneQuiet`). With an external harness, a follow-up sent while

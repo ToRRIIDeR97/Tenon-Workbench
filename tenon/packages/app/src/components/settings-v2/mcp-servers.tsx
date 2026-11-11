@@ -66,17 +66,19 @@ export const SettingsMcpServersV2: Component = () => {
               add()
             }}
           >
-            <SegmentedControlV2
-              class="w-fit"
-              aria-label={language.t("secondBrain.mcp.kind")}
-              value={form.kind}
-              onChange={(value) => setForm("kind", value === "remote" ? "remote" : "local")}
-            >
-              <SegmentedControlItemV2 value="local">{language.t("secondBrain.mcp.local")}</SegmentedControlItemV2>
-              <SegmentedControlItemV2 value="remote">{language.t("secondBrain.mcp.remote")}</SegmentedControlItemV2>
-            </SegmentedControlV2>
+            <div class="settings-v2-fit">
+              <SegmentedControlV2
+                aria-label={language.t("secondBrain.mcp.kind")}
+                value={form.kind}
+                onChange={(value) => setForm("kind", value === "remote" ? "remote" : "local")}
+              >
+                <SegmentedControlItemV2 value="local">{language.t("secondBrain.mcp.local")}</SegmentedControlItemV2>
+                <SegmentedControlItemV2 value="remote">{language.t("secondBrain.mcp.remote")}</SegmentedControlItemV2>
+              </SegmentedControlV2>
+            </div>
             <TextInputV2
               type="text"
+              class="!w-full"
               value={form.name}
               placeholder={language.t("secondBrain.mcp.namePlaceholder")}
               aria-label={language.t("secondBrain.mcp.name")}
@@ -84,6 +86,7 @@ export const SettingsMcpServersV2: Component = () => {
             />
             <TextInputV2
               type="text"
+              class="!w-full"
               value={form.target}
               placeholder={language.t(
                 form.kind === "local" ? "secondBrain.mcp.commandPlaceholder" : "secondBrain.mcp.urlPlaceholder",

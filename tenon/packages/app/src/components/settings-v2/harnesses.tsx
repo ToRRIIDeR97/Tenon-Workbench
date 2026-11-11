@@ -681,7 +681,8 @@ const DialogAddHarness: Component<{
       error: error(),
       discovery: check.key === key() ? check.discovery : undefined,
       verification: check.key === key() ? check.verification : undefined,
-      platform: platform.os === "macos" ? "macOS" : platform.os === "windows" ? "Windows" : (platform.os ?? "Linux"),
+      platform: osName(platform.os),
+      emptyReply: language.t("harness.check.prompt.empty"),
     }),
   )
   const discovery = () =>
@@ -765,10 +766,14 @@ const DialogAddHarness: Component<{
           {field(language.t("harness.settings.add.command"), "harness-command", command, setCommand, "opencode")}
           {field(language.t("harness.settings.add.args"), "harness-args", args, setArgs, "acp")}
           <Show when={check.key === key() && check.stage !== "idle"}>
-            <ul data-component="harness-checklist" class="flex flex-col gap-0.5" aria-live="polite">
+            <ul
+              data-component="harness-checklist"
+              class="flex flex-col gap-0.5 overflow-hidden rounded-[16px]"
+              aria-live="polite"
+            >
               <For each={rows()}>
                 {(row) => (
-                  <li class="flex items-start gap-2.5 rounded-[12px] bg-v2-background-bg-layer-01 px-3 py-2 text-[13px]">
+                  <li class="flex items-start gap-2.5 bg-v2-background-bg-layer-01 px-3 py-2 text-[13px] first:rounded-t-[16px] last:rounded-b-[16px] rounded-[4px]">
                     <span
                       class="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] [font-weight:600]"
                       classList={{
@@ -828,6 +833,13 @@ const DialogAddHarness: Component<{
       </DialogFooter>
     </Dialog>
   )
+}
+
+/** The OS the app runs on; the web build has no platform info, so it reads the browser's. */
+function osName(os: string | undefined) {
+  const value =
+    os ?? (/Windows/i.test(navigator.userAgent) ? "windows" : /Mac OS/i.test(navigator.userAgent) ? "macos" : "linux")
+  return value === "macos" ? "macOS" : value === "windows" ? "Windows" : "Linux"
 }
 
 const CHECK_MARK: Record<CheckStatus, string> = { pass: "✓", fail: "✕", warn: "!", waiting: "·", running: "…" }

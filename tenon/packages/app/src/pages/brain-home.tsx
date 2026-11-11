@@ -28,7 +28,7 @@ import { createHomeSessionsController } from "@/pages/home/home-sessions-control
 import { agentRunStatus } from "@/pages/activity-runs"
 import { Harness } from "@tenon/schema/harness"
 import { harnessAssistantDirectory, listHarnessSetup, listHarnessUsage } from "@/utils/server"
-import { HarnessUsageWindows } from "@/components/harness-usage"
+import { fullestWindow } from "@/components/harness-usage"
 import { ComposerBox } from "@/components/prompt-input/composer-box"
 import { createComposerController } from "@/components/prompt-input/composer-controller"
 import { ComposerModelPill, createComposerHarness } from "@/components/prompt-input/composer-harness"
@@ -89,7 +89,6 @@ export default function BrainHomePage() {
   const usageReports = createMemo(() =>
     (usage.latest ?? []).filter((report) => report.status === "available" && report.windows.length > 0),
   )
-  const usageNow = () => (usageTick(), Date.now())
   const projectThreadsQuery = useProjectThreads()
   const projectThreads = createMemo(() =>
     (Array.isArray(projectThreadsQuery.data) ? projectThreadsQuery.data : [])
@@ -484,19 +483,46 @@ export default function BrainHomePage() {
               </PageSection>
             </Show>
 
-            {/* Usage left per harness: only harnesses that report plan windows show; none hides the section. */}
+            {/* One line per harness: its fullest plan window. Harnesses without plan windows are left out. */}
             <Show when={usageReports().length > 0}>
               <PageSection id="brain-home-usage" title={language.t("secondBrain.home.usage")}>
-                <div class="flex flex-col gap-4 text-[13px]">
+                <ul class="flex flex-col">
                   <For each={usageReports()}>
-                    {(report) => (
-                      <div class="flex flex-col gap-1.5">
-                        <span class="type-row-title text-v2-text-text-base">{harnessName(report.instanceID)}</span>
-                        <HarnessUsageWindows report={report} now={usageNow()} />
-                      </div>
-                    )}
+                    {(report) => {
+                      const window = () => fullestWindow(report)
+                      return (
+                        <Show when={window()}>
+                          {(fullest) => (
+                            <li class="flex min-w-0 items-center gap-3 px-3 py-2">
+                              <span class="w-32 shrink-0 truncate type-row-title text-v2-text-text-base">
+                                {harnessName(report.instanceID)}
+                              </span>
+                              <span class="w-16 shrink-0 truncate type-meta text-v2-text-text-muted">
+                                {fullest().label}
+                              </span>
+                              <span
+                                class="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-v2-background-bg-layer-02"
+                                role="meter"
+                                aria-label={`${harnessName(report.instanceID)} ${fullest().label}`}
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                                aria-valuenow={fullest().usedPercent}
+                              >
+                                <span
+                                  class="block h-full rounded-full bg-v2-icon-icon-accent transition-[width] duration-medium ease-standard motion-reduce:transition-none"
+                                  style={{ width: `${Math.max(2, Math.round(fullest().usedPercent))}%` }}
+                                />
+                              </span>
+                              <span class="w-10 shrink-0 text-right tabular-nums type-meta text-v2-text-text-muted">
+                                {`${Math.round(fullest().usedPercent)}%`}
+                              </span>
+                            </li>
+                          )}
+                        </Show>
+                      )
+                    }}
                   </For>
-                </div>
+                </ul>
               </PageSection>
             </Show>
 

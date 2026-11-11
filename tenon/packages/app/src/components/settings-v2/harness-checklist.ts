@@ -20,6 +20,8 @@ export function harnessChecklist(input: {
   discovery?: Harness.Discovery
   verification?: Harness.Verification
   platform: string
+  /** Shown when the test prompt finished with no text. */
+  emptyReply?: string
 }): CheckRow[] {
   const found = input.discovery ?? input.verification
   const discoverFailed = input.failedAt === "discover"
@@ -56,7 +58,9 @@ export function harnessChecklist(input: {
         : input.failedAt === "verify"
           ? "fail"
           : waiting("verify"),
-      detail: input.verification?.reply || (input.failedAt === "verify" ? input.error : undefined),
+      detail:
+        input.verification?.reply ||
+        (input.verification ? input.emptyReply : input.failedAt === "verify" ? input.error : undefined),
     },
     { id: "mcp", required: false, status: optional(capabilities?.mcpHttp) },
     { id: "image", required: false, status: optional(capabilities?.image) },
