@@ -155,6 +155,7 @@ export const SettingsModelProfilesV2: Component = () => {
                     </ToggleSwitch>
                   </div>
                   <TextareaV2
+                    class="!w-full"
                     rows={12}
                     value={current().rules}
                     placeholder={language.t("secondBrain.modelProfiles.rulesPlaceholder")}
