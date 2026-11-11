@@ -46,13 +46,18 @@ export const scan = Effect.fn("HarnessSkills.scan")(function* (input: {
     ),
   ]
   const seen = new Set<string>()
+  // A skill can sit in two of a harness's folders (OpenCode reads both `~/.claude/skills` and `~/.agents/skills`);
+  // the first one found is listed.
+  const names = new Set<string>()
   const skills: Skill[] = []
   for (const item of roots) {
     for (const location of yield* skillFiles(item.root)) {
       if (seen.has(location)) continue
       seen.add(location)
       const skill = yield* read(location, item.scope)
-      if (skill) skills.push(skill)
+      if (!skill || names.has(skill.name)) continue
+      names.add(skill.name)
+      skills.push(skill)
     }
   }
   return { source: "filesystem" as Source, skills }

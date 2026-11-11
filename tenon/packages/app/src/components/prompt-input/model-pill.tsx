@@ -13,6 +13,7 @@ import {
   type PromptInputHarnessController,
 } from "./harness-controls"
 import { harnessModelSlot } from "./harness-model-slot"
+import { filterHarnessModels, searchableModelCount } from "./harness-choice"
 import { modelPillLabel } from "./model-pill-label"
 import "./model-pill.css"
 
@@ -45,10 +46,20 @@ export function PromptModelPill(props: {
   const language = useLanguage()
   const dialog = useDialog()
   const view = createHarnessView(props.harness)
-  const [state, setState] = createStore<{ open: boolean; step: Step; motion?: "forward" | "back"; from?: Step }>({
+  const [state, setState] = createStore<{
+    open: boolean
+    step: Step
+    motion?: "forward" | "back"
+    from?: Step
+    query: string
+  }>({
     open: false,
     step: "summary",
+    query: "",
   })
+  const allModels = () => view.instance()?.models ?? []
+  const searchable = () => allModels().length > searchableModelCount
+  const models = createMemo(() => filterHarnessModels(allModels(), state.query))
   let panel: HTMLDivElement | undefined
   const defaultLabel = () => language.t("harness.default")
 
@@ -109,8 +120,9 @@ export function PromptModelPill(props: {
   const focusSoon = (selector: string) =>
     queueMicrotask(() => (panel?.querySelector<HTMLElement>(selector) ?? panel)?.focus({ preventScroll: true }))
   const go = (step: Exclude<Step, "summary">) => {
-    setState({ step, motion: "forward", from: step })
-    focusSoon('[aria-checked="true"], [data-row]')
+    setState({ step, motion: "forward", from: step, query: "" })
+    // A long model list opens on its search box; typing narrows it and the arrows move into the list.
+    focusSoon(step === "model" && searchable() ? "[data-model-search]" : '[aria-checked="true"], [data-row]')
   }
   const back = () => {
     const from = state.step
@@ -127,6 +139,14 @@ export function PromptModelPill(props: {
   }
 
   const onKeyDown = (event: KeyboardEvent) => {
+    // In the search box, Backspace and Left edit the text; Esc clears it before it goes back.
+    const typing = event.target instanceof HTMLInputElement
+    if (typing && ["Backspace", "ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return
+    if (typing && event.key === "Escape" && state.query) {
+      event.preventDefault()
+      event.stopPropagation()
+      return setState("query", "")
+    }
     if (
       state.step !== "summary" &&
       (event.key === "Escape" || event.key === "ArrowLeft" || event.key === "Backspace")
@@ -286,7 +306,18 @@ export function PromptModelPill(props: {
                         </p>
                       }
                     >
-                      <For each={view.instance()?.models ?? []}>
+                      <Show when={searchable()}>
+                        <input
+                          data-model-search
+                          type="search"
+                          value={state.query}
+                          placeholder={language.t("dialog.model.search.placeholder")}
+                          aria-label={language.t("dialog.model.search.placeholder")}
+                          class="mx-1 mb-1 h-8 shrink-0 rounded-[10px] bg-v2-background-bg-layer-01 px-2.5 text-[13px] text-v2-text-text-base outline-none placeholder:text-v2-text-text-muted focus-visible:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)]"
+                          onInput={(event) => setState("query", event.currentTarget.value)}
+                        />
+                      </Show>
+                      <For each={models()}>
                         {(model) => (
                           <Choice
                             label={model.name}
@@ -295,6 +326,11 @@ export function PromptModelPill(props: {
                           />
                         )}
                       </For>
+                      <Show when={models().length === 0}>
+                        <p class="px-2.5 py-2 text-[12px] leading-4 text-v2-text-text-muted">
+                          {language.t("dialog.model.empty")}
+                        </p>
+                      </Show>
                     </Show>
                   </Match>
                   <Match when={state.step === "effort"}>

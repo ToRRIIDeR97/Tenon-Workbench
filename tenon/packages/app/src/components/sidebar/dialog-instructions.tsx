@@ -10,6 +10,7 @@ import { readInstructions, removeInstructions, writeInstructions } from "@/featu
 import type { SidebarProjectItem } from "@/components/sidebar/sidebar-controller"
 import { errorMessage } from "@/pages/layout/helpers"
 import { showToast } from "@/utils/toast"
+import { instructionsErrorKey } from "./instructions-error"
 
 /**
  * Edit a workspace's default AGENTS.md, or a project's own one. A project without its own file uses
@@ -35,7 +36,10 @@ export function DialogInstructions(props: { workspaceDirectory: string; project?
   const failed = (cause: unknown) =>
     showToast({
       title: language.t("common.requestFailed"),
-      description: errorMessage(cause, language.t("common.requestFailed")),
+      description:
+        instructionsErrorKey(cause) === "secondBrain.error.request"
+          ? errorMessage(cause, language.t("common.requestFailed"))
+          : language.t(instructionsErrorKey(cause)),
     })
 
   const save = () => {
@@ -65,6 +69,7 @@ export function DialogInstructions(props: { workspaceDirectory: string; project?
   const ownFile = () => (own.error ? undefined : own())
   const fallbackFile = () => (fallback.error ? undefined : fallback())
   const loadFailed = () => !!own.error || !!fallback.error
+  const loadError = () => language.t(instructionsErrorKey(own.error ?? fallback.error))
   const retry = () => {
     if (own.error) void ownActions.refetch()
     if (fallback.error) void fallbackActions.refetch()
@@ -79,22 +84,29 @@ export function DialogInstructions(props: { workspaceDirectory: string; project?
             : language.t("secondBrain.sidebar.workspaceInstructions")}
         </DialogTitle>
       </DialogHeader>
-      <DialogBody class="flex w-[min(560px,calc(100vw-32px))] flex-col gap-3 px-4 pb-2">
-        <p class="text-[13px] text-v2-text-text-muted">
-          {props.project
-            ? language.t(
-                state.editing ? "secondBrain.instructions.projectOwn" : "secondBrain.instructions.projectDefault",
-              )
-            : language.t("secondBrain.instructions.workspaceHint")}
-        </p>
-        <Show when={ownFile()}>
-          {(file) => <code class="truncate text-[12px] text-v2-text-text-muted">{file().path}</code>}
-        </Show>
+      <DialogBody class="flex w-[min(640px,calc(100vw-32px))] flex-col gap-4 px-5 pb-3">
+        <div class="flex flex-col gap-1">
+          <p class="text-[13px] leading-5 text-v2-text-text-muted">
+            {props.project
+              ? language.t(
+                  state.editing ? "secondBrain.instructions.projectOwn" : "secondBrain.instructions.projectDefault",
+                )
+              : language.t("secondBrain.instructions.workspaceHint")}
+          </p>
+          <Show when={ownFile()}>
+            {(file) => (
+              <code class="truncate font-mono text-[12px] text-v2-text-text-muted" title={file().path}>
+                {file().path}
+              </code>
+            )}
+          </Show>
+        </div>
         <Show when={loadFailed()}>
-          <div class="flex flex-wrap items-center gap-2">
-            <p role="alert" class="text-[12px] text-v2-text-text-critical">
-              {language.t("secondBrain.error.request")}
-            </p>
+          <div
+            role="alert"
+            class="flex items-start gap-3 rounded-[12px] bg-v2-state-bg-danger px-3 py-2.5 text-[13px] leading-5 text-v2-state-fg-danger"
+          >
+            <p class="min-w-0 flex-1">{loadError()}</p>
             <ButtonV2 size="small" variant="outline" onClick={retry}>
               {language.t("secondBrain.error.retry")}
             </ButtonV2>
@@ -106,20 +118,27 @@ export function DialogInstructions(props: { workspaceDirectory: string; project?
         <Show
           when={state.editing || !props.project}
           fallback={
-            <div class="flex flex-col gap-2">
-              <pre class="max-h-60 overflow-auto whitespace-pre-wrap rounded-[12px] bg-v2-background-bg-layer-01 p-3 text-[12px] text-v2-text-text-muted">
-                {fallbackFile()?.content ?? ""}
-              </pre>
-              <div>
-                <ButtonV2
-                  size="small"
-                  variant="neutral"
-                  onClick={() => setState({ editing: true, draft: fallbackFile()?.content ?? "" })}
-                >
-                  {language.t("secondBrain.instructions.customize")}
-                </ButtonV2>
-              </div>
-            </div>
+            // Unread, the project's own file could still exist: customizing would overwrite it.
+            <Show when={!fallback.error && !own.error}>
+              <section class="flex flex-col overflow-hidden rounded-[16px] bg-v2-background-bg-layer-01">
+                <header class="flex items-center justify-between gap-3 px-3 py-2">
+                  <span class="text-[12px] text-v2-text-text-muted [font-weight:500]">
+                    {language.t("secondBrain.instructions.workspaceDefault")}
+                  </span>
+                  <ButtonV2
+                    size="small"
+                    variant="neutral"
+                    disabled={fallback.loading}
+                    onClick={() => setState({ editing: true, draft: fallbackFile()?.content ?? "" })}
+                  >
+                    {language.t("secondBrain.instructions.customize")}
+                  </ButtonV2>
+                </header>
+                <pre class="max-h-72 overflow-auto whitespace-pre-wrap border-t border-v2-border-border-muted px-3 py-2.5 font-mono text-[12px] leading-5 text-v2-text-text-base">
+                  {fallbackFile()?.content || language.t("secondBrain.instructions.emptyDefault")}
+                </pre>
+              </section>
+            </Show>
           }
         >
           <TextareaV2

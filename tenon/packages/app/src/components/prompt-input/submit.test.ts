@@ -211,6 +211,9 @@ beforeAll(async () => {
       handoff: {
         setTabs: () => undefined,
       },
+      review: {
+        closePanel: () => undefined,
+      },
     }),
   }))
 

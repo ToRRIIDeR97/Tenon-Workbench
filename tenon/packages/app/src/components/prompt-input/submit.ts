@@ -17,7 +17,7 @@ import { useSDK, type DirectorySDK } from "@/context/sdk"
 import { useSync, type DirectorySync } from "@/context/sync"
 import { Identifier } from "@/utils/id"
 import { Worktree as WorktreeState } from "@/utils/worktree"
-import { buildRequestParts } from "./build-request-parts"
+import { buildRequestParts, harnessPromptInput } from "./build-request-parts"
 import { promptSkills } from "@/utils/skill-reference"
 import { setCursorPosition } from "./editor-dom"
 import { formatServerError } from "@/utils/server-errors"
@@ -199,30 +199,7 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
       variant: input.draft.variant,
       harness: input.draft.harness,
       legacyParts: requestParts,
-      text: requestParts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n"),
-      files: requestParts.flatMap((part) => {
-        if (part.type !== "file") return []
-        const text = part.source?.text
-        return [
-          {
-            uri: part.url,
-            name: part.filename,
-            mention: text ? { start: text.start, end: text.end, text: text.value } : undefined,
-          },
-        ]
-      }),
-      agents: requestParts.flatMap((part) =>
-        part.type === "agent"
-          ? [
-              {
-                name: part.name,
-                mention: part.source
-                  ? { start: part.source.start, end: part.source.end, text: part.source.value }
-                  : undefined,
-              },
-            ]
-          : [],
-      ),
+      ...harnessPromptInput(requestParts),
     })
     return true
   } catch (err) {
@@ -480,6 +457,8 @@ export function createPromptSubmit(input: PromptSubmitInput) {
           })
           layout.handoff.setTabs(base64Encode(sessionDirectory), session.id)
           if (background) return
+          // A new thread opens without the side panel, even when the last thread had it open.
+          layout.review.closePanel()
           const draftID = search.draftId
           const sessionServer = drafts.get(draftID)?.server ?? server.key
           if (draftID) drafts.promote(draftID, { server: sessionServer, sessionID: session.id })

@@ -710,6 +710,10 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           }
           setStore("review", "diffStyle", diffStyle)
         },
+        /** Closes the side panel. Its open state is shared by every thread, so a new thread calls this to start closed. */
+        closePanel() {
+          if (store.review?.panelOpened) setStore("review", "panelOpened", false)
+        },
       },
       fileTree: {
         opened: createMemo(() => store.fileTree?.opened ?? true),

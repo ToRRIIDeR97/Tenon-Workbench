@@ -25,6 +25,8 @@ import { DialogArchivedThreads } from "@/components/sidebar/dialog-archived-thre
 import { DialogInstructions } from "@/components/sidebar/dialog-instructions"
 import { DialogAddProject, DialogRemoveProject } from "@/components/sidebar/dialog-project-folder"
 import { useServer } from "@/context/server"
+import { usePlatform } from "@/context/platform"
+import { showToast } from "@/utils/toast"
 import { parseGrouping, type CardSummary, type ThreadState } from "@/features/second-brain/sidebar-grouping"
 import type { ThreadNode } from "@/features/second-brain/sidebar-threads"
 import { createFreshItems } from "@/utils/fresh-items"
@@ -583,9 +585,27 @@ function Chevron(props: { open: boolean }) {
 function ProjectGroup(props: { ctrl: SidebarController; project: SidebarProjectItem; threads: ThreadNode<Session>[] }) {
   const language = useLanguage()
   const dialog = useDialog()
+  const platform = usePlatform()
   const open = () => props.ctrl.expanded(props.project.id)
   const summary = () => props.ctrl.card(props.project.id)?.summary
   const [menuOpen, setMenuOpen] = createSignal(false)
+  // The desktop opens the folder in the system's file manager; the web build has no such action.
+  const openFolder = () =>
+    platform.openPath?.(props.project.threadDirectory).catch((cause: unknown) =>
+      showToast({
+        variant: "error",
+        title: language.t("common.requestFailed"),
+        description: cause instanceof Error ? cause.message : String(cause),
+      }),
+    )
+  const openFolderLabel = () =>
+    language.t(
+      platform.os === "macos"
+        ? "secondBrain.sidebar.openFolder.finder"
+        : platform.os === "windows"
+          ? "secondBrain.sidebar.openFolder.fileExplorer"
+          : "secondBrain.sidebar.openFolder.fileManager",
+    )
   return (
     <SidebarCard
       data-sidebar-project={props.project.id}
@@ -642,6 +662,9 @@ function ProjectGroup(props: { ctrl: SidebarController; project: SidebarProjectI
                 <MenuV2.Item onSelect={() => props.ctrl.openProjectCard(props.project)}>
                   {language.t("secondBrain.sidebar.openProjectCard")}
                 </MenuV2.Item>
+                <Show when={platform.openPath}>
+                  <MenuV2.Item onSelect={() => void openFolder()}>{openFolderLabel()}</MenuV2.Item>
+                </Show>
                 <MenuV2.Item
                   onSelect={() =>
                     dialog.show(() => (

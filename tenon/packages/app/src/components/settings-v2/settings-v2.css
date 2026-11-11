@@ -37,8 +37,22 @@
   position: sticky;
   top: 0;
   z-index: 10;
-  padding: 40px 40px 32px;
+  /* The right side clears the dialog's close button, so header actions never sit under it. */
+  padding: 40px 64px 32px 40px;
   background: linear-gradient(to bottom, var(--v2-background-bg-base) calc(100% - 24px), transparent);
+}
+
+/* The part switch above a tab that holds two pages, such as Built-in harness (Providers, Models). */
+.settings-v2-subtabs {
+  padding: 28px 64px 0 40px;
+}
+
+.settings-v2-subtabs > [data-slot="segmented-control-v2"] {
+  width: fit-content;
+}
+
+.settings-v2-subtabs + .settings-v2-tab-header {
+  padding-top: 20px;
 }
 
 .settings-v2-tab-title {

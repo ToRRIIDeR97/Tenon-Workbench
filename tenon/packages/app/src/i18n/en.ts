@@ -1152,6 +1152,15 @@ export const dict = {
   "secondBrain.sidebar.removeProject.confirm": "Remove",
   "secondBrain.sidebar.workspaceInstructions": "Workspace instructions",
   "secondBrain.sidebar.projectInstructions": "Instructions",
+  "secondBrain.sidebar.openFolder.finder": "Open in Finder",
+  "secondBrain.sidebar.openFolder.fileExplorer": "Open in File Explorer",
+  "secondBrain.sidebar.openFolder.fileManager": "Open in file manager",
+  "secondBrain.instructions.error.outsideFolder":
+    "This AGENTS.md is a link to a file outside the folder, so Tenon won't open it. Replace the link with the file itself.",
+  "secondBrain.instructions.error.tooLarge": "This AGENTS.md is larger than 256 KB, so it can't be opened here.",
+  "secondBrain.instructions.error.folderMissing": "This folder can't be found. It may have been moved or deleted.",
+  "secondBrain.instructions.workspaceDefault": "Workspace default",
+  "secondBrain.instructions.emptyDefault": "The workspace has no default instructions yet.",
   "secondBrain.sidebar.noProjectFolders": "Add folders to this workspace's projects folder, then scan",
   "secondBrain.instructions.workspaceHint":
     "The default AGENTS.md for every project in this workspace that has none of its own.",
@@ -1870,6 +1879,7 @@ export const dict = {
   "settings.section.desktop": "Desktop",
   "settings.section.server": "Server",
   "settings.tab.general": "General",
+  "secondBrain.settings.tab.builtInHarness": "Built-in harness",
   "settings.tab.shortcuts": "Shortcuts",
   "settings.desktop.section.wsl": "WSL",
   "settings.desktop.wsl.title": "WSL integration",

@@ -1,5 +1,6 @@
 import { THREAD_REFERENCE_MIME, threadReferenceURI } from "@/utils/thread-reference"
-import { SKILL_REFERENCE_MIME, skillReferenceURI } from "@/utils/skill-reference"
+import { SKILL_REFERENCE_MIME, pickerSkills, skillReferenceURI } from "@/utils/skill-reference"
+import { rememberingHarness } from "@/components/prompt-input/harness-choice"
 import { listSkillCatalog, listSkills } from "@/utils/server"
 import { useServerSDK } from "@/context/server-sdk"
 import type { Skill } from "@tenon/schema/skill"
@@ -71,6 +72,9 @@ export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
   const command = useCommand()
   const language = useLanguage()
   const platform = usePlatform()
+  const settings = useSettings()
+  // A pick here is the next new thread's starting harness and model (Settings › Harnesses, "last one I used").
+  const harness = () => props.harness && rememberingHarness(props.harness, settings.harnesses.setLastUsed)
   // The built-in loop is known by id, so its model and variant controls don't wait on the harness list.
   const builtInLoop = () => {
     if (!props.harness) return true
@@ -95,9 +99,9 @@ export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
         headerControl={props.boxHeader}
         quoteRemoveLabel={language.t("secondBrain.quote.remove")}
         runtimeControl={
-          props.harness ? (
+          harness() ? (
             <PromptModelPill
-              harness={props.harness}
+              harness={harness()!}
               builtIn={builtInLoop()}
               builtInModel={{
                 name: props.controller.model.selection.current()?.name ?? language.t("dialog.model.select.title"),
@@ -207,10 +211,10 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
   const skills = createMemo(() => {
     const catalog = skillData()?.[0]
     if (!catalog) return []
-    const harness = props.newSessionHarness ?? (info() as { harnessInstanceID?: string } | undefined)?.harnessInstanceID
-    const tenon = catalog.tenon.filter((skill) => skill.enabled !== false)
-    const own = catalog.harnesses.find((entry) => entry.id === harness)?.skills ?? []
-    return [...tenon, ...own.filter((skill) => !tenon.some((item) => item.name === skill.name))]
+    return pickerSkills(
+      catalog,
+      props.newSessionHarness ?? (info() as { harnessInstanceID?: string } | undefined)?.harnessInstanceID,
+    )
   })
   const working = createMemo(() => sync().data.session_working(props.controls.session.id ?? ""))
   const attachments = createMemo(() =>

@@ -65,6 +65,7 @@ export function ComposerContextRing(props: { context: ComposerContext; harness?:
     const value = props.context.context()
     if (!value) return ""
     if (value.compacted) return language.t("secondBrain.contextStrip.ringCompacted")
+    if (!value.reported) return language.t("secondBrain.contextMenu.notReported")
     if (value.usage === null)
       return language.t("secondBrain.contextStrip.ringTokens", { count: formatter().number(value.total) })
     return language.t("secondBrain.contextStrip.ring", { percent: formatter().percent(value.usage) })
@@ -189,14 +190,31 @@ function ContextMenu(props: {
           }
         >
           <Show
-            when={limit()}
+            when={props.context.reported && limit()}
             fallback={
               <>
                 <Row label={language.t("secondBrain.contextMenu.used")}>
-                  {language.t("secondBrain.contextMenu.usedTokens", { count: formatter().number(props.context.total) })}
+                  {/* Without a live report the only figure is the turn's total over every model call, shown below. */}
+                  <Show
+                    when={props.context.reported}
+                    fallback={
+                      <span class="text-v2-text-text-muted">{language.t("secondBrain.contextMenu.notReported")}</span>
+                    }
+                  >
+                    {language.t("secondBrain.contextMenu.usedTokens", {
+                      count: formatter().number(props.context.total),
+                    })}
+                  </Show>
                 </Row>
                 <Row label={language.t("secondBrain.contextMenu.windowSize")}>
-                  <span class="text-v2-text-text-muted">{language.t("secondBrain.contextMenu.notReported")}</span>
+                  <Show
+                    when={limit()}
+                    fallback={
+                      <span class="text-v2-text-text-muted">{language.t("secondBrain.contextMenu.notReported")}</span>
+                    }
+                  >
+                    {(max) => formatter().number(max())}
+                  </Show>
                 </Row>
               </>
             }

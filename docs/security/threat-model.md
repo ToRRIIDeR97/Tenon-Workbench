@@ -369,10 +369,13 @@ the location query and has the same auth as the other harness routes.
   account's non-secret `orgId` in the query when it has one), under the same
   60 s cache. These are undocumented endpoints; only the 5-hour and weekly
   `used`, `cap` and `resetAt` values are kept from the responses.
-- **OpenCode Go key read.** For the OpenCode harness and the built-in agent,
-  the server reads only the `opencode-go` entry's `key` from `auth.json` in the
-  OpenCode CLI's data folder (`$XDG_DATA_HOME/opencode` or
-  `~/.local/share/opencode`) or the app's data folder, on each uncached call.
+- **OpenCode Go key read.** For the built-in agent, the server first takes the
+  key the agent chats with from its own credential store (an `opencode-go` key,
+  else the `opencode` key), so plan limits check the same key as chats. Without
+  one, and for the OpenCode harness, it reads only the `opencode-go` entry's
+  `key` from `auth.json` in the app's data folder or the OpenCode CLI's data
+  folder (`$XDG_DATA_HOME/opencode` or `~/.local/share/opencode`), on each
+  uncached call.
   Other providers' keys in the same file are not used. The key is handled like
   the Claude token: only in the `Authorization` header, never returned, logged,
   written or put in a URL.
