@@ -7,6 +7,12 @@ import { Identifier } from "@/utils/id"
 import { createCommentMetadata, formatCommentNote } from "@/utils/comment-note"
 import { createQuoteMetadata, formatQuoteNote } from "@tenon/session-ui/quote-note"
 import { SKILL_REFERENCE_MIME, promptSkills, skillInstruction } from "@/utils/skill-reference"
+import { profileInstruction } from "@/utils/model-profile"
+
+/** Marks a synthetic text part that carries a skill chip's instructions. */
+const SKILL_PART_KEY = "tenonSkill"
+/** Marks a synthetic text part that carries a model profile's rules. */
+const PROFILE_PART_KEY = "tenonProfile"
 
 type PromptRequestPart = (TextPartInput | FilePartInput | AgentPartInput) & { id: string }
 
@@ -38,6 +44,8 @@ type BuildRequestPartsInput = {
   sessionDirectory: string
   /** A Tenon skill's instructions by name; undefined for a skill the harness loads itself. */
   skill?: (name: string) => string | undefined
+  /** A model profile to send with this message, hidden from the thread like a skill. */
+  profile?: { model: string; rules: string }
 }
 
 const absolute = (directory: string, path: string) => {
@@ -119,8 +127,21 @@ export function buildRequestParts(input: BuildRequestPartsInput) {
         type: "text",
         text: skillInstruction(name, input.skill?.(name)),
         synthetic: true,
+        metadata: { [SKILL_PART_KEY]: name },
       }) satisfies PromptRequestPart,
   )
+
+  const profile = input.profile
+    ? [
+        {
+          id: Identifier.ascending("part"),
+          type: "text",
+          text: profileInstruction(input.profile.model, input.profile.rules),
+          synthetic: true,
+          metadata: { [PROFILE_PART_KEY]: input.profile.model },
+        } satisfies PromptRequestPart,
+      ]
+    : []
 
   const files = input.prompt.filter(isFileAttachment).map((attachment) => {
     const path = absolute(input.sessionDirectory, attachment.path)
@@ -237,10 +258,61 @@ export function buildRequestParts(input: BuildRequestPartsInput) {
     } satisfies PromptRequestPart
   })
 
-  requestParts.push(...skills, ...files, ...context, ...agents, ...images)
+  requestParts.push(...profile, ...skills, ...files, ...context, ...agents, ...images)
 
   return {
     requestParts,
     optimisticParts: requestParts.map((part) => toOptimisticPart(part, input.sessionID, input.messageID)),
+  }
+}
+
+type HarnessFile = { uri: string; name?: string; mention?: { start: number; end: number; text: string } }
+
+/** A hidden part's attachment name: "<skill> skill" or "<model> profile"; undefined for any other part. */
+const skillPartName = (part: PromptRequestPart) => {
+  if (part.type !== "text" || !part.synthetic) return
+  const skill = part.metadata?.[SKILL_PART_KEY]
+  if (typeof skill === "string") return `${skill} skill`
+  const profile = part.metadata?.[PROFILE_PART_KEY]
+  return typeof profile === "string" ? `${profile} profile` : undefined
+}
+
+/**
+ * The prompt for the v2 and harness route, which has no hidden parts: the text is what the user wrote (plus quote
+ * and comment notes, as before), and each skill's instructions go as a `data:text/plain` attachment. Every harness
+ * and the built-in loop read such an attachment inline, so the skill still applies while the thread shows a chip
+ * instead of the skill's whole body.
+ */
+export function harnessPromptInput(requestParts: ReadonlyArray<PromptRequestPart>) {
+  return {
+    text: requestParts
+      .flatMap((part) => (part.type === "text" && skillPartName(part) === undefined ? [part.text] : []))
+      .join("\n"),
+    files: requestParts.flatMap((part): HarnessFile[] => {
+      const skill = skillPartName(part)
+      if (skill !== undefined && part.type === "text")
+        return [{ uri: `data:text/plain;charset=utf-8,${encodeURIComponent(part.text)}`, name: skill }]
+      if (part.type !== "file") return []
+      const text = part.source?.text
+      return [
+        {
+          uri: part.url,
+          name: part.filename,
+          mention: text ? { start: text.start, end: text.end, text: text.value } : undefined,
+        },
+      ]
+    }),
+    agents: requestParts.flatMap((part) =>
+      part.type === "agent"
+        ? [
+            {
+              name: part.name,
+              mention: part.source
+                ? { start: part.source.start, end: part.source.end, text: part.source.value }
+                : undefined,
+            },
+          ]
+        : [],
+    ),
   }
 }

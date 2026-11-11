@@ -34,7 +34,9 @@ import {
   setHarnessEnabled,
   setTitleAgent,
   upgradeHarness,
+  verifyHarness,
 } from "@/utils/server"
+import { type CheckStatus, checklistPassed, harnessChecklist } from "./harness-checklist"
 import { showToast } from "@/utils/toast"
 import { SettingsListV2 } from "./parts/list"
 import { SettingsRowV2 } from "./parts/row"
@@ -662,22 +664,48 @@ const DialogAddHarness: Component<{
   const [args, setArgs] = createSignal("")
   const [busy, setBusy] = createSignal(false)
   const [error, setError] = createSignal<string>()
-  const [tested, setTested] = createSignal<{ key: string; discovery: Harness.Discovery }>()
-  // Save is allowed only for the exact command and arguments that passed Test.
+  const platform = usePlatform()
+  const [check, setCheck] = createStore<{
+    key?: string
+    stage: "idle" | "discover" | "verify" | "done"
+    failedAt?: "discover" | "verify"
+    discovery?: Harness.Discovery
+    verification?: Harness.Verification
+  }>({ stage: "idle" })
+  // Save is allowed only for the exact command and arguments that passed the checklist.
   const key = () => JSON.stringify([command().trim(), splitArgs(args())])
-  const discovery = () => (tested()?.key === key() ? tested()?.discovery : undefined)
+  const rows = createMemo(() =>
+    harnessChecklist({
+      stage: check.key === key() ? check.stage : "idle",
+      failedAt: check.key === key() ? check.failedAt : undefined,
+      error: error(),
+      discovery: check.key === key() ? check.discovery : undefined,
+      verification: check.key === key() ? check.verification : undefined,
+      platform: platform.os === "macos" ? "macOS" : platform.os === "windows" ? "Windows" : (platform.os ?? "Linux"),
+    }),
+  )
+  const discovery = () =>
+    check.key === key() && check.stage === "done" && checklistPassed(rows()) ? check.discovery : undefined
 
+  // Discovery first (handshake, session, models), then one real prompt; each step fills its rows as it ends.
   const test = () => {
     if (!command().trim() || busy()) return
     setBusy(true)
     setError(undefined)
-    const current = key()
-    void discoverHarness(props.server, props.directory, { command: command().trim(), args: splitArgs(args()) })
-      .then((result) => setTested({ key: current, discovery: result }))
-      .catch((err: unknown) => {
-        setTested(undefined)
-        setError(err instanceof Error ? err.message : String(err))
-      })
+    const input = { command: command().trim(), args: splitArgs(args()) }
+    setCheck({ key: key(), stage: "discover", failedAt: undefined, discovery: undefined, verification: undefined })
+    const failed = (at: "discover" | "verify") => (err: unknown) => {
+      setError(err instanceof Error ? err.message : String(err))
+      setCheck({ stage: "done", failedAt: at })
+    }
+    void discoverHarness(props.server, props.directory, input)
+      .then((result) => {
+        setCheck({ discovery: result, stage: "verify" })
+        return verifyHarness(props.server, props.directory, input).then(
+          (verification) => setCheck({ verification, stage: "done" }),
+          failed("verify"),
+        )
+      }, failed("discover"))
       .finally(() => setBusy(false))
   }
 
@@ -736,24 +764,49 @@ const DialogAddHarness: Component<{
           {field(language.t("harness.settings.add.name"), "harness-name", name, setName, "OpenCode CLI")}
           {field(language.t("harness.settings.add.command"), "harness-command", command, setCommand, "opencode")}
           {field(language.t("harness.settings.add.args"), "harness-args", args, setArgs, "acp")}
-          <Show when={discovery()}>
-            {(result) => (
-              <div class="settings-v2-harness-detail" data-component="harness-discovery">
-                {language.t("harness.settings.add.found", {
-                  agent: [result().agentName, result().version].filter(Boolean).join(" ") || result().command,
-                  count: result().models.length,
-                })}
-                <Show when={result().models.length > 0}>
-                  <div class="truncate">
-                    {result()
-                      .models.map((model) => model.id)
-                      .join(", ")}
-                  </div>
-                </Show>
-              </div>
-            )}
+          <Show when={check.key === key() && check.stage !== "idle"}>
+            <ul data-component="harness-checklist" class="flex flex-col gap-0.5" aria-live="polite">
+              <For each={rows()}>
+                {(row) => (
+                  <li class="flex items-start gap-2.5 rounded-[12px] bg-v2-background-bg-layer-01 px-3 py-2 text-[13px]">
+                    <span
+                      class="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] [font-weight:600]"
+                      classList={{
+                        "bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container":
+                          row.status === "pass",
+                        "bg-v2-state-bg-danger text-v2-state-fg-danger": row.status === "fail",
+                        "bg-v2-state-bg-warning text-v2-state-fg-warning": row.status === "warn",
+                        "bg-v2-background-bg-layer-02 text-v2-text-text-muted":
+                          row.status === "waiting" || row.status === "running",
+                      }}
+                      aria-label={language.t(`harness.check.status.${row.status}`)}
+                    >
+                      {CHECK_MARK[row.status]}
+                    </span>
+                    <span class="flex min-w-0 flex-1 flex-col">
+                      <span class="text-v2-text-text-base">{language.t(`harness.check.${row.id}`)}</span>
+                      <Show when={row.detail}>
+                        {(detail) => (
+                          <span class="break-all font-mono text-[11.5px] leading-4 text-v2-text-text-muted">
+                            {detail()}
+                          </span>
+                        )}
+                      </Show>
+                      <Show when={row.status === "warn"}>
+                        <span class="text-[12px] leading-4 text-v2-text-text-muted">
+                          {language.t(`harness.check.${row.id}.warn`)}
+                        </span>
+                      </Show>
+                    </span>
+                    <span class="shrink-0 text-[11px] text-v2-text-text-muted">
+                      {language.t(row.required ? "harness.check.required" : "harness.check.optional")}
+                    </span>
+                  </li>
+                )}
+              </For>
+            </ul>
           </Show>
-          <Show when={error()}>
+          <Show when={error() && check.key !== key()}>
             <span role="alert" class="settings-v2-server-dialog-error">
               {error()}
             </span>
@@ -776,6 +829,8 @@ const DialogAddHarness: Component<{
     </Dialog>
   )
 }
+
+const CHECK_MARK: Record<CheckStatus, string> = { pass: "✓", fail: "✕", warn: "!", waiting: "·", running: "…" }
 
 /** Which harness, model and reasoning new threads start with (settings.v3 `harnesses.defaults`). */
 function HarnessDefaults(props: {

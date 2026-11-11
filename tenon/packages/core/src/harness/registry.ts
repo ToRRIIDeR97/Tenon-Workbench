@@ -191,6 +191,7 @@ export const verify = Effect.fn("HarnessRegistry.verify")(function* (
     agentName: result.name,
     version: result.version,
     models: result.models,
+    capabilities: result.capabilities,
     reply: result.reply,
     ok: result.reply.length > 0,
   }

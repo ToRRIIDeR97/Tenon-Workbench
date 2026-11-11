@@ -1,5 +1,10 @@
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
-import { createResource, For, Show } from "solid-js"
+import { createMemo, createResource, For, Show } from "solid-js"
+import { Switch as ToggleSwitch } from "@tenon/ui/v2/switch-v2"
+import { useLayout } from "@/context/layout"
+import { useServerSDK } from "@/context/server-sdk"
+import { syncGoogleCalendar } from "@/features/second-brain/calendar-sync"
+import { googleAccountRows } from "./google-accounts"
 import { createStore } from "solid-js/store"
 import { useLanguage } from "@/context/language"
 import { usePlatform, type MailAccount } from "@/context/platform"
@@ -14,6 +19,8 @@ const inputClass =
 export function SettingsAccountsV2() {
   const language = useLanguage()
   const platform = usePlatform()
+  const layout = useLayout()
+  const serverSDK = useServerSDK()
   const [available] = createResource(
     () => platform.mail,
     (mail) => mail.available(),
@@ -28,6 +35,32 @@ export function SettingsAccountsV2() {
     imap: false,
     form: { host: "", port: "993", secure: true, user: "", password: "", address: "" },
   })
+  // Google Calendar and Tasks for the same addresses, so one Google account shows with a switch per service.
+  const [calendar, { mutate: setCalendar }] = createResource(
+    () => platform.googleCalendar,
+    (google) => google.status().catch(() => undefined),
+  )
+  const googleRows = createMemo(() => googleAccountRows(accounts.latest ?? [], calendar.latest?.accounts ?? []))
+  const toggleCalendar = async (row: ReturnType<typeof googleAccountRows>[number], on: boolean) => {
+    const google = platform.googleCalendar
+    if (!google) return
+    setState({ busy: `calendar:${row.address}`, failed: false })
+    try {
+      if (!on && row.calendar) return void setCalendar(await google.disconnect({ accountId: row.calendar.id }))
+      // Google asks which account to use; picking the same address joins the two on this row.
+      setCalendar(await google.connect({ access: "write" }))
+      const directory = layout.home.workspace()
+      if (directory)
+        await syncGoogleCalendar({
+          google,
+          client: { server: serverSDK().server, fetch: platform.fetch, target: { directory } },
+        })
+    } catch {
+      setState("failed", true)
+    } finally {
+      setState("busy", "")
+    }
+  }
   const providerName = (provider: MailAccount["provider"]) =>
     language.t(`secondBrain.mail.provider.${provider}` as Parameters<typeof language.t>[0])
 
@@ -100,6 +133,45 @@ export function SettingsAccountsV2() {
                 )}
               </For>
             </SettingsListV2>
+            <Show when={platform.googleCalendar && googleRows().length > 0}>
+              <div class="flex flex-col gap-2">
+                <h3 class="settings-v2-section-title">{language.t("secondBrain.accounts.google.title")}</h3>
+                <SettingsListV2>
+                  <For each={googleRows()}>
+                    {(row) => (
+                      <SettingsRowV2
+                        title={row.address}
+                        description={
+                          row.calendar
+                            ? language.t(
+                                row.calendar.errorCode
+                                  ? "secondBrain.accounts.google.calendarError"
+                                  : "secondBrain.accounts.google.calendarOn",
+                              )
+                            : language.t("secondBrain.accounts.google.calendarOff")
+                        }
+                      >
+                        <div class="flex items-center gap-3">
+                          <span class="type-meta text-v2-text-text-muted">
+                            {language.t(
+                              row.mail ? "secondBrain.accounts.google.mailOn" : "secondBrain.accounts.google.mailOff",
+                            )}
+                          </span>
+                          <ToggleSwitch
+                            checked={!!row.calendar}
+                            disabled={state.busy !== ""}
+                            onChange={(on) => void toggleCalendar(row, on)}
+                          >
+                            {language.t("secondBrain.accounts.google.calendarSwitch", { address: row.address })}
+                          </ToggleSwitch>
+                        </div>
+                      </SettingsRowV2>
+                    )}
+                  </For>
+                </SettingsListV2>
+                <p class="type-meta text-v2-text-text-muted">{language.t("secondBrain.accounts.google.hint")}</p>
+              </div>
+            </Show>
             <div class="flex flex-wrap gap-2">
               <ButtonV2
                 size="small"

@@ -113,3 +113,37 @@ function usageOf(tokens: Tokens, cost: number | undefined) {
     cost,
   }
 }
+
+/**
+ * The latest turn's subagents with the context each one is using, for the context menu's per-agent list. An ACP
+ * subagent's figure is what its harness reported; a `task` agent's comes from its child session's last step.
+ * `used` is undefined when nothing was reported.
+ */
+export function latestSubagentContexts(
+  messages: Message[],
+  parts: (messageID: string) => Part[],
+  childContext: (sessionID: string) => { used: number; size?: number } | undefined,
+) {
+  const start = messages.findLastIndex((message) => message.role === "user")
+  return messages
+    .slice(start + 1)
+    .filter((message) => message.role === "assistant")
+    .flatMap((message) => parts(message.id))
+    .filter((part): part is ToolPart => part.type === "tool" && (part.tool === "acp_subagent" || part.tool === "task"))
+    .map((part) => {
+      const input = part.state.input ?? {}
+      const name =
+        (typeof input.description === "string" && input.description) ||
+        (typeof input.subagent_type === "string" && input.subagent_type) ||
+        undefined
+      const running = part.state.status === "pending" || part.state.status === "running"
+      const metadata = ("metadata" in part.state ? part.state.metadata : undefined) ?? {}
+      const context =
+        part.tool === "acp_subagent"
+          ? subagentDetail(part).context
+          : typeof metadata.sessionId === "string"
+            ? childContext(metadata.sessionId)
+            : undefined
+      return { id: part.id, name, running, used: context?.used, size: context?.size }
+    })
+}

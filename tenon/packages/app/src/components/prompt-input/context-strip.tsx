@@ -8,8 +8,15 @@ import { For, Match, Show, Switch, createEffect, createMemo, onCleanup, onMount,
 import { createStore } from "solid-js/store"
 import { openSessionContext } from "@/components/session-context-usage"
 import { createSessionContextFormatter } from "@/components/session/session-context-format"
+import { PromptProjectSelector, createPromptProjectController } from "@/components/prompt-project-selector"
+import { createPromptProjectControls } from "@/pages/session/composer/session-composer-controls"
 import { getSessionContext } from "@/components/session/session-context-metrics"
-import { getSessionTotals, getSubagentUsage, getTurnUsage } from "@/components/session/session-usage"
+import {
+  getSessionTotals,
+  getSubagentUsage,
+  getTurnUsage,
+  latestSubagentContexts,
+} from "@/components/session/session-usage"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
@@ -48,7 +55,14 @@ export function createComposerContext() {
   // The server keeps whole-session totals on the session info; the loaded messages may be only part of the thread.
   const totals = createMemo(() => getSessionTotals(params.id ? sync().session.get(params.id) : undefined, messages()))
   const subagents = createMemo(() => getSubagentUsage(messages(), parts, (id) => sync().session.get(id)))
-  return { messages, context, totals, subagents }
+  // Each subagent's own context, beside the main agent's: a `task` child reads its last step once loaded.
+  const agents = createMemo(() =>
+    latestSubagentContexts(messages(), parts, (id) => {
+      const child = getSessionContext(sync().data.message[id] ?? [], [...providers.all().values()])
+      return child?.reported ? { used: child.total, size: child.limit } : undefined
+    }),
+  )
+  return { messages, context, totals, subagents, agents }
 }
 
 /**
@@ -65,6 +79,7 @@ export function ComposerContextRing(props: { context: ComposerContext; harness?:
     const value = props.context.context()
     if (!value) return ""
     if (value.compacted) return language.t("secondBrain.contextStrip.ringCompacted")
+    if (!value.reported) return language.t("secondBrain.contextMenu.notReported")
     if (value.usage === null)
       return language.t("secondBrain.contextStrip.ringTokens", { count: formatter().number(value.total) })
     return language.t("secondBrain.contextStrip.ring", { percent: formatter().percent(value.usage) })
@@ -101,6 +116,7 @@ export function ComposerContextRing(props: { context: ComposerContext; harness?:
             messages={props.context.messages()}
             cost={props.context.totals().cost}
             subagents={props.context.subagents()}
+            agents={props.context.agents()}
             harness={props.harness}
             usage={usage}
             onView={() => setState("open", false)}
@@ -123,23 +139,27 @@ export function ComposerWhereRow() {
   const directory = () => (params.id ? sync().session.get(params.id)?.directory : undefined) ?? sdk().directory
   const worktree = createMemo(() => threadWorktree({ directory: directory(), project: sync().project }))
   const git = () => sync().project?.vcs === "git"
+  // Picking another Project starts a new thread there; this thread keeps its own folder.
+  const projects = createPromptProjectController({ controls: createPromptProjectControls(), onDone: () => {} })
 
   return (
     <>
       <Show when={worktree()}>
         {(value) => (
-          <PathTooltip placement="top" class="min-w-0 shrink" name={value().name} path={directory()}>
-            <span
-              data-slot="composer-where-folder"
-              class="flex h-8 min-w-0 shrink items-center gap-1.5 px-2 text-[13px] leading-5 text-v2-text-text-muted"
-            >
-              <Icon name="folder" size="small" class="shrink-0 text-v2-icon-icon-muted" />
-              <Show when={value().linked}>
-                <span class="shrink-0">{language.t("secondBrain.contextStrip.worktree")}</span>
-              </Show>
-              <span class="min-w-0 truncate text-v2-text-text-base [font-weight:500]">{value().name}</span>
-            </span>
-          </PathTooltip>
+          <>
+            <PromptProjectSelector controller={projects} placement="bottom-start" />
+            <Show when={value().linked}>
+              <PathTooltip placement="top" class="min-w-0 shrink" name={value().name} path={directory()}>
+                <span
+                  data-slot="composer-where-folder"
+                  class="flex h-8 min-w-0 shrink items-center gap-1.5 px-2 text-[13px] leading-5 text-v2-text-text-muted"
+                >
+                  <span class="shrink-0">{language.t("secondBrain.contextStrip.worktree")}</span>
+                  <span class="min-w-0 truncate text-v2-text-text-base [font-weight:500]">{value().name}</span>
+                </span>
+              </PathTooltip>
+            </Show>
+          </>
         )}
       </Show>
       <Icon name="chevron-down" size="small" class="shrink-0 -rotate-90 text-v2-icon-icon-muted" />
@@ -158,6 +178,7 @@ function ContextMenu(props: {
   messages: ReturnType<ComposerContext["messages"]>
   cost: number | undefined
   subagents: ReturnType<ComposerContext["subagents"]>
+  agents: ReturnType<ComposerContext["agents"]>
   harness?: ComposerHarness
   usage: PlanUsage
   onView: () => void
@@ -189,14 +210,31 @@ function ContextMenu(props: {
           }
         >
           <Show
-            when={limit()}
+            when={props.context.reported && limit()}
             fallback={
               <>
                 <Row label={language.t("secondBrain.contextMenu.used")}>
-                  {language.t("secondBrain.contextMenu.usedTokens", { count: formatter().number(props.context.total) })}
+                  {/* Without a live report the only figure is the turn's total over every model call, shown below. */}
+                  <Show
+                    when={props.context.reported}
+                    fallback={
+                      <span class="text-v2-text-text-muted">{language.t("secondBrain.contextMenu.notReported")}</span>
+                    }
+                  >
+                    {language.t("secondBrain.contextMenu.usedTokens", {
+                      count: formatter().number(props.context.total),
+                    })}
+                  </Show>
                 </Row>
                 <Row label={language.t("secondBrain.contextMenu.windowSize")}>
-                  <span class="text-v2-text-text-muted">{language.t("secondBrain.contextMenu.notReported")}</span>
+                  <Show
+                    when={limit()}
+                    fallback={
+                      <span class="text-v2-text-text-muted">{language.t("secondBrain.contextMenu.notReported")}</span>
+                    }
+                  >
+                    {(max) => formatter().number(max())}
+                  </Show>
                 </Row>
               </>
             }
@@ -216,6 +254,39 @@ function ContextMenu(props: {
           </Show>
         </Show>
       </Group>
+
+      <Show when={props.agents.length > 0}>
+        <Group title={language.t("secondBrain.contextMenu.subagentContext")}>
+          <For each={props.agents}>
+            {(agent) => (
+              <Row label={agent.name ?? language.t("secondBrain.agentTab.agentFallback")}>
+                <Show
+                  when={agent.used !== undefined}
+                  fallback={
+                    <span class="text-[12px] font-normal text-v2-text-text-muted">
+                      {language.t("secondBrain.contextMenu.notReported")}
+                    </span>
+                  }
+                >
+                  <Show
+                    when={agent.size}
+                    fallback={language.t("secondBrain.contextMenu.usedTokens", {
+                      count: formatter().number(agent.used),
+                    })}
+                  >
+                    {(size) => (
+                      <>
+                        <Meter value={(agent.used! / size()) * 100} />
+                        <span class="w-[34px] text-right">{percent((agent.used! / size()) * 100)}</span>
+                      </>
+                    )}
+                  </Show>
+                </Show>
+              </Row>
+            )}
+          </For>
+        </Group>
+      </Show>
 
       <Group title={language.t("secondBrain.contextMenu.turn")}>
         <Show when={turn().cacheHit}>

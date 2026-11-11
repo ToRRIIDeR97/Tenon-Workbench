@@ -69,6 +69,7 @@ export interface Session {
   /** The offered MCP servers were passed on: there were some and the agent advertises `mcpCapabilities.http`. */
   readonly mcpAttached: boolean
   readonly agent: { readonly name?: string; readonly version?: string }
+  readonly capabilities: ReturnType<typeof agentCapabilities>
   readonly models: ReadonlyArray<Harness.Model>
   /** True once the agent process has exited; the runtime must then be replaced. */
   readonly closed: Effect.Effect<boolean>
@@ -263,6 +264,18 @@ export function startError(command: string, cause: PlatformError) {
   return new ProtocolError(`Could not start ${command}.`, { cause })
 }
 
+/** What the agent says it supports in `initialize`, for the add-harness checklist. */
+export function agentCapabilities(initialize: Record<string, unknown>) {
+  const capabilities = isRecord(initialize.agentCapabilities) ? initialize.agentCapabilities : {}
+  const mcp = isRecord(capabilities.mcpCapabilities) ? capabilities.mcpCapabilities : {}
+  const prompt = isRecord(capabilities.promptCapabilities) ? capabilities.promptCapabilities : {}
+  return {
+    mcpHttp: mcp.http === true,
+    image: prompt.image === true,
+    loadSession: capabilities.loadSession === true,
+  }
+}
+
 export function agentInfo(initialize: Record<string, unknown>) {
   const agent = isRecord(initialize.agentInfo) ? initialize.agentInfo : undefined
   return { name: string(agent?.title) ?? string(agent?.name), version: string(agent?.version) }
@@ -330,7 +343,7 @@ export const verify = (process: Process, settings: Settings, directory: string, 
         .flatMap((event) => (event.type === "text-delta" ? [event.text] : []))
         .join("")
         .trim()
-      return { ...session.agent, models: session.models, reply }
+      return { ...session.agent, capabilities: session.capabilities, models: session.models, reply }
     }),
   ).pipe(
     Effect.timeoutOrElse({
@@ -599,6 +612,7 @@ export const open = Effect.fn("AcpHarness.open")(function* (process: Process, in
     mcpAttached: params.mcpServers.length > 0,
     closed: client.closed,
     agent: agentInfo(initialize),
+    capabilities: agentCapabilities(initialize),
     models: selector.models,
     turn,
   } satisfies Session

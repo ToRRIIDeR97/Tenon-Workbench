@@ -32,8 +32,10 @@ import { ChildProcess } from "effect/process"
 import { eq } from "drizzle-orm"
 import os from "os"
 import fs from "fs/promises"
+import { existsSync } from "fs"
 import path from "path"
 import { Config } from "./config"
+import { Credential } from "./credential"
 import { ConfigHarness } from "./config/harness"
 import { Database } from "./database/database"
 import { makeLocationNode } from "./effect/app-node"
@@ -223,6 +225,7 @@ const layer = Layer.effect(
     const questions = yield* QuestionV2.Service
     const global = yield* Global.Service
     const fsUtil = yield* FSUtil.Service
+    const credentials = yield* Credential.Service
     const entries = yield* config.entries()
     const layerScope = yield* Effect.scope
     // Registry entries and setup API keys can change while the location is open, so instances are re-read per call.
@@ -1052,7 +1055,15 @@ const layer = Layer.effect(
         )
       // OpenCode Go is a plan on an OpenCode key: the built-in agent reads the app's own keys, the OpenCode
       // harness the OpenCode CLI's. Each key is sent only to opencode.ai.
-      if (instance.driver === Harness.OpenCodeDriver) return HarnessUsage.openCodeGoUsage(global.data)
+      // The built-in agent chats with the key in Tenon's credential store; `auth.json` can hold an older one.
+      if (instance.driver === Harness.OpenCodeDriver)
+        return credentials
+          .all()
+          .pipe(
+            Effect.flatMap((stored) =>
+              HarnessUsage.openCodeGoUsage(global.data, fetch, HarnessUsage.openCodeGoKeyFrom(stored)),
+            ),
+          )
       if (instance.id === Harness.OpenCodeAcp) return HarnessUsage.openCodeGoUsage(HarnessSetup.openCodeDataDir())
       // Other ACP agents don't report plan usage to the app.
       return Effect.succeed(HarnessUsage.unsupported(`${instance.name} doesn't report usage limits.`))
@@ -1273,6 +1284,7 @@ export const node = makeLocationNode({
     QuestionV2.node,
     Global.node,
     FSUtil.node,
+    Credential.node,
   ],
 })
 
@@ -1421,9 +1433,21 @@ export function configuredInstances(
 
 const decodeCodex = Schema.decodeUnknownOption(ConfigHarness.Codex)
 
+/**
+ * The Codex command to run: the configured path, else `codex` on PATH. An update can move the CLI (npm under
+ * another Node, the standalone installer, Homebrew), so a saved absolute path that no longer exists falls back to
+ * PATH instead of leaving the harness disconnected.
+ */
+export function codexCommand(binaryPath: string | undefined) {
+  const configured = binaryPath?.trim()
+  if (!configured) return "codex"
+  if (!path.isAbsolute(configured)) return configured
+  return existsSync(configured) ? configured : "codex"
+}
+
 /** The external command a harness runs, when it has one. The in-process loop has none. */
 function cliCommand(instance: InstanceConfig) {
-  if (instance.driver === Harness.CodexDriver) return decodeCodexSettings(instance.config).binaryPath?.trim() || "codex"
+  if (instance.driver === Harness.CodexDriver) return codexCommand(decodeCodexSettings(instance.config).binaryPath)
   if (instance.driver === Harness.AcpDriver) return AcpHarness.decodeSettings(instance.config)?.command
 }
 
@@ -1445,7 +1469,7 @@ function openCodex(
 ) {
   return Effect.gen(function* () {
     const args = [...(delegation ? HarnessDelegation.codexArgs(delegation) : []), "app-server"]
-    const command = settings.binaryPath?.trim() || "codex"
+    const command = codexCommand(settings.binaryPath)
     const handle = yield* process
       .spawn(
         ChildProcess.make(command, [...args, ...(settings.launchArgs ?? [])], {

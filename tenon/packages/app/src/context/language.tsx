@@ -43,6 +43,13 @@ type PluralKey =
   | "secondBrain.sidebar.scanResultCount"
   | "secondBrain.turnSteps.laneSteps"
   | "secondBrain.vault.moved"
+  | "secondBrain.permission.bash"
+  | "secondBrain.permission.edit"
+  | "secondBrain.permission.read"
+  | "secondBrain.permission.webfetch"
+  | "secondBrain.permission.external"
+  | "secondBrain.permission.other"
+  | "secondBrain.permission.details"
   | `secondBrain.turnSteps.${StepKind}`
 type Source = { dict: Record<string, string> }
 

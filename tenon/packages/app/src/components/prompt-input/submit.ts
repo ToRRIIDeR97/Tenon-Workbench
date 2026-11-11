@@ -17,8 +17,9 @@ import { useSDK, type DirectorySDK } from "@/context/sdk"
 import { useSync, type DirectorySync } from "@/context/sync"
 import { Identifier } from "@/utils/id"
 import { Worktree as WorktreeState } from "@/utils/worktree"
-import { buildRequestParts } from "./build-request-parts"
+import { buildRequestParts, harnessPromptInput } from "./build-request-parts"
 import { promptSkills } from "@/utils/skill-reference"
+import { profileDue } from "@/utils/model-profile"
 import { setCursorPosition } from "./editor-dom"
 import { formatServerError } from "@/utils/server-errors"
 import { ScopedKey } from "@/utils/server-scope"
@@ -41,6 +42,19 @@ export type PromptDelivery = "steer" | "queue"
 export type PromptSubmitOptions = { opposite?: boolean; background?: boolean }
 
 /** Delivery for a message sent to a working agent; idle sessions take the server default. */
+/**
+ * The delivery a follow-up uses before Ctrl+Enter flips it. An external harness (Codex, OpenCode, ACP agents) runs
+ * its subagents inside one turn, and a steer stops that turn, so while they run a message waits in the queue
+ * instead; Ctrl+Enter, or "send now" on the queued message, still stops them and sends.
+ */
+export function followupPreference(input: {
+  preference: PromptDelivery
+  external: boolean
+  runningSubagents: number
+}): PromptDelivery {
+  return input.external && input.runningSubagents > 0 ? "queue" : input.preference
+}
+
 export function promptDelivery(input: { working: boolean; preference: PromptDelivery; opposite?: boolean }) {
   if (!input.working) return undefined
   if (!input.opposite) return input.preference
@@ -57,6 +71,8 @@ export type FollowupDraft = {
   harness?: boolean
   variant?: string
   delivery?: PromptDelivery
+  /** The model profile to attach, when one is due. */
+  profile?: { model: string; rules: string }
 }
 
 type FollowupSendInput = {
@@ -146,6 +162,7 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
     messageID,
     sessionDirectory: input.draft.sessionDirectory,
     skill: input.skill,
+    profile: input.draft.profile,
   })
 
   const message: Message = {
@@ -199,30 +216,7 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
       variant: input.draft.variant,
       harness: input.draft.harness,
       legacyParts: requestParts,
-      text: requestParts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n"),
-      files: requestParts.flatMap((part) => {
-        if (part.type !== "file") return []
-        const text = part.source?.text
-        return [
-          {
-            uri: part.url,
-            name: part.filename,
-            mention: text ? { start: text.start, end: text.end, text: text.value } : undefined,
-          },
-        ]
-      }),
-      agents: requestParts.flatMap((part) =>
-        part.type === "agent"
-          ? [
-              {
-                name: part.name,
-                mention: part.source
-                  ? { start: part.source.start, end: part.source.end, text: part.source.value }
-                  : undefined,
-              },
-            ]
-          : [],
-      ),
+      ...harnessPromptInput(requestParts),
     })
     return true
   } catch (err) {
@@ -264,6 +258,8 @@ type PromptSubmitInput = {
   model?: ModelSelection
   /** A Tenon skill's instructions by name, for skill chips. */
   skill?: (name: string) => string | undefined
+  /** The switched-on model profile for a model id, if any. */
+  modelProfile?: (modelID: string) => { model: string; rules: string } | undefined
 }
 
 export function createPromptSubmit(input: PromptSubmitInput) {
@@ -480,6 +476,8 @@ export function createPromptSubmit(input: PromptSubmitInput) {
           })
           layout.handoff.setTabs(base64Encode(sessionDirectory), session.id)
           if (background) return
+          // A new thread opens without the side panel, even when the last thread had it open.
+          layout.review.closePanel()
           const draftID = search.draftId
           const sessionServer = drafts.get(draftID)?.server ?? server.key
           if (draftID) drafts.promote(draftID, { server: sessionServer, sessionID: session.id })
@@ -500,6 +498,18 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       ? { modelID: currentModel!.id, providerID: currentModel!.provider.id }
       : { modelID: harnessModel?.id ?? harnessInstanceID, providerID: harnessInstanceID }
     const agent = currentAgent?.name ?? "build"
+    // A profile rides on the thread's first message and again whenever the model changes.
+    const candidate = input.modelProfile?.(model.modelID)
+    const profile =
+      candidate &&
+      profileDue({
+        newThread: isNewSession,
+        previousModel: (sync().data.message[session.id] ?? []).findLast((message) => message.role === "user")?.model
+          ?.modelID,
+        model: model.modelID,
+      })
+        ? candidate
+        : undefined
     const draft: FollowupDraft = {
       sessionID: session.id,
       sessionDirectory,
@@ -509,6 +519,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       model,
       harness: !usesHostModel,
       variant,
+      profile,
       delivery: promptDelivery({
         working: !isNewSession && input.working(),
         preference: input.followup?.() ?? "steer",

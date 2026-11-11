@@ -31,6 +31,8 @@ const claudeWindows = [
   { id: "seven_day", label: "Weekly" },
   { id: "seven_day_opus", label: "Weekly (Opus)" },
   { id: "seven_day_sonnet", label: "Weekly (Sonnet)" },
+  // Max and Ultra plans include Fable. The key follows `seven_day_opus`; confirm it against a live response.
+  { id: "seven_day_fable", label: "Weekly (Fable)" },
 ] as const
 
 /**
@@ -251,9 +253,28 @@ export const fetchOpenCodeGoUsage = (key: string, request: typeof fetch = fetch)
     catch: () => new Error("Could not reach opencode.ai."),
   })
 
-/** OpenCode Go usage for an OpenCode data folder; without a Go key there is no plan to report. */
-export const openCodeGoUsage = (dataDir: string, request: typeof fetch = fetch) =>
-  readOpenCodeGoKey(dataDir).pipe(
+/**
+ * The OpenCode key the built-in agent chats with, from Tenon's credential store: an `opencode-go` key first, then the
+ * OpenCode (Zen) key, which carries a Go subscription too. The legacy `auth.json` can hold an older key.
+ */
+export function openCodeGoKeyFrom(
+  credentials: ReadonlyArray<{
+    readonly integrationID: string
+    readonly value: { readonly type: string; readonly key?: string }
+  }>,
+) {
+  const key = (integrationID: string) =>
+    credentials.find((item) => item.integrationID === integrationID && item.value.type === "key" && item.value.key)
+      ?.value.key
+  return key("opencode-go") ?? key("opencode")
+}
+
+/**
+ * OpenCode Go usage for an OpenCode data folder; without a Go key there is no plan to report. A `key` the caller
+ * already holds (the built-in agent's stored credential) is used before the folder's `auth.json`.
+ */
+export const openCodeGoUsage = (dataDir: string, request: typeof fetch = fetch, key?: string) =>
+  (key ? Effect.succeed<string | undefined>(key) : readOpenCodeGoKey(dataDir)).pipe(
     Effect.flatMap(
       (key): Effect.Effect<Result, Error> =>
         key ? fetchOpenCodeGoUsage(key, request) : Effect.succeed(unsupported("No OpenCode Go key is connected.")),

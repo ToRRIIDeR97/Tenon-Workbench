@@ -76,14 +76,20 @@ export function createSessionComposerController(options?: { closeMs?: number | (
     return store.responding === perm.id
   })
 
-  const decide = (response: "once" | "always" | "reject") => {
+  /** `message` goes with a reject: the built-in agent reads it as the reason; other harnesses only see the refusal. */
+  const decide = (response: "once" | "always" | "reject", message?: string) => {
     const perm = permissionRequest()
     if (!perm) return
     if (store.responding === perm.id) return
 
     setStore("responding", perm.id)
     sdk()
-      .api.permission.reply({ sessionID: perm.sessionID, requestID: perm.id, reply: response })
+      .api.permission.reply({
+        sessionID: perm.sessionID,
+        requestID: perm.id,
+        reply: response,
+        ...(response === "reject" && message?.trim() ? { message: message.trim() } : {}),
+      })
       .catch((err: unknown) => {
         const description = err instanceof Error ? err.message : String(err)
         showToast({ title: language.t("common.requestFailed"), description })

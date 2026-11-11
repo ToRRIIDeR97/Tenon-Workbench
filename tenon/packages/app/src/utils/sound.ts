@@ -11,6 +11,9 @@ function getFiles() {
 }
 
 export const SOUND_OPTIONS = [
+  { id: "tenon-done", label: "secondBrain.sound.tenonDone" },
+  { id: "tenon-attention", label: "secondBrain.sound.tenonAttention" },
+  { id: "tenon-error", label: "secondBrain.sound.tenonError" },
   { id: "alert-01", label: "sound.option.alert01" },
   { id: "alert-02", label: "sound.option.alert02" },
   { id: "alert-03", label: "sound.option.alert03" },

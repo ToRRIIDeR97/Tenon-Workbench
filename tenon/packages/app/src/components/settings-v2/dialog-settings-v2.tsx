@@ -1,6 +1,7 @@
 import { Component, createMemo, createSignal, Show, startTransition } from "solid-js"
 import { Dialog } from "@tenon/ui/v2/dialog-v2"
 import { TabsV2 } from "@tenon/ui/v2/tabs-v2"
+import { SegmentedControlItemV2, SegmentedControlV2 } from "@tenon/ui/v2/segmented-control-v2"
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { useLanguage } from "@/context/language"
@@ -11,6 +12,8 @@ import { SettingsProvidersV2 } from "./providers"
 import { SettingsModelsV2 } from "./models"
 import { SettingsHarnessesV2 } from "./harnesses"
 import { SettingsSkillsV2 } from "./skills"
+import { SettingsModelProfilesV2 } from "./model-profiles"
+import { SettingsMcpServersV2 } from "./mcp-servers"
 import { SettingsCalendarV2 } from "./calendar"
 import { SettingsDictationV2 } from "./dictation"
 import { SettingsCommandCentreV2 } from "./command-centre"
@@ -33,7 +36,14 @@ export const DialogSettings: Component<{
   const layout = useLayout()
   const drafts = useDrafts()
   const serverSync = useServerSync()
-  const [tab, setTab] = createSignal(props.defaultValue ?? "general")
+  // Providers and Models share the "Built-in harness" tab; their old tab names still open it on that part.
+  const builtInPart = (value: string | undefined) => (value === "models" ? "models" : "providers")
+  const [tab, setTab] = createSignal(
+    props.defaultValue === "providers" || props.defaultValue === "models"
+      ? "built-in"
+      : (props.defaultValue ?? "general"),
+  )
+  const [builtIn, setBuiltIn] = createSignal(builtInPart(props.defaultValue))
   const directory = createMemo(() => {
     const route = layout.route()
     if (route.type === "draft") return drafts.get(route.draftID)?.directory
@@ -95,7 +105,7 @@ export const DialogSettings: Component<{
                     </TabsV2.Trigger>
                     <Show when={platform.mail}>
                       <TabsV2.Trigger value="accounts">
-                        <Icon name="server" />
+                        <Icon name="link" />
                         {language.t("secondBrain.mail.settings.tab")}
                       </TabsV2.Trigger>
                     </Show>
@@ -109,13 +119,9 @@ export const DialogSettings: Component<{
                       <Icon name="server" />
                       {language.t("status.popover.tab.servers")}
                     </TabsV2.Trigger>
-                    <TabsV2.Trigger value="providers">
-                      <Icon name="providers" />
-                      {language.t("settings.providers.title")}
-                    </TabsV2.Trigger>
-                    <TabsV2.Trigger value="models">
+                    <TabsV2.Trigger value="built-in">
                       <Icon name="models" />
-                      {language.t("settings.models.title")}
+                      {language.t("secondBrain.settings.tab.builtInHarness")}
                     </TabsV2.Trigger>
                     <TabsV2.Trigger value="harnesses">
                       <Icon name="terminal" />
@@ -124,6 +130,14 @@ export const DialogSettings: Component<{
                     <TabsV2.Trigger value="skills">
                       <Icon name="book" />
                       {language.t("secondBrain.skills.title")}
+                    </TabsV2.Trigger>
+                    <TabsV2.Trigger value="mcp">
+                      <Icon name="link" />
+                      {language.t("secondBrain.mcp.title")}
+                    </TabsV2.Trigger>
+                    <TabsV2.Trigger value="model-profiles">
+                      <Icon name="pencil-line" />
+                      {language.t("secondBrain.modelProfiles.title")}
                     </TabsV2.Trigger>
                   </div>
                 </div>
@@ -158,17 +172,35 @@ export const DialogSettings: Component<{
         <TabsV2.Content value="servers" class="settings-v2-panel">
           <SettingsServersV2 />
         </TabsV2.Content>
-        <TabsV2.Content value="providers" class="settings-v2-panel">
-          <SettingsProvidersV2 directory={directory} onBack={showProviders} />
-        </TabsV2.Content>
-        <TabsV2.Content value="models" class="settings-v2-panel">
-          <SettingsModelsV2 />
+        <TabsV2.Content value="built-in" class="settings-v2-panel">
+          {/* Tenon's own agent: the providers it can call, then which of their models the pickers show. */}
+          <div class="settings-v2-subtabs">
+            <SegmentedControlV2
+              aria-label={language.t("secondBrain.settings.tab.builtInHarness")}
+              value={builtIn()}
+              onChange={(value) => setBuiltIn(builtInPart(value ?? undefined))}
+            >
+              <SegmentedControlItemV2 value="providers">
+                {language.t("settings.providers.title")}
+              </SegmentedControlItemV2>
+              <SegmentedControlItemV2 value="models">{language.t("settings.models.title")}</SegmentedControlItemV2>
+            </SegmentedControlV2>
+          </div>
+          <Show when={builtIn() === "providers"} fallback={<SettingsModelsV2 />}>
+            <SettingsProvidersV2 directory={directory} onBack={showProviders} />
+          </Show>
         </TabsV2.Content>
         <TabsV2.Content value="harnesses" class="settings-v2-panel">
           <SettingsHarnessesV2 directory={directory} onBack={showHarnesses} />
         </TabsV2.Content>
         <TabsV2.Content value="skills" class="settings-v2-panel">
           <SettingsSkillsV2 directory={directory} />
+        </TabsV2.Content>
+        <TabsV2.Content value="mcp" class="settings-v2-panel">
+          <SettingsMcpServersV2 />
+        </TabsV2.Content>
+        <TabsV2.Content value="model-profiles" class="settings-v2-panel">
+          <SettingsModelProfilesV2 />
         </TabsV2.Content>
       </TabsV2>
     </Dialog>

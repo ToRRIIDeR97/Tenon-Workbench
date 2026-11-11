@@ -1709,6 +1709,14 @@ synthetic text part instead of a file part: a Tenon skill carries its
 reads the same text; a harness-only skill is named for that harness to load
 itself. A prompt with chips is never sent as a single slash command.
 
+The v2 and harness prompt route has no hidden parts, so `harnessPromptInput`
+(`build-request-parts.ts`) sends only what the user typed as the text and each
+skill's instructions as a `data:text/plain` attachment named `<skill> skill`.
+The built-in loop and every harness read such an attachment inline, so the skill
+still applies while the thread shows a chip instead of the skill's body. The `/`
+list holds each skill name once (`pickerSkills`), and `HarnessSkills.scan` keeps
+the first of several folders that install a skill of the same name.
+
 ## Chat diagram windows
 
 Agents draw diagrams in chat by writing a fenced code block tagged `svg`. The
@@ -2017,9 +2025,11 @@ CLIs refresh tokens themselves.
   read from its bundle (v1.88.1), so they may change without notice. No key is
   signed out.
 - OpenCode Go, for the OpenCode harness and the built-in agent
-  (`openCodeGoUsage`): the `opencode-go` key in `auth.json` (the OpenCode
-  CLI's data folder for the harness, the app's data folder for the built-in
-  agent) goes to `GET https://opencode.ai/zen/go/v1/usage`, which returns
+  (`openCodeGoUsage`): for the built-in agent, the key it chats with from
+  Tenon's credential store (an `opencode-go` key, else the `opencode` key;
+  `openCodeGoKeyFrom`), falling back to the `opencode-go` key in the app's
+  `auth.json`; for the OpenCode harness, the `opencode-go` key in the OpenCode
+  CLI's `auth.json`. The key goes to `GET https://opencode.ai/zen/go/v1/usage`, which returns
   `usage.rolling` (5-hour), `weekly` and `monthly`, each `{ status, percent,
   resetsAt }`. The endpoint is not in OpenCode's documentation, and the success
   body was checked against a third-party client, not a live response. A 401 is
@@ -2288,10 +2298,52 @@ and common dir in one process.
 Settings → Harnesses → "Default for new threads" stores
 `settings.v3` `harnesses.defaults` (`mode: "fixed" | "last"`, `harnessID`,
 `model`). `drafts.create` and Brain Home start new threads on it; with
-"Start from the last one I used", `harnesses.lastUsed` (written on each new
-thread's first send) wins. A reused empty draft takes the current default. The
+"Start from the last one I used", `harnesses.lastUsed` wins. It is written on
+each new thread's first send and on every harness, model or reasoning pick in a
+composer (`rememberingHarness` in `prompt-input/harness-choice.ts`, used by the
+thread composer and by Home and the Command Centre's `ComposerModelPill`). A reused empty draft takes the current default. The
 composer keeps its harness until a confirmed check says it is unavailable; a
 saved or remembered list never moves it.
+
+## Composer and settings additions (November 2026)
+
+From the 11 Nov feedback list ([triage](../product/FEEDBACK-2026-11-11.md)):
+
+- **Permission modes.** A pill beside the model pill (`permission-mode-pill.tsx`)
+  sets Ask, Auto-edit or Full auto for the open thread, or for its folder before
+  the thread exists. `context/permission.tsx` keeps `autoAccept` (Full auto) and
+  `autoEdit` records keyed like before; a subagent follows its thread
+  (`permissionMode`). `modeAllows` answers `edit` requests in Auto-edit and
+  everything in Full auto, except `external_directory`, which always asks. Every
+  harness maps its approvals to these kinds (Codex `commandExecution` → `bash`,
+  `fileChange` → `edit`; ACP `execute` → `bash`, `edit`/`delete`/`move` → `edit`).
+- **Approval card.** `session-permission-dock.tsx` shows one line from
+  `permissionSummary`, the patterns folded under it, Deny, and Allow once with a
+  menu: Always allow this (`always`) and Allow everything in this thread (Full
+  auto). Outside-folder requests keep the warning tone and get no menu.
+- **Subagents.** The context menu lists the latest turn's subagents with their
+  own context (`latestSubagentContexts`). A running lane with no new step for five
+  minutes says so (`laneQuiet`). With an external harness, a follow-up sent while
+  its subagents run is queued (`followupPreference`), because a steer would stop
+  them; Ctrl+Enter still steers.
+- **Tasks panel.** `session-tasks-button.tsx` in the thread composer counts
+  running subagents and open terminals and lists them with the workspace's next
+  routines.
+- **Model profiles.** `settings.v3` `modelProfiles` (`utils/model-profile.ts`)
+  holds rules per model id. `submit.ts` attaches the active profile as a hidden
+  `data:text/plain` attachment (like a skill) on a thread's first message and
+  when the model changes. Settings › Model profiles adds, imports a `profile.md`,
+  edits and switches them; "Build with an agent" only opens a draft.
+- **Settings.** Built-in harness (Providers and Models), MCP servers (the global
+  config's `mcp` entries: add a local command or remote URL, switch on or off),
+  Skills search and per-harness filters, a VS Code theme import
+  (`ui/src/theme/vscode.ts`, stored under `tenon-custom-themes`), Tenon sounds,
+  and Google Calendar and Tasks switches per address on Accounts.
+- **Add harness.** The dialog runs discovery then one test prompt and shows a
+  checklist (`harness-checklist.ts`); the verify result now carries the agent's
+  `capabilities` (MCP over HTTP, images, `loadSession`).
+- **Codex path.** `codexCommand` falls back to `codex` on PATH when a saved
+  absolute `binaryPath` no longer exists.
 
 ## Thread references
 

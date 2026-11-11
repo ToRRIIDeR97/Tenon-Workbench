@@ -369,10 +369,13 @@ the location query and has the same auth as the other harness routes.
   account's non-secret `orgId` in the query when it has one), under the same
   60 s cache. These are undocumented endpoints; only the 5-hour and weekly
   `used`, `cap` and `resetAt` values are kept from the responses.
-- **OpenCode Go key read.** For the OpenCode harness and the built-in agent,
-  the server reads only the `opencode-go` entry's `key` from `auth.json` in the
-  OpenCode CLI's data folder (`$XDG_DATA_HOME/opencode` or
-  `~/.local/share/opencode`) or the app's data folder, on each uncached call.
+- **OpenCode Go key read.** For the built-in agent, the server first takes the
+  key the agent chats with from its own credential store (an `opencode-go` key,
+  else the `opencode` key), so plan limits check the same key as chats. Without
+  one, and for the OpenCode harness, it reads only the `opencode-go` entry's
+  `key` from `auth.json` in the app's data folder or the OpenCode CLI's data
+  folder (`$XDG_DATA_HOME/opencode` or `~/.local/share/opencode`), on each
+  uncached call.
   Other providers' keys in the same file are not used. The key is handled like
   the Claude token: only in the `Authorization` header, never returned, logged,
   written or put in a URL.
@@ -1310,6 +1313,20 @@ location and canonical Git worktree.
   set `share` or `enterprise`; only user and admin config can turn on sharing.
 - A cloned repository is not trusted by being opened. See
   [Folder trust](#folder-trust).
+
+### Permission modes, model profiles and imported themes
+
+- **Modes.** Auto-edit answers only `edit` requests; Full auto answers every
+  request in the thread's folder. A request with the `external_directory` kind
+  always reaches the user in both modes, so neither mode lets an agent read or
+  write outside the folder unasked. The choice is stored per thread or folder in
+  the renderer, as auto-accept was.
+- **Model profiles.** Profile rules are the user's own text, added to prompts as
+  a hidden attachment. They are trusted like a typed message; an imported
+  `profile.md` is read only as text.
+- **VS Code themes.** An imported theme file is parsed as JSON; only colour
+  values that match `#rgb`, `#rrggbb` or `#rrggbbaa` are used, and nothing in it
+  runs. Imported themes stay in the window's local storage.
 
 ### Folder trust
 

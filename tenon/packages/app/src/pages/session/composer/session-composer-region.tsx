@@ -3,6 +3,9 @@ import { createResizeObserver } from "@solid-primitives/resize-observer"
 import type { PermissionRequest, QuestionRequest } from "@opencode-ai/sdk/v2"
 import { Reveal } from "@tenon/ui/v2/reveal"
 import { useLanguage } from "@/context/language"
+import { usePermission } from "@/context/permission"
+import { useSDK } from "@/context/sdk"
+import { useParams } from "@solidjs/router"
 import { SessionPermissionDock } from "@/pages/session/composer/session-permission-dock"
 import { SessionQuestionDock } from "@/pages/session/composer/session-question-dock"
 import { SessionFollowupDock } from "@/pages/session/composer/session-followup-dock"
@@ -17,6 +20,9 @@ export function SessionComposerRegion(props: {
 }) {
   const language = useLanguage()
   const controller = props.controller
+  const permissions = usePermission()
+  const sdk = useSDK()
+  const params = useParams<{ id?: string }>()
   // Each dock opens and closes through Reveal, so the region's height eases instead of jumping. A closing
   // dock keeps rendering the last value it had, which these hold once the live value is gone.
   const question = createMemo<QuestionRequest | undefined>((last) => controller.state.questionRequest() ?? last)
@@ -84,9 +90,14 @@ export function SessionComposerRegion(props: {
               <SessionPermissionDock
                 request={request}
                 responding={controller.state.permissionResponding()}
-                onDecide={(response) => {
+                onDecide={(response, message) => {
                   controller.onResponseSubmit()
-                  controller.state.decide(response)
+                  controller.state.decide(response, message)
+                }}
+                // Full auto answers this request and every later one in the thread, subagents included.
+                onAllowThread={() => {
+                  controller.onResponseSubmit()
+                  permissions.setMode(params.id ?? request.sessionID, sdk().directory, "full")
                 }}
               />
             )}
