@@ -232,13 +232,14 @@ const defaultSettings: Settings = {
     permissions: true,
     errors: false,
   },
+  // Tenon's own sounds. "Finished" is off by default: it fires often, so it's opt-in.
   sounds: {
-    agentEnabled: true,
-    agent: "staplebops-01",
+    agentEnabled: false,
+    agent: "tenon-done",
     permissionsEnabled: true,
-    permissions: "staplebops-02",
+    permissions: "tenon-attention",
     errorsEnabled: true,
-    errors: "nope-03",
+    errors: "tenon-error",
   },
 }
 
