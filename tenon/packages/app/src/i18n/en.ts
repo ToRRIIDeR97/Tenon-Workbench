@@ -1170,7 +1170,8 @@ export const dict = {
   "secondBrain.skills.noMatch": "No skills match this search.",
   "secondBrain.skills.alsoIn": "also in {{names}}",
   "secondBrain.modelProfiles.title": "Model profiles",
-  "secondBrain.modelProfiles.intro": "Rules that counter a model's known mistakes, made with the tor-model-profile skill. An active profile goes with a thread's first message, and again when the thread switches model, in every harness.",
+  "secondBrain.modelProfiles.intro":
+    "Rules that counter a model's known mistakes, made with the tor-model-profile skill. An active profile goes with a thread's first message, and again when the thread switches model, in every harness.",
   "secondBrain.modelProfiles.model": "Model",
   "secondBrain.modelProfiles.modelPlaceholder": "Model id, e.g. deepseek-v4.1-flash",
   "secondBrain.modelProfiles.add": "Add profile",
@@ -1185,7 +1186,8 @@ export const dict = {
   "secondBrain.modelProfiles.rulesPlaceholder": "One rule per line, in Markdown",
   "secondBrain.modelProfiles.applies": "Matches the full model id or the part after the provider.",
   "secondBrain.modelProfiles.build": "Build with an agent",
-  "secondBrain.modelProfiles.buildPrompt": "Use the tor-model-profile skill to build a behaviour profile for {{model}}. Before running any benchmark, confirm the harness, the number of runs and the expected cost with me.",
+  "secondBrain.modelProfiles.buildPrompt":
+    "Use the tor-model-profile skill to build a behaviour profile for {{model}}. Before running any benchmark, confirm the harness, the number of runs and the expected cost with me.",
   "secondBrain.sound.tenonDone": "Tenon · Done",
   "secondBrain.sound.tenonAttention": "Tenon · Needs you",
   "secondBrain.sound.tenonError": "Tenon · Error",
@@ -1196,10 +1198,12 @@ export const dict = {
   "secondBrain.accounts.google.mailOn": "Mail on",
   "secondBrain.accounts.google.mailOff": "Mail off",
   "secondBrain.accounts.google.calendarSwitch": "Calendar and Tasks for {{address}}",
-  "secondBrain.accounts.google.hint": "Turning Calendar on asks Google for calendar and tasks access. Pick the same account so it joins this row; events then appear on the Calendar page and agents can add them.",
+  "secondBrain.accounts.google.hint":
+    "Turning Calendar on asks Google for calendar and tasks access. Pick the same account so it joins this row; events then appear on the Calendar page and agents can add them.",
   "secondBrain.mcp.title": "MCP servers",
   "secondBrain.mcp.add": "Add server",
-  "secondBrain.mcp.intro": "Servers Tenon's built-in agent connects to, from your global config. Claude Code, Codex and OpenCode keep their own MCP settings; they get Tenon's server for delegation and app tools.",
+  "secondBrain.mcp.intro":
+    "Servers Tenon's built-in agent connects to, from your global config. Claude Code, Codex and OpenCode keep their own MCP settings; they get Tenon's server for delegation and app tools.",
   "secondBrain.mcp.kind": "Server type",
   "secondBrain.mcp.local": "Local command",
   "secondBrain.mcp.remote": "Remote URL",
@@ -1211,7 +1215,8 @@ export const dict = {
   "secondBrain.mcp.urlPlaceholder": "https://…",
   "secondBrain.mcp.empty": "No MCP servers configured.",
   "secondBrain.mcp.enabled": "{{name}} on",
-  "secondBrain.mcp.removeHint": "To delete a server, remove it from your global config file; switching it off keeps it for later.",
+  "secondBrain.mcp.removeHint":
+    "To delete a server, remove it from your global config file; switching it off keeps it for later.",
   "secondBrain.home.pickProject": "Start in a project",
   "secondBrain.home.usage": "Plan usage",
   "secondBrain.agents.quiet": "No activity for {{duration}}",

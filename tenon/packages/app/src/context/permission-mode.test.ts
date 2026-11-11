@@ -19,7 +19,9 @@ describe("permission modes", () => {
   test("a subagent inherits its thread's mode, and the folder mode is the fallback", () => {
     const full = { [acceptKey("ses_main", "/dir")]: true }
     expect(permissionMode({ full, edit: {} }, sessions, "ses_child", "/dir")).toBe("full")
-    expect(permissionMode({ full: {}, edit: { [directoryAcceptKey("/dir")]: true } }, sessions, "ses_child", "/dir")).toBe("edit")
+    expect(
+      permissionMode({ full: {}, edit: { [directoryAcceptKey("/dir")]: true } }, sessions, "ses_child", "/dir"),
+    ).toBe("edit")
     expect(permissionMode({ full: {}, edit: {} }, sessions, "ses_child", "/dir")).toBe("ask")
   })
 })
