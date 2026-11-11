@@ -203,7 +203,7 @@ function ContextMenu(props: {
           when={!props.context.compacted}
           fallback={
             <Row label={language.t("secondBrain.contextMenu.used")}>
-              <span class="truncate text-[12px] font-normal text-v2-text-text-muted">
+              <span class="truncate text-[12px] [font-weight:400] text-v2-text-text-muted">
                 {language.t("secondBrain.contextMenu.compacted")}
               </span>
             </Row>
@@ -241,7 +241,7 @@ function ContextMenu(props: {
           >
             {(max) => (
               <Row label={language.t("secondBrain.contextMenu.used")}>
-                <span class="truncate text-[12px] font-normal text-v2-text-text-muted">
+                <span class="truncate text-[12px] [font-weight:400] text-v2-text-text-muted">
                   {language.t("secondBrain.sessionTab.contextUsed", {
                     used: formatter().number(props.context.total),
                     limit: formatter().number(max()),
@@ -302,7 +302,7 @@ function ContextMenu(props: {
         </Show>
         <Row label={language.t("harness.model")}>
           <TooltipV2 placement="top" class="min-w-0" value={props.context.modelLabel}>
-            <span class="min-w-0 truncate font-mono text-[12px] font-normal">{props.context.modelLabel}</span>
+            <span class="min-w-0 truncate font-mono text-[12px] [font-weight:400]">{props.context.modelLabel}</span>
           </TooltipV2>
         </Row>
       </Group>
@@ -407,7 +407,7 @@ function PlanLimits(props: { usage: PlanUsage; harness?: ComposerHarness }) {
                     <Row label={window.label}>
                       <Show when={window.resetsAt}>
                         {(resetsAt) => (
-                          <span class="truncate text-[12px] font-normal text-v2-text-text-muted">
+                          <span class="truncate text-[12px] [font-weight:400] text-v2-text-text-muted">
                             {language.t("secondBrain.contextStrip.usage.resets", {
                               time: formatResetIn(resetsAt(), state.now, language.intl()),
                             })}

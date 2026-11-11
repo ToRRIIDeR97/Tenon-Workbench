@@ -27,6 +27,8 @@ type SpawnLocalServerOptions = {
   onStdout?: (message: string) => void
   onStderr?: (message: string) => void
   onExit?: (code: number) => void
+  // Set on the server's env only, never on process.env, so no other child of this process inherits it.
+  env?: Record<string, string>
 }
 
 export function getDefaultServerUrl(): string | null {
@@ -83,7 +85,7 @@ export function spawnLocalServer(hostname: string, port: number, password: strin
     // Requests that name no folder fall back to the server's working directory. The app's own (a
     // drive root or System32, depending on how it was launched) would boot a watcher over it.
     cwd: homedir(),
-    env: createSidecarEnv(),
+    env: createSidecarEnv(process.env, options.env),
     serviceName: SIDECAR_SERVICE_NAME,
     stdio: "pipe",
   })
@@ -230,13 +232,17 @@ export async function checkHealth(url: string, password?: string | null, signal?
   return false
 }
 
-function createSidecarEnv(): Record<string, string> {
-  const env = Object.fromEntries(
-    Object.entries(process.env).flatMap(([key, value]) => (value === undefined ? [] : [[key, String(value)]])),
+export function createSidecarEnv(
+  base: NodeJS.ProcessEnv,
+  extra: Record<string, string> = {},
+  platform: NodeJS.Platform = process.platform,
+): Record<string, string> {
+  const env: Record<string, string> = Object.fromEntries(
+    Object.entries(base).flatMap(([key, value]) => (value === undefined ? [] : [[key, String(value)]])),
   )
   delete env.DEBUG
-  if (process.platform === "linux") delete env.LD_PRELOAD
-  return env
+  if (platform === "linux") delete env.LD_PRELOAD
+  return { ...env, ...extra }
 }
 
 function delay(ms: number) {

@@ -62,7 +62,8 @@
     flex-shrink: 0;
     width: 16px;
     height: 16px;
-    animation: tool-error-card-spin 0.65s linear infinite;
+    /* Same timing as LoaderV2. */
+    animation: tool-error-card-spin 900ms linear infinite;
     transform-origin: 50% 50%;
   }
 
@@ -202,5 +203,9 @@
 @media (prefers-reduced-motion: reduce) {
   [data-component="tool-error-card"] [data-slot="tool-error-card-chevron"] {
     transition: none;
+  }
+
+  [data-component="tool-error-card"] [data-slot="tool-error-card-loader"] {
+    animation: none;
   }
 }

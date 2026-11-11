@@ -335,10 +335,7 @@ export default function BrainHomePage() {
 
             <Show when={projects.list()?.length === 0}>
               <section class="flex flex-col items-center gap-3 text-center" aria-labelledby="brain-home-first-run">
-                <h2
-                  id="brain-home-first-run"
-                  class="text-[15px] leading-[22px] text-v2-text-text-base [font-weight:600]"
-                >
+                <h2 id="brain-home-first-run" class="type-toolbar-title text-v2-text-text-base">
                   {language.t("secondBrain.home.firstRun.title")}
                 </h2>
                 <div class="flex flex-wrap justify-center gap-2">

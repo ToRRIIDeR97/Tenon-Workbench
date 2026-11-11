@@ -2,7 +2,8 @@ import { For, Index, createEffect, createMemo, on, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
 
 const TRACK = Array.from({ length: 30 }, (_, index) => index % 10)
-const DURATION = 600
+// Fallback for --tool-motion-odometer-ms (--v2-duration-long), the same as the CSS fallback.
+const DURATION = 450
 
 function normalize(value: number) {
   return ((value % 10) + 10) % 10

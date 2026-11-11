@@ -50,7 +50,7 @@ export function SessionSideRail(props: { reviewCount: number; hasReview: boolean
             aria-expanded={false}
           />
           <Show when={props.hasReview}>
-            <span class="pointer-events-none absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-v2-icon-icon-accent px-1 text-[11px] leading-4 font-semibold tabular-nums text-v2-background-bg-base">
+            <span class="pointer-events-none absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-v2-icon-icon-accent px-1 text-[11px] leading-4 [font-weight:600] tabular-nums text-v2-background-bg-base">
               {props.reviewCount}
             </span>
           </Show>

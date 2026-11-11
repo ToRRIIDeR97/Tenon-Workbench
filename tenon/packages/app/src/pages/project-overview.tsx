@@ -5,6 +5,7 @@ import { createMemo, For, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { PageEmpty, PageFrame, PageHeader, pageRowClass, pageWideColumnClass } from "@/components/page"
 import { useBrainProjects } from "@/components/sidebar/sidebar-controller"
+import { searchFieldClass } from "@/components/surface-classes"
 import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
@@ -115,7 +116,7 @@ export default function ProjectOverviewPage() {
               <Icon name="magnifying-glass" size="small" />
             </span>
             <input
-              class="h-9 w-full rounded-full bg-v2-background-bg-layer-01 pl-9 pr-3 text-[13px] text-v2-text-text-base outline-none transition-[background-color,box-shadow] duration-short ease-standard [box-shadow:inset_0_0_0_1px_var(--v2-border-border-base)] placeholder:text-v2-text-text-faint focus:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)] motion-reduce:transition-none"
+              class={searchFieldClass}
               aria-label={language.t("secondBrain.projects.overview.filter")}
               placeholder={language.t("secondBrain.projects.overview.filter")}
               value={state.filter}

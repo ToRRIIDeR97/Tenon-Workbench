@@ -107,7 +107,8 @@
     border-radius: 9999px;
     border: 2px solid color-mix(in srgb, var(--v2-icon-icon-accent) 30%, transparent);
     border-top-color: var(--v2-icon-icon-accent);
-    animation: titlebar-update-loader-spin 0.67s linear infinite;
+    /* Same timing as LoaderV2. */
+    animation: titlebar-update-loader-spin 900ms linear infinite;
     transform-origin: 50% 50%;
   }
 
