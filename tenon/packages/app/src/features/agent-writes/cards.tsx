@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from "@solidjs/router"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Presence } from "@tenon/ui/v2/presence"
+import { Reveal } from "@tenon/ui/v2/reveal"
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { useLanguage } from "@/context/language"
 import { AgentWritePreview } from "./preview"
@@ -222,18 +223,14 @@ function StatusDot(props: { active: boolean }) {
       data-slot="agent-write-dot"
       class="size-2 shrink-0 rounded-full"
       classList={{
-        "bg-v2-icon-icon-accent animate-pulse motion-reduce:animate-none": props.active,
+        "bg-v2-icon-icon-accent running-pulse": props.active,
         "bg-v2-icon-icon-muted": !props.active,
       }}
     />
   )
 }
 
-/**
- * Height growth (grid rows 0fr → 1fr): opens over medium with emphasized-decelerate, closes over the
- * exit duration with emphasized-accelerate. It starts closed for one frame so a card that mounts open
- * still grows; with reduced motion it opens and closes at once.
- */
+/** A `Reveal` that starts closed for one frame, so a card that mounts open still grows. */
 function Grow(props: { open: boolean; children: JSX.Element }) {
   const reduced = prefersReducedMotion()
   const [mounted, setMounted] = createSignal(reduced)
@@ -242,20 +239,5 @@ function Grow(props: { open: boolean; children: JSX.Element }) {
     const frame = requestAnimationFrame(() => setMounted(true))
     onCleanup(() => cancelAnimationFrame(frame))
   })
-  const open = () => props.open && mounted()
-  return (
-    <div
-      data-slot="agent-write-grow"
-      data-open={props.open}
-      class="grid transition-[grid-template-rows] motion-reduce:transition-none"
-      classList={{
-        "duration-medium ease-emphasized-decelerate": open(),
-        "duration-[var(--v2-duration-exit)] ease-emphasized-accelerate": !open(),
-      }}
-      style={{ "grid-template-rows": open() ? "1fr" : "0fr" }}
-      aria-hidden={!props.open}
-    >
-      <div class="min-h-0 overflow-hidden">{props.children}</div>
-    </div>
-  )
+  return <Reveal open={props.open && mounted()}>{props.children}</Reveal>
 }

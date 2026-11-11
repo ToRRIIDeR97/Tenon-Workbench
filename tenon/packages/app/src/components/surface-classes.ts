@@ -25,9 +25,9 @@ export const searchFieldClass =
 /** Large TextInputV2: 40px tall and full width; fill, edge and focus ring come from TextInputV2. */
 export const filledFieldClass = "!h-10 !w-full"
 
-/** Selectable list row: 36px, 12px corners, accent container when selected. */
+/** Selectable list row: 36px, 8px corners, neutral fill and 600 weight when selected (like the sidebar rows). */
 export const listRowClass =
-  "flex min-h-9 w-full min-w-0 items-center gap-3 rounded-[12px] px-3 py-2 text-left text-[13px] text-v2-text-text-base transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover active:bg-v2-overlay-simple-overlay-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus aria-selected:bg-v2-background-bg-accent-container aria-selected:text-v2-text-text-on-accent-container motion-reduce:transition-none"
+  "flex min-h-9 w-full min-w-0 items-center gap-3 rounded-[8px] px-3 py-2 text-left text-[13px] text-v2-text-text-base transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover active:bg-v2-overlay-simple-overlay-pressed focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus aria-selected:bg-v2-overlay-simple-overlay-pressed aria-selected:[font-weight:600] motion-reduce:transition-none"
 
 /** Restyles the legacy fuzzy-search `List` (no v2 equivalent): edged pill search, 36px rows, overlay keyboard row. */
 export const listV2Class =

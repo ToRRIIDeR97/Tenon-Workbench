@@ -1324,7 +1324,7 @@ export function MessageTimeline(props: {
                       fallback={
                         <h1
                           data-slot="session-title-child"
-                          class="truncate text-[15px] font-[600] leading-5 text-v2-text-text-base w-fit rounded-full px-3 py-1 transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none"
+                          class="truncate type-toolbar-title text-v2-text-text-base w-fit rounded-full px-3 py-1 transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none"
                           onClick={openTitleEditor}
                         >
                           {childTitle()}
@@ -1338,7 +1338,7 @@ export function MessageTimeline(props: {
                         data-slot="session-title-child"
                         value={title.draft}
                         disabled={titleMutation.isPending}
-                        class="block text-[15px] font-[600] leading-5 text-v2-text-text-base field-sizing-content self-start rounded-full px-3 py-1"
+                        class="block type-toolbar-title text-v2-text-text-base field-sizing-content self-start rounded-full px-3 py-1"
                         style={{
                           "--inline-input-shadow": "none",
                         }}

@@ -259,7 +259,7 @@ function ProjectSettingsDialog(props: { card: ProjectCard }) {
             />
           </label>
           <Show when={state.error}>
-            <p role="alert" class="type-caption text-v2-text-text-critical">
+            <p role="alert" class="type-meta text-v2-text-text-critical">
               {state.error}
             </p>
           </Show>
@@ -354,7 +354,7 @@ export function ProjectCreate(props: {
   }
   const fieldError = (field: "name" | "outcome") => (
     <Show when={state.error && state.errorField === field}>
-      <p id={`project-${field}-error`} role="alert" class="text-[12px] text-v2-text-text-critical">
+      <p id={`project-${field}-error`} role="alert" class="type-meta text-v2-text-text-critical">
         {state.error}
       </p>
     </Show>
@@ -424,7 +424,11 @@ export function ProjectCreate(props: {
       </label>
       <details class="group">
         <summary class={summaryClass}>
-          <Icon name="chevron-right" size="small" class="transition-transform group-open:rotate-90" />
+          <Icon
+            name="chevron-right"
+            size="small"
+            class="transition-transform motion-reduce:transition-none group-open:rotate-90"
+          />
           {language.t("secondBrain.projects.advanced")}
         </summary>
         <div class="mt-3 flex flex-col gap-4">
@@ -449,7 +453,7 @@ export function ProjectCreate(props: {
         </div>
       </details>
       <Show when={state.error && !state.errorField}>
-        <p id="project-create-error" role="alert" class="text-[12px] text-v2-text-text-critical">
+        <p id="project-create-error" role="alert" class="type-meta text-v2-text-text-critical">
           {state.error}
         </p>
       </Show>

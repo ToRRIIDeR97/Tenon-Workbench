@@ -116,6 +116,26 @@ easing and duration tokens (`--v2-radius-*`, `--v2-ease-*`,
 `packages/ui/src/v2/styles/theme.css` and `packages/ui/src/theme/v2/mapping.ts`,
 and the v2 components (pill buttons, circular icon buttons) use them.
 
+Each style has one job. The item open in a list is the neutral fill
+(`overlay-pressed`, 8px corners, weight 600): sidebar rows, page rows, the
+Calendar's schedule and task rows, the settings navigation. Accent container
+marks where you are in the app (the navigation rail) and checked or toggle
+states (today's day, checkboxes, checked menu items), and primary buttons use
+accent. Underlined text tabs are for the sidebar's Group by only; view switches
+and filters on a page use the segmented look (`SegmentedControlV2`, the
+`TabsV2` pill variant, the thread tab lists that hold only tabs). Page-level
+cards are 16px on `bg-layer-01` with an inset muted edge; 12px cards are for
+inside the sidebar and side panels. A spinner is `LoaderV2` (900ms, linear) and
+a running dot is the `.running-pulse` ring (transform only).
+
+Type uses the named roles in `packages/ui/src/styles/tailwind/utilities.css`
+(`type-display` 26px for pages you read, Notes and Project details;
+`type-page-title` 20px for the others; `type-toolbar-title` 15px for thread
+and panel titles; `type-body-compact` 13px; `type-meta` 12px for helper and
+error text). The theme resets Tailwind's defaults, so `font-semibold`,
+`font-bold`, `font-normal`, `text-xs` and the default colour palette emit
+nothing; use the roles, `[font-weight:N]` and v2 colour tokens.
+
 Motion rules: an element entering uses `--v2-duration-medium` with
 `--v2-ease-emphasized-decelerate`; one leaving uses `--v2-duration-short` with
 `--v2-ease-emphasized-accelerate`; small state changes (colour, hover) use
@@ -207,8 +227,12 @@ recent-session index keeps only roots, so a collapsed Project's roots have no
 child nodes. The index therefore also keeps child-to-parent links, read from
 the same session list and updated by the same session events, and
 `linkedStates` carries each working child's state up through them with no
-per-directory request. Home's root list doesn't use the links. A card shows its
-marks and, while `summary.running` is above zero, the top line
+per-directory request. Home's root list doesn't use the links. The controller
+also counts the roots waiting for approval in every grouping (`needsYou`), for
+the Attention tab. The view draws the switch as text tabs and each card as a
+flat group with its marks; a single highlight in the list follows the row with
+`data-glide` and `data-selected`. In Attention, Needs you and Running list
+their threads as cards, and a running one shows the top line
 (`.sidebar-card-line`, animated with `transform` only and still under reduced
 motion). The view keys cards by ID and rows by thread node, because card objects
 are rebuilt on every status change. Previous and next thread walk the open cards
@@ -2143,11 +2167,12 @@ the same card once it is settled or the turn ends. Each tool is a full-width ton
 `stepVerbKey`, target, duration) that opens to `toolDetail` (the error, or a
 command with its output); a subagent row opens its tab. A reasoning part is a
 one-line note that opens to its full text. The body grows with a `0fr` to
-`1fr` grid-row transition (`turn-steps-summary.css`, 450 ms open; folding
+`1fr` grid-row transition (`turn-steps-summary.css`, 300 ms open; folding
 takes 300 to 700 ms by the card's height, `foldDuration`, on the standard
 curve) and its rows mount on first open; on an open while the card is on
 screen the steps slide in one after another. A row's output (in the app's
-`ScrollView`, a pill thumb on hover) and a reasoning note open the same way.
+`ScrollView`, a pill thumb on hover) and a reasoning note open and close with
+`Reveal`'s timing (300 ms open, 150 ms close).
 A toggle keeps the clicked row in place: it pauses auto-scroll's bottom follow
 (`onPauseFollow`, as a scroll up does), `message-timeline.tsx` treats the list
 as start-anchored for row resizes during the next 800 ms (virtual-core

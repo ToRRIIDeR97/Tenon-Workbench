@@ -13,6 +13,7 @@ import { Portal } from "solid-js/web"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { createStore } from "solid-js/store"
 import { useI18n } from "../context/i18n"
+import { prefersReducedMotion } from "../v2/components/motion"
 
 export type ScrollViewThumbVisibility = "hover" | "scroll"
 
@@ -302,31 +303,32 @@ export function ScrollView(props: ScrollViewProps) {
 
     const scrollAmount = viewportRef.clientHeight * 0.8
     const lineAmount = 40
+    const behavior = prefersReducedMotion() ? "auto" : "smooth"
 
     switch (next) {
       case "page-down":
         e.preventDefault()
-        viewportRef.scrollBy({ top: scrollAmount, behavior: "smooth" })
+        viewportRef.scrollBy({ top: scrollAmount, behavior })
         break
       case "page-up":
         e.preventDefault()
-        viewportRef.scrollBy({ top: -scrollAmount, behavior: "smooth" })
+        viewportRef.scrollBy({ top: -scrollAmount, behavior })
         break
       case "home":
         e.preventDefault()
-        viewportRef.scrollTo({ top: 0, behavior: "smooth" })
+        viewportRef.scrollTo({ top: 0, behavior })
         break
       case "end":
         e.preventDefault()
-        viewportRef.scrollTo({ top: viewportRef.scrollHeight, behavior: "smooth" })
+        viewportRef.scrollTo({ top: viewportRef.scrollHeight, behavior })
         break
       case "up":
         e.preventDefault()
-        viewportRef.scrollBy({ top: -lineAmount, behavior: "smooth" })
+        viewportRef.scrollBy({ top: -lineAmount, behavior })
         break
       case "down":
         e.preventDefault()
-        viewportRef.scrollBy({ top: lineAmount, behavior: "smooth" })
+        viewportRef.scrollBy({ top: lineAmount, behavior })
         break
     }
   }

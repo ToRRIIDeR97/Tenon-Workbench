@@ -65,18 +65,23 @@ is hidden and the rail remains.
    it is first shown; if that scan fails, a toast says so and it runs again the
    next time the workspace is shown. If the Project list cannot load, the
    panel shows **Request failed** with **Retry**.
-   - **Group by** switches the list between **Project**, **Attention** and
-     **Recent**, and the choice is remembered for the window. Each group is a
-     rounded card. Attention has **Needs you**, **Running** and **Other
-     threads**; Recent has **Today**, **Yesterday** and **Earlier**. Those cards
-     start open, and empty ones don't show.
+   - **Group by** is a row of text tabs, **Project**, **Attention** and
+     **Recent**, with an underline that slides to the chosen one (arrow keys
+     move between them). The choice is remembered for the window. Attention
+     shows how many threads are waiting for approval. Groups sit flat on the
+     panel, and one highlight slides to the selected row. Attention has **Needs
+     you**, **Running** and **Other threads**; Recent has **Today**,
+     **Yesterday** and **Earlier**. Those groups start open, and empty ones
+     don't show. In Needs you and Running each thread is a card that names its
+     Project (or General) and, when it waits for approval, says so; a running
+     card has a thin line moving along its top edge, still with reduced motion.
    - A thread waiting for approval shows a warning triangle and a running thread
-     shows an accent dot, on its row and on its card's header. A root shows the
+     shows an accent dot, on its row and on its group's header. A root shows the
      most urgent state of itself and its child threads, even when they aren't
-     listed. While a thread in a card runs, even in a collapsed card, a thin
-     line runs along the card's top edge; with reduced motion it stays still.
-   - One card per active Project, sorted by name, expandable. Expanding shows
-     **New thread** and the Project's root threads: pinned threads first (most
+     listed.
+   - One group per active Project, sorted by name, expandable. Expanding shows
+     a guide line from the Project's chevron with **New thread** and each root
+     thread branching off it: pinned threads first (most
      recently pinned first, with a pin icon), then the rest newest first.
      Child threads (`parentID`) nest under their
      parent while that parent or one of its children is open.

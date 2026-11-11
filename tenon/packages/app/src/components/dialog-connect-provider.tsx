@@ -712,7 +712,7 @@ function ProviderConnection(props: {
           </label>
           <Show when={formStore.error}>
             {(error) => (
-              <div id={errorID} role="alert" class="-mt-4 text-xs text-v2-state-fg-danger">
+              <div id={errorID} role="alert" class="-mt-4 type-meta text-v2-state-fg-danger">
                 {error()}
               </div>
             )}
@@ -793,7 +793,7 @@ function ProviderConnection(props: {
           </label>
           <Show when={formStore.error}>
             {(error) => (
-              <div id={errorID} role="alert" class="-mt-4 text-xs text-v2-state-fg-danger">
+              <div id={errorID} role="alert" class="-mt-4 type-meta text-v2-state-fg-danger">
                 {error()}
               </div>
             )}
@@ -881,7 +881,7 @@ function ProviderConnection(props: {
     <div class="flex min-h-0 flex-1 flex-col">
       <div class="flex h-10 shrink-0 items-start gap-2 px-3">
         <ProviderIcon id={props.provider} class="mt-0.5 size-4 shrink-0 text-v2-icon-icon-base" />
-        <div class="type-row-title font-semibold text-v2-text-text-base">
+        <div class="type-row-title text-v2-text-text-base [font-weight:600]">
           <Switch>
             <Match when={props.provider === "anthropic" && method()?.label?.toLowerCase().includes("max")}>
               {language.t("provider.connect.title.anthropicProMax")}

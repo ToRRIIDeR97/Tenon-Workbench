@@ -4,7 +4,10 @@
  * with a `.thread-*` class in front to win without !important.
  */
 
-/* Pill tabs: side panel, file tabs, terminal tabs and the mobile switcher. */
+/* Thread tabs: side panel, file tabs, terminal tabs and the mobile switcher. The selected tab is neutral.
+   A list of nothing but tabs (the mobile switcher, the file tree's Changes/All) is a view switch, drawn as
+   a segmented control (segmented-control-v2.css): a grey track with a raised bg-base thumb. Strips that mix
+   tabs with buttons (side panel, terminals) hold open items, so the open one takes the sidebar's fill. */
 .thread-tabs[data-component="tabs-v2"][data-variant][data-orientation="horizontal"] [data-slot="tabs-v2-list"] {
   height: auto;
   gap: 2px;
@@ -45,8 +48,33 @@
 .thread-tabs[data-component="tabs-v2"][data-variant][data-orientation="horizontal"]
   [data-slot="tabs-v2-trigger-wrapper"]:has([data-selected]) {
   border-bottom-color: transparent;
-  background-color: var(--v2-background-bg-accent-container);
-  color: var(--v2-text-text-on-accent-container);
+  background-color: var(--v2-overlay-simple-overlay-pressed);
+  box-shadow: none;
+  color: var(--v2-text-text-base);
+}
+
+.thread-tabs[data-component="tabs-v2"][data-variant][data-orientation="horizontal"]
+  [data-slot="tabs-v2-list"]:not(:has(> :not([data-slot="tabs-v2-trigger-wrapper"], [data-slot="tabs-v2-indicator"]))) {
+  box-sizing: border-box;
+  height: 32px;
+  padding: 2px;
+  border-radius: var(--v2-radius-full);
+  background: var(--v2-background-bg-layer-02);
+}
+
+.thread-tabs[data-component="tabs-v2"][data-variant][data-orientation="horizontal"]
+  [data-slot="tabs-v2-list"]:not(:has(> :not([data-slot="tabs-v2-trigger-wrapper"], [data-slot="tabs-v2-indicator"])))
+  [data-slot="tabs-v2-trigger-wrapper"] {
+  height: 28px;
+}
+
+.thread-tabs[data-component="tabs-v2"][data-variant][data-orientation="horizontal"]
+  [data-slot="tabs-v2-list"]:not(:has(> :not([data-slot="tabs-v2-trigger-wrapper"], [data-slot="tabs-v2-indicator"])))
+  [data-slot="tabs-v2-trigger-wrapper"]:has([data-selected]) {
+  background-color: var(--v2-background-bg-base);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.08),
+    0 0 0 1px var(--v2-border-border-muted);
 }
 
 .thread-tabs[data-component="tabs-v2"][data-variant][data-orientation="horizontal"]
@@ -187,17 +215,36 @@
   padding: 0;
 }
 
-/* The in-progress todo pulses like a running thread. */
-[data-component="session-todo-dock"] [data-slot="checkbox-v2"][data-in-progress] [data-slot="checkbox-v2-control"] {
+/* The in-progress todo pulses like a running thread: the same ring as `.running-pulse` (index.css), a
+   pseudo-element scaled with transform so it runs on the compositor instead of repainting a box-shadow. */
+[data-component="session-todo-dock"]
+  [data-slot="checkbox-v2"][data-in-progress]
+  [data-slot="checkbox-v2-control"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--v2-background-bg-accent);
+  opacity: 0;
+  pointer-events: none;
   animation: thread-pulse 1.6s var(--v2-ease-standard) infinite;
 }
 
 @keyframes thread-pulse {
   0% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--v2-background-bg-accent) 45%, transparent);
+    transform: scale(1);
+    opacity: 0.45;
   }
   100% {
-    box-shadow: 0 0 0 6px color-mix(in srgb, var(--v2-background-bg-accent) 0%, transparent);
+    /* An 18px box plus a 6px ring on each side. */
+    transform: scale(1.667);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-component="session-todo-dock"] [data-slot="checkbox-v2-control"]::after {
+    animation: none;
   }
 }
 
