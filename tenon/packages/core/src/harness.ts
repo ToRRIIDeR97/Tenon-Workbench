@@ -32,6 +32,7 @@ import { ChildProcess } from "effect/process"
 import { eq } from "drizzle-orm"
 import os from "os"
 import fs from "fs/promises"
+import { existsSync } from "fs"
 import path from "path"
 import { Config } from "./config"
 import { Credential } from "./credential"
@@ -1432,9 +1433,21 @@ export function configuredInstances(
 
 const decodeCodex = Schema.decodeUnknownOption(ConfigHarness.Codex)
 
+/**
+ * The Codex command to run: the configured path, else `codex` on PATH. An update can move the CLI (npm under
+ * another Node, the standalone installer, Homebrew), so a saved absolute path that no longer exists falls back to
+ * PATH instead of leaving the harness disconnected.
+ */
+export function codexCommand(binaryPath: string | undefined) {
+  const configured = binaryPath?.trim()
+  if (!configured) return "codex"
+  if (!path.isAbsolute(configured)) return configured
+  return existsSync(configured) ? configured : "codex"
+}
+
 /** The external command a harness runs, when it has one. The in-process loop has none. */
 function cliCommand(instance: InstanceConfig) {
-  if (instance.driver === Harness.CodexDriver) return decodeCodexSettings(instance.config).binaryPath?.trim() || "codex"
+  if (instance.driver === Harness.CodexDriver) return codexCommand(decodeCodexSettings(instance.config).binaryPath)
   if (instance.driver === Harness.AcpDriver) return AcpHarness.decodeSettings(instance.config)?.command
 }
 
@@ -1456,7 +1469,7 @@ function openCodex(
 ) {
   return Effect.gen(function* () {
     const args = [...(delegation ? HarnessDelegation.codexArgs(delegation) : []), "app-server"]
-    const command = settings.binaryPath?.trim() || "codex"
+    const command = codexCommand(settings.binaryPath)
     const handle = yield* process
       .spawn(
         ChildProcess.make(command, [...args, ...(settings.launchArgs ?? [])], {

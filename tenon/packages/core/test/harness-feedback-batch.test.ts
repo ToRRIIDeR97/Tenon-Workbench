@@ -75,3 +75,21 @@ describe("Claude Code Fable window", () => {
     ])
   })
 })
+
+// A Codex update can move the CLI; a saved absolute path that no longer exists falls back to `codex` on PATH.
+describe("codexCommand", () => {
+  test("keeps a path that exists, a bare name, and the default", async () => {
+    const { codexCommand } = await import("@tenon/core/harness")
+    const real = path.join(root, "codex-real")
+    await write(real, "")
+    expect(codexCommand(real)).toBe(real)
+    expect(codexCommand("codex-beta")).toBe("codex-beta")
+    expect(codexCommand(undefined)).toBe("codex")
+    expect(codexCommand("  ")).toBe("codex")
+  })
+
+  test("a missing absolute path falls back to codex", async () => {
+    const { codexCommand } = await import("@tenon/core/harness")
+    expect(codexCommand(path.join(root, "moved", "codex"))).toBe("codex")
+  })
+})
