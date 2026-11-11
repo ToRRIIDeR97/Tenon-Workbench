@@ -53,18 +53,18 @@ const macLaunchers = [
   ".dmg",
   ".vncloc",
   ".rdp",
-  // Python Launcher runs it.
-  ".py",
 ]
 // A Java runtime runs these on every platform (Jar Launcher on macOS, binfmt or xdg-open on Linux).
 const anyPlatformLaunchers = [".jar"]
+// Python Launcher runs these on macOS.
+const macFileLaunchers = [".py"]
 
 /**
  * Whether a local file link may be opened with its default app or should only be revealed in the
  * file manager. Executables are revealed: on Windows by the default PATHEXT, the user's PATHEXT and
  * shell launchers (a custom PATHEXT adds to the defaults, never replaces them), on macOS
- * by bundle and script extensions, `.jar` on every platform, and on any POSIX system when an execute bit is set. A Windows
- * file name with a colon names an alternate data stream (`a.exe::$DATA`), which hides the extension.
+ * by bundle and script extensions, `.jar` on every platform, and on any POSIX system when an execute bit is set.
+ * Off Windows, `.jar` and `.py` count only for files, so a project folder such as `discord.py` still opens. A Windows file name with a colon names an alternate data stream (`a.exe::$DATA`), which hides the extension.
  */
 export function localFileAction(
   file: string,
@@ -83,9 +83,9 @@ export function localFileAction(
     return [...executable, ...windowsLaunchers, ...anyPlatformLaunchers].includes(extension) ? "reveal" : "open"
   }
   const extension = path.posix.extname(file).toLowerCase()
-  if (anyPlatformLaunchers.includes(extension)) return "reveal"
   if (platform === "darwin" && macLaunchers.includes(extension)) return "reveal"
   if (info.isDirectory) return "open"
+  if ([...anyPlatformLaunchers, ...(platform === "darwin" ? macFileLaunchers : [])].includes(extension)) return "reveal"
   return (info.mode & 0o111) !== 0 ? "reveal" : "open"
 }
 
@@ -125,23 +125,29 @@ export function isOpenWithApp(app: string, platform: NodeJS.Platform = process.p
 }
 
 /**
- * How "Open in" starts `app` (resolved to `executable` off macOS) on `folder`. Windows PowerShell
- * reads a positional argument as `-Command`, so a folder named `x;iex(...)` or `x$(calc)` would run
- * as code: PowerShell gets the folder as its working directory, never on its command line, and runs
- * detached in its own console. Editors take the folder as their one argument; macOS uses `open -a`.
+ * How "Open in" starts `app` (resolved to the absolute `executable` off macOS) on `folder`. Windows
+ * PowerShell reads a positional argument as `-Command`, so a folder named `x;iex(...)` or `x$(calc)`
+ * would run as code: the folder is only the working directory, never an argument. PowerShell goes
+ * through the System32 `cmd.exe /c start`, which gives it its own console window from the GUI
+ * process; cmd re-parses its command line, which holds only the resolved PowerShell path. Editors
+ * take the folder as their one argument; macOS uses `open -a`.
  */
 export function openWithLaunch(
   app: string,
   folder: string,
   executable: string,
   platform: NodeJS.Platform = process.platform,
+  systemRoot = process.env.SystemRoot ?? process.env.windir,
 ) {
   if (platform === "darwin") return { command: "open", args: ["-a", app, folder] }
-  if (platform === "win32" && app === "powershell")
+  if (platform === "win32" && app === "powershell") {
+    // A bare `cmd` would be looked up on PATH and in the current directory.
+    if (!systemRoot || !path.win32.isAbsolute(systemRoot)) throw new Error("SystemRoot is not set")
     return {
-      command: executable,
-      args: ["-NoExit"],
-      options: { cwd: folder, detached: true, stdio: "ignore" as const },
+      command: path.win32.join(systemRoot, "System32", "cmd.exe"),
+      args: ["/d", "/c", "start", "", executable, "-NoExit"],
+      options: { cwd: folder, windowsHide: true },
     }
+  }
   return { command: executable, args: [folder] }
 }

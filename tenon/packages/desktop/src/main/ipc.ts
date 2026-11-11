@@ -8,7 +8,7 @@ import {
 } from "./device"
 import { browserHistory, captureBrowser, navigateBrowser, pickElement, showBrowser } from "./browser"
 import { fileViewerURL } from "./file-viewer"
-import { execFile, spawn } from "node:child_process"
+import { execFile } from "node:child_process"
 import { stat } from "node:fs/promises"
 import { basename, isAbsolute, join } from "node:path"
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeImage, shell } from "electron"
@@ -465,16 +465,7 @@ export function registerIpcHandlers(deps: Deps) {
     if (!resolved || (process.platform !== "darwin" && !isAbsolute(resolved))) throw new Error("Unknown application")
     const launch = openWithLaunch(app, path, resolved)
     await new Promise<void>((resolve, reject) => {
-      if (!launch.options) {
-        execFile(launch.command, launch.args, (err) => (err ? reject(err) : resolve()))
-        return
-      }
-      const child = spawn(launch.command, launch.args, launch.options)
-      child.once("error", reject)
-      child.once("spawn", () => {
-        child.unref()
-        resolve()
-      })
+      execFile(launch.command, launch.args, launch.options ?? {}, (err) => (err ? reject(err) : resolve()))
     })
   })
 
