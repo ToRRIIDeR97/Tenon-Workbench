@@ -173,11 +173,11 @@ the Markdown rule above.
 `file://` links (terminal output, Markdown) open with the default app only for
 documents. Executables (the default Windows `PATHEXT` and the user's own, which
 adds to it, plus shell launchers such as `.lnk`, `.hta`, `.msi`, `.scr`, `.cpl`,
-`.jar`, `.chm`, `.msix`, `.rdp`, `.scf`, `.inf`, `.library-ms`, `.search-ms`,
-`.xll` and `.diagcab`, and any file name with
+`.chm`, `.msix`, `.msixbundle`, `.appx`, `.msu`, `.rdp`, `.scf`, `.inf`, `.library-ms`, `.search-ms`,
+`.searchconnector-ms`, `.desktopthemepackfile`, `.xll` and `.diagcab`, and any file name with
 a colon, which names an alternate data stream; macOS bundles and scripts such as
 `.app`, `.command`, `.terminal`, `.workflow`, `.fileloc`, `.webloc`,
-`.mobileconfig`, `.dmg` and `.vncloc`; any POSIX file with an execute bit) and anything that cannot be
+`.mobileconfig`, `.dmg`, `.vncloc` and `.py`; `.jar` on every platform; any POSIX file with an execute bit) and anything that cannot be
 inspected are revealed in the file manager instead
 (`desktop/src/main/local-file-policy.ts`). A file name ending in a dot or space
 is not handled: `stat` fails on it on Windows, so it is revealed.
@@ -1382,7 +1382,10 @@ fix lands.
   (`\\host\share`, `\\?\`, `//host`) on every platform, so a stat cannot make
   Windows authenticate to a remote host. Without an app, `open-path` applies the local-file policy
   (`localFileAction`): an executable is revealed in the file manager, never
-  opened. With an app, the path must be a directory. Opening other files from a
+  opened. With an app, the path must be a directory. "Open in PowerShell" on
+  Windows starts PowerShell in that directory and never passes the path as an
+  argument, because PowerShell reads a positional argument as `-Command` and
+  would run a folder name such as `x;iex(...)` as code (`openWithLaunch`). Opening other files from a
   compromised main-frame renderer remains possible until the workspace-ID
   contract lands.
 - `store-*` handlers accept only the renderer's own store files, `default.dat`

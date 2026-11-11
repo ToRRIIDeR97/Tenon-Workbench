@@ -8,7 +8,7 @@ import {
 } from "./device"
 import { browserHistory, captureBrowser, navigateBrowser, pickElement, showBrowser } from "./browser"
 import { fileViewerURL } from "./file-viewer"
-import { execFile } from "node:child_process"
+import { execFile, spawn } from "node:child_process"
 import { stat } from "node:fs/promises"
 import { basename, isAbsolute, join } from "node:path"
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeImage, shell } from "electron"
@@ -40,7 +40,7 @@ import {
 } from "./windows"
 import type { UpdaterController } from "./updater-controller"
 import { createUpdaterSubscriptions } from "./updater-subscriptions"
-import { isOpenWithApp, isUncPath, localFileAction } from "./local-file-policy"
+import { isOpenWithApp, isUncPath, localFileAction, openWithLaunch } from "./local-file-policy"
 import { createDesktopDraftStore, requireDraftBlob, requireDraftKey, requireDraftValue } from "./draft-store"
 import { write as writeLog } from "./logging"
 import { saveSessionExport } from "./session-export"
@@ -461,15 +461,20 @@ export function registerIpcHandlers(deps: Deps) {
     }
     // "Open in" passes a project folder; a file handed to an app such as Terminal could run.
     if (!info.isDirectory()) throw new Error("open-path with an application requires a directory")
-    if (process.platform === "darwin") {
-      return await new Promise<void>((resolve, reject) => {
-        execFile("open", ["-a", app, path], (err) => (err ? reject(err) : resolve()))
-      })
-    }
-    const resolved = await resolveAppPath(app)
-    if (!resolved || !isAbsolute(resolved)) throw new Error("Unknown application")
+    const resolved = process.platform === "darwin" ? app : await resolveAppPath(app)
+    if (!resolved || (process.platform !== "darwin" && !isAbsolute(resolved))) throw new Error("Unknown application")
+    const launch = openWithLaunch(app, path, resolved)
     await new Promise<void>((resolve, reject) => {
-      execFile(resolved, [path], (err) => (err ? reject(err) : resolve()))
+      if (!launch.options) {
+        execFile(launch.command, launch.args, (err) => (err ? reject(err) : resolve()))
+        return
+      }
+      const child = spawn(launch.command, launch.args, launch.options)
+      child.once("error", reject)
+      child.once("spawn", () => {
+        child.unref()
+        resolve()
+      })
     })
   })
 

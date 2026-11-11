@@ -12,7 +12,6 @@ const windowsLaunchers = [
   ".reg",
   ".pif",
   ".cpl",
-  ".jar",
   ".chm",
   ".application",
   ".appinstaller",
@@ -29,6 +28,12 @@ const windowsLaunchers = [
   ".wsc",
   ".xll",
   ".diagcab",
+  ".searchconnector-ms",
+  ".desktopthemepackfile",
+  ".msu",
+  ".appx",
+  ".appxbundle",
+  ".msixbundle",
 ]
 const windowsDefaultPathext = ".COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC;.PS1"
 const macLaunchers = [
@@ -48,13 +53,17 @@ const macLaunchers = [
   ".dmg",
   ".vncloc",
   ".rdp",
+  // Python Launcher runs it.
+  ".py",
 ]
+// A Java runtime runs these on every platform (Jar Launcher on macOS, binfmt or xdg-open on Linux).
+const anyPlatformLaunchers = [".jar"]
 
 /**
  * Whether a local file link may be opened with its default app or should only be revealed in the
  * file manager. Executables are revealed: on Windows by the default PATHEXT, the user's PATHEXT and
  * shell launchers (a custom PATHEXT adds to the defaults, never replaces them), on macOS
- * by bundle and script extensions, and on any POSIX system when an execute bit is set. A Windows
+ * by bundle and script extensions, `.jar` on every platform, and on any POSIX system when an execute bit is set. A Windows
  * file name with a colon names an alternate data stream (`a.exe::$DATA`), which hides the extension.
  */
 export function localFileAction(
@@ -71,9 +80,11 @@ export function localFileAction(
       .split(";")
       .map((item) => item.trim().toLowerCase())
       .filter(Boolean)
-    return [...executable, ...windowsLaunchers].includes(extension) ? "reveal" : "open"
+    return [...executable, ...windowsLaunchers, ...anyPlatformLaunchers].includes(extension) ? "reveal" : "open"
   }
-  if (platform === "darwin" && macLaunchers.includes(path.posix.extname(file).toLowerCase())) return "reveal"
+  const extension = path.posix.extname(file).toLowerCase()
+  if (anyPlatformLaunchers.includes(extension)) return "reveal"
+  if (platform === "darwin" && macLaunchers.includes(extension)) return "reveal"
   if (info.isDirectory) return "open"
   return (info.mode & 0o111) !== 0 ? "reveal" : "open"
 }
@@ -111,4 +122,26 @@ const openWithApps: Partial<Record<NodeJS.Platform, ReadonlySet<string>>> = {
 /** Whether the renderer may ask main to open a folder with `app` on `platform`: only the apps "Open in" lists. */
 export function isOpenWithApp(app: string, platform: NodeJS.Platform = process.platform) {
   return openWithApps[platform]?.has(app) ?? false
+}
+
+/**
+ * How "Open in" starts `app` (resolved to `executable` off macOS) on `folder`. Windows PowerShell
+ * reads a positional argument as `-Command`, so a folder named `x;iex(...)` or `x$(calc)` would run
+ * as code: PowerShell gets the folder as its working directory, never on its command line, and runs
+ * detached in its own console. Editors take the folder as their one argument; macOS uses `open -a`.
+ */
+export function openWithLaunch(
+  app: string,
+  folder: string,
+  executable: string,
+  platform: NodeJS.Platform = process.platform,
+) {
+  if (platform === "darwin") return { command: "open", args: ["-a", app, folder] }
+  if (platform === "win32" && app === "powershell")
+    return {
+      command: executable,
+      args: ["-NoExit"],
+      options: { cwd: folder, detached: true, stdio: "ignore" as const },
+    }
+  return { command: executable, args: [folder] }
 }
