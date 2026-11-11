@@ -113,6 +113,8 @@ import { createSessionOwnership } from "./session/session-ownership"
 import { createSessionLineage } from "./session/session-lineage"
 import { PageEmpty, pagePanelClass } from "@/components/page"
 import { ComposerContextRing, ComposerWhereRow, createComposerContext } from "@/components/prompt-input/context-strip"
+import { useThreadSubagents } from "@/components/session/subagent-tab"
+import { SessionTasksButton } from "@/pages/session/composer/session-tasks-button"
 
 type ChangeMode = "git" | "branch" | "turn"
 type VcsMode = "git" | "branch"
@@ -2148,6 +2150,7 @@ export default function Page() {
             },
           })
           const composerContext = createComposerContext()
+          const threadSubagentGroups = useThreadSubagents(() => true)
           const promptController = usePromptInputV2Controller({
             get controls() {
               return inputController()
@@ -2180,7 +2183,12 @@ export default function Page() {
                   borderUnderlay
                   header={<SessionRevertTray dock={controller.revert} />}
                   boxHeader={<ComposerWhereRow />}
-                  trailing={<ComposerContextRing context={composerContext} harness={sessionHarness} />}
+                  trailing={
+                    <>
+                      <SessionTasksButton groups={threadSubagentGroups} />
+                      <ComposerContextRing context={composerContext} harness={sessionHarness} />
+                    </>
+                  }
                 />
               }
             />
