@@ -999,8 +999,11 @@ Mail lives in the desktop main process (`desktop/src/main/mail/`; see
   port and needs `Authorization: Bearer <32 random bytes>` (compared in
   constant time); requests with an `Origin` header are refused. Only the
   server process receives the URL and token (`TENON_MAIL_URL`,
-  `TENON_MAIL_TOKEN`); `ChildEnv.from` removes them, and the browser bridge's
-  pair, from every child it builds. Routes are `/search`, `/thread` and `/draft`; bodies
+  `TENON_MAIL_TOKEN`): the main process adds them, and the browser bridge's
+  pair, to the server's environment only (`spawnLocalServer`, again on each
+  supervised restart), never to its own `process.env`, so editors, terminals
+  and other children it starts don't inherit them. The WSL server doesn't get
+  them. `ChildEnv.from` removes both pairs from every child the server builds. Routes are `/search`, `/thread` and `/draft`; bodies
   are capped at 256 KiB. Logs record the route and error message, never mail
   content.
 - **Mail is data.** Message text reaches the model only as tool results in
