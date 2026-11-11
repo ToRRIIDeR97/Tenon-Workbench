@@ -13,6 +13,7 @@ import { SettingsModelsV2 } from "./models"
 import { SettingsHarnessesV2 } from "./harnesses"
 import { SettingsSkillsV2 } from "./skills"
 import { SettingsModelProfilesV2 } from "./model-profiles"
+import { SettingsMcpServersV2 } from "./mcp-servers"
 import { SettingsCalendarV2 } from "./calendar"
 import { SettingsDictationV2 } from "./dictation"
 import { SettingsCommandCentreV2 } from "./command-centre"
@@ -130,6 +131,10 @@ export const DialogSettings: Component<{
                       <Icon name="book" />
                       {language.t("secondBrain.skills.title")}
                     </TabsV2.Trigger>
+                    <TabsV2.Trigger value="mcp">
+                      <Icon name="link" />
+                      {language.t("secondBrain.mcp.title")}
+                    </TabsV2.Trigger>
                     <TabsV2.Trigger value="model-profiles">
                       <Icon name="pencil-line" />
                       {language.t("secondBrain.modelProfiles.title")}
@@ -190,6 +195,9 @@ export const DialogSettings: Component<{
         </TabsV2.Content>
         <TabsV2.Content value="skills" class="settings-v2-panel">
           <SettingsSkillsV2 directory={directory} />
+        </TabsV2.Content>
+        <TabsV2.Content value="mcp" class="settings-v2-panel">
+          <SettingsMcpServersV2 />
         </TabsV2.Content>
         <TabsV2.Content value="model-profiles" class="settings-v2-panel">
           <SettingsModelProfilesV2 />
