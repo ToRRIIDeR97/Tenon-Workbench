@@ -7,9 +7,12 @@ import { Identifier } from "@/utils/id"
 import { createCommentMetadata, formatCommentNote } from "@/utils/comment-note"
 import { createQuoteMetadata, formatQuoteNote } from "@tenon/session-ui/quote-note"
 import { SKILL_REFERENCE_MIME, promptSkills, skillInstruction } from "@/utils/skill-reference"
+import { profileInstruction } from "@/utils/model-profile"
 
 /** Marks a synthetic text part that carries a skill chip's instructions. */
 const SKILL_PART_KEY = "tenonSkill"
+/** Marks a synthetic text part that carries a model profile's rules. */
+const PROFILE_PART_KEY = "tenonProfile"
 
 type PromptRequestPart = (TextPartInput | FilePartInput | AgentPartInput) & { id: string }
 
@@ -41,6 +44,8 @@ type BuildRequestPartsInput = {
   sessionDirectory: string
   /** A Tenon skill's instructions by name; undefined for a skill the harness loads itself. */
   skill?: (name: string) => string | undefined
+  /** A model profile to send with this message, hidden from the thread like a skill. */
+  profile?: { model: string; rules: string }
 }
 
 const absolute = (directory: string, path: string) => {
@@ -125,6 +130,18 @@ export function buildRequestParts(input: BuildRequestPartsInput) {
         metadata: { [SKILL_PART_KEY]: name },
       }) satisfies PromptRequestPart,
   )
+
+  const profile = input.profile
+    ? [
+        {
+          id: Identifier.ascending("part"),
+          type: "text",
+          text: profileInstruction(input.profile.model, input.profile.rules),
+          synthetic: true,
+          metadata: { [PROFILE_PART_KEY]: input.profile.model },
+        } satisfies PromptRequestPart,
+      ]
+    : []
 
   const files = input.prompt.filter(isFileAttachment).map((attachment) => {
     const path = absolute(input.sessionDirectory, attachment.path)
@@ -241,7 +258,7 @@ export function buildRequestParts(input: BuildRequestPartsInput) {
     } satisfies PromptRequestPart
   })
 
-  requestParts.push(...skills, ...files, ...context, ...agents, ...images)
+  requestParts.push(...profile, ...skills, ...files, ...context, ...agents, ...images)
 
   return {
     requestParts,
@@ -251,10 +268,13 @@ export function buildRequestParts(input: BuildRequestPartsInput) {
 
 type HarnessFile = { uri: string; name?: string; mention?: { start: number; end: number; text: string } }
 
+/** A hidden part's attachment name: "<skill> skill" or "<model> profile"; undefined for any other part. */
 const skillPartName = (part: PromptRequestPart) => {
   if (part.type !== "text" || !part.synthetic) return
-  const name = part.metadata?.[SKILL_PART_KEY]
-  return typeof name === "string" ? name : undefined
+  const skill = part.metadata?.[SKILL_PART_KEY]
+  if (typeof skill === "string") return `${skill} skill`
+  const profile = part.metadata?.[PROFILE_PART_KEY]
+  return typeof profile === "string" ? `${profile} profile` : undefined
 }
 
 /**
@@ -271,7 +291,7 @@ export function harnessPromptInput(requestParts: ReadonlyArray<PromptRequestPart
     files: requestParts.flatMap((part): HarnessFile[] => {
       const skill = skillPartName(part)
       if (skill !== undefined && part.type === "text")
-        return [{ uri: `data:text/plain;charset=utf-8,${encodeURIComponent(part.text)}`, name: `${skill} skill` }]
+        return [{ uri: `data:text/plain;charset=utf-8,${encodeURIComponent(part.text)}`, name: skill }]
       if (part.type !== "file") return []
       const text = part.source?.text
       return [

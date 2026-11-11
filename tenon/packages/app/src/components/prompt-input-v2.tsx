@@ -314,6 +314,7 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
   const submission = createPromptSubmit({
     onNewSessionHarness: (choice) => settings.harnesses.setLastUsed(choice),
     skill: (name) => skillData()?.[1].find((skill) => skill.name === name)?.content,
+    modelProfile: (modelID) => settings.modelProfiles.for(modelID),
     prompt,
     info,
     imageAttachments: attachments,

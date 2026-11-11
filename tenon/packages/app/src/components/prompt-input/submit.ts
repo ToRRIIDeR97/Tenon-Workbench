@@ -19,6 +19,7 @@ import { Identifier } from "@/utils/id"
 import { Worktree as WorktreeState } from "@/utils/worktree"
 import { buildRequestParts, harnessPromptInput } from "./build-request-parts"
 import { promptSkills } from "@/utils/skill-reference"
+import { profileDue } from "@/utils/model-profile"
 import { setCursorPosition } from "./editor-dom"
 import { formatServerError } from "@/utils/server-errors"
 import { ScopedKey } from "@/utils/server-scope"
@@ -70,6 +71,8 @@ export type FollowupDraft = {
   harness?: boolean
   variant?: string
   delivery?: PromptDelivery
+  /** The model profile to attach, when one is due. */
+  profile?: { model: string; rules: string }
 }
 
 type FollowupSendInput = {
@@ -159,6 +162,7 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
     messageID,
     sessionDirectory: input.draft.sessionDirectory,
     skill: input.skill,
+    profile: input.draft.profile,
   })
 
   const message: Message = {
@@ -254,6 +258,8 @@ type PromptSubmitInput = {
   model?: ModelSelection
   /** A Tenon skill's instructions by name, for skill chips. */
   skill?: (name: string) => string | undefined
+  /** The switched-on model profile for a model id, if any. */
+  modelProfile?: (modelID: string) => { model: string; rules: string } | undefined
 }
 
 export function createPromptSubmit(input: PromptSubmitInput) {
@@ -492,6 +498,18 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       ? { modelID: currentModel!.id, providerID: currentModel!.provider.id }
       : { modelID: harnessModel?.id ?? harnessInstanceID, providerID: harnessInstanceID }
     const agent = currentAgent?.name ?? "build"
+    // A profile rides on the thread's first message and again whenever the model changes.
+    const candidate = input.modelProfile?.(model.modelID)
+    const profile =
+      candidate &&
+      profileDue({
+        newThread: isNewSession,
+        previousModel: (sync().data.message[session.id] ?? []).findLast((message) => message.role === "user")?.model
+          ?.modelID,
+        model: model.modelID,
+      })
+        ? candidate
+        : undefined
     const draft: FollowupDraft = {
       sessionID: session.id,
       sessionDirectory,
@@ -501,6 +519,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       model,
       harness: !usesHostModel,
       variant,
+      profile,
       delivery: promptDelivery({
         working: !isNewSession && input.working(),
         preference: input.followup?.() ?? "steer",

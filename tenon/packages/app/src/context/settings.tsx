@@ -1,3 +1,4 @@
+import { type ModelProfile, profileFor } from "@/utils/model-profile"
 import { createStore, reconcile } from "solid-js/store"
 import { batch, createEffect, createMemo } from "solid-js"
 import { createSimpleContext } from "@tenon/ui/context"
@@ -62,6 +63,8 @@ export interface Settings {
     /** The harness, model and reasoning of the last prompt sent, for `defaults.mode === "last"`. */
     lastUsed?: HarnessChoice
   }
+  /** Rules added to a model's instructions, by model id (full or without the provider). */
+  modelProfiles?: Record<string, ModelProfile>
 }
 
 export type CalendarSyncSettings = {
@@ -436,6 +439,19 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         },
         set(value: Partial<CommandCentreSettings>) {
           setStore("commandCentre", (current) => ({ ...defaultCommandCentre, ...current, ...value }))
+        },
+      },
+      modelProfiles: {
+        all: () => store.modelProfiles ?? {},
+        /** The switched-on profile for a model id, if any. */
+        for: (modelID: string | undefined) => profileFor(store.modelProfiles, modelID),
+        set(model: string, profile: Omit<ModelProfile, "updatedAt">) {
+          setStore("modelProfiles", (current) => ({ ...current, [model]: { ...profile, updatedAt: Date.now() } }))
+        },
+        remove(model: string) {
+          setStore("modelProfiles", (current) =>
+            Object.fromEntries(Object.entries(current ?? {}).filter(([key]) => key !== model)),
+          )
         },
       },
       harnesses: {
