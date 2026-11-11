@@ -14,6 +14,8 @@ import {
   createResource,
   createSignal,
 } from "solid-js"
+import { createStore } from "solid-js/store"
+import { TextInputV2 } from "@tenon/ui/v2/text-input-v2"
 import { PageEmpty } from "@/components/page"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
@@ -24,7 +26,14 @@ import { useServerSync } from "@/context/server-sync"
 import { listSkillCatalog, setSkillEnabled } from "@/utils/server"
 import { showToast } from "@/utils/toast"
 import { SettingsListV2 } from "./parts/list"
-import { type CatalogSkill, type SkillSection, isBuiltInSkill, skillSections } from "./skills-sections"
+import {
+  type CatalogSkill,
+  type SkillSection,
+  alsoIn,
+  filterSections,
+  isBuiltInSkill,
+  skillSections,
+} from "./skills-sections"
 import "./settings-v2.css"
 
 /** Settings → Skills: Tenon's skills, which can be switched off, then each harness's skills, read-only. */
@@ -49,6 +58,10 @@ export const SettingsSkillsV2: Component<{ directory: Accessor<string | undefine
   const [busy, setBusy] = createSignal<ReadonlySet<string>>(new Set())
   // Saved switches apply on top of the loaded catalog, so rows (and keyboard focus) stay in place.
   const [saved, setSaved] = createSignal<Readonly<Record<string, boolean>>>({})
+  const [filter, setFilter] = createStore({ query: "", section: "all" })
+  const shown = createMemo(() => filterSections(catalog.latest ?? [], filter.query, filter.section))
+  const others = createMemo(() => alsoIn(catalog.latest ?? []))
+  const total = createMemo(() => (catalog.latest ?? []).reduce((sum, section) => sum + section.skills.length, 0))
   const reload = () => {
     setSaved({})
     void refetch()
@@ -109,9 +122,51 @@ export const SettingsSkillsV2: Component<{ directory: Accessor<string | undefine
           </Match>
           <Match when={catalog.latest}>
             {(sections) => (
-              <For each={sections()}>
-                {(section) => <SkillSectionView section={section} busy={busy()} saved={saved()} onToggle={toggle} />}
-              </For>
+              <div class="flex flex-col gap-6">
+                <div class="flex flex-col gap-3">
+                  <TextInputV2
+                    type="search"
+                    value={filter.query}
+                    placeholder={language.t("secondBrain.skills.search", { count: total() })}
+                    aria-label={language.t("secondBrain.skills.searchLabel")}
+                    onInput={(event) => setFilter("query", event.currentTarget.value)}
+                  />
+                  <div class="flex flex-wrap gap-1.5" role="group" aria-label={language.t("secondBrain.skills.filter")}>
+                    <FilterChip
+                      label={language.t("secondBrain.skills.all")}
+                      count={total()}
+                      selected={filter.section === "all"}
+                      onClick={() => setFilter("section", "all")}
+                    />
+                    <For each={sections()}>
+                      {(section) => (
+                        <FilterChip
+                          label={section.title}
+                          count={section.skills.length}
+                          selected={filter.section === section.id}
+                          onClick={() => setFilter("section", section.id)}
+                        />
+                      )}
+                    </For>
+                  </div>
+                </div>
+                <Show
+                  when={shown().length > 0}
+                  fallback={<div class="settings-v2-provider-empty">{language.t("secondBrain.skills.noMatch")}</div>}
+                >
+                  <For each={shown()}>
+                    {(section) => (
+                      <SkillSectionView
+                        section={section}
+                        busy={busy()}
+                        saved={saved()}
+                        onToggle={toggle}
+                        alsoIn={(name) => others()(section.title, name)}
+                      />
+                    )}
+                  </For>
+                </Show>
+              </div>
             )}
           </Match>
         </Switch>
@@ -125,6 +180,7 @@ const SkillSectionView: Component<{
   busy: ReadonlySet<string>
   saved: Readonly<Record<string, boolean>>
   onToggle: (name: string, enabled: boolean) => void
+  alsoIn: (name: string) => string[]
 }> = (props) => {
   const language = useLanguage()
   const empty = () => {
@@ -157,6 +213,7 @@ const SkillSectionView: Component<{
                 skill={skill}
                 enabled={props.section.editable ? (props.saved[skill.name] ?? skill.enabled) : undefined}
                 openable={props.section.editable}
+                alsoIn={props.alsoIn(skill.name)}
                 busy={props.busy.has(skill.name)}
                 onToggle={(enabled) => props.onToggle(skill.name, enabled)}
               />
@@ -173,6 +230,8 @@ const SkillRow: Component<{
   /** Tenon skills only. */
   enabled: boolean | undefined
   openable: boolean
+  /** Other sections that list the same skill. */
+  alsoIn: string[]
   busy: boolean
   onToggle: (enabled: boolean) => void
 }> = (props) => {
@@ -228,6 +287,11 @@ const SkillRow: Component<{
           )}
         </Show>
       </div>
+      <Show when={props.alsoIn.length > 0}>
+        <span class="shrink-0 rounded-full bg-v2-background-bg-layer-02 px-2 text-[11px] leading-5 text-v2-text-text-muted">
+          {language.t("secondBrain.skills.alsoIn", { names: props.alsoIn.join(", ") })}
+        </span>
+      </Show>
       <Show when={isBuiltInSkill(props.skill, props.openable)}>
         <span class="shrink-0 type-meta text-v2-text-text-muted">{language.t("secondBrain.skills.builtIn")}</span>
       </Show>
@@ -262,6 +326,24 @@ const SkillRow: Component<{
         </ToggleSwitch>
       </Show>
     </div>
+  )
+}
+
+function FilterChip(props: { label: string; count: number; selected: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={props.selected}
+      class="flex h-8 items-center gap-1.5 rounded-full px-3 text-[12px] transition-colors duration-short ease-standard motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-v2-border-border-focus"
+      classList={{
+        "bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container [font-weight:530]": props.selected,
+        "bg-v2-background-bg-layer-01 text-v2-text-text-muted hover:bg-v2-background-bg-layer-02": !props.selected,
+      }}
+      onClick={props.onClick}
+    >
+      <span>{props.label}</span>
+      <span class="tabular-nums">{props.count}</span>
+    </button>
   )
 }
 

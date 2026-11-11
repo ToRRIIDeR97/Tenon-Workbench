@@ -53,3 +53,26 @@ function sorted(skills: ReadonlyArray<CatalogSkill>) {
 export function isBuiltInSkill(skill: CatalogSkill, tenonSection: boolean) {
   return tenonSection && !skill.location
 }
+
+/**
+ * The sections to show for a search and a chosen section ("all" for every one): skills whose name or
+ * description holds every word of the query. Sections left empty by a search are dropped; an unfiltered empty
+ * section stays, so its empty state still explains itself.
+ */
+export function filterSections(sections: ReadonlyArray<SkillSection>, query: string, section: string) {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean)
+  const matches = (skill: CatalogSkill) =>
+    words.every((word) => `${skill.name} ${skill.description ?? ""}`.toLowerCase().includes(word))
+  return sections
+    .filter((item) => section === "all" || item.id === section)
+    .map((item) => ({ ...item, skills: item.skills.filter(matches) }))
+    .filter((item) => words.length === 0 || item.skills.length > 0)
+}
+
+/** For each skill name, the other sections that also have it, for an "also in" tag. */
+export function alsoIn(sections: ReadonlyArray<SkillSection>) {
+  const owners = new Map<string, string[]>()
+  for (const section of sections)
+    for (const skill of section.skills) owners.set(skill.name, [...(owners.get(skill.name) ?? []), section.title])
+  return (sectionTitle: string, name: string) => (owners.get(name) ?? []).filter((title) => title !== sectionTitle)
+}
