@@ -1,6 +1,7 @@
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { LoaderV2 } from "@tenon/ui/v2/loader-v2"
+import { Markdown } from "@tenon/session-ui/markdown"
 import { For, Match, Show, Switch, createEffect, createMemo, on, onCleanup, onMount } from "solid-js"
 import { createStore } from "solid-js/store"
 import { ComposerBox } from "@/components/prompt-input/composer-box"
@@ -156,7 +157,7 @@ export function DesktopWidget() {
         data-component="desktop-widget"
         data-mode={state.mode}
         aria-label={language.t("secondBrain.widget.title")}
-        class="flex w-full flex-col overflow-hidden rounded-[22px] bg-v2-background-bg-floating text-v2-text-text-base shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]"
+        class="flex w-full flex-col overflow-hidden rounded-[22px] bg-v2-background-bg-floating text-v2-text-text-base shadow-[inset_0_0_0_1px_var(--v2-border-border-muted),0_4px_12px_rgba(0,0,0,0.28)]"
         onPointerEnter={() => setState("engaged", true)}
         onPointerLeave={() => setState("engaged", false)}
         onFocusIn={() => setState("engaged", true)}
@@ -443,14 +444,24 @@ function CommandFace(props: { open: (path: string) => void; onTyping: (typing: b
           </div>
         )}
       </Show>
-      <p
-        class="m-0 line-clamp-6 px-1 text-[13px] leading-[20px]"
-        classList={{ "text-v2-text-text-muted": !centre.lastReply() }}
+      {/* The reply as the thread shows it (Markdown), scrolling inside the card when it's long. */}
+      <Show
+        when={!centre.error() && centre.lastReply()}
+        fallback={
+          <p class="m-0 px-1 text-[13px] leading-[20px] text-v2-text-text-muted">
+            {centre.error() ? language.t("common.requestFailed") : language.t("secondBrain.commandCentre.strip.empty")}
+          </p>
+        }
       >
-        {centre.error()
-          ? language.t("common.requestFailed")
-          : centre.lastReply() || language.t("secondBrain.commandCentre.strip.empty")}
-      </p>
+        {(reply) => (
+          <div
+            data-slot="widget-reply"
+            class="max-h-56 overflow-y-auto px-1 text-[13px] leading-[20px] [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1"
+          >
+            <Markdown text={reply()} class="text-[13px]" />
+          </div>
+        )}
+      </Show>
       <Show when={centre.waiting()}>
         <div class="flex min-w-0 items-center gap-2 rounded-[12px] bg-v2-background-bg-accent-container px-2.5 py-1.5 text-[12.5px] text-v2-text-text-on-accent-container">
           <span class="min-w-0 flex-1 truncate">{language.t("secondBrain.commandCentre.strip.waiting")}</span>
