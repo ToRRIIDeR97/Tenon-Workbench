@@ -17,6 +17,8 @@ import type { SessionComposerRegionController } from "./session-composer-region-
 export function SessionComposerRegion(props: {
   controller: SessionComposerRegionController
   promptInput: JSX.Element
+  /** The thread runs on Codex or an ACP agent, which can't read a deny reason from the approval reply. */
+  external?: boolean
 }) {
   const language = useLanguage()
   const controller = props.controller
@@ -92,7 +94,7 @@ export function SessionComposerRegion(props: {
                 responding={controller.state.permissionResponding()}
                 onDecide={(response, message) => {
                   controller.onResponseSubmit()
-                  controller.state.decide(response, message)
+                  controller.state.decide(response, message, props.external)
                 }}
                 // Full auto answers this request and every later one in the thread, subagents included.
                 onAllowThread={() => {

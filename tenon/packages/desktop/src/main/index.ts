@@ -437,7 +437,7 @@ const main = Effect.gen(function* () {
   setDockIcon()
   const updater = setupAutoUpdater(stopSidecars)
   const googleCalendar = createGoogleCalendarService()
-  const mail = createMailService()
+  const mail = createMailService({ onGoogleGrant: googleCalendar.adoptGrant })
   const menuDeps = {
     trigger: (id: string) => {
       const win = getLastFocusedWindow()

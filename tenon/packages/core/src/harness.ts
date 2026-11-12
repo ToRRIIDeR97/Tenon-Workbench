@@ -53,6 +53,7 @@ import {
 import { HarnessAskUser } from "./harness/ask-user"
 import { HarnessCatalogCache } from "./harness/catalog-cache"
 import { HarnessDelegation } from "./harness/delegation"
+import { HarnessForwardedMcp } from "./harness/forwarded-mcp"
 import { HarnessRegistry } from "./harness/registry"
 import { HarnessSetup } from "./harness/setup"
 import { HarnessPids } from "./harness/pids"
@@ -494,6 +495,11 @@ const layer = Layer.effect(
           Effect.provideService(Location.Service, location),
         )
         const delegation = yield* HarnessDelegation.endpoint(input.sessionID, asker.ask)
+        // The servers from Settings › MCP servers, read per runtime so a change applies to the next thread.
+        const forwarded = HarnessForwardedMcp.codex(
+          HarnessForwardedMcp.servers(yield* config.entries()),
+          input.directory,
+        )
         const opened = yield* openCodex(
           process,
           settings,
@@ -503,6 +509,7 @@ const layer = Layer.effect(
               Effect.provideService(Location.Service, location),
             ),
           delegation,
+          forwarded,
         )
         const revision = input.revision ?? 0
         const continuation = yield* readContinuation(database.db, input.sessionID, instance.id, revision)
@@ -598,7 +605,11 @@ const layer = Layer.effect(
         settings,
         directory: input.directory,
         continuation: continuation?.nativeID,
-        mcpServers: delegation ? [HarnessDelegation.acpServer(delegation)] : [],
+        mcpServers: [
+          ...(delegation ? [HarnessDelegation.acpServer(delegation)] : []),
+          // The servers from Settings › MCP servers, so every agent sees what the built-in agent sees.
+          ...HarnessForwardedMcp.acp(HarnessForwardedMcp.servers(yield* config.entries())),
+        ],
         ask: askInDock(asker),
         onCommands: (reported) =>
           Effect.sync(() => {
@@ -1466,9 +1477,14 @@ function openCodex(
   directory: string,
   handleRequest?: (request: ServerRequest) => Effect.Effect<unknown, ProtocolError>,
   delegation?: HarnessDelegation.Endpoint,
+  forwarded?: { readonly args: ReadonlyArray<string>; readonly env: Readonly<Record<string, string>> },
 ) {
   return Effect.gen(function* () {
-    const args = [...(delegation ? HarnessDelegation.codexArgs(delegation) : []), "app-server"]
+    const args = [
+      ...(delegation ? HarnessDelegation.codexArgs(delegation) : []),
+      ...(forwarded?.args ?? []),
+      "app-server",
+    ]
     const command = codexCommand(settings.binaryPath)
     const handle = yield* process
       .spawn(
@@ -1476,6 +1492,7 @@ function openCodex(
           cwd: directory,
           env: harnessEnvironment({
             CODEX_HOME: settings.homePath ? expandHome(settings.homePath) : undefined,
+            ...forwarded?.env,
             ...settings.env,
             ...(delegation ? { [HarnessDelegation.TOKEN_ENV]: delegation.token } : {}),
           }),

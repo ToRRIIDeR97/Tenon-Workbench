@@ -104,7 +104,7 @@ export function SessionPermissionDock(props: {
           </div>
         }
       >
-        {/* Denying with a reason: the built-in agent reads it; other harnesses only see the refusal. */}
+        {/* Denying with a reason: the built-in agent reads it from the reply; other harnesses get it as a queued message. */}
         <form
           class="flex items-center gap-2"
           onSubmit={(event) => {

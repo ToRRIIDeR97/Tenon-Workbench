@@ -31,30 +31,45 @@ const claudeWindows = [
   { id: "seven_day", label: "Weekly" },
   { id: "seven_day_opus", label: "Weekly (Opus)" },
   { id: "seven_day_sonnet", label: "Weekly (Sonnet)" },
-  // Max and Ultra plans include Fable. The key follows `seven_day_opus`; confirm it against a live response.
-  { id: "seven_day_fable", label: "Weekly (Fable)" },
 ] as const
 
 /**
  * Reads Anthropic's OAuth usage response: `{ five_hour: { utilization, resets_at } | null, seven_day: ..., ... }`.
  * Only the known windows are reported, in a fixed order: the response also carries internal keys with the same
- * shape that aren't meant for people. Malformed input yields `[]`.
+ * shape that aren't meant for people. Per-model weekly limits that have no key of their own, such as Fable on Max
+ * and Ultra plans, come from `limits[]` entries of kind `weekly_scoped` (checked against a live Max response,
+ * 2026-11-12). Malformed input yields `[]`.
  */
 export function parseClaudeUsage(body: unknown): UsageWindow[] {
   if (!isRecord(body)) return []
-  return claudeWindows.flatMap((window) => {
+  const windows: UsageWindow[] = claudeWindows.flatMap((window) => {
     const value = body[window.id]
     if (!isRecord(value) || !finite(value.utilization)) return []
-    const resetsAt = typeof value.resets_at === "string" ? Date.parse(value.resets_at) : Number.NaN
-    return [
-      {
-        id: window.id,
-        label: window.label,
-        usedPercent: clamp(value.utilization),
-        ...(Number.isFinite(resetsAt) ? { resetsAt } : {}),
-      },
-    ]
+    return [{ id: window.id, label: window.label, usedPercent: clamp(value.utilization), ...resets(value.resets_at) }]
   })
+  const scoped = Array.isArray(body.limits) ? body.limits : []
+  for (const limit of scoped) {
+    if (!isRecord(limit) || limit.kind !== "weekly_scoped" || !finite(limit.percent)) continue
+    const model = isRecord(limit.scope) && isRecord(limit.scope.model) ? limit.scope.model.display_name : undefined
+    if (typeof model !== "string" || !model.trim()) continue
+    const label = `Weekly (${model.trim()})`
+    if (windows.some((window) => window.label === label)) continue
+    windows.push({
+      id: `weekly_${model
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_")}`,
+      label,
+      usedPercent: clamp(limit.percent),
+      ...resets(limit.resets_at),
+    })
+  }
+  return windows
+}
+
+function resets(value: unknown) {
+  const resetsAt = typeof value === "string" ? Date.parse(value) : Number.NaN
+  return Number.isFinite(resetsAt) ? { resetsAt } : {}
 }
 
 /**

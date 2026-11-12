@@ -76,8 +76,12 @@ export function createSessionComposerController(options?: { closeMs?: number | (
     return store.responding === perm.id
   })
 
-  /** `message` goes with a reject: the built-in agent reads it as the reason; other harnesses only see the refusal. */
-  const decide = (response: "once" | "always" | "reject", message?: string) => {
+  /**
+   * `message` goes with a reject: the built-in agent reads it as the reason. Codex and ACP agents only see the
+   * refusal (their approval protocols carry no reason), so with `forward` the reason follows as a queued message
+   * the agent reads when its turn ends.
+   */
+  const decide = (response: "once" | "always" | "reject", message?: string, forward?: boolean) => {
     const perm = permissionRequest()
     if (!perm) return
     if (store.responding === perm.id) return
@@ -89,6 +93,20 @@ export function createSessionComposerController(options?: { closeMs?: number | (
         requestID: perm.id,
         reply: response,
         ...(response === "reject" && message?.trim() ? { message: message.trim() } : {}),
+      })
+      .then(() => {
+        const reason = message?.trim()
+        if (response !== "reject" || !reason || !forward) return
+        const text = language.t("secondBrain.permission.reasonFollowup", { reason })
+        return sdk().api.session.prompt({
+          sessionID: perm.sessionID,
+          delivery: "queue",
+          harness: true,
+          text,
+          files: [],
+          agents: [],
+          legacyParts: [{ type: "text", text }],
+        })
       })
       .catch((err: unknown) => {
         const description = err instanceof Error ? err.message : String(err)

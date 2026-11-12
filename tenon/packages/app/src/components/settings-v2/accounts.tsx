@@ -177,7 +177,13 @@ export function SettingsAccountsV2() {
                 size="small"
                 variant="tonal"
                 disabled={state.busy !== "" || !available.latest?.gmail || !available.latest.secureStorage}
-                onClick={() => void run("gmail", () => platform.mail?.connect("gmail"))}
+                onClick={() =>
+                  void run("gmail", () => platform.mail?.connect("gmail")).then(async () => {
+                    // The Gmail sign-in also connects Calendar and Tasks when Google granted them.
+                    const status = await platform.googleCalendar?.status().catch(() => undefined)
+                    if (status) setCalendar(status)
+                  })
+                }
               >
                 {language.t("secondBrain.mail.settings.addGmail")}
               </ButtonV2>

@@ -2176,6 +2176,7 @@ export default function Page() {
           return (
             <SessionComposerRegion
               controller={controller}
+              external={!!sessionHarness.driver() && sessionHarness.driver() !== Harness.OpenCodeDriver}
               promptInput={
                 <PromptInputV2Composer
                   controller={promptController}

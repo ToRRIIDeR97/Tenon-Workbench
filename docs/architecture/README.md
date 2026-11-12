@@ -2321,8 +2321,10 @@ From the 11 Nov feedback list ([triage](../product/FEEDBACK-2026-11-11.md)):
   `permissionSummary` and the first three commands or paths ("Show N more" for
   the rest). Deny and Allow once are split buttons: Allow once offers Always
   allow this (`always`) and Allow everything in this thread (Full auto); Deny
-  offers Deny with a reason, sent as the reply's `message`. Outside-folder
-  requests keep the warning tone and offer no "always".
+  offers Deny with a reason, sent as the reply's `message`; in a Codex or ACP
+  thread the reason also follows as a queued message, since those approval
+  protocols carry none. Outside-folder requests keep the warning tone and offer
+  no "always".
 - **Subagents.** The context menu lists the latest turn's subagents with their
   own context (`latestSubagentContexts`). A running lane with no new step for five
   minutes says so (`laneQuiet`). With an external harness, a follow-up sent while
@@ -2337,10 +2339,15 @@ From the 11 Nov feedback list ([triage](../product/FEEDBACK-2026-11-11.md)):
   when the model changes. Settings › Model profiles adds, imports a `profile.md`,
   edits and switches them; "Build with an agent" only opens a draft.
 - **Settings.** Built-in harness (Providers and Models), MCP servers (the global
-  config's `mcp` entries: add a local command or remote URL, switch on or off),
+  config's `mcp` entries: add a local command or remote URL, switch on or off;
+  `core/src/harness/forwarded-mcp.ts` passes the enabled ones to Codex as `-c`
+  overrides and to ACP agents in `session/new`, so every harness sees them),
   Skills search and per-harness filters, a VS Code theme import
   (`ui/src/theme/vscode.ts`, stored under `tenon-custom-themes`), Tenon sounds,
-  and Google Calendar and Tasks switches per address on Accounts.
+  and Google Calendar and Tasks switches per address on Accounts. "Add Google
+  account" asks for Gmail, Calendar and Tasks in one consent; the mail service
+  hands the grant to the Calendar service (`adoptGrant`), which keeps a Calendar
+  account when Google granted those scopes (`grantedCalendarAccess`).
 - **Add harness.** The dialog runs discovery then one test prompt and shows a
   checklist (`harness-checklist.ts`); the verify result now carries the agent's
   `capabilities` (MCP over HTTP, images, `loadSession`).
