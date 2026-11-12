@@ -134,8 +134,11 @@ export function CommandStrip() {
           aria-label={language.t("secondBrain.commandCentre.strip.title")}
           class="flex flex-col gap-2 rounded-[24px] bg-v2-background-bg-floating p-3 shadow-[var(--v2-elevation-floating)]"
         >
-          <div class="flex h-7 min-w-0 items-center gap-1 pl-1">
-            <span data-slot="command-card-title" class="min-w-0 flex-1 truncate type-control text-v2-text-text-base">
+          <div class="flex h-7 min-w-0 items-center gap-0.5 pl-2">
+            <span
+              data-slot="command-card-title"
+              class="min-w-0 flex-1 truncate text-[13px] leading-5 [font-weight:600] text-v2-text-text-base"
+            >
               {language.t("secondBrain.commandCentre.strip.title")}
             </span>
             {/* Undo for the latest reply's last write; after it the button reports how that went. */}
@@ -157,7 +160,7 @@ export function CommandStrip() {
                 >
                   <ButtonV2
                     size="small"
-                    variant="ghost"
+                    variant="ghost-muted"
                     data-action="command-strip-undo"
                     disabled={write.undoState === "pending"}
                     onClick={() => void centre.undo(write.id)}
@@ -168,28 +171,39 @@ export function CommandStrip() {
               )}
             </Show>
             <Show when={shown()}>
-              <ButtonV2 size="small" variant="ghost" data-action="command-card-new" onClick={startNew}>
+              <ButtonV2 size="small" variant="ghost-muted" data-action="command-card-new" onClick={startNew}>
                 {language.t("secondBrain.commandCentre.strip.newThread")}
               </ButtonV2>
             </Show>
-            <ButtonV2 ref={full} size="small" variant="ghost" onClick={openFull}>
+            <ButtonV2 ref={full} size="small" variant="ghost-muted" onClick={openFull}>
               {language.t("secondBrain.commandCentre.strip.openFull")}
             </ButtonV2>
           </div>
           <Show when={shown()}>
-            <div class="flex min-w-0 flex-col gap-1.5 px-1">
+            <div class="flex min-w-0 flex-col gap-2.5 px-1">
               <Show when={centre.lastAsk()}>
                 {(ask) => (
-                  <p
+                  <div
                     data-slot="command-card-ask"
-                    class="max-w-[85%] self-end truncate rounded-[16px] bg-v2-background-bg-layer-02 px-3 py-1.5 text-[13px] leading-5 text-v2-text-text-base"
-                    title={ask()}
+                    class="flex min-w-0 flex-col gap-1 rounded-[16px] bg-v2-overlay-simple-overlay-hover px-3.5 py-2.5"
                   >
-                    {ask()}
-                  </p>
+                    <span class="text-[12px] leading-4 text-v2-text-text-muted">
+                      {language.t("secondBrain.commandCentre.strip.you")}
+                    </span>
+                    <p class="m-0 line-clamp-2 text-[13px] leading-5 text-v2-text-text-base" title={ask()}>
+                      {ask()}
+                    </p>
+                  </div>
                 )}
               </Show>
-              <p data-slot="command-card-reply" class="line-clamp-3 text-[13px] leading-5 text-v2-text-text-muted">
+              <p
+                data-slot="command-card-reply"
+                class="m-0 line-clamp-3 px-1 text-[13px] leading-[21px]"
+                classList={{
+                  "text-v2-text-text-base": !centre.error() && !!centre.lastReply(),
+                  "text-v2-text-text-muted": !!centre.error() || !centre.lastReply(),
+                }}
+              >
                 {centre.error()
                   ? language.t("common.requestFailed")
                   : centre.lastReply() || language.t("secondBrain.commandCentre.strip.empty")}
