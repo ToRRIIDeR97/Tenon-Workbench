@@ -99,6 +99,10 @@ Use `[font-weight:N]` when a weight must differ from the role.
   filled check for done (text dimmed), `LoaderV2` in accent for the step in
   progress (weight 500), and a dashed circle for steps to come. Collapsed, the
   title row shows the current step. Status is carried by the mark's shape.
+- **Reply to a passage** (`selection-reply.tsx`): the selection pill grows
+  into a floating card (radius 18px, floating elevation) with "Replying to",
+  the passage clamped to two lines on layer-01, the text box, the mic and
+  Send. Enter sends, Escape closes; a click outside closes it only while empty.
 - **Links in the composer** (`link-highlight.ts`): accent text, underlined,
   drawn with the CSS Highlight API so the editor's text is untouched. A plain
   click edits; Ctrl/⌘-click opens the link.

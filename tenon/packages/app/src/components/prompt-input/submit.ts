@@ -24,6 +24,7 @@ import { setCursorPosition } from "./editor-dom"
 import { formatServerError } from "@/utils/server-errors"
 import { ScopedKey } from "@/utils/server-scope"
 import { createPromptSubmissionState } from "./submission-state"
+import { replySubmission, type PromptReply } from "./reply-bridge"
 import { normalizeSessionInfo } from "@/utils/session"
 import { Event } from "@tenon/schema/event"
 import { blobDataUrl } from "@/utils/draft-store"
@@ -38,8 +39,12 @@ const pending = new Map<string, PendingPrompt>()
 
 export type PromptDelivery = "steer" | "queue"
 
-/** Per-submit overrides: `opposite` flips the delivery preference, `background` sends into a new thread without leaving the current view. */
-export type PromptSubmitOptions = { opposite?: boolean; background?: boolean }
+/**
+ * Per-submit overrides: `opposite` flips the delivery preference, `background` sends into a new thread without
+ * leaving the current view, and `reply` sends a reply to a quoted passage (from the thread's reply card) instead of
+ * the composer's contents, leaving the composer's draft, attachments and context chips as they are.
+ */
+export type PromptSubmitOptions = { opposite?: boolean; background?: boolean; reply?: PromptReply }
 
 /** Delivery for a message sent to a working agent; idle sessions take the server default. */
 /**
@@ -346,17 +351,19 @@ export function createPromptSubmit(input: PromptSubmitInput) {
     }
 
     const target = prompt.capture()
+    const reply = options.reply ? replySubmission(options.reply) : undefined
     const submission = createPromptSubmissionState({
       target,
-      prompt: target.current(),
-      context: target.context.items().slice(),
+      prompt: reply?.prompt ?? target.current(),
+      context: reply?.context ?? target.context.items().slice(),
     })
     const currentPrompt = submission.prompt
     const context = submission.context
     const text = currentPrompt.map((part) => ("content" in part ? part.content : "")).join("")
-    const images = input.imageAttachments().slice()
-    const mode = input.mode()
+    const images = reply ? [] : input.imageAttachments().slice()
+    const mode = reply ? "normal" : input.mode()
 
+    if (reply && !text.trim()) return
     if (text.trim().length === 0 && images.length === 0 && input.commentCount() === 0) {
       if (input.working() && !options.background) void abort()
       return
@@ -528,12 +535,23 @@ export function createPromptSubmit(input: PromptSubmitInput) {
     }
 
     const clearInput = () => {
+      // A reply was never in the composer, so the composer keeps its draft.
+      if (reply) return
       submission.clear()
       input.setMode("normal")
       input.setPopover(null)
     }
 
     const restoreInput = () => {
+      // A failed reply lands in the composer, with its quote, so it isn't lost; unless that would replace a draft.
+      if (reply) {
+        const empty = !submission
+          .target()
+          .current()
+          .some((part) => ("content" in part ? part.content.trim() : true))
+        if (empty) submission.target().set(currentPrompt, input.promptLength(currentPrompt))
+        return empty
+      }
       const restored = submission.restore()
       if (!restored) return false
       restored.target.set(restored.prompt, input.promptLength(restored.prompt))

@@ -17,7 +17,7 @@ import { KeybindV2 } from "@tenon/ui/v2/keybind-v2"
 import { MenuV2 } from "@tenon/ui/v2/menu-v2"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import type { ReferenceInfo } from "@opencode-ai/sdk/v2/client"
-import { createEffect, createMemo, createSignal, For, on, Show, type JSX } from "solid-js"
+import { createEffect, createMemo, createSignal, For, on, onCleanup, Show, type JSX } from "solid-js"
 import { ModelSelectorPopoverV2 } from "@/components/dialog-select-model"
 import { DialogSelectModelUnpaidV2 } from "@/components/dialog-select-model-unpaid-v2"
 import { PromptModelPill } from "@/components/prompt-input/model-pill"
@@ -28,6 +28,7 @@ import { normalizePromptHistoryEntry, promptLength, type PromptHistoryComment } 
 import { createPersistedPromptInputHistory } from "@/components/prompt-input/history-store"
 import { promptDesignPlaceholder, promptPlaceholder } from "@/components/prompt-input/placeholder"
 import { createPromptSubmit, followupPreference } from "@/components/prompt-input/submit"
+import { registerReplySender } from "@/components/prompt-input/reply-bridge"
 import { createPersistedPromptStash, type PromptStash } from "@/components/prompt-input/stash-store"
 import { selectionFromLines, type SelectedLineRange, useFile } from "@/context/file"
 import { useComments } from "@/context/comments"
@@ -602,6 +603,8 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
       stash: () => stash.save(),
     },
   })
+  // The reply card over the timeline sends a reply to a passage through this composer's send path.
+  onCleanup(registerReplySender((reply) => void submission.handleSubmit(new Event("submit"), { reply })))
   Object.defineProperty(controller, "model", { get: () => props.controls.model })
   // Stash keeps prompt text, mentions, and images; comment context stays attached to the composer.
   const stashStore = createPersistedPromptStash()

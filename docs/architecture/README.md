@@ -2069,15 +2069,22 @@ CLIs refresh tokens themselves.
 ### Quote replies
 
 Selecting text in an assistant reply shows a Reply pill over the selection
-(`app/src/pages/session/timeline/selection-reply.tsx`). Reply adds a `quote`
-context item (`QuoteContextItem` in `app/src/context/prompt-state.ts`) beside
-the file comments, so it persists with the draft and shows as a chip in the
-composer's attachment strip. On send, `buildRequestParts` turns it into a
+(`app/src/pages/session/timeline/selection-reply.tsx`). Reply grows the pill
+into a reply card under (or above) the passage: the passage, a text box with
+dictation (`ComposerBox`), and Send. The passage keeps a CSS highlight
+(`tenon-reply-passage`) while focus is in the card. Send goes through the thread
+composer's own send path: the composer registers a sender in
+`app/src/components/prompt-input/reply-bridge.ts`, and the card calls it with
+`{ text, quote }`. `handleSubmit` (`submit.ts`) then sends that text with one
+`quote` context item (`QuoteContextItem` in `app/src/context/prompt-state.ts`)
+instead of the composer's contents, so the composer's draft, attachments and
+chips stay as they are. On send, `buildRequestParts` turns the quote into a
 synthetic text part: the passage as a Markdown quote for the model, plus
 `tenonQuote` metadata (`session-ui/src/components/quote-note.ts`). The user
-message reads that metadata and shows the quote above the text. A quote, like a
-comment, comes back to the composer if sending fails. Passages over 2,000
-characters are cut.
+message reads that metadata and shows the quote above the text. A reply that
+fails to send lands in the composer, with its quote, when the composer is empty.
+With no thread composer mounted, Reply falls back to adding the passage to the
+composer as a quote chip. Passages over 2,000 characters are cut.
 
 ### Composer delivery, background send and stash
 
