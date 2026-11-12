@@ -47,39 +47,30 @@ export function ThreadEnvironmentButton(props: { harness?: ThreadHarness }) {
     top: 0,
     right: 0,
     width: WINDOW_WIDTH,
-    inset: 0,
     squeezed: false,
     forced: false,
     placed: false,
   })
   let button: HTMLButtonElement | undefined
   // The window follows its toggle: the thread's header moves and resizes when the side panel opens, closes or is
-  // dragged, so it is re-placed whenever the header's size changes (and on a window resize). While it is open the
-  // thread's text column moves over to make room for it (`--thread-environment-inset` on the timeline), so the window
-  // never covers the thread; when that would leave the thread narrower than THREAD_MIN_WIDTH, the window minimizes
-  // to its toggle instead, and comes back once there is room. The toggle still opens it meanwhile (over the thread).
+  // dragged, so it is re-placed whenever the header's size changes (and on a window resize). It floats over the
+  // thread, which never moves for it, flush with the header's right edge. When the room beside it would leave the
+  // thread narrower than THREAD_MIN_WIDTH, it minimizes to its toggle and comes back once there is room; the toggle
+  // still opens it meanwhile.
   const place = () => {
     if (!button) return
     const rect = button.getBoundingClientRect()
     const header = button.closest("[data-session-title]")?.getBoundingClientRect()
     const width = Math.min(WINDOW_WIDTH, window.innerWidth - 32)
     const right = Math.max(16, window.innerWidth - rect.right)
-    // Room the window takes from the thread: from its left edge to the thread's right edge, plus a gap.
-    const inset = header ? Math.max(0, header.right - (rect.right - width) + 12) : 0
-    const squeezed = !!header && header.right - header.left - inset < THREAD_MIN_WIDTH
-    setAnchor({ placed: true, top: rect.bottom + 6, right, width, inset })
+    // What the thread would have left beside the window: from its left edge to the window's, less a gap.
+    const room = header ? rect.right - width - 12 - header.left : Infinity
+    const squeezed = room < THREAD_MIN_WIDTH
+    setAnchor({ placed: true, top: rect.bottom + 6, right, width })
     // Crossing the threshold either way drops a manual open made while squeezed.
     if (squeezed !== anchor.squeezed) setAnchor({ squeezed, forced: false })
   }
   const shown = () => prefs.open && anchor.placed && (!anchor.squeezed || anchor.forced)
-  // The timeline reads the inset; a manual open while squeezed floats over the thread instead.
-  createEffect(() => {
-    const root = button?.closest("[data-session-title]")?.parentElement
-    if (!root) return
-    const inset = shown() && !anchor.squeezed ? anchor.inset : 0
-    root.style.setProperty("--thread-environment-inset", `${inset}px`)
-    onCleanup(() => root.style.removeProperty("--thread-environment-inset"))
-  })
   createEffect(() => {
     if (!prefs.open) return
     place()
