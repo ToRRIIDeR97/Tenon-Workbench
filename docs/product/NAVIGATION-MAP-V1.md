@@ -113,7 +113,7 @@ the Command Centre page.
 
 ### Desktop widget
 
-A small window on the desktop, outside the app window, toggled with Ctrl+Alt+Space (Cmd+Option+Space on macOS)
+A small window on the desktop, outside the app window, toggled with Ctrl+Alt+Space (Cmd+Option+Space on macOS), or Ctrl+Alt+W (Cmd+Option+W) when another app already uses that,
 or **Show or hide the desktop widget** in the command palette. It shows one face at a time: **Note** (Enter
 adds the text to the vault's Inbox), **Status** (threads that need you, running and just finished; Review
 opens one in Tenon) or **Command** (the Command Centre's latest exchange and a reply box). A status update or a
