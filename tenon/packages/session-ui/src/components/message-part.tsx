@@ -54,7 +54,7 @@ import { checksum } from "@tenon/core/util/encode"
 import { IconButton } from "@tenon/ui/icon-button"
 import { Icon as IconV2 } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
-import { readQuoteMetadata } from "./quote-note"
+import { readQuoteMetadata, splitQuoteNotes } from "./quote-note"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { PathTooltip, TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { LoaderV2 } from "@tenon/ui/v2/loader-v2"
@@ -1248,7 +1248,9 @@ export function UserMessageDisplay(props: {
     () => props.parts?.find((p) => p.type === "text" && !(p as TextPart).synthetic) as TextPart | undefined,
   )
 
-  const text = createMemo(() => textPart()?.text || "")
+  // External harnesses get the prompt as one text, so their messages hold quote notes inline; split them back out.
+  const typed = createMemo(() => splitQuoteNotes(textPart()?.text || ""))
+  const text = createMemo(() => typed().text)
 
   const files = createMemo(() => (props.parts?.filter((p) => p.type === "file") as FilePart[]) ?? [])
 
@@ -1256,11 +1258,12 @@ export function UserMessageDisplay(props: {
 
   const messageComments = createMemo(() => (newLayout() ? (props.comments ?? []) : []))
 
-  const quotes = createMemo(() =>
-    (props.parts ?? []).flatMap((part) =>
+  const quotes = createMemo(() => [
+    ...(props.parts ?? []).flatMap((part) =>
       part.type === "text" && (part as TextPart).synthetic ? (readQuoteMetadata(part.metadata) ?? []) : [],
     ),
-  )
+    ...typed().quotes,
+  ])
 
   const inlineFiles = createMemo(() => files().filter(inline))
 
@@ -1292,7 +1295,12 @@ export function UserMessageDisplay(props: {
   }
 
   const handleCopy = async () => {
-    const content = text()
+    // A message that is only replies copies the replies.
+    const content =
+      text() ||
+      quotes()
+        .flatMap((quote) => (quote.reply ? [quote.reply] : []))
+        .join("\n\n")
     if (!content) return
     if (await writeClipboard(content)) {
       setState("copied", true)
@@ -1371,20 +1379,8 @@ export function UserMessageDisplay(props: {
   return (
     <div data-component="user-message" data-timeline-part-id={textPart()?.id}>
       <Show when={!props.useV2Actions}>{renderAttachments()}</Show>
-      <Show when={quotes().length > 0}>
-        <div data-slot="user-message-quotes" class="flex flex-col items-end gap-1 pb-1.5">
-          <For each={quotes()}>
-            {(quote) => (
-              <div class="flex max-w-[min(100%,480px)] items-start gap-1.5 text-[12px] leading-[18px] text-v2-text-text-muted">
-                <IconV2 name="reply" class="mt-px shrink-0" />
-                <span class="line-clamp-2 min-w-0">{quote}</span>
-              </div>
-            )}
-          </For>
-        </div>
-      </Show>
       <Show
-        when={text()}
+        when={text() || quotes().length > 0}
         fallback={
           <Show when={messageComments().length > 0}>
             <UserMessageComments comments={messageComments()} bounded={false} />
@@ -1396,8 +1392,22 @@ export function UserMessageDisplay(props: {
             data-slot="user-message-text"
             dir="auto"
             data-comments={messageComments().length > 0 ? "true" : undefined}
+            data-replies={quotes().length > 0 ? "true" : undefined}
           >
-            <HighlightedText text={text()} references={inlineFiles()} agents={agents()} />
+            {/* Each passage the user answered sits in its own box with their reply to it; typed text follows. */}
+            <For each={quotes()}>
+              {(quote) => (
+                <div data-slot="user-message-reply">
+                  <span data-slot="user-message-reply-passage">{quote.text}</span>
+                  <Show when={quote.reply}>
+                    <span data-slot="user-message-reply-text">{quote.reply}</span>
+                  </Show>
+                </div>
+              )}
+            </For>
+            <Show when={text()}>
+              <HighlightedText text={text()} references={inlineFiles()} agents={agents()} />
+            </Show>
             <Show when={messageComments().length > 0}>
               <UserMessageComments comments={messageComments()} bounded />
             </Show>
@@ -1405,7 +1415,7 @@ export function UserMessageDisplay(props: {
         </div>
       </Show>
       <Show when={props.useV2Actions}>{renderAttachments()}</Show>
-      <Show when={text() || (props.useV2Actions && messageComments().length > 0)}>
+      <Show when={text() || quotes().length > 0 || (props.useV2Actions && messageComments().length > 0)}>
         <div data-slot="user-message-copy-wrapper">
           <Show when={metaHead() || metaTail()}>
             <span data-slot="user-message-meta-wrap">

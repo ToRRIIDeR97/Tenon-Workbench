@@ -69,6 +69,8 @@ export type PromptInputV2Quote = {
   type: "quote"
   key: string
   text: string
+  /** The user's reply to this passage, written in its reply card. */
+  comment?: string
   messageID?: string
 }
 

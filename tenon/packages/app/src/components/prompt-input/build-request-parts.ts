@@ -20,6 +20,7 @@ type ContextQuote = {
   key: string
   type: "quote"
   text: string
+  comment?: string
   messageID?: string
 }
 
@@ -193,9 +194,9 @@ export function buildRequestParts(input: BuildRequestPartsInput) {
         {
           id: Identifier.ascending("part"),
           type: "text",
-          text: formatQuoteNote(item.text),
+          text: formatQuoteNote(item.text, item.comment),
           synthetic: true,
-          metadata: createQuoteMetadata(item.text),
+          metadata: createQuoteMetadata(item.text, item.comment),
         } satisfies PromptRequestPart,
       ]
     const path = absolute(input.sessionDirectory, item.path)

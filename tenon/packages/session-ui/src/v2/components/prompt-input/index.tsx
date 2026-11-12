@@ -549,10 +549,25 @@ export function PromptInputV2Attachments(props: {
               <TooltipV2 value={quote.text} placement="top" contentClass="max-w-[360px] break-words" class="shrink-0">
                 <div
                   data-slot="prompt-quote"
-                  class="flex h-8 max-w-[360px] items-center gap-2 rounded-full bg-v2-background-bg-accent-container pl-3 pr-1 text-[13px] text-v2-text-text-on-accent-container animate-enter"
+                  data-reply={quote.comment ? "true" : undefined}
+                  class="flex max-w-[360px] items-center gap-2 pl-3 pr-1 text-[13px] animate-enter"
+                  classList={{
+                    "h-8 rounded-full bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container":
+                      !quote.comment,
+                    // A passage with the user's reply to it: two lines, the passage muted above the reply.
+                    "min-h-11 rounded-[14px] bg-v2-background-bg-layer-01 py-1.5 text-v2-text-text-base":
+                      !!quote.comment,
+                  }}
                 >
-                  <IconV2 name="reply" class="shrink-0" />
-                  <span class="min-w-0 truncate">{`“${quote.text}”`}</span>
+                  <IconV2 name="reply" class="shrink-0" classList={{ "text-v2-icon-icon-muted": !!quote.comment }} />
+                  <Show when={quote.comment} fallback={<span class="min-w-0 truncate">{`“${quote.text}”`}</span>}>
+                    {(reply) => (
+                      <span class="flex min-w-0 flex-col">
+                        <span class="truncate text-[11.5px] leading-4 text-v2-text-text-muted">{`“${quote.text}”`}</span>
+                        <span class="truncate leading-5">{reply()}</span>
+                      </span>
+                    )}
+                  </Show>
                   <button
                     type="button"
                     onClick={() => props.onQuoteRemove?.(quote)}

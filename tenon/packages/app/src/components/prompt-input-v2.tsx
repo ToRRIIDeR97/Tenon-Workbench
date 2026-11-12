@@ -604,7 +604,12 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
     },
   })
   // The reply card over the timeline sends a reply to a passage through this composer's send path.
-  onCleanup(registerReplySender((reply) => void submission.handleSubmit(new Event("submit"), { reply })))
+  onCleanup(
+    registerReplySender({
+      send: (reply) => void submission.handleSubmit(new Event("submit"), { reply }),
+      add: (reply) => prompt.context.add({ type: "quote", text: reply.quote, comment: reply.text.trim() || undefined }),
+    }),
+  )
   Object.defineProperty(controller, "model", { get: () => props.controls.model })
   // Stash keeps prompt text, mentions, and images; comment context stays attached to the composer.
   const stashStore = createPersistedPromptStash()

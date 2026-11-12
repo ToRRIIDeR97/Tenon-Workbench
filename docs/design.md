@@ -102,7 +102,12 @@ Use `[font-weight:N]` when a weight must differ from the role.
 - **Reply to a passage** (`selection-reply.tsx`): the selection pill grows
   into a floating card (radius 18px, floating elevation) with "Replying to",
   the passage clamped to two lines on layer-01, the text box, the mic and
-  Send. Enter sends, Escape closes; a click outside closes it only while empty.
+  Send. The placeholder names the keys: Enter adds the reply to the composer
+  as a two-line chip, Ctrl/⌘+Enter sends it now. The card grows out of the
+  pill, flies into the composer when added, and shrinks back on Escape; a
+  click outside closes it only while empty. A sent reply puts each passage and
+  its answer in an inset box (layer-02 on the layer-01 bubble; layer-03 on
+  layer-02 in light) inside the user's bubble.
 - **Links in the composer** (`link-highlight.ts`): accent text, underlined,
   drawn with the CSS Highlight API so the editor's text is untouched. A plain
   click edits; Ctrl/⌘-click opens the link.
