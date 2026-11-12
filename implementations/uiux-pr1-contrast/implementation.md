@@ -68,3 +68,19 @@ Decisions during implementation:
 Not verified live: attachment remove buttons and image button (needs an attachment), changed-files Show all
 (needs a finished turn with diffs; turns stall in the dev setup), connect-provider label gaps. These rest on
 the source-level acceptance tests. Copy buttons in the thread already show on `focus-within`; no change.
+
+## Independent review (Sonnet, high effort) and correction round 1
+
+The reviewer passed AC-1 to AC-7 live and found three should-fix defects; all three are fixed:
+
+| Finding | Fix | Test change after freeze (reason) |
+|---|---|---|
+| `dialog-connect-provider.tsx` text-prompt label lost `px-3` (`gap-2px-3` meant `gap-2 px-3`) | restored `px-3` | AC-7 now also asserts the label keeps `px-3`: the contract is "fix the typo", which includes the padding the typo carried |
+| Thread-group card actions and the thread row "…" still 20px with a clipped ring (missed consumers: same clipped strip/row) | `size="normal"` + inset ring on all three | AC-5 widened from the first card block to every card block and every sidebar action button: same contract, consumers the map missed |
+| `--v2-state-fg-warning` is also painted as a fill (harness error dot, MCP needs-auth dot, find highlight); now dark brown in light | new `--v2-state-fill-warning` (light yellow-800, dark yellow-500) in `mapping.ts`, `theme.css`, Tailwind colours; the four fill consumers use it | AC-8 added: no background uses the text token. The default mapping already had this issue for every theme, so the fix is a token, not an OC-2 override |
+
+Live after the round: light `fill-warning` `rgb(203,159,52)`, `fg-warning` `rgb(104,85,43)`; every sidebar card action 24px.
+
+Left open (reviewer nits): dark faint on layer-03 is 4.14:1 (was 4.51); `session-turn.tsx` (unused component) keeps
+a span toggle; Show all stays visible after a mouse click until blur; the repo `contrastRatio` uses a 0.587
+green weight.

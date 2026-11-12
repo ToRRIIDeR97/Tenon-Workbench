@@ -81,7 +81,7 @@ const unsafeCSS = `
 }
 
 ::highlight(tenon-find-current) {
-  background-color: rgb(from var(--v2-state-fg-warning) r g b / 0.55);
+  background-color: rgb(from var(--v2-state-fill-warning) r g b / 0.55);
 }
 
 [data-diff] [data-line][data-comment-selected]:not([data-selected-line]) {

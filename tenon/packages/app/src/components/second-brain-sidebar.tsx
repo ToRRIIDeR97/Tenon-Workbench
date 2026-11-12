@@ -948,7 +948,8 @@ function ThreadGroup(props: {
                 <IconButtonV2
                   type="button"
                   variant="ghost-muted"
-                  size="small"
+                  size="normal"
+                  class="focus-visible:!outline-offset-[-2px]"
                   icon={<Icon name="plus" size="small" />}
                   aria-label={language.t("secondBrain.sidebar.newThread")}
                   onClick={run()}
@@ -962,7 +963,8 @@ function ThreadGroup(props: {
                 <MenuV2.Trigger
                   as={IconButtonV2}
                   variant="ghost-muted"
-                  size="small"
+                  size="normal"
+                  class="focus-visible:!outline-offset-[-2px]"
                   icon={<Icon name="outline-dots" size="small" />}
                   aria-label={language.t("secondBrain.sidebar.workspaceThreadActions")}
                 />
@@ -1174,7 +1176,8 @@ function ThreadRow(props: {
               <MenuV2.Trigger
                 as={IconButtonV2}
                 variant="ghost-muted"
-                size="small"
+                size="normal"
+                class="focus-visible:!outline-offset-[-2px]"
                 icon={<Icon name="outline-dots" size="small" />}
                 aria-label={language.t("secondBrain.sidebar.threadActions")}
               />

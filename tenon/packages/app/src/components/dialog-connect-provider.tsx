@@ -529,7 +529,7 @@ function ProviderConnection(props: {
       <form onSubmit={handleSubmit} class="flex flex-col items-start gap-4">
         <Switch>
           <Match when={item()?.prompt.type === "text"}>
-            <label class="flex w-full flex-col gap-2 text-[13px] font-medium leading-5 text-v2-text-text-base">
+            <label class="flex w-full flex-col gap-2 px-3 text-[13px] font-medium leading-5 text-v2-text-text-base">
               {text()?.message ?? ""}
               <TextInputV2
                 appearance="large"

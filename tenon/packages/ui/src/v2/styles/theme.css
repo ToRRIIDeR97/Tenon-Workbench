@@ -76,6 +76,7 @@
     --v2-state-bg-warning: var(--v2-yellow-100);
     --v2-state-fg-warning: var(--v2-yellow-1100);
     --v2-state-border-warning: var(--v2-yellow-300);
+    --v2-state-fill-warning: var(--v2-yellow-800);
     --v2-state-bg-danger: var(--v2-red-100);
     --v2-state-fg-danger: var(--v2-red-800);
     --v2-state-border-danger: var(--v2-red-300);
@@ -232,6 +233,7 @@
       --v2-state-bg-warning: var(--v2-yellow-1200);
       --v2-state-fg-warning: var(--v2-yellow-500);
       --v2-state-border-warning: var(--v2-yellow-900);
+      --v2-state-fill-warning: var(--v2-yellow-500);
       --v2-state-bg-danger: var(--v2-red-1200);
       --v2-state-fg-danger: var(--v2-red-500);
       --v2-state-border-danger: var(--v2-red-900);
@@ -343,6 +345,7 @@
     --v2-state-bg-warning: var(--v2-yellow-100);
     --v2-state-fg-warning: var(--v2-yellow-1100);
     --v2-state-border-warning: var(--v2-yellow-300);
+    --v2-state-fill-warning: var(--v2-yellow-800);
     --v2-state-bg-danger: var(--v2-red-100);
     --v2-state-fg-danger: var(--v2-red-800);
     --v2-state-border-danger: var(--v2-red-300);
@@ -466,6 +469,7 @@
     --v2-state-bg-warning: var(--v2-yellow-1200);
     --v2-state-fg-warning: var(--v2-yellow-500);
     --v2-state-border-warning: var(--v2-yellow-900);
+    --v2-state-fill-warning: var(--v2-yellow-500);
     --v2-state-bg-danger: var(--v2-red-1200);
     --v2-state-fg-danger: var(--v2-red-500);
     --v2-state-border-danger: var(--v2-red-900);

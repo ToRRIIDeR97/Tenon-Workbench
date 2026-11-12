@@ -35,14 +35,32 @@ describe("composer", () => {
 })
 
 describe("sidebar", () => {
-  // AC-5: project card actions are 24px and their focus ring is drawn inside the clipped area.
-  test("project card actions are 24px with an inset ring", () => {
+  // AC-5: card actions (project and thread-group cards) are 24px and their focus ring is drawn inside the
+  // clipped area. Widened after review: the thread-group card shares the clipped actions strip.
+  test("every card's actions are 24px with an inset ring", () => {
     const sidebar = read("app/src/components/second-brain-sidebar.tsx")
-    const header = sidebar.slice(sidebar.indexOf("<div class={headerActionsClass}>"))
-    const block = header.slice(0, header.indexOf("<MenuV2.Portal>"))
-    expect(block).not.toContain('size="small"\n              icon')
-    expect(block.match(/size="normal"/g)?.length).toBe(2)
-    expect(block.match(/focus-visible:!outline-offset-\[-2px\]/g)?.length).toBe(2)
+    const blocks = sidebar.split("<div class={headerActionsClass}>").slice(1)
+    expect(blocks.length).toBe(2)
+    for (const header of blocks) {
+      const block = header.slice(0, header.indexOf("<MenuV2.Portal>"))
+      expect(block).not.toMatch(/size="small"\s+(class|icon)=/)
+      expect(block.match(/size="normal"/g)?.length).toBe(2)
+      expect(block.match(/focus-visible:!outline-offset-\[-2px\]/g)?.length).toBe(2)
+    }
+  })
+
+  // Widened after review: a thread row's "…" sits in the clipped row too (rowClass is overflow-hidden).
+  test("no sidebar action button is 20px", () => {
+    const sidebar = read("app/src/components/second-brain-sidebar.tsx")
+    const iconButtons = sidebar
+      .split(/as=\{IconButtonV2\}|<IconButtonV2/)
+      .slice(1)
+      .map((part) => part.slice(0, 400))
+    expect(iconButtons.length).toBeGreaterThanOrEqual(5)
+    for (const part of iconButtons.filter((item) =>
+      /secondBrain\.sidebar\.(newThread|projectActions|threadActions)/.test(item),
+    ))
+      expect(part).toMatch(/size="normal"\s+class="focus-visible:!outline-offset-\[-2px\]"/)
   })
 })
 
@@ -64,5 +82,27 @@ describe("connect provider dialog", () => {
   test("labels use valid gap classes", () => {
     const dialog = read("app/src/components/dialog-connect-provider.tsx")
     expect(dialog).not.toMatch(/gap-2px-3|gap-2font-medium/)
+    // Widened after review: "gap-2px-3" was "gap-2 px-3"; the text-prompt label keeps its 12px side padding.
+    expect(dialog).toContain('<label class="flex w-full flex-col gap-2 px-3 text-[13px]')
+  })
+})
+
+describe("warning fills", () => {
+  // AC-8 (added after review): marks and highlights painted with the warning colour use the fill token, since
+  // the text token is now dark brown in light mode.
+  test("no background uses the warning text token", () => {
+    const files = [
+      "app/src/components/settings-v2/settings-v2.css",
+      "app/src/components/surface-classes.ts",
+      "session-ui/src/pierre/file-find.ts",
+      "session-ui/src/pierre/index.ts",
+    ]
+    for (const file of files) {
+      const source = read(file)
+      expect(source).not.toMatch(
+        /bg-v2-state-fg-warning|background(-color)?:\s*var\(--v2-state-fg-warning\)|backgroundColor = active \? "var\(--v2-state-fg-warning\)"|rgb\(from var\(--v2-state-fg-warning\)/,
+      )
+    }
+    expect(read("ui/src/theme/v2/mapping.ts").match(/"v2-state-fill-warning"/g)?.length).toBe(2)
   })
 })
