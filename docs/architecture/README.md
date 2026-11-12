@@ -198,8 +198,10 @@ frames moved the anchor and the rows below it on every frame (breaking the
 and grid-row wrappers on every row made each layout pass of a streaming turn
 markedly more expensive. Inside a row only transform, opacity and colour
 animate (chevrons, hover colours, the count and status labels). Outside the
-timeline, the question and permission docks grow in as the composer folds away,
-and the queued and rolled-back docks keep removed rows closing in place with
+timeline, a question or permission takes the composer's place as a swap: only one
+shows at a time, the incoming one fades and rises in (`animate-enter`) and the dock
+area's height eases once from the old content's height to the new
+(`session-composer-region.tsx`), so the region never grows past either; the queued and rolled-back docks keep removed rows closing in place with
 `createExitList` (`pages/session/composer/exit-list.ts`).
 
 The sidebar's controller (`components/sidebar/sidebar-controller.ts`, provided by
