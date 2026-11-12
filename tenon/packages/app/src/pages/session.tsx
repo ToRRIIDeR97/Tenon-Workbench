@@ -2187,7 +2187,11 @@ export default function Page() {
                   trailing={
                     <>
                       <SessionTasksButton groups={threadSubagentGroups} />
-                      <ComposerContextRing context={composerContext} harness={sessionHarness} />
+                      <ComposerContextRing
+                        context={composerContext}
+                        harness={sessionHarness}
+                        subagents={threadSubagentGroups}
+                      />
                     </>
                   }
                 />
