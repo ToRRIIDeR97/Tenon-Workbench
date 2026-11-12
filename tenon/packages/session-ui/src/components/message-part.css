@@ -821,6 +821,11 @@
   gap: 0;
   min-height: 0;
   max-height: var(--question-prompt-max-height, 100dvh);
+  /* The approval card's shell, so the two docks that take the composer's place read as siblings. */
+  border-radius: var(--v2-radius-xl);
+  background-color: var(--v2-background-bg-base);
+  box-shadow: inset 0 0 0 1px var(--v2-border-border-muted);
+  padding: 8px 12px 6px;
 
   [data-slot="question-body"] {
     display: flex;
@@ -1114,8 +1119,8 @@
     align-items: center;
     justify-content: space-between;
     flex-shrink: 0;
-    padding: 32px 8px 8px;
-    margin-top: -24px;
+    padding: 12px 8px 4px;
+    margin-top: 0;
   }
 
   [data-slot="question-footer-actions"] {
@@ -1123,6 +1128,14 @@
     align-items: center;
     gap: 8px;
   }
+}
+
+/* One surface: the shell and the footer tray inside the question card draw nothing of their own. */
+[data-component="dock-prompt"][data-kind="question"] > [data-dock-surface] {
+  background-color: transparent;
+  box-shadow: none;
+  border: 0;
+  border-radius: 0;
 }
 
 [data-component="question-minimized-dock"] {

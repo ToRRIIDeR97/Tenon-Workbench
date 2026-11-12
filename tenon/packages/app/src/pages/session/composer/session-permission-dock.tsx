@@ -118,7 +118,7 @@ export function SessionPermissionDock(props: {
             value={state().reason}
             placeholder={language.t("secondBrain.permission.reason")}
             aria-label={language.t("secondBrain.permission.reason")}
-            class="h-9 min-w-0 flex-1 rounded-[12px] bg-v2-background-bg-layer-01 px-3 text-[13px] text-v2-text-text-base outline-none placeholder:text-v2-text-text-muted focus-visible:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)]"
+            class="h-7 min-w-0 flex-1 rounded-full bg-v2-background-bg-layer-01 px-3.5 text-[13px] text-v2-text-text-base outline-none placeholder:text-v2-text-text-muted focus-visible:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)]"
             onInput={(event) => {
               const reason = event.currentTarget.value
               setState((value) => ({ ...value, reason }))
@@ -141,7 +141,11 @@ export function SessionPermissionDock(props: {
   )
 }
 
-/** A pill button with a joined chevron half that opens a menu; just the pill when there is nothing to offer. */
+/**
+ * One pill: the main action and a chevron half that opens a menu, clipped by one rounded wrapper with a hairline
+ * between them. Each half draws its focus ring inside, since the wrapper clips. Just the pill when there is nothing
+ * to offer.
+ */
 function SplitButton(props: {
   label: string
   variant: "outline" | "contrast"
@@ -150,17 +154,22 @@ function SplitButton(props: {
   menuLabel: string
   items: { label: string; onSelect: () => void }[]
 }) {
+  const joined = () => props.items.length > 0
   return (
-    <div class="flex items-center gap-px">
+    <div
+      class="flex items-center rounded-full overflow-hidden"
+      classList={{ "shadow-[inset_0_0_0_1px_var(--v2-border-border-strong)]": props.variant === "outline" && joined() }}
+    >
       <ButtonV2
         variant={props.variant}
         disabled={props.disabled}
-        style={props.items.length > 0 ? { "border-radius": "9999px 4px 4px 9999px" } : undefined}
+        class="focus-visible:!outline-offset-[-2px]"
+        classList={{ "!rounded-none !shadow-none": joined() }}
         onClick={props.onClick}
       >
         {props.label}
       </ButtonV2>
-      <Show when={props.items.length > 0}>
+      <Show when={joined()}>
         <MenuV2 gutter={4} placement="top-end">
           <MenuV2.Trigger
             as="button"
@@ -170,7 +179,8 @@ function SplitButton(props: {
             data-variant={props.variant}
             disabled={props.disabled}
             aria-label={props.menuLabel}
-            style={{ "border-radius": "4px 9999px 9999px 4px", "padding-inline": "8px" }}
+            class="relative !rounded-none !shadow-none focus-visible:!outline-offset-[-2px] before:absolute before:inset-y-1.5 before:left-0 before:w-px before:bg-current before:opacity-25"
+            style={{ "padding-inline": "8px" }}
           >
             <Icon name="chevron-down" size="small" />
           </MenuV2.Trigger>
