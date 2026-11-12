@@ -24,12 +24,13 @@ function highlightPassage(range: Range | undefined) {
 }
 
 type Pill = { text: string; x: number; y: number; top: number; bottom: number; below: boolean; range: Range }
-type Card = { text: string; x: number; top: number; bottom: number }
+type Rect = { left: number; top: number; width: number; height: number }
+type Card = { text: string; x: number; top: number; bottom: number; from?: Rect }
 
 /**
  * A Reply pill over text selected in an assistant reply. Reply grows the pill into a card: the passage, a text box
  * with dictation, and Send, which posts a new message quoting the passage through the thread composer. Copy copies
- * the passage. The pill follows the selection and goes when it collapses, on scroll or on Escape; the card stays
+ * the passage. The card grows out of the pill and shrinks back into it when closed. The pill follows the selection and goes when it collapses, on scroll or on Escape; the card stays
  * until it is sent, closed, or Escape is pressed (or a click lands outside it while it is empty).
  * `onReply` is the fallback when no thread composer is mounted to send through: the passage becomes a quote there.
  */
@@ -38,6 +39,7 @@ export function SelectionReply(props: { root: () => HTMLElement | undefined; onR
   const [pill, setPill] = createSignal<Pill>()
   const [card, setCard] = createSignal<Card>()
   let frame = 0
+  let pillElement: HTMLDivElement | undefined
 
   const read = () => {
     if (card()) return
@@ -74,10 +76,8 @@ export function SelectionReply(props: { root: () => HTMLElement | undefined; onR
   }
   const escape = (event: KeyboardEvent) => {
     if (event.key !== "Escape") return
-    if (card()) {
-      event.preventDefault()
-      return close()
-    }
+    // The open card handles its own Escape, so it can shrink back into the pill first.
+    if (card()) return
     if (pill()) hide()
   }
 
@@ -107,7 +107,14 @@ export function SelectionReply(props: { root: () => HTMLElement | undefined; onR
   const open = (current: Pill) => {
     // The selection goes when focus moves into the card; the highlight keeps the passage marked meanwhile.
     highlightPassage(current.range)
-    setCard({ text: current.text, x: current.x, top: current.top, bottom: current.bottom })
+    const from = pillElement?.getBoundingClientRect()
+    setCard({
+      text: current.text,
+      x: current.x,
+      top: current.top,
+      bottom: current.bottom,
+      from: from && { left: from.left, top: from.top, width: from.width, height: from.height },
+    })
     done()
   }
 
@@ -117,6 +124,7 @@ export function SelectionReply(props: { root: () => HTMLElement | undefined; onR
         {(current) => (
           <Portal>
             <div
+              ref={pillElement}
               data-component="selection-reply"
               role="toolbar"
               aria-label={language.t("secondBrain.quote.toolbar")}
@@ -173,32 +181,49 @@ function ReplyCard(props: { card: Card; onClose: () => void; onFallback: (quote:
   const language = useLanguage()
   let element: HTMLDivElement | undefined
   let field: HTMLTextAreaElement | undefined
+  let leaving = false
   const controller = createComposerController({
     send: (text) => {
       if (!sendReply({ text, quote: props.card.text })) {
         props.onFallback(props.card.text)
         return false
       }
-      props.onClose()
+      dismiss("sent")
       return true
     },
   })
+  // Closing shrinks the card back into the pill's place; a sent reply fades out where it is.
+  const dismiss = (reason: "closed" | "sent") => {
+    if (leaving) return
+    leaving = true
+    const animation = element && !reducedMotion() ? leave(element, props.card.from, reason) : undefined
+    if (!animation) return props.onClose()
+    animation.finished.then(props.onClose, props.onClose)
+  }
   const place = () => placeReplyCard(props.card, { width: window.innerWidth, height: window.innerHeight })
   const [placement, setPlacement] = createSignal(place())
 
   onMount(() => {
+    if (element && !reducedMotion()) grow(element, props.card.from)
     requestAnimationFrame(() => field?.focus())
     const resize = () => setPlacement(place())
     // A click elsewhere closes an empty card; a card with a draft stays until it is sent or closed.
     const outside = (event: PointerEvent) => {
-      if (element?.contains(event.target as Node)) return
-      if (!controller.value().trim()) props.onClose()
+      if (event.target instanceof Node && element?.contains(event.target)) return
+      if (!controller.value().trim()) dismiss("closed")
+    }
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return
+      event.preventDefault()
+      dismiss("closed")
     }
     window.addEventListener("resize", resize)
     document.addEventListener("pointerdown", outside, true)
+    document.addEventListener("keydown", escape)
     onCleanup(() => {
       window.removeEventListener("resize", resize)
       document.removeEventListener("pointerdown", outside, true)
+      document.removeEventListener("keydown", escape)
     })
   })
 
@@ -209,13 +234,13 @@ function ReplyCard(props: { card: Card; onClose: () => void; onFallback: (quote:
         data-component="selection-reply-card"
         role="dialog"
         aria-label={language.t("secondBrain.quote.replyingTo")}
-        class="fixed z-50 animate-enter"
+        class="fixed z-50"
         style={{
           left: `${placement().left}px`,
           top: `${placement().top}px`,
           width: `${placement().width}px`,
-          transform: placement().below ? undefined : "translateY(-100%)",
-          "transform-origin": placement().below ? "top center" : "bottom center",
+          // `translate`, not `transform`: the grow and shrink animations drive `transform`.
+          translate: placement().below ? undefined : "0 -100%",
         }}
       >
         <ComposerBox
@@ -239,7 +264,7 @@ function ReplyCard(props: { card: Card; onClose: () => void; onFallback: (quote:
                   size="small"
                   aria-label={language.t("secondBrain.quote.close")}
                   icon={<IconV2 name="close" size="small" />}
-                  onClick={() => props.onClose()}
+                  onClick={() => dismiss("closed")}
                 />
               </div>
               <blockquote
@@ -257,4 +282,63 @@ function ReplyCard(props: { card: Card; onClose: () => void; onFallback: (quote:
       </div>
     </Portal>
   )
+}
+
+const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches
+/** Room around the card that the clip keeps once open, so its shadow isn't cut off. */
+const SHADOW_ROOM = 40
+
+/** The clip and offset that make the card look exactly like the pill: same box, same place, same corners. */
+function pillShape(card: DOMRect, pill: Rect) {
+  const x = pill.left + pill.width / 2 - (card.left + card.width / 2)
+  const y = pill.top + pill.height / 2 - (card.top + card.height / 2)
+  const insetX = Math.max(0, (card.width - pill.width) / 2)
+  const insetY = Math.max(0, (card.height - pill.height) / 2)
+  return {
+    transform: `translate(${x}px, ${y}px)`,
+    clipPath: `inset(${insetY}px ${insetX}px round 16px)`,
+  }
+}
+
+const OPEN_SHAPE = {
+  transform: "translate(0px, 0px)",
+  clipPath: `inset(-${SHADOW_ROOM}px round ${18 + SHADOW_ROOM}px)`,
+}
+
+function contents(element: HTMLElement) {
+  return [...(element.querySelector('[data-component="composer-box"]')?.children ?? [])]
+}
+
+/** The card's surface grows out of the pill while its contents fade in once there is room for them. */
+function grow(element: HTMLElement, from: Rect | undefined) {
+  if (!from) {
+    element.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: "ease-out" })
+    return
+  }
+  element.animate([pillShape(element.getBoundingClientRect(), from), OPEN_SHAPE], {
+    duration: 300,
+    easing: "cubic-bezier(0.05, 0.7, 0.1, 1)",
+  })
+  for (const child of contents(element))
+    child.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180, delay: 90, easing: "ease-out", fill: "backwards" })
+}
+
+/** Closing reverses the grow; a sent reply fades and settles slightly instead. */
+function leave(element: HTMLElement, from: Rect | undefined, reason: "closed" | "sent") {
+  const accelerate = "cubic-bezier(0.3, 0, 0.8, 0.15)"
+  if (reason === "sent" || !from)
+    return element.animate(
+      [
+        { opacity: 1, transform: "scale(1)" },
+        { opacity: 0, transform: "scale(0.98)" },
+      ],
+      { duration: 150, easing: accelerate, fill: "forwards" },
+    )
+  for (const child of contents(element))
+    child.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 90, fill: "forwards" })
+  return element.animate([OPEN_SHAPE, { ...pillShape(element.getBoundingClientRect(), from), opacity: 0 }], {
+    duration: 200,
+    easing: accelerate,
+    fill: "forwards",
+  })
 }
