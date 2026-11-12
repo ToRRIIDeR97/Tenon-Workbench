@@ -1,10 +1,12 @@
 import { Icon } from "@tenon/ui/v2/icon"
 import { PathTooltip } from "@tenon/ui/v2/tooltip-v2"
-import { Popover } from "@tenon/ui/popover"
+import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
+import { Presence } from "@tenon/ui/v2/presence"
 import { useDialog } from "@tenon/ui/context/dialog"
 import { Harness } from "@tenon/schema/harness"
 import type { Part } from "@opencode-ai/sdk/v2/client"
-import { For, Show, createMemo, type JSX } from "solid-js"
+import { For, Show, createEffect, createMemo, onCleanup, type JSX } from "solid-js"
+import { Portal } from "solid-js/web"
 import { createStore } from "solid-js/store"
 import { createComposerContext } from "@/components/prompt-input/context-strip"
 import { changeTotals, connectorRows, runningSubagents, shortFolder } from "@/components/prompt-input/environment-model"
@@ -19,6 +21,7 @@ import { useServerSync } from "@/context/server-sync"
 import { useSync } from "@/context/sync"
 import { useTerminal } from "@/context/terminal"
 import { useSessionLayout } from "@/pages/session/session-layout"
+import { Persist, persisted } from "@/utils/persist"
 
 type ThreadHarness = {
   current: () => Harness.InstanceID
@@ -26,35 +29,91 @@ type ThreadHarness = {
 }
 
 /**
- * The thread's environment, opened from a button in the thread's header beside the "…" menu: where it runs
- * (harness and model, folder, branch, approval mode), its context use and what fills it, its MCP servers, its file
- * changes and what is running. It opens and closes with the app's popover motion (scale and fade from its button).
+ * The thread's environment: a toggle in the thread's header, beside the "…" menu, opens it as a floating window
+ * below the header at the thread's top right. The window stays open while you read and work in the thread (an
+ * outside click doesn't close it); the toggle, its close button or Esc inside it close it, and the choice is
+ * remembered (`thread.environment`). It opens and closes with the menu motion (scale and fade from the top right).
+ * Shows where the thread runs (harness and model, folder, branch, approval mode), its context use and what fills it,
+ * its MCP servers, its file changes and what is running.
  */
 export function ThreadEnvironmentButton(props: { harness?: ThreadHarness }) {
   const language = useLanguage()
-  const [state, setState] = createStore({ open: false })
+  const [prefs, setPrefs] = persisted(Persist.global("thread.environment"), createStore({ open: false }))
+  const [anchor, setAnchor] = createStore({ top: 0, right: 0 })
+  let button: HTMLButtonElement | undefined
+  const place = () => {
+    if (!button) return
+    const rect = button.getBoundingClientRect()
+    setAnchor({ top: rect.bottom + 6, right: Math.max(16, window.innerWidth - rect.right) })
+  }
+  createEffect(() => {
+    if (!prefs.open) return
+    place()
+    window.addEventListener("resize", place)
+    onCleanup(() => window.removeEventListener("resize", place))
+  })
+  const close = () => {
+    setPrefs("open", false)
+    button?.focus()
+  }
   return (
-    <Popover
-      open={state.open}
-      onOpenChange={(open) => setState("open", open)}
-      placement="bottom-end"
-      gutter={6}
-      class="w-[min(340px,calc(100vw-32px))] [&_[data-slot=popover-body]]:p-1.5"
-      triggerAs="button"
-      triggerProps={{
-        type: "button",
-        class:
-          "hidden md:flex h-7 items-center gap-1 rounded-full px-2.5 type-control text-v2-text-text-muted outline-none transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base aria-expanded:bg-v2-overlay-simple-overlay-pressed aria-expanded:text-v2-text-text-base focus-visible:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)] motion-reduce:transition-none",
-      }}
-      trigger={
-        <>
-          {language.t("secondBrain.environment.title")}
-          <Icon name="chevron-down" size="small" class="shrink-0" />
-        </>
-      }
-    >
-      <EnvironmentSections harness={props.harness} />
-    </Popover>
+    <>
+      <button
+        ref={button}
+        type="button"
+        aria-expanded={prefs.open}
+        aria-controls="thread-environment"
+        class="hidden md:flex h-7 items-center gap-1 rounded-full px-2.5 type-control text-v2-text-text-muted outline-none transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base aria-expanded:bg-v2-overlay-simple-overlay-pressed aria-expanded:text-v2-text-text-base focus-visible:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)] motion-reduce:transition-none"
+        onClick={() => setPrefs("open", !prefs.open)}
+      >
+        {language.t("secondBrain.environment.title")}
+        <Icon
+          name="chevron-down"
+          size="small"
+          class="shrink-0 transition-transform duration-short ease-standard motion-reduce:transition-none"
+          classList={{ "rotate-180": prefs.open }}
+        />
+      </button>
+      <Portal>
+        {/* The anchor is positioned and the animated wrapper inside it is not: an animated transform makes its box
+            the containing block of any fixed child. */}
+        <div class="fixed z-40 hidden md:block" style={{ top: `${anchor.top}px`, right: `${anchor.right}px` }}>
+          <Presence
+            when={prefs.open}
+            enterClass="animate-menu-enter"
+            exitClass="animate-menu-exit"
+            class="origin-top-right"
+          >
+            <aside
+              id="thread-environment"
+              aria-label={language.t("secondBrain.environment.title")}
+              class="flex w-[min(340px,calc(100vw-32px))] flex-col overflow-hidden rounded-[20px] bg-v2-background-bg-floating shadow-[var(--v2-elevation-floating)]"
+              onKeyDown={(event) => {
+                if (event.key !== "Escape") return
+                event.stopPropagation()
+                close()
+              }}
+            >
+              <div class="flex h-10 shrink-0 items-center gap-2 pl-4 pr-1.5">
+                <span class="flex-1 type-control text-v2-text-text-base">
+                  {language.t("secondBrain.environment.title")}
+                </span>
+                <IconButtonV2
+                  icon={<Icon name="xmark-small" size="small" />}
+                  size="small"
+                  variant="ghost"
+                  aria-label={language.t("common.close")}
+                  onClick={close}
+                />
+              </div>
+              <div class="px-1.5 pb-1.5">
+                <EnvironmentSections harness={props.harness} />
+              </div>
+            </aside>
+          </Presence>
+        </div>
+      </Portal>
+    </>
   )
 }
 
@@ -62,13 +121,12 @@ function EnvironmentSections(props: { harness?: ThreadHarness }) {
   const context = createComposerContext()
   const subagents = useThreadSubagents(() => true)
   return (
-    // The scrolling body takes focus when the popover opens (it is the first tab stop), so the keyboard can scroll
-    // it and no link inside shows a focus ring on a mouse open.
+    // The scrolling body is a tab stop, so the keyboard can scroll it.
     <div
       data-component="thread-environment"
       tabIndex={0}
       aria-label={useLanguage().t("secondBrain.environment.title")}
-      class="flex max-h-[min(640px,calc(100vh-140px))] flex-col gap-1 overflow-y-auto outline-none text-[13px] leading-[18px] tabular-nums text-v2-text-text-base"
+      class="flex max-h-[min(600px,calc(100vh-180px))] flex-col gap-1 overflow-y-auto outline-none text-[13px] leading-[18px] tabular-nums text-v2-text-text-base"
     >
       <WhereGroup harness={props.harness} model={context.context()?.modelLabel} />
       <ContextGroup context={context} harness={props.harness} />
@@ -100,7 +158,7 @@ function WhereGroup(props: { harness?: ThreadHarness; model?: string }) {
   const branch = () => (sync().project?.vcs === "git" ? sync().data.vcs?.branch : undefined)
   const mode = () => permission.mode(params.id, sdk().directory)
   return (
-    <Group title={language.t("secondBrain.environment.title")}>
+    <Group>
       <Row label={language.t("secondBrain.environment.harness")}>
         <span class="min-w-0 truncate">
           {[currentHarness(props.harness)?.name, props.model].filter(Boolean).join(" · ")}
@@ -330,10 +388,14 @@ function RunningGroup(props: { groups: Parameters<typeof runningSubagents>[0] })
 }
 
 /** A group of rows on its own surface, with a title above it. */
-function Group(props: { title: string; children: JSX.Element }) {
+function Group(props: { title?: string; children: JSX.Element }) {
   return (
     <section class="flex flex-col">
-      <h3 class="m-0 px-3 pb-1 pt-2 type-caption uppercase tracking-[0.05em] text-v2-text-text-muted">{props.title}</h3>
+      <Show when={props.title}>
+        <h3 class="m-0 px-3 pb-1 pt-2 type-caption uppercase tracking-[0.05em] text-v2-text-text-muted">
+          {props.title}
+        </h3>
+      </Show>
       <div class="flex flex-col divide-y divide-v2-border-border-muted rounded-[14px] bg-v2-background-bg-layer-01 px-3">
         {props.children}
       </div>

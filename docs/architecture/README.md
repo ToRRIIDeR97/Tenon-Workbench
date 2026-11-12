@@ -2329,8 +2329,11 @@ From the 11 Nov feedback list ([triage](../product/FEEDBACK-2026-11-11.md)):
   runs sandboxed commands without asking anyone, so Ask covers its escalations
   and MCP calls, not every command.
 - **Thread environment.** `components/session/thread-environment.tsx` is an
-  Environment button in the thread header, before the "…" menu (passed to
-  `MessageTimeline` as `headerActions`), that opens a popover: harness and model,
+  Environment toggle in the thread header, before the "…" menu (passed to
+  `MessageTimeline` as `headerActions`), that opens a floating window below it at the
+  thread's top right (portalled, menu motion). The window stays open while you work in
+  the thread; the toggle, its close button or Esc close it, and the choice is kept in
+  `thread.environment` (global storage). It shows harness and model,
   folder, branch, approval mode, context use, MCP servers (Tenon's own for external
   harnesses), file changes with Review, and running subagents and terminals. Context
   use is split by `context-breakdown-model.ts` for every harness: the reported total

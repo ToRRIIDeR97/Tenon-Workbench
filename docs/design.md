@@ -13,8 +13,9 @@ persistence") holds the implementation detail behind these rules.
   The one exception is the warning state (`--v2-state-fill-warning`,
   `--v2-state-fg-warning`), used for things that need the user.
 - **The thread comes first.** Chrome stays out of the reading area. Thread
-  details (environment, context, connectors) sit in the thread header or
-  side panel and open on demand, never floating over the timeline.
+  details (environment, context, connectors) open on demand from a toggle in
+  the thread header or from the side panel; nothing floats over the timeline
+  unless the user opened it.
 - **One style, one job.** Each visual treatment means one thing (below);
   don't borrow a treatment for a different meaning.
 - **Material 3 shape and motion**, through the `--v2-*` tokens only. No raw
@@ -57,8 +58,14 @@ Use `[font-weight:N]` when a weight must differ from the role.
 - **Popovers and menus:** small surfaces open from the control that owns
   them (`Popover`, `MenuV2`), anchored `bottom-end` with a 6px gutter, at most
   `min(340px, 100vw - 32px)` wide, and scroll inside themselves.
+- **Floating windows:** a panel the user keeps open while working (the
+  thread Environment) floats below its toggle at 20px radius on
+  `bg-floating` with the floating elevation, has a title row with a close
+  button, ignores outside clicks, closes on Esc and remembers whether it was
+  open. Use a popover instead for anything that should close when you click
+  away.
 - **Thread header:** the title on the left; on the right, compact pill
-  controls (28px) followed by the "…" thread menu. The Environment button
+  controls (28px) followed by the "…" thread menu. The Environment toggle
   lives here.
 
 ## What each style means
