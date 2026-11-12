@@ -218,6 +218,11 @@ folder as a workspace and selects it) and `tenon://new-session?directory=<path>&
   opens the Projects page's create form (`/projects?new=1`). Sending from Home's composer opens
   the new thread and sends the message in one step. Home's box stays usable while its data loads, so it is a plain
   text box: its **+**, or typing `/` or `@`, moves the text to the full composer on a draft.
+- **Project picker** (the folder chip in every composer: Home, drafts and threads; the Feedback
+  workshop's switcher): a search field, then **Recent** (up to three Projects with the latest thread
+  activity) and **Workspace** (General and the rest), each with its folder's branch, and **Add a project
+  folder…**. The chip and the current Project take the accent container. Picking one starts a draft there
+  carrying what's typed; a thread keeps its own folder.
 - **Projects** (Notes and the old Projects page, merged 2026-11-03; one page
   per Project since the workshop's variant B). With nothing open it lists
   **Projects** (name, outcome, progress; **All projects** first), **Archived**

@@ -87,7 +87,12 @@ export function createPromptProjectControls() {
       { worktree: brain, name: language.t("secondBrain.sidebar.workspaceThreads") },
       ...entries
         .filter((entry) => entry.project.status === "active")
-        .map((entry) => ({ worktree: entry.threadDirectory, name: entry.project.name, id: entry.project.id }))
+        .map((entry) => ({
+          worktree: entry.threadDirectory,
+          name: entry.project.name,
+          id: entry.project.id,
+          lastActive: entry.lastActivityAt,
+        }))
         .sort((a, b) => a.name.localeCompare(b.name)),
     ]
   })

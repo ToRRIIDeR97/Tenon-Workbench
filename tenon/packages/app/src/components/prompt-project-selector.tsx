@@ -9,13 +9,14 @@ import {
   type ComponentProps,
 } from "solid-js"
 import { createStore } from "solid-js/store"
+import { useServerSDK } from "@/context/server-sdk"
+import { usePlatform } from "@/context/platform"
+import { currentBranch } from "@/utils/server"
 import { Icon } from "@tenon/ui/v2/icon"
 import { MenuV2 } from "@tenon/ui/v2/menu-v2"
-import { ProjectAvatar } from "@tenon/ui/v2/project-avatar-v2"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
-import { getProjectAvatarVariant } from "@/context/layout"
 import { useLanguage } from "@/context/language"
-import { displayName, getProjectAvatarSource } from "@/pages/layout/helpers"
+import { displayName } from "@/pages/layout/helpers"
 import { pathKey } from "@/utils/path-key"
 import { handleDocumentSearchKeydown } from "@/utils/search-keydown"
 import { createMenuDismissController } from "@/utils/menu-dismiss-controller"
@@ -28,6 +29,8 @@ export type PromptProject = {
   sandboxes?: string[]
   icon?: { color?: string; url?: string; override?: string }
   server?: { key: string; name: string }
+  /** When the Project last had thread activity; the picker lists the latest few under Recent. */
+  lastActive?: number | null
 }
 
 export type PromptProjectControls = {
@@ -42,6 +45,8 @@ export type PromptProjectControls = {
 
 const actionPrefix = "action:"
 const projectPrefix = "project:"
+/** How many recently active Projects the picker lists first. */
+const RECENT_LIMIT = 3
 
 function projectKey(project: PromptProject) {
   const id = project.id ? `#${encodeURIComponent(project.id)}` : ""
@@ -79,10 +84,22 @@ export function createPromptProjectController(input: {
 
   const current = () => currentProject(input.controls())
   const selected = () => current() ?? input.controls().available[0]
+  // With no search, the latest few Projects with thread activity come first (Recent), then the rest (Workspace).
+  const recent = () => {
+    if (store.search.trim()) return []
+    return input
+      .controls()
+      .available.filter((project) => !!project.lastActive)
+      .sort((left, right) => (right.lastActive ?? 0) - (left.lastActive ?? 0))
+      .slice(0, RECENT_LIMIT)
+  }
   const projects = () => {
     const search = store.search.trim().toLowerCase()
-    if (!search) return input.controls().available
-    return input.controls().available.filter((project) => displayName(project).toLowerCase().includes(search))
+    if (search)
+      return input.controls().available.filter((project) => displayName(project).toLowerCase().includes(search))
+    const first = recent()
+    const listed = new Set(first.map(projectKey))
+    return [...first, ...input.controls().available.filter((project) => !listed.has(projectKey(project)))]
   }
   const servers = () =>
     input
@@ -138,6 +155,7 @@ export function createPromptProjectController(input: {
     selected,
     empty: () => input.controls().available.length === 0,
     projects,
+    recent,
     servers,
     projectKey,
     actionKey,
@@ -145,7 +163,10 @@ export function createPromptProjectController(input: {
     search: () => store.search,
     active: () => store.active,
     labels: {
-      add: () => language.t("session.new.project.add"),
+      recent: () => language.t("secondBrain.projectPicker.recent"),
+      workspace: () => language.t("secondBrain.projectPicker.workspace"),
+      noBranch: () => language.t("secondBrain.composer.branch.detached"),
+      add: () => language.t("secondBrain.projectPicker.add"),
       clear: () => language.t("common.clear"),
       new: () => language.t("session.new.project.new"),
       search: () => language.t("session.new.project.search"),
@@ -202,11 +223,27 @@ export function createPromptProjectController(input: {
 
 export type PromptProjectController = ReturnType<typeof createPromptProjectController>
 
+// Each folder's branch (null: not a git repository), shared by every picker so a reopened one shows it at once.
+const [branches, setBranches] = createStore<Record<string, string | null>>({})
+
 export function PromptProjectSelector(props: {
   controller: PromptProjectController
   placement?: "bottom" | "bottom-start"
 }) {
+  const serverSDK = useServerSDK()
+  const platform = usePlatform()
   const [triggerReady, setTriggerReady] = createSignal(false)
+  // The branch beside each Project, read when the picker opens.
+  createEffect(() => {
+    if (!props.controller.open()) return
+    for (const project of props.controller.projects()) {
+      if (project.server || project.worktree in branches) continue
+      setBranches(project.worktree, null)
+      void currentBranch({ server: serverSDK().server.http, fetch: platform.fetch }, project.worktree)
+        .then((branch) => setBranches(project.worktree, branch))
+        .catch(() => undefined)
+    }
+  })
   let contentRef: HTMLDivElement | undefined
   const dismiss = createMenuDismissController(() => contentRef)
   let triggerFrame: number | undefined
@@ -302,13 +339,13 @@ export function PromptProjectSelector(props: {
         <MenuV2.Content
           ref={contentRef}
           id="prompt-project-menu"
-          class={`w-[280px] overflow-hidden border-0 focus:outline-none [&[data-closed]]:!animate-none ${menuSurfaceClass}`}
+          class={`w-[min(360px,calc(100vw-32px))] overflow-hidden border-0 focus:outline-none [&[data-closed]]:!animate-none ${menuSurfaceClass} !rounded-[24px] !p-2 [&_[data-component=menu-v2-item]]:!h-auto [&_[data-component=menu-v2-item]]:!min-h-9 [&_[data-component=menu-v2-item]]:!rounded-[16px] [&_[data-component=menu-v2-item]]:!px-3`}
           onOpenAutoFocus={(event) => event.preventDefault()}
           onPointerDownOutside={dismiss.preventTriggerRestore}
           onFocusOutside={dismiss.preventTriggerRestore}
           onCloseAutoFocus={dismiss.onCloseAutoFocus}
         >
-          <div class="relative flex items-center p-0.5 pb-1 text-v2-icon-icon-muted">
+          <div class="relative flex items-center pb-1.5 text-v2-icon-icon-muted">
             <Icon name="magnifying-glass" size="small" class="pointer-events-none absolute left-3.5 shrink-0" />
             <input
               ref={(el) => props.controller.setSearchRef(el)}
@@ -318,7 +355,7 @@ export function PromptProjectSelector(props: {
               aria-autocomplete="list"
               aria-controls="prompt-project-menu"
               aria-activedescendant={props.controller.active() || undefined}
-              class={`${searchFieldClass} pr-9`}
+              class={`${searchFieldClass} !rounded-[12px] !shadow-none !bg-v2-background-bg-layer-01 pr-9 focus-visible:!shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)]`}
               onInput={(event) => props.controller.setSearch(event.currentTarget.value)}
               onKeyDown={(event) => {
                 if (event.key === "Tab") {
@@ -373,9 +410,19 @@ export function PromptProjectSelector(props: {
               when={props.controller.servers().length > 1}
               fallback={
                 <MenuV2.RadioGroup value={selectedValue()} class="flex flex-col gap-0.5">
+                  <Show when={props.controller.recent().length > 0}>
+                    <GroupLabel>{props.controller.labels.recent()}</GroupLabel>
+                  </Show>
                   <For each={props.controller.projects()}>
-                    {(project) => (
-                      <ProjectItem project={project} controller={props.controller} onSelect={selectProject} />
+                    {(project, index) => (
+                      <>
+                        <Show
+                          when={props.controller.recent().length > 0 && index() === props.controller.recent().length}
+                        >
+                          <GroupLabel>{props.controller.labels.workspace()}</GroupLabel>
+                        </Show>
+                        <ProjectItem project={project} controller={props.controller} onSelect={selectProject} />
+                      </>
                     )}
                   </For>
                 </MenuV2.RadioGroup>
@@ -470,12 +517,11 @@ function ProjectTrigger(props: ComponentProps<"button"> & { controller: PromptPr
       {...rest}
       data-action="prompt-project"
       type="button"
-      class={`${chipClass} max-w-[220px] pl-1.5`}
+      class={`${chipClass} max-w-[220px] pl-2`}
       classList={{
         ...local.classList,
         "hover:bg-v2-overlay-simple-overlay-hover": !local.controller.open(),
-        "bg-v2-overlay-simple-overlay-pressed": local.controller.open(),
-        "text-v2-text-text-muted": local.controller.open(),
+        "bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container": local.controller.open(),
       }}
       onClick={local.onClick ?? (() => local.controller.setOpen(true))}
       onKeyDown={(event) => {
@@ -487,23 +533,31 @@ function ProjectTrigger(props: ComponentProps<"button"> & { controller: PromptPr
         if (typeof local.onKeyDown === "function") local.onKeyDown(event)
       }}
     >
-      <Show
-        when={project()}
-        fallback={<Icon name="folder-add-left" size="small" class="shrink-0 text-v2-icon-icon-muted" />}
-      >
-        {(item) => (
-          <ProjectAvatar
-            fallback={displayName(item())}
-            src={getProjectAvatarSource(item().id, item().icon)}
-            variant={getProjectAvatarVariant(item().icon?.color)}
-          />
-        )}
-      </Show>
-      <span class="min-w-0 truncate leading-5">
+      <Icon
+        name={project() ? "folder" : "folder-add-left"}
+        size="small"
+        class="shrink-0"
+        classList={{ "text-v2-icon-icon-muted": !local.controller.open() }}
+      />
+      <span class="min-w-0 truncate leading-5 [font-weight:500]">
         {project() ? displayName(project()!) : local.controller.labels.new()}
       </span>
-      <Icon name="chevron-down" size="small" class="shrink-0 text-v2-icon-icon-muted" />
+      <Icon
+        name="chevron-down"
+        size="small"
+        class="shrink-0"
+        classList={{ "text-v2-icon-icon-muted": !local.controller.open() }}
+      />
     </button>
+  )
+}
+
+/** A caption over a group of Projects in the picker (Recent, Workspace). */
+function GroupLabel(props: { children: string }) {
+  return (
+    <span class="px-3 pb-1 pt-2 type-caption uppercase tracking-[0.04em] text-v2-text-text-muted first:pt-1">
+      {props.children}
+    </span>
   )
 }
 
@@ -526,12 +580,12 @@ function ProjectItem(props: {
       }}
       onSelect={() => props.onSelect(props.project)}
     >
-      <ProjectAvatar
-        fallback={displayName(props.project)}
-        src={getProjectAvatarSource(props.project.id, props.project.icon)}
-        variant={getProjectAvatarVariant(props.project.icon?.color)}
-      />
-      <span class="min-w-0 truncate">{displayName(props.project)}</span>
+      <span class="min-w-0 flex-1 truncate">{displayName(props.project)}</span>
+      <Show when={!props.project.server && props.project.worktree in branches}>
+        <span data-slot="project-branch" class="max-w-[45%] shrink-0 truncate text-[12px] [font-weight:400] opacity-75">
+          {branches[props.project.worktree] ?? props.controller.labels.noBranch()}
+        </span>
+      </Show>
     </MenuV2.RadioItem>
   )
 }
@@ -553,8 +607,7 @@ function ProjectAction(props: {
       }}
       onSelect={() => props.onSelect(props.server)}
     >
-      <Icon name="plus" size="small" class="shrink-0" />
-      <span class="min-w-0 truncate">{props.controller.labels.add()}</span>
+      <span class="min-w-0 truncate text-v2-text-text-muted">{props.controller.labels.add()}</span>
     </MenuV2.Item>
   )
 }
