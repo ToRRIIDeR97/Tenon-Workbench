@@ -454,10 +454,13 @@ CLI allows:
   `bash` to `ask` (requests reach Tenon's approvals over ACP), unless the
   user's global OpenCode config sets `permission` or the harness's configured
   `env` sets that variable.
-- Claude Code starts in the user's `defaultMode`. When a new session reports
-  `bypassPermissions`, the app switches it to `default` with
-  `session/set_mode` (`safeAcpMode` in `core/src/harness/acp.ts`), so its
-  tools ask too. Other modes (`acceptEdits`, `plan`, `auto`) are left as set.
+- Claude Code starts in the user's `defaultMode`, or in its own Auto mode
+  when none is set (claude-agent-acp 0.106 reports `currentModeId: "auto"`).
+  Auto, `acceptEdits`, `bypassPermissions` and any other self-approving mode
+  decide on the agent's side and never ask Tenon, so when a new or loaded
+  session reports one, the app switches it to `default` with `session/set_mode`
+  (`safeAcpMode` in `core/src/harness/acp.ts`). Its tools then ask Tenon, and
+  the thread's Ask, Auto-edit or Full auto answers. `plan` is left as set.
 
 Test and Save run the typed command. The local API already lets authenticated
 clients start processes through its PTY routes, so this adds no new kind of
