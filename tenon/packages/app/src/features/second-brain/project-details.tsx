@@ -385,6 +385,7 @@ export function ProjectCreate(props: {
           id="project-name"
           ref={focusWhenConnected}
           appearance="large"
+          class="!w-full"
           invalid={state.errorField === "name"}
           aria-describedby={state.errorField === "name" ? "project-name-error" : undefined}
           value={state.draft.name}
@@ -396,6 +397,7 @@ export function ProjectCreate(props: {
         {language.t("secondBrain.projects.outcome")}
         <TextareaV2
           id="project-outcome"
+          class="!w-full"
           rows={4}
           invalid={state.errorField === "outcome"}
           aria-describedby={state.errorField === "outcome" ? "project-outcome-error" : undefined}
@@ -409,7 +411,7 @@ export function ProjectCreate(props: {
         <SelectV2
           id="project-location"
           aria-label={language.t("secondBrain.projects.location")}
-          class="!h-9 !w-full"
+          class="!h-[var(--v2-control-md)] !w-full"
           appearance="large"
           options={["__none__", ...locations().map((location) => location.id)]}
           current={state.draft.locationId || "__none__"}

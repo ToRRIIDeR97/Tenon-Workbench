@@ -21,7 +21,7 @@
 }
 
 [data-component="text-input-v2"][data-appearance="large"] {
-  height: 32px;
+  height: var(--v2-control-md);
 }
 
 [data-component="text-input-v2"]:where(:hover):not([data-disabled], [data-invalid]):not(:focus-within) {

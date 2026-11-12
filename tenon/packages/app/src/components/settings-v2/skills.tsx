@@ -124,14 +124,16 @@ export const SettingsSkillsV2: Component<{ directory: Accessor<string | undefine
             {(sections) => (
               <div class="flex flex-col gap-6">
                 <div class="flex flex-col gap-3">
-                  <TextInputV2
-                    type="search"
-                    class="!w-full"
-                    value={filter.query}
-                    placeholder={language.t("secondBrain.skills.search", { count: total() })}
-                    aria-label={language.t("secondBrain.skills.searchLabel")}
-                    onInput={(event) => setFilter("query", event.currentTarget.value)}
-                  />
+                  <div class="settings-v2-tab-search">
+                    <TextInputV2
+                      type="search"
+                      class="!w-full"
+                      value={filter.query}
+                      placeholder={language.t("secondBrain.skills.search", { count: total() })}
+                      aria-label={language.t("secondBrain.skills.searchLabel")}
+                      onInput={(event) => setFilter("query", event.currentTarget.value)}
+                    />
+                  </div>
                   <div class="flex flex-wrap gap-1.5" role="group" aria-label={language.t("secondBrain.skills.filter")}>
                     <FilterChip
                       label={language.t("secondBrain.skills.all")}
