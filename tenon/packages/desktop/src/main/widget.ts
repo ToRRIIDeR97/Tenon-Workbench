@@ -3,11 +3,13 @@ import { write as writeLog } from "./logging"
 import { createMainWindow, createWidgetWindow, getLastFocusedWindow, mainWindows, resizeWidgetWindow } from "./windows"
 
 /**
- * The desktop widget's lifecycle: one window, created on first show and reused. The global shortcut
- * (Ctrl+Alt+Space on Windows, Cmd+Option+Space on macOS) and the "Desktop widget" command toggle it; its own
- * close button hides it. "Open in Tenon" brings a main window forward (opening one if none is left) and navigates it.
+ * The desktop widget's lifecycle: one window, created on first show and reused. A global shortcut and the
+ * "Desktop widget" command toggle it; its own close button hides it. "Open in Tenon" brings a main window forward
+ * (opening one if none is left) and navigates it.
+ *
+ * The shortcut is the first of these that no other app holds: launchers often take Ctrl+Alt+Space.
  */
-export const WIDGET_SHORTCUT = "CommandOrControl+Alt+Space"
+export const WIDGET_SHORTCUTS = ["CommandOrControl+Alt+Space", "CommandOrControl+Alt+W"]
 
 let widget: BrowserWindow | undefined
 
@@ -54,7 +56,11 @@ export function openInApp(path: string) {
 }
 
 export function registerWidgetShortcut() {
-  const ok = globalShortcut.register(WIDGET_SHORTCUT, toggleWidget)
-  if (!ok) writeLog("widget", "global shortcut unavailable", { accelerator: WIDGET_SHORTCUT }, "warn")
-  app.once("will-quit", () => globalShortcut.unregister(WIDGET_SHORTCUT))
+  const accelerator = WIDGET_SHORTCUTS.find((candidate) => globalShortcut.register(candidate, toggleWidget))
+  if (!accelerator) {
+    writeLog("widget", "global shortcut unavailable", { tried: WIDGET_SHORTCUTS }, "warn")
+    return
+  }
+  writeLog("widget", "global shortcut registered", { accelerator })
+  app.once("will-quit", () => globalShortcut.unregister(accelerator))
 }
