@@ -1,14 +1,13 @@
 import type { Todo } from "@opencode-ai/sdk/v2"
 import { AnimatedNumber } from "@tenon/ui/animated-number"
-import { CheckboxV2 } from "@tenon/ui/v2/checkbox-v2"
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { useSpring } from "@tenon/ui/motion-spring"
+import { LoaderV2 } from "@tenon/ui/v2/loader-v2"
 import { TextReveal } from "@tenon/ui/text-reveal"
-import { TextStrikethrough } from "@tenon/ui/text-strikethrough"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
-import { Index, createEffect, createMemo } from "solid-js"
+import { Index, Match, Switch, createEffect, createMemo } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLanguage } from "@/context/language"
 
@@ -33,7 +32,7 @@ export function SessionTodoDock(props: {
   const label = createMemo(() => language.t("session.todo.progress", { done: done(), total: total() }))
   const progress = createMemo(() =>
     language
-      .t("session.todo.progress", { done: doneToken, total: totalToken })
+      .t("secondBrain.todo.count", { done: doneToken, total: totalToken })
       .split(/(\u0000done\u0000|\u0000total\u0000)/),
   )
 
@@ -79,7 +78,7 @@ export function SessionTodoDock(props: {
       <div ref={contentRef}>
         <div
           data-action="session-todo-toggle"
-          class="flex items-center gap-2 overflow-visible h-[42px] pl-5 pr-3"
+          class="flex items-center gap-2 overflow-visible h-[42px] pl-[18px] pr-2"
           role="button"
           tabIndex={0}
           onClick={props.onToggle}
@@ -90,8 +89,35 @@ export function SessionTodoDock(props: {
           }}
         >
           <span
-            class="cursor-default inline-flex items-baseline shrink-0 overflow-visible [font-weight:450] text-[13px] leading-5 text-v2-text-text-muted"
+            class="cursor-default shrink-0 text-[13px] leading-5 [font-weight:600] text-v2-text-text-base"
             aria-label={label()}
+            style={{ opacity: `${Math.max(0, Math.min(1, 1 - shut()))}` }}
+          >
+            {language.t("session.todo.title")}
+          </span>
+          <div
+            data-slot="session-todo-preview"
+            class="ml-1 min-w-0 overflow-hidden"
+            style={{
+              flex: "1 1 auto",
+              "max-width": "100%",
+            }}
+          >
+            <TextReveal
+              class="cursor-default text-[13px] leading-5 text-v2-text-text-muted"
+              text={props.collapsed ? preview() : undefined}
+              duration="var(--v2-duration-long)"
+              travel={25}
+              edge={17}
+              spring="var(--v2-ease-emphasized-decelerate)"
+              springSoft="var(--v2-ease-emphasized-decelerate)"
+              growOnly
+              truncate
+            />
+          </div>
+          <span
+            class="cursor-default inline-flex shrink-0 items-baseline overflow-visible text-[12px] leading-5 tabular-nums text-v2-text-text-muted"
+            aria-hidden="true"
             style={{
               "--tool-motion-odometer-ms": "var(--v2-duration-long)",
               "--tool-motion-mask": "18%",
@@ -113,33 +139,13 @@ export function SessionTodoDock(props: {
               }
             </Index>
           </span>
-          <div
-            data-slot="session-todo-preview"
-            class="ml-1 min-w-0 overflow-hidden"
-            style={{
-              flex: "1 1 auto",
-              "max-width": "100%",
-            }}
-          >
-            <TextReveal
-              class="cursor-default text-[13px] [font-weight:450] leading-5 text-v2-text-text-muted"
-              text={props.collapsed ? preview() : undefined}
-              duration="var(--v2-duration-long)"
-              travel={25}
-              edge={17}
-              spring="var(--v2-ease-emphasized-decelerate)"
-              springSoft="var(--v2-ease-emphasized-decelerate)"
-              growOnly
-              truncate
-            />
-          </div>
-          <div class="ml-auto">
+          <div class="shrink-0">
             <TooltipV2 placement="top" value={props.collapsed ? props.expandLabel : props.collapseLabel}>
               <IconButtonV2
                 data-action="session-todo-toggle-button"
                 data-collapsed={props.collapsed ? "true" : "false"}
                 icon={<Icon name="outline-chevron-down" size="small" />}
-                size="large"
+                size="normal"
                 variant="ghost-muted"
                 style={{ transform: `rotate(${turn() * 180}deg)` }}
                 onMouseDown={(event) => {
@@ -174,7 +180,13 @@ export function SessionTodoDock(props: {
   )
 }
 
+/**
+ * The steps, in the workshop's variant A: a filled check for a finished step (its text dimmed), the spinner on the
+ * step in progress, and a dashed circle for one still to come; a cancelled step is dimmed and struck through.
+ * Status is told by the mark's shape, never by colour alone.
+ */
 function TodoList(props: { todos: Todo[] }) {
+  const language = useLanguage()
   const [store, setStore] = createStore({
     stuck: false,
   })
@@ -182,7 +194,7 @@ function TodoList(props: { todos: Todo[] }) {
   return (
     <div class="relative">
       <div
-        class="px-5 pb-11 flex flex-col gap-1.5 max-h-42 overflow-y-auto"
+        class="px-3.5 pb-11 flex flex-col max-h-48 overflow-y-auto"
         style={{ "overflow-anchor": "none" }}
         onScroll={(e) => {
           setStore("stuck", e.currentTarget.scrollTop > 0)
@@ -190,33 +202,23 @@ function TodoList(props: { todos: Todo[] }) {
       >
         <Index each={props.todos}>
           {(todo) => (
-            <CheckboxV2
-              readOnly
-              checked={todo().status === "completed"}
-              indeterminate={todo().status === "in_progress"}
-              data-in-progress={todo().status === "in_progress" ? "" : undefined}
+            <div
+              data-slot="session-todo-item"
               data-state={todo().status}
-              style={{
-                transition: "opacity var(--v2-duration-short) var(--v2-ease-standard)",
-                opacity: todo().status === "pending" ? "0.94" : "1",
+              class="flex items-start gap-2.5 px-1 py-[3px] text-[13px] leading-5 transition-colors duration-short ease-standard motion-reduce:transition-none"
+              classList={{
+                "text-v2-text-text-muted": todo().status === "completed" || todo().status === "cancelled",
+                "text-v2-text-text-base": todo().status === "pending" || todo().status === "in_progress",
+                "[font-weight:500]": todo().status === "in_progress",
               }}
-              label={
-                <TextStrikethrough
-                  active={todo().status === "completed" || todo().status === "cancelled"}
-                  text={todo().content}
-                  class="min-w-0 break-words text-[13px] leading-5"
-                  style={{
-                    transition:
-                      "color var(--v2-duration-short) var(--v2-ease-standard), opacity var(--v2-duration-short) var(--v2-ease-standard)",
-                    color:
-                      todo().status === "completed" || todo().status === "cancelled"
-                        ? "var(--v2-text-text-muted)"
-                        : "var(--v2-text-text-base)",
-                    opacity: "1",
-                  }}
-                />
-              }
-            />
+            >
+              <span class="mt-0.5 shrink-0" role="img" aria-label={language.t(statusLabel(todo().status))}>
+                <TodoMark status={todo().status} />
+              </span>
+              <span class="min-w-0 break-words" classList={{ "line-through": todo().status === "cancelled" }}>
+                {todo().content}
+              </span>
+            </div>
           )}
         </Index>
       </div>
@@ -228,5 +230,41 @@ function TodoList(props: { todos: Todo[] }) {
         }}
       />
     </div>
+  )
+}
+
+function statusLabel(status: string) {
+  if (status === "completed") return "secondBrain.todo.status.completed" as const
+  if (status === "in_progress") return "secondBrain.todo.status.inProgress" as const
+  if (status === "cancelled") return "secondBrain.todo.status.cancelled" as const
+  return "secondBrain.todo.status.pending" as const
+}
+
+/** A step's status mark: 16px, drawn in the icon colours so it follows the theme. */
+function TodoMark(props: { status: string }) {
+  return (
+    <Switch
+      fallback={
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" class="text-v2-icon-icon-muted" aria-hidden="true">
+          <circle cx="8" cy="8" r="6.25" stroke="currentColor" stroke-width="1.3" stroke-dasharray="2.4 2.2" />
+        </svg>
+      }
+    >
+      <Match when={props.status === "completed"}>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" class="text-v2-icon-icon-muted" aria-hidden="true">
+          <circle cx="8" cy="8" r="7" fill="currentColor" />
+          <path
+            d="M5 8.2l2 2 4-4.2"
+            stroke="var(--v2-background-bg-layer-01)"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </Match>
+      <Match when={props.status === "in_progress"}>
+        <LoaderV2 class="text-v2-icon-icon-accent" />
+      </Match>
+    </Switch>
   )
 }

@@ -82,6 +82,11 @@ Use `[font-weight:N]` when a weight must differ from the role.
   `TabsV2` pill variant). Underlined tabs are for the sidebar's Group by only.
 - **Progress and usage:** `Meter`. Spinner: `LoaderV2`. Running dot:
   `.running-pulse`.
+- **Agent task list** (the dock on the composer, `session-todo-dock.tsx`):
+  a "Tasks" title with "N of M" and a chevron; each step has a 16px mark, a
+  filled check for done (text dimmed), `LoaderV2` in accent for the step in
+  progress (weight 500), and a dashed circle for steps to come. Collapsed, the
+  title row shows the current step. Status is carried by the mark's shape.
 - **Switches in lists** use the small size.
 
 ## Motion
