@@ -555,7 +555,7 @@
 }
 
 .settings-v2-harness-dot[data-state="error"] {
-  background: var(--v2-state-fg-warning);
+  background: var(--v2-state-fill-warning);
 }
 
 .settings-v2-harness-update-dot {
