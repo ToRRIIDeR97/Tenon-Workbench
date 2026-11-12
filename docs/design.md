@@ -66,14 +66,15 @@ Use `[font-weight:N]` when a weight must differ from the role.
   sections are split by hairlines, each with a 13px semibold sentence-case
   title (no uppercase captions, no boxed groups), 12px rows and a label column.
   It has a close button in its title row, ignores outside clicks, closes on Esc
-  and remembers whether it was open. It never covers the content it sits
-  beside: that content makes room for it, and when the room would leave the
-  content too narrow to read (under 480px), the window minimizes to its toggle
-  and returns when there is room again. Use a popover instead for anything that should close when you click
+  and remembers whether it was open. It floats over the content beside it,
+  which never moves for it; when the room beside it would leave that content
+  too narrow to read (under 480px), the window minimizes to its toggle and
+  returns when there is room again. Use a popover instead for anything that should close when you click
   away.
 - **Thread header:** the title on the left; on the right, compact pill
-  controls (28px) followed by the "…" thread menu. The Environment toggle
-  lives here.
+  controls (28px), with the Environment toggle last, at the right edge. The
+  thread's actions (rename, pin, fork, export, archive, delete) live in its
+  sidebar row's menu, not the header.
 
 ## What each style means
 
