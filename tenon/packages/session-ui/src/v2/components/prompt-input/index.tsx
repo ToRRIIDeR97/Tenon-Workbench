@@ -28,7 +28,9 @@ import type {
 import type { PromptInputV2Interaction, PromptInputV2SelectControl } from "./interaction"
 import { promptInputV2KeyIntent, type PromptInputV2InteractionState } from "./machine"
 import { placePromptPopover, type PromptPopoverPlacement } from "./popover-position"
+import { watchComposerLinks } from "./link-highlight"
 import "./attachments.css"
+import "./link-highlight.css"
 import "./responsive-controls.css"
 
 export type {
@@ -243,6 +245,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
               editor = element
               props.controller.setEditor(element)
               renderPromptInputV2Editor(element, props.controller.parts(), threadLabels())
+              onCleanup(watchComposerLinks(element))
             }}
             data-component="prompt-input"
             role="textbox"
