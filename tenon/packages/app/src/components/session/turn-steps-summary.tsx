@@ -1,4 +1,4 @@
-import { For, Index, Show, createEffect, createMemo, createSignal, on, onCleanup, untrack } from "solid-js"
+import { For, Index, Show, createEffect, createMemo, createSignal, lazy, on, onCleanup, untrack } from "solid-js"
 import { createStore } from "solid-js/store"
 import type { Part, ReasoningPart, ToolPart } from "@opencode-ai/sdk/v2"
 import { Icon } from "@tenon/ui/v2/icon"
@@ -19,7 +19,6 @@ import {
   type StepKind,
   type TurnSteps,
 } from "@tenon/session-ui/step-kind"
-import { Markdown } from "@tenon/session-ui/markdown"
 import { readPartText } from "@tenon/session-ui/message-part-text"
 import { useData } from "@tenon/session-ui/context"
 import { useLanguage } from "@/context/language"
@@ -30,6 +29,10 @@ import { Dynamic } from "solid-js/web"
 import { editDiffs } from "./step-diff"
 import { workspaceRelative } from "./step-path"
 import { SubagentLane, childLaneSteps, laneTokens, subagentLanes, taskSessionID } from "./subagent-lane"
+
+// Loaded when a reasoning note first renders: the renderer starts a highlighting worker, which the step list
+// shouldn't pull in up front (and which `bun test` can't resolve).
+const Markdown = lazy(() => import("@tenon/session-ui/markdown").then((module) => ({ default: module.Markdown })))
 import "./turn-steps-summary.css"
 
 // Fixed order so the phrase list doesn't reshuffle while a turn streams.

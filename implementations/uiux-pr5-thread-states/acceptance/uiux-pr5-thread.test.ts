@@ -16,7 +16,8 @@ describe("steps", () => {
 
   // AC-1: a reasoning note renders its markdown instead of showing raw **asterisks**.
   test("reasoning note renders markdown", () => {
-    expect(summary).toMatch(/import \{ Markdown \} from "@tenon\/session-ui\/markdown"/)
+    // Loaded lazily: a static import pulls the renderer's worker into every importer, including `bun test`.
+    expect(summary).toMatch(/import\("@tenon\/session-ui\/markdown"\)/)
     const note = summary.slice(summary.indexOf('data-slot="turn-steps-note-text"'))
     expect(note.slice(0, 300)).toMatch(/<Markdown\b/)
   })

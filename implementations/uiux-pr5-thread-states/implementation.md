@@ -35,3 +35,9 @@ App unit tests pass; ui tests 40 pass.
 Test change after the freeze: AC-6's pattern expected `>{time()}</span>` on one line; Prettier wrapped the span,
 so the pattern now allows whitespace around `{time()}`. The assertion (both timers `aria-hidden`) is unchanged.
 Not verified live: rows-layout running row, lane bar, reasoning note (need a live turn; the dev setup stalls).
+
+Correction round 1: the static `Markdown` import pulled the renderer's `markdown.worker.ts?worker&url` into
+`turn-steps-summary.tsx`, which `bun test` can't resolve, so `turn-steps-summary.test.ts` failed to load (an
+"unhandled error between tests" I first read past). `Markdown` now loads lazily (`lazy(() => import(...))`).
+Test change (AC-1): the assertion moved from the static import to the dynamic one; it still requires the note to
+render `<Markdown>`. App unit tests: 1103 pass, 0 fail.
