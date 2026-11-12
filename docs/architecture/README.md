@@ -596,12 +596,17 @@ assistant that spans workspaces, with its own threads, memory and routines.
   one with the harness and model from Settings › Command Centre. The list
   refreshes when the page opens and, debounced, on `session.created/updated/deleted`
   events for that folder, so archives, deletes and routine runs show up.
-- **K3 strip.** `features/command-centre/command-strip.tsx`
+- **Command Centre card.** `features/command-centre/command-strip.tsx`
   (`[data-command-strip]`) sits inside `<main>` on every page except
-  `/command`: a 20 px handle while closed, an 84 px strip when open with the
-  latest reply on one line, a composer and "Open full"
-  (`/command?thread=<id>`). Ctrl+J / Cmd+J (`commandCentre.strip.toggle`,
-  `mod+j`) or a click opens it; Esc closes it. Height moves over 300 ms
+  `/command`: a 20 px handle while closed; open, a 640 px, 24 px-radius card
+  named "Command Centre" with the latest exchange (your last message,
+  `lastAskText`, and the reply clamped to three lines), New thread, "Open full"
+  (`/command?thread=<id>`) and a composer. A send replies to the shown thread
+  (`centre.send(text, latest.id)`); New thread makes the next send start one.
+  The card and the page share the persisted draft (`composer.command`). When the
+  shown thread waits on an approval or a question (`needsYou`), the card offers
+  "Review in thread"; it never answers approvals itself. Ctrl+J / Cmd+J
+  (`commandCentre.strip.toggle`, `mod+j`) or a click opens it; Esc closes it. Height moves over 300 ms
   emphasized-decelerate when opening and 200 ms emphasized-accelerate when
   closing, with no motion under reduced motion. When the latest reply made
   a write, Undo redeems that write's token (`useAgentWrites().undo`) and then
@@ -662,7 +667,7 @@ assistant that spans workspaces, with its own threads, memory and routines.
   thread's list still fails with "… is only available in the Command Centre."
   In that folder the built-in agents also ask before `bash`, `webfetch`,
   `websearch` and `edit` (`core/src/plugin/agent.ts`, `tenon/src/agent/agent.ts`),
-  and the K3 strip says when the latest thread is waiting on a prompt.
+  and the Command Centre card says when the latest thread is waiting on an approval or a question.
 - **Pill.** The Command Centre page marks its open thread as focused
   (`useAgentWrites().focus`), so the top pill leaves that thread's writes to
   the step list.
