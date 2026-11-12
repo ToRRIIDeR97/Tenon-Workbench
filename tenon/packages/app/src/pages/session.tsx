@@ -536,6 +536,37 @@ export default function Page() {
     // The reactive style only writes when its value changes, so restore it in case the drag ended where it began.
     if (sessionPanel) sessionPanel.style.width = sessionPanelWidth()
   }
+  // Dragging the collapsed rail to the left pulls the side panel out: past a small threshold Review opens at the
+  // pulled width, then the panel follows the pointer like the resize handle and keeps its width on release.
+  const dragOutSidePanel = (event: PointerEvent) => {
+    if (event.button !== 0) return
+    const startX = event.clientX
+    let width: number | undefined
+    const pulledWidth = (x: number) =>
+      Math.min(sidePanelMax(), Math.max(SIDE_PANEL_WIDTH_MIN, startX - x + SESSION_SIDE_RAIL_SPACE))
+    const move = (next: PointerEvent) => {
+      if (width === undefined) {
+        if (startX - next.clientX < 12) return
+        size.start()
+        width = pulledWidth(next.clientX)
+        layout.sidePanel.resize(width)
+        view().reviewPanel.open()
+        tabs().setActive("review")
+        return
+      }
+      width = pulledWidth(next.clientX)
+      previewSidePanelWidth(width)
+    }
+    const end = () => {
+      window.removeEventListener("pointermove", move)
+      window.removeEventListener("pointerup", end)
+      window.removeEventListener("pointercancel", end)
+      if (width !== undefined) commitSidePanelWidth(width)
+    }
+    window.addEventListener("pointermove", move)
+    window.addEventListener("pointerup", end)
+    window.addEventListener("pointercancel", end)
+  }
   const sessionPanelWidth = createMemo(() => {
     if (panelClosing()) return `calc(100% - ${SESSION_SIDE_RAIL_SPACE}px)`
     if (!desktopSidePanelOpen()) return railSpace() ? `calc(100% - ${railSpace()}px)` : "100%"
@@ -2338,7 +2369,7 @@ export default function Page() {
           </div>
         </Show>
         <Show when={desktopRailOpen()}>
-          <SessionSideRail reviewCount={reviewCount()} hasReview={hasReview()} />
+          <SessionSideRail reviewCount={reviewCount()} hasReview={hasReview()} onDragOut={dragOutSidePanel} />
         </Show>
       </div>
     </SessionRouteFrame>

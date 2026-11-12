@@ -1826,6 +1826,10 @@ On desktop, opening a file the server reads as binary and that isn't media (a
   slide (`panelSettled` in `app/src/pages/session/file-reference.tsx`, set by
   the open edge in `session.tsx`). Other openings still snap: switching
   sessions, or adding Review beside a file tree that is already showing.
+  Closed, the panel leaves a slim rail (`session-side-rail.tsx`); a click on
+  Review opens it, and dragging the rail left pulls it out (`dragOutSidePanel`
+  in `session.tsx`: past 12px Review opens at the pulled width, then the panel
+  follows the pointer like the resize handle and keeps the width on release).
   The tab bar and code then fade in, a skeleton covers loading, and
   `file-tabs.tsx` glides the viewer to the start line (350 ms ease-in-out),
   started after the fade-in, then sets the selected lines and marks them (`data-file-reference`): the
@@ -2331,7 +2335,8 @@ From the 11 Nov feedback list ([triage](../product/FEEDBACK-2026-11-11.md)):
 - **Thread environment.** `components/session/thread-environment.tsx` is an
   Environment toggle in the thread header, before the "…" menu (passed to
   `MessageTimeline` as `headerActions`), that opens a floating window below it at the
-  thread's top right (portalled, menu motion). The window stays open while you work in
+  thread's top right (portalled, menu motion). It re-places itself whenever the thread
+  header resizes (a side panel opening, closing or being dragged) and stays within it. The window stays open while you work in
   the thread; the toggle, its close button or Esc close it, and the choice is kept in
   `thread.environment` (global storage). It shows harness and model,
   folder, branch, approval mode, context use, MCP servers (Tenon's own for external

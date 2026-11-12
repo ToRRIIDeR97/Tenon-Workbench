@@ -12,7 +12,12 @@ import { useSessionLayout } from "@/pages/session/session-layout"
 export const SESSION_SIDE_RAIL_SPACE = 48
 
 /** Shown while the side panel is closed: keeps the change count and context use visible. */
-export function SessionSideRail(props: { reviewCount: number; hasReview: boolean }) {
+/** The collapsed side panel. A click on Review opens it; dragging the rail to the left pulls it out (`onDragOut`). */
+export function SessionSideRail(props: {
+  reviewCount: number
+  hasReview: boolean
+  onDragOut?: (event: PointerEvent) => void
+}) {
   const command = useCommand()
   const language = useLanguage()
   const { tabs, view } = useSessionLayout()
@@ -25,7 +30,8 @@ export function SessionSideRail(props: { reviewCount: number; hasReview: boolean
   return (
     <nav
       aria-label={language.t("session.panel.reviewAndFiles")}
-      class={`flex h-full w-10 shrink-0 flex-col items-center gap-1 py-2 ${pagePanelClass}`}
+      class={`relative flex h-full w-10 shrink-0 cursor-col-resize flex-col items-center gap-1 py-2 ${pagePanelClass}`}
+      onPointerDown={(event) => props.onDragOut?.(event)}
     >
       <TooltipV2
         placement="left"

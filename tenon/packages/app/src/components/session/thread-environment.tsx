@@ -39,18 +39,29 @@ type ThreadHarness = {
 export function ThreadEnvironmentButton(props: { harness?: ThreadHarness }) {
   const language = useLanguage()
   const [prefs, setPrefs] = persisted(Persist.global("thread.environment"), createStore({ open: false }))
-  const [anchor, setAnchor] = createStore({ top: 0, right: 0 })
+  const [anchor, setAnchor] = createStore({ top: 0, right: 0, width: 340 })
   let button: HTMLButtonElement | undefined
+  // The window follows its toggle: the thread's header moves and resizes when the side panel opens, closes or is
+  // dragged, so it is re-placed whenever the header's size changes (and on a window resize), and kept inside it.
   const place = () => {
     if (!button) return
     const rect = button.getBoundingClientRect()
-    setAnchor({ top: rect.bottom + 6, right: Math.max(16, window.innerWidth - rect.right) })
+    const header = button.closest("[data-session-title]")?.getBoundingClientRect()
+    const right = Math.max(16, window.innerWidth - rect.right)
+    const room = (header ? header.right - header.left : window.innerWidth) - 24
+    setAnchor({ top: rect.bottom + 6, right, width: Math.max(240, Math.min(340, room, window.innerWidth - 32)) })
   }
   createEffect(() => {
     if (!prefs.open) return
     place()
+    const header = button?.closest("[data-session-title]")
+    const observer = new ResizeObserver(place)
+    if (header) observer.observe(header)
     window.addEventListener("resize", place)
-    onCleanup(() => window.removeEventListener("resize", place))
+    onCleanup(() => {
+      observer.disconnect()
+      window.removeEventListener("resize", place)
+    })
   })
   const close = () => {
     setPrefs("open", false)
@@ -77,7 +88,10 @@ export function ThreadEnvironmentButton(props: { harness?: ThreadHarness }) {
       <Portal>
         {/* The anchor is positioned and the animated wrapper inside it is not: an animated transform makes its box
             the containing block of any fixed child. */}
-        <div class="fixed z-40 hidden md:block" style={{ top: `${anchor.top}px`, right: `${anchor.right}px` }}>
+        <div
+          class="fixed z-40 hidden md:block"
+          style={{ top: `${anchor.top}px`, right: `${anchor.right}px`, width: `${anchor.width}px` }}
+        >
           <Presence
             when={prefs.open}
             enterClass="animate-menu-enter"
@@ -87,7 +101,7 @@ export function ThreadEnvironmentButton(props: { harness?: ThreadHarness }) {
             <aside
               id="thread-environment"
               aria-label={language.t("secondBrain.environment.title")}
-              class="flex w-[min(340px,calc(100vw-32px))] flex-col overflow-hidden rounded-[20px] bg-v2-background-bg-floating shadow-[var(--v2-elevation-floating)]"
+              class="flex w-full flex-col overflow-hidden rounded-[20px] bg-v2-background-bg-floating shadow-[var(--v2-elevation-floating)]"
               onKeyDown={(event) => {
                 if (event.key !== "Escape") return
                 event.stopPropagation()
