@@ -230,8 +230,8 @@ the same session list and updated by the same session events, and
 per-directory request. Home's root list doesn't use the links. The controller
 also counts the roots waiting for approval in every grouping (`needsYou`), for
 the Attention tab. The view draws the switch as text tabs and each card as a
-flat group with its marks; a single highlight in the list follows the row with
-`data-glide` and `data-selected`. In Attention, Needs you and Running list
+flat group with its marks; the selected row (`data-selected`) carries its own
+highlight, which appears and disappears at once (no highlight slides between rows). In Attention, Needs you and Running list
 their threads as cards, and a running one shows the top line
 (`.sidebar-card-line`, animated with `transform` only and still under reduced
 motion). The view keys cards by ID and rows by thread node, because card objects

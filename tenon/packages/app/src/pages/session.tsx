@@ -547,6 +547,8 @@ export default function Page() {
     const move = (next: PointerEvent) => {
       if (width === undefined) {
         if (startX - next.clientX < 12) return
+        window.getSelection()?.removeAllRanges()
+        document.body.style.userSelect = "none"
         size.start()
         width = pulledWidth(next.clientX)
         layout.sidePanel.resize(width)
@@ -561,6 +563,7 @@ export default function Page() {
       window.removeEventListener("pointermove", move)
       window.removeEventListener("pointerup", end)
       window.removeEventListener("pointercancel", end)
+      document.body.style.userSelect = ""
       if (width !== undefined) commitSidePanelWidth(width)
     }
     window.addEventListener("pointermove", move)

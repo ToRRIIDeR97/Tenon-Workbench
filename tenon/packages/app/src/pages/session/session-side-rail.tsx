@@ -31,7 +31,11 @@ export function SessionSideRail(props: {
     <nav
       aria-label={language.t("session.panel.reviewAndFiles")}
       class={`relative flex h-full w-10 shrink-0 cursor-col-resize flex-col items-center gap-1 py-2 ${pagePanelClass}`}
-      onPointerDown={(event) => props.onDragOut?.(event)}
+      onPointerDown={(event) => {
+        // No text selection or native drag may start from the rail: either takes the pointer away from the drag.
+        event.preventDefault()
+        props.onDragOut?.(event)
+      }}
     >
       <TooltipV2
         placement="left"
