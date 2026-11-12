@@ -2336,10 +2336,14 @@ From the 11 Nov feedback list ([triage](../product/FEEDBACK-2026-11-11.md)):
   Environment toggle in the thread header, before the "…" menu (passed to
   `MessageTimeline` as `headerActions`), that opens a floating window below it at the
   thread's top right (portalled, menu motion). It re-places itself whenever the thread
-  header resizes (a side panel opening, closing or being dragged) and stays within it.
-  While the header is narrower than 560px (the side panel pulled wide) it minimizes to
-  its toggle and comes back once the thread widens; the toggle still opens it meanwhile,
-  and the remembered choice is unchanged. The window stays open while you work in
+  header resizes (a side panel opening, closing or being dragged). It never covers the
+  thread: while it is open the timeline's content narrows by the window's footprint
+  (`--thread-environment-inset` on the timeline root, read by
+  `[data-timeline-virtual-content]`), so the text column re-centres beside it; when that
+  would leave the thread under 480px, the window minimizes to its toggle and returns
+  once there is room. The toggle still opens it meanwhile (floating over the thread),
+  and the remembered choice is unchanged. Its body follows the workshop's variant A:
+  one card of hairline-separated sections with sentence-case titles. The window stays open while you work in
   the thread; the toggle, its close button or Esc close it, and the choice is kept in
   `thread.environment` (global storage). It shows harness and model,
   folder, branch, approval mode, context use, MCP servers (Tenon's own for external

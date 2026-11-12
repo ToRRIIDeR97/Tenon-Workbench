@@ -23,8 +23,9 @@ import { useTerminal } from "@/context/terminal"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { Persist, persisted } from "@/utils/persist"
 
-/** Below this thread header width (the side panel pulled wide), the Environment window minimizes to its toggle. */
-const SQUEEZED_THREAD_WIDTH = 560
+/** The window's width, and the narrowest the thread's text may get beside it before the window minimizes. */
+const WINDOW_WIDTH = 340
+const THREAD_MIN_WIDTH = 480
 
 type ThreadHarness = {
   current: () => Harness.InstanceID
@@ -45,33 +46,40 @@ export function ThreadEnvironmentButton(props: { harness?: ThreadHarness }) {
   const [anchor, setAnchor] = createStore({
     top: 0,
     right: 0,
-    width: 340,
+    width: WINDOW_WIDTH,
+    inset: 0,
     squeezed: false,
     forced: false,
     placed: false,
   })
   let button: HTMLButtonElement | undefined
   // The window follows its toggle: the thread's header moves and resizes when the side panel opens, closes or is
-  // dragged, so it is re-placed whenever the header's size changes (and on a window resize), and kept inside it.
+  // dragged, so it is re-placed whenever the header's size changes (and on a window resize). While it is open the
+  // thread's text column moves over to make room for it (`--thread-environment-inset` on the timeline), so the window
+  // never covers the thread; when that would leave the thread narrower than THREAD_MIN_WIDTH, the window minimizes
+  // to its toggle instead, and comes back once there is room. The toggle still opens it meanwhile (over the thread).
   const place = () => {
     if (!button) return
     const rect = button.getBoundingClientRect()
     const header = button.closest("[data-session-title]")?.getBoundingClientRect()
+    const width = Math.min(WINDOW_WIDTH, window.innerWidth - 32)
     const right = Math.max(16, window.innerWidth - rect.right)
-    const room = (header ? header.right - header.left : window.innerWidth) - 24
-    const squeezed = !!header && header.right - header.left < SQUEEZED_THREAD_WIDTH
-    setAnchor({
-      placed: true,
-      top: rect.bottom + 6,
-      right,
-      width: Math.max(240, Math.min(340, room, window.innerWidth - 32)),
-    })
+    // Room the window takes from the thread: from its left edge to the thread's right edge, plus a gap.
+    const inset = header ? Math.max(0, header.right - (rect.right - width) + 12) : 0
+    const squeezed = !!header && header.right - header.left - inset < THREAD_MIN_WIDTH
+    setAnchor({ placed: true, top: rect.bottom + 6, right, width, inset })
     // Crossing the threshold either way drops a manual open made while squeezed.
     if (squeezed !== anchor.squeezed) setAnchor({ squeezed, forced: false })
   }
-  // The window minimizes to its toggle while the side panel leaves the thread too narrow to read beside it, and
-  // comes back once the thread widens; the toggle still opens it while squeezed. The remembered choice is unchanged.
   const shown = () => prefs.open && anchor.placed && (!anchor.squeezed || anchor.forced)
+  // The timeline reads the inset; a manual open while squeezed floats over the thread instead.
+  createEffect(() => {
+    const root = button?.closest("[data-session-title]")?.parentElement
+    if (!root) return
+    const inset = shown() && !anchor.squeezed ? anchor.inset : 0
+    root.style.setProperty("--thread-environment-inset", `${inset}px`)
+    onCleanup(() => root.style.removeProperty("--thread-environment-inset"))
+  })
   createEffect(() => {
     if (!prefs.open) return
     place()
@@ -128,28 +136,14 @@ export function ThreadEnvironmentButton(props: { harness?: ThreadHarness }) {
             <aside
               id="thread-environment"
               aria-label={language.t("secondBrain.environment.title")}
-              class="flex w-full flex-col overflow-hidden rounded-[20px] bg-v2-background-bg-floating shadow-[var(--v2-elevation-floating)]"
+              class="flex w-full flex-col overflow-hidden rounded-[24px] bg-v2-background-bg-floating shadow-[inset_0_0_0_1px_var(--v2-border-border-muted),var(--v2-elevation-floating)]"
               onKeyDown={(event) => {
                 if (event.key !== "Escape") return
                 event.stopPropagation()
                 close()
               }}
             >
-              <div class="flex h-10 shrink-0 items-center gap-2 pl-4 pr-1.5">
-                <span class="flex-1 type-control text-v2-text-text-base">
-                  {language.t("secondBrain.environment.title")}
-                </span>
-                <IconButtonV2
-                  icon={<Icon name="xmark-small" size="small" />}
-                  size="small"
-                  variant="ghost"
-                  aria-label={language.t("common.close")}
-                  onClick={close}
-                />
-              </div>
-              <div class="px-1.5 pb-1.5">
-                <EnvironmentSections harness={props.harness} />
-              </div>
+              <EnvironmentSections harness={props.harness} onClose={close} />
             </aside>
           </Presence>
         </div>
@@ -158,7 +152,12 @@ export function ThreadEnvironmentButton(props: { harness?: ThreadHarness }) {
   )
 }
 
-function EnvironmentSections(props: { harness?: ThreadHarness }) {
+/**
+ * The window's body, laid out as the workshop's variant A: one card of sections split by hairlines, each with a
+ * sentence-case title, a label column for where the thread runs, a thin context bar with its legend, and
+ * single-line rows for connectors, changes and what is running.
+ */
+function EnvironmentSections(props: { harness?: ThreadHarness; onClose: () => void }) {
   const context = createComposerContext()
   const subagents = useThreadSubagents(() => true)
   return (
@@ -167,13 +166,13 @@ function EnvironmentSections(props: { harness?: ThreadHarness }) {
       data-component="thread-environment"
       tabIndex={0}
       aria-label={useLanguage().t("secondBrain.environment.title")}
-      class="flex max-h-[min(600px,calc(100vh-180px))] flex-col gap-1 overflow-y-auto outline-none text-[13px] leading-[18px] tabular-nums text-v2-text-text-base"
+      class="flex max-h-[min(640px,calc(100vh-280px))] flex-col divide-y divide-v2-border-border-muted overflow-y-auto outline-none text-[12px] leading-[16px] [font-weight:400] tabular-nums text-v2-text-text-base"
     >
-      <WhereGroup harness={props.harness} model={context.context()?.modelLabel} />
-      <ContextGroup context={context} harness={props.harness} />
-      <ConnectorsGroup harness={props.harness} />
-      <ChangesGroup />
-      <RunningGroup groups={subagents()} />
+      <WhereSection harness={props.harness} model={context.context()?.modelLabel} onClose={props.onClose} />
+      <ContextSection context={context} harness={props.harness} />
+      <ConnectorsSection harness={props.harness} />
+      <ChangesSection />
+      <RunningSection groups={subagents()} />
     </div>
   )
 }
@@ -188,7 +187,7 @@ function isExternal(harness?: ThreadHarness) {
 }
 
 /** Where the thread runs: its harness and model, folder, branch and the approval mode that answers its requests. */
-function WhereGroup(props: { harness?: ThreadHarness; model?: string }) {
+function WhereSection(props: { harness?: ThreadHarness; model?: string; onClose: () => void }) {
   const language = useLanguage()
   const sync = useSync()
   const sdk = useSDK()
@@ -199,42 +198,56 @@ function WhereGroup(props: { harness?: ThreadHarness; model?: string }) {
   const branch = () => (sync().project?.vcs === "git" ? sync().data.vcs?.branch : undefined)
   const mode = () => permission.mode(params.id, sdk().directory)
   return (
-    <Group>
-      <Row label={language.t("secondBrain.environment.harness")}>
-        <span class="min-w-0 truncate">
+    <section class="flex flex-col gap-2.5 pb-3.5 pl-[18px] pr-2.5 pt-2.5">
+      <div class="flex h-7 items-center gap-2">
+        <h2 class="m-0 flex-1 text-[13px] leading-[18px] [font-weight:600]">
+          {language.t("secondBrain.environment.title")}
+        </h2>
+        <IconButtonV2
+          icon={<Icon name="xmark-small" size="small" />}
+          size="small"
+          variant="ghost-muted"
+          aria-label={language.t("common.close")}
+          onClick={() => props.onClose()}
+        />
+      </div>
+      <dl class="m-0 grid grid-cols-[88px_minmax(0,1fr)] gap-x-2.5 gap-y-1.5 pr-2">
+        <dt class="text-v2-text-text-muted">{language.t("secondBrain.environment.harness")}</dt>
+        <dd class="m-0 min-w-0 truncate">
           {[currentHarness(props.harness)?.name, props.model].filter(Boolean).join(" · ")}
-        </span>
-      </Row>
-      <Row label={language.t("secondBrain.environment.folder")}>
-        <PathTooltip
-          placement="left"
-          class="min-w-0"
-          name={language.t("secondBrain.environment.folder")}
-          path={directory()}
-        >
-          {/* Cut from the start, so the folder's own name stays visible. */}
-          <span class="block min-w-0 truncate text-left font-mono text-[12px] [direction:rtl] [font-weight:400]">
-            <bdi>{shortFolder(directory(), serverSync().data.path?.home)}</bdi>
-          </span>
-        </PathTooltip>
-      </Row>
-      <Row label={language.t("secondBrain.environment.branch")}>
-        <span class="min-w-0 truncate font-mono text-[12px] [font-weight:400]">
+        </dd>
+        <dt class="text-v2-text-text-muted">{language.t("secondBrain.environment.folder")}</dt>
+        <dd class="m-0 min-w-0">
+          <PathTooltip
+            placement="left"
+            class="min-w-0"
+            name={language.t("secondBrain.environment.folder")}
+            path={directory()}
+          >
+            {/* Cut from the start, so the folder's own name stays visible. */}
+            <span class="block min-w-0 truncate text-left font-mono text-[11.5px] [direction:rtl]">
+              <bdi>{shortFolder(directory(), serverSync().data.path?.home)}</bdi>
+            </span>
+          </PathTooltip>
+        </dd>
+        <dt class="text-v2-text-text-muted">{language.t("secondBrain.environment.branch")}</dt>
+        <dd class="m-0 min-w-0 truncate font-mono text-[11.5px]">
           {branch() ?? language.t("secondBrain.environment.noBranch")}
-        </span>
-      </Row>
-      <Row label={language.t("secondBrain.environment.approvals")}>
-        {language.t(`secondBrain.permissionMode.${mode()}` as Parameters<typeof language.t>[0])}
-      </Row>
-    </Group>
+        </dd>
+        <dt class="text-v2-text-text-muted">{language.t("secondBrain.environment.approvals")}</dt>
+        <dd class="m-0 min-w-0 truncate">
+          {language.t(`secondBrain.permissionMode.${mode()}` as Parameters<typeof language.t>[0])}
+        </dd>
+      </dl>
+    </section>
   )
 }
 
 // One step of the accent or grey per kind, so the parts differ in lightness as well as hue.
 const SHADE: Record<ContextPartKey, string> = {
-  system: "bg-v2-text-text-muted",
   messages: "bg-v2-icon-icon-accent",
   tools: "bg-v2-icon-icon-accent/55",
+  system: "bg-v2-text-text-muted",
   other: "bg-v2-border-border-strong",
   free: "bg-transparent",
 }
@@ -244,7 +257,7 @@ const SHADE: Record<ContextPartKey, string> = {
  * from the thread's own text (about four characters a token). For Codex, Claude Code and the other agents, what
  * the thread's text doesn't explain is the agent's own instructions and tool definitions, which Tenon can't see.
  */
-function ContextGroup(props: { context: ReturnType<typeof createComposerContext>; harness?: ThreadHarness }) {
+function ContextSection(props: { context: ReturnType<typeof createComposerContext>; harness?: ThreadHarness }) {
   const language = useLanguage()
   const sync = useSync()
   const formatter = createMemo(() => createSessionContextFormatter(language.intl()))
@@ -272,30 +285,28 @@ function ContextGroup(props: { context: ReturnType<typeof createComposerContext>
   return (
     <Show when={props.context.context()}>
       {(value) => (
-        <Group title={language.t("secondBrain.environment.context")}>
+        <Section title={language.t("secondBrain.environment.context")}>
           <Show
             when={!value().compacted && value().reported && value().limit ? value() : undefined}
             fallback={
-              <Row label={language.t("secondBrain.contextMenu.used")}>
-                <span class="text-[12px] [font-weight:400] text-v2-text-text-muted">
-                  {value().compacted
-                    ? language.t("secondBrain.contextMenu.compacted")
-                    : value().reported
-                      ? language.t("secondBrain.contextMenu.usedTokens", { count: formatter().number(value().total) })
-                      : language.t("secondBrain.contextMenu.notReported")}
-                </span>
-              </Row>
+              <p class="m-0 text-v2-text-text-muted">
+                {value().compacted
+                  ? language.t("secondBrain.contextMenu.compacted")
+                  : value().reported
+                    ? language.t("secondBrain.contextMenu.usedTokens", { count: formatter().number(value().total) })
+                    : language.t("secondBrain.contextMenu.notReported")}
+              </p>
             }
           >
             {(reported) => (
-              <div class="flex flex-col gap-2 py-2">
+              <>
                 <div class="flex items-baseline gap-2">
-                  <span class="flex-1 [font-weight:560]">
+                  <span class="flex-1 text-[14px] leading-[18px] [font-weight:600]">
                     {language.t("secondBrain.contextStrip.ring", {
                       percent: formatter().percent(reported().usage ?? 0),
                     })}
                   </span>
-                  <span class="text-[12px] text-v2-text-text-muted">
+                  <span class="text-v2-text-text-muted">
                     {`${formatter().number(reported().total)} / ${formatter().number(reported().limit!)}`}
                   </span>
                 </div>
@@ -310,10 +321,10 @@ function ContextGroup(props: { context: ReturnType<typeof createComposerContext>
                     {(part) => <span class={`h-full ${SHADE[part.key]}`} style={{ width: `${part.percent}%` }} />}
                   </For>
                 </div>
-                <div class="flex flex-col gap-1">
+                <div class="flex flex-col gap-1.5">
                   <For each={parts()}>
                     {(part) => (
-                      <div class="flex items-center gap-2 text-[12px]">
+                      <div class="flex items-center gap-2">
                         <span
                           class={`size-2 shrink-0 rounded-[2px] ${part.key === "free" ? "shadow-[inset_0_0_0_1px_var(--v2-border-border-strong)]" : SHADE[part.key]}`}
                           aria-hidden="true"
@@ -325,22 +336,24 @@ function ContextGroup(props: { context: ReturnType<typeof createComposerContext>
                           {label(part.key)}
                         </span>
                         <span class="text-v2-text-text-muted">{formatter().number(part.tokens)}</span>
-                        <span class="w-10 text-right">{`${Math.round(part.percent)}%`}</span>
+                        <span class="w-11 text-right" classList={{ "text-v2-text-text-muted": part.key === "free" }}>
+                          {`${Math.round(part.percent)}%`}
+                        </span>
                       </div>
                     )}
                   </For>
                 </div>
-                <p class="m-0 text-[11px] leading-[14px] text-v2-text-text-muted">
+                <p class="m-0 text-v2-text-text-muted">
                   {language.t(
                     external()
                       ? "secondBrain.environment.breakdown.estimatedExternal"
                       : "secondBrain.environment.breakdown.estimated",
                   )}
                 </p>
-              </div>
+              </>
             )}
           </Show>
-        </Group>
+        </Section>
       )}
     </Show>
   )
@@ -349,8 +362,9 @@ function ContextGroup(props: { context: ReturnType<typeof createComposerContext>
 /**
  * The MCP servers the thread's agent can use: the user's from Settings, on or off, and for Codex and the ACP agents
  * Tenon's own server. Whether an external agent connected each one isn't reported, so only on and off are shown.
+ * The title opens the MCP settings.
  */
-function ConnectorsGroup(props: { harness?: ThreadHarness }) {
+function ConnectorsSection(props: { harness?: ThreadHarness }) {
   const language = useLanguage()
   const serverSync = useServerSync()
   const dialog = useDialog()
@@ -358,117 +372,158 @@ function ConnectorsGroup(props: { harness?: ThreadHarness }) {
     connectorRows(serverSync().data.config.mcp as Parameters<typeof connectorRows>[0], isExternal(props.harness)),
   )
   return (
-    <Group title={language.t("secondBrain.environment.connectors")}>
-      <Show when={rows().length > 0} fallback={<Note>{language.t("secondBrain.environment.noConnectors")}</Note>}>
-        <For each={rows()}>
-          {(row) => (
-            <Row label={row.builtIn ? language.t("secondBrain.environment.tenonTools") : row.name}>
-              <span class="flex items-center gap-1.5 text-[12px] [font-weight:400] text-v2-text-text-muted">
+    <section class="flex flex-col gap-2 px-[18px] py-3.5">
+      <SectionLink
+        title={language.t("secondBrain.environment.connectors")}
+        label={language.t("secondBrain.environment.manage")}
+        onClick={() => void dialog.show(() => <DialogSettings defaultValue="mcp" />)}
+      >
+        <span class="text-v2-text-text-muted">
+          {language.t("secondBrain.environment.connectorsOn", { count: rows().filter((row) => row.on).length })}
+        </span>
+      </SectionLink>
+      <Show
+        when={rows().length > 0}
+        fallback={<p class="m-0 text-v2-text-text-muted">{language.t("secondBrain.environment.noConnectors")}</p>}
+      >
+        <div class="flex flex-col gap-1.5">
+          <For each={rows()}>
+            {(row) => (
+              <div class="flex items-center gap-2">
                 <span
                   class="size-1.5 shrink-0 rounded-full"
                   classList={{ "bg-v2-state-fg-success": row.on, "bg-v2-border-border-strong": !row.on }}
                   aria-hidden="true"
                 />
-                {language.t(row.on ? "secondBrain.environment.on" : "secondBrain.environment.off")}
-              </span>
-            </Row>
-          )}
-        </For>
+                <span class="min-w-0 flex-1 truncate">
+                  {row.builtIn ? language.t("secondBrain.environment.tenonTools") : row.name}
+                </span>
+                <span class="text-v2-text-text-muted">
+                  {language.t(row.on ? "secondBrain.environment.on" : "secondBrain.environment.off")}
+                </span>
+              </div>
+            )}
+          </For>
+        </div>
       </Show>
-      <LinkRow
-        label={language.t("secondBrain.environment.manage")}
-        onClick={() => void dialog.show(() => <DialogSettings defaultValue="mcp" />)}
-      />
-    </Group>
+    </section>
   )
 }
 
-/** The thread's file changes in one line, with the review panel one click away. */
-function ChangesGroup() {
+/** The thread's file changes in one line; with changes, the line opens the review panel. */
+function ChangesSection() {
   const language = useLanguage()
   const sync = useSync()
   const { params, view, tabs } = useSessionLayout()
   const totals = createMemo(() => changeTotals(params.id ? sync().data.session_diff[params.id] : undefined))
   return (
-    <Group title={language.t("secondBrain.environment.changes")}>
-      <Show when={totals().files > 0} fallback={<Note>{language.t("secondBrain.environment.noChanges")}</Note>}>
-        <Row label={language.t("secondBrain.environment.files", { count: totals().files })}>
-          <span class="font-mono text-[12px] [font-weight:400]">
-            <Show when={totals().additions > 0}>
-              <span class="text-v2-state-fg-success">{`+${totals().additions}`}</span>
-            </Show>
-            <Show when={totals().additions > 0 && totals().deletions > 0}> </Show>
-            <Show when={totals().deletions > 0}>
-              <span class="text-v2-state-fg-danger">{`-${totals().deletions}`}</span>
-            </Show>
-          </span>
-        </Row>
-        <LinkRow
+    <section class="px-[18px] py-3.5">
+      <Show
+        when={totals().files > 0}
+        fallback={
+          <div class="flex items-center gap-2">
+            <h3 class="m-0 flex-1 text-[13px] leading-[18px] [font-weight:600]">
+              {language.t("secondBrain.environment.changes")}
+            </h3>
+            <span class="text-v2-text-text-muted">{language.t("secondBrain.environment.noChanges")}</span>
+          </div>
+        }
+      >
+        <SectionLink
+          title={language.t("secondBrain.environment.changes")}
           label={language.t("secondBrain.environment.review")}
           onClick={() => {
             view().reviewPanel.open("other")
             void tabs().open("review")
             tabs().setActive("review")
           }}
-        />
+        >
+          <span class="font-mono">
+            <Show when={totals().additions > 0}>
+              <span class="text-v2-state-fg-success">{`+${totals().additions}`}</span>
+            </Show>
+            <Show when={totals().additions > 0 && totals().deletions > 0}> </Show>
+            <Show when={totals().deletions > 0}>
+              <span class="text-v2-state-fg-danger">{`−${totals().deletions}`}</span>
+            </Show>
+          </span>
+          <span class="text-v2-text-text-muted">
+            {language.t("secondBrain.environment.files", { count: totals().files })}
+          </span>
+        </SectionLink>
       </Show>
-    </Group>
-  )
-}
-
-/** What the thread has running now: its subagents and the open terminals. */
-function RunningGroup(props: { groups: Parameters<typeof runningSubagents>[0] }) {
-  const language = useLanguage()
-  const terminal = useTerminal()
-  return (
-    <Group title={language.t("secondBrain.environment.running")}>
-      <Row label={language.t("secondBrain.environment.subagents")}>{runningSubagents(props.groups)}</Row>
-      <Row label={language.t("secondBrain.environment.terminals")}>{terminal.all().length}</Row>
-    </Group>
-  )
-}
-
-/** A group of rows on its own surface, with a title above it. */
-function Group(props: { title?: string; children: JSX.Element }) {
-  return (
-    <section class="flex flex-col">
-      <Show when={props.title}>
-        <h3 class="m-0 px-3 pb-1 pt-2 type-caption uppercase tracking-[0.05em] text-v2-text-text-muted">
-          {props.title}
-        </h3>
-      </Show>
-      <div class="flex flex-col divide-y divide-v2-border-border-muted rounded-[14px] bg-v2-background-bg-layer-01 px-3">
-        {props.children}
-      </div>
     </section>
   )
 }
 
-/** A label on the left and its value on the right. */
-function Row(props: { label: string; children: JSX.Element }) {
+/** What the thread has running now: its subagents and the open terminals. */
+function RunningSection(props: { groups: Parameters<typeof runningSubagents>[0] }) {
+  const language = useLanguage()
+  const terminal = useTerminal()
   return (
-    <div class="flex min-h-8 min-w-0 items-center gap-2.5">
-      <span class="shrink-0 text-v2-text-text-muted">{props.label}</span>
-      <span class="ml-auto flex min-w-0 items-center justify-end gap-2 [font-weight:500]">{props.children}</span>
-    </div>
+    <Section title={language.t("secondBrain.environment.running")} last>
+      <div class="flex flex-col gap-1.5">
+        <div class="flex items-center gap-2">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 14 14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.3"
+            class="shrink-0 text-v2-icon-icon-muted"
+            aria-hidden="true"
+          >
+            <circle cx="7" cy="7" r="5" />
+            <path d="M7 4.5V7l1.5 1" />
+          </svg>
+          <span class="min-w-0 flex-1 truncate">{language.t("secondBrain.environment.subagents")}</span>
+          <span class="text-v2-text-text-muted">{runningSubagents(props.groups)}</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 14 14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.3"
+            class="shrink-0 text-v2-icon-icon-muted"
+            aria-hidden="true"
+          >
+            <rect x="1.5" y="2.5" width="11" height="9" rx="1.5" />
+            <path d="M4 6l2 1.5L4 9" />
+          </svg>
+          <span class="min-w-0 flex-1 truncate">{language.t("secondBrain.environment.terminals")}</span>
+          <span class="text-v2-text-text-muted">{terminal.all().length}</span>
+        </div>
+      </div>
+    </Section>
   )
 }
 
-/** A muted one-line note in place of a group's rows. */
-function Note(props: { children: JSX.Element }) {
-  return <p class="m-0 py-2 text-[12px] text-v2-text-text-muted">{props.children}</p>
+/** A section of the card: a sentence-case title over its content. */
+function Section(props: { title: string; last?: boolean; children: JSX.Element }) {
+  return (
+    <section class="flex flex-col gap-2.5 px-[18px] pt-3.5" classList={{ "pb-3.5": !props.last, "pb-4": props.last }}>
+      <h3 class="m-0 text-[13px] leading-[18px] [font-weight:600]">{props.title}</h3>
+      {props.children}
+    </section>
+  )
 }
 
-/** A full-width row that opens something, with a chevron. */
-function LinkRow(props: { label: string; onClick: () => void }) {
+/** A section title that opens something: the title, a summary on the right and a chevron. */
+function SectionLink(props: { title: string; label: string; onClick: () => void; children: JSX.Element }) {
   return (
     <button
       type="button"
-      class="-mx-3 flex min-h-8 items-center px-3 text-left text-v2-text-text-base outline-none transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover focus-visible:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)] motion-reduce:transition-none"
+      aria-label={props.label}
+      class="-mx-2 flex items-center gap-2 rounded-[8px] px-2 py-0.5 text-left outline-none transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover focus-visible:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)] motion-reduce:transition-none"
       onClick={() => props.onClick()}
     >
-      {props.label}
-      <Icon name="chevron-down" size="small" class="ml-auto shrink-0 -rotate-90 text-v2-icon-icon-muted" />
+      <span class="flex-1 text-[13px] leading-[18px] [font-weight:600]">{props.title}</span>
+      {props.children}
+      <Icon name="chevron-down" size="small" class="shrink-0 -rotate-90 text-v2-icon-icon-muted" />
     </button>
   )
 }
