@@ -1440,7 +1440,8 @@ export function MessageTimeline(props: {
           style={{
             height: `${virtualizer.getTotalSize()}px`,
             position: "relative",
-            width: "100%",
+            // The open Environment window takes this much from the right, so the text re-centres beside it.
+            width: "calc(100% - var(--thread-environment-inset, 0px))",
           }}
         >
           <For each={virtualRowKeys()}>{(rowKey) => <VirtualTimelineRow rowKey={rowKey} />}</For>

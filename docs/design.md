@@ -59,11 +59,15 @@ Use `[font-weight:N]` when a weight must differ from the role.
   them (`Popover`, `MenuV2`), anchored `bottom-end` with a 6px gutter, at most
   `min(340px, 100vw - 32px)` wide, and scroll inside themselves.
 - **Floating windows:** a panel the user keeps open while working (the
-  thread Environment) floats below its toggle at 20px radius on
-  `bg-floating` with the floating elevation, has a title row with a close
-  button, ignores outside clicks, closes on Esc and remembers whether it was
-  open. It minimizes on its own while the area it floats over gets too narrow
-  to read beside it, and returns when there is room again. Use a popover instead for anything that should close when you click
+  thread Environment) floats below its toggle as one 24px card on
+  `bg-floating` with a hairline edge and the floating elevation. Inside,
+  sections are split by hairlines, each with a 13px semibold sentence-case
+  title (no uppercase captions, no boxed groups), 12px rows and a label column.
+  It has a close button in its title row, ignores outside clicks, closes on Esc
+  and remembers whether it was open. It never covers the content it sits
+  beside: that content makes room for it, and when the room would leave the
+  content too narrow to read (under 480px), the window minimizes to its toggle
+  and returns when there is room again. Use a popover instead for anything that should close when you click
   away.
 - **Thread header:** the title on the left; on the right, compact pill
   controls (28px) followed by the "…" thread menu. The Environment toggle
