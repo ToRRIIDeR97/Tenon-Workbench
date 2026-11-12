@@ -355,7 +355,9 @@ export function PromptProjectSelector(props: {
               aria-autocomplete="list"
               aria-controls="prompt-project-menu"
               aria-activedescendant={props.controller.active() || undefined}
-              class={`${searchFieldClass} !rounded-[12px] !shadow-none !bg-v2-background-bg-layer-01 pr-9 focus-visible:!shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)]`}
+              // The field keeps focus while the menu is open (hovering a row hands focus back to it), so it draws no
+              // ring: a ring here flickered on every hover and left blue specks at its corners as it faded.
+              class={`${searchFieldClass} !rounded-[12px] !bg-v2-background-bg-layer-01 pr-9 !shadow-none hover:!shadow-none focus-visible:!shadow-none !transition-none`}
               onInput={(event) => props.controller.setSearch(event.currentTarget.value)}
               onKeyDown={(event) => {
                 if (event.key === "Tab") {
