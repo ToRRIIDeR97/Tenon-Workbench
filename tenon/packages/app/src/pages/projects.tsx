@@ -458,6 +458,7 @@ ${path}`
       <>
         <PageHeader
           id="projects-title"
+          column="narrow"
           title={language.t("secondBrain.projects.title")}
           actions={
             <>

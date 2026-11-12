@@ -37,8 +37,8 @@
   position: sticky;
   top: 0;
   z-index: 10;
-  /* The right side clears the dialog's close button, so header actions never sit under it. */
-  padding: 40px 64px 32px 40px;
+  /* Same sides as the body, so actions end on the cards' edge; the close button sits above the 40px top. */
+  padding: 40px 40px 32px 40px;
   background: linear-gradient(to bottom, var(--v2-background-bg-base) calc(100% - 24px), transparent);
 }
 
@@ -79,8 +79,7 @@
 }
 
 .settings-v2-section-title {
-  padding-inline-start: 4px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 20px;
   color: var(--v2-text-text-base);

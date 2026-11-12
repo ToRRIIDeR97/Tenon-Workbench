@@ -91,7 +91,11 @@ export default function ProjectOverviewPage() {
         when={brainDirectory()}
         fallback={
           <>
-            <PageHeader id="project-overview-title" title={language.t("secondBrain.projects.overview.title")} />
+            <PageHeader
+              id="project-overview-title"
+              column="wide"
+              title={language.t("secondBrain.projects.overview.title")}
+            />
             <PageEmpty
               title={language.t("secondBrain.state.noWorkspace.title")}
               action={
@@ -107,6 +111,7 @@ export default function ProjectOverviewPage() {
       >
         <PageHeader
           id="project-overview-title"
+          column="wide"
           title={language.t("secondBrain.projects.overview.title")}
           back={{ label: language.t("secondBrain.projects.back"), onClick: () => navigate("/projects") }}
         />
@@ -161,7 +166,7 @@ export default function ProjectOverviewPage() {
                     return (
                       <section class="flex flex-col gap-3" aria-labelledby={heading()}>
                         <div class="flex min-w-0 items-baseline gap-2 px-3">
-                          <h2 id={heading()} class="min-w-0 flex-1 truncate type-section text-v2-text-text-base">
+                          <h2 id={heading()} class="min-w-0 flex-1 truncate type-toolbar-title text-v2-text-text-base">
                             {group.name || language.t("secondBrain.projects.overview.workspace")}
                           </h2>
                           <Show when={group.status}>
@@ -197,7 +202,7 @@ export default function ProjectOverviewPage() {
                         <Show when={group.items.length > 0}>
                           <div class="flex flex-col gap-1">
                             <div class="flex h-8 items-center gap-1 pl-3">
-                              <h3 class="min-w-0 flex-1 truncate type-section text-v2-text-text-base">
+                              <h3 class="min-w-0 flex-1 truncate type-caption uppercase tracking-[0.05em] text-v2-text-text-muted">
                                 {language.t("secondBrain.projects.overview.upcoming")}
                               </h3>
                               <Show when={group.items.length > preview}>
@@ -223,7 +228,7 @@ export default function ProjectOverviewPage() {
                         <Show when={group.notes.length > 0}>
                           <div class="flex flex-col gap-1">
                             <div class="flex h-8 items-center gap-1 pl-3">
-                              <h3 class="min-w-0 flex-1 truncate type-section text-v2-text-text-base">
+                              <h3 class="min-w-0 flex-1 truncate type-caption uppercase tracking-[0.05em] text-v2-text-text-muted">
                                 {language.t("secondBrain.projects.overview.notes")}
                               </h3>
                               <Show when={group.notes.length > preview}>
