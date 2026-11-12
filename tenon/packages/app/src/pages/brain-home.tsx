@@ -26,7 +26,7 @@ import { useBrainProjects, useProjectThreads } from "@/components/sidebar/sideba
 import { MenuV2 } from "@tenon/ui/v2/menu-v2"
 import { createHomeController } from "@/pages/home/home-controller"
 import { createHomeSessionsController } from "@/pages/home/home-sessions-controller"
-import { agentRunStatus } from "@/pages/activity-runs"
+import { agentRunStatus, needsYou } from "@/pages/activity-runs"
 import { Harness } from "@tenon/schema/harness"
 import { harnessAssistantDirectory, listHarnessSetup, listHarnessUsage } from "@/utils/server"
 import { fullestWindow } from "@/components/harness-usage"
@@ -164,10 +164,7 @@ export default function BrainHomePage() {
     const data = tenonHome.server.focusedSync().session.data
     return tenonSessions.data
       .records()
-      .filter(
-        (record) =>
-          !!agentRunStatus(data.session_status[record.session.id], data.permission[record.session.id]?.length ?? 0),
-      )
+      .filter((record) => !!agentRunStatus(data.session_status[record.session.id], needsYou(data, record.session.id)))
   })
 
   // Recent threads that aren't already under Running work, from every open folder.

@@ -1,3 +1,4 @@
+import { needsYou } from "@/pages/activity-runs"
 import type { Message, Part } from "@opencode-ai/sdk/v2/client"
 import { createSimpleContext } from "@tenon/ui/context"
 import { readPartText } from "@tenon/session-ui/message-part-text"
@@ -115,6 +116,12 @@ export function commandMessages(data: CommandTranscript, sessionID: string | und
     const state = messageState(message)
     return state ? [{ id: message.id, ...state, text: messageText(data, message.id) }] : []
   })
+}
+
+/** The thread's last user message on one line: what was asked, shown above the reply. */
+export function lastAskText(data: CommandTranscript, sessionID: string | undefined) {
+  const ask = sessionID ? data.message[sessionID]?.findLast((message) => message.role === "user") : undefined
+  return ask ? messageText(data, ask.id).trim().replace(/\s+/g, " ") : ""
 }
 
 /** The thread's last assistant reply on one line, reading only that message's parts. */
@@ -255,6 +262,7 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
     const messages = (sessionID: string | undefined) => commandMessages(serverSync().session.data, sessionID)
     // The K3 strip shows this on every page: a streamed delta re-reads only the latest reply's parts, once.
     const lastReply = createMemo(() => lastReplyText(serverSync().session.data, latest()?.id))
+    const lastAsk = createMemo(() => lastAskText(serverSync().session.data, latest()?.id))
     const sync = (sessionID: string) => void serverSync().session.sync(sessionID)
     const agentWrites = useAgentWrites()
     // When the thread's latest turn began (its last user message), so writes can be grouped per turn.
@@ -354,8 +362,8 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
       loading: () => threads.loading || vault.loading,
       latest,
       messages,
-      /** Whether the latest thread is waiting on a permission prompt, which only its own page can answer. */
-      waiting: () => (serverSync().session.data.permission[latest()?.id ?? ""]?.length ?? 0) > 0,
+      /** Whether the latest thread waits on an approval or a question, which its own page answers. */
+      waiting: () => needsYou(serverSync().session.data, latest()?.id ?? "") > 0,
       /** Whether the thread's agent is working on a reply. */
       working: (sessionID: string | undefined) =>
         !!sessionID &&
@@ -364,6 +372,7 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
       label: (thread: CommandThread) => commandLabel(thread.title, serverSync().session.data, thread.id),
       sync,
       lastReply,
+      lastAsk,
       sending: () => state.sending,
       error: () => state.error,
       clearError: () => setState("error", ""),

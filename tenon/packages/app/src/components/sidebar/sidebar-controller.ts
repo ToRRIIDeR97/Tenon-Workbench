@@ -1,3 +1,4 @@
+import { needsYou } from "@/pages/activity-runs"
 import type { Session } from "@opencode-ai/sdk/v2/client"
 import { useLocation, useNavigate } from "@solidjs/router"
 import { type QueryClient, useQueries, useQuery, useQueryClient } from "@tanstack/solid-query"
@@ -376,7 +377,7 @@ export function createSidebarController() {
   const grouping = () => parseGrouping(state.grouping)
   const stateOf = (session: Pick<Session, "id">) => {
     const data = serverSync().session.data
-    return threadState(data.session_status[session.id], data.permission[session.id]?.length ?? 0)
+    return threadState(data.session_status[session.id], needsYou(data, session.id))
   }
   // Only expanded Projects load child threads; elsewhere a root has no child nodes. The session index's
   // parent links still carry a child's state up to its root, with no request per folder.
@@ -410,7 +411,7 @@ export function createSidebarController() {
       : recentCards(roots, stateOf, Date.now(), linked)
   })
   /** Root threads waiting on the user anywhere in the workspace, whichever grouping is showing. */
-  const needsYou = createMemo(() => {
+  const waitingCount = createMemo(() => {
     const value = groups()
     return [...value.projects.flatMap((group) => group.threads), ...value.workspace].filter(
       (node) => nodeState(node, stateOf, linked) === "approval",
@@ -979,7 +980,7 @@ export function createSidebarController() {
     card: (id: string) => cardByID().get(id),
     grouping,
     setGrouping: (value: ThreadGrouping) => setState("grouping", value),
-    needsYou,
+    needsYou: waitingCount,
     stateOf,
     subtreeState: (node: ThreadNode<Session>) => nodeState(node, stateOf, linked),
     projectThreads,
