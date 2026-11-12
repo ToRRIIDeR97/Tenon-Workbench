@@ -550,6 +550,10 @@ Agents can start work in another harness through the delegation endpoint
   wouldn't ask for anyway. Its approvals reach the delegating Run's composer.
 - The built-in loop asks permission `delegate` before starting or stopping a
   task. Codex and ACP agents apply their own MCP tool policy to the call.
+- Codex asks before each MCP tool call (`mcpServer/elicitation/request`). Tenon answers it
+  with its own approval (action `mcp`, saved per server); an MCP form becomes questions in
+  the dock and a link request is declined. Before this, the unhandled request made Codex
+  report every MCP call as rejected.
 - The user's own MCP servers (Settings › MCP servers, from config documents
   that already drop `mcp` in untrusted folders) are forwarded to Codex and ACP
   agents too (`harness/forwarded-mcp.ts`). Environment values and headers are

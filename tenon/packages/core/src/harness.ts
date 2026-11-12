@@ -1984,6 +1984,35 @@ export function handleCodexRequest(
       })),
     )
   }
+  // Codex asks the client before each MCP tool call (and for MCP forms) with an MCP elicitation. Without an answer
+  // it reports "user rejected MCP tool call", so neither the user's servers nor Tenon's own could run.
+  if (request.method === "mcpServer/elicitation/request") {
+    const reply = (action: "accept" | "decline", content: unknown = null) => ({ action, content, _meta: null })
+    // A form with fields is a question for the user, asked in the dock like an ACP agent's.
+    if (AcpHarness.elicitationFields(params).length > 0)
+      return AcpHarness.elicit(params, askUser).pipe(
+        Effect.map((result) =>
+          "content" in result && result.action === "accept" ? reply("accept", result.content) : reply("decline"),
+        ),
+      )
+    // A link to open (sign-in and the like) isn't something Tenon can complete for the agent.
+    if (params.mode === "url") return Effect.succeed(reply("decline"))
+    // Otherwise it asks to run a tool: the approval card, per server, like a command.
+    const server = string(params.serverName) ?? "MCP server"
+    return guard(
+      ask({
+        sessionID,
+        action: "mcp",
+        resources: [server],
+        save: [Wildcard.literal(server)],
+        metadata: {
+          harness: "codex",
+          ...(string(params.message) ? { message: string(params.message) } : {}),
+        },
+      }),
+      false,
+    ).pipe(Effect.map((allowed) => (allowed ? reply("accept", {}) : reply("decline"))))
+  }
   if (request.method === "item/tool/requestUserInput") {
     const raw = Array.isArray(params.questions) ? params.questions : []
     const items = raw.flatMap((question) => {
