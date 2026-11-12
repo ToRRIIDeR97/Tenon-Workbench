@@ -1,7 +1,7 @@
-import { Show, createMemo, onCleanup, onMount, untrack, type JSX } from "solid-js"
+import { Show, createComputed, createEffect, createMemo, on, onCleanup, onMount, untrack, type JSX } from "solid-js"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
-import type { PermissionRequest, QuestionRequest } from "@opencode-ai/sdk/v2"
 import { Reveal } from "@tenon/ui/v2/reveal"
+import { motionDuration, prefersReducedMotion } from "@tenon/ui/v2/motion"
 import { useLanguage } from "@/context/language"
 import { usePermission } from "@/context/permission"
 import { useSDK } from "@/context/sdk"
@@ -25,10 +25,51 @@ export function SessionComposerRegion(props: {
   const permissions = usePermission()
   const sdk = useSDK()
   const params = useParams<{ id?: string }>()
-  // Each dock opens and closes through Reveal, so the region's height eases instead of jumping. A closing
-  // dock keeps rendering the last value it had, which these hold once the live value is gone.
-  const question = createMemo<QuestionRequest | undefined>((last) => controller.state.questionRequest() ?? last)
-  const permission = createMemo<PermissionRequest | undefined>((last) => controller.state.permissionRequest() ?? last)
+  // A question or approval takes the composer's place. Only one of the three shows at a time: the incoming one
+  // fades and rises in (animate-enter) while the area's height eases once from the old content's height to the
+  // new one's, so the region never grows past either (both showing at once made it jump up, then back down).
+  const view = createMemo<"question" | "permission" | "composer">(() => {
+    if (controller.state.questionRequest()) return "question"
+    if (controller.state.permissionRequest()) return "permission"
+    return controller.showComposer() ? "composer" : "permission"
+  })
+  const question = () => controller.state.questionRequest()
+  const permission = () => controller.state.permissionRequest()
+  // The first content shows as it is; only later swaps animate.
+  let swapped = false
+  let swap: HTMLDivElement | undefined
+  let from = 0
+  createComputed(
+    on(
+      view,
+      () => {
+        from = swap?.getBoundingClientRect().height ?? 0
+        swapped = true
+      },
+      { defer: true },
+    ),
+  )
+  createEffect(
+    on(
+      view,
+      () => {
+        const element = swap
+        if (!element || prefersReducedMotion()) return
+        const to = element.getBoundingClientRect().height
+        if (!from || Math.abs(to - from) < 1) return
+        element.style.overflow = "hidden"
+        const animation = element.animate([{ height: `${from}px` }, { height: `${to}px` }], {
+          duration: motionDuration("medium"),
+          easing: getComputedStyle(element).getPropertyValue("--v2-ease-emphasized-decelerate").trim() || "ease-out",
+        })
+        const done = () => (element.style.overflow = "")
+        animation.onfinish = done
+        animation.oncancel = done
+      },
+      { defer: true },
+    ),
+  )
+  const enter = () => (swapped ? "animate-enter" : "")
   const followup = createMemo<SessionComposerFollowupDock | undefined>((last) =>
     controller.followup()?.items.length ? controller.followup() : last,
   )
@@ -78,108 +119,110 @@ export function SessionComposerRegion(props: {
           "md:max-w-200 md:mx-auto 2xl:max-w-[1000px]": controller.centered(),
         }}
       >
-        {/* A question or permission takes the composer's place: the dock grows in as the composer folds away,
-            and the reverse once it is answered. */}
-        <Reveal open={!!controller.state.questionRequest()}>
-          <Show when={question()} keyed>
-            {(request) => <SessionQuestionDock request={request} onSubmit={controller.onResponseSubmit} />}
-          </Show>
-        </Reveal>
-
-        <Reveal open={!!controller.state.permissionRequest()}>
-          <Show when={permission()} keyed>
+        <div ref={swap} class="flex flex-col">
+          <Show when={view() === "question" ? question() : undefined} keyed>
             {(request) => (
-              <SessionPermissionDock
-                request={request}
-                responding={controller.state.permissionResponding()}
-                onDecide={(response, message) => {
-                  controller.onResponseSubmit()
-                  controller.state.decide(response, message, props.external)
-                }}
-                // Full auto answers this request and every later one in the thread, subagents included.
-                onAllowThread={() => {
-                  controller.onResponseSubmit()
-                  permissions.setMode(params.id ?? request.sessionID, sdk().directory, "full")
-                }}
-              />
+              <div class={enter()}>
+                <SessionQuestionDock request={request} onSubmit={controller.onResponseSubmit} />
+              </div>
             )}
           </Show>
-        </Reveal>
 
-        <Reveal open={controller.showComposer()}>
-          {/* Flex so the docks' negative margins add up instead of collapsing into each other. */}
-          <div class="flex flex-col">
-            <Show when={controller.dock()}>
-              <div
-                classList={{
-                  "overflow-hidden": true,
-                  "pointer-events-none": controller.dockProgress() < 0.98,
-                }}
-                style={{
-                  "max-height": `${controller.dockHeight() * controller.dockProgress()}px`,
-                }}
-              >
-                <div ref={controller.setDockBodyRef}>
-                  <SessionTodoDock
-                    todos={controller.state.todos()}
-                    collapsed={controller.todo.collapsed()}
-                    onToggle={controller.todo.onToggle}
-                    collapseLabel={language.t("session.todo.collapse")}
-                    expandLabel={language.t("session.todo.expand")}
-                    dockProgress={controller.dockProgress()}
-                  />
-                </div>
+          <Show when={view() === "permission" ? permission() : undefined} keyed>
+            {(request) => (
+              <div class={enter()}>
+                <SessionPermissionDock
+                  request={request}
+                  responding={controller.state.permissionResponding()}
+                  onDecide={(response, message) => {
+                    controller.onResponseSubmit()
+                    controller.state.decide(response, message, props.external)
+                  }}
+                  // Full auto answers this request and every later one in the thread, subagents included.
+                  onAllowThread={() => {
+                    controller.onResponseSubmit()
+                    permissions.setMode(params.id ?? request.sessionID, sdk().directory, "full")
+                  }}
+                />
               </div>
-            </Show>
-            <Show
-              when={controller.promptReady()}
-              fallback={
-                <div style={{ "margin-top": `${-36 * controller.dockProgress()}px` }}>
-                  {/* The live composer carries the rollback rows in its own tray; the placeholder stands in for it. */}
-                  <SessionRevertTray dock={controller.revert} />
-                  <div class="w-full min-h-32 md:min-h-40 rounded-[28px] bg-v2-background-bg-layer-01 px-5 py-4 text-v2-text-text-muted whitespace-pre-wrap pointer-events-none">
-                    {controller.handoffPrompt() || language.t("prompt.loading")}
+            )}
+          </Show>
+
+          <Show when={view() === "composer"}>
+            {/* Flex so the docks' negative margins add up instead of collapsing into each other. */}
+            <div class={`flex flex-col ${enter()}`}>
+              <Show when={controller.dock()}>
+                <div
+                  classList={{
+                    "overflow-hidden": true,
+                    "pointer-events-none": controller.dockProgress() < 0.98,
+                  }}
+                  style={{
+                    "max-height": `${controller.dockHeight() * controller.dockProgress()}px`,
+                  }}
+                >
+                  <div ref={controller.setDockBodyRef}>
+                    <SessionTodoDock
+                      todos={controller.state.todos()}
+                      collapsed={controller.todo.collapsed()}
+                      onToggle={controller.todo.onToggle}
+                      collapseLabel={language.t("session.todo.collapse")}
+                      expandLabel={language.t("session.todo.expand")}
+                      dockProgress={controller.dockProgress()}
+                    />
                   </div>
                 </div>
-              }
-            >
-              {/* The rollback rows live in the composer's tray (its header), so they fold in with the tray
+              </Show>
+              <Show
+                when={controller.promptReady()}
+                fallback={
+                  <div style={{ "margin-top": `${-36 * controller.dockProgress()}px` }}>
+                    {/* The live composer carries the rollback rows in its own tray; the placeholder stands in for it. */}
+                    <SessionRevertTray dock={controller.revert} />
+                    <div class="w-full min-h-32 md:min-h-40 rounded-[28px] bg-v2-background-bg-layer-01 px-5 py-4 text-v2-text-text-muted whitespace-pre-wrap pointer-events-none">
+                      {controller.handoffPrompt() || language.t("prompt.loading")}
+                    </div>
+                  </div>
+                }
+              >
+                {/* The rollback rows live in the composer's tray (its header), so they fold in with the tray
                   and the composer below them never jumps. */}
-              <div
-                classList={{
-                  "relative z-(--z-composer)": true,
-                  "animate-enter": handedOff,
-                }}
-                style={{ "margin-top": `${-36 * controller.dockProgress()}px` }}
-              >
-                <Reveal open={!!controller.followup()?.items.length}>
-                  <Show when={followup()}>
-                    {(dock) => (
-                      <SessionFollowupDock items={dock().items} pending={dock().pending} actions={dock().actions} />
-                    )}
-                  </Show>
-                </Reveal>
-                <Show when={controller.child()} fallback={props.promptInput}>
-                  <div
-                    ref={controller.setPromptRef}
-                    class="w-full rounded-[28px] bg-v2-background-bg-layer-01 px-5 py-4 text-[14px] text-v2-text-text-muted"
-                  >
-                    <span>{language.t("session.child.promptDisabled")} </span>
-                    <Show when={controller.parentID()}>
-                      <button
-                        type="button"
-                        class="rounded-full text-v2-text-text-accent transition-colors duration-short ease-standard hover:text-v2-text-text-accent-hover [font-weight:500] motion-reduce:transition-none"
-                        onClick={controller.openParent}
-                      >
-                        {language.t("session.child.backToParent")}
-                      </button>
+                <div
+                  classList={{
+                    "relative z-(--z-composer)": true,
+                    "animate-enter": handedOff,
+                  }}
+                  style={{ "margin-top": `${-36 * controller.dockProgress()}px` }}
+                >
+                  <Reveal open={!!controller.followup()?.items.length}>
+                    <Show when={followup()}>
+                      {(dock) => (
+                        <SessionFollowupDock items={dock().items} pending={dock().pending} actions={dock().actions} />
+                      )}
                     </Show>
-                  </div>
-                </Show>
-              </div>
-            </Show>
-          </div>
-        </Reveal>
+                  </Reveal>
+                  <Show when={controller.child()} fallback={props.promptInput}>
+                    <div
+                      ref={controller.setPromptRef}
+                      class="w-full rounded-[28px] bg-v2-background-bg-layer-01 px-5 py-4 text-[14px] text-v2-text-text-muted"
+                    >
+                      <span>{language.t("session.child.promptDisabled")} </span>
+                      <Show when={controller.parentID()}>
+                        <button
+                          type="button"
+                          class="rounded-full text-v2-text-text-accent transition-colors duration-short ease-standard hover:text-v2-text-text-accent-hover [font-weight:500] motion-reduce:transition-none"
+                          onClick={controller.openParent}
+                        >
+                          {language.t("session.child.backToParent")}
+                        </button>
+                      </Show>
+                    </div>
+                  </Show>
+                </div>
+              </Show>
+            </div>
+          </Show>
+        </div>
       </div>
     </div>
   )
