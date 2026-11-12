@@ -263,6 +263,8 @@ export function MessageTimeline(props: {
   onPauseFollow?: () => void
   centered: boolean
   setContentRef: (el: HTMLDivElement) => void
+  /** Extra controls in the thread header, before the "…" menu (the Environment button). */
+  headerActions?: JSX.Element
   userMessages: UserMessage[]
   anchor: (id: string) => string
   setRevealMessage?: (fn: (id: string) => void) => void
@@ -1384,6 +1386,7 @@ export function MessageTimeline(props: {
                         </button>
                       )}
                     </Show>
+                    {props.headerActions}
                     <Show when={!parentID()}>
                       <MenuV2
                         gutter={6}

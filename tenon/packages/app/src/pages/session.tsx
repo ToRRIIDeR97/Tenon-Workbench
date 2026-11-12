@@ -115,7 +115,7 @@ import { PageEmpty, pagePanelClass } from "@/components/page"
 import { ComposerContextRing, ComposerWhereRow, createComposerContext } from "@/components/prompt-input/context-strip"
 import { useThreadSubagents } from "@/components/session/subagent-tab"
 import { SessionTasksButton } from "@/pages/session/composer/session-tasks-button"
-import { ThreadEnvironment } from "@/components/session/thread-environment"
+import { ThreadEnvironmentButton } from "@/components/session/thread-environment"
 
 type ChangeMode = "git" | "branch" | "turn"
 type VcsMode = "git" | "branch"
@@ -2061,6 +2061,7 @@ export default function Page() {
                   scroll={ui.scroll}
                   onResumeScroll={resumeScroll}
                   setScrollRef={setScrollRef}
+                  headerActions={<ThreadEnvironmentButton harness={sessionHarness} />}
                   onScheduleScrollState={scheduleScrollState}
                   onAutoScrollHandleScroll={autoScroll.handleScroll}
                   onMarkScrollGesture={markScrollGesture}
@@ -2176,15 +2177,6 @@ export default function Page() {
           })
           return (
             <>
-              {/* The thread's environment floats at the top right while the side panel is closed, as in Codex and
-                Claude Code; the open side panel takes its place. */}
-              <Show when={desktopRailOpen()}>
-                <ThreadEnvironment
-                  context={composerContext}
-                  harness={sessionHarness}
-                  subagents={threadSubagentGroups}
-                />
-              </Show>
               <SessionComposerRegion
                 controller={controller}
                 external={!!sessionHarness.driver() && sessionHarness.driver() !== Harness.OpenCodeDriver}

@@ -1,0 +1,110 @@
+# Tenon Workbench design
+
+The intended look and feel of the app. Read this before any UI change, and
+update it in the same change when a rule here changes. The
+[architecture README](architecture/README.md) ("Product entry points and
+persistence") holds the implementation detail behind these rules.
+
+## Principles
+
+- **Calm and neutral.** Neutral greys carry the interface, with one accent
+  (blue, `--v2-background-bg-accent`). No colour coding: status, harness,
+  project and category are told apart by text, icons and position, not hue.
+  The one exception is the warning state (`--v2-state-fill-warning`,
+  `--v2-state-fg-warning`), used for things that need the user.
+- **The thread comes first.** Chrome stays out of the reading area. Thread
+  details (environment, context, connectors) sit in the thread header or
+  side panel and open on demand, never floating over the timeline.
+- **One style, one job.** Each visual treatment means one thing (below);
+  don't borrow a treatment for a different meaning.
+- **Material 3 shape and motion**, through the `--v2-*` tokens only. No raw
+  hex colours, pixel radii, durations or easings in components.
+
+## Tokens
+
+All tokens live in `tenon/packages/ui/src/v2/styles/theme.css` and
+`tenon/packages/ui/src/theme/v2/mapping.ts`.
+
+| Kind     | Tokens                                                                                                                                                 |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Radius   | `--v2-radius-sm` 8, `md` 12, `lg` 16, `xl` 24, `xxl` 28, `full` (pills)                                                                                 |
+| Controls | `--v2-control-sm` 28, `md` 36, `lg` 44 (heights)                                                                                                        |
+| Colour   | `bg-v2-*`, `text-v2-text-*`, `border-v2-border-*`, `bg-v2-overlay-simple-overlay-*`, `v2-icon-*`; the theme resets Tailwind's default palette          |
+| Motion   | `--v2-duration-short` 150, `medium` 300, `long` 450, `exit` 200, `exit-small` 120, `swap-out` 100, `swap-in` 200; `--v2-ease-standard`, `-emphasized-decelerate`, `-emphasized-accelerate`, `-exit`, `-spring` |
+
+## Type
+
+Use the named roles in `tenon/packages/ui/src/styles/tailwind/utilities.css`,
+never `text-xs`, `font-semibold` and similar (they emit nothing here):
+
+- `type-display` (26px): pages you read (Notes, Project details).
+- `type-page-title` (20px): other page titles. No descriptive subtitle.
+- `type-toolbar-title` (15px): thread and panel titles.
+- `type-section`, `type-row-title`, `type-body`, `type-body-compact` (13px).
+- `type-control`: button and menu labels.
+- `type-meta` (12px): helper and error text; `type-caption`: group labels.
+
+Use `[font-weight:N]` when a weight must differ from the role.
+
+## Surfaces and layout
+
+- **Page frame:** every page sits on one rounded panel built from
+  `components/page.tsx` (`PageFrame`, `PageHeader`, `PageSection`,
+  `PageEmpty`).
+- **Cards:** page-level cards are 16px radius on `bg-layer-01` with an inset
+  muted edge. Use 12px cards inside the sidebar and side panels, and 24px for
+  dock cards (the composer and approval dock).
+- **Popovers and menus:** small surfaces open from the control that owns
+  them (`Popover`, `MenuV2`), anchored `bottom-end` with a 6px gutter, at most
+  `min(340px, 100vw - 32px)` wide, and scroll inside themselves.
+- **Thread header:** the title on the left; on the right, compact pill
+  controls (28px) followed by the "…" thread menu. The Environment button
+  lives here.
+
+## What each style means
+
+- **Selected item in a list:** neutral fill (`overlay-pressed`, 8px corners,
+  weight 600).
+- **Where you are / checked:** accent container (the navigation rail,
+  today's date, checkboxes, checked menu items, toggles).
+- **Primary action:** accent pill button. Other buttons are neutral pills;
+  icon buttons are circular.
+- **View switches and filters:** segmented look (`SegmentedControlV2`,
+  `TabsV2` pill variant). Underlined tabs are for the sidebar's Group by only.
+- **Progress and usage:** `Meter`. Spinner: `LoaderV2`. Running dot:
+  `.running-pulse`.
+- **Switches in lists** use the small size.
+
+## Motion
+
+Every opening and closing surface animates, and animations match across the
+app:
+
+- **Entering:** `--v2-duration-medium` with `--v2-ease-emphasized-decelerate`
+  for panels and pages. Small surfaces (popovers, menus, tooltips) scale from
+  about 0.96 (menus 0.92) and fade in over `--v2-duration-short`.
+- **Leaving:** about two thirds of the enter, on `--v2-ease-exit`:
+  `--v2-duration-exit` for dialogs and toasts, `--v2-duration-exit-small` for
+  menus, selects, popovers and tooltips.
+- **State changes** (hover, colour): `--v2-duration-short`,
+  `--v2-ease-standard`.
+- **In-page:** use `Reveal` (expand/collapse), `Presence` (keep mounted
+  through an exit) and `ViewSwitch` (fade between views) from
+  `@tenon/ui/v2/*`. Don't hand-roll a show/hide without motion.
+- Animate only transform, opacity and colour. The virtualized timeline
+  expands and collapses instantly.
+- Under `prefers-reduced-motion`, show the end state at once.
+
+## Accessibility
+
+- Text meets WCAG AA contrast in light and dark. Check both themes.
+- Every control is reachable by keyboard, with a visible focus ring on
+  `:focus-visible` only. A surface that opens moves focus inside it without
+  ringing its first control.
+- Icon-only buttons have an `aria-label` and a tooltip.
+
+## Text
+
+- UI text goes through i18n (`tenon/packages/app/src/i18n/en.ts`); new
+  `secondBrain.*` keys may be English-only.
+- Use sentence case, short labels and "Tenon" as the product name.

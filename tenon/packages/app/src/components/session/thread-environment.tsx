@@ -1,14 +1,16 @@
 import { Icon } from "@tenon/ui/v2/icon"
 import { PathTooltip } from "@tenon/ui/v2/tooltip-v2"
+import { Popover } from "@tenon/ui/popover"
 import { useDialog } from "@tenon/ui/context/dialog"
 import { Harness } from "@tenon/schema/harness"
-import { createMediaQuery } from "@solid-primitives/media"
+import type { Part } from "@opencode-ai/sdk/v2/client"
 import { For, Show, createMemo, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
-import type { ComposerContext } from "@/components/prompt-input/context-strip"
+import { createComposerContext } from "@/components/prompt-input/context-strip"
 import { changeTotals, connectorRows, runningSubagents, shortFolder } from "@/components/prompt-input/environment-model"
+import { contextBreakdown, type ContextPartKey } from "@/components/session/context-breakdown-model"
 import { createSessionContextFormatter } from "@/components/session/session-context-format"
-import type { SubagentGroup } from "@/components/session/subagent-list"
+import { useThreadSubagents } from "@/components/session/subagent-tab"
 import { DialogSettings } from "@/components/settings-v2/dialog-settings-v2"
 import { useLanguage } from "@/context/language"
 import { usePermission } from "@/context/permission"
@@ -17,7 +19,6 @@ import { useServerSync } from "@/context/server-sync"
 import { useSync } from "@/context/sync"
 import { useTerminal } from "@/context/terminal"
 import { useSessionLayout } from "@/pages/session/session-layout"
-import { Persist, persisted } from "@/utils/persist"
 
 type ThreadHarness = {
   current: () => Harness.InstanceID
@@ -25,60 +26,66 @@ type ThreadHarness = {
 }
 
 /**
- * The thread's environment, floating at the top right of the thread while the side panel is closed: where it runs
- * (harness and model, folder, branch, approval mode), its context use, its MCP servers, its file changes and what is
- * running. The header folds it to a small pill; that choice is kept. On a window too narrow to show it beside the
- * messages it starts folded until opened.
+ * The thread's environment, opened from a button in the thread's header beside the "…" menu: where it runs
+ * (harness and model, folder, branch, approval mode), its context use and what fills it, its MCP servers, its file
+ * changes and what is running. It opens and closes with the app's popover motion (scale and fade from its button).
  */
-export function ThreadEnvironment(props: {
-  context: ComposerContext
-  harness?: ThreadHarness
-  subagents: () => SubagentGroup[]
-}) {
+export function ThreadEnvironmentButton(props: { harness?: ThreadHarness }) {
   const language = useLanguage()
-  const wide = createMediaQuery("(min-width: 1600px)")
-  const [prefs, setPrefs] = persisted(
-    Persist.global("thread.environment"),
-    createStore({ open: undefined as boolean | undefined }),
-  )
-  const open = () => prefs.open ?? wide()
-
+  const [state, setState] = createStore({ open: false })
   return (
-    <aside
-      data-component="thread-environment"
-      aria-label={language.t("secondBrain.environment.title")}
-      class="pointer-events-auto absolute right-3 top-14 z-30 flex max-h-[min(640px,calc(100vh-280px))] flex-col overflow-hidden rounded-[20px] bg-v2-background-bg-floating text-[13px] leading-[18px] text-v2-text-text-base shadow-[var(--v2-elevation-floating)]"
-      classList={{ "w-[300px]": open() }}
+    <Popover
+      open={state.open}
+      onOpenChange={(open) => setState("open", open)}
+      placement="bottom-end"
+      gutter={6}
+      class="w-[min(340px,calc(100vw-32px))] [&_[data-slot=popover-body]]:p-1.5"
+      triggerAs="button"
+      triggerProps={{
+        type: "button",
+        class:
+          "hidden md:flex h-7 items-center gap-1 rounded-full px-2.5 type-control text-v2-text-text-muted outline-none transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base aria-expanded:bg-v2-overlay-simple-overlay-pressed aria-expanded:text-v2-text-text-base focus-visible:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)] motion-reduce:transition-none",
+      }}
+      trigger={
+        <>
+          {language.t("secondBrain.environment.title")}
+          <Icon name="chevron-down" size="small" class="shrink-0" />
+        </>
+      }
     >
-      <button
-        type="button"
-        aria-expanded={open()}
-        class="flex h-10 shrink-0 items-center gap-2 px-4 text-left type-control outline-none transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover focus-visible:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)] motion-reduce:transition-none"
-        onClick={() => setPrefs("open", !open())}
-      >
-        <span class="flex-1">{language.t("secondBrain.environment.title")}</span>
-        <Icon
-          name="chevron-down"
-          size="small"
-          class="shrink-0 text-v2-icon-icon-muted transition-transform duration-short ease-standard motion-reduce:transition-none"
-          classList={{ "rotate-180": open() }}
-        />
-      </button>
-      <Show when={open()}>
-        <div class="flex min-h-0 flex-col gap-1 overflow-y-auto px-1.5 pb-1.5 tabular-nums">
-          <WhereGroup harness={props.harness} model={props.context.context()?.modelLabel} />
-          <ContextGroup context={props.context} />
-          <ConnectorsGroup harness={props.harness} />
-          <ChangesGroup />
-          <RunningGroup groups={props.subagents()} />
-        </div>
-      </Show>
-    </aside>
+      <EnvironmentSections harness={props.harness} />
+    </Popover>
+  )
+}
+
+function EnvironmentSections(props: { harness?: ThreadHarness }) {
+  const context = createComposerContext()
+  const subagents = useThreadSubagents(() => true)
+  return (
+    // The scrolling body takes focus when the popover opens (it is the first tab stop), so the keyboard can scroll
+    // it and no link inside shows a focus ring on a mouse open.
+    <div
+      data-component="thread-environment"
+      tabIndex={0}
+      aria-label={useLanguage().t("secondBrain.environment.title")}
+      class="flex max-h-[min(640px,calc(100vh-140px))] flex-col gap-1 overflow-y-auto outline-none text-[13px] leading-[18px] tabular-nums text-v2-text-text-base"
+    >
+      <WhereGroup harness={props.harness} model={context.context()?.modelLabel} />
+      <ContextGroup context={context} harness={props.harness} />
+      <ConnectorsGroup harness={props.harness} />
+      <ChangesGroup />
+      <RunningGroup groups={subagents()} />
+    </div>
   )
 }
 
 function currentHarness(harness?: ThreadHarness) {
   return harness?.instances()?.find((item) => item.id === harness.current())
+}
+
+function isExternal(harness?: ThreadHarness) {
+  const current = currentHarness(harness)
+  return !!current && current.driver !== Harness.OpenCodeDriver
 }
 
 /** Where the thread runs: its harness and model, folder, branch and the approval mode that answers its requests. */
@@ -93,7 +100,7 @@ function WhereGroup(props: { harness?: ThreadHarness; model?: string }) {
   const branch = () => (sync().project?.vcs === "git" ? sync().data.vcs?.branch : undefined)
   const mode = () => permission.mode(params.id, sdk().directory)
   return (
-    <Group>
+    <Group title={language.t("secondBrain.environment.title")}>
       <Row label={language.t("secondBrain.environment.harness")}>
         <span class="min-w-0 truncate">
           {[currentHarness(props.harness)?.name, props.model].filter(Boolean).join(" · ")}
@@ -124,10 +131,45 @@ function WhereGroup(props: { harness?: ThreadHarness; model?: string }) {
   )
 }
 
-/** How full the context window is, as the composer's ring shows it, with the tokens behind the share. */
-function ContextGroup(props: { context: ComposerContext }) {
+// One step of the accent or grey per kind, so the parts differ in lightness as well as hue.
+const SHADE: Record<ContextPartKey, string> = {
+  system: "bg-v2-text-text-muted",
+  messages: "bg-v2-icon-icon-accent",
+  tools: "bg-v2-icon-icon-accent/55",
+  other: "bg-v2-border-border-strong",
+  free: "bg-transparent",
+}
+
+/**
+ * How full the context window is and what fills it. Every harness reports the total; what is in it is estimated
+ * from the thread's own text (about four characters a token). For Codex, Claude Code and the other agents, what
+ * the thread's text doesn't explain is the agent's own instructions and tool definitions, which Tenon can't see.
+ */
+function ContextGroup(props: { context: ReturnType<typeof createComposerContext>; harness?: ThreadHarness }) {
   const language = useLanguage()
+  const sync = useSync()
   const formatter = createMemo(() => createSessionContextFormatter(language.intl()))
+  const external = () => isExternal(props.harness)
+  const parts = createMemo(() => {
+    const value = props.context.context()
+    if (!value?.reported || value.compacted) return []
+    return contextBreakdown({
+      messages: props.context.messages(),
+      parts: sync().data.part as Record<string, Part[] | undefined>,
+      used: value.total,
+      limit: value.limit,
+    })
+  })
+  const label = (key: ContextPartKey) => {
+    if (key === "system") return language.t("secondBrain.environment.breakdown.system")
+    if (key === "messages") return language.t("secondBrain.environment.breakdown.messages")
+    if (key === "tools") return language.t("secondBrain.environment.breakdown.tools")
+    if (key === "free") return language.t("secondBrain.environment.breakdown.free")
+    return external()
+      ? language.t("secondBrain.environment.breakdown.agent", { name: currentHarness(props.harness)?.name ?? "" })
+      : language.t("secondBrain.environment.breakdown.other")
+  }
+  const filled = () => parts().filter((part) => part.key !== "free")
   return (
     <Show when={props.context.context()}>
       {(value) => (
@@ -147,7 +189,7 @@ function ContextGroup(props: { context: ComposerContext }) {
             }
           >
             {(reported) => (
-              <div class="flex flex-col gap-1.5 py-2">
+              <div class="flex flex-col gap-2 py-2">
                 <div class="flex items-baseline gap-2">
                   <span class="flex-1 [font-weight:560]">
                     {language.t("secondBrain.contextStrip.ring", {
@@ -158,12 +200,44 @@ function ContextGroup(props: { context: ComposerContext }) {
                     {`${formatter().number(reported().total)} / ${formatter().number(reported().limit!)}`}
                   </span>
                 </div>
-                <span class="block h-1.5 overflow-hidden rounded-full bg-v2-background-bg-layer-04" aria-hidden="true">
-                  <span
-                    class="block h-full rounded-full bg-v2-icon-icon-accent transition-[width] duration-medium ease-standard motion-reduce:transition-none"
-                    style={{ width: `${Math.min(100, Math.max(0, reported().usage ?? 0))}%` }}
-                  />
-                </span>
+                <div
+                  class="flex h-1.5 overflow-hidden rounded-full bg-v2-background-bg-layer-04"
+                  role="img"
+                  aria-label={filled()
+                    .map((part) => `${label(part.key)} ${Math.round(part.percent)}%`)
+                    .join(", ")}
+                >
+                  <For each={filled()}>
+                    {(part) => <span class={`h-full ${SHADE[part.key]}`} style={{ width: `${part.percent}%` }} />}
+                  </For>
+                </div>
+                <div class="flex flex-col gap-1">
+                  <For each={parts()}>
+                    {(part) => (
+                      <div class="flex items-center gap-2 text-[12px]">
+                        <span
+                          class={`size-2 shrink-0 rounded-[2px] ${part.key === "free" ? "shadow-[inset_0_0_0_1px_var(--v2-border-border-strong)]" : SHADE[part.key]}`}
+                          aria-hidden="true"
+                        />
+                        <span
+                          class="min-w-0 flex-1 truncate"
+                          classList={{ "text-v2-text-text-muted": part.key === "free" }}
+                        >
+                          {label(part.key)}
+                        </span>
+                        <span class="text-v2-text-text-muted">{formatter().number(part.tokens)}</span>
+                        <span class="w-10 text-right">{`${Math.round(part.percent)}%`}</span>
+                      </div>
+                    )}
+                  </For>
+                </div>
+                <p class="m-0 text-[11px] leading-[14px] text-v2-text-text-muted">
+                  {language.t(
+                    external()
+                      ? "secondBrain.environment.breakdown.estimatedExternal"
+                      : "secondBrain.environment.breakdown.estimated",
+                  )}
+                </p>
               </div>
             )}
           </Show>
@@ -181,12 +255,8 @@ function ConnectorsGroup(props: { harness?: ThreadHarness }) {
   const language = useLanguage()
   const serverSync = useServerSync()
   const dialog = useDialog()
-  const external = () => {
-    const current = currentHarness(props.harness)
-    return !!current && current.driver !== Harness.OpenCodeDriver
-  }
   const rows = createMemo(() =>
-    connectorRows(serverSync().data.config.mcp as Parameters<typeof connectorRows>[0], external()),
+    connectorRows(serverSync().data.config.mcp as Parameters<typeof connectorRows>[0], isExternal(props.harness)),
   )
   return (
     <Group title={language.t("secondBrain.environment.connectors")}>
@@ -248,7 +318,7 @@ function ChangesGroup() {
 }
 
 /** What the thread has running now: its subagents and the open terminals. */
-function RunningGroup(props: { groups: SubagentGroup[] }) {
+function RunningGroup(props: { groups: Parameters<typeof runningSubagents>[0] }) {
   const language = useLanguage()
   const terminal = useTerminal()
   return (
@@ -259,15 +329,11 @@ function RunningGroup(props: { groups: SubagentGroup[] }) {
   )
 }
 
-/** A group of rows on its own surface, with an optional title above it. */
-function Group(props: { title?: string; children: JSX.Element }) {
+/** A group of rows on its own surface, with a title above it. */
+function Group(props: { title: string; children: JSX.Element }) {
   return (
     <section class="flex flex-col">
-      <Show when={props.title}>
-        <h3 class="m-0 px-3 pb-1 pt-2 type-caption uppercase tracking-[0.05em] text-v2-text-text-muted">
-          {props.title}
-        </h3>
-      </Show>
+      <h3 class="m-0 px-3 pb-1 pt-2 type-caption uppercase tracking-[0.05em] text-v2-text-text-muted">{props.title}</h3>
       <div class="flex flex-col divide-y divide-v2-border-border-muted rounded-[14px] bg-v2-background-bg-layer-01 px-3">
         {props.children}
       </div>
