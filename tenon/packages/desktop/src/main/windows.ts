@@ -275,6 +275,13 @@ export function createMainWindow(id: string = randomUUID()) {
   registerWindow(win, id)
   wireFullscreen(win)
   loadWindow(win, "index.html")
+  // The desktop widget is a window too, so it would keep the app running with no main window and no taskbar
+  // entry. Closing the last main window closes it as well, and the app quits as it did before the widget
+  // (window-all-closed); macOS keeps running with the widget, as apps there do.
+  win.on("closed", () => {
+    if (process.platform === "darwin" || mainWindows().length > 0) return
+    BrowserWindow.getAllWindows().forEach((other) => other.destroy())
+  })
   wireZoom(win)
 
   win.once("ready-to-show", () => {

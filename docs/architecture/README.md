@@ -603,7 +603,7 @@ assistant that spans workspaces, with its own threads, memory and routines.
   main window's session and navigation policy, its saved position, and the renderer at `?surface=widget`;
   it is in `windowIDs` (so trusted IPC accepts it) but not the registry (so it never restores as a main
   window). `main/widget.ts` creates it on first show and toggles it from the global shortcut
-  `CommandOrControl+Alt+Space` (or `CommandOrControl+Alt+W` when another app holds it; `widget.log` says which) and the `desktop.widget.toggle` command; its close button hides it. The renderer
+  `CommandOrControl+Alt+Space` (or `CommandOrControl+Alt+W` when another app holds it; `widget.log` says which) and the `desktop.widget.toggle` command; its close button hides it. Closing the last main window closes it too, so the app quits as before (on Windows; macOS keeps running). The renderer
   sizes it to its card (`widget-resize`), and "Open in Tenon" (`widget-open-in-app`, app routes only) focuses a
   main window, opening one when none is left, and sends it `navigate`. With `surface="widget"`, `AppInterface`
   renders `WidgetLayout` (server data, `LayoutProvider`, `ModelsProvider`, agent writes and the Command
