@@ -1,4 +1,4 @@
-import { For, Index, Show, createEffect, createMemo, createSignal, on, onCleanup, untrack } from "solid-js"
+import { For, Index, Show, createEffect, createMemo, createSignal, lazy, on, onCleanup, untrack } from "solid-js"
 import { createStore } from "solid-js/store"
 import type { Part, ReasoningPart, ToolPart } from "@opencode-ai/sdk/v2"
 import { Icon } from "@tenon/ui/v2/icon"
@@ -29,6 +29,10 @@ import { Dynamic } from "solid-js/web"
 import { editDiffs } from "./step-diff"
 import { workspaceRelative } from "./step-path"
 import { SubagentLane, childLaneSteps, laneTokens, subagentLanes, taskSessionID } from "./subagent-lane"
+
+// Loaded when a reasoning note first renders: the renderer starts a highlighting worker, which the step list
+// shouldn't pull in up front (and which `bun test` can't resolve).
+const Markdown = lazy(() => import("@tenon/session-ui/markdown").then((module) => ({ default: module.Markdown })))
 import "./turn-steps-summary.css"
 
 // Fixed order so the phrase list doesn't reshuffle while a turn streams.
@@ -539,7 +543,7 @@ export function TurnStepsSummary(props: {
                 <StepIcon name="brain" size="small" class="mt-0.5 shrink-0" />
                 {/* One block clipped to its first line when folded, so opening grows it smoothly. */}
                 <div data-slot="turn-steps-note-text" data-open={open() ? "" : undefined} class="min-w-0 flex-1">
-                  <div class="whitespace-pre-wrap break-words">{text()}</div>
+                  <Markdown text={text()} class="text-[13px] leading-5" />
                 </div>
               </div>
             </Show>
@@ -712,7 +716,11 @@ export function TurnStepsSummary(props: {
                           </Show>
                           <span class="flex-1" />
                           <Show when={isThinking(part()) && elapsed(part().time?.start)}>
-                            {(time) => <span class="shrink-0 tabular-nums text-v2-text-text-muted">{time()}</span>}
+                            {(time) => (
+                              <span class="shrink-0 tabular-nums text-v2-text-text-muted" aria-hidden="true">
+                                {time()}
+                              </span>
+                            )}
                           </Show>
                         </div>
                       )}
@@ -746,7 +754,11 @@ export function TurnStepsSummary(props: {
                       </Show>
                       <span class="flex-1" />
                       <Show when={isRunning(part()) && elapsed(startOf(part()))}>
-                        {(time) => <span class="shrink-0 tabular-nums text-v2-text-text-muted">{time()}</span>}
+                        {(time) => (
+                          <span class="shrink-0 tabular-nums text-v2-text-text-muted" aria-hidden="true">
+                            {time()}
+                          </span>
+                        )}
                       </Show>
                     </div>
                   )}

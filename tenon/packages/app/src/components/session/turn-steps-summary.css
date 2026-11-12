@@ -25,6 +25,11 @@
   background: var(--v2-state-fg-danger, currentColor);
 }
 
+/* A finished lane is done, not live: a quiet bar instead of the accent a running lane uses. */
+[data-slot="turn-steps-lane"][data-status="done"] [data-slot="turn-steps-lane-fill"] {
+  background: var(--v2-border-border-strong, currentColor);
+}
+
 [data-slot="turn-steps-lane"][data-running] [data-slot="turn-steps-lane-fill"] {
   width: 40%;
   animation: turn-steps-indeterminate 1.4s ease-in-out infinite;
@@ -186,8 +191,8 @@
 
   [data-slot="turn-steps-row"],
   [data-slot="turn-steps-note"] {
-    min-height: 26px;
-    padding-block: 3px;
+    min-height: 32px;
+    padding-block: 6px;
     background: transparent;
     font-size: 13px;
     color: var(--v2-text-text-muted);
@@ -203,12 +208,12 @@
 
   [data-slot="turn-steps-row"][data-running],
   [data-slot="turn-steps-note"][data-running] {
-    min-height: 40px;
-    padding-block: 8px;
-    border-radius: 14px;
-    background: var(--v2-background-bg-accent-container);
+    min-height: 32px;
+    padding-block: 6px;
+    border-radius: 12px;
+    background: var(--v2-background-bg-layer-02);
     font-size: 13px;
-    color: var(--v2-text-text-on-accent-container);
+    color: var(--v2-text-text-base);
 
     svg {
       color: inherit;
