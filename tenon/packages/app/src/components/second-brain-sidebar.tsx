@@ -898,12 +898,7 @@ function ProjectGroup(props: { ctrl: SidebarController; project: SidebarProjectI
         </div>
       </div>
       <Reveal open={open()} variant="even">
-        <ThreadList
-          ctrl={props.ctrl}
-          threads={props.threads}
-          onNewThread={() => props.ctrl.newThread(props.project)}
-          guide
-        />
+        <ThreadList ctrl={props.ctrl} threads={props.threads} />
       </Reveal>
     </SidebarCard>
   )
@@ -985,68 +980,34 @@ function ThreadGroup(props: {
         </div>
       </div>
       <Reveal open={open()} variant="even">
-        <ThreadList ctrl={props.ctrl} threads={props.threads} onNewThread={props.onNewThread} guide />
+        <ThreadList ctrl={props.ctrl} threads={props.threads} />
       </Reveal>
     </SidebarCard>
   )
 }
 
-/** Under a Project or the workspace (`guide`), a line runs down from the chevron and each thread branches off it. */
-function ThreadList(props: {
-  ctrl: SidebarController
-  threads: ThreadNode<Session>[]
-  onNewThread?: () => void
-  guide?: boolean
-}) {
+/** A group's threads, flat under its header; the header's + starts a new thread. */
+function ThreadList(props: { ctrl: SidebarController; threads: ThreadNode<Session>[] }) {
   const language = useLanguage()
   // The list is rebuilt on every thread change, so `For` recreates its rows. Only a thread that was not
   // listed before animates in; the rows of the first render, and later reorders, do not.
   const fresh = createFreshItems()
   return (
-    <div
-      class="relative flex flex-col"
-      classList={{
-        "before:absolute before:bottom-2 before:left-5 before:top-0 before:w-px before:bg-v2-border-border-muted":
-          props.guide,
-      }}
-    >
-      <Show when={props.onNewThread}>
-        {(run) => (
-          <button type="button" data-sidebar-new-thread class={`${rowClass} grid-cols-[1fr] pl-[34px]`} onClick={run()}>
-            <Show when={props.guide}>
-              <GuideTick />
-            </Show>
-            <span class="flex min-w-0 items-center gap-1.5">
-              <Icon name="plus" size="small" class="shrink-0 text-v2-icon-icon-muted" />
-              <span class="truncate">{language.t("secondBrain.sidebar.newThread")}</span>
-            </span>
-          </button>
-        )}
-      </Show>
+    <div class="flex flex-col">
       <For each={props.threads}>
         {(node) => {
           const enter = fresh(node.session.id)
-          return <ThreadRow ctrl={props.ctrl} node={node} depth={0} enter={enter} guide={props.guide} />
+          return <ThreadRow ctrl={props.ctrl} node={node} depth={0} enter={enter} />
         }}
       </For>
-      <Show when={!props.onNewThread && props.threads.length === 0}>
+      <Show when={props.threads.length === 0}>
         <p class="py-1 pl-8 type-meta text-v2-text-text-muted">{language.t("secondBrain.sidebar.noThreads")}</p>
       </Show>
     </div>
   )
 }
 
-const GuideTick = () => (
-  <span aria-hidden="true" class="pointer-events-none absolute left-5 top-1/2 h-px w-2 bg-v2-border-border-muted" />
-)
-
-function ThreadRow(props: {
-  ctrl: SidebarController
-  node: ThreadNode<Session>
-  depth: number
-  enter?: boolean
-  guide?: boolean
-}) {
+function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; depth: number; enter?: boolean }) {
   const language = useLanguage()
   const [editing, setEditing] = createSignal(false)
   const session = () => props.node.session
@@ -1094,9 +1055,6 @@ function ThreadRow(props: {
         style={{ "padding-left": `${26 + props.depth * 12}px` }}
         onContextMenu={(event) => openRowMenu(event, setMenuOpen)}
       >
-        <Show when={props.guide}>
-          <GuideTick />
-        </Show>
         <Show when={props.ctrl.hasChildren(props.node)}>
           <button
             type="button"

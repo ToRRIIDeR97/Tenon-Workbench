@@ -79,9 +79,9 @@ is hidden and the rail remains.
      shows an accent dot, on its row and on its group's header. A root shows the
      most urgent state of itself and its child threads, even when they aren't
      listed.
-   - One group per active Project, sorted by name, expandable. Expanding shows
-     a guide line from the Project's chevron with **New thread** and each root
-     thread branching off it: pinned threads first (most
+   - One group per active Project, sorted by name, expandable. Expanding lists
+     its root threads flat under the header (no guide lines; the header's **+**
+     starts a new thread): pinned threads first (most
      recently pinned first, with a pin icon), then the rest newest first.
      Child threads (`parentID`) nest under their
      parent while that parent or one of its children is open.
