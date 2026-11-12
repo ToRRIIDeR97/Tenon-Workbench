@@ -281,6 +281,14 @@ type PlatformBase = {
   /** Fetch override */
   fetch?: typeof fetch
 
+  /** The desktop widget (desktop only): toggle or hide it, size it to its card, open an app route in a main window. */
+  desktopWidget?: {
+    toggle: () => Promise<void> | void
+    hide: () => Promise<void> | void
+    resize: (height: number) => Promise<void> | void
+    openInApp: (path: string) => Promise<void> | void
+  }
+
   /** Google Calendar integration owned by the Electron main process */
   googleCalendar?: GoogleCalendarPlatform
 

@@ -133,6 +133,15 @@ export type ElectronAPI = {
   setTitlebar: (theme: TitlebarTheme) => Promise<void>
   runDesktopMenuAction: (action: DesktopMenuAction) => Promise<void>
   setBackgroundColor: (color: string) => Promise<void>
+  /** The desktop widget: toggle or hide it, size it to its card, or open an app route in a main window. */
+  widget: {
+    toggle: () => Promise<void>
+    hide: () => Promise<void>
+    resize: (height: number) => Promise<void>
+    openInApp: (path: string) => Promise<void>
+  }
+  /** A main window is asked to show an app route (from the desktop widget's "Open in Tenon"). */
+  onNavigate: (cb: (path: string) => void) => () => void
   exportDebugLogs: () => Promise<string>
   setForceFocus: (enabled: boolean) => Promise<void>
   recordFatalRendererError: (error: FatalRendererError) => Promise<void>

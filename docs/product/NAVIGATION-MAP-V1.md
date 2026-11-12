@@ -111,6 +111,15 @@ menu (its thread directory), the General row's menu (the workspace folder
 itself, so threads archived in its non-Project subfolders are not listed) and
 the Command Centre page.
 
+### Desktop widget
+
+A small window on the desktop, outside the app window, toggled with Ctrl+Alt+Space (Cmd+Option+Space on macOS)
+or **Show or hide the desktop widget** in the command palette. It shows one face at a time: **Note** (Enter
+adds the text to the vault's Inbox), **Status** (threads that need you, running and just finished; Review
+opens one in Tenon) or **Command** (the Command Centre's latest exchange and a reply box). A status update or a
+Command Centre reply switches it, never while you type; after a quiet minute it returns to Note. Its close
+button hides it; **Open in Tenon** brings the main window forward on that thread.
+
 ### Undo
 
 Archive thread, rename thread, delete thread, archive Project and unlink

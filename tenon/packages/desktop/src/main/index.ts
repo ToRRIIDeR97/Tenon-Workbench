@@ -21,6 +21,7 @@ import { CHANNEL, DEEP_LINK_SCHEME } from "./constants"
 import { createDeepLinkQueue, parseDeepLink, type DeepLink } from "./deep-links"
 import { redactURL } from "./external-url"
 import { registerIpcHandlers, sendDeepLinks, sendMenuCommand } from "./ipc"
+import { hideWidget, openInApp, registerWidgetShortcut, resizeWidget, toggleWidget } from "./widget"
 import { forwardInitializationFailure } from "./initialization"
 import { createGoogleCalendarService } from "./google-calendar"
 import { createDictationService } from "./dictation-service"
@@ -472,6 +473,7 @@ const main = Effect.gen(function* () {
     googleCalendar,
     showUpdater: () => showUpdaterDialog(updater, true),
     setBackgroundColor: (color) => setBackgroundColor(color),
+    widget: { toggle: toggleWidget, hide: hideWidget, resize: resizeWidget, openInApp },
     exportDebugLogs: () => exportDebugLogs(),
     recordFatalRendererError: (error) => writeLog("renderer", "fatal renderer error", { ...error }, "error"),
     recordStartupMilestone: (name, sinceNavigation) =>
@@ -613,6 +615,7 @@ const main = Effect.gen(function* () {
   })
 
   const windows = restoreMainWindows()
+  registerWidgetShortcut()
   if (windows.length) createMenu(menuDeps)
 
   const loaded = yield* Fiber.await(loadingTask)

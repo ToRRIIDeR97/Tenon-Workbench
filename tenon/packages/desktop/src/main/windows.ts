@@ -283,6 +283,72 @@ export function createMainWindow(id: string = randomUUID()) {
   return win
 }
 
+/** The desktop widget's id, for its renderer (`?surface=widget`) and its saved position. */
+export const WIDGET_WINDOW_ID = "widget"
+
+/**
+ * The desktop widget (docs/design.md, desktop widget): one small frameless window that stays on the desktop while
+ * Tenon runs. It loads the same renderer as a main window with `?surface=widget`, shares its session and
+ * navigation policy, and keeps its position; it isn't in the registry, so it never restores as a main window.
+ * Transparent so its card can have round corners; the renderer sizes it to the card (`resizeWidgetWindow`).
+ */
+export function createWidgetWindow() {
+  const state = windowState({
+    file: windowStateFile(WIDGET_WINDOW_ID),
+    defaultWidth: WIDGET_WIDTH,
+    defaultHeight: 240,
+  })
+  const win = new BrowserWindow({
+    x: state.x,
+    y: state.y,
+    width: WIDGET_WIDTH,
+    height: 240,
+    show: false,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    hasShadow: false,
+    title: "Tenon Workbench",
+    icon: iconPath(),
+    backgroundColor: "#00000000",
+    webPreferences: {
+      preload: join(root, "../preload/index.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  })
+  if (process.platform === "darwin") win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false })
+
+  wireSession(win.webContents.session)
+  wireNavigationPolicy(win)
+  win.webContents.setWebRTCIPHandlingPolicy("disable_non_proxied_udp")
+  // Trusted IPC accepts the window by its id; leaving the registry out keeps it from restoring as a main window.
+  windowIDs.set(win, WIDGET_WINDOW_ID)
+  state.manage(win)
+  loadWindow(win, "index.html?surface=widget")
+  return win
+}
+
+const WIDGET_WIDTH = 344
+
+/** Fits the widget window to its card, keeping the top edge where it is. */
+export function resizeWidgetWindow(win: BrowserWindow, height: number) {
+  if (win.isDestroyed() || !Number.isFinite(height)) return
+  win.setContentSize(WIDGET_WIDTH, Math.max(80, Math.min(720, Math.round(height))))
+}
+
+/** The main windows (not the widget), most recently focused first. */
+export function mainWindows() {
+  return BrowserWindow.getAllWindows().filter(
+    (win) => !win.isDestroyed() && windowIDs.has(win) && windowIDs.get(win) !== WIDGET_WINDOW_ID,
+  )
+}
+
 export function openExternalURL(value: string) {
   const url = resolveExternalURL(value)
   if (!url) {

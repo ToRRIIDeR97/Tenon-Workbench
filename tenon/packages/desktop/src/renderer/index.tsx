@@ -18,7 +18,7 @@ import {
 import type { UpdaterState } from "@tenon/app/updater"
 import * as Sentry from "@sentry/solid"
 import type { AsyncStorage } from "@solid-primitives/storage"
-import { createMemoryHistory, MemoryRouter, type BaseRouterProps } from "@solidjs/router"
+import { createMemoryHistory, MemoryRouter, useNavigate, type BaseRouterProps } from "@solidjs/router"
 import { createEffect, createMemo, createResource, createSignal, onCleanup, Show } from "solid-js"
 import { render } from "solid-js/web"
 import pkg from "../../package.json"
@@ -62,6 +62,9 @@ void window.api.updater.subscribe(setUpdaterState)
 
 const deepLinkEvent = "tenon:deep-link"
 
+// The desktop widget's window loads this renderer with `?surface=widget`.
+const surface = new URLSearchParams(location.search).get("surface") === "widget" ? "widget" : "app"
+
 type DesktopWindowState = {
   id?: string
 }
@@ -104,6 +107,7 @@ function setLastActiveUrl(windowID: string, value: string) {
 
 function DesktopMemoryRouter(props: BaseRouterProps & { windowID: string }) {
   const history = createMemoryHistory()
+  if (surface === "widget") return <MemoryRouter {...props} history={history} />
   const initialUrl = getLastActiveUrl(props.windowID)
   if (initialUrl !== "/") history.set({ value: initialUrl, replace: true, scroll: false })
   onCleanup(history.listen((value) => setLastActiveUrl(props.windowID, value)))
@@ -245,6 +249,7 @@ const createPlatform = (windowState: DesktopWindowState): Platform => {
     },
 
     googleCalendar: window.api.googleCalendar,
+    desktopWidget: window.api.widget,
     dictation: window.api.dictation,
     mail: window.api.mail,
     getVaultFolder: () => window.api.getVaultFolder(),
@@ -379,6 +384,9 @@ function DesktopRoot(props: { windowState: DesktopWindowState }) {
   function Inner() {
     const cmd = useCommand()
     menuTrigger = (id) => cmd.trigger(id)
+    // The desktop widget's "Open in Tenon" asks a main window to show a route.
+    const navigate = useNavigate()
+    if (surface === "app") onCleanup(window.api.onNavigate((path) => navigate(path)))
 
     const theme = useTheme()
 
@@ -429,7 +437,9 @@ function DesktopRoot(props: { windowState: DesktopWindowState }) {
               defaultServer={key}
               servers={servers()}
               router={router}
-              startup={onboarding.promise}
+              surface={surface}
+              // The widget doesn't show first-launch onboarding, which is what resolves this.
+              startup={surface === "widget" ? undefined : onboarding.promise}
               serverScoped={
                 <DesktopFirstLaunchOnboarding
                   initialUrl={getLastActiveUrl(platform.windowID ?? "browser")}

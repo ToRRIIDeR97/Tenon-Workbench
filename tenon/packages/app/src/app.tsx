@@ -61,6 +61,10 @@ import { SDKProvider } from "@/context/sdk"
 import { WslServersProvider } from "@/wsl/context"
 import { DirectoryDataProvider } from "@/pages/directory-layout"
 import NewLayout from "@/pages/layout-new"
+import { DesktopWidget } from "@/features/desktop-widget/desktop-widget"
+import { AgentWritesProvider } from "@/features/agent-writes/store"
+import { CommandCentreProvider } from "@/features/command-centre/command-centre"
+import { ToastRegion } from "@/utils/toast"
 import { ErrorPage } from "./pages/error"
 import { useCheckServerHealth } from "./utils/server-health"
 import { parseServerKey, requireServerKey, sessionHref } from "./utils/session-route"
@@ -247,6 +251,14 @@ function DesktopCommands() {
 
   command.register("desktop", () => {
     const commands: CommandOption[] = []
+    if (platform.desktopWidget) {
+      commands.push({
+        id: "desktop.widget.toggle",
+        title: language.t("secondBrain.widget.toggle"),
+        category: language.t("command.category.view"),
+        onSelect: () => void platform.desktopWidget?.toggle(),
+      })
+    }
     if (platform.platform === "desktop" && platform.exportDebugLogs) {
       commands.push({
         id: "logs.export",
@@ -277,6 +289,27 @@ function ServerScopedProviders(props: ServerScopedShellProps) {
       <CalendarAutoSync />
       <ModelsProvider directory={props.directory}>{props.children}</ModelsProvider>
     </LayoutProvider>
+  )
+}
+
+/**
+ * The desktop widget's window: the selected server's data and the Command Centre, without the sidebar, pages or
+ * the shell's background jobs (calendar sync, harness update notices), which the main window already runs.
+ */
+function WidgetLayout() {
+  return (
+    <SelectedServerProviders>
+      <LayoutProvider>
+        <ModelsProvider>
+          <AgentWritesProvider>
+            <CommandCentreProvider>
+              <DesktopWidget />
+              <ToastRegion v2 />
+            </CommandCentreProvider>
+          </AgentWritesProvider>
+        </ModelsProvider>
+      </LayoutProvider>
+    </SelectedServerProviders>
   )
 }
 
@@ -517,6 +550,8 @@ export function AppInterface(props: {
   disableHealthCheck?: boolean
   startup?: Promise<void>
   serverScoped?: JSX.Element
+  /** `widget`: the desktop widget's window, which shows the widget instead of the app shell and its pages. */
+  surface?: "app" | "widget"
 }) {
   // The visual new layout lives in the router root so it remains mounted across
   // route changes. Draft and session routes override only their server-bound data
@@ -547,7 +582,14 @@ export function AppInterface(props: {
                   <PermissionProvider>
                     <NotificationProvider>
                       <ServerShell>
-                        <NewAppLayout serverScoped={props.serverScoped}>{routerProps.children}</NewAppLayout>
+                        <Show
+                          when={props.surface === "widget"}
+                          fallback={
+                            <NewAppLayout serverScoped={props.serverScoped}>{routerProps.children}</NewAppLayout>
+                          }
+                        >
+                          <WidgetLayout />
+                        </Show>
                       </ServerShell>
                     </NotificationProvider>
                   </PermissionProvider>
