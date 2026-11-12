@@ -149,6 +149,10 @@
     --v2-radius-xl: 24px;
     --v2-radius-xxl: 28px;
     --v2-radius-full: 9999px;
+    /* The size scale: every control is one of three heights. */
+    --v2-control-sm: 28px;
+    --v2-control-md: 36px;
+    --v2-control-lg: 44px;
     --v2-ease-standard: cubic-bezier(0.2, 0, 0, 1);
     --v2-ease-emphasized-decelerate: cubic-bezier(0.05, 0.7, 0.1, 1);
     --v2-ease-emphasized-accelerate: cubic-bezier(0.3, 0, 0.8, 0.15);
