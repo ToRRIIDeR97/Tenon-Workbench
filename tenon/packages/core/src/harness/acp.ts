@@ -172,12 +172,14 @@ export function acpPromptBlocks(text: string, media: ReadonlyArray<Media>, capab
 }
 
 /**
- * The mode to switch a new ACP session to, or undefined to leave it. Claude Code starts in the user's
- * `defaultMode`; in `bypassPermissions` every tool runs without asking Tenon, while Codex threads ask. The session
- * moves to the agent's `default` mode when it offers one.
+ * The mode to switch a new or loaded ACP session to, or undefined to leave it. Tenon's own approval modes (Ask,
+ * Auto-edit, Full auto) decide, so the agent must ask Tenon before acting. Claude Code starts in the user's
+ * `defaultMode`, or in its own Auto mode when none is set; Auto, Accept edits and bypass approve on the agent's side
+ * and never ask, so the session moves to the agent's `default` (ask) mode when it offers one. Plan is left alone.
  */
 export function safeAcpMode(modes: unknown) {
-  if (!isRecord(modes) || modes.currentModeId !== "bypassPermissions") return undefined
+  if (!isRecord(modes) || modes.currentModeId === "default" || modes.currentModeId === "plan") return undefined
+  if (typeof modes.currentModeId !== "string") return undefined
   const available = Array.isArray(modes.availableModes) ? modes.availableModes : []
   return available.some((mode) => isRecord(mode) && mode.id === "default") ? "default" : undefined
 }
@@ -440,8 +442,10 @@ export const open = Effect.fn("AcpHarness.open")(function* (process: Process, in
     yield* client
       .request("session/set_mode", { sessionId: session.sessionId, modeId: mode }, SESSION_SETUP_TIMEOUT)
       .pipe(
-        Effect.tap(() => Effect.logInfo("ACP session moved out of bypass mode", { mode })),
-        Effect.catch((error) => Effect.logWarning("ACP session could not leave bypass mode", { error: error.message })),
+        Effect.tap(() => Effect.logInfo("ACP session moved to its asking mode", { mode })),
+        Effect.catch((error) =>
+          Effect.logWarning("ACP session could not move to its asking mode", { error: error.message }),
+        ),
       )
   const selector = sessionModels(session.response)
   const state: {

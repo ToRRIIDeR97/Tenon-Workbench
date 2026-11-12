@@ -729,3 +729,28 @@ describe("ACP harness", () => {
     expect(await run({ mode: "url", url: "https://example.test" })).toEqual({ action: "decline" })
   })
 })
+
+// Claude Code's ACP adapter starts a session in its own Auto mode when the user set no `defaultMode`
+// (seen with claude-agent-acp 0.106: `currentModeId: "auto"`). In Auto, Accept edits or bypass it approves
+// actions itself and never asks Tenon, so the thread's Ask / Auto-edit / Full auto had nothing to answer.
+describe("safeAcpMode", () => {
+  const catalog = (current: string) => ({
+    currentModeId: current,
+    availableModes: ["default", "acceptEdits", "plan", "auto", "bypassPermissions"].map((id) => ({ id, name: id })),
+  })
+
+  test("moves a self-approving mode to the agent's default", () => {
+    for (const mode of ["auto", "acceptEdits", "bypassPermissions", "dontAsk"])
+      expect(AcpHarness.safeAcpMode(catalog(mode))).toBe("default")
+  })
+
+  test("leaves default and plan alone", () => {
+    expect(AcpHarness.safeAcpMode(catalog("default"))).toBeUndefined()
+    expect(AcpHarness.safeAcpMode(catalog("plan"))).toBeUndefined()
+  })
+
+  test("does nothing when the agent offers no default mode or no modes", () => {
+    expect(AcpHarness.safeAcpMode({ currentModeId: "auto", availableModes: [{ id: "auto" }] })).toBeUndefined()
+    expect(AcpHarness.safeAcpMode(undefined)).toBeUndefined()
+  })
+})
