@@ -373,3 +373,8 @@
   color: var(--v2-icon-icon-muted);
   box-shadow: inset 0 0 0 1px var(--v2-border-border-strong);
 }
+
+/* The passage a reply card answers keeps its highlight while focus is in the card (selection-reply.tsx). */
+::highlight(tenon-reply-passage) {
+  background-color: color-mix(in srgb, var(--v2-text-text-accent) 28%, transparent);
+}
