@@ -43,7 +43,8 @@ describe("steps", () => {
   // AC-6: the polite live region doesn't announce a ticking clock.
   test("ticker timers are hidden from the live region", () => {
     const timers =
-      summary.match(/<span class="shrink-0 tabular-nums text-v2-text-text-muted"[^>]*>\s*\{time\(\)\}\s*<\/span>/g) ?? []
+      summary.match(/<span class="shrink-0 tabular-nums text-v2-text-text-muted"[^>]*>\s*\{time\(\)\}\s*<\/span>/g) ??
+      []
     expect(timers.length).toBe(2)
     for (const timer of timers) expect(timer).toContain('aria-hidden="true"')
   })
