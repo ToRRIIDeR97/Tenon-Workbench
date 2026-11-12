@@ -996,6 +996,8 @@ export const dict = {
   "secondBrain.commandCentre.strip.newThread": "New thread",
   "secondBrain.commandCentre.strip.reply": "Reply, or start a new thread",
   "secondBrain.commandCentre.strip.empty": "No replies yet",
+  "secondBrain.sessionTab.thread": "Thread",
+  "secondBrain.sessionTab.contextTitle": "Context",
   "secondBrain.commandCentre.strip.you": "You",
   "secondBrain.commandCentre.settings.tab": "Command Centre",
   "secondBrain.commandCentre.settings.title": "Command Centre",

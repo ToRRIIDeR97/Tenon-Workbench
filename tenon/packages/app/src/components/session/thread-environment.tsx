@@ -302,7 +302,7 @@ function ContextSection(props: { context: ReturnType<typeof createComposerContex
               <>
                 <div class="flex items-baseline gap-2">
                   <span class="flex-1 text-[14px] leading-[18px] [font-weight:600]">
-                    {language.t("secondBrain.contextStrip.ring", {
+                    {language.t("secondBrain.contextStrip.usage.used", {
                       percent: formatter().percent(reported().usage ?? 0),
                     })}
                   </span>

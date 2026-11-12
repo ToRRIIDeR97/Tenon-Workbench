@@ -2227,6 +2227,10 @@ from ACP `usage_update.size` or Codex `tokenUsage.modelContextWindow`), else
 the provider's limit for that model. Harness model IDs can be aliases such as
 Claude Code's `haiku` that no provider lists. Subagents are built-in `task` and ACP `acp_subagent` parts; each row opens it in the Agents tab. Tool counts come from
 `summarizeTurn` over the harness's parts.
+The tab (labelled Details) is one card in the Environment window's design: Context (`{{percent}} used`, used
+over the window, a bar that scales the estimated parts to the window so the rest reads as free, and its
+legend), Thread (a label column with harness, messages, tokens and every reported figure), Subagents and
+Tools (a dot-separated line), split by hairlines; Raw messages and Export sit below it.
 
 Subagents (built-in `task` and ACP `acp_subagent` parts) open in one Agents
 tab (`agents`) in the same side panel. `createSessionTabs`

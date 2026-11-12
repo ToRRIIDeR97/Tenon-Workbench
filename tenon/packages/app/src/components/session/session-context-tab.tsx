@@ -28,28 +28,26 @@ import { createSessionContextFormatter } from "./session-context-format"
 import { getSessionTotals, getSessionUsage, getSubagentUsage } from "./session-usage"
 import { stepCountPhrases } from "./turn-steps-summary"
 
-// User and assistant turns share one "Messages" segment, as in the Thread design; tones of the accent, not hues.
+// User and assistant turns share one "Messages" segment. The Environment window's shades (one step of the accent
+// or grey per kind), so the parts differ in lightness as well as hue and both context bars read the same.
 type BreakdownGroup = "system" | "messages" | "tool" | "other"
-const BREAKDOWN_COLOR: Record<BreakdownGroup, string> = {
-  system: "var(--v2-background-bg-accent)",
-  messages: "color-mix(in srgb, var(--v2-background-bg-accent) 50%, var(--v2-background-bg-layer-02))",
-  tool: "var(--v2-background-bg-layer-03)",
-  other: "color-mix(in srgb, var(--v2-text-text-faint) 45%, transparent)",
+const BREAKDOWN_SHADE: Record<BreakdownGroup, string> = {
+  messages: "bg-v2-icon-icon-accent",
+  tool: "bg-v2-icon-icon-accent/55",
+  system: "bg-v2-text-text-muted",
+  other: "bg-v2-border-border-strong",
 }
 const breakdownGroup = (key: SessionContextBreakdownKey): BreakdownGroup =>
   key === "user" || key === "assistant" ? "messages" : key
 
-function Stat(props: { label: string; value: JSX.Element }) {
+/** A section of the tab's card: a sentence-case title over its content (the Environment window's design). */
+function Section(props: { title: string; slot?: string; children: JSX.Element }) {
   return (
-    <div class="flex min-w-0 flex-col gap-0.5 rounded-[16px] bg-v2-background-bg-layer-01 px-3 py-2.5">
-      <div class="truncate text-[11px] leading-4 text-v2-text-text-muted">{props.label}</div>
-      <div class="truncate text-[15px] leading-5 text-v2-text-text-base [font-weight:600]">{props.value}</div>
-    </div>
+    <section data-slot={props.slot} class="flex flex-col gap-2.5 px-4 py-3.5">
+      <h3 class="m-0 text-[13px] leading-[18px] [font-weight:600] text-v2-text-text-base">{props.title}</h3>
+      {props.children}
+    </section>
   )
-}
-
-function SectionLabel(props: { children: JSX.Element }) {
-  return <div class="pl-1 type-section text-v2-text-text-base">{props.children}</div>
 }
 
 function RawMessageContent(props: { message: Message; getParts: (id: string) => Part[]; onRendered: () => void }) {
@@ -277,22 +275,6 @@ export function SessionContextTab() {
     return language.t("context.breakdown.other")
   }
 
-  const tiles = [
-    { label: "secondBrain.sessionTab.tokens", value: () => formatter().number(ctx()?.total) },
-    {
-      label: "secondBrain.sessionTab.contextShare",
-      value: () => {
-        if (ctx()?.compacted) return language.t("secondBrain.sessionTab.compacted")
-        return ctx()?.limit ? formatter().percent(ctx()?.usage) : "—"
-      },
-    },
-    { label: "context.stats.messages", value: () => counts().all.toLocaleString(language.intl()) },
-    {
-      label: "harness.label",
-      value: () => (selectedHarness() ? harnessLabel(selectedHarness()!) : "—"),
-    },
-  ] satisfies { label: string; value: () => JSX.Element }[]
-
   // What the subagents spent, apart from the context figure below. Declared before `details`, which the memo reads
   // on creation.
   const subagentSpend = () => {
@@ -465,146 +447,164 @@ export function SessionContextTab() {
           </div>
         </Show>
 
-        <div class="grid grid-cols-2 gap-2">
-          <For each={tiles}>
-            {(tile) => <Stat label={language.t(tile.label as Parameters<typeof language.t>[0])} value={tile.value()} />}
-          </For>
-        </div>
-
-        <Show when={breakdownGroups().length > 0}>
-          <div data-slot="session-tab-context" class="flex flex-col gap-2">
-            <SectionLabel>{language.t("context.breakdown.title")}</SectionLabel>
-            <div class="flex h-2.5 w-full gap-0.5 overflow-hidden rounded-full">
-              <For each={breakdownGroups()}>
-                {(segment) => (
-                  <div
-                    class="h-full"
-                    style={{ width: `${segment.width}%`, "background-color": BREAKDOWN_COLOR[segment.key] }}
-                  />
-                )}
-              </For>
+        {/* One card of sections split by hairlines (the Environment window's design): context first, then the
+            thread's figures, its subagents and the tools it used. */}
+        <div
+          data-component="session-tab-card"
+          class="flex flex-col divide-y divide-v2-border-border-muted overflow-hidden rounded-[20px] bg-v2-background-bg-layer-01 text-[12px] leading-4 [font-weight:400] tabular-nums text-v2-text-text-base shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]"
+        >
+          <Section title={language.t("secondBrain.sessionTab.contextTitle")} slot="session-tab-context">
+            <div class="flex items-baseline gap-2">
+              <span class="flex-1 text-[14px] leading-[18px] [font-weight:600]">
+                {ctx()?.compacted
+                  ? language.t("secondBrain.sessionTab.compacted")
+                  : ctx()?.limit
+                    ? language.t("secondBrain.contextStrip.usage.used", { percent: formatter().percent(ctx()?.usage) })
+                    : formatter().number(ctx()?.total)}
+              </span>
+              <Show when={!ctx()?.compacted && ctx()?.limit}>
+                <span class="text-v2-text-text-muted">
+                  {`${formatter().number(ctx()?.total)} / ${formatter().number(ctx()?.limit)}`}
+                </span>
+              </Show>
             </div>
-            <div class="flex flex-wrap gap-x-3.5 gap-y-1 pl-1">
-              <For each={breakdownGroups()}>
-                {(segment) => (
-                  <div class="flex items-center gap-1.5 text-[12px] text-v2-text-text-muted">
-                    <div class="size-2 rounded-full" style={{ "background-color": BREAKDOWN_COLOR[segment.key] }} />
-                    <div>{breakdownLabel(segment.key)}</div>
-                    <div class="text-v2-text-text-base tabular-nums">
-                      {Math.round(segment.percent).toLocaleString(language.intl())}%
+            <Show when={breakdownGroups().length > 0}>
+              {/* Parts are shares of what's used; the bar scales them to the window, so the rest reads as free. */}
+              <div
+                class="flex h-1.5 overflow-hidden rounded-full bg-v2-background-bg-layer-04"
+                role="img"
+                aria-label={breakdownGroups()
+                  .map((segment) => `${breakdownLabel(segment.key)} ${Math.round(segment.percent)}%`)
+                  .join(", ")}
+              >
+                <For each={breakdownGroups()}>
+                  {(segment) => (
+                    <span
+                      class={`h-full ${BREAKDOWN_SHADE[segment.key]}`}
+                      style={{ width: `${(segment.width * (ctx()?.limit ? (ctx()?.usage ?? 100) : 100)) / 100}%` }}
+                    />
+                  )}
+                </For>
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <For each={breakdownGroups()}>
+                  {(segment) => (
+                    <div class="flex items-center gap-2">
+                      <span
+                        class={`size-2 shrink-0 rounded-[2px] ${BREAKDOWN_SHADE[segment.key]}`}
+                        aria-hidden="true"
+                      />
+                      <span class="min-w-0 flex-1 truncate">{breakdownLabel(segment.key)}</span>
+                      <span class="w-11 text-right">
+                        {`${Math.round(segment.percent).toLocaleString(language.intl())}%`}
+                      </span>
                     </div>
-                  </div>
-                )}
-              </For>
-            </div>
-          </div>
-        </Show>
+                  )}
+                </For>
+              </div>
+            </Show>
+          </Section>
 
-        <Show when={details().length > 0}>
-          <div data-slot="session-tab-details" class="flex flex-col gap-2">
-            <SectionLabel>{language.t("secondBrain.sessionTab.details")}</SectionLabel>
-            <dl class="m-0 flex flex-col rounded-[16px] bg-v2-background-bg-layer-01 px-3 py-1">
+          <Section title={language.t("secondBrain.sessionTab.thread")} slot="session-tab-details">
+            <dl class="m-0 grid grid-cols-[112px_minmax(0,1fr)] gap-x-2.5 gap-y-1.5">
+              <dt class="text-v2-text-text-muted">{language.t("harness.label")}</dt>
+              <dd class="m-0 min-w-0 truncate">{selectedHarness() ? harnessLabel(selectedHarness()!) : "—"}</dd>
+              <dt class="text-v2-text-text-muted">{language.t("context.stats.messages")}</dt>
+              <dd class="m-0 min-w-0 truncate">{counts().all.toLocaleString(language.intl())}</dd>
+              <dt class="text-v2-text-text-muted">{language.t("secondBrain.sessionTab.tokens")}</dt>
+              <dd class="m-0 min-w-0 truncate">{formatter().number(ctx()?.total)}</dd>
               <For each={details()}>
                 {(row) => (
-                  <div class="flex min-h-8 items-center justify-between gap-3 text-[13px]">
-                    <dt class="shrink-0 text-v2-text-text-muted">{language.t(row.label)}</dt>
-                    <dd class="m-0 min-w-0 truncate text-right text-v2-text-text-base [font-variant-numeric:tabular-nums]">
-                      {row.value}
-                    </dd>
-                  </div>
+                  <>
+                    <dt class="text-v2-text-text-muted">{language.t(row.label)}</dt>
+                    <dd class="m-0 min-w-0 truncate">{row.value}</dd>
+                  </>
                 )}
               </For>
             </dl>
             <Show when={perHarness()}>
-              <div class="pl-1 text-[12px] text-v2-text-text-muted">
-                {language.t("secondBrain.sessionTab.loadedTotals")}
-              </div>
+              <p class="m-0 text-v2-text-text-muted">{language.t("secondBrain.sessionTab.loadedTotals")}</p>
             </Show>
             <Show when={subagentUsage()?.missing}>
               {(missing) => (
-                <div class="pl-1 text-[12px] text-v2-text-text-muted">
+                <p class="m-0 text-v2-text-text-muted">
                   {language.plural("secondBrain.sessionTab.subagentsMissing", missing(), {
                     count: missing().toLocaleString(language.intl()),
                   })}
-                </div>
+                </p>
               )}
             </Show>
-          </div>
-        </Show>
+          </Section>
 
-        <Show when={subagents().length > 0}>
-          <div data-slot="session-tab-subagents" class="flex flex-col gap-2">
-            <SectionLabel>{language.t("secondBrain.sessionTab.subagents")}</SectionLabel>
-            <div class="flex flex-col gap-1">
-              <For each={subagents()}>
-                {(agent) => {
-                  const row = () => (
+          <Show when={subagents().length > 0}>
+            <Section title={language.t("secondBrain.sessionTab.subagents")} slot="session-tab-subagents">
+              <div class="-mx-2 flex flex-col">
+                <For each={subagents()}>
+                  {(agent) => {
+                    const row = () => (
+                      <>
+                        <span class="min-w-0 flex-1 truncate text-[12.5px]">{agent.title}</span>
+                        <Show when={agent.agent}>
+                          <span class="shrink-0 text-v2-text-text-muted">{agent.agent}</span>
+                        </Show>
+                      </>
+                    )
+                    return (
+                      <Show
+                        when={data.openSubagent}
+                        fallback={
+                          <div class="flex min-w-0 items-center gap-2 px-2 py-1.5" data-status={agent.status}>
+                            {row()}
+                          </div>
+                        }
+                      >
+                        {(open) => (
+                          <button
+                            type="button"
+                            data-status={agent.status}
+                            aria-label={language.t("secondBrain.agentTab.open", { agent: agent.title })}
+                            class="flex min-w-0 items-center gap-2 rounded-[10px] px-2 py-1.5 text-left transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus"
+                            onClick={() => open()({ sessionID: agent.sessionID, partID: agent.id })}
+                          >
+                            {row()}
+                            <Icon name="chevron-right" size="small" class="shrink-0 text-v2-icon-icon-muted" />
+                          </button>
+                        )}
+                      </Show>
+                    )
+                  }}
+                </For>
+              </div>
+            </Section>
+          </Show>
+
+          <Show when={toolPhrases().length > 0}>
+            <Section title={language.t("secondBrain.sessionTab.tools")} slot="session-tab-tools">
+              <p class="m-0 flex flex-wrap gap-x-1.5 gap-y-1 text-[12.5px] leading-5">
+                <For each={toolPhrases()}>
+                  {(phrase, index) => (
                     <>
-                      <span class="min-w-0 flex-1 truncate text-v2-text-text-base">{agent.title}</span>
-                      <Show when={agent.agent}>
-                        <span class="shrink-0 rounded-full bg-v2-background-bg-base px-1.5 text-[11px] leading-4 text-v2-text-text-muted">
-                          {agent.agent}
+                      <Show when={index() > 0}>
+                        <span class="text-v2-text-text-faint" aria-hidden="true">
+                          ·
                         </span>
                       </Show>
+                      <span>{phrase}</span>
                     </>
-                  )
-                  return (
-                    <Show
-                      when={data.openSubagent}
-                      fallback={
-                        <div
-                          class="flex min-w-0 items-center gap-2 rounded-[16px] bg-v2-background-bg-layer-01 px-3 py-2 text-[13px]"
-                          data-status={agent.status}
-                        >
-                          {row()}
-                        </div>
-                      }
-                    >
-                      {(open) => (
-                        <button
-                          type="button"
-                          data-status={agent.status}
-                          aria-label={language.t("secondBrain.agentTab.open", { agent: agent.title })}
-                          class="flex min-w-0 items-center gap-2 rounded-[16px] bg-v2-background-bg-layer-01 px-3 py-2 text-left text-[13px] transition-colors duration-short ease-standard hover:bg-v2-background-bg-layer-02 motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-v2-border-border-focus"
-                          onClick={() => open()({ sessionID: agent.sessionID, partID: agent.id })}
-                        >
-                          {row()}
-                          <Icon name="chevron-right" size="small" class="shrink-0 text-v2-icon-icon-muted" />
-                        </button>
-                      )}
-                    </Show>
-                  )
-                }}
-              </For>
-            </div>
-          </div>
-        </Show>
+                  )}
+                </For>
+              </p>
+            </Section>
+          </Show>
 
-        <Show when={toolPhrases().length > 0}>
-          <div data-slot="session-tab-tools" class="flex flex-col gap-2">
-            <SectionLabel>{language.t("secondBrain.sessionTab.tools")}</SectionLabel>
-            <div class="flex flex-wrap gap-1.5">
-              <For each={toolPhrases()}>
-                {(phrase) => (
-                  <span class="rounded-full bg-v2-background-bg-layer-01 px-2.5 py-1 text-[12px] text-v2-text-text-base">
-                    {phrase}
-                  </span>
-                )}
-              </For>
-            </div>
-          </div>
-        </Show>
-
-        <Show when={systemPrompt()}>
-          {(prompt) => (
-            <div class="flex flex-col gap-2">
-              <SectionLabel>{language.t("context.systemPrompt.title")}</SectionLabel>
-              <div class="rounded-[16px] bg-v2-background-bg-layer-01 px-4 py-2.5">
+          <Show when={systemPrompt()}>
+            {(prompt) => (
+              <Section title={language.t("context.systemPrompt.title")}>
                 <Markdown text={prompt()} class="text-[12px]" />
-              </div>
-            </div>
-          )}
-        </Show>
+              </Section>
+            )}
+          </Show>
+        </div>
 
         <div class="flex flex-col gap-2">
           <div class="flex flex-wrap items-center gap-2">
