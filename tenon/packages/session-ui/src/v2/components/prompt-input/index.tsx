@@ -555,7 +555,7 @@ export function PromptInputV2Attachments(props: {
                     "h-8 rounded-full bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container":
                       !quote.comment,
                     // A passage with the user's reply to it: two lines, the passage muted above the reply.
-                    "min-h-11 rounded-[14px] bg-v2-background-bg-layer-01 py-1.5 text-v2-text-text-base":
+                    "min-h-11 rounded-[14px] bg-v2-background-bg-layer-02 py-1.5 text-v2-text-text-base":
                       !!quote.comment,
                   }}
                 >
