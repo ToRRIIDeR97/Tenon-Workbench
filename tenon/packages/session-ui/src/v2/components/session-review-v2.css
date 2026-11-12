@@ -292,7 +292,7 @@
     "tnum" on,
     "lnum" on;
   font-variation-settings: "slnt" 0;
-  color: var(--v2-grey-600);
+  color: var(--v2-text-text-muted);
   white-space: nowrap;
 }
 

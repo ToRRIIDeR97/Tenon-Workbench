@@ -159,7 +159,7 @@
 
   /* Blockquotes */
   blockquote {
-    border-inline-start: 1px solid var(--v2-border-border-base);
+    border-inline-start: 3px solid var(--v2-border-border-base);
     margin: 1rem 0;
     padding-inline-start: 0.5rem;
     color: var(--v2-text-text-muted);
@@ -399,8 +399,8 @@
     border-collapse: collapse;
     margin: 16px 0;
     font-size: var(--font-size-base);
-    display: block;
-    overflow-x: auto;
+    /* A real table, so its rows fill the column; long cell content wraps instead of scrolling. */
+    display: table;
   }
 
   th,
@@ -410,6 +410,7 @@
     padding: 12px;
     text-align: start;
     vertical-align: top;
+    overflow-wrap: anywhere;
   }
 
   th {

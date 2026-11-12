@@ -105,8 +105,13 @@ export function DiffChanges(props: {
             </svg>
           </Match>
           <Match when={variant() === "default"}>
-            <span data-slot="diff-changes-additions">{`+${additions()}`}</span>
-            <span data-slot="diff-changes-deletions">{`-${deletions()}`}</span>
+            {/* A side with nothing changed says nothing. */}
+            <Show when={additions() > 0}>
+              <span data-slot="diff-changes-additions">{`+${additions()}`}</span>
+            </Show>
+            <Show when={deletions() > 0}>
+              <span data-slot="diff-changes-deletions">{`-${deletions()}`}</span>
+            </Show>
           </Match>
         </Switch>
       </div>
