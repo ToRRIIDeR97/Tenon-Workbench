@@ -72,7 +72,8 @@ Use `[font-weight:N]` when a weight must differ from the role.
 ## What each style means
 
 - **Selected item in a list:** neutral fill (`overlay-pressed`, 8px corners,
-  weight 600).
+  weight 600), shown and removed at once; selection never slides
+  between rows.
 - **Where you are / checked:** accent container (the navigation rail,
   today's date, checkboxes, checked menu items, toggles).
 - **Primary action:** accent pill button. Other buttons are neutral pills;

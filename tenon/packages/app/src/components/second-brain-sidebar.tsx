@@ -52,7 +52,7 @@ import { sessionTitle } from "@/utils/session-title"
 // main button (a direct child) has focus. A selected row has no fill of its own: SelectionGlide draws one
 // highlight behind it that slides from row to row.
 const rowClass =
-  "group/row relative grid h-8 w-full min-w-0 shrink-0 cursor-default items-center overflow-hidden rounded-[8px] bg-transparent text-left type-control text-v2-text-text-muted transition-[background-color,color] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base active:bg-v2-overlay-simple-overlay-pressed data-[selected]:text-v2-text-text-base data-[selected]:hover:bg-transparent data-[selected]:[font-weight:600] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus has-[>button:focus-visible]:outline has-[>button:focus-visible]:outline-2 has-[>button:focus-visible]:-outline-offset-2 has-[>button:focus-visible]:outline-v2-border-border-focus motion-reduce:transition-none"
+  "group/row relative grid h-8 w-full min-w-0 shrink-0 cursor-default items-center overflow-hidden rounded-[8px] bg-transparent text-left type-control text-v2-text-text-muted transition-[color] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base active:bg-v2-overlay-simple-overlay-pressed data-[selected]:bg-v2-overlay-simple-overlay-pressed data-[selected]:text-v2-text-text-base data-[selected]:hover:bg-v2-overlay-simple-overlay-pressed data-[selected]:[font-weight:600] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus has-[>button:focus-visible]:outline has-[>button:focus-visible]:outline-2 has-[>button:focus-visible]:-outline-offset-2 has-[>button:focus-visible]:outline-v2-border-border-focus motion-reduce:transition-none"
 
 // Card header actions take no width at rest and open beside the status marks on hover, focus or an open menu.
 const headerActionsClass =
@@ -520,41 +520,11 @@ function GroupTabs(props: { ctrl: SidebarController }) {
 }
 
 /**
- * The thread list under the tabs. One highlight sits behind the selected row (`data-glide` with
- * `data-selected`): it slides when the selection or the row order changes, and follows the row while a
- * group above it opens or closes. A switch of tab slides the list in from the side of the new tab.
+ * The thread list under the tabs. The selected row carries its own highlight, which appears and disappears at once
+ * (no sliding between rows). A switch of tab slides the list in from the side of the new tab.
  */
 function SelectionGlide(props: ParentProps<{ ctrl: SidebarController }>) {
   let list!: HTMLDivElement
-  const [glide, setGlide] = createStore({ top: 0, height: 0, shown: false, animate: false })
-  const place = (animate: boolean) => {
-    const row = list.querySelector<HTMLElement>("[data-glide][data-selected]")
-    if (!row || row.closest('[data-component="reveal-v2"]:not([data-open])')) return setGlide("shown", false)
-    const rect = row.getBoundingClientRect()
-    setGlide({
-      top: rect.top - list.getBoundingClientRect().top,
-      height: rect.height,
-      // A highlight that is just appearing starts in place instead of sliding in from the top.
-      animate: animate && glide.shown,
-      shown: true,
-    })
-  }
-  onMount(() => {
-    // Size changes come from groups opening, frame by frame, so the highlight follows without easing.
-    const resize = new ResizeObserver(() => place(false))
-    resize.observe(list)
-    let frame = 0
-    const mutate = new MutationObserver(() => {
-      cancelAnimationFrame(frame)
-      frame = requestAnimationFrame(() => place(true))
-    })
-    mutate.observe(list, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-selected"] })
-    onCleanup(() => {
-      resize.disconnect()
-      mutate.disconnect()
-      cancelAnimationFrame(frame)
-    })
-  })
   createEffect(
     on(
       props.ctrl.grouping,
@@ -583,15 +553,6 @@ function SelectionGlide(props: ParentProps<{ ctrl: SidebarController }>) {
       aria-labelledby={`sidebar-tab-${props.ctrl.grouping()}`}
       class="relative flex flex-col gap-0.5"
     >
-      <span
-        aria-hidden="true"
-        class="pointer-events-none absolute inset-x-0 top-0 rounded-[8px] bg-v2-overlay-simple-overlay-pressed"
-        classList={{
-          "opacity-0": !glide.shown,
-          "transition-[transform,height] duration-medium ease-standard motion-reduce:transition-none": glide.animate,
-        }}
-        style={{ height: `${glide.height}px`, transform: `translateY(${glide.top}px)` }}
-      />
       {props.children}
     </div>
   )
@@ -807,7 +768,6 @@ function ProjectGroup(props: { ctrl: SidebarController; project: SidebarProjectI
     >
       <div
         class={`${rowClass} grid-cols-[minmax(0,1fr)_auto]`}
-        data-glide
         data-selected={props.ctrl.activeProjectID() === props.project.id && !open() ? "" : undefined}
         onContextMenu={(event) => openRowMenu(event, setMenuOpen)}
       >
@@ -1049,7 +1009,6 @@ function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; 
     <>
       <div
         data-sidebar-thread={session().id}
-        data-glide
         data-selected={active() ? "" : undefined}
         class={`${rowClass} grid-cols-[1fr_auto] ${props.enter ? "animate-enter" : ""}`}
         style={{ "padding-left": `${26 + props.depth * 12}px` }}
