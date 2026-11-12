@@ -71,6 +71,11 @@ Use `[font-weight:N]` when a weight must differ from the role.
   too narrow to read (under 480px), the window minimizes to its toggle and
   returns when there is room again. Use a popover instead for anything that should close when you click
   away.
+- **Desktop widget:** one card in a small frameless window on the OS desktop
+  (nothing on Home): a 22px-radius card on `bg-floating` with a hairline
+  edge, a draggable top bar with a mode chip (accent container when it shows
+  Status or Command), Open in Tenon and Hide, the face, and Note · Status ·
+  Command tabs. It shows whatever is newest and never switches while you type.
 - **Thread header:** the title on the left; on the right, compact pill
   controls (28px), with the Environment toggle last, at the right edge. The
   thread's actions (rename, pin, fork, export, archive, delete) live in its

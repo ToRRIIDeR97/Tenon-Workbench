@@ -598,6 +598,23 @@ assistant that spans workspaces, with its own threads, memory and routines.
   one with the harness and model from Settings › Command Centre. The list
   refreshes when the page opens and, debounced, on `session.created/updated/deleted`
   events for that folder, so archives, deletes and routine runs show up.
+- **Desktop widget.** One small frameless window on the desktop (the Widgets workshop), nothing on Home.
+  `desktop/src/main/windows.ts` `createWidgetWindow` opens it transparent, without a taskbar entry, with the
+  main window's session and navigation policy, its saved position, and the renderer at `?surface=widget`;
+  it is in `windowIDs` (so trusted IPC accepts it) but not the registry (so it never restores as a main
+  window). `main/widget.ts` creates it on first show and toggles it from the global shortcut
+  `CommandOrControl+Alt+Space` and the `desktop.widget.toggle` command; its close button hides it. The renderer
+  sizes it to its card (`widget-resize`), and "Open in Tenon" (`widget-open-in-app`, app routes only) focuses a
+  main window, opening one when none is left, and sends it `navigate`. With `surface="widget"`, `AppInterface`
+  renders `WidgetLayout` (server data, `LayoutProvider`, `ModelsProvider`, agent writes and the Command
+  Centre) instead of the shell, without its calendar sync or harness update notices.
+  `features/desktop-widget/desktop-widget.tsx` shows one face: **Note** adds a dated `## Note · <ISO>` entry to
+  the vault's `Inbox.md` (`inbox.ts`, read then written with `expectedRevision`, created when missing, retried
+  on a 409); **Status** lists threads that need you, then running ones, then ones finished in the last half
+  hour; **Command** shows the Command Centre's latest exchange and replies to that thread. `widget-mode.ts`
+  switches: a thread starting to need you or stopping turns it to Status, a new Command Centre reply to
+  Command, never while text is being typed, and it settles on Note after a quiet minute (hover or focus holds
+  it). The web dev build previews it at `/?surface=widget`.
 - **Command Centre card.** `features/command-centre/command-strip.tsx`
   (`[data-command-strip]`) sits inside `<main>` on every page except
   `/command`: a 20 px handle while closed; open, a 640 px, 24 px-radius card

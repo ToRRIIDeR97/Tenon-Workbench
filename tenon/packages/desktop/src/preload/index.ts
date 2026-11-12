@@ -170,6 +170,17 @@ const api: ElectronAPI = {
   setTitlebar: (theme) => ipcRenderer.invoke("set-titlebar", theme),
   runDesktopMenuAction: (action) => ipcRenderer.invoke("run-desktop-menu-action", action),
   setBackgroundColor: (color: string) => ipcRenderer.invoke("set-background-color", color),
+  widget: {
+    toggle: () => ipcRenderer.invoke("widget-toggle"),
+    hide: () => ipcRenderer.invoke("widget-hide"),
+    resize: (height) => ipcRenderer.invoke("widget-resize", height),
+    openInApp: (path) => ipcRenderer.invoke("widget-open-in-app", path),
+  },
+  onNavigate: (cb) => {
+    const handler = (_: unknown, path: string) => cb(path)
+    ipcRenderer.on("navigate", handler)
+    return () => ipcRenderer.removeListener("navigate", handler)
+  },
   exportDebugLogs: () => ipcRenderer.invoke("export-debug-logs"),
   setForceFocus: (enabled) => ipcRenderer.invoke("set-force-focus", enabled),
   recordFatalRendererError: (error) => ipcRenderer.invoke("record-fatal-renderer-error", error),

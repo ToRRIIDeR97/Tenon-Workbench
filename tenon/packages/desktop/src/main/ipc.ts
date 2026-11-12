@@ -111,6 +111,12 @@ type Deps = {
   googleCalendar: GoogleCalendarPlatform
   showUpdater: () => Promise<void> | void
   setBackgroundColor: (color: string) => void
+  widget: {
+    toggle: () => void
+    hide: () => void
+    resize: (height: number) => void
+    openInApp: (path: string) => void
+  }
   exportDebugLogs: () => Promise<string>
   recordFatalRendererError: (error: FatalRendererError) => Promise<void> | void
   recordStartupMilestone: (name: StartupMilestone, sinceNavigation: number) => void
@@ -233,6 +239,13 @@ export function registerIpcHandlers(deps: Deps) {
   })
   trustedHandle("mail-remove", (_event, id: unknown) => deps.mail.remove(String(id ?? "")))
   trustedHandle("set-background-color", (_event: IpcMainInvokeEvent, color: string) => deps.setBackgroundColor(color))
+  // The desktop widget: shown and hidden from any window, sized to its card, and able to open a route in a main window.
+  trustedHandle("widget-toggle", () => deps.widget.toggle())
+  trustedHandle("widget-hide", () => deps.widget.hide())
+  trustedHandle("widget-resize", (_event: IpcMainInvokeEvent, height: unknown) => deps.widget.resize(Number(height)))
+  trustedHandle("widget-open-in-app", (_event: IpcMainInvokeEvent, path: unknown) =>
+    deps.widget.openInApp(typeof path === "string" ? path : ""),
+  )
   trustedHandle("export-debug-logs", () => deps.exportDebugLogs())
   trustedHandle("set-force-focus", (event: IpcMainInvokeEvent, enabled: boolean) =>
     setForceFocus(event.sender, enabled),

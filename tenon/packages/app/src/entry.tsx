@@ -176,6 +176,12 @@ if (root instanceof HTMLElement) {
               canonicalLocalServer={ServerConnection.key(server)}
               servers={[server]}
               disableHealthCheck
+              // Development only: `?surface=widget` previews the desktop widget in a browser tab.
+              surface={
+                import.meta.env.DEV && new URLSearchParams(location.search).get("surface") === "widget"
+                  ? "widget"
+                  : "app"
+              }
             />
           </AppBaseProviders>
         </PlatformProvider>
