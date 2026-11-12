@@ -1,4 +1,5 @@
 import { useNavigate } from "@solidjs/router"
+import { Meter } from "@/components/meter"
 import { Icon } from "@tenon/ui/v2/icon"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { KeybindV2 } from "@tenon/ui/v2/keybind-v2"
@@ -500,19 +501,11 @@ export default function BrainHomePage() {
                               <span class="w-16 shrink-0 truncate type-meta text-v2-text-text-muted">
                                 {fullest().label}
                               </span>
-                              <span
-                                class="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-v2-background-bg-layer-02"
-                                role="meter"
-                                aria-label={`${harnessName(report.instanceID)} ${fullest().label}`}
-                                aria-valuemin={0}
-                                aria-valuemax={100}
-                                aria-valuenow={fullest().usedPercent}
-                              >
-                                <span
-                                  class="block h-full rounded-full bg-v2-icon-icon-accent transition-[width] duration-medium ease-standard motion-reduce:transition-none"
-                                  style={{ width: `${Math.max(2, Math.round(fullest().usedPercent))}%` }}
-                                />
-                              </span>
+                              <Meter
+                                class="flex-1"
+                                value={fullest().usedPercent}
+                                label={`${harnessName(report.instanceID)} ${fullest().label}`}
+                              />
                               <span class="w-10 shrink-0 text-right tabular-nums type-meta text-v2-text-text-muted">
                                 {`${Math.round(fullest().usedPercent)}%`}
                               </span>
@@ -572,12 +565,7 @@ export default function BrainHomePage() {
                           <span class="min-w-0 flex-1 truncate type-row-title text-v2-text-text-base">
                             {project.name}
                           </span>
-                          <span class="h-1 w-16 shrink-0 overflow-hidden rounded-full bg-v2-background-bg-layer-03">
-                            <span
-                              class="block h-full rounded-full bg-v2-background-bg-accent transition-[width] duration-medium ease-standard motion-reduce:transition-none"
-                              style={{ width: `${project.progressPercent}%` }}
-                            />
-                          </span>
+                          <Meter class="w-16 shrink-0" value={project.progressPercent} label={project.name} />
                           <span class="w-9 shrink-0 text-right type-meta tabular-nums text-v2-text-text-muted">
                             {project.progressPercent}%
                           </span>

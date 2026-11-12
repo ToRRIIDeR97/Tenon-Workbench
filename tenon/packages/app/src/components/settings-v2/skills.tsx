@@ -324,7 +324,13 @@ const SkillRow: Component<{
         )}
       </Show>
       <Show when={props.openable && props.enabled !== undefined}>
-        <ToggleSwitch checked={props.enabled !== false} disabled={props.busy} hideLabel onChange={props.onToggle}>
+        <ToggleSwitch
+          size="small"
+          checked={props.enabled !== false}
+          disabled={props.busy}
+          hideLabel
+          onChange={props.onToggle}
+        >
           {language.t("secondBrain.skills.enabled", { name: props.skill.name })}
         </ToggleSwitch>
       </Show>
