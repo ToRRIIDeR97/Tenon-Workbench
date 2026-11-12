@@ -140,7 +140,9 @@ test("groups threads by Project and the workspace, hides other workspaces, and s
   // Workspaces never mix: a thread from another folder stays out of this sidebar.
   await expect(sidebar(page).getByText("Outside thread", { exact: true })).toHaveCount(0)
 
-  await projectGroup.locator("[data-sidebar-new-thread]").click()
+  // The header's + shows on hover.
+  await projectGroup.locator("button[aria-expanded]").first().hover()
+  await projectGroup.getByRole("button", { name: "New thread", exact: true }).click()
   await expect(page).toHaveURL(/\/new-thread\?project=prj_repo&draftId=[^&]+$/)
   await expect(page.locator('[data-slot="titlebar-tab-item"]')).toHaveCount(0)
 })
