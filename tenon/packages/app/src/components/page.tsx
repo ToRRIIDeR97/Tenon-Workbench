@@ -41,11 +41,20 @@ export function PageHeader(props: {
   id?: string
   title: string
   crumb?: boolean
+  /** Puts the header in the page's content column, so the title starts on the content's left edge. */
+  column?: "narrow" | "wide"
   back?: { label: string; onClick: () => void }
   actions?: JSX.Element
 }) {
   return (
-    <header class="flex min-h-14 shrink-0 flex-wrap items-center gap-2 px-6 pt-3">
+    <header
+      class="flex min-h-14 shrink-0 flex-wrap items-center gap-2 px-6 pt-3"
+      classList={{
+        "mx-auto w-full sm:px-10": !!props.column,
+        "max-w-[720px]": props.column === "narrow",
+        "max-w-[1040px]": props.column === "wide",
+      }}
+    >
       <Show when={props.back}>
         {(back) => (
           <TooltipV2 value={back().label}>

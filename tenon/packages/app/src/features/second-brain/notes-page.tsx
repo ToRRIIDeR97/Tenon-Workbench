@@ -386,6 +386,7 @@ export function NotesPageView(props: {
       <article class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <PageHeader
           crumb
+          column="wide"
           title={
             project()
               ? language.t("secondBrain.vault.breadcrumb", { project: project()!.name, page: state.title })

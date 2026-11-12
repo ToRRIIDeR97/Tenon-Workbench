@@ -376,7 +376,7 @@ export function ProjectCreate(props: {
         props.onCancel()
       }}
     >
-      <h1 id="project-create-title" class="type-display text-v2-text-text-base">
+      <h1 id="project-create-title" class="type-page-title text-v2-text-text-base">
         {language.t("secondBrain.projects.create.title")}
       </h1>
       <label class={labelClass} for="project-name">
