@@ -41,6 +41,6 @@ export const switchRowClass =
 export function statusDotClass(status: string | undefined) {
   if (status === "connected") return "bg-v2-state-fg-success"
   if (status === "failed" || status === "error") return "bg-v2-state-fg-danger"
-  if (status === "needs_auth" || status === "needs_client_registration") return "bg-v2-state-fg-warning"
+  if (status === "needs_auth" || status === "needs_client_registration") return "bg-v2-state-fill-warning"
   return "bg-v2-border-border-strong"
 }

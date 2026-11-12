@@ -577,7 +577,7 @@ export function PromptInputV2Attachments(props: {
                 <button
                   type="button"
                   onClick={() => props.onCommentRemove?.(comment)}
-                  class="absolute -top-1 -end-1 size-4 rounded-full bg-v2-icon-icon-muted outline-solid outline-1 outline-v2-icon-icon-contrast flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity motion-reduce:transition-none"
+                  class="absolute -top-1 -end-1 size-5 rounded-full bg-v2-icon-icon-muted outline-solid outline-1 outline-v2-icon-icon-contrast flex items-center justify-center opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:outline-2 focus-visible:outline-v2-border-border-focus transition-opacity motion-reduce:transition-none"
                   aria-label={props.removeLabel}
                 >
                   <IconV2 name="outline-xmark" class="text-v2-icon-icon-contrast" />
@@ -597,19 +597,21 @@ export function PromptInputV2Attachments(props: {
                       </AttachmentCardV2>
                     }
                   >
-                    <img
-                      src={attachment.blob.url}
-                      alt={attachment.filename}
-                      class="w-[58px] h-[46px] rounded-[12px] object-cover"
+                    <button
+                      type="button"
+                      class="block rounded-[12px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus"
+                      aria-label={attachment.filename}
                       onClick={() => props.onAttachmentClick?.(attachment)}
-                    />
+                    >
+                      <img src={attachment.blob.url} alt="" class="w-[58px] h-[46px] rounded-[12px] object-cover" />
+                    </button>
                     <div class="absolute inset-0 rounded-[12px] shadow-[inset_0_0_0_1px_var(--v2-border-border-base)] pointer-events-none" />
                   </Show>
                 </TooltipV2>
                 <button
                   type="button"
                   onClick={() => props.onAttachmentRemove(attachment)}
-                  class="absolute -top-1 -end-1 size-4 rounded-full bg-v2-icon-icon-muted outline-solid outline-1 outline-v2-icon-icon-contrast flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity motion-reduce:transition-none"
+                  class="absolute -top-1 -end-1 size-5 rounded-full bg-v2-icon-icon-muted outline-solid outline-1 outline-v2-icon-icon-contrast flex items-center justify-center opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:outline-2 focus-visible:outline-v2-border-border-focus transition-opacity motion-reduce:transition-none"
                   aria-label={props.removeLabel}
                 >
                   <IconV2 name="outline-xmark" class="text-v2-icon-icon-contrast" />
@@ -915,7 +917,7 @@ export function PromptInputV2SubmitButton(props: {
         tabIndex={props.mode === "normal" ? undefined : -1}
         icon={props.stopping ? "stop" : props.mode === "shell" ? "arrow-undo-down" : "arrow-up"}
         variant="primary"
-        class="size-9 rounded-full p-[9px] enabled:!bg-v2-text-text-base enabled:[&_[data-slot=icon-svg]]:!text-v2-background-bg-base disabled:!bg-transparent disabled:shadow-[inset_0_0_0_1px_var(--v2-border-border-strong)] disabled:[&_[data-slot=icon-svg]]:!text-v2-icon-icon-muted transition-[border-radius,opacity] duration-short ease-standard enabled:hover:opacity-90 active:rounded-[12px] motion-reduce:transition-none"
+        class="size-9 rounded-full p-[9px] enabled:!bg-v2-text-text-base enabled:[&_[data-slot=icon-svg]]:!text-v2-background-bg-base disabled:!bg-transparent disabled:shadow-[inset_0_0_0_1px_var(--v2-border-border-strong)] disabled:[&_[data-slot=icon-svg]]:!text-v2-icon-icon-muted transition-[border-radius,opacity] duration-short ease-standard enabled:hover:opacity-90 active:rounded-[12px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
         aria-label={props.stopping ? props.stopLabel : props.sendLabel}
         onClick={(event) => {
           event.preventDefault()
