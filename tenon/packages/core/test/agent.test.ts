@@ -125,8 +125,35 @@ describe("AgentV2", () => {
         "title",
       ])
       for (const item of agents) {
-        expect(item.permissions.some((rule) => rule.action === "bash" && rule.effect !== "deny")).toBe(false)
+        // No agent is opted into running commands without asking; an explicit "ask" is narrower than the wildcard.
+        expect(item.permissions.some((rule) => rule.action === "bash" && rule.effect === "allow")).toBe(false)
       }
+    }),
+  )
+
+  // Ask mode only works if these reach the app as approval cards; the app answers them per the thread's mode.
+  it.effect("every folder asks before shell, edits, the web and MCP or agent tools", () =>
+    Effect.gen(function* () {
+      const agent = yield* AgentV2.Service
+      yield* AgentPlugin.Plugin.effect(host({ agent: agentHost(agent) })).pipe(
+        Effect.provideService(
+          Location.Service,
+          Location.Service.of(location({ directory: AbsolutePath.make("/work/project") })),
+        ),
+      )
+      const effect = (id: string, action: string) =>
+        agent
+          .get(AgentV2.ID.make(id))
+          .pipe(Effect.map((item) => PermissionV2.evaluate(action, "*", item?.permissions ?? []).effect))
+      for (const action of ["bash", "edit", "webfetch", "websearch", "mcp", "acp_tool"]) {
+        expect(yield* effect("build", action)).toBe("ask")
+        expect(yield* effect("general", action)).toBe("ask")
+      }
+      expect(yield* effect("build", "read")).toBe("allow")
+      expect(yield* effect("plan", "bash")).toBe("ask")
+      expect(yield* effect("plan", "edit")).toBe("deny")
+      expect(yield* effect("explore", "bash")).toBe("deny")
+      expect(yield* effect("title", "bash")).toBe("deny")
     }),
   )
 

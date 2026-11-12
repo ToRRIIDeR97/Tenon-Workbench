@@ -124,6 +124,11 @@ export const Plugin = define({
     const commandCentre = path.basename(location.directory) === HarnessAppTools.COMMAND_CENTRE_FOLDER
     const commandAsks = (...actions: string[]) =>
       commandCentre ? actions.map((action): PermissionV2.Rule => ({ action, resource: "*", effect: "ask" })) : []
+    // Commands, edits, the web and tools from MCP servers or other agents ask in every folder, so a thread's mode
+    // decides: the app answers the card itself in Full auto (and edits in Auto-edit) and shows it in Ask. Allowing
+    // them here instead approved everything before any card existed, whatever the mode said.
+    const asks = (...actions: string[]) =>
+      actions.map((action): PermissionV2.Rule => ({ action, resource: "*", effect: "ask" }))
 
     yield* ctx.agent.transform((draft) => {
       draft.update(AgentV2.defaultID, (item) => {
@@ -134,7 +139,7 @@ export const Plugin = define({
           ...PermissionV2.merge(defaults, [
             { action: "question", resource: "*", effect: "allow" },
             { action: "plan_enter", resource: "*", effect: "allow" },
-            ...commandAsks("bash", "webfetch", "websearch", "edit"),
+            ...asks("bash", "webfetch", "websearch", "edit", "mcp", "acp_tool"),
           ]),
         )
       })
@@ -155,7 +160,7 @@ export const Plugin = define({
               resource: path.relative(worktree, path.join(Global.Path.data, "plans", "*.md")),
               effect: "allow",
             },
-            ...commandAsks("bash", "webfetch", "websearch"),
+            ...asks("bash", "webfetch", "websearch"),
           ]),
         )
       })
@@ -167,7 +172,7 @@ export const Plugin = define({
         item.permissions.push(
           ...PermissionV2.merge(defaults, [
             { action: "todowrite", resource: "*", effect: "deny" },
-            ...commandAsks("bash", "webfetch", "websearch", "edit"),
+            ...asks("bash", "webfetch", "websearch", "edit", "mcp", "acp_tool"),
           ]),
         )
       })

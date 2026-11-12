@@ -1335,6 +1335,12 @@ location and canonical Git worktree.
   always reaches the user in both modes, so neither mode lets an agent read or
   write outside the folder unasked. The choice is stored per thread or folder in
   the renderer, as auto-accept was.
+- **The server asks, the mode answers.** The built-in agents' default rules ask
+  for `bash`, `edit`, `webfetch`, `websearch`, `mcp` and `acp_tool`, so these
+  reach the app and the thread's mode decides. Before, a wildcard allow approved
+  them on the server and Ask showed nothing. A user config rule that allows an
+  action still wins, and a client with no renderer (the bare server) must answer
+  these requests itself.
 - **Model profiles.** Profile rules are the user's own text, added to prompts as
   a hidden attachment. They are trusted like a typed message; an imported
   `profile.md` is read only as text.

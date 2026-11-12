@@ -2321,7 +2321,13 @@ From the 11 Nov feedback list ([triage](../product/FEEDBACK-2026-11-11.md)):
   (`permissionMode`). `modeAllows` answers `edit` requests in Auto-edit and
   everything in Full auto, except `external_directory`, which always asks. Every
   harness maps its approvals to these kinds (Codex `commandExecution` → `bash`,
-  `fileChange` → `edit`; ACP `execute` → `bash`, `edit`/`delete`/`move` → `edit`).
+  `fileChange` → `edit`, MCP tool approvals → `mcp`; ACP `execute` → `bash`,
+  `edit`/`delete`/`move` → `edit`, other tools → `acp_tool`). The modes can only
+  answer requests the server raises, so the built-in agents' rules
+  (`core/src/plugin/agent.ts`) ask for `bash`, `edit`, `webfetch`, `websearch`,
+  `mcp` and `acp_tool` in every folder; config rules can still allow them. Codex
+  runs sandboxed commands without asking anyone, so Ask covers its escalations
+  and MCP calls, not every command.
 - **Approval card.** `session-permission-dock.tsx` shows one line from
   `permissionSummary` and the first three commands or paths ("Show N more" for
   the rest). Deny and Allow once are split buttons: Allow once offers Always
