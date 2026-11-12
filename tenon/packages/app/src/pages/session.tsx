@@ -1018,6 +1018,11 @@ export default function Page() {
   let scroller: HTMLDivElement | undefined
   let content: HTMLDivElement | undefined
   let revealMessage = (_id: string) => {}
+  // The Details tab's "Taking the most room" asks for a turn by its user message.
+  makeEventListener(window, "tenon:reveal-message", (event) => {
+    const id = (event as CustomEvent<unknown>).detail
+    if (typeof id === "string") revealMessage(id)
+  })
   let scrollToEnd = () => {}
   let scrollMark = 0
   let messageMark = 0

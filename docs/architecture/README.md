@@ -2227,10 +2227,14 @@ from ACP `usage_update.size` or Codex `tokenUsage.modelContextWindow`), else
 the provider's limit for that model. Harness model IDs can be aliases such as
 Claude Code's `haiku` that no provider lists. Subagents are built-in `task` and ACP `acp_subagent` parts; each row opens it in the Agents tab. Tool counts come from
 `summarizeTurn` over the harness's parts.
-The tab (labelled Details) is one card in the Environment window's design: Context (`{{percent}} used`, used
-over the window, a bar that scales the estimated parts to the window so the rest reads as free, and its
-legend), Thread (a label column with harness, messages, tokens and every reported figure), Subagents and
-Tools (a dot-separated line), split by hairlines; Raw messages and Export sit below it.
+The tab (labelled Details) follows the Details workshop's variant C, context first: the used tokens over the
+window (compact numbers), one bar that scales the estimated parts to the window so the rest reads as free, and an
+inline legend; then "Taking the most room", the four biggest single items in the context
+(`context-heaviest.ts`: messages, replies, attached files, tool results and subagent reports, sized with the
+breakdown's chars/4 estimate), each with its turn and kind, opening that turn in the thread (a
+`tenon:reveal-message` window event that `session.tsx` passes to `revealMessage`), and Compact now
+(`session.compact`). Below a hairline, Thread (model, harness, messages) with Usage and cost folded under it
+(every reported figure and the tool counts), Subagents, the system prompt, then Raw messages and Export.
 
 Subagents (built-in `task` and ACP `acp_subagent` parts) open in one Agents
 tab (`agents`) in the same side panel. `createSessionTabs`
