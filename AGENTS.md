@@ -56,6 +56,9 @@
   `tenon/AGENTS.md` holds the inherited code style and package rules.
 - Install with `bun install --frozen-lockfile` inside `tenon/` (Bun 1.3.14,
   Node.js 24). Start the desktop app with `bun run dev` from the repository root.
+- Read the [design guide](docs/design.md) before any UI or visual change
+  (tokens, type, surfaces, motion, accessibility), and update it when a design
+  rule changes.
 - Product scope: [product brief](docs/product/PRODUCT-BRIEF-V1.md),
   [navigation map](docs/product/NAVIGATION-MAP-V1.md), glossary in `CONTEXT.md`.
 - Read [architecture](docs/architecture/README.md) for component boundaries and

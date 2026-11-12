@@ -149,8 +149,8 @@ and `animate-enter` (fade and 4px rise) / `animate-exit` (fade)
 popovers) keep their content mounted for an exit only when the `[data-closed]`
 rule sets a different `animation-name`, so each has its own exit keyframes;
 `context/dialog.tsx` disposes a closed dialog after the short exit. MenuV2 and
-SelectV2 menus enter with short + emphasized-decelerate and close at once: an
-exit would keep the menu mounted, so a selection or dismissal would wait on it.
+SelectV2 menus enter with short + emphasized-decelerate and leave over
+`--v2-duration-exit-small` on `--v2-ease-exit`.
 Three helpers in `packages/ui/src/v2/components/` cover in-page motion:
 `Reveal` (`@tenon/ui/v2/reveal`; `open`, `class`, `onTransitionEnd`)
 expands and collapses through grid rows and opacity, keeps its children while
@@ -2328,11 +2328,15 @@ From the 11 Nov feedback list ([triage](../product/FEEDBACK-2026-11-11.md)):
   `mcp` and `acp_tool` in every folder; config rules can still allow them. Codex
   runs sandboxed commands without asking anyone, so Ask covers its escalations
   and MCP calls, not every command.
-- **Thread environment.** `components/session/thread-environment.tsx` floats at the
-  top right of a thread while the side panel is closed (`desktopRailOpen`): harness
-  and model, folder, branch, approval mode, context use, MCP servers (Tenon's own for
-  external harnesses), file changes with Review, and running subagents and terminals.
-  Its header folds it to a pill (`thread.environment` in global storage).
+- **Thread environment.** `components/session/thread-environment.tsx` is an
+  Environment button in the thread header, before the "…" menu (passed to
+  `MessageTimeline` as `headerActions`), that opens a popover: harness and model,
+  folder, branch, approval mode, context use, MCP servers (Tenon's own for external
+  harnesses), file changes with Review, and running subagents and terminals. Context
+  use is split by `context-breakdown-model.ts` for every harness: the reported total
+  divided by a chars/4 estimate of the system prompt, messages and tool calls, with
+  the remainder shown as the agent's own instructions and tools (Codex, Claude Code,
+  OpenCode report only totals) and the unused window as free.
 - **Approval card.** `session-permission-dock.tsx` shows one line from
   `permissionSummary` and the first three commands or paths ("Show N more" for
   the rest). Deny and Allow once are split buttons: Allow once offers Always
