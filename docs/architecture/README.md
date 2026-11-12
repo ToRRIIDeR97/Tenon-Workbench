@@ -2328,6 +2328,11 @@ From the 11 Nov feedback list ([triage](../product/FEEDBACK-2026-11-11.md)):
   `mcp` and `acp_tool` in every folder; config rules can still allow them. Codex
   runs sandboxed commands without asking anyone, so Ask covers its escalations
   and MCP calls, not every command.
+- **Thread environment.** `components/session/thread-environment.tsx` floats at the
+  top right of a thread while the side panel is closed (`desktopRailOpen`): harness
+  and model, folder, branch, approval mode, context use, MCP servers (Tenon's own for
+  external harnesses), file changes with Review, and running subagents and terminals.
+  Its header folds it to a pill (`thread.environment` in global storage).
 - **Approval card.** `session-permission-dock.tsx` shows one line from
   `permissionSummary` and the first three commands or paths ("Show N more" for
   the rest). Deny and Allow once are split buttons: Allow once offers Always

@@ -29,13 +29,6 @@ import { listHarnessUsage } from "@/utils/server"
 import { cachedUsage, rememberUsage } from "@/components/harness-usage"
 import { PromptBranchPicker } from "@/components/prompt-workspace-selector"
 import { formatResetIn, threadUsage, threadWorktree } from "./context-strip-model"
-import { changeTotals, connectorRows, runningSubagents, shortFolder } from "./environment-model"
-import type { SubagentGroup } from "@/components/session/subagent-list"
-import { useServerSync } from "@/context/server-sync"
-import { usePermission } from "@/context/permission"
-import { useTerminal } from "@/context/terminal"
-import { useDialog } from "@tenon/ui/context/dialog"
-import { DialogSettings } from "@/components/settings-v2/dialog-settings-v2"
 
 /** The harnesses the composer knows: the thread's own harness and every harness's display name. */
 type ComposerHarness = {
@@ -73,17 +66,10 @@ export function createComposerContext() {
 }
 
 /**
- * The composer's context ring: it fills with the share of the context window used and opens the thread's
- * environment summary: where it runs (harness and model, folder, branch, approval mode), the context window, this
- * turn, the thread's cost and subagent spend, its MCP servers, its file changes, what is running, and the harness's
- * plan limits.
+ * The composer's context ring: it fills with the share of the context window used and opens the context menu,
+ * a list of groups: the context window, this turn, the thread's cost and subagent spend, and the harness's plan limits.
  */
-export function ComposerContextRing(props: {
-  context: ComposerContext
-  harness?: ComposerHarness
-  /** The thread's subagent groups, for the Running line. */
-  subagents?: () => SubagentGroup[]
-}) {
+export function ComposerContextRing(props: { context: ComposerContext; harness?: ComposerHarness }) {
   const language = useLanguage()
   const { params } = useSessionLayout()
   const [state, setState] = createStore({ open: false })
@@ -133,7 +119,6 @@ export function ComposerContextRing(props: {
             agents={props.context.agents()}
             harness={props.harness}
             usage={usage}
-            subagentGroups={props.subagents?.() ?? []}
             onView={() => setState("open", false)}
           />
         </Popover>
@@ -196,7 +181,6 @@ function ContextMenu(props: {
   agents: ReturnType<ComposerContext["agents"]>
   harness?: ComposerHarness
   usage: PlanUsage
-  subagentGroups: SubagentGroup[]
   onView: () => void
 }) {
   const language = useLanguage()
@@ -214,8 +198,6 @@ function ContextMenu(props: {
       aria-label={language.t("secondBrain.contextStrip.sheet")}
       class="flex flex-col text-[13px] leading-[18px] tabular-nums text-v2-text-text-base"
     >
-      <EnvironmentGroup harness={props.harness} model={props.context.modelLabel} />
-
       <Group title={language.t("secondBrain.contextMenu.window")}>
         <Show
           when={!props.context.compacted}
@@ -345,10 +327,6 @@ function ContextMenu(props: {
         </Group>
       </Show>
 
-      <ConnectorsGroup harness={props.harness} onManage={props.onView} />
-      <ChangesGroup onReview={props.onView} />
-      <RunningGroup groups={props.subagentGroups} />
-
       <PlanLimits usage={props.usage} harness={props.harness} />
 
       <button
@@ -456,167 +434,6 @@ function PlanLimits(props: { usage: PlanUsage; harness?: ComposerHarness }) {
         </Show>
       </Group>
     </Show>
-  )
-}
-
-/** Where the thread runs: its harness and model, folder, branch and the approval mode that answers its requests. */
-function EnvironmentGroup(props: { harness?: ComposerHarness; model: string }) {
-  const language = useLanguage()
-  const sync = useSync()
-  const sdk = useSDK()
-  const serverSync = useServerSync()
-  const permission = usePermission()
-  const { params } = useSessionLayout()
-  const directory = () => (params.id ? sync().session.get(params.id)?.directory : undefined) ?? sdk().directory
-  const harness = () => props.harness?.instances()?.find((item) => item.id === props.harness?.current())?.name
-  const branch = () => (sync().project?.vcs === "git" ? sync().data.vcs?.branch : undefined)
-  const mode = () => permission.mode(params.id, sdk().directory)
-  return (
-    <Group title={language.t("secondBrain.environment.title")}>
-      <Row label={language.t("secondBrain.environment.harness")}>
-        <span class="min-w-0 truncate">{[harness(), props.model].filter(Boolean).join(" · ")}</span>
-      </Row>
-      <Row label={language.t("secondBrain.environment.folder")}>
-        <PathTooltip
-          placement="top"
-          class="min-w-0"
-          name={language.t("secondBrain.environment.folder")}
-          path={directory()}
-        >
-          <span class="min-w-0 truncate font-mono text-[12px] [font-weight:400]">
-            {shortFolder(directory(), serverSync().data.path?.home)}
-          </span>
-        </PathTooltip>
-      </Row>
-      <Row label={language.t("secondBrain.environment.branch")}>
-        <span class="min-w-0 truncate font-mono text-[12px] [font-weight:400]">
-          {branch() ?? language.t("secondBrain.environment.noBranch")}
-        </span>
-      </Row>
-      <Row label={language.t("secondBrain.environment.approvals")}>
-        {language.t(`secondBrain.permissionMode.${mode()}` as Parameters<typeof language.t>[0])}
-      </Row>
-    </Group>
-  )
-}
-
-/**
- * The MCP servers the thread's agent can use: the user's from Settings, on or off, and for Codex and the ACP agents
- * Tenon's own server. Whether an external agent connected each one isn't reported, so only on and off are shown.
- */
-function ConnectorsGroup(props: { harness?: ComposerHarness; onManage: () => void }) {
-  const language = useLanguage()
-  const serverSync = useServerSync()
-  const dialog = useDialog()
-  const external = () => {
-    const current = props.harness?.instances()?.find((item) => item.id === props.harness?.current())
-    return !!current && current.driver !== Harness.OpenCodeDriver
-  }
-  const rows = createMemo(() =>
-    connectorRows(serverSync().data.config.mcp as Parameters<typeof connectorRows>[0], external()),
-  )
-  return (
-    <Group title={language.t("secondBrain.environment.connectors")}>
-      <Show
-        when={rows().length > 0}
-        fallback={
-          <Row label={language.t("secondBrain.environment.noConnectors")}>
-            <span />
-          </Row>
-        }
-      >
-        <For each={rows()}>
-          {(row) => (
-            <Row label={row.builtIn ? language.t("secondBrain.environment.tenonTools") : row.name}>
-              <span class="flex items-center gap-1.5 text-[12px] [font-weight:400] text-v2-text-text-muted">
-                <span
-                  class="size-1.5 shrink-0 rounded-full"
-                  classList={{ "bg-v2-state-fg-success": row.on, "bg-v2-border-border-strong": !row.on }}
-                  aria-hidden="true"
-                />
-                {language.t(row.on ? "secondBrain.environment.on" : "secondBrain.environment.off")}
-              </span>
-            </Row>
-          )}
-        </For>
-      </Show>
-      <LinkRow
-        label={language.t("secondBrain.environment.manage")}
-        onClick={() => {
-          props.onManage()
-          void dialog.show(() => <DialogSettings defaultValue="mcp" />)
-        }}
-      />
-    </Group>
-  )
-}
-
-/** The thread's file changes in one line, with the review panel one click away. */
-function ChangesGroup(props: { onReview: () => void }) {
-  const language = useLanguage()
-  const sync = useSync()
-  const { params, view, tabs } = useSessionLayout()
-  const totals = createMemo(() => changeTotals(params.id ? sync().data.session_diff[params.id] : undefined))
-  return (
-    <Group title={language.t("secondBrain.environment.changes")}>
-      <Show
-        when={totals().files > 0}
-        fallback={
-          <Row label={language.t("secondBrain.environment.noChanges")}>
-            <span />
-          </Row>
-        }
-      >
-        <Row label={language.t("secondBrain.environment.files", { count: totals().files })}>
-          <span class="font-mono text-[12px] [font-weight:400]">
-            <Show when={totals().additions > 0}>
-              <span class="text-v2-state-fg-success">{`+${totals().additions}`}</span>
-            </Show>
-            <Show when={totals().additions > 0 && totals().deletions > 0}> </Show>
-            <Show when={totals().deletions > 0}>
-              <span class="text-v2-state-fg-danger">{`-${totals().deletions}`}</span>
-            </Show>
-          </span>
-        </Row>
-        <LinkRow
-          label={language.t("secondBrain.environment.review")}
-          onClick={() => {
-            props.onReview()
-            view().reviewPanel.open("other")
-            void tabs().open("review")
-            tabs().setActive("review")
-          }}
-        />
-      </Show>
-    </Group>
-  )
-}
-
-/** What the thread has running now: its subagents and the open terminals. */
-function RunningGroup(props: { groups: SubagentGroup[] }) {
-  const language = useLanguage()
-  const terminal = useTerminal()
-  const subagents = () => runningSubagents(props.groups)
-  const terminals = () => terminal.all().length
-  return (
-    <Group title={language.t("secondBrain.environment.running")}>
-      <Row label={language.t("secondBrain.environment.subagents")}>{subagents()}</Row>
-      <Row label={language.t("secondBrain.environment.terminals")}>{terminals()}</Row>
-    </Group>
-  )
-}
-
-/** A full-width row that opens something, with a chevron. */
-function LinkRow(props: { label: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      class="-mx-3 flex min-h-8 items-center px-3 text-left text-v2-text-text-base outline-none transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover focus-visible:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)] motion-reduce:transition-none"
-      onClick={() => props.onClick()}
-    >
-      {props.label}
-      <Icon name="chevron-down" size="small" class="ml-auto shrink-0 -rotate-90 text-v2-icon-icon-muted" />
-    </button>
   )
 }
 

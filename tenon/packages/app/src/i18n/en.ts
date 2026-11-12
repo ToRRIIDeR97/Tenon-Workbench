@@ -1209,6 +1209,7 @@ export const dict = {
   "secondBrain.environment.branch": "Branch",
   "secondBrain.environment.noBranch": "No branch",
   "secondBrain.environment.approvals": "Approvals",
+  "secondBrain.environment.context": "Context",
   "secondBrain.environment.connectors": "Connectors",
   "secondBrain.environment.noConnectors": "No MCP servers",
   "secondBrain.environment.tenonTools": "Tenon tools",
