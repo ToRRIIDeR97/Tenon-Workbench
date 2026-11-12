@@ -62,7 +62,8 @@ Use `[font-weight:N]` when a weight must differ from the role.
   thread Environment) floats below its toggle at 20px radius on
   `bg-floating` with the floating elevation, has a title row with a close
   button, ignores outside clicks, closes on Esc and remembers whether it was
-  open. Use a popover instead for anything that should close when you click
+  open. It minimizes on its own while the area it floats over gets too narrow
+  to read beside it, and returns when there is room again. Use a popover instead for anything that should close when you click
   away.
 - **Thread header:** the title on the left; on the right, compact pill
   controls (28px) followed by the "…" thread menu. The Environment toggle

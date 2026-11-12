@@ -23,6 +23,9 @@ import { useTerminal } from "@/context/terminal"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { Persist, persisted } from "@/utils/persist"
 
+/** Below this thread header width (the side panel pulled wide), the Environment window minimizes to its toggle. */
+const SQUEEZED_THREAD_WIDTH = 560
+
 type ThreadHarness = {
   current: () => Harness.InstanceID
   instances: () => ReadonlyArray<Harness.Instance> | undefined
@@ -39,7 +42,14 @@ type ThreadHarness = {
 export function ThreadEnvironmentButton(props: { harness?: ThreadHarness }) {
   const language = useLanguage()
   const [prefs, setPrefs] = persisted(Persist.global("thread.environment"), createStore({ open: false }))
-  const [anchor, setAnchor] = createStore({ top: 0, right: 0, width: 340 })
+  const [anchor, setAnchor] = createStore({
+    top: 0,
+    right: 0,
+    width: 340,
+    squeezed: false,
+    forced: false,
+    placed: false,
+  })
   let button: HTMLButtonElement | undefined
   // The window follows its toggle: the thread's header moves and resizes when the side panel opens, closes or is
   // dragged, so it is re-placed whenever the header's size changes (and on a window resize), and kept inside it.
@@ -49,8 +59,19 @@ export function ThreadEnvironmentButton(props: { harness?: ThreadHarness }) {
     const header = button.closest("[data-session-title]")?.getBoundingClientRect()
     const right = Math.max(16, window.innerWidth - rect.right)
     const room = (header ? header.right - header.left : window.innerWidth) - 24
-    setAnchor({ top: rect.bottom + 6, right, width: Math.max(240, Math.min(340, room, window.innerWidth - 32)) })
+    const squeezed = !!header && header.right - header.left < SQUEEZED_THREAD_WIDTH
+    setAnchor({
+      placed: true,
+      top: rect.bottom + 6,
+      right,
+      width: Math.max(240, Math.min(340, room, window.innerWidth - 32)),
+    })
+    // Crossing the threshold either way drops a manual open made while squeezed.
+    if (squeezed !== anchor.squeezed) setAnchor({ squeezed, forced: false })
   }
+  // The window minimizes to its toggle while the side panel leaves the thread too narrow to read beside it, and
+  // comes back once the thread widens; the toggle still opens it while squeezed. The remembered choice is unchanged.
+  const shown = () => prefs.open && anchor.placed && (!anchor.squeezed || anchor.forced)
   createEffect(() => {
     if (!prefs.open) return
     place()
@@ -65,24 +86,30 @@ export function ThreadEnvironmentButton(props: { harness?: ThreadHarness }) {
   })
   const close = () => {
     setPrefs("open", false)
+    setAnchor("forced", false)
     button?.focus()
+  }
+  const toggle = () => {
+    if (shown()) return close()
+    setPrefs("open", true)
+    if (anchor.squeezed) setAnchor("forced", true)
   }
   return (
     <>
       <button
         ref={button}
         type="button"
-        aria-expanded={prefs.open}
+        aria-expanded={shown()}
         aria-controls="thread-environment"
         class="hidden md:flex h-7 items-center gap-1 rounded-full px-2.5 type-control text-v2-text-text-muted outline-none transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base aria-expanded:bg-v2-overlay-simple-overlay-pressed aria-expanded:text-v2-text-text-base focus-visible:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)] motion-reduce:transition-none"
-        onClick={() => setPrefs("open", !prefs.open)}
+        onClick={toggle}
       >
         {language.t("secondBrain.environment.title")}
         <Icon
           name="chevron-down"
           size="small"
           class="shrink-0 transition-transform duration-short ease-standard motion-reduce:transition-none"
-          classList={{ "rotate-180": prefs.open }}
+          classList={{ "rotate-180": shown() }}
         />
       </button>
       <Portal>
@@ -93,7 +120,7 @@ export function ThreadEnvironmentButton(props: { harness?: ThreadHarness }) {
           style={{ top: `${anchor.top}px`, right: `${anchor.right}px`, width: `${anchor.width}px` }}
         >
           <Presence
-            when={prefs.open}
+            when={shown()}
             enterClass="animate-menu-enter"
             exitClass="animate-menu-exit"
             class="origin-top-right"
