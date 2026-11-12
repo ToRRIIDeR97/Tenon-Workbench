@@ -99,6 +99,9 @@ Use `[font-weight:N]` when a weight must differ from the role.
   filled check for done (text dimmed), `LoaderV2` in accent for the step in
   progress (weight 500), and a dashed circle for steps to come. Collapsed, the
   title row shows the current step. Status is carried by the mark's shape.
+- **Links in the composer** (`link-highlight.ts`): accent text, underlined,
+  drawn with the CSS Highlight API so the editor's text is untouched. A plain
+  click edits; Ctrl/⌘-click opens the link.
 - **Switches in lists** use the small size.
 
 ## Motion
