@@ -5,6 +5,7 @@ import { net, safeStorage, shell } from "electron"
 import {
   builtInGoogleClient,
   createGoogleAccessTokens,
+  googleScopes,
   pkceChallenge,
   requestGoogleToken,
 } from "../google-calendar-domain"
@@ -62,7 +63,12 @@ export type MailService = MailPlatform & {
   provider(account?: string): Promise<MailProvider>
 }
 
-export function createMailService(): MailService {
+export function createMailService(
+  options: {
+    /** Gmail's sign-in also asks for Calendar and Tasks; this hands the grant to the Calendar service. */
+    onGoogleGrant?: (grant: { accessToken: string; refreshToken: string; scope?: string }) => Promise<unknown>
+  } = {},
+): MailService {
   const googleTokens = createGoogleAccessTokens({
     fetch: (input, init) => net.fetch(input, init),
     endpoint: googleToken,
@@ -128,8 +134,9 @@ export function createMailService(): MailService {
         tokenEndpoint: googleToken,
         clientId: googleClient.clientId,
         clientSecret: googleClient.clientSecret,
-        scopes: [...GMAIL_SCOPES],
-        extra: { access_type: "offline", prompt: "select_account consent" },
+        // One consent for the whole Google account: mail, plus Calendar and Tasks for the Calendar page.
+        scopes: [...GMAIL_SCOPES, ...googleScopes("write")],
+        extra: { access_type: "offline", prompt: "select_account consent", include_granted_scopes: "true" },
         signal: controller.signal,
       })
       const profile = (await (
@@ -143,6 +150,10 @@ export function createMailService(): MailService {
         address: profile.emailAddress ?? "Gmail",
         refreshToken: await encrypt(tokens.refresh_token),
       })
+      // Calendar is a bonus: if it fails or wasn't granted, the mail account still stands.
+      await options
+        .onGoogleGrant?.({ accessToken: tokens.access_token, refreshToken: tokens.refresh_token, scope: tokens.scope })
+        .catch(() => undefined)
       return accounts()
     }
     if (!microsoftClientId) throw new Error("mail_outlook_unavailable")
@@ -406,7 +417,11 @@ async function authorize(input: {
       ? await requestGoogleToken((target, init) => net.fetch(target, init), input.tokenEndpoint, body)
       : await tokenRequest(input.tokenEndpoint, body)
     if (!tokens.access_token || !tokens.refresh_token) throw new Error("mail_refresh_token_missing")
-    return { access_token: tokens.access_token, refresh_token: tokens.refresh_token }
+    return {
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      scope: "scope" in tokens && typeof tokens.scope === "string" ? tokens.scope : undefined,
+    }
   } finally {
     clearTimeout(timer)
     input.signal.removeEventListener("abort", cancelled)

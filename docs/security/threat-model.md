@@ -550,6 +550,13 @@ Agents can start work in another harness through the delegation endpoint
   wouldn't ask for anyway. Its approvals reach the delegating Run's composer.
 - The built-in loop asks permission `delegate` before starting or stopping a
   task. Codex and ACP agents apply their own MCP tool policy to the call.
+- The user's own MCP servers (Settings › MCP servers, from config documents
+  that already drop `mcp` in untrusted folders) are forwarded to Codex and ACP
+  agents too (`harness/forwarded-mcp.ts`). Environment values and headers are
+  secrets: Codex gets only their variable names in `-c` (`env_vars`,
+  `env_http_headers`) with the values in its environment, and ACP agents get
+  them over stdio. Switched-off servers, the reserved name `tenon` and names
+  that aren't bare TOML keys are left out.
 - A delegated agent may delegate once more (depth 2), and a Run may have at
   most four delegated tasks running, which bounds runaway fan-out and cost.
 - The delegated agent receives only the task text the caller wrote, framed as
@@ -994,7 +1001,10 @@ Mail lives in the desktop main process (`desktop/src/main/mail/`; see
   `gmail.compose` scope would technically allow sending; the app never uses
   it for that, and Graph's `Mail.Send` is not requested.
 - **Scopes.** Gmail asks for `gmail.readonly` and `gmail.compose` through the
-  app's Google OAuth client; Outlook asks for `Mail.Read`, `Mail.ReadWrite`
+  app's Google OAuth client, together with the Calendar and Tasks scopes
+  (`calendar.readonly`, `calendar.events`, `tasks`) so one consent connects
+  both; the Calendar account is kept only for the scopes the token response
+  says were granted, and the shared refresh token is encrypted in each store; Outlook asks for `Mail.Read`, `Mail.ReadWrite`
   and `offline_access` through a public Microsoft identity client
   (`MAIN_VITE_MICROSOFT_CLIENT_ID`, no secret) with PKCE. Both sign-ins use a
   one-shot loopback redirect that checks `state` and refuses other requests.

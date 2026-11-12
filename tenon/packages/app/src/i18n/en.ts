@@ -1033,7 +1033,7 @@ export const dict = {
     "This computer can't store credentials encrypted, so mail accounts can't be added.",
   "secondBrain.mail.settings.empty": "No mail accounts yet",
   "secondBrain.mail.settings.remove": "Remove",
-  "secondBrain.mail.settings.addGmail": "Add Gmail",
+  "secondBrain.mail.settings.addGmail": "Add Google account",
   "secondBrain.mail.settings.addOutlook": "Add Outlook",
   "secondBrain.mail.settings.addImap": "Add IMAP",
   "secondBrain.mail.settings.unconfigured":
@@ -1198,7 +1198,7 @@ export const dict = {
   "secondBrain.accounts.google.mailOff": "Mail off",
   "secondBrain.accounts.google.calendarSwitch": "Calendar and Tasks for {{address}}",
   "secondBrain.accounts.google.hint":
-    "Turning Calendar on asks Google for calendar and tasks access. Pick the same account so it joins this row; events then appear on the Calendar page and agents can add them.",
+    "One Google sign-in covers mail, Calendar and Tasks. Turning Calendar back on asks Google again; pick the same account.",
   "secondBrain.mcp.title": "MCP servers",
   "secondBrain.mcp.add": "Add server",
   "secondBrain.mcp.intro": "Tools the built-in agent can use. Other harnesses keep their own MCP settings.",
@@ -1231,6 +1231,7 @@ export const dict = {
   "secondBrain.permission.other.other": "Use {{tool}}",
   "secondBrain.permission.details.one": "{{count}} item",
   "secondBrain.permission.details.other": "{{count}} items",
+  "secondBrain.permission.reasonFollowup": "I denied your last request. My reason: {{reason}}",
   "secondBrain.permission.reason": "Tell the agent why",
   "secondBrain.permission.showMore": "Show {{count}} more",
   "secondBrain.permission.denyMore": "More ways to deny",

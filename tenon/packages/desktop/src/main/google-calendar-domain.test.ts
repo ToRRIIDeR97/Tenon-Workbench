@@ -8,6 +8,7 @@ import {
   googleConnection,
   googleEventPayload,
   googleScopes,
+  grantedCalendarAccess,
   googleTaskPayload,
   mergeQueuedWrite,
   nearestEvents,
@@ -39,6 +40,23 @@ const config = {
   clientSecret: "secret",
   refreshToken: "refresh-1",
 }
+
+describe("grantedCalendarAccess", () => {
+  const scope = (...items: string[]) => items.map((item) => `https://www.googleapis.com/auth/${item}`).join(" ")
+  test("reads what a combined Gmail grant gave Calendar", () => {
+    expect(
+      grantedCalendarAccess(
+        scope("gmail.readonly", "gmail.compose", ...["calendar.readonly", "calendar.events", "tasks"]),
+      ),
+    ).toBe("write")
+    expect(grantedCalendarAccess(scope("calendar.readonly", "tasks.readonly"))).toBe("read")
+    expect(grantedCalendarAccess(scope("calendar.readonly", "calendar.events", "tasks.readonly"))).toBe("read")
+    // Calendar left unticked on Google's granular consent screen: no Calendar account.
+    expect(grantedCalendarAccess(scope("gmail.readonly", "gmail.compose", "tasks"))).toBeUndefined()
+    expect(grantedCalendarAccess(scope("calendar.readonly"))).toBeUndefined()
+    expect(grantedCalendarAccess(undefined)).toBeUndefined()
+  })
+})
 
 describe("Google Calendar domain", () => {
   test("uses PKCE, narrow scopes, stable IDs, and normalized event fields", () => {

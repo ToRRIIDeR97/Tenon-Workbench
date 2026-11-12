@@ -59,20 +59,40 @@ describe("OpenCode Go key", () => {
   })
 })
 
-// AC-13: a Max/Ultra account's Fable window is listed with the other Claude Code windows. The key name follows
-// the per-model pattern of `seven_day_opus`; it is an assumption until checked against a live response.
+// AC-13: a Max/Ultra account's Fable window is listed with the other Claude Code windows. A live Max response
+// (2026-11-12) has no `seven_day_fable` key; per-model weekly limits arrive in `limits[]` as `weekly_scoped`.
 describe("Claude Code Fable window", () => {
-  test("seven_day_fable is read after the Sonnet window", () => {
+  test("a weekly_scoped limit is read after the keyed windows", () => {
     const windows = HarnessUsage.parseClaudeUsage({
       five_hour: { utilization: 10, resets_at: null },
-      seven_day_sonnet: { utilization: 20, resets_at: null },
-      seven_day_fable: { utilization: 30, resets_at: null },
+      seven_day: { utilization: 30, resets_at: "2026-11-18T02:00:00Z" },
+      seven_day_sonnet: null,
+      limits: [
+        { kind: "session", percent: 10, scope: null },
+        { kind: "weekly_all", percent: 30, scope: null },
+        {
+          kind: "weekly_scoped",
+          percent: 34,
+          resets_at: "2026-11-18T02:00:00Z",
+          scope: { model: { id: null, display_name: "Fable" }, surface: null },
+        },
+        { kind: "weekly_scoped", percent: 5, scope: { model: null } },
+      ],
     })
     expect(windows.map((window) => [window.id, window.label, window.usedPercent])).toEqual([
       ["five_hour", "5-hour", 10],
-      ["seven_day_sonnet", "Weekly (Sonnet)", 20],
-      ["seven_day_fable", "Weekly (Fable)", 30],
+      ["seven_day", "Weekly", 30],
+      ["weekly_fable", "Weekly (Fable)", 34],
     ])
+    expect(windows[2]?.resetsAt).toBe(Date.parse("2026-11-18T02:00:00Z"))
+  })
+
+  test("a scoped limit that repeats a keyed window is not listed twice", () => {
+    const windows = HarnessUsage.parseClaudeUsage({
+      seven_day_opus: { utilization: 12, resets_at: null },
+      limits: [{ kind: "weekly_scoped", percent: 12, scope: { model: { display_name: "Opus" } } }],
+    })
+    expect(windows.map((window) => window.label)).toEqual(["Weekly (Opus)"])
   })
 })
 

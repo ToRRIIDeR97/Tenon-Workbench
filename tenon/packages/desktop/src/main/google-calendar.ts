@@ -21,6 +21,7 @@ import {
   googleEventPayload,
   googleScopes,
   googleConnection,
+  grantedCalendarAccess,
   googleTaskPayload,
   GOOGLE_LEGACY_KEYS,
   mergeQueuedWrite,
@@ -37,6 +38,7 @@ import {
   sanitizeProviderTask,
   settledWrites,
   type GoogleEventResponse,
+  type GoogleClient,
   type GoogleTaskResponse,
 } from "./google-calendar-domain"
 
@@ -104,7 +106,12 @@ const accessTokens = createGoogleAccessTokens({
   onRotate: async (accountId, refreshToken) => updateAccount(accountId, { refreshToken: await encrypt(refreshToken) }),
 })
 
-export function createGoogleCalendarService(): GoogleCalendarPlatform {
+/** A Google grant made elsewhere (Gmail's sign-in) that also covers Calendar and Tasks. */
+export type GoogleGrant = { accessToken: string; refreshToken: string; scope?: string }
+
+export function createGoogleCalendarService(): GoogleCalendarPlatform & {
+  adoptGrant: (grant: GoogleGrant) => Promise<boolean>
+} {
   let busy = false
   // The browser consent can take minutes; it has its own guard so syncs and writes aren't blocked, and
   // starting Connect again cancels it (the user may have closed the Google tab).
@@ -160,23 +167,42 @@ export function createGoogleCalendarService(): GoogleCalendarPlatform {
     busy = true
     try {
       if (!tokens.access_token || !tokens.refresh_token) throw new Error("google_refresh_token_missing")
-      const calendar = await providerJson<{ summary?: string; id?: string }>(calendarEndpoint, tokens.access_token)
-      // The primary calendar's ID is the account's address, so signing in again renews that account.
-      const email = calendar.id?.includes("@") ? calendar.id : undefined
-      const existing = email ? (await readAccounts()).find((account) => account.email === email) : undefined
-      const id = existing?.id ?? randomUUID()
-      accessTokens.clear(id)
-      errors.delete(id)
-      await saveAccount({
-        ...client,
-        id,
-        ...(email ? { email } : {}),
-        label: calendar.summary ?? calendar.id ?? "Google",
-        refreshToken: tokens.refresh_token,
-        access: input.access,
-        ...(existing?.lastSyncedAt ? { lastSyncedAt: existing.lastSyncedAt } : {}),
-      })
+      await keep(client, tokens.access_token, tokens.refresh_token, input.access)
       return status()
+    } finally {
+      busy = false
+    }
+  }
+
+  // Saves a Calendar account for a grant, keyed by address so signing in again renews the same account.
+  const keep = async (client: GoogleClient, accessToken: string, refreshToken: string, access: "read" | "write") => {
+    const calendar = await providerJson<{ summary?: string; id?: string }>(calendarEndpoint, accessToken)
+    // The primary calendar's ID is the account's address.
+    const email = calendar.id?.includes("@") ? calendar.id : undefined
+    const existing = email ? (await readAccounts()).find((account) => account.email === email) : undefined
+    const id = existing?.id ?? randomUUID()
+    accessTokens.clear(id)
+    errors.delete(id)
+    await saveAccount({
+      ...client,
+      id,
+      ...(email ? { email } : {}),
+      label: calendar.summary ?? calendar.id ?? "Google",
+      refreshToken,
+      access,
+      ...(existing?.lastSyncedAt ? { lastSyncedAt: existing.lastSyncedAt } : {}),
+    })
+  }
+
+  // Gmail's sign-in asks for Calendar and Tasks too, so one Google consent connects both. Uses the built-in
+  // client, the one Gmail signs in with; false when Calendar wasn't granted or can't be stored securely.
+  const adoptGrant = async (grant: GoogleGrant) => {
+    const access = grantedCalendarAccess(grant.scope)
+    if (!access || !builtInClient || busy || !(await secureStorageAvailable())) return false
+    busy = true
+    try {
+      await keep(builtInClient, grant.accessToken, grant.refreshToken, access)
+      return true
     } finally {
       busy = false
     }
@@ -397,7 +423,7 @@ export function createGoogleCalendarService(): GoogleCalendarPlatform {
     }
   }
 
-  return { status, connect, sync, write, writeTask, discardConflict, disconnect }
+  return { status, connect, sync, write, writeTask, discardConflict, disconnect, adoptGrant }
 }
 
 async function syncAccount(account: Account) {

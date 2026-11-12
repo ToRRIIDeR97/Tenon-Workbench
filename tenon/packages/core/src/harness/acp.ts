@@ -43,7 +43,7 @@ export interface OpenInput {
   readonly settings: Settings
   readonly directory: string
   readonly continuation?: string
-  /** HTTP MCP servers offered to the agent; dropped when it does not advertise `mcpCapabilities.http`. */
+  /** MCP servers offered to the agent; HTTP ones are dropped when it does not advertise `mcpCapabilities.http`. */
   readonly mcpServers?: ReadonlyArray<McpServer>
   readonly approve: (request: PermissionRequest) => Effect.Effect<boolean>
   /**
@@ -66,7 +66,7 @@ export interface AcpCommand {
 export interface Session {
   readonly sessionId: string
   readonly resumed: boolean
-  /** The offered MCP servers were passed on: there were some and the agent advertises `mcpCapabilities.http`. */
+  /** An HTTP MCP server (Tenon's own, when offered) was passed on: the agent advertises `mcpCapabilities.http`. */
   readonly mcpAttached: boolean
   readonly agent: { readonly name?: string; readonly version?: string }
   readonly capabilities: ReturnType<typeof agentCapabilities>
@@ -417,7 +417,10 @@ export const open = Effect.fn("AcpHarness.open")(function* (process: Process, in
   const capabilities = isRecord(initialize.agentCapabilities) ? initialize.agentCapabilities : {}
   const http = isRecord(capabilities.mcpCapabilities) && capabilities.mcpCapabilities.http === true
   const promptCapabilities = isRecord(capabilities.promptCapabilities) ? capabilities.promptCapabilities : {}
-  const params = { cwd: input.directory, mcpServers: http ? (input.mcpServers ?? []) : [] }
+  const params = {
+    cwd: input.directory,
+    mcpServers: (input.mcpServers ?? []).filter((server) => http || !("type" in server)),
+  }
   const loaded =
     input.continuation && capabilities.loadSession === true
       ? yield* client.request("session/load", { ...params, sessionId: input.continuation }, SESSION_SETUP_TIMEOUT).pipe(
@@ -609,7 +612,7 @@ export const open = Effect.fn("AcpHarness.open")(function* (process: Process, in
   return {
     sessionId: session.sessionId,
     resumed: loaded !== undefined,
-    mcpAttached: params.mcpServers.length > 0,
+    mcpAttached: params.mcpServers.some((server) => "type" in server),
     closed: client.closed,
     agent: agentInfo(initialize),
     capabilities: agentCapabilities(initialize),
@@ -622,12 +625,19 @@ export const open = Effect.fn("AcpHarness.open")(function* (process: Process, in
 const SESSION_SETUP_TIMEOUT = "60 seconds"
 const PROMPT_UNWIND_TIMEOUT = "10 seconds"
 
-export interface McpServer {
-  readonly type: "http"
-  readonly name: string
-  readonly url: string
-  readonly headers: ReadonlyArray<{ readonly name: string; readonly value: string }>
-}
+export type McpServer =
+  | {
+      readonly type: "http"
+      readonly name: string
+      readonly url: string
+      readonly headers: ReadonlyArray<{ readonly name: string; readonly value: string }>
+    }
+  | {
+      readonly name: string
+      readonly command: string
+      readonly args: ReadonlyArray<string>
+      readonly env: ReadonlyArray<{ readonly name: string; readonly value: string }>
+    }
 
 function createSession(
   client: Client,
