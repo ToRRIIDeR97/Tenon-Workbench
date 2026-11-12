@@ -529,7 +529,7 @@ function ProviderConnection(props: {
       <form onSubmit={handleSubmit} class="flex flex-col items-start gap-4">
         <Switch>
           <Match when={item()?.prompt.type === "text"}>
-            <label class="flex w-full flex-col gap-2px-3 text-[13px] font-medium leading-5 text-v2-text-text-base">
+            <label class="flex w-full flex-col gap-2 text-[13px] font-medium leading-5 text-v2-text-text-base">
               {text()?.message ?? ""}
               <TextInputV2
                 appearance="large"
@@ -694,7 +694,7 @@ function ProviderConnection(props: {
       <div class="flex flex-col gap-6 px-3 text-[13px] font-[450] leading-5 text-v2-text-text-muted">
         {language.t("provider.connect.apiKey.description", { provider: provider().name })}
         <form onSubmit={handleSubmit} class="flex flex-col items-start gap-5 self-stretch">
-          <label class="flex w-full flex-col gap-2font-medium leading-5 text-v2-text-text-base">
+          <label class="flex w-full flex-col gap-2 text-[13px] font-medium leading-5 text-v2-text-text-base">
             {language.t("provider.connect.apiKey.label", { provider: provider().name })}
             <TextInputV2
               ref={apiKey}
@@ -776,7 +776,7 @@ function ProviderConnection(props: {
           {language.t("provider.connect.oauth.code.visit.suffix", { provider: provider().name })}
         </div>
         <form onSubmit={handleSubmit} class="flex flex-col items-start gap-5 self-stretch">
-          <label class="flex w-full flex-col gap-2font-medium leading-5 text-v2-text-text-base">
+          <label class="flex w-full flex-col gap-2 text-[13px] font-medium leading-5 text-v2-text-text-base">
             {language.t("provider.connect.oauth.code.label", { method: method()?.label ?? "" })}
             <TextInputV2
               ref={codeInput}
@@ -858,7 +858,7 @@ function ProviderConnection(props: {
           </ExternalLink>
           {language.t("provider.connect.oauth.auto.visit.suffix", { provider: provider().name })}
         </div>
-        <label class="flex w-full flex-col gap-2font-medium leading-5">
+        <label class="flex w-full flex-col gap-2 text-[13px] font-medium leading-5">
           {language.t("provider.connect.oauth.auto.confirmationCode")}
           <TextInputV2
             appearance="large"
