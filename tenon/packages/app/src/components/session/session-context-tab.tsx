@@ -27,30 +27,21 @@ import { estimateSessionContextBreakdown, type SessionContextBreakdownKey } from
 import { createSessionContextFormatter } from "./session-context-format"
 import { getSessionTotals, getSessionUsage, getSubagentUsage } from "./session-usage"
 import { stepCountPhrases } from "./turn-steps-summary"
+import { heaviestContextItems } from "./context-heaviest"
+import { useCommand } from "@/context/command"
+import { Reveal } from "@tenon/ui/v2/reveal"
 
-// User and assistant turns share one "Messages" segment, as in the Thread design; tones of the accent, not hues.
+// User and assistant turns share one "Messages" segment. The Environment window's shades (one step of the accent
+// or grey per kind), so the parts differ in lightness as well as hue and both context bars read the same.
 type BreakdownGroup = "system" | "messages" | "tool" | "other"
-const BREAKDOWN_COLOR: Record<BreakdownGroup, string> = {
-  system: "var(--v2-background-bg-accent)",
-  messages: "color-mix(in srgb, var(--v2-background-bg-accent) 50%, var(--v2-background-bg-layer-02))",
-  tool: "var(--v2-background-bg-layer-03)",
-  other: "color-mix(in srgb, var(--v2-text-text-faint) 45%, transparent)",
+const BREAKDOWN_SHADE: Record<BreakdownGroup, string> = {
+  messages: "bg-v2-icon-icon-accent",
+  tool: "bg-v2-icon-icon-accent/55",
+  system: "bg-v2-text-text-muted",
+  other: "bg-v2-border-border-strong",
 }
 const breakdownGroup = (key: SessionContextBreakdownKey): BreakdownGroup =>
   key === "user" || key === "assistant" ? "messages" : key
-
-function Stat(props: { label: string; value: JSX.Element }) {
-  return (
-    <div class="flex min-w-0 flex-col gap-0.5 rounded-[16px] bg-v2-background-bg-layer-01 px-3 py-2.5">
-      <div class="truncate text-[11px] leading-4 text-v2-text-text-muted">{props.label}</div>
-      <div class="truncate text-[15px] leading-5 text-v2-text-text-base [font-weight:600]">{props.value}</div>
-    </div>
-  )
-}
-
-function SectionLabel(props: { children: JSX.Element }) {
-  return <div class="pl-1 type-section text-v2-text-text-base">{props.children}</div>
-}
 
 function RawMessageContent(props: { message: Message; getParts: (id: string) => Part[]; onRendered: () => void }) {
   const file = createMemo(() => {
@@ -270,28 +261,28 @@ export function SessionContextTab() {
     return [...groups].map(([key, value]) => ({ key, ...value }))
   })
 
+  // The biggest things in the context, for "Taking the most room"; each opens its turn in the thread.
+  const heaviest = createMemo(() =>
+    heaviestContextItems({ messages: messages(), parts: sync().data.part as Record<string, Part[] | undefined> }),
+  )
+  const command = useCommand()
+  const [usageOpen, setUsageOpen] = createSignal(false)
+  // The session page reveals the turn (`revealMessage`); the tab lives in the side panel, beside it.
+  const revealTurn = (turnID: string) =>
+    window.dispatchEvent(new CustomEvent("tenon:reveal-message", { detail: turnID }))
+  // A share of what's used, as a share of the whole window when the window is known.
+  const windowShare = (share: number) => (ctx()?.limit ? (share * (ctx()?.usage ?? 100)) / 100 : share)
+  const compactNumber = (value: number | undefined) =>
+    value === undefined
+      ? "—"
+      : new Intl.NumberFormat(language.intl(), { notation: "compact", maximumFractionDigits: 1 }).format(value)
+
   const breakdownLabel = (key: BreakdownGroup) => {
     if (key === "system") return language.t("context.breakdown.system")
     if (key === "messages") return language.t("context.stats.messages")
     if (key === "tool") return language.t("context.breakdown.tool")
     return language.t("context.breakdown.other")
   }
-
-  const tiles = [
-    { label: "secondBrain.sessionTab.tokens", value: () => formatter().number(ctx()?.total) },
-    {
-      label: "secondBrain.sessionTab.contextShare",
-      value: () => {
-        if (ctx()?.compacted) return language.t("secondBrain.sessionTab.compacted")
-        return ctx()?.limit ? formatter().percent(ctx()?.usage) : "—"
-      },
-    },
-    { label: "context.stats.messages", value: () => counts().all.toLocaleString(language.intl()) },
-    {
-      label: "harness.label",
-      value: () => (selectedHarness() ? harnessLabel(selectedHarness()!) : "—"),
-    },
-  ] satisfies { label: string; value: () => JSX.Element }[]
 
   // What the subagents spent, apart from the context figure below. Declared before `details`, which the memo reads
   // on creation.
@@ -465,86 +456,198 @@ export function SessionContextTab() {
           </div>
         </Show>
 
-        <div class="grid grid-cols-2 gap-2">
-          <For each={tiles}>
-            {(tile) => <Stat label={language.t(tile.label as Parameters<typeof language.t>[0])} value={tile.value()} />}
-          </For>
-        </div>
-
-        <Show when={breakdownGroups().length > 0}>
-          <div data-slot="session-tab-context" class="flex flex-col gap-2">
-            <SectionLabel>{language.t("context.breakdown.title")}</SectionLabel>
-            <div class="flex h-2.5 w-full gap-0.5 overflow-hidden rounded-full">
+        {/* The Details workshop's variant C: the context window first, then what takes the most room in it. */}
+        <section
+          data-slot="session-tab-context"
+          aria-label={language.t("secondBrain.sessionTab.contextTitle")}
+          class="flex flex-col gap-2.5"
+        >
+          <div class="flex items-baseline gap-2">
+            <h3 class="m-0 flex-1 text-[15px] leading-5 [font-weight:600] text-v2-text-text-base">
+              {language.t("secondBrain.sessionTab.contextTitle")}
+            </h3>
+            <Show
+              when={!ctx()?.compacted}
+              fallback={
+                <span class="text-[12.5px] text-v2-text-text-muted">
+                  {language.t("secondBrain.sessionTab.compacted")}
+                </span>
+              }
+            >
+              <span class="text-[13px] [font-weight:560] tabular-nums text-v2-text-text-base">
+                {compactNumber(ctx()?.total)}
+              </span>
+              <Show when={ctx()?.limit}>
+                <span class="text-[12.5px] tabular-nums text-v2-text-text-muted">
+                  {`/ ${compactNumber(ctx()?.limit)} · ${formatter().percent(ctx()?.usage)}`}
+                </span>
+              </Show>
+            </Show>
+          </div>
+          <Show when={breakdownGroups().length > 0}>
+            {/* The estimated parts, scaled to the window, so what's left reads as free. */}
+            <div
+              class="flex h-2.5 overflow-hidden rounded-full bg-v2-background-bg-layer-02"
+              role="img"
+              aria-label={breakdownGroups()
+                .map((segment) => `${breakdownLabel(segment.key)} ${Math.round(windowShare(segment.width))}%`)
+                .join(", ")}
+            >
               <For each={breakdownGroups()}>
                 {(segment) => (
-                  <div
-                    class="h-full"
-                    style={{ width: `${segment.width}%`, "background-color": BREAKDOWN_COLOR[segment.key] }}
+                  <span
+                    class={`h-full ${BREAKDOWN_SHADE[segment.key]}`}
+                    style={{ width: `${windowShare(segment.width)}%` }}
                   />
                 )}
               </For>
             </div>
-            <div class="flex flex-wrap gap-x-3.5 gap-y-1 pl-1">
+            <div class="flex flex-wrap gap-x-3.5 gap-y-1 text-[12px] leading-4 text-v2-text-text-muted">
               <For each={breakdownGroups()}>
                 {(segment) => (
-                  <div class="flex items-center gap-1.5 text-[12px] text-v2-text-text-muted">
-                    <div class="size-2 rounded-full" style={{ "background-color": BREAKDOWN_COLOR[segment.key] }} />
-                    <div>{breakdownLabel(segment.key)}</div>
-                    <div class="text-v2-text-text-base tabular-nums">
-                      {Math.round(segment.percent).toLocaleString(language.intl())}%
-                    </div>
-                  </div>
+                  <span class="inline-flex items-center gap-1.5">
+                    <span class={`size-2 rounded-[2px] ${BREAKDOWN_SHADE[segment.key]}`} aria-hidden="true" />
+                    {`${breakdownLabel(segment.key)} ${Math.round(windowShare(segment.width)).toLocaleString(language.intl())}%`}
+                  </span>
                 )}
               </For>
             </div>
-          </div>
+          </Show>
+        </section>
+
+        <Show when={heaviest().length > 0}>
+          <section data-slot="session-tab-heaviest" class="flex flex-col gap-2">
+            <div class="flex items-baseline gap-2">
+              <h3 class="m-0 flex-1 text-[13px] leading-[18px] [font-weight:600] text-v2-text-text-base">
+                {language.t("secondBrain.sessionTab.heaviest")}
+              </h3>
+              <span class="text-[12px] text-v2-text-text-muted">{language.t("secondBrain.sessionTab.estimated")}</span>
+            </div>
+            <For each={heaviest()}>
+              {(item) => (
+                <button
+                  type="button"
+                  data-slot="session-tab-heavy-item"
+                  class="flex w-full min-w-0 flex-col gap-1.5 rounded-[14px] bg-v2-background-bg-layer-01 px-3 py-2.5 text-left transition-colors duration-short ease-standard hover:bg-v2-background-bg-layer-02 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
+                  onClick={() => revealTurn(item.turnID)}
+                >
+                  <span class="flex min-w-0 items-baseline gap-2 text-[12.5px] leading-[18px]">
+                    <span class="min-w-0 flex-1 truncate text-v2-text-text-base">{item.name}</span>
+                    <span class="shrink-0 tabular-nums text-v2-text-text-base">{compactNumber(item.tokens)}</span>
+                  </span>
+                  <span
+                    class="block h-[5px] overflow-hidden rounded-full bg-v2-background-bg-layer-03"
+                    aria-hidden="true"
+                  >
+                    <span
+                      class="block h-full rounded-full bg-v2-icon-icon-accent/55"
+                      style={{ width: `${(item.tokens / heaviest()[0]!.tokens) * 100}%` }}
+                    />
+                  </span>
+                  <span class="text-[11.5px] leading-4 text-v2-text-text-muted">
+                    {`${language.t("secondBrain.sessionTab.turn", { turn: item.turn })} · ${language.t(`secondBrain.sessionTab.kind.${item.kind}`)}`}
+                  </span>
+                </button>
+              )}
+            </For>
+            <p class="m-0 px-1 text-[12px] leading-4 text-v2-text-text-muted">
+              {language.t("secondBrain.sessionTab.heaviestHint")}
+            </p>
+            <ButtonV2
+              size="small"
+              variant="neutral"
+              class="self-start"
+              onClick={() => command.trigger("session.compact")}
+            >
+              {language.t("secondBrain.sessionTab.compactNow")}
+            </ButtonV2>
+          </section>
         </Show>
 
-        <Show when={details().length > 0}>
-          <div data-slot="session-tab-details" class="flex flex-col gap-2">
-            <SectionLabel>{language.t("secondBrain.sessionTab.details")}</SectionLabel>
-            <dl class="m-0 flex flex-col rounded-[16px] bg-v2-background-bg-layer-01 px-3 py-1">
-              <For each={details()}>
-                {(row) => (
-                  <div class="flex min-h-8 items-center justify-between gap-3 text-[13px]">
-                    <dt class="shrink-0 text-v2-text-text-muted">{language.t(row.label)}</dt>
-                    <dd class="m-0 min-w-0 truncate text-right text-v2-text-text-base [font-variant-numeric:tabular-nums]">
-                      {row.value}
-                    </dd>
-                  </div>
+        <div class="h-px bg-v2-border-border-muted" />
+
+        <section
+          data-slot="session-tab-details"
+          class="flex flex-col gap-2.5 text-[12.5px] leading-[18px] text-v2-text-text-base"
+        >
+          <h3 class="m-0 text-[13px] [font-weight:600]">{language.t("secondBrain.sessionTab.thread")}</h3>
+          <dl class="m-0 grid grid-cols-[112px_minmax(0,1fr)] gap-x-2.5 gap-y-1.5">
+            <Show when={ctx()}>
+              <dt class="text-v2-text-text-muted">{language.t("context.stats.model")}</dt>
+              <dd class="m-0 min-w-0 truncate">{modelLabel()}</dd>
+            </Show>
+            <dt class="text-v2-text-text-muted">{language.t("harness.label")}</dt>
+            <dd class="m-0 min-w-0 truncate">{selectedHarness() ? harnessLabel(selectedHarness()!) : "—"}</dd>
+            <dt class="text-v2-text-text-muted">{language.t("context.stats.messages")}</dt>
+            <dd class="m-0 min-w-0 truncate">
+              {subagents().length > 0
+                ? language.t("secondBrain.sessionTab.messagesWithSubagents", {
+                    messages: counts().all.toLocaleString(language.intl()),
+                    subagents: subagents().length,
+                  })
+                : counts().all.toLocaleString(language.intl())}
+            </dd>
+          </dl>
+          <button
+            type="button"
+            aria-expanded={usageOpen()}
+            class="-ml-1 inline-flex items-center gap-1 self-start rounded-[8px] px-1 py-0.5 text-[12.5px] text-v2-text-text-muted outline-none hover:text-v2-text-text-base focus-visible:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)]"
+            onClick={() => setUsageOpen((open) => !open)}
+          >
+            {language.t("secondBrain.sessionTab.usageAndCost")}
+            <Icon
+              name="chevron-down"
+              size="small"
+              class="transition-transform duration-short ease-standard motion-reduce:transition-none"
+              classList={{ "rotate-180": usageOpen() }}
+            />
+          </button>
+          <Reveal open={usageOpen()}>
+            <div class="flex flex-col gap-2.5">
+              <dl class="m-0 grid grid-cols-[112px_minmax(0,1fr)] gap-x-2.5 gap-y-1.5 tabular-nums">
+                <For each={details().filter((row) => row.label !== "context.stats.model")}>
+                  {(row) => (
+                    <>
+                      <dt class="text-v2-text-text-muted">{language.t(row.label)}</dt>
+                      <dd class="m-0 min-w-0 truncate">{row.value}</dd>
+                    </>
+                  )}
+                </For>
+              </dl>
+              <Show when={toolPhrases().length > 0}>
+                <p class="m-0 text-v2-text-text-muted">{toolPhrases().join(" · ")}</p>
+              </Show>
+              <Show when={perHarness()}>
+                <p class="m-0 text-[12px] text-v2-text-text-muted">
+                  {language.t("secondBrain.sessionTab.loadedTotals")}
+                </p>
+              </Show>
+              <Show when={subagentUsage()?.missing}>
+                {(missing) => (
+                  <p class="m-0 text-[12px] text-v2-text-text-muted">
+                    {language.plural("secondBrain.sessionTab.subagentsMissing", missing(), {
+                      count: missing().toLocaleString(language.intl()),
+                    })}
+                  </p>
                 )}
-              </For>
-            </dl>
-            <Show when={perHarness()}>
-              <div class="pl-1 text-[12px] text-v2-text-text-muted">
-                {language.t("secondBrain.sessionTab.loadedTotals")}
-              </div>
-            </Show>
-            <Show when={subagentUsage()?.missing}>
-              {(missing) => (
-                <div class="pl-1 text-[12px] text-v2-text-text-muted">
-                  {language.plural("secondBrain.sessionTab.subagentsMissing", missing(), {
-                    count: missing().toLocaleString(language.intl()),
-                  })}
-                </div>
-              )}
-            </Show>
-          </div>
-        </Show>
+              </Show>
+            </div>
+          </Reveal>
+        </section>
 
         <Show when={subagents().length > 0}>
-          <div data-slot="session-tab-subagents" class="flex flex-col gap-2">
-            <SectionLabel>{language.t("secondBrain.sessionTab.subagents")}</SectionLabel>
-            <div class="flex flex-col gap-1">
+          <section data-slot="session-tab-subagents" class="flex flex-col gap-1.5">
+            <h3 class="m-0 text-[13px] leading-[18px] [font-weight:600] text-v2-text-text-base">
+              {language.t("secondBrain.sessionTab.subagents")}
+            </h3>
+            <div class="-mx-2 flex flex-col">
               <For each={subagents()}>
                 {(agent) => {
                   const row = () => (
                     <>
-                      <span class="min-w-0 flex-1 truncate text-v2-text-text-base">{agent.title}</span>
+                      <span class="min-w-0 flex-1 truncate text-[12.5px]">{agent.title}</span>
                       <Show when={agent.agent}>
-                        <span class="shrink-0 rounded-full bg-v2-background-bg-base px-1.5 text-[11px] leading-4 text-v2-text-text-muted">
-                          {agent.agent}
-                        </span>
+                        <span class="shrink-0 text-[12px] text-v2-text-text-muted">{agent.agent}</span>
                       </Show>
                     </>
                   )
@@ -552,10 +655,7 @@ export function SessionContextTab() {
                     <Show
                       when={data.openSubagent}
                       fallback={
-                        <div
-                          class="flex min-w-0 items-center gap-2 rounded-[16px] bg-v2-background-bg-layer-01 px-3 py-2 text-[13px]"
-                          data-status={agent.status}
-                        >
+                        <div class="flex min-w-0 items-center gap-2 px-2 py-1.5" data-status={agent.status}>
                           {row()}
                         </div>
                       }
@@ -565,7 +665,7 @@ export function SessionContextTab() {
                           type="button"
                           data-status={agent.status}
                           aria-label={language.t("secondBrain.agentTab.open", { agent: agent.title })}
-                          class="flex min-w-0 items-center gap-2 rounded-[16px] bg-v2-background-bg-layer-01 px-3 py-2 text-left text-[13px] transition-colors duration-short ease-standard hover:bg-v2-background-bg-layer-02 motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-v2-border-border-focus"
+                          class="flex min-w-0 items-center gap-2 rounded-[10px] px-2 py-1.5 text-left transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus"
                           onClick={() => open()({ sessionID: agent.sessionID, partID: agent.id })}
                         >
                           {row()}
@@ -577,32 +677,19 @@ export function SessionContextTab() {
                 }}
               </For>
             </div>
-          </div>
-        </Show>
-
-        <Show when={toolPhrases().length > 0}>
-          <div data-slot="session-tab-tools" class="flex flex-col gap-2">
-            <SectionLabel>{language.t("secondBrain.sessionTab.tools")}</SectionLabel>
-            <div class="flex flex-wrap gap-1.5">
-              <For each={toolPhrases()}>
-                {(phrase) => (
-                  <span class="rounded-full bg-v2-background-bg-layer-01 px-2.5 py-1 text-[12px] text-v2-text-text-base">
-                    {phrase}
-                  </span>
-                )}
-              </For>
-            </div>
-          </div>
+          </section>
         </Show>
 
         <Show when={systemPrompt()}>
           {(prompt) => (
-            <div class="flex flex-col gap-2">
-              <SectionLabel>{language.t("context.systemPrompt.title")}</SectionLabel>
-              <div class="rounded-[16px] bg-v2-background-bg-layer-01 px-4 py-2.5">
+            <section class="flex flex-col gap-2">
+              <h3 class="m-0 text-[13px] leading-[18px] [font-weight:600] text-v2-text-text-base">
+                {language.t("context.systemPrompt.title")}
+              </h3>
+              <div class="rounded-[14px] bg-v2-background-bg-layer-01 px-3 py-2">
                 <Markdown text={prompt()} class="text-[12px]" />
               </div>
-            </div>
+            </section>
           )}
         </Show>
 
