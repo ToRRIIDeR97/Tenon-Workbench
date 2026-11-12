@@ -5,6 +5,7 @@ const KEYS = {
   edit: "secondBrain.permission.edit",
   read: "secondBrain.permission.read",
   webfetch: "secondBrain.permission.webfetch",
+  mcp: "secondBrain.permission.mcp",
   external_directory: "secondBrain.permission.external",
 } as const
 

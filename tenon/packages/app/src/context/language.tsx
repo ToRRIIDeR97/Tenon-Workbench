@@ -47,6 +47,7 @@ type PluralKey =
   | "secondBrain.permission.edit"
   | "secondBrain.permission.read"
   | "secondBrain.permission.webfetch"
+  | "secondBrain.permission.mcp"
   | "secondBrain.permission.external"
   | "secondBrain.permission.other"
   | "secondBrain.permission.details"
