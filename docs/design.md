@@ -57,7 +57,9 @@ Use `[font-weight:N]` when a weight must differ from the role.
   dock cards (the composer and approval dock).
 - **Popovers and menus:** small surfaces open from the control that owns
   them (`Popover`, `MenuV2`), anchored `bottom-end` with a 6px gutter, at most
-  `min(340px, 100vw - 32px)` wide, and scroll inside themselves.
+  `min(340px, 100vw - 32px)` wide, and scroll inside themselves. The composer's
+  project picker is the wider exception (360px, 24px corners, 16px rows, group
+  captions, a quiet detail such as the branch on the right).
 - **Floating windows:** a panel the user keeps open while working (the
   thread Environment) floats below its toggle as one 24px card on
   `bg-floating` with a hairline edge and the floating elevation. Inside,

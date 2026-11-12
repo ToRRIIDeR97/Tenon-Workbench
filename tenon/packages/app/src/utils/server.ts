@@ -378,6 +378,13 @@ export async function listBranches(input: HarnessServer, directory: string) {
   return Array.isArray(body) ? body.filter((item): item is string => typeof item === "string") : []
 }
 
+/** The folder's current branch, or null when it isn't a git repository. */
+export async function currentBranch(input: HarnessServer, directory: string) {
+  const body = await instanceRequest(input, directory, "/vcs", "Couldn't read the branch")
+  const branch = body && typeof body === "object" ? (body as { branch?: unknown }).branch : undefined
+  return typeof branch === "string" && branch ? branch : null
+}
+
 /** Switches the folder to a local branch; git refuses when local changes would be lost, and the error says so. */
 export async function switchBranch(input: HarnessServer, directory: string, branch: string) {
   await instanceRequest(input, directory, "/vcs/branch", "Couldn't switch branch", {

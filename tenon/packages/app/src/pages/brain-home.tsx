@@ -4,7 +4,7 @@ import { Icon } from "@tenon/ui/v2/icon"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { KeybindV2 } from "@tenon/ui/v2/keybind-v2"
 import { Reveal, RevealShow } from "@tenon/ui/v2/reveal"
-import { PathTooltip, TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
+import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { createEffect, createMemo, createResource, createSignal, For, onCleanup, Show } from "solid-js"
 import { useLanguage } from "@/context/language"
@@ -23,7 +23,6 @@ import { TaskCheck } from "@/features/second-brain/calendar-peek"
 import { createTaskActions } from "@/features/second-brain/task-actions"
 import { type CalendarEvent, type PlannerTask } from "@/features/second-brain/client"
 import { useBrainProjects, useProjectThreads } from "@/components/sidebar/sidebar-controller"
-import { MenuV2 } from "@tenon/ui/v2/menu-v2"
 import { createHomeController } from "@/pages/home/home-controller"
 import { createHomeSessionsController } from "@/pages/home/home-sessions-controller"
 import { agentRunStatus, needsYou } from "@/pages/activity-runs"
@@ -34,10 +33,10 @@ import { ComposerBox } from "@/components/prompt-input/composer-box"
 import { createComposerController } from "@/components/prompt-input/composer-controller"
 import { ComposerModelPill, createComposerHarness } from "@/components/prompt-input/composer-harness"
 import { PromptBranchPicker } from "@/components/prompt-workspace-selector"
+import { PromptProjectSelector, createPromptProjectController } from "@/components/prompt-project-selector"
 import { Greeting } from "@/pages/new-session/greeting"
 import { NEW_SESSION_CONTENT_WIDTH } from "@/pages/session/new-session-layout"
 import { useServerSync } from "@/context/server-sync"
-import { getFilename } from "@tenon/core/util/path"
 import { useSettings } from "@/context/settings"
 import { settled } from "@/utils/resource"
 import { sessionTitle } from "@/utils/session-title"
@@ -96,6 +95,32 @@ export default function BrainHomePage() {
       .filter((entry) => entry.project.status === "active")
       .toSorted((a, b) => a.project.name.localeCompare(b.project.name)),
   )
+  // The composer's project picker (the workshop's switcher): the workspace's General and its Projects, recent first.
+  // Picking one starts a draft there that carries what you've typed.
+  const projectPicker = createPromptProjectController({
+    controls: () => ({
+      available: [
+        { worktree: directory(), name: language.t("secondBrain.sidebar.workspaceThreads") },
+        ...projectThreads().map((entry) => ({
+          worktree: entry.threadDirectory,
+          name: entry.project.name,
+          id: entry.project.id,
+          lastActive: entry.lastActivityAt,
+        })),
+      ],
+      directory: directory(),
+      select: (worktree, _server, projectID) =>
+        void drafts.create(
+          { server: server.key, directory: worktree, projectID },
+          composer.value(),
+          harness.builtInModel(),
+          harness.harnessID(),
+          { harnessModel: harness.harnessModel() },
+        ),
+      add: () => navigate("/projects"),
+    }),
+    onDone: () => {},
+  })
   const harnessName = (id: string) => harness.controller.instances()?.find((item) => item.id === id)?.name ?? id
 
   // First run: offer the built-in agent setup once, unless every built-in agent is already installed and signed in.
@@ -254,55 +279,7 @@ export default function BrainHomePage() {
               header={
                 <div class="flex h-10 min-w-0 items-center gap-0.5 border-b border-v2-border-border-muted pl-2.5 pr-2">
                   {/* The workspace, or a Project: picking one opens a new thread there with what you've typed. */}
-                  <MenuV2 gutter={4} placement="bottom-start">
-                    <MenuV2.Trigger
-                      as="button"
-                      type="button"
-                      class="flex h-8 min-w-0 shrink items-center gap-1.5 rounded-full px-2 text-[13px] leading-5 text-v2-text-text-muted hover:bg-v2-overlay-simple-overlay-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-v2-border-border-focus"
-                      aria-label={language.t("secondBrain.home.pickProject")}
-                    >
-                      <Icon name="folder" size="small" class="shrink-0 text-v2-icon-icon-muted" />
-                      <span class="min-w-0 truncate text-v2-text-text-base [font-weight:500]">
-                        {getFilename(directory())}
-                      </span>
-                      <Icon name="chevron-down" size="small" class="shrink-0 text-v2-icon-icon-muted" />
-                    </MenuV2.Trigger>
-                    <MenuV2.Portal>
-                      <MenuV2.Content class="max-h-[360px] overflow-y-auto">
-                        <MenuV2.Item
-                          onSelect={() =>
-                            void drafts.create(
-                              { server: server.key, directory: directory() },
-                              composer.value(),
-                              harness.builtInModel(),
-                              harness.harnessID(),
-                              { harnessModel: harness.harnessModel() },
-                            )
-                          }
-                        >
-                          {language.t("secondBrain.sidebar.workspaceThreads")}
-                        </MenuV2.Item>
-                        <MenuV2.Separator />
-                        <For each={projectThreads()}>
-                          {(entry) => (
-                            <MenuV2.Item
-                              onSelect={() =>
-                                void drafts.create(
-                                  { server: server.key, directory: entry.threadDirectory, projectID: entry.project.id },
-                                  composer.value(),
-                                  harness.builtInModel(),
-                                  harness.harnessID(),
-                                  { harnessModel: harness.harnessModel() },
-                                )
-                              }
-                            >
-                              {entry.project.name}
-                            </MenuV2.Item>
-                          )}
-                        </For>
-                      </MenuV2.Content>
-                    </MenuV2.Portal>
-                  </MenuV2>
+                  <PromptProjectSelector controller={projectPicker} placement="bottom-start" />
                   <Icon name="chevron-down" size="small" class="shrink-0 -rotate-90 text-v2-icon-icon-muted" />
                   <PromptBranchPicker directory={directory()} branch={serverSync().child(directory())[0].vcs?.branch} />
                 </div>
