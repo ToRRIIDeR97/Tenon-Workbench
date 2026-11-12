@@ -130,7 +130,9 @@ export function setWindowUnsaved(win: BrowserWindow, unsaved: boolean) {
 
 export function setBackgroundColor(color: string) {
   backgroundColor = color
+  // The desktop widget's window stays transparent around its card.
   BrowserWindow.getAllWindows().forEach((win) => {
+    if (windowIDs.get(win) === WIDGET_WINDOW_ID) return
     win.setBackgroundColor(color)
     if (process.platform === "darwin") win.invalidateShadow()
   })

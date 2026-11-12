@@ -394,7 +394,8 @@ function DesktopRoot(props: { windowState: DesktopWindowState }) {
       theme.themeId()
       theme.mode()
       const bg = getComputedStyle(document.documentElement).getPropertyValue("--background-base").trim()
-      if (bg) {
+      // The widget's window stays transparent; only main windows take the theme's background.
+      if (bg && surface === "app") {
         void window.api.setBackgroundColor(bg)
       }
     })
