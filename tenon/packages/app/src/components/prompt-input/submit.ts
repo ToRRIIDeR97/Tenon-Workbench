@@ -363,8 +363,8 @@ export function createPromptSubmit(input: PromptSubmitInput) {
     const images = reply ? [] : input.imageAttachments().slice()
     const mode = reply ? "normal" : input.mode()
 
-    if (reply && !text.trim()) return
-    if (text.trim().length === 0 && images.length === 0 && input.commentCount() === 0) {
+    if (options.reply && !options.reply.text.trim()) return
+    if (!reply && text.trim().length === 0 && images.length === 0 && input.commentCount() === 0) {
       if (input.working() && !options.background) void abort()
       return
     }

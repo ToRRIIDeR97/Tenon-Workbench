@@ -2070,19 +2070,27 @@ CLIs refresh tokens themselves.
 
 Selecting text in an assistant reply shows a Reply pill over the selection
 (`app/src/pages/session/timeline/selection-reply.tsx`). Reply grows the pill
-into a reply card under (or above) the passage: the passage, a text box with
-dictation (`ComposerBox`), and Send. The passage keeps a CSS highlight
-(`tenon-reply-passage`) while focus is in the card. Send goes through the thread
-composer's own send path: the composer registers a sender in
-`app/src/components/prompt-input/reply-bridge.ts`, and the card calls it with
-`{ text, quote }`. `handleSubmit` (`submit.ts`) then sends that text with one
-`quote` context item (`QuoteContextItem` in `app/src/context/prompt-state.ts`)
-instead of the composer's contents, so the composer's draft, attachments and
-chips stay as they are. On send, `buildRequestParts` turns the quote into a
-synthetic text part: the passage as a Markdown quote for the model, plus
-`tenonQuote` metadata (`session-ui/src/components/quote-note.ts`). The user
-message reads that metadata and shows the quote above the text. A reply that
-fails to send lands in the composer, with its quote, when the composer is empty.
+into a reply card: the passage, a text box with dictation (`ComposerBox`), and
+Send. The passage keeps a CSS highlight (`tenon-reply-passage`) while the card
+is open. The card reaches the thread composer through
+`app/src/components/prompt-input/reply-bridge.ts`, where the composer registers
+two actions:
+
+- Enter (`add`) keeps the reply in the composer as a `quote` context item
+  (`QuoteContextItem` in `app/src/context/prompt-state.ts`) whose `comment` is
+  the reply, shown as a two-line chip. Several can be collected and go out with
+  the draft.
+- Ctrl/⌘+Enter or Send (`send`) posts it at once: `handleSubmit` (`submit.ts`)
+  sends that one quote, with no typed text, instead of the composer's contents,
+  so the composer's draft, attachments and chips stay as they are. A reply that
+  fails to send lands in the composer as a chip when the composer is empty.
+
+On send, `buildRequestParts` turns each quote into a synthetic text part: the
+passage as a Markdown quote plus "Their reply: …" for the model, and
+`tenonQuote` metadata (`session-ui/src/components/quote-note.ts`). External
+harnesses receive the prompt as one text, so `splitQuoteNotes` recovers the
+notes from the message text for display. The user message draws each passage
+and its reply in an inset box inside the bubble, with any typed text after them.
 With no thread composer mounted, Reply falls back to adding the passage to the
 composer as a quote chip. Passages over 2,000 characters are cut.
 

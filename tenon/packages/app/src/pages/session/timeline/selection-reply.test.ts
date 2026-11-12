@@ -46,10 +46,10 @@ describe("placeReplyCard", () => {
 })
 
 describe("replySubmission", () => {
-  test("sends the reply as the text and the passage as a quote", () => {
+  test("sends the passage as a quote that carries the reply", () => {
     const { prompt, context } = replySubmission({ text: "Which providers?", quote: "The provider rejects it." })
-    expect(prompt).toEqual([{ type: "text", content: "Which providers?", start: 0, end: 16 }])
+    expect(prompt).toEqual([{ type: "text", content: "", start: 0, end: 0 }])
     expect(context).toHaveLength(1)
-    expect(context[0]).toMatchObject({ type: "quote", text: "The provider rejects it." })
+    expect(context[0]).toMatchObject({ type: "quote", text: "The provider rejects it.", comment: "Which providers?" })
   })
 })

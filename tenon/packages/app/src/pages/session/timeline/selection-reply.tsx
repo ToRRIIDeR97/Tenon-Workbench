@@ -4,7 +4,7 @@ import { Icon as IconV2 } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { ComposerBox } from "@/components/prompt-input/composer-box"
 import { createComposerController } from "@/components/prompt-input/composer-controller"
-import { sendReply } from "@/components/prompt-input/reply-bridge"
+import { addReply, sendReply } from "@/components/prompt-input/reply-bridge"
 import { useLanguage } from "@/context/language"
 import { placeReplyCard, quoteText } from "./selection-reply-model"
 
@@ -192,8 +192,22 @@ function ReplyCard(props: { card: Card; onClose: () => void; onFallback: (quote:
       return true
     },
   })
-  // Closing shrinks the card back into the pill's place; a sent reply fades out where it is.
-  const dismiss = (reason: "closed" | "sent") => {
+  // Enter keeps the reply as a chip in the composer, to send with the draft; Ctrl/⌘+Enter (or Send) posts it now.
+  const add = () => {
+    if (leaving) return
+    if (!addReply({ text: controller.value(), quote: props.card.text })) return props.onFallback(props.card.text)
+    dismiss("added")
+  }
+  const keyDown = (event: KeyboardEvent) => {
+    if (event.key !== "Enter" || event.shiftKey || event.isComposing) return false
+    event.preventDefault()
+    if (event.ctrlKey || event.metaKey) void controller.send()
+    else add()
+    return true
+  }
+  // Closing shrinks the card back into the pill's place, adding flies it into the composer, and a sent reply fades
+  // out where it is.
+  const dismiss = (reason: "closed" | "sent" | "added") => {
     if (leaving) return
     leaving = true
     const animation = element && !reducedMotion() ? leave(element, props.card.from, reason) : undefined
@@ -205,7 +219,8 @@ function ReplyCard(props: { card: Card; onClose: () => void; onFallback: (quote:
 
   onMount(() => {
     if (element && !reducedMotion()) grow(element, props.card.from)
-    requestAnimationFrame(() => field?.focus())
+    // Focus at once: the first keystroke after Reply belongs in the card, not wherever focus was.
+    field?.focus({ preventScroll: true })
     const resize = () => setPlacement(place())
     // A click elsewhere closes an empty card; a card with a draft stays until it is sent or closed.
     const outside = (event: PointerEvent) => {
@@ -247,9 +262,12 @@ function ReplyCard(props: { card: Card; onClose: () => void; onFallback: (quote:
           controller={controller}
           size="medium"
           label={language.t("secondBrain.quote.field")}
-          placeholder={language.t("secondBrain.quote.placeholder")}
+          placeholder={language.t("secondBrain.quote.placeholder", {
+            mod: navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl",
+          })}
           sendLabel={language.t("secondBrain.quote.send")}
           ref={(textarea) => (field = textarea)}
+          onKeyDown={keyDown}
           class="!rounded-[18px] !bg-v2-background-bg-floating !shadow-[var(--v2-elevation-floating)]"
           header={
             <div class="flex flex-col gap-1.5 px-2 pt-2">
@@ -274,9 +292,6 @@ function ReplyCard(props: { card: Card; onClose: () => void; onFallback: (quote:
                 {props.card.text}
               </blockquote>
             </div>
-          }
-          controls={
-            <span class="pl-1.5 text-[11.5px] text-v2-text-text-faint">{language.t("secondBrain.quote.hint")}</span>
           }
         />
       </div>
@@ -323,9 +338,23 @@ function grow(element: HTMLElement, from: Rect | undefined) {
     child.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180, delay: 90, easing: "ease-out", fill: "backwards" })
 }
 
-/** Closing reverses the grow; a sent reply fades and settles slightly instead. */
-function leave(element: HTMLElement, from: Rect | undefined, reason: "closed" | "sent") {
+/** Closing reverses the grow; adding flies the card into the composer's chips; a sent reply fades in place. */
+function leave(element: HTMLElement, from: Rect | undefined, reason: "closed" | "sent" | "added") {
   const accelerate = "cubic-bezier(0.3, 0, 0.8, 0.15)"
+  const composer = document.querySelector('[data-component="prompt-input"]')?.getBoundingClientRect()
+  if (reason === "added" && composer) {
+    const card = element.getBoundingClientRect()
+    // The chip strip sits at the composer's top-left, just above the text.
+    const x = composer.left + 12 - card.left
+    const y = composer.top - 44 - card.top
+    return element.animate(
+      [
+        { transform: "translate(0px, 0px) scale(1)", opacity: 1, transformOrigin: "top left" },
+        { transform: `translate(${x}px, ${y}px) scale(0.4)`, opacity: 0, transformOrigin: "top left" },
+      ],
+      { duration: 300, easing: "cubic-bezier(0.2, 0, 0, 1)", fill: "forwards" },
+    )
+  }
   if (reason === "sent" || !from)
     return element.animate(
       [
