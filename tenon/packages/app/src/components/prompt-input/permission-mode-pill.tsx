@@ -1,4 +1,4 @@
-import { For, createMemo } from "solid-js"
+import { For } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useParams } from "@solidjs/router"
 import { Popover } from "@tenon/ui/popover"
@@ -23,20 +23,38 @@ const MODES = [
  * routes its approvals through Tenon, so one switch covers the built-in agent, Claude Code, Codex and ACP agents.
  */
 export function PermissionModePill() {
-  const language = useLanguage()
   const permission = usePermission()
   const sdk = useSDK()
   const params = useParams<{ id?: string }>()
+  return (
+    <PermissionModeControl
+      mode={permission.mode(params.id, sdk().directory)}
+      onPick={(next) => permission.setMode(params.id, sdk().directory, next)}
+    />
+  )
+}
+
+/**
+ * The mode menu on its own: the current mode as a pill that opens Ask, Auto-edit and Full auto. The caller owns
+ * the state (`usePermission`), so the Command Centre can show one per Project folder.
+ */
+export function PermissionModeControl(props: {
+  mode: PermissionMode
+  onPick: (mode: PermissionMode) => void
+  /** Names what the mode applies to; defaults to "Permissions". */
+  label?: string
+}) {
+  const language = useLanguage()
   const [state, setState] = createStore({ open: false })
-  const mode = createMemo(() => permission.mode(params.id, sdk().directory))
-  const current = () => MODES.find((item) => item.id === mode()) ?? MODES[0]
+  const current = () => MODES.find((item) => item.id === props.mode) ?? MODES[0]
+  const label = () => props.label ?? language.t("secondBrain.permissionMode.title")
   const pick = (next: PermissionMode) => {
-    permission.setMode(params.id, sdk().directory, next)
+    props.onPick(next)
     setState("open", false)
   }
 
   return (
-    <TooltipV2 placement="top" value={language.t("secondBrain.permissionMode.title")}>
+    <TooltipV2 placement="top" value={label()}>
       <Popover
         open={state.open}
         onOpenChange={(open) => setState("open", open)}
@@ -47,7 +65,7 @@ export function PermissionModePill() {
         triggerProps={{
           type: "button",
           ...MODE_ACTION,
-          "aria-label": language.t("secondBrain.permissionMode.title"),
+          "aria-label": label(),
           class:
             "flex h-8 items-center gap-1.5 rounded-full px-3 type-control text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base data-[expanded]:bg-v2-overlay-simple-overlay-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none",
         }}
@@ -64,7 +82,7 @@ export function PermissionModePill() {
               <Choice
                 label={language.t(item.label)}
                 detail={language.t(item.detail)}
-                selected={item.id === mode()}
+                selected={item.id === props.mode}
                 onSelect={() => pick(item.id)}
               />
             )}

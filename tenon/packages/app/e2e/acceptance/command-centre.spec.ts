@@ -290,7 +290,13 @@ const group = (page: Page, name: string) => mission(page).locator(`[data-group="
 const threadIDs = (scope: ReturnType<typeof group>) =>
   scope.locator("[data-thread]").evaluateAll((rows) => rows.map((row) => row.getAttribute("data-thread")))
 
-async function startBoard(page: Page, input: Pick<Parameters<typeof openApp>[1], "onPrompt" | "onAbort"> = {}) {
+async function startBoard(
+  page: Page,
+  input: Pick<
+    Parameters<typeof openApp>[1],
+    "onPrompt" | "onAbort" | "onPermissionReply" | "commandActions" | "questions"
+  > = {},
+) {
   await start(page, [], {
     sessions: boardSessions(),
     projectThreads: [boardProject],
@@ -390,4 +396,119 @@ test("AC-1.6 Review and Open go to the thread", async ({ page }) => {
   await page.goto("/command")
   await mission(page).locator('[data-thread="ses_board_done"] [data-action="board-open"]').click()
   await expect(page).toHaveURL(/\/session\/ses_board_done$/)
+})
+
+// implementations/command-centre-orchestrator/implementation.md, Task 2 (AC-2.6, AC-2.7): the "Waiting on you" view.
+const queue = (page: Page) => page.locator('[data-component="approval-queue"]')
+const doneLog = (page: Page) => page.locator('[data-component="command-actions"]')
+const waitingView = (page: Page) => page.locator('[data-action="command-view"]', { hasText: "Waiting on you" })
+const boardQuestion = {
+  id: "que_board_run",
+  sessionID: "ses_board_run",
+  questions: [{ question: "Which environment should the webhook migration use?", header: "Environment", options: [] }],
+}
+
+test("AC-2.6 a pending permission of a Project thread is in the queue and Allow once answers that request", async ({
+  page,
+}) => {
+  const replies: { sessionID: string; requestID: string; body: unknown }[] = []
+  await startBoard(page, {
+    onPermissionReply: (input) =>
+      replies.push({ sessionID: input.sessionID, requestID: input.requestID, body: input.body }),
+  })
+  await waitingView(page).click()
+  const card = queue(page).locator('[data-request="per_board_need"]')
+  await expect(card).toBeVisible()
+  await expect(card.getByRole("heading", { name: "Rotate the API keys wants permission" })).toBeVisible()
+  await expect(card).toContainText("Repo project")
+  await expect(card.locator("code")).toHaveText("git status")
+  await expect(queue(page).locator("[data-request]")).toHaveCount(1)
+  await expect(card.locator('[data-action="queue-allow-once"]')).toBeVisible()
+  await expect(card.locator('[data-action="queue-allow-always"]')).toBeVisible()
+  await expect(card.locator('[data-action="queue-deny"]')).toBeVisible()
+
+  await card.locator('[data-action="queue-allow-once"]').click()
+  await expect
+    .poll(() => replies.map((reply) => [reply.sessionID, reply.requestID]))
+    .toEqual([["ses_board_need", "per_board_need"]])
+  expect(JSON.stringify(replies[0]!.body)).toContain("once")
+  // Answering removes the item; the page stays where it was.
+  await expect(card).toHaveCount(0)
+  await expect(queue(page)).toContainText("Nothing is waiting on you.")
+  await expect(page).toHaveURL(/\/command$/)
+})
+
+test("AC-2.6 Deny sends its own reply, and a question item opens its thread", async ({ page }) => {
+  const replies: string[] = []
+  await startBoard(page, {
+    questions: [boardQuestion],
+    onPermissionReply: (input) => replies.push(JSON.stringify(input.body)),
+  })
+  await waitingView(page).click()
+  const question = queue(page).locator('[data-request="que_board_run"]')
+  await expect(question).toContainText("Which environment should the webhook migration use?")
+  await expect(question.locator('[data-action="queue-allow-once"]')).toHaveCount(0)
+  await expect(question.locator('[data-action="queue-deny"]')).toHaveCount(0)
+
+  await queue(page).locator('[data-request="per_board_need"] [data-action="queue-deny"]').click()
+  await expect.poll(() => replies.length).toBe(1)
+  expect(replies[0]).toContain("reject")
+  await expect(queue(page).locator('[data-request="per_board_need"]')).toHaveCount(0)
+
+  await question.locator('[data-action="queue-open"]').click()
+  await expect(page).toHaveURL(/\/session\/ses_board_run$/)
+})
+
+test("AC-2.7 the view lists today's actions of the agent with Open, and each Project's permission mode", async ({
+  page,
+}) => {
+  await startBoard(page, {
+    commandActions: () => [
+      {
+        id: "act_stop",
+        at: Date.now() - 60_000,
+        kind: "stop",
+        sessionID: "ses_board_run",
+        title: "Migrate the billing webhook",
+        project: "Repo project",
+        by: commandThread.id,
+      },
+      {
+        id: "act_message",
+        at: Date.now() - 600_000,
+        kind: "message",
+        sessionID: "ses_board_need",
+        title: "Rotate the API keys",
+        project: "Repo project",
+        text: "Use the staging vault only.",
+        by: commandThread.id,
+      },
+    ],
+  })
+  await waitingView(page).click()
+  await expect
+    .poll(() =>
+      doneLog(page)
+        .locator("[data-action-entry]")
+        .evaluateAll((rows) => rows.map((row) => row.getAttribute("data-action-entry"))),
+    )
+    .toEqual(["act_stop", "act_message"])
+  const stop = doneLog(page).locator('[data-action-entry="act_stop"]')
+  await expect(stop).toContainText("Stopped")
+  await expect(stop).toContainText("Migrate the billing webhook")
+  const message = doneLog(page).locator('[data-action-entry="act_message"]')
+  await expect(message).toContainText("Steered")
+  await expect(message).toContainText("Use the staging vault only.")
+
+  // Each Project shows its permission mode, with the control that changes it.
+  const mode = page.locator('[data-component="project-modes"] [data-project-mode="prj_repo"]')
+  await expect(mode).toContainText("Repo project")
+  const control = mode.getByRole("button", { name: "Permissions for Repo project" })
+  await expect(control).toContainText("Ask")
+  await control.click()
+  await page.getByRole("menuitemradio", { name: /Full auto/ }).click()
+  await expect(control).toContainText("Full auto")
+
+  await message.locator('[data-action="command-action-open"]').click()
+  await expect(page).toHaveURL(/\/session\/ses_board_need$/)
 })

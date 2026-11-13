@@ -686,8 +686,8 @@ assistant that spans workspaces, with its own threads, memory and routines.
   created; after that the folder stays with its Project. Command Centre
   sessions call it as the `project_setup` app tool.
 - **Tools.** `AgentAppTools.list({ sessionID })` (synchronous) gives a
-  Command Centre thread the app tools plus `memory_search`, `project_setup`
-  and, when `TENON_MAIL_URL` and `TENON_MAIL_TOKEN` are set, `mail_search`,
+  Command Centre thread the app tools plus `memory_search`, `project_setup`,
+  the thread tools (below) and, when `TENON_MAIL_URL` and `TENON_MAIL_TOKEN` are set, `mail_search`,
   `mail_read` and `mail_draft` (`tenon/src/agents/mail-tools.ts`, which posts
   JSON to the desktop's `/search`, `/thread` and `/draft` with the bearer
   token). A thread counts as a Command Centre thread once `session.created`
@@ -707,6 +707,29 @@ assistant that spans workspaces, with its own threads, memory and routines.
   In that folder the built-in agents also ask before `bash`, `webfetch`,
   `websearch` and `edit` (`core/src/plugin/agent.ts`, `tenon/src/agent/agent.ts`),
   and the Command Centre card says when the latest thread is waiting on an approval or a question.
+- **Thread tools and the action log.** `threads_overview` lists the root
+  threads of every Project in the workspace (and its General group) with state
+  `needs_you`, `running` or `idle` (pending permissions and questions and running
+  state are read per thread folder through `InstanceStore.provide`);
+  `thread_read` returns a thread's latest messages as capped text;
+  `thread_message` sends a steering message (a harness thread through
+  `SessionV2.prompt` with `delivery: "steer"`, a built-in one through
+  `SessionPrompt.prompt` in the thread's folder, not waited for) and
+  `thread_stop` cancels it (`SessionPrompt.cancel` and `SessionV2.interrupt`).
+  The reachable set is computed by `threadFolders` and checked by
+  `projectThread`; see the [threat model](../security/threat-model.md#command-centre-memory-and-routines).
+  No tool replies to a permission request or a question. Each message and stop
+  is recorded by `CommandActionLog` (`agents/command-action-log.ts`, pure list
+  logic in `command-actions.ts`) in `<vault root>/.command-centre/actions.json`,
+  which `GET /command-centre/actions` serves. On the page, the "Waiting on you"
+  view (`features/command-centre/agent-hands-view.tsx`, queue order from the pure
+  `approval-queue.ts`) lists the pending requests of the board's threads from the
+  synced `permission` and `question` data (no extra request), answers
+  permissions with `api.permission.reply` through the thread's folder, shows
+  today's log as "Done on your behalf" (read when the view opens and when a
+  Command Centre thread starts or ends a turn, never on a timer), and lists each
+  Project's Ask, Auto-edit or Full auto mode with the same control as the
+  composer (`PermissionModeControl`, state in `usePermission`).
 - **Pill.** The Command Centre page marks its open thread as focused
   (`useAgentWrites().focus`), so the top pill leaves that thread's writes to
   the step list.
@@ -716,6 +739,7 @@ assistant that spans workspaces, with its own threads, memory and routines.
 | `POST /command-centre/directory` | `{ directory }`; creates `<vault root>/.command-centre` |
 | `GET /command-centre/folders` | `{ folders }`; every Command Centre folder on this machine, the current root's first |
 | `GET /command-centre/memory?search=` | `[{ sessionID?, text, at }]`, at most 20; summaries have no `sessionID` |
+| `GET /command-centre/actions?since=` | `[{ id, at, kind, sessionID, title, project?, text?, by }]`, newest first; the agent's logged messages and stops at or after `since` (ms) |
 | `POST /command-centre/memory/compact` | `{ days, model?: { providerID, modelID } }` → `{ summarised, deleted }` |
 
 ### Routines

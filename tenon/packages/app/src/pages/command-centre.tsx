@@ -4,6 +4,7 @@ import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { MenuV2 } from "@tenon/ui/v2/menu-v2"
+import { SegmentedControlItemV2, SegmentedControlV2 } from "@tenon/ui/v2/segmented-control-v2"
 import { createEffect, createResource, createSignal, For, onMount, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { PageEmpty, PageFrame, PageHeader, pageRowClass } from "@/components/page"
@@ -19,6 +20,7 @@ import { usePlatform } from "@/context/platform"
 import { useServer } from "@/context/server"
 import { useServerSDK } from "@/context/server-sdk"
 import { useSettings } from "@/context/settings"
+import { AgentHands, createWaitingQueue } from "@/features/command-centre/agent-hands-view"
 import { useCommandCentre, type CommandThread } from "@/features/command-centre/command-centre"
 import { createMissionThreads, MissionBoard } from "@/features/command-centre/mission-board-view"
 import { searchCommandMemory } from "@/features/second-brain/client"
@@ -27,7 +29,8 @@ import { getRelativeTime } from "@/utils/time"
 
 /**
  * The Command Centre: its own threads (never Project threads), memory search, the link to Routines, the mission
- * board of every Project's threads and a composer that starts a fresh thread. A thread opens in the thread view, like a Project thread but without
+ * board of every Project's threads (or, from the view switch, what waits on the user and what the agent did on
+ * their behalf) and a composer that starts a fresh thread. A thread opens in the thread view, like a Project thread but without
  * review, files or terminal. `/command?thread=<session id>` (older links, the strip's "Open full") opens
  * that thread.
  */
@@ -45,9 +48,10 @@ export default function CommandCentrePage() {
   // The provider outlives this page, so catch up on what changed while it was closed.
   onMount(() => void centre.refetch())
   const [search] = useSearchParams<{ thread?: string }>()
-  const [state, setState] = createStore({ memory: "", query: "", hit: -1 })
+  const [state, setState] = createStore({ memory: "", query: "", hit: -1, view: "board" as "board" | "waiting" })
   const open = (sessionID: string) => navigate(sessionHref(server.key, sessionID))
   const board = createMissionThreads(ctrl)
+  const queue = createWaitingQueue(board)
   createEffect(() => {
     if (search.thread) navigate(sessionHref(server.key, search.thread), { replace: true })
   })
@@ -217,7 +221,29 @@ export default function CommandCentrePage() {
                 </PageEmpty>
               }
             >
-              <MissionBoard ctrl={ctrl} threads={board()} open={open} />
+              <div class="mx-auto flex w-full max-w-[1040px] flex-col gap-4">
+                <SegmentedControlV2
+                  aria-label={language.t("secondBrain.commandCentre.hands.view")}
+                  value={state.view}
+                  onChange={(value) => setState("view", value === "waiting" ? "waiting" : "board")}
+                >
+                  <SegmentedControlItemV2 value="board" data-action="command-view">
+                    {language.t("secondBrain.commandCentre.board.title")}
+                  </SegmentedControlItemV2>
+                  <SegmentedControlItemV2 value="waiting" data-action="command-view">
+                    {language.t("secondBrain.commandCentre.hands.waiting")}
+                    <Show when={queue().length > 0}>
+                      <span class="ml-1.5 tabular-nums">{queue().length}</span>
+                    </Show>
+                  </SegmentedControlItemV2>
+                </SegmentedControlV2>
+                <Show
+                  when={state.view === "waiting"}
+                  fallback={<MissionBoard ctrl={ctrl} threads={board()} open={open} />}
+                >
+                  <AgentHands ctrl={ctrl} queue={queue()} open={open} />
+                </Show>
+              </div>
             </Show>
           </div>
           <div class="flex shrink-0 flex-col items-center gap-3 px-6">

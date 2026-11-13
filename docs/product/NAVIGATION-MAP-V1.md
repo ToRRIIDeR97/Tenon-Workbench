@@ -284,7 +284,13 @@ folder as a workspace and selects it) and `tenon://new-session?directory=<path>&
   board shows every Project's threads **By state** (Needs you, Running, and
   Finished in the last day) or **By project**. A running row has **Steer**
   (one line sent to that thread with Enter) and **Stop**; a Needs you row has
-  **Review**; every row has **Open**. On every other page a handle above the bottom edge
+  **Review**; every row has **Open**. A view switch above the board opens
+  **Waiting on you**: one card per pending permission or question across the
+  Projects (permissions have **Allow once**, **Always allow this** and **Deny**,
+  questions **Open**), what may run without asking per Project (Ask, Auto-edit,
+  Full auto, changed with the same menu as the composer), and **Done on your
+  behalf**, today's messages and stops the Command Centre agent made to other
+  threads, each with **Open**. On every other page a handle above the bottom edge
   opens the K3 strip (also `mod+j`; Esc closes it) with the latest reply, a
   composer and **Open full**. On a thread the strip sits on top of the composer.
 - **Settings** contains General, Shortcuts, Servers, Providers, Models and

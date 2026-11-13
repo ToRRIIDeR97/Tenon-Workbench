@@ -967,6 +967,28 @@ is an assistant whose threads span workspaces.
   widens an agent's deny. A user's `permission` config still wins, so allowing
   one of these there takes the prompt away. Harness-run threads keep their own
   policy. Browser and device tools are unchanged.
+- **Thread tools.** A Command Centre thread can see, read, message and stop
+  Project threads (`threads_overview`, `thread_read`, `thread_message`,
+  `thread_stop`), so a prompt injection in mail, a note or another thread's
+  text could steer other agents. The boundary is `threadFolders` and
+  `projectThread` in `agents/app-tools.ts`: only a root, unarchived thread whose
+  folder is a Project's thread folder in the caller's workspace (or the
+  workspace's own General folder) is reachable. Another Command Centre thread,
+  the caller's own thread, a subagent thread and any folder outside the workspace
+  are refused with a plain reason. No tool approves, allows, denies or answers a
+  permission request or a question; those stay with the user, and the catalog
+  test fails if a tool name contains `approve`, `permission`, `allow` or
+  `answer`. `thread_read` returns at most 12,000 characters and marks them as
+  another thread's data, never instructions. A steering message is capped at
+  4,000 characters and is delivered as a normal user message, so the target
+  thread's own permission policy still applies to anything it then does. Every
+  message and stop is appended to `<vault root>/.command-centre/actions.json`
+  (`CommandActionLog`, newest first, 200 entries, 500 characters of text each),
+  shown on the Command Centre page as "Done on your behalf" and readable with
+  `GET /command-centre/actions`. The log is in the vault, so it syncs with it and
+  can be edited by anyone with vault access; it is a record for the user, not a
+  control. A thread already set to Full auto still runs what the steered agent
+  decides without asking.
 - **Routines.** A routine is a vault page under `Routines/`; its body is sent
   as a prompt to a new Command Centre thread on its schedule. Anyone who can
   write the vault (including a sync account, or a process with file access) can
