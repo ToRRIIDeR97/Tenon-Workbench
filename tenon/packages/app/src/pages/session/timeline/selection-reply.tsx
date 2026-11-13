@@ -25,7 +25,8 @@ function highlightPassage(range: Range | undefined) {
 
 type Pill = { text: string; x: number; y: number; top: number; bottom: number; below: boolean; range: Range }
 type Rect = { left: number; top: number; width: number; height: number }
-type Card = { text: string; x: number; top: number; bottom: number; from?: Rect }
+/** `from` is the pill and `label` its Reply button, which the card grows out of. */
+type Card = { text: string; below: boolean; from: Rect; label?: Rect }
 
 /**
  * A Reply pill over text selected in an assistant reply. Reply grows the pill into a card: the passage, a text box
@@ -108,12 +109,13 @@ export function SelectionReply(props: { root: () => HTMLElement | undefined; onR
     // The selection goes when focus moves into the card; the highlight keeps the passage marked meanwhile.
     highlightPassage(current.range)
     const from = pillElement?.getBoundingClientRect()
+    if (!from) return
+    const label = pillElement?.querySelector('[data-action="selection-reply"]')?.getBoundingClientRect()
     setCard({
       text: current.text,
-      x: current.x,
-      top: current.top,
-      bottom: current.bottom,
-      from: from && { left: from.left, top: from.top, width: from.width, height: from.height },
+      below: current.below,
+      from: rect(from),
+      label: label && rect(label),
     })
     done()
   }
@@ -210,15 +212,24 @@ function ReplyCard(props: { card: Card; onClose: () => void; onFallback: (quote:
   const dismiss = (reason: "closed" | "sent" | "added") => {
     if (leaving) return
     leaving = true
-    const animation = element && !reducedMotion() ? leave(element, props.card.from, reason) : undefined
+    const animation = element && !reducedMotion() ? leave(element, props.card, reason) : undefined
     if (!animation) return props.onClose()
     animation.finished.then(props.onClose, props.onClose)
   }
-  const place = () => placeReplyCard(props.card, { width: window.innerWidth, height: window.innerHeight })
+  const place = () =>
+    placeReplyCard(
+      {
+        left: props.card.from.left,
+        top: props.card.from.top,
+        bottom: props.card.from.top + props.card.from.height,
+        below: props.card.below,
+      },
+      { width: window.innerWidth, height: window.innerHeight },
+    )
   const [placement, setPlacement] = createSignal(place())
 
   onMount(() => {
-    if (element && !reducedMotion()) grow(element, props.card.from)
+    if (element && !reducedMotion()) grow(element, props.card)
     // Focus at once: the first keystroke after Reply belongs in the card, not wherever focus was.
     field?.focus({ preventScroll: true })
     const resize = () => setPlacement(place())
@@ -258,9 +269,10 @@ function ReplyCard(props: { card: Card; onClose: () => void; onFallback: (quote:
           translate: placement().below ? undefined : "0 -100%",
         }}
       >
+        {/* The pill stretched: its Reply label and one line of the passage on top, the text box and Send below. */}
         <ComposerBox
           controller={controller}
-          size="medium"
+          size="compact"
           label={language.t("secondBrain.quote.field")}
           placeholder={language.t("secondBrain.quote.placeholder", {
             mod: navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl",
@@ -268,29 +280,31 @@ function ReplyCard(props: { card: Card; onClose: () => void; onFallback: (quote:
           sendLabel={language.t("secondBrain.quote.send")}
           ref={(textarea) => (field = textarea)}
           onKeyDown={keyDown}
-          class="!rounded-[18px] !bg-v2-background-bg-floating !shadow-[var(--v2-elevation-floating)]"
+          class="!flex-wrap !items-end !gap-0.5 !rounded-[20px] !p-1 !bg-v2-background-bg-floating !shadow-[var(--v2-elevation-floating)]"
           header={
-            <div class="flex flex-col gap-1.5 px-2 pt-2">
-              <div class="flex items-center gap-1.5 pl-1.5">
-                <IconV2 name="reply" size="small" class="shrink-0 text-v2-icon-icon-muted" />
-                <span class="flex-1 text-[12px] font-[530] text-v2-text-text-muted">
-                  {language.t("secondBrain.quote.replyingTo")}
-                </span>
-                <IconButtonV2
-                  type="button"
-                  variant="ghost-muted"
-                  size="small"
-                  aria-label={language.t("secondBrain.quote.close")}
-                  icon={<IconV2 name="close" size="small" />}
-                  onClick={() => dismiss("closed")}
-                />
-              </div>
+            <div data-slot="reply-header" class="flex min-w-0 basis-full items-center gap-0.5">
+              <span
+                data-slot="reply-label"
+                class="flex h-8 shrink-0 items-center gap-1.5 px-3 text-[13px] font-[500] text-v2-text-text-muted"
+              >
+                <IconV2 name="reply" class="shrink-0" />
+                {language.t("secondBrain.quote.reply")}
+              </span>
               <blockquote
                 data-slot="reply-passage"
-                class="m-0 line-clamp-2 rounded-[12px] bg-v2-background-bg-layer-01 px-2.5 py-2 text-[12.5px] leading-[1.5] text-v2-text-text-muted"
+                title={props.card.text}
+                class="m-0 min-w-0 flex-1 truncate text-[12.5px] text-v2-text-text-faint"
               >
                 {props.card.text}
               </blockquote>
+              <IconButtonV2
+                type="button"
+                variant="ghost-muted"
+                size="normal"
+                aria-label={language.t("secondBrain.quote.close")}
+                icon={<IconV2 name="close" size="small" />}
+                onClick={() => dismiss("closed")}
+              />
             </div>
           }
         />
@@ -302,51 +316,88 @@ function ReplyCard(props: { card: Card; onClose: () => void; onFallback: (quote:
 const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches
 /** Room around the card that the clip keeps once open, so its shadow isn't cut off. */
 const SHADOW_ROOM = 40
+const EMPHASIZED = "cubic-bezier(0.05, 0.7, 0.1, 1)"
+const ACCELERATE = "cubic-bezier(0.3, 0, 0.8, 0.15)"
 
-/** The clip and offset that make the card look exactly like the pill: same box, same place, same corners. */
+function rect(box: DOMRect): Rect {
+  return { left: box.left, top: box.top, width: box.width, height: box.height }
+}
+
+/**
+ * The clip and offset that make the card look exactly like the pill. The card opens from the pill's corner, so the
+ * clip alone usually does it; the offset covers what the clip can't reach when the card was pushed aside to fit.
+ */
 function pillShape(card: DOMRect, pill: Rect) {
-  const x = pill.left + pill.width / 2 - (card.left + card.width / 2)
-  const y = pill.top + pill.height / 2 - (card.top + card.height / 2)
-  const insetX = Math.max(0, (card.width - pill.width) / 2)
-  const insetY = Math.max(0, (card.height - pill.height) / 2)
+  const top = Math.min(Math.max(pill.top - card.top, 0), Math.max(card.height - pill.height, 0))
+  const left = Math.min(Math.max(pill.left - card.left, 0), Math.max(card.width - pill.width, 0))
+  const x = pill.left - card.left - left
+  const y = pill.top - card.top - top
+  const right = Math.max(card.width - left - pill.width, 0)
+  const bottom = Math.max(card.height - top - pill.height, 0)
   return {
+    x,
+    y,
     transform: `translate(${x}px, ${y}px)`,
-    clipPath: `inset(${insetY}px ${insetX}px round 16px)`,
+    clipPath: `inset(${top}px ${right}px ${bottom}px ${left}px round 16px)`,
   }
 }
 
 const OPEN_SHAPE = {
   transform: "translate(0px, 0px)",
-  clipPath: `inset(-${SHADOW_ROOM}px round ${18 + SHADOW_ROOM}px)`,
+  clipPath: `inset(-${SHADOW_ROOM}px round ${20 + SHADOW_ROOM}px)`,
 }
 
+const LABEL = '[data-slot="reply-label"]'
+
+/** Everything in the card except the Reply label, which is the pill's own and never fades. */
 function contents(element: HTMLElement) {
-  return [...(element.querySelector('[data-component="composer-box"]')?.children ?? [])]
+  return [...(element.querySelector('[data-component="composer-box"]')?.children ?? [])].flatMap((child) =>
+    child.matches('[data-slot="reply-header"]') ? [...child.children].filter((item) => !item.matches(LABEL)) : [child],
+  )
 }
 
-/** The card's surface grows out of the pill while its contents fade in once there is room for them. */
-function grow(element: HTMLElement, from: Rect | undefined) {
-  if (!from) {
-    element.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: "ease-out" })
-    return
-  }
-  element.animate([pillShape(element.getBoundingClientRect(), from), OPEN_SHAPE], {
-    duration: 300,
-    easing: "cubic-bezier(0.05, 0.7, 0.1, 1)",
+/** Where the card's Reply label sits relative to the pill's, once the card has the pill's shape. */
+function labelOffset(element: HTMLElement, card: Card, shape: { x: number; y: number }) {
+  const label = element.querySelector(LABEL)?.getBoundingClientRect()
+  if (!label || !card.label) return
+  return `translate(${card.label.left - label.left - shape.x}px, ${card.label.top - label.top - shape.y}px)`
+}
+
+/**
+ * The pill stretches into the card: its surface grows from the pill's corner, its Reply label slides into place,
+ * and the rest fades in once there is room for it.
+ */
+function grow(element: HTMLElement, card: Card) {
+  const shape = pillShape(element.getBoundingClientRect(), card.from)
+  element.animate([{ transform: shape.transform, clipPath: shape.clipPath }, OPEN_SHAPE], {
+    duration: 320,
+    easing: EMPHASIZED,
   })
+  const offset = labelOffset(element, card, shape)
+  if (offset)
+    element
+      .querySelector(LABEL)
+      ?.animate([{ transform: offset, color: "var(--v2-text-text-base)" }, { transform: "translate(0px, 0px)" }], {
+        duration: 320,
+        easing: EMPHASIZED,
+      })
   for (const child of contents(element))
-    child.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180, delay: 90, easing: "ease-out", fill: "backwards" })
+    child.animate([{ opacity: 0 }, { opacity: 1 }], {
+      duration: 180,
+      delay: 110,
+      easing: "ease-out",
+      fill: "backwards",
+    })
 }
 
-/** Closing reverses the grow; adding flies the card into the composer's chips; a sent reply fades in place. */
-function leave(element: HTMLElement, from: Rect | undefined, reason: "closed" | "sent" | "added") {
-  const accelerate = "cubic-bezier(0.3, 0, 0.8, 0.15)"
+/** Closing shrinks the card back into the pill; adding flies it into the composer's chips; a sent reply fades. */
+function leave(element: HTMLElement, card: Card, reason: "closed" | "sent" | "added") {
   const composer = document.querySelector('[data-component="prompt-input"]')?.getBoundingClientRect()
   if (reason === "added" && composer) {
-    const card = element.getBoundingClientRect()
+    const box = element.getBoundingClientRect()
     // The chip strip sits at the composer's top-left, just above the text.
-    const x = composer.left + 12 - card.left
-    const y = composer.top - 44 - card.top
+    const x = composer.left + 12 - box.left
+    const y = composer.top - 44 - box.top
     return element.animate(
       [
         { transform: "translate(0px, 0px) scale(1)", opacity: 1, transformOrigin: "top left" },
@@ -355,19 +406,27 @@ function leave(element: HTMLElement, from: Rect | undefined, reason: "closed" | 
       { duration: 300, easing: "cubic-bezier(0.2, 0, 0, 1)", fill: "forwards" },
     )
   }
-  if (reason === "sent" || !from)
+  if (reason === "sent")
     return element.animate(
       [
         { opacity: 1, transform: "scale(1)" },
         { opacity: 0, transform: "scale(0.98)" },
       ],
-      { duration: 150, easing: accelerate, fill: "forwards" },
+      { duration: 150, easing: ACCELERATE, fill: "forwards" },
     )
   for (const child of contents(element))
     child.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 90, fill: "forwards" })
-  return element.animate([OPEN_SHAPE, { ...pillShape(element.getBoundingClientRect(), from), opacity: 0 }], {
-    duration: 200,
-    easing: accelerate,
+  const shape = pillShape(element.getBoundingClientRect(), card.from)
+  const offset = labelOffset(element, card, shape)
+  if (offset)
+    element.querySelector(LABEL)?.animate([{ transform: "translate(0px, 0px)" }, { transform: offset }], {
+      duration: 220,
+      easing: ACCELERATE,
+      fill: "forwards",
+    })
+  return element.animate([OPEN_SHAPE, { transform: shape.transform, clipPath: shape.clipPath, opacity: 0 }], {
+    duration: 220,
+    easing: ACCELERATE,
     fill: "forwards",
   })
 }

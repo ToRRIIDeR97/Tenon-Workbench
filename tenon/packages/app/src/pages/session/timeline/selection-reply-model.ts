@@ -2,8 +2,9 @@
 
 /** Longer passages are cut so a quote can't swamp the message it is attached to. */
 export const QUOTE_LIMIT = 2000
-export const CARD_WIDTH = 420
-const CARD_HEIGHT = 230
+export const CARD_WIDTH = 400
+/** Room the card needs, with a few lines of reply, to open on a side of the pill. */
+const CARD_HEIGHT = 140
 const EDGE = 16
 
 /** The text to quote, or undefined when the selection is empty. */
@@ -16,15 +17,20 @@ export function quoteText(raw: string) {
   return text.length > QUOTE_LIMIT ? `${text.slice(0, QUOTE_LIMIT).trimEnd()}…` : text
 }
 
-/** Where the reply card goes: centred on the selection, kept on screen, below it when it fits and above otherwise. */
+/**
+ * Where the reply card goes: it grows out of the pill from the pill's own corner, away from the selection, so the
+ * passage stays visible. A pill above the selection grows the card upward from its bottom edge (`top` is then the
+ * card's bottom, `below` false); a pill under it grows the card downward from its top edge. When that side has no
+ * room the card grows the other way. It stays on screen sideways.
+ */
 export function placeReplyCard(
-  selection: { x: number; top: number; bottom: number },
+  pill: { left: number; top: number; bottom: number; below: boolean },
   viewport: { width: number; height: number },
 ) {
   const width = Math.min(CARD_WIDTH, viewport.width - EDGE * 2)
-  const left = Math.min(Math.max(selection.x - width / 2, EDGE), viewport.width - EDGE - width)
-  const below = selection.bottom + 8 + CARD_HEIGHT <= viewport.height - EDGE || selection.top - 8 - CARD_HEIGHT < EDGE
-  return below
-    ? { left, width, top: Math.min(selection.bottom + 8, viewport.height - EDGE - CARD_HEIGHT), below }
-    : { left, width, top: selection.top - 8, below }
+  const left = Math.min(Math.max(pill.left, EDGE), viewport.width - EDGE - width)
+  const roomAbove = pill.bottom - CARD_HEIGHT >= EDGE
+  const roomBelow = pill.top + CARD_HEIGHT <= viewport.height - EDGE
+  const below = pill.below ? roomBelow || !roomAbove : !roomAbove && roomBelow
+  return below ? { left, width, top: pill.top, below } : { left, width, top: pill.bottom, below }
 }

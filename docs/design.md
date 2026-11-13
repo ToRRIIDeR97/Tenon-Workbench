@@ -100,11 +100,14 @@ Use `[font-weight:N]` when a weight must differ from the role.
   progress (weight 500), and a dashed circle for steps to come. Collapsed, the
   title row shows the current step. Status is carried by the mark's shape.
 - **Reply to a passage** (`selection-reply.tsx`): the selection pill grows
-  into a floating card (radius 18px, floating elevation) with "Replying to",
-  the passage clamped to two lines on layer-01, the text box, the mic and
-  Send. The placeholder names the keys: Enter adds the reply to the composer
-  as a two-line chip, Ctrl/⌘+Enter sends it now. The card grows out of the
-  pill, flies into the composer when added, and shrinks back on Escape; a
+  into a 400px floating card (radius 20px, floating elevation, ~74px tall):
+  the pill's own "↩ Reply" label, one faint truncated line of the passage and
+  Close on top; the text box with the mic and Send on the line below. The
+  placeholder names the keys: Enter adds the reply to the composer as a
+  two-line chip, Ctrl/⌘+Enter sends it now. The card opens from the pill's
+  corner (upward from a pill above the selection, so the passage stays in
+  view), keeps the Reply label in place while the surface stretches, flies
+  into the composer when added, and shrinks back into the pill on Escape; a
   click outside closes it only while empty. A sent reply puts each passage and
   its answer in an inset box (layer-02 on the layer-01 bubble; layer-03 on
   layer-02 in light) inside the user's bubble.

@@ -2349,7 +2349,7 @@ export const dict = {
   "secondBrain.quote.replyingTo": "Replying to",
   "secondBrain.quote.close": "Close reply",
   "secondBrain.quote.field": "Your reply",
-  "secondBrain.quote.placeholder": "Enter to add to reply, {{mod}}+Enter to reply immediately",
+  "secondBrain.quote.placeholder": "Enter to reply, {{mod}}+Enter to send",
   "secondBrain.quote.send": "Send reply",
   "secondBrain.contextMenu.window": "Context window",
   "secondBrain.contextMenu.turn": "This turn",
