@@ -1078,7 +1078,8 @@ export default function CalendarPage() {
                           <Show
                             when={state.view === "today" || state.view === "week"}
                             fallback={
-                              <div class="flex flex-col">
+                              // Lists keep a reading width on a wide window; week and month use all of it.
+                              <div class="mx-auto flex w-full max-w-[760px] flex-col">
                                 <Show
                                   when={schedule().length > 0}
                                   fallback={<PageEmpty>{language.t("secondBrain.calendar.empty")}</PageEmpty>}
@@ -1126,16 +1127,24 @@ export default function CalendarPage() {
                               </div>
                             }
                           >
-                            <CalendarGrid
-                              days={gridDays()}
-                              selected={state.peek}
-                              onOpenEvent={peekEvent}
-                              onOpenTask={peekTask}
-                              onToggle={toggleTask}
-                              onOpenDay={openDay}
-                              onNewAt={(date, hour) => openNew(date, hourSlot(hour))}
-                              dateLabel={longDay}
-                            />
+                            {/* One day's column stays a readable width; the week spreads across the page. */}
+                            <div
+                              classList={{
+                                "flex min-h-0 flex-1 flex-col": true,
+                                "mx-auto w-full max-w-[880px]": state.view === "today",
+                              }}
+                            >
+                              <CalendarGrid
+                                days={gridDays()}
+                                selected={state.peek}
+                                onOpenEvent={peekEvent}
+                                onOpenTask={peekTask}
+                                onToggle={toggleTask}
+                                onOpenDay={openDay}
+                                onNewAt={(date, hour) => openNew(date, hourSlot(hour))}
+                                dateLabel={longDay}
+                              />
+                            </div>
                           </Show>
                         }
                       >

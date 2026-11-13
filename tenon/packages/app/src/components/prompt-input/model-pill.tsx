@@ -13,6 +13,7 @@ import {
   type PromptInputHarnessController,
 } from "./harness-controls"
 import { harnessModelSlot } from "./harness-model-slot"
+import { HarnessIcon } from "@/components/harness-icon"
 import { filterHarnessModels, searchableModelCount } from "./harness-choice"
 import { modelPillLabel } from "./model-pill-label"
 import "./model-pill.css"
@@ -200,7 +201,8 @@ export function PromptModelPill(props: {
       }}
       trigger={
         <>
-          <Icon name="monitor" size="small" class="shrink-0" />
+          {/* The harness that runs the model, not the model's maker: DeepSeek on Codex shows Codex. */}
+          <HarnessIcon instance={view.instance()} />
           <span class="min-w-0 truncate" title={modelName() !== label() ? modelName() || undefined : undefined}>
             {label() || language.t("harness.checking")}
           </span>
@@ -256,6 +258,7 @@ export function PromptModelPill(props: {
                     <For each={view.options() ?? []}>
                       {(item) => (
                         <Choice
+                          icon={<HarnessIcon instance={item} />}
                           label={item.name}
                           detail={harnessStatusKey(item) && language.t(harnessStatusKey(item)!)}
                           title={item.error}
@@ -385,6 +388,8 @@ const ROW_CLASS =
   "flex w-full min-w-0 items-center gap-2.5 rounded-[12px] px-2.5 py-1.5 text-left transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover active:bg-v2-overlay-simple-overlay-pressed outline-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus disabled:text-v2-text-text-disabled disabled:hover:bg-transparent disabled:active:bg-transparent motion-reduce:transition-none"
 
 export function Choice(props: {
+  /** A leading logo or icon, such as a harness's. */
+  icon?: JSX.Element
   label: string
   detail?: string
   title?: string
@@ -409,6 +414,7 @@ export function Choice(props: {
       }}
       onClick={() => props.onSelect()}
     >
+      {props.icon}
       <span class="flex min-w-0 flex-1 flex-col leading-[18px]">
         <span class="break-words" classList={{ capitalize: props.capitalize }}>
           {props.label}

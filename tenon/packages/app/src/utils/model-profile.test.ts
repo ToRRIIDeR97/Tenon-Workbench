@@ -1,5 +1,13 @@
 import { describe, expect, test } from "bun:test"
-import { parseProfileMarkdown, profileDue, profileFor, profileInstruction } from "./model-profile"
+import {
+  appendProfileRule,
+  parseProfileMarkdown,
+  profileDue,
+  profileFor,
+  profileInstruction,
+  profileRules,
+  removeProfileRule,
+} from "./model-profile"
 
 describe("model profiles", () => {
   test("profile.md front matter names the model; without it the picked name is used", () => {
@@ -32,5 +40,29 @@ describe("model profiles", () => {
     expect(profileDue({ newThread: false, previousModel: "a", model: "a" })).toBe(false)
     expect(profileDue({ newThread: false, previousModel: "a", model: "b" })).toBe(true)
     expect(profileInstruction("a", "- x")).toContain('<model-profile model="a">')
+  })
+
+  test("the Rules view lists each rule line without its bullet, skipping blanks and headings", () => {
+    const rules = [
+      "# Notes",
+      "- Run the tests.",
+      "",
+      "* Quote the error.",
+      "2. Keep imports sorted.",
+      "Plain line",
+    ].join("\n")
+    expect(profileRules(rules)).toEqual([
+      { index: 1, text: "Run the tests." },
+      { index: 3, text: "Quote the error." },
+      { index: 4, text: "Keep imports sorted." },
+      { index: 5, text: "Plain line" },
+    ])
+  })
+
+  test("rules are removed by line and appended as bullets", () => {
+    expect(removeProfileRule("- a\n- b\n- c", 1)).toBe("- a\n- c")
+    expect(appendProfileRule("- a\n", " b ")).toBe("- a\n- b")
+    expect(appendProfileRule("", "first")).toBe("- first")
+    expect(appendProfileRule("- a", "  ")).toBe("- a")
   })
 })

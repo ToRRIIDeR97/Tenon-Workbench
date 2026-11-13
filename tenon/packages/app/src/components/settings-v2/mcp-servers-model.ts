@@ -28,3 +28,34 @@ export function mcpRows(config: Record<string, Entry | { enabled: boolean }> | u
     })
     .toSorted((a, b) => a.name.localeCompare(b.name))
 }
+
+export type McpSuggestion = {
+  id: "playwright" | "context7" | "github" | "linear" | "sentry"
+  entry: Entry
+  signIn: boolean
+}
+
+// Common servers offered as one-click adds. The remote ones ask the user to sign in once they connect.
+const SUGGESTIONS: ReadonlyArray<McpSuggestion> = [
+  {
+    id: "playwright",
+    entry: { type: "local", command: ["npx", "@playwright/mcp@latest"], enabled: true },
+    signIn: false,
+  },
+  { id: "context7", entry: { type: "remote", url: "https://mcp.context7.com/mcp", enabled: true }, signIn: false },
+  { id: "github", entry: { type: "remote", url: "https://api.githubcopilot.com/mcp/", enabled: true }, signIn: true },
+  { id: "linear", entry: { type: "remote", url: "https://mcp.linear.app/mcp", enabled: true }, signIn: true },
+  { id: "sentry", entry: { type: "remote", url: "https://mcp.sentry.dev/mcp", enabled: true }, signIn: true },
+]
+
+/** The suggestions not already configured, under their own name or as the same command or URL. */
+export function mcpSuggestions(config: Record<string, Entry | { enabled: boolean }> | undefined) {
+  const installed = Object.entries(config ?? {})
+  const target = (entry: Entry) => (entry.type === "local" ? entry.command.join(" ") : entry.url)
+  return SUGGESTIONS.filter(
+    (suggestion) =>
+      !installed.some(
+        ([name, entry]) => name === suggestion.id || ("type" in entry && target(entry) === target(suggestion.entry)),
+      ),
+  )
+}

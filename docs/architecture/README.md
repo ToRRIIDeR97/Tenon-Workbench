@@ -451,6 +451,10 @@ to it.
   (pages with no known Project), with search (`GET …/vault/pages?search=`, plus Projects whose name or outcome
   matches), New page and New Project. The command palette finds the same Projects and pages for the sidebar's
   workspace: Projects filter in the renderer, and pages are searched on the server behind a 250 ms delay.
+  On a window 1024px or wider the landing is two columns: the list (300px), and a preview of the selected Project
+  (`features/second-brain/project-preview.tsx`, summary in `project-preview-model.ts`) with its next milestone,
+  open tasks (its timeline, read once per selection), recent threads and pages, Start work and Open project. A click
+  previews and a double click opens; narrower, a click opens as before.
 - A Project (`features/second-brain/project-view.tsx`) is one page: a header (title, status chip, a "···" menu with
   Pause/Resume, Archive, Save current state and Project settings, and Start work), then two columns at 1100px and
   wider (tasks, and a 300px context rail that stacks under them on narrower windows):
@@ -2415,7 +2419,9 @@ From the 11 Nov feedback list ([triage](../product/FEEDBACK-2026-11-11.md)):
   when the model changes. Settings › Model profiles adds, imports a `profile.md`,
   edits and switches them; "Build with an agent" only opens a draft.
 - **Settings.** Built-in harness (Providers and Models), MCP servers (the global
-  config's `mcp` entries: add a local command or remote URL, switch on or off;
+  config's `mcp` entries: an Installed list of settings rows with switches, Suggested
+  common servers as rows added in one click (`mcpSuggestions`), and Custom server for a local
+  command or remote URL;
   `core/src/harness/forwarded-mcp.ts` passes the enabled ones to Codex as `-c`
   overrides and to ACP agents in `session/new`, so every harness sees them),
   Skills search and per-harness filters, a VS Code theme import
