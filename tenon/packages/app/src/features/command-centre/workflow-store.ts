@@ -1,0 +1,120 @@
+import { createSimpleContext } from "@tenon/ui/context"
+import { createStore } from "solid-js/store"
+import type { Platform } from "@/context/platform"
+import { Persist, persisted } from "@/utils/persist"
+import { DEFAULT_WORKFLOWS, type Workflow } from "./workflows"
+
+/**
+ * A started workflow run, kept so the run view (Task 4) can read it. Task 3 only appends one as `running` with no
+ * rounds; `rounds` is typed loosely here and becomes the run view's `Round[]` there.
+ */
+export type WorkflowRun = {
+  id: string
+  workflowID: string
+  /** The director thread. */
+  sessionID: string
+  /** The Project's ID. */
+  project: string
+  startedAt: number
+  maxRounds: number
+  budgetUSD?: number
+  status: "running" | "paused" | "stopped" | "done" | "over-budget" | "out-of-rounds"
+  rounds: unknown[]
+}
+
+/** The key under which the user's workflows and the started runs persist (global, per server scope on desktop). */
+export const WORKFLOWS_STORAGE_KEY = "command-workflows.v1"
+
+type Saved = { workflows: Workflow[]; runs: WorkflowRun[] }
+
+/**
+ * The built-in workflows (with the user's edits to them) followed by the user's own, in the order they were
+ * saved. A saved entry with a built-in's ID replaces it; any other saved entry is the user's.
+ */
+export function mergeWorkflows(saved: ReadonlyArray<Workflow> | undefined, defaults = DEFAULT_WORKFLOWS): Workflow[] {
+  const edits = Array.isArray(saved) ? saved : []
+  return [
+    ...defaults.map((item) => edits.find((edit) => edit.id === item.id) ?? item),
+    ...edits.filter((edit) => !defaults.some((item) => item.id === edit.id)),
+  ]
+}
+
+/** `saved` with `workflow` replacing the entry of the same ID, or added last. */
+export function saveWorkflow(saved: ReadonlyArray<Workflow>, workflow: Workflow): Workflow[] {
+  return saved.some((item) => item.id === workflow.id)
+    ? saved.map((item) => (item.id === workflow.id ? workflow : item))
+    : [...saved, workflow]
+}
+
+/** `saved` without the entry; for a built-in this undoes the user's edits to it. */
+export function removeWorkflow(saved: ReadonlyArray<Workflow>, id: string): Workflow[] {
+  return saved.filter((item) => item.id !== id)
+}
+
+/** A copy for "Duplicate": a new ID, and a name that says it is a copy. */
+export function duplicateWorkflow(workflow: Workflow, id: string, name: string): Workflow {
+  return {
+    ...workflow,
+    id,
+    name,
+    roles: workflow.roles.map((role) => ({ ...role })),
+  }
+}
+
+/** The run list with `run` added last. */
+export function appendRun(runs: ReadonlyArray<WorkflowRun>, run: WorkflowRun): WorkflowRun[] {
+  return [...runs, run]
+}
+
+/** A run as Start records it. */
+export function newRun(input: {
+  id: string
+  workflow: Workflow
+  sessionID: string
+  project: string
+  startedAt: number
+}): WorkflowRun {
+  return {
+    id: input.id,
+    workflowID: input.workflow.id,
+    sessionID: input.sessionID,
+    project: input.project,
+    startedAt: input.startedAt,
+    maxRounds: input.workflow.maxRounds,
+    ...(input.workflow.budgetUSD === undefined ? {} : { budgetUSD: input.workflow.budgetUSD }),
+    status: "running",
+    rounds: [],
+  }
+}
+
+/** A short unique ID for a workflow or a run. */
+export function workflowID(prefix: string) {
+  return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`
+}
+
+/** The persisted store behind the provider; the platform argument is for tests. */
+export function createWorkflowStore(platform?: Platform) {
+  const [store, setStore, , ready] = persisted(
+    Persist.global(WORKFLOWS_STORAGE_KEY),
+    createStore<Saved>({ workflows: [], runs: [] }),
+    platform,
+  )
+  return {
+    ready,
+    /** The built-in workflows with the user's edits, then the user's own. */
+    workflows: () => mergeWorkflows(store.workflows),
+    runs: (): WorkflowRun[] => (Array.isArray(store.runs) ? store.runs : []),
+    save: (workflow: Workflow) =>
+      setStore("workflows", saveWorkflow(Array.isArray(store.workflows) ? store.workflows : [], workflow)),
+    remove: (id: string) =>
+      setStore("workflows", removeWorkflow(Array.isArray(store.workflows) ? store.workflows : [], id)),
+    addRun: (run: WorkflowRun) => setStore("runs", appendRun(Array.isArray(store.runs) ? store.runs : [], run)),
+  }
+}
+
+/** The saved workflows and started runs, shared by the Command Centre page and (Task 4) the run view. */
+export const { use: useWorkflows, provider: WorkflowsProvider } = createSimpleContext({
+  name: "Workflows",
+  gate: false,
+  init: () => createWorkflowStore(),
+})

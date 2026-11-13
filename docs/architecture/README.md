@@ -730,6 +730,25 @@ assistant that spans workspaces, with its own threads, memory and routines.
   Command Centre thread starts or ends a turn, never on a timer), and lists each
   Project's Ask, Auto-edit or Full auto mode with the same control as the
   composer (`PermissionModeControl`, state in `usePermission`).
+- **Workflows.** The third view (`features/command-centre/workflows-view.tsx`;
+  pure `workflows.ts`) edits saved role setups and starts them. `validateWorkflow`
+  names what is wrong (name, roles, director, role, rounds, budget) and Start is
+  refused while it returns anything, the brief is blank or no Project is chosen.
+  The harness and model pickers list what the composer lists: the same
+  `listHarnessesRemembered` check (own query key) with Settings' hidden models
+  left out. Start creates a thread in the Project's thread folder with
+  `api.session.create` on the director's harness and model, then sends
+  `directorBrief(workflow, brief)` with `api.session.prompt` (the brief names each
+  role, tells the director to hand work over with the `delegate_task` tool,
+  to report `[[round N | role | status]]` lines and to stop after the round cap,
+  and carries the fixed `WORKFLOW_RULES`: no push, no merge). A failed create or
+  send shows the request-failed message and records nothing. Workflows (the
+  user's edits and additions over the built-in `DEFAULT_WORKFLOWS`) and started
+  runs persist in one `persisted` store, `workflow-store.ts`
+  (`WorkflowsProvider`, mounted in `pages/layout-new.tsx`), under the global key
+  `command-workflows.v1` (`{ workflows, runs }`). A run is recorded as
+  `running` with no rounds; reading its reports, spend and limits is the run
+  view's job (Task 4). No server route or action-log entry is involved.
 - **Pill.** The Command Centre page marks its open thread as focused
   (`useAgentWrites().focus`), so the top pill leaves that thread's writes to
   the step list.

@@ -512,3 +512,185 @@ test("AC-2.7 the view lists today's actions of the agent with Open, and each Pro
   await message.locator('[data-action="command-action-open"]').click()
   await expect(page).toHaveURL(/\/session\/ses_board_need$/)
 })
+
+// implementations/command-centre-orchestrator/implementation.md, Task 3 (AC-3.3, AC-3.4): the Workflows view.
+const harnessModel = (id: string, name: string, isDefault: boolean) => ({
+  id,
+  name,
+  reasoningEfforts: [],
+  serviceTiers: [],
+  isDefault,
+})
+const workflowHarnesses = [
+  {
+    id: "claude-code",
+    driver: "acp",
+    name: "Claude Code",
+    status: "available",
+    authenticated: true,
+    models: [harnessModel("fable-5-2", "Fable 5.2", true), harnessModel("opus-5-5", "Opus 5.5", false)],
+  },
+  {
+    id: "codex",
+    driver: "codex",
+    name: "Codex",
+    status: "available",
+    models: [harnessModel("gpt-5.6-sol", "GPT-5.6 Sol", true)],
+  },
+]
+const workflows = (page: Page) => page.locator('[data-component="workflows"]')
+const roleCard = (page: Page, id: string) => workflows(page).locator(`[data-role="${id}"]`)
+const problems = (page: Page) => workflows(page).locator('[data-slot="workflow-problems"]')
+
+async function startWorkflows(page: Page, input: Parameters<typeof startBoard>[1] = {}) {
+  await startBoard(page, input)
+  // The same harness list the composer offers.
+  await page.route("**/api/harness?**", (route) =>
+    route.fulfill({
+      json: {
+        location: { directory: commandDirectory, project: { id: "global", directory: commandDirectory } },
+        data: [
+          { id: "opencode", driver: "opencode", name: "Default agent", status: "available", models: [] },
+          ...workflowHarnesses,
+        ],
+      },
+    }),
+  )
+  await page.locator('[data-action="command-view"]', { hasText: "Workflows" }).click()
+  await expect(workflows(page)).toBeVisible()
+}
+
+test("AC-3.3 the Workflows view lists Build and review with a numbered card for each of its three roles", async ({
+  page,
+}) => {
+  await startWorkflows(page)
+  const item = workflows(page).locator('[data-workflow="build-and-review"]')
+  await expect(item).toContainText("Build and review")
+  await expect(item).toContainText("3 roles")
+  await expect(workflows(page).getByRole("textbox", { name: "Workflow name" })).toHaveValue("Build and review")
+  await expect
+    .poll(() =>
+      workflows(page)
+        .locator("[data-role]")
+        .evaluateAll((cards) => cards.map((card) => card.getAttribute("data-role"))),
+    )
+    .toEqual(["director", "implementor", "reviewer"])
+  await expect(roleCard(page, "director").getByRole("textbox", { name: "Role 1 name" })).toHaveValue("Director")
+  await expect(roleCard(page, "director")).toContainText("Starts and steers the other roles, and never edits files.")
+  await expect(roleCard(page, "implementor")).toContainText("Edits files and runs commands inside the Project.")
+  await expect(roleCard(page, "reviewer")).toContainText("Reads files and runs tests, and never edits files.")
+  // The built-in workflow can be duplicated but not deleted.
+  await expect(workflows(page).locator('[data-action="workflow-duplicate"]')).toBeVisible()
+  await expect(workflows(page).locator('[data-action="workflow-delete"]')).toHaveCount(0)
+})
+
+test("AC-3.3 Start is refused with a message while a role has no harness, and nothing is created", async ({ page }) => {
+  const created: string[] = []
+  await startWorkflows(page, { onSessionCreate: (input) => created.push(input.sessionID) })
+  await workflows(page).locator('[data-slot="workflow-brief"]').fill("Replace the tab strip with a rail.")
+  await workflows(page).locator('[data-action="workflow-project"]').click()
+  await page.getByRole("menuitemradio", { name: "Repo project" }).click()
+  // Only the director has a harness: the other two roles are still missing theirs.
+  await roleCard(page, "director").locator('[data-action="workflow-role-harness"]').click()
+  await page.getByRole("menuitemradio", { name: "Claude Code" }).click()
+  await expect(problems(page).locator('[data-problem="role"]')).toHaveText(
+    "Every role needs a name and a harness, and only one role may direct the others.",
+  )
+  await expect(problems(page).locator("[data-problem]")).toHaveCount(1)
+
+  await workflows(page).locator('[data-action="workflow-start"]').click()
+  await expect(problems(page).locator('[data-problem="role"]')).toHaveAttribute("role", "alert")
+  await expect(workflows(page)).toBeVisible()
+  expect(created).toEqual([])
+  await expect(page).toHaveURL(/\/command$/)
+})
+
+test("AC-3.4 Start creates a director thread in the Project's folder, sends the brief and shows the board", async ({
+  page,
+}) => {
+  const created: { sessionID: string; body: unknown }[] = []
+  const prompts: { sessionID: string; text: string }[] = []
+  await startWorkflows(page, {
+    onSessionCreate: (input) => created.push({ sessionID: input.sessionID, body: input.body }),
+    onPrompt: (input) => {
+      const body = input.body as { prompt?: { text?: string }; parts?: { text?: string }[] }
+      prompts.push({
+        sessionID: input.sessionID,
+        text: body.prompt?.text ?? body.parts?.map((part) => part.text ?? "").join("") ?? "",
+      })
+    },
+  })
+  const brief = "Replace the tab strip with a rail."
+  const field = workflows(page).locator('[data-slot="workflow-brief"]')
+  await expect(problems(page).locator("[data-problem]")).toHaveCount(3)
+
+  const pick = async (role: string, harness: string, name: string) => {
+    await roleCard(page, role).locator('[data-action="workflow-role-harness"]').click()
+    await page.getByRole("menuitemradio", { name: harness, exact: true }).click()
+    await expect(roleCard(page, role).locator('[data-action="workflow-role-harness"]')).toContainText(harness)
+    if (!name) return
+    await roleCard(page, role).locator('[data-action="workflow-role-model"]').click()
+    await page.getByRole("menuitemradio", { name, exact: true }).click()
+    await expect(roleCard(page, role).locator('[data-action="workflow-role-model"]')).toContainText(name)
+  }
+  await pick("director", "Claude Code", "Fable 5.2")
+  await pick("implementor", "Claude Code", "Opus 5.5")
+  await pick("reviewer", "Codex", "")
+  await field.fill(brief)
+  await workflows(page).locator('[data-action="workflow-project"]').click()
+  await page.getByRole("menuitemradio", { name: "Repo project" }).click()
+  await expect(problems(page)).toHaveCount(0)
+
+  await workflows(page).locator('[data-action="workflow-start"]').click()
+
+  // One thread, in the Project's folder, on the director's harness and model.
+  await expect.poll(() => created.length).toBe(1)
+  expect(created[0]!.body).toMatchObject({
+    harnessInstanceID: "claude-code",
+    harnessModel: { id: "fable-5-2" },
+    location: { directory: repo },
+  })
+  // Its first message is the generated brief, which carries the user's brief and the delegation tool.
+  await expect.poll(() => prompts.length).toBe(1)
+  expect(prompts[0]!.sessionID).toBe(created[0]!.sessionID)
+  expect(prompts[0]!.text).toContain("delegate_task")
+  expect(prompts[0]!.text).toContain("opus-5-5")
+  expect(prompts[0]!.text.trimEnd().endsWith(brief)).toBe(true)
+
+  // The page stays on the Command Centre and shows the board.
+  await expect(mission(page)).toBeVisible()
+  await expect(workflows(page)).toHaveCount(0)
+  await expect(page).toHaveURL(/\/command$/)
+  // The run is recorded for the run view, running and without rounds.
+  const runs = await page.evaluate(() => {
+    const raw = Object.entries(localStorage).find(([key]) => key.endsWith("command-workflows.v1"))?.[1]
+    return raw ? (JSON.parse(raw) as { runs: Record<string, unknown>[] }).runs : []
+  })
+  expect(runs).toHaveLength(1)
+  expect(runs[0]).toMatchObject({
+    workflowID: "build-and-review",
+    sessionID: created[0]!.sessionID,
+    project: "prj_repo",
+    maxRounds: 3,
+    status: "running",
+    rounds: [],
+  })
+})
+
+test("AC-3.3 a new workflow can be edited, survives a reload and can be deleted", async ({ page }) => {
+  await startWorkflows(page)
+  await workflows(page).locator('[data-action="workflow-new"]').click()
+  await workflows(page).getByRole("textbox", { name: "Workflow name" }).fill("Plan only")
+  await workflows(page).locator('[data-action="workflow-add-role"]').click()
+  await expect(workflows(page).locator("[data-role]")).toHaveCount(2)
+  await expect(workflows(page).locator("[data-workflow]", { hasText: "Plan only" })).toContainText("2 roles")
+
+  await page.reload()
+  await page.locator('[data-action="command-view"]', { hasText: "Workflows" }).click()
+  const saved = workflows(page).locator("[data-workflow]", { hasText: "Plan only" })
+  await expect(saved).toContainText("2 roles")
+  await saved.click()
+  await workflows(page).locator('[data-action="workflow-delete"]').click()
+  await expect(workflows(page).locator("[data-workflow]", { hasText: "Plan only" })).toHaveCount(0)
+  await expect(workflows(page).locator('[data-workflow="build-and-review"]')).toBeVisible()
+})

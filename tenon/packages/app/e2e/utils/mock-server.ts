@@ -33,6 +33,11 @@ export interface MockServerConfig {
   projectThreads?: unknown[] | (() => unknown[])
   /** A prompt sent to a thread (legacy `prompt_async` or the current `/api/session/:id/prompt`). */
   onPrompt?: (input: { sessionID: string; directory?: string; body: unknown }) => void
+  /**
+   * A new thread (POST `/api/session`, or the legacy POST `/session`). The mock adds it to `sessions` under a fresh
+   * ID and answers with it; `body` is what the app sent (the folder is `location.directory`).
+   */
+  onSessionCreate?: (input: { sessionID: string; body: unknown; directory?: string }) => void
   /** An abort of a thread's run (legacy `abort` or the current `interrupt`). */
   onAbort?: (input: { sessionID: string; directory?: string }) => void
   /** A reply to a pending permission request (legacy `permissions/:id` or the current `permission/:id/reply`). */
@@ -44,6 +49,7 @@ export interface MockServerConfig {
 export async function mockTenonServer(page: Page, config: MockServerConfig) {
   const cursors = new Map<string, string>()
   let nextCursor = 0
+  let createdSessions = 0
   const staticRoutes: Record<string, unknown> = {
     "/path": {
       state: config.directory,
@@ -215,6 +221,24 @@ export async function mockTenonServer(page: Page, config: MockServerConfig) {
       )
     if (emptyObject.has(path)) return json(route, {})
     if (emptyList.has(path)) return json(route, [])
+    if (
+      config.onSessionCreate &&
+      (path === "/api/session" || path === "/session") &&
+      route.request().method() === "POST"
+    ) {
+      const body = (route.request().postDataJSON() ?? {}) as { location?: { directory?: string } }
+      const created = {
+        id: `ses_created_${++createdSessions}`,
+        projectID: "global",
+        directory: body.location?.directory ?? url.searchParams.get("directory") ?? config.directory,
+        title: "New session",
+        version: "dev",
+        time: { created: Date.now(), updated: Date.now() },
+      }
+      config.sessions.push(created)
+      config.onSessionCreate({ sessionID: created.id, body, directory: created.directory })
+      return json(route, path === "/api/session" ? { data: currentSession(created, config.directory) } : created)
+    }
     if (path === "/api/session") {
       const directory = url.searchParams.get("directory")
       const parentID = url.searchParams.get("parentID")

@@ -290,7 +290,16 @@ folder as a workspace and selects it) and `tenon://new-session?directory=<path>&
   questions **Open**), what may run without asking per Project (Ask, Auto-edit,
   Full auto, changed with the same menu as the composer), and **Done on your
   behalf**, today's messages and stops the Command Centre agent made to other
-  threads, each with **Open**. On every other page a handle above the bottom edge
+  threads, each with **Open**. The third view, **Workflows**, lists saved role
+  setups (such as Build and review: a director, an implementor and a reviewer)
+  with **New workflow**; each role card has a job, a harness and model from the
+  composer's list and what the role may do (direct, edit or read), followed by
+  **Start on** (a Project), an optional **Stop at $** budget, a round cap (1 to
+  10), a **Brief for this run**, **Duplicate**, **Delete** (not for a built-in)
+  and **Start**. Start is refused, with the reasons listed beside it, until every
+  role has a harness and the brief and Project are set; then it opens a director
+  thread in that Project, sends it the generated brief and returns to Mission
+  control. On every other page a handle above the bottom edge
   opens the K3 strip (also `mod+j`; Esc closes it) with the latest reply, a
   composer and **Open full**. On a thread the strip sits on top of the composer.
 - **Settings** contains General, Shortcuts, Servers, Providers, Models and
