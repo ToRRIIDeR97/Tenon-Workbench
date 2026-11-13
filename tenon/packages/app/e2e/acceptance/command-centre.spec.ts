@@ -25,8 +25,13 @@ const projectThread = {
   time: { created: 1762000000000, updated: 1762000000000 },
 }
 
-async function start(page: Page, events: unknown[] = []) {
-  await openApp(page, { sessions: [commandThread, projectThread], events: () => events.splice(0, 1), eventRetry: 16 })
+async function start(page: Page, events: unknown[] = [], input: Parameters<typeof openApp>[1] = {}) {
+  await openApp(page, {
+    sessions: [commandThread, projectThread],
+    events: () => events.splice(0, 1),
+    eventRetry: 16,
+    ...input,
+  })
   await page.route("**/second-brain/vault", (route) =>
     route.fulfill({
       contentType: "application/json",
@@ -118,6 +123,59 @@ test("AC-7.3 Ctrl/Cmd+J toggles the slim strip; Esc hides it; Open full goes to 
   await toggleStrip(page)
   await strip(page).getByRole("button", { name: "Open full" }).click()
   await expect(page).toHaveURL(threadURL)
+})
+
+// One exchange in the Command Centre thread; the reply is Markdown with a list long enough to pass the card's cap.
+const tasks = [
+  "Duolingo",
+  "Read Bible",
+  "Buy tickets",
+  "Call the bank",
+  "Water plants",
+  "File receipts",
+  "Book dentist",
+]
+const exchange = [
+  message("msg_command_ask", "user", "What's on my calendar today?"),
+  message(
+    "msg_command_reply",
+    "assistant",
+    ["You have no calendar events today. Tasks due:", "", ...tasks.map((task) => `- **${task}**: still open`)].join(
+      "\n",
+    ),
+  ),
+]
+
+function message(id: string, role: "user" | "assistant", text: string) {
+  return {
+    info: {
+      id,
+      sessionID: commandThread.id,
+      role,
+      time: { created: 1762000100000, completed: 1762000200000 },
+      agent: "build",
+      model: { providerID: "opencode", modelID: "test" },
+    },
+    parts: [{ id: `prt_${id}`, sessionID: commandThread.id, messageID: id, type: "text", text }],
+  }
+}
+
+test("the card draws the reply as Markdown under a cap, with Show more", async ({ page }) => {
+  await start(page, [], { pageMessages: (id) => ({ items: id === commandThread.id ? exchange : [] }) })
+  await page.goto("/")
+  await toggleStrip(page)
+  await expect(strip(page)).toHaveAttribute("data-state", "open")
+
+  const reply = strip(page).locator('[data-slot="command-card-reply"]')
+  await expect(reply.getByRole("listitem")).toHaveCount(tasks.length)
+  await expect(reply.locator("strong").filter({ hasText: "Duolingo" })).toHaveCount(1)
+  await expect(reply).not.toContainText("**")
+
+  const capped = await reply.evaluate((element) => element.getBoundingClientRect().height)
+  await strip(page).getByRole("button", { name: "Show more", exact: true }).click()
+  await expect(reply).toHaveAttribute("data-expanded", "")
+  await expect(strip(page).getByRole("button", { name: "Show less", exact: true })).toBeVisible()
+  await expect.poll(() => reply.evaluate((element) => element.getBoundingClientRect().height)).toBeGreaterThan(capped)
 })
 
 test("AC-7.3 the strip is not offered on the Command Centre page itself", async ({ page }) => {
