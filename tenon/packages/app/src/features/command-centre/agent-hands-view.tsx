@@ -194,24 +194,16 @@ export function AgentHands(props: { ctrl: SidebarController; queue: WaitingReque
             </p>
           )}
         </Show>
-        <div class="flex flex-wrap items-center justify-end gap-2">
-          <ButtonV2
-            size="small"
-            variant={entry().item.kind === "permission" ? "ghost" : "contrast"}
-            data-action="queue-open"
-            onClick={() => props.open(entry().root.id)}
-          >
-            {language.t("common.open")}
-          </ButtonV2>
+        <div class="flex flex-wrap items-center gap-2">
           <Show when={entry().item.kind === "permission"}>
             <ButtonV2
               size="small"
-              variant="outline"
-              data-action="queue-deny"
+              variant="contrast"
+              data-action="queue-allow-once"
               disabled={state.busy === entry().item.requestID}
-              onClick={() => answer(entry(), "reject")}
+              onClick={() => answer(entry(), "once")}
             >
-              {language.t("ui.permission.deny")}
+              {language.t("ui.permission.allowOnce")}
             </ButtonV2>
             <Show when={!summary()?.risky}>
               <ButtonV2
@@ -226,14 +218,22 @@ export function AgentHands(props: { ctrl: SidebarController; queue: WaitingReque
             </Show>
             <ButtonV2
               size="small"
-              variant="contrast"
-              data-action="queue-allow-once"
+              variant="outline"
+              data-action="queue-deny"
               disabled={state.busy === entry().item.requestID}
-              onClick={() => answer(entry(), "once")}
+              onClick={() => answer(entry(), "reject")}
             >
-              {language.t("ui.permission.allowOnce")}
+              {language.t("ui.permission.deny")}
             </ButtonV2>
           </Show>
+          <ButtonV2
+            size="small"
+            variant={entry().item.kind === "permission" ? "ghost" : "contrast"}
+            data-action="queue-open"
+            onClick={() => props.open(entry().root.id)}
+          >
+            {language.t("secondBrain.commandCentre.agent.openThread")}
+          </ButtonV2>
         </div>
         <Show when={state.failed === entry().item.requestID}>
           <p role="alert" class="type-meta text-v2-text-text-critical">
@@ -254,16 +254,21 @@ export function AgentHands(props: { ctrl: SidebarController; queue: WaitingReque
     )
 
   return (
-    <div class="mx-auto grid w-full max-w-[1040px] grid-cols-1 gap-6 @[760px]:grid-cols-2">
-      <div class="flex min-w-0 flex-col gap-6">
+    <div class="grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-y-auto @[900px]:grid-cols-[minmax(0,1fr)_minmax(300px,380px)] @[900px]:overflow-hidden">
+      <div class="flex min-h-0 min-w-0 flex-col gap-6 rounded-[16px] bg-v2-background-bg-layer-01 p-5 @[900px]:overflow-y-auto">
         <section
           data-component="approval-queue"
           aria-labelledby="approval-queue-title"
           class="flex min-w-0 flex-col gap-3"
         >
-          <h2 id="approval-queue-title" class="px-1 type-section text-v2-text-text-base">
-            {language.t("secondBrain.commandCentre.hands.waiting")}
-          </h2>
+          <div class="flex flex-col gap-0.5 px-1">
+            <h2 id="approval-queue-title" class="type-toolbar-title text-v2-text-text-base">
+              {language.t("secondBrain.commandCentre.hands.waiting")}
+            </h2>
+            <p class="type-meta text-v2-text-text-muted">
+              {language.t("secondBrain.commandCentre.hands.waiting.body")}
+            </p>
+          </div>
           <Show
             when={waiting().length > 0}
             fallback={
@@ -309,11 +314,14 @@ export function AgentHands(props: { ctrl: SidebarController; queue: WaitingReque
       <section
         data-component="command-actions"
         aria-labelledby="command-actions-title"
-        class="flex min-w-0 flex-col gap-3"
+        class="flex min-h-0 min-w-0 flex-col gap-3 rounded-[16px] bg-v2-background-bg-layer-01 p-5 @[900px]:overflow-y-auto"
       >
-        <h2 id="command-actions-title" class="px-1 type-section text-v2-text-text-base">
-          {language.t("secondBrain.commandCentre.hands.done")}
-        </h2>
+        <div class="flex flex-col gap-0.5 px-1">
+          <h2 id="command-actions-title" class="type-section text-v2-text-text-base">
+            {language.t("secondBrain.commandCentre.hands.done")}
+          </h2>
+          <p class="type-meta text-v2-text-text-muted">{language.t("secondBrain.commandCentre.hands.done.body")}</p>
+        </div>
         <Show when={done.latest?.failed}>
           <p role="alert" class="px-1 type-meta text-v2-text-text-critical">
             {language.t("common.requestFailed")}

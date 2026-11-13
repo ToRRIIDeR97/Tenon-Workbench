@@ -277,26 +277,33 @@ folder as a workspace and selects it) and `tenon://new-session?directory=<path>&
 - Pages (on the Projects page) hold global notes and Project notes. A page's file name keeps
   the title's letters and digits in any script. If a save finds the note
   changed on disk, **Reload from disk** replaces the edits with the saved copy.
-- **Command Centre** replaced Activity. It lists only its own threads (never
-  Project threads) with rename, archive and delete on each row, searches memory,
-  opens **Archived threads** and links to **Routines**, whose rows switch a
-  routine on or off, open its page and run it now. Its **Mission control**
-  board shows every Project's threads **By state** (Needs you, Running, and
-  Finished in the last day) or **By project**. A running row has **Steer**
-  (one line sent to that thread with Enter) and **Stop**; a Needs you row has
-  **Review**; every row has **Open**. A view switch above the board opens
-  **Waiting on you**: one card per pending permission or question across the
-  Projects (permissions have **Allow once**, **Always allow this** and **Deny**,
-  questions **Open**), what may run without asking per Project (Ask, Auto-edit,
-  Full auto, changed with the same menu as the composer), and **Done on your
-  behalf**, today's messages and stops the Command Centre agent made to other
-  threads, each with **Open**. The third view, **Workflows**, lists saved role
-  setups (such as Build and review: a director, an implementor and a reviewer)
-  with **New workflow**; each role card has a job, a harness and model from the
+- **Command Centre** replaced Activity. The header switches between three views
+  and links to **Routines**, whose rows switch a routine on or off, open its
+  page and run it now. **Mission control** puts the agent beside the board. The
+  agent panel shows its newest thread's last exchange (your message and the
+  reply), **Open thread**, **Undo** for that reply's last write, and a composer
+  with the model pill that replies to that thread; **New thread** makes the next
+  send start one. **Threads** swaps the exchange for memory search, the
+  Command Centre's own threads (never Project threads) with rename, archive and
+  delete on each row, and **Archived threads**. The **All projects** board shows
+  every Project's threads as cards **By state** (Needs you, Running, and
+  Finished in the last day) or **By project**; each card's title opens the
+  thread. A running card has **Steer** (one line sent to that thread with
+  Enter) and **Stop**; a Needs you card has **Review**; a finished card has
+  **Open**. **Waiting on you** is a queue with **Done on your behalf** beside
+  it: one card per pending permission or question across the Projects
+  (permissions have **Allow once**, **Always allow this**, **Deny** and **Open
+  thread**, questions **Open thread**), what may run without asking per
+  Project (Ask, Auto-edit, Full auto, changed with the same menu as the
+  composer), and today's messages and stops the Command Centre agent made to
+  other threads, each with **Open**. **Workflows** lists saved role setups
+  (such as Build and review: a director, an implementor and a reviewer) beside
+  the selected one's editor, with **New workflow**; the editor has
+  **Duplicate**, **Delete** (not for a built-in) and **Start** by its name, and
+  each role card has a job, a harness and model from the
   composer's list and what the role may do (direct, edit or read), followed by
   **Start on** (a Project), an optional **Stop at $** budget, a round cap (1 to
-  10), a **Brief for this run**, **Duplicate**, **Delete** (not for a built-in)
-  and **Start**. Start is refused, with the reasons listed beside it, until every
+  10) and a **Brief for this run**. Start is refused, with the reasons listed under the brief, until every
   role has a harness and the brief and Project are set; then it opens a director
   thread in that Project, sends it the generated brief and returns to Mission
   control. Under the saved workflows, **Runs** lists the started runs (newest

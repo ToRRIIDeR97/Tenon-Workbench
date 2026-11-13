@@ -81,7 +81,7 @@ describe("replies and new threads", () => {
   // AC-4: the card and the page share one saved draft.
   test("the card's draft is the page's draft", () => {
     expect(strip()).toMatch(/persist: "command"/)
-    expect(read("app/src/pages/command-centre.tsx")).toMatch(/persist: "command"/)
+    expect(read("app/src/features/command-centre/agent-panel.tsx")).toMatch(/persist: "command"/)
   })
 })
 

@@ -222,7 +222,7 @@ export function WorkflowRunView(props: {
         </Show>
       </header>
 
-      <div class="grid grid-cols-1 gap-3 @[620px]:grid-cols-2 @[1000px]:grid-cols-4">
+      <div class="grid grid-cols-1 gap-3 @[560px]/main:grid-cols-2 @[860px]/main:grid-cols-4">
         <div class={cardClass}>
           <span class="type-caption text-v2-text-text-muted">{language.t("secondBrain.run.repeats")}</span>
           <span class="type-row-title text-v2-text-text-base">{language.t("secondBrain.run.repeats.value")}</span>
