@@ -735,7 +735,7 @@ const directorThread = (id: string, title: string, extra: Record<string, unknown
   ...boardThread(id, title, repo, 30_000),
   ...extra,
 })
-const directorMessage = (sessionID: string, id: string, role: "user" | "assistant", text: string) => ({
+const directorMessage = (sessionID: string, id: string, role: "user" | "assistant", text: string, cost?: number) => ({
   info: {
     id,
     sessionID,
@@ -743,6 +743,9 @@ const directorMessage = (sessionID: string, id: string, role: "user" | "assistan
     time: { created: 1762000100000, completed: 1762000200000 },
     agent: "build",
     model: { providerID: "opencode", modelID: "test" },
+    ...(role === "assistant"
+      ? { cost: cost ?? 0, tokens: { input: 1, output: 1, reasoning: 0, cache: { read: 0, write: 0 } } }
+      : {}),
   },
   parts: [{ id: `prt_${id}`, sessionID, messageID: id, type: "text", text }],
 })
@@ -985,4 +988,70 @@ test("AC-4.6 a director's board row shows its round and opens the run view, and 
   await expect(mission(page)).toBeVisible()
   await expect(mission(page).locator('[data-project="prj_repo"]')).toBeVisible()
   await expect(runView(page)).toHaveCount(0)
+})
+
+test("AC-4.5 a resumed run reads its director's reports again", async ({ page }) => {
+  await startRuns(page, {
+    runs: [seedRun("run_p", "ses_dir_p", { status: "paused" })],
+    threads: [directorThread("ses_dir_p", "Port the date picker")],
+    messages: {
+      ses_dir_p: [
+        directorMessage("ses_dir_p", "msg_p0", "user", "Port the date picker."),
+        directorMessage("ses_dir_p", "msg_p1", "assistant", "[[round 1 | implementor | done]] Ported the picker"),
+      ],
+    },
+  })
+  await openRuns(page)
+  await runList(page).locator('[data-run="run_p"]').click()
+  await expect(runStatus(page)).toHaveText("Paused")
+  // A paused run is not followed: nothing is read until it runs again.
+  await expect(runView(page).locator("[data-round]")).toHaveCount(0)
+
+  await runView(page).locator('[data-action="run-resume"]').click()
+  await expect(runStatus(page)).toHaveText("Running · round 1 of 5")
+  await expect(runView(page).locator('[data-round="1"]')).toContainText("Ported the picker")
+})
+
+test("AC-4.5 a thread that reports no cost of its own is priced from its messages' costs", async ({ page }) => {
+  const aborts: string[] = []
+  await startRuns(page, {
+    runs: [seedRun("run_e", "ses_dir_e", { budgetUSD: 3 })],
+    threads: [directorThread("ses_dir_e", "Clean up the exports")],
+    messages: {
+      ses_dir_e: [
+        directorMessage("ses_dir_e", "msg_e0", "user", "Clean up the exports."),
+        directorMessage("ses_dir_e", "msg_e1", "assistant", "Working on it.", 4),
+      ],
+    },
+    onAbort: (input) => aborts.push(input.sessionID),
+  })
+  await expect.poll(() => aborts).toEqual(["ses_dir_e"])
+  await openRuns(page)
+  await runList(page).locator('[data-run="run_e"]').click()
+  await expect(runStatus(page)).toHaveText("Stopped · over budget")
+  await expect(runView(page).locator('[data-slot="run-spend"]')).toContainText("$4.00 of $3.00")
+})
+
+test("AC-4.6 a budget with no cost reported says so instead of showing $0, and the run is not stopped", async ({
+  page,
+}) => {
+  const aborts: string[] = []
+  await startRuns(page, {
+    runs: [seedRun("run_f", "ses_dir_f", { budgetUSD: 3 })],
+    threads: [directorThread("ses_dir_f", "Write the changelog")],
+    messages: {
+      ses_dir_f: [directorMessage("ses_dir_f", "msg_f1", "assistant", "[[round 1 | implementor | started]] Writing")],
+    },
+    onAbort: (input) => aborts.push(input.sessionID),
+  })
+  await openRuns(page)
+  await runList(page).locator('[data-run="run_f"]').click()
+  const spend = runView(page).locator('[data-slot="run-spend"]')
+  await expect(spend).toContainText("Not reported")
+  await expect(spend).toContainText("The budget cannot be enforced for this run.")
+  await expect(spend).not.toContainText("$")
+  await expect(spend.getByRole("meter")).toHaveCount(0)
+  // The reports are still read: the run itself is following along.
+  await expect(runStatus(page)).toHaveText("Running · round 1 of 5")
+  expect(aborts).toEqual([])
 })

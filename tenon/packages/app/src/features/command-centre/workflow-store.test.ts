@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import {
   appendRun,
   duplicateWorkflow,
+  endRunningRun,
   mergeWorkflows,
   newRun,
   removeRun,
@@ -110,6 +111,16 @@ describe("changing a started run", () => {
   test("a status is set on that run only, and the list passed in is left alone", () => {
     expect(setRunStatus(runs, "run_1", "over-budget").map((run) => run.status)).toEqual(["over-budget", "running"])
     expect(setRunStatus(runs, "run_9", "stopped")).toEqual(runs)
+    expect(runs[0].status).toBe("running")
+  })
+
+  test("a limit stop ends a run only while it is still running, so the user's Pause or Stop and a done stay", () => {
+    expect(endRunningRun(runs, "run_1", "over-budget").map((run) => run.status)).toEqual(["over-budget", "running"])
+    for (const status of ["paused", "stopped", "done"] as const) {
+      const settled = setRunStatus(runs, "run_1", status)
+      expect(endRunningRun(settled, "run_1", "out-of-rounds")).toEqual(settled)
+    }
+    expect(endRunningRun(runs, "run_9", "over-budget")).toEqual(runs)
     expect(runs[0].status).toBe("running")
   })
 

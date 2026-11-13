@@ -77,28 +77,35 @@ function outcome(entries: ReadonlyArray<RoundEntry>): Round["outcome"] {
   return "in-progress"
 }
 
-/**
- * What the thread `rootID` and every thread under it (by `parentID`) have cost. Unrelated threads, missing costs and
- * parent cycles add nothing, and a root that is not listed costs 0.
- */
-export function runSpend(sessions: ReadonlyArray<{ id: string; parentID?: string; cost?: number }>, rootID: string) {
+type Priced = { id: string; parentID?: string; cost?: number }
+
+/** The thread `rootID` and every thread under it (by `parentID`), each once; a parent cycle adds nothing. */
+export function runThreads(sessions: ReadonlyArray<Pick<Priced, "id" | "parentID">>, rootID: string) {
   const children = new Map<string, string[]>()
-  const costs = new Map<string, number>()
   sessions.forEach((session) => {
-    if (costs.has(session.id)) return
-    costs.set(session.id, typeof session.cost === "number" && Number.isFinite(session.cost) ? session.cost : 0)
     if (session.parentID) children.set(session.parentID, [...(children.get(session.parentID) ?? []), session.id])
   })
   const seen = new Set<string>()
   const queue = [rootID]
-  let total = 0
   for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
     if (seen.has(id)) continue
     seen.add(id)
-    total += costs.get(id) ?? 0
     queue.push(...(children.get(id) ?? []))
   }
-  return total
+  return Array.from(seen)
+}
+
+/**
+ * What the thread `rootID` and every thread under it (by `parentID`) have cost. Unrelated threads, missing costs and
+ * parent cycles add nothing, and a root that is not listed costs 0.
+ */
+export function runSpend(sessions: ReadonlyArray<Priced>, rootID: string) {
+  const costs = new Map<string, number>()
+  sessions.forEach((session) => {
+    if (costs.has(session.id)) return
+    costs.set(session.id, typeof session.cost === "number" && Number.isFinite(session.cost) ? session.cost : 0)
+  })
+  return runThreads(sessions, rootID).reduce((total, id) => total + (costs.get(id) ?? 0), 0)
 }
 
 /** Why a running run must stop now: its budget is spent (that wins), or a round past its cap was reported. */

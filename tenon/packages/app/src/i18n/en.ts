@@ -1115,6 +1115,7 @@ export const dict = {
   "secondBrain.run.spend": "Spend",
   "secondBrain.run.spend.of": "{{spent}} of {{budget}}",
   "secondBrain.run.spend.meter": "Budget used",
+  "secondBrain.run.spend.unenforced": "The budget cannot be enforced for this run.",
   "secondBrain.run.limits": "Limits",
   "secondBrain.run.limits.body": "Limits are enforced while Tenon is open. A run never merges or pushes.",
   "secondBrain.run.round": "Round {{n}}",

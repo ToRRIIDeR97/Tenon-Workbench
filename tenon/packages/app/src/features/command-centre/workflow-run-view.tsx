@@ -120,7 +120,10 @@ export function WorkflowRunView(props: {
   const title = () =>
     sessionTitle(serverSync().session.get(props.run.sessionID)?.title) ||
     language.t("secondBrain.commandCentre.threads.untitled")
-  const spend = () => store.spend(props.run)
+  const usage = createMemo(() => store.usage(props.run))
+  const spend = () => usage().spent
+  // A budget with no cost reported by any thread cannot be enforced: 0 would read as "nothing spent".
+  const unreported = () => props.run.budgetUSD !== undefined && !usage().reported
   const round = () => currentRound(props.run)
   const active = () => props.run.status === "running" || props.run.status === "paused"
   const warn = () => props.run.status === "over-budget" || props.run.status === "out-of-rounds"
@@ -237,22 +240,34 @@ export function WorkflowRunView(props: {
         </div>
         <div data-slot="run-spend" class={cardClass}>
           <span class="type-caption text-v2-text-text-muted">{language.t("secondBrain.run.spend")}</span>
-          <span class="type-row-title tabular-nums text-v2-text-text-base">
-            {props.run.budgetUSD === undefined
-              ? usd().format(spend())
-              : language.t("secondBrain.run.spend.of", {
-                  spent: usd().format(spend()),
-                  budget: usd().format(props.run.budgetUSD),
-                })}
-          </span>
-          <Show when={props.run.budgetUSD}>
-            {(budget) => (
-              <Meter
-                class="w-full"
-                value={(spend() / budget()) * 100}
-                label={language.t("secondBrain.run.spend.meter")}
-              />
-            )}
+          <Show
+            when={!unreported()}
+            fallback={
+              <>
+                <span class="type-row-title text-v2-text-text-base">
+                  {language.t("secondBrain.sessionTab.notReported")}
+                </span>
+                <span class="type-meta text-v2-text-text-muted">{language.t("secondBrain.run.spend.unenforced")}</span>
+              </>
+            }
+          >
+            <span class="type-row-title tabular-nums text-v2-text-text-base">
+              {props.run.budgetUSD === undefined
+                ? usd().format(spend())
+                : language.t("secondBrain.run.spend.of", {
+                    spent: usd().format(spend()),
+                    budget: usd().format(props.run.budgetUSD),
+                  })}
+            </span>
+            <Show when={props.run.budgetUSD}>
+              {(budget) => (
+                <Meter
+                  class="w-full"
+                  value={(spend() / budget()) * 100}
+                  label={language.t("secondBrain.run.spend.meter")}
+                />
+              )}
+            </Show>
           </Show>
         </div>
         <div class={cardClass}>

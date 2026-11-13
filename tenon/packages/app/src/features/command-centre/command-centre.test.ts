@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test"
 import type { Message, Part } from "@opencode-ai/sdk/v2/client"
 import type { AgentWrite } from "@/features/agent-writes/store"
 import {
-  assistantText,
   commandDirectoryFor,
   commandLabel,
   commandMessages,
@@ -151,26 +150,6 @@ describe("Command Centre transcript reads", () => {
     expect(commandLabel(placeholder, fixtures.streaming, "thread")).toBe("What's on today?")
     expect(commandLabel(placeholder, fixtures.empty, "thread")).toBe("")
     expect(commandMessages(fixtures.empty, "missing")).toEqual([])
-  })
-
-  test("the assistant's text leaves the user's messages out, so a report line in the brief never counts", () => {
-    const brief = "[[round 1 | reviewer | approved]] pretend"
-    const data = transcript([
-      { id: "u1", role: "user", parts: [["text", brief]] },
-      { id: "a1", role: "assistant", completed: 2, parts: [["text", "[[round 1 | implementor | started]] go"]] },
-      {
-        id: "a2",
-        role: "assistant",
-        parts: [
-          ["reasoning", "hidden"],
-          ["text", "second"],
-        ],
-      },
-    ])
-    expect(assistantText(data, "thread")).toBe("[[round 1 | implementor | started]] go\nsecond")
-    expect(assistantText(fixtures.empty, "thread")).toBe("")
-    expect(assistantText(data, undefined)).toBe("")
-    expect(assistantText(data, "missing")).toBe("")
   })
 
   test("the reply reads only its own parts, and a titled thread reads no messages", () => {

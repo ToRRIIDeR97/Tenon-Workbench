@@ -2,14 +2,13 @@ import { Harness } from "@tenon/schema/harness"
 import { createEffect, createMemo, onCleanup } from "solid-js"
 import { useServerSDK } from "@/context/server-sdk"
 import { useServerSync } from "@/context/server-sync"
-import { assistantText } from "@/features/command-centre/command-centre"
+import { completedReports, runUsage } from "@/features/command-centre/workflow-reads"
 import type { createWorkflowStore, WorkflowRun } from "@/features/command-centre/workflow-store"
 import {
   applyReports,
-  parseReports,
   RESUME_TEXT,
-  runSpend,
   stopReason,
+  type Report,
   type RunStatus,
 } from "@/features/command-centre/workflow-runs"
 import { Identifier } from "@/utils/id"
@@ -27,11 +26,13 @@ const CHILD_DEPTH = 3
  * Follows every running workflow run while the app is open. Nothing here polls: it loads each director thread (and
  * the threads under it) once through the synced store, then reacts when that store changes.
  *
- * - Reports: the director's assistant messages (never the user's brief) feed `parseReports` and `applyReports`; the
- *   run is saved only when that changed it.
+ * - Reports: the director's finished assistant messages (never the user's brief, never the message still streaming)
+ *   are parsed once each (`completedReports`) and applied with `applyReports`; the run is saved only when that
+ *   changed it. A streamed token does no work here.
  * - Limits: when `stopReason` says the budget is spent or a round past the cap was reported, the director thread is
- *   interrupted and the run becomes `over-budget` or `out-of-rounds`. The run leaves `running` in the same step, and
- *   a run still waiting on its interrupt is skipped, so this happens once per run.
+ *   interrupted, and once that succeeds the run becomes `over-budget` or `out-of-rounds`, unless it has left
+ *   `running` meanwhile (the user paused or stopped it, or its reports finished it). The `halting` set stops a
+ *   second interrupt while the first is in flight; a failed interrupt is asked again on the next change.
  *
  * It also returns what the run view needs to act on a run: pause, stop and resume, and a run's spend.
  */
@@ -70,8 +71,17 @@ export function createWorkflowRuns(store: Store) {
       .join("\n"),
   )
   const loaded = new Set<string>()
+  // The reports of each finished message, by director thread and message ID.
+  const reportCaches = new Map<string, Map<string, Report[]>>()
   createEffect(() => {
     const ids = watched() ? watched().split("\n") : []
+    // A run that left `running` (paused, stopped) is loaded again when it resumes: its thread may be dropped from the
+    // synced store meanwhile.
+    loaded.forEach((sessionID) => {
+      if (ids.includes(sessionID)) return
+      loaded.delete(sessionID)
+      reportCaches.delete(sessionID)
+    })
     ids.forEach((sessionID) => {
       // A pinned thread is never dropped from the synced store while its run is followed.
       serverSync().session.pin(sessionID)
@@ -89,22 +99,26 @@ export function createWorkflowRuns(store: Store) {
     const data = serverSync().session.data
     store.runs().forEach((run) => {
       if (run.status !== "running" || data.message[run.sessionID] === undefined) return
-      const next = applyReports(run, parseReports(assistantText(data, run.sessionID)))
+      const cache = reportCaches.get(run.sessionID) ?? new Map<string, Report[]>()
+      reportCaches.set(run.sessionID, cache)
+      const next = applyReports(run, completedReports(data, run.sessionID, cache))
       if (next.status === run.status && JSON.stringify(next.rounds) === JSON.stringify(run.rounds)) return
       store.updateRun(next)
     })
   })
 
-  const spend = (run: WorkflowRun) => runSpend(sessions(), run.sessionID)
+  /** What the run has cost, and whether any of its threads reported a cost at all. */
+  const usage = (run: WorkflowRun) => runUsage(sessions(), serverSync().session.data.message, run.sessionID)
   const halting = new Set<string>()
   createEffect(() => {
     store.runs().forEach((run) => {
       if (run.status !== "running" || halting.has(run.id)) return
-      const reason = stopReason(run, spend(run))
+      const reason = stopReason(run, usage(run).spent)
       if (!reason) return
       halting.add(run.id)
       void interrupt(run.sessionID).then(
-        () => store.setStatus(run.id, reason === "budget" ? "over-budget" : "out-of-rounds"),
+        // Only while the run is still running: the user's Pause or Stop, or a `done` from the reports, stays.
+        () => store.endRun(run.id, reason === "budget" ? "over-budget" : "out-of-rounds"),
         // The next change in the run or in what it cost asks again.
         () => halting.delete(run.id),
       )
@@ -114,7 +128,7 @@ export function createWorkflowRuns(store: Store) {
   const finish = (run: WorkflowRun, status: RunStatus) =>
     interrupt(run.sessionID).then(() => store.setStatus(run.id, status))
   return {
-    spend,
+    usage,
     /** Interrupts the director thread; the run is paused. Rejects when the request fails. */
     pause: (run: WorkflowRun) => finish(run, "paused"),
     /** Interrupts the director thread; the run is stopped. Rejects when the request fails. */

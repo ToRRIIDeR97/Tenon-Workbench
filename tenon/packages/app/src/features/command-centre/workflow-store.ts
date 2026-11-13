@@ -63,6 +63,14 @@ export function setRunStatus(runs: ReadonlyArray<WorkflowRun>, id: string, statu
   return runs.map((item) => (item.id === id ? { ...item, status } : item))
 }
 
+/**
+ * The run list with that run's status changed only if it is still `running`: a limit stop that lands after the user
+ * paused or stopped the run, or after its reports finished it, leaves that status alone.
+ */
+export function endRunningRun(runs: ReadonlyArray<WorkflowRun>, id: string, status: RunStatus): WorkflowRun[] {
+  return runs.map((item) => (item.id === id && item.status === "running" ? { ...item, status } : item))
+}
+
 /** The run list without that run. */
 export function removeRun(runs: ReadonlyArray<WorkflowRun>, id: string): WorkflowRun[] {
   return runs.filter((item) => item.id !== id)
@@ -116,6 +124,9 @@ export function createWorkflowStore(platform?: Platform) {
       setStore("runs", updateRun(Array.isArray(store.runs) ? store.runs : [], run.id, run)),
     setStatus: (id: string, status: RunStatus) =>
       setStore("runs", setRunStatus(Array.isArray(store.runs) ? store.runs : [], id, status)),
+    /** Sets the status only while the run is still `running`. */
+    endRun: (id: string, status: RunStatus) =>
+      setStore("runs", endRunningRun(Array.isArray(store.runs) ? store.runs : [], id, status)),
     removeRun: (id: string) => setStore("runs", removeRun(Array.isArray(store.runs) ? store.runs : [], id)),
   }
 }

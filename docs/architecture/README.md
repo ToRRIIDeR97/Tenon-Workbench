@@ -280,21 +280,21 @@ handles the server's `session.next.moved` and `session.next.revert.*` names
 manifest in a unit test). `context/drafts.tsx` holds unsent drafts per window and keeps prompt
 state alive across route changes; it replaced the tab store.
 
-| Data                       | Owner and persistence                                                                                                 |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Vault pages, timelines, logs | `packages/tenon/src/knowledge/vault.ts`; the Tenon vault (`TENON_VAULT_DIR`, default `Documents/Tenon`); see [Tenon vault](#tenon-vault) |
-| Vault machine map          | `vault.ts`; `vault-machine.json` in the data folder (machine id, workspace directory → vault folder id); rebuilt by opening the vault |
-| Vault folder choice        | `packages/desktop/src/main/vault-folder.ts`; `vaultFolder` key in `tenon.settings`                                   |
-| Project records            | `packages/tenon/src/project/brain.ts`; workspace `.tenon/projects/<id>/` Markdown cards (legacy `projects/<id>/`)   |
-| Workspace manifest         | `brain.ts`; workspace `.tenon/workspace.json` (linked project folders)                                                |
-| Trusted folders            | `core/src/config/trust.ts`; `trusted-folders.json` in the data folder; added to only from the app's prompt through `POST /config/trust`; see [Folder trust](../security/threat-model.md#folder-trust) |
-| Linked-folder index        | `brain.ts` writes, `core/src/workspace-instructions.ts` reads; `workspace-links.json` in the data folder; rebuilt by a scan; the first workspace to link a folder keeps it |
-| Project thread directories | Derived, not stored: the card's `location.path` folder (inside the workspace, or a checked linked folder), else a linked Workspace worktree, else the card folder; thread counts read from `opencode.db` |
-| Local events and tasks     | Second Brain HTTP handler and `packages/tenon/src/planner/calendar.ts`; workspace `.tenon/calendar-v1.json` |
-| Sessions and runtime state | `packages/core/src/database/` and runtime session services; `tenon.db` in `$XDG_DATA_HOME/tenon-workbench`            |
-| Unsent desktop drafts      | `packages/desktop/src/main/draft-store.ts`; profile `drafts.sqlite`                                                   |
-| Draft list, sidebar state  | `packages/app/src/context/drafts.tsx`, `components/sidebar/sidebar-controller.ts`; per-window `drafts` and `sidebar` keys |
-| Google connections         | `packages/desktop/src/main/google-calendar.ts`; an account list with encrypted credentials in the desktop profile; see [Google accounts](#google-accounts) |
+| Data                         | Owner and persistence                                                                                                                                                                                    |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Vault pages, timelines, logs | `packages/tenon/src/knowledge/vault.ts`; the Tenon vault (`TENON_VAULT_DIR`, default `Documents/Tenon`); see [Tenon vault](#tenon-vault)                                                                 |
+| Vault machine map            | `vault.ts`; `vault-machine.json` in the data folder (machine id, workspace directory → vault folder id); rebuilt by opening the vault                                                                    |
+| Vault folder choice          | `packages/desktop/src/main/vault-folder.ts`; `vaultFolder` key in `tenon.settings`                                                                                                                       |
+| Project records              | `packages/tenon/src/project/brain.ts`; workspace `.tenon/projects/<id>/` Markdown cards (legacy `projects/<id>/`)                                                                                        |
+| Workspace manifest           | `brain.ts`; workspace `.tenon/workspace.json` (linked project folders)                                                                                                                                   |
+| Trusted folders              | `core/src/config/trust.ts`; `trusted-folders.json` in the data folder; added to only from the app's prompt through `POST /config/trust`; see [Folder trust](../security/threat-model.md#folder-trust)    |
+| Linked-folder index          | `brain.ts` writes, `core/src/workspace-instructions.ts` reads; `workspace-links.json` in the data folder; rebuilt by a scan; the first workspace to link a folder keeps it                               |
+| Project thread directories   | Derived, not stored: the card's `location.path` folder (inside the workspace, or a checked linked folder), else a linked Workspace worktree, else the card folder; thread counts read from `opencode.db` |
+| Local events and tasks       | Second Brain HTTP handler and `packages/tenon/src/planner/calendar.ts`; workspace `.tenon/calendar-v1.json`                                                                                              |
+| Sessions and runtime state   | `packages/core/src/database/` and runtime session services; `tenon.db` in `$XDG_DATA_HOME/tenon-workbench`                                                                                               |
+| Unsent desktop drafts        | `packages/desktop/src/main/draft-store.ts`; profile `drafts.sqlite`                                                                                                                                      |
+| Draft list, sidebar state    | `packages/app/src/context/drafts.tsx`, `components/sidebar/sidebar-controller.ts`; per-window `drafts` and `sidebar` keys                                                                                |
+| Google connections           | `packages/desktop/src/main/google-calendar.ts`; an account list with encrypted credentials in the desktop profile; see [Google accounts](#google-accounts)                                               |
 
 Package paths in this table are relative to `tenon/`. Workspace files are
 the source of truth for notes, project records, and local planning. Do not
@@ -423,17 +423,17 @@ or workspace (`{ error: "inside_workspace" }`).
   already in the vault is reused; a different one gets ` (migrated)` in the
   name. A second run moves nothing.
 
-| Route (workspace from `x-opencode-directory`) | Behaviour |
-| --- | --- |
-| `GET /second-brain/vault` | `{ root, workspace: { id, name, folder } }`; creates the workspace folder once |
-| `GET /second-brain/vault/pages?project=&search=` | Page `info` list, newest first, at most 1,000 |
-| `GET`, `PUT /second-brain/vault/page?path=` | Read; write `{ body, title?, projectId?, properties?, expectedRevision?, create? }`. With `projectId` the path is relative to that Project's folder unless it already starts with it. 400 for unsafe paths or `log/` in a Project, 404 missing, 409 stale or existing |
-| `DELETE /second-brain/vault/page?path=&expectedRevision=` | `{ removed: true }`. The removed version stays in the page's history. 400 for a reserved path, 404 missing, 409 stale |
-| `GET /second-brain/vault/page/history?path=&revision=` | Versions `[{ revision, updatedAt }]`, or one version's `{ revision, body }` |
-| `GET`, `PUT /second-brain/vault/timeline?project=` | `{ projectId, revision, items, progress }`; `PUT { items, expectedRevision? }` |
-| `GET`, `POST /second-brain/vault/log?project=` | Merged entries; `POST { text, author }` appends one line |
-| `GET /second-brain/vault/conflicts` | `[{ path, original }]` |
-| `POST /second-brain/vault/migrate` | `{ moved, backup }` (`backup` relative to the root, null when nothing moved) |
+| Route (workspace from `x-opencode-directory`)             | Behaviour                                                                                                                                                                                                                                                             |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /second-brain/vault`                                 | `{ root, workspace: { id, name, folder } }`; creates the workspace folder once                                                                                                                                                                                        |
+| `GET /second-brain/vault/pages?project=&search=`          | Page `info` list, newest first, at most 1,000                                                                                                                                                                                                                         |
+| `GET`, `PUT /second-brain/vault/page?path=`               | Read; write `{ body, title?, projectId?, properties?, expectedRevision?, create? }`. With `projectId` the path is relative to that Project's folder unless it already starts with it. 400 for unsafe paths or `log/` in a Project, 404 missing, 409 stale or existing |
+| `DELETE /second-brain/vault/page?path=&expectedRevision=` | `{ removed: true }`. The removed version stays in the page's history. 400 for a reserved path, 404 missing, 409 stale                                                                                                                                                 |
+| `GET /second-brain/vault/page/history?path=&revision=`    | Versions `[{ revision, updatedAt }]`, or one version's `{ revision, body }`                                                                                                                                                                                           |
+| `GET`, `PUT /second-brain/vault/timeline?project=`        | `{ projectId, revision, items, progress }`; `PUT { items, expectedRevision? }`                                                                                                                                                                                        |
+| `GET`, `POST /second-brain/vault/log?project=`            | Merged entries; `POST { text, author }` appends one line                                                                                                                                                                                                              |
+| `GET /second-brain/vault/conflicts`                       | `[{ path, original }]`                                                                                                                                                                                                                                                |
+| `POST /second-brain/vault/migrate`                        | `{ moved, backup }` (`backup` relative to the root, null when nothing moved)                                                                                                                                                                                          |
 
 Files left in `<workspace>/notes` from before the vault are only read by the migration.
 
@@ -587,7 +587,7 @@ assistant that spans workspaces, with its own threads, memory and routines.
 - **Threads.** Command Centre threads run in `<vault root>/.command-centre`
   (`CommandMemory.directory()` in `tenon/src/agents/command-memory.ts`, created
   on first use; the renderer derives the same folder from `GET
-  /second-brain/vault` and asks `POST /command-centre/directory` before its
+/second-brain/vault` and asks `POST /command-centre/directory` before its
   first thread). No Project card points at that folder, so
   `/second-brain/project-threads` and the sidebar never list these threads, and
   the page lists only sessions whose directory is that folder. A session keeps
@@ -652,7 +652,7 @@ assistant that spans workspaces, with its own threads, memory and routines.
   shows Undone, Already changed or Couldn't undo.
 - **Step list.** On `/command` the open thread's writes since its latest user
   message render as one `AgentWriteSteps` list (`[data-agent-write]
-  [data-variant="steps"]`, a row per write and the active row's preview).
+[data-variant="steps"]`, a row per write and the active row's preview).
 - **Memory.** `CommandMemory.compact({ now?, days, summarize })` summarises
   Command Centre root threads last updated more than `days` ago (1–365) into
   `.command-centre/memory/<thread>.md` (readable, synced with the vault), then
@@ -755,18 +755,26 @@ assistant that spans workspaces, with its own threads, memory and routines.
   status is `running`, with no timer or polling: it pins the director thread,
   loads it once through `serverSync().session.sync` (the newest 200 messages) and
   fetches the threads under it once with `session.children`, then reacts to the
-  synced store. The director's assistant messages only (`assistantText`; the
-  user's brief is never read) go through the pure `workflow-runs.ts`:
-  `parseReports` reads `[[round N | role | status]]` lines and `applyReports`
-  merges them into the run's `Round[]` (a round with an approved entry makes a
-  running run `done`); the run is saved only when that changed it. Spend is
-  `runSpend` over the synced sessions' `cost` for the director and every thread
-  under it by `parentID`. When `stopReason` returns `budget` or `rounds` the
-  director thread is interrupted (`api.session.interrupt` through the thread's
-  folder) and the run becomes `over-budget` or `out-of-rounds`; the run leaves
-  `running` in the same step and a run still waiting on its interrupt is skipped,
-  so this happens once per run. A run that is `running` when the app starts is
-  followed again. Limits are therefore not enforced while Tenon is closed, and
+  synced store. Only the director's finished assistant messages are read
+  (`completedReports` in `workflow-reads.ts`): each is parsed once and cached by
+  message ID, the message still streaming is skipped until it completes (so a
+  streamed token does no work) and the user's brief is never read. The reports go
+  through the pure `workflow-runs.ts`: `parseReports` reads
+  `[[round N | role | status]]` lines and `applyReports` merges them into the
+  run's `Round[]` (a round with an approved entry makes a running run `done`);
+  the run is saved only when that changed it. Spend is `runSpend` over the
+  director and every thread under it by `parentID`, each priced by the session's
+  own `cost` or, when that is empty, the sum of its loaded messages' costs
+  (`getSessionTotals`). When no thread of a run reports a cost the run view shows
+  "Not reported" and says the budget cannot be enforced, instead of $0. When
+  `stopReason` returns `budget` or `rounds` the director thread is interrupted
+  (`api.session.interrupt` through the thread's folder); a `halting` set stops a
+  second interrupt while the first is in flight. When the interrupt succeeds the
+  run becomes `over-budget` or `out-of-rounds`, but only if it is still `running`
+  (`endRunningRun`): a Pause, Stop or reports-driven `done` that landed meanwhile
+  stays. A failed interrupt is asked again on the next change. A run that leaves
+  `running` is dropped from the loaded set, so Resume loads its thread again. A
+  run that is `running` when the app starts is followed again. Limits are therefore not enforced while Tenon is closed, and
   the run view says so. The run view (`workflow-run-view.tsx`, shown in the
   Workflows view instead of the editor; `[data-component="workflow-run"]`) draws
   the status, the Rounds and Spend meters and one block per round. Pause and Stop
@@ -779,13 +787,13 @@ assistant that spans workspaces, with its own threads, memory and routines.
   (`useAgentWrites().focus`), so the top pill leaves that thread's writes to
   the step list.
 
-| Route (workspace from `x-opencode-directory` or `?directory=`) | Behaviour |
-| --- | --- |
-| `POST /command-centre/directory` | `{ directory }`; creates `<vault root>/.command-centre` |
-| `GET /command-centre/folders` | `{ folders }`; every Command Centre folder on this machine, the current root's first |
-| `GET /command-centre/memory?search=` | `[{ sessionID?, text, at }]`, at most 20; summaries have no `sessionID` |
-| `GET /command-centre/actions?since=` | `[{ id, at, kind, sessionID, title, project?, text?, by }]`, newest first; the agent's logged messages and stops at or after `since` (ms) |
-| `POST /command-centre/memory/compact` | `{ days, model?: { providerID, modelID } }` → `{ summarised, deleted }` |
+| Route (workspace from `x-opencode-directory` or `?directory=`) | Behaviour                                                                                                                                 |
+| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /command-centre/directory`                               | `{ directory }`; creates `<vault root>/.command-centre`                                                                                   |
+| `GET /command-centre/folders`                                  | `{ folders }`; every Command Centre folder on this machine, the current root's first                                                      |
+| `GET /command-centre/memory?search=`                           | `[{ sessionID?, text, at }]`, at most 20; summaries have no `sessionID`                                                                   |
+| `GET /command-centre/actions?since=`                           | `[{ id, at, kind, sessionID, title, project?, text?, by }]`, newest first; the agent's logged messages and stops at or after `since` (ms) |
+| `POST /command-centre/memory/compact`                          | `{ days, model?: { providerID, modelID } }` → `{ summarised, deleted }`                                                                   |
 
 ### Routines
 
@@ -833,11 +841,11 @@ in flight (Run now is off meanwhile) and re-reads the list until it ends. A row'
 switch rewrites the routine page's `enabled` property (read, then `PUT` with its
 revision, since a write replaces all properties), and its name opens the page.
 
-| Route | Behaviour |
-| --- | --- |
-| `GET /second-brain/routines` | `[{ id, name, path, schedule, enabled, nextRun, lastRun, lastStatus, unsupported, hash, needsApproval, denied }]` (`id` is the page id; `lastStatus` is `running`, `done`, `failed`, `unfiled` or null) |
-| `POST /second-brain/routines/<id>/run` | `{ model? }` → `{ threadId }` once the thread exists; the reply is filed in the background. 409 when the page needs approval or while a run of the routine is in flight |
-| `POST /second-brain/routines/<id>/approve` | `{ hash }` (from the list) → `{ approved: true }`; 409 when the page changed since |
+| Route                                      | Behaviour                                                                                                                                                                                               |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /second-brain/routines`               | `[{ id, name, path, schedule, enabled, nextRun, lastRun, lastStatus, unsupported, hash, needsApproval, denied }]` (`id` is the page id; `lastStatus` is `running`, `done`, `failed`, `unfiled` or null) |
+| `POST /second-brain/routines/<id>/run`     | `{ model? }` → `{ threadId }` once the thread exists; the reply is filed in the background. 409 when the page needs approval or while a run of the routine is in flight                                 |
+| `POST /second-brain/routines/<id>/approve` | `{ hash }` (from the list) → `{ approved: true }`; 409 when the page changed since                                                                                                                      |
 
 ### Mail accounts
 
@@ -848,7 +856,7 @@ in. `desktop/src/main/mail/` owns them:
 - `index.ts` (no Electron imports): `createGmailProvider`,
   `createGraphProvider` and `createImapProvider`, each with `search`,
   `readThread` and `createDraft`; results are `{ id, subject, from, date,
-  snippet }` with the thread id (Gmail `threadId`, Graph `conversationId`,
+snippet }` with the thread id (Gmail `threadId`, Graph `conversationId`,
   IMAP `INBOX:<uid>`), threads are `{ id, messages: [{ from, to, date, text }] }`
   with HTML reduced to text. Drafts go to Gmail `POST /drafts`, Graph
   `POST /me/messages` (or `createReply`), or an IMAP `APPEND` to the `\Drafts`
@@ -929,7 +937,7 @@ with the window: the view is an inline-size container, the content is
 (`NEW_SESSION_CONTENT_WIDTH`), and the headline, gaps and editor height use
 `clamp()`. The greeting (`pages/new-session/greeting.tsx`) changes its headline
 every 6 s, each change with the next of four effects in turn (`greetingStep`:
-words rising, typing, a blur crossfade, a rolling verb in "What should we ___
+words rising, typing, a blur crossfade, a rolling verb in "What should we \_\_\_
 today?"); with reduced motion the lines swap plainly. Where the thread runs sits
 inside the composer's top, in session-ui's `headerControl` slot: the folder
 (`PromptProjectSelector`, or the add-folder button without one), its branch
@@ -1004,12 +1012,12 @@ without a restart.
 `configuredInstances()` in `harness.ts` defines four built-in instances. The
 reserved IDs are listed in `packages/core/src/harness/registry.ts`.
 
-| ID             | Driver     | Shown as     | Runs                                                                 |
-| -------------- | ---------- | ------------ | -------------------------------------------------------------------- |
-| `opencode`     | `opencode` | Tenon Workbench | Tenon Workbench's own in-process LLM loop                               |
-| `codex`        | `codex`    | Codex        | `codex app-server`                                                   |
-| `opencode-acp` | `acp`      | OpenCode     | Upstream OpenCode from `PATH` as `opencode acp`, via the ACP driver |
-| `claude-code`  | `acp`      | Claude Code  | Anthropic's `claude-agent-acp` adapter from `PATH`, via the ACP driver |
+| ID             | Driver     | Shown as        | Runs                                                                   |
+| -------------- | ---------- | --------------- | ---------------------------------------------------------------------- |
+| `opencode`     | `opencode` | Tenon Workbench | Tenon Workbench's own in-process LLM loop                              |
+| `codex`        | `codex`    | Codex           | `codex app-server`                                                     |
+| `opencode-acp` | `acp`      | OpenCode        | Upstream OpenCode from `PATH` as `opencode acp`, via the ACP driver    |
+| `claude-code`  | `acp`      | Claude Code     | Anthropic's `claude-agent-acp` adapter from `PATH`, via the ACP driver |
 
 The `opencode` ID is kept for the Tenon Workbench loop so stored sessions keep
 routing to it. `Harness.OpenCodeAcp` in `packages/schema/src/harness.ts` names
@@ -1149,8 +1157,8 @@ Other harness output is mapped onto the built-in views:
   (`codexInputItems`); an ACP agent gets local files as `resource_link` and,
   when it advertises `promptCapabilities.image`, pasted images as `image`
   blocks (`acpPromptBlocks`). Other attachments stay a text mention.
-The child's updates are attached to the subagent call (`acp_subagent`) that
-started it:
+  The child's updates are attached to the subagent call (`acp_subagent`) that
+  started it:
 
 - `steps`: the child's tool steps (tool, title, status).
 - `transcript`: the child's text, reasoning and tool calls in arrival order.
@@ -1361,7 +1369,7 @@ options considered are in [ADR-011](../adr/ADR-011-cross-harness-delegation.md).
 - `core/src/harness/delegation-tasks.ts` is mounted by the server next to its
   routes (`tenon/src/server/routes/instance/httpapi/server.ts`). It runs
   each task as a child Run: `SessionV2.create({ parentID, harnessInstanceID,
-  harnessModel, location })` in the caller's location, then `prompt` with the
+harnessModel, location })` in the caller's location, then `prompt` with the
   task text and `resume`. The task ID is the child's session ID, and the
   result is the child's last assistant reply (capped at 100,000 characters).
 
@@ -1385,7 +1393,7 @@ delegation off, `tools/list` shows only `ask_user` and the delegation tools
 answer that delegation is turned off.
 
 - `ask_user` takes `{ questions: [{ question, header, options: [{ label,
-  description }], multiple? }] }`, checked against `QuestionV2.Prompt`.
+description }], multiple? }] }`, checked against `QuestionV2.Prompt`.
 - `core/src/harness/ask-user.ts` keeps one open question per runtime. Each
   Codex and ACP runtime in `core/src/harness.ts` makes its own asker and hands
   its `ask` to `HarnessDelegation.endpoint`. The asker calls `QuestionV2.ask`
@@ -1480,18 +1488,18 @@ calendar and tasks, and the thread list.
   thread's Project unless `projectId` is given) or, without a Project, the
   workspace's vault folder. `notes_search` covers the whole workspace.
 
-| Tool | Arguments | Result |
-| --- | --- | --- |
-| `notes_search` | `{ query, projectId? }` | `{ pages }` (page info, at most 50) |
-| `notes_read` | `{ path, projectId? }` | `{ info, body, revision }` |
-| `notes_write` | `{ path, body, title?, projectId?, expectedRevision?, create? }` | `{ path, revision, undo }`; `create` omitted writes or creates, `true` only creates, `false` only replaces |
-| `timeline_get` | `{ projectId? }` | The vault timeline |
-| `timeline_update` | `{ projectId?, items, expectedRevision? }` | `{ revision, progress, undo }` |
-| `log_append` | `{ text, projectId? }` | `{ revision, undo }`; author `agent` |
-| `calendar_list` | `{ from?, to? }` | `{ revision, events, tasks }` |
-| `calendar_apply` | `{ events: [{ title, date, start?, end?, details? }] }` | `{ revision, events, undo }`; local events, tagged with the thread's Project |
-| `tasks_create` | `{ tasks: [{ title, dueDate?, notes?, accountId? }] }` | `{ revision, tasks, undo }` |
-| `threads_list` | `{ limit? }` | `{ threads: [{ id, title, updatedAt }] }` of the Project (or workspace) |
+| Tool              | Arguments                                                        | Result                                                                                                     |
+| ----------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `notes_search`    | `{ query, projectId? }`                                          | `{ pages }` (page info, at most 50)                                                                        |
+| `notes_read`      | `{ path, projectId? }`                                           | `{ info, body, revision }`                                                                                 |
+| `notes_write`     | `{ path, body, title?, projectId?, expectedRevision?, create? }` | `{ path, revision, undo }`; `create` omitted writes or creates, `true` only creates, `false` only replaces |
+| `timeline_get`    | `{ projectId? }`                                                 | The vault timeline                                                                                         |
+| `timeline_update` | `{ projectId?, items, expectedRevision? }`                       | `{ revision, progress, undo }`                                                                             |
+| `log_append`      | `{ text, projectId? }`                                           | `{ revision, undo }`; author `agent`                                                                       |
+| `calendar_list`   | `{ from?, to? }`                                                 | `{ revision, events, tasks }`                                                                              |
+| `calendar_apply`  | `{ events: [{ title, date, start?, end?, details? }] }`          | `{ revision, events, undo }`; local events, tagged with the thread's Project                               |
+| `tasks_create`    | `{ tasks: [{ title, dueDate?, notes?, accountId? }] }`           | `{ revision, tasks, undo }`                                                                                |
+| `threads_list`    | `{ limit? }`                                                     | `{ threads: [{ id, title, updatedAt }] }` of the Project (or workspace)                                    |
 
 - Calendar tools read and save `.tenon/calendar-v1.json` through
   `planner/calendar-store.ts` (shared with `/second-brain/calendar`),
@@ -1506,7 +1514,7 @@ calendar and tasks, and the thread list.
   `calendar_apply` events are local events, so nothing is sent for them.
 - Every write publishes on `GlobalBus`, for the thread's directory,
   `{ payload: { type: "agent.write", properties: { id, sessionID, messageID?,
-  callID?, kind, phase, target, preview, undo?, open?, failed? } } }`:
+callID?, kind, phase, target, preview, undo?, open?, failed? } } }`:
   `started` before the write and `done` after it with `undo` and `open`
   (`{ page?, projectId? }`). `messageID`/`callID` name the assistant message
   and tool call when the harness passes them (`HarnessAppTools.Caller`; the
@@ -1517,7 +1525,7 @@ calendar and tasks, and the thread list.
   (pages and log lines), `timeline`, `calendar`, `tasks` or `email` (P8).
   `preview`: note `{ title, text }` (text capped at 4,000 characters), tasks
   `{ tasks: [{ title, dueDate? }] }`, calendar `{ events: [{ title, date,
-  start?, end? }] }`, timeline `{ projectId, items }`, email
+start?, end? }] }`, timeline `{ projectId, items }`, email
   `{ to, subject, body }`.
 - `POST /second-brain/writes/<undo>/undo` reverts one write: a page is
   restored (or removed when the write created it) with `expectedRevision` set
@@ -1704,7 +1712,7 @@ directory so it stays out of project lists. Because ACP agents get no Second
 Brain system prompt, the task instructions travel in the first user message.
 
 1. The assistant investigates with its own tools and replies with a
-   ```` ```harness ```` JSON block.
+   ` ```harness ` JSON block.
 2. When the session goes idle, the page parses the block and shows the exact
    command with a "Test this command" button. Shells, interpreters and
    download tools are refused. On the click it calls
@@ -2172,7 +2180,7 @@ CLIs refresh tokens themselves.
   `auth.json`; for the OpenCode harness, the `opencode-go` key in the OpenCode
   CLI's `auth.json`. The key goes to `GET https://opencode.ai/zen/go/v1/usage`, which returns
   `usage.rolling` (5-hour), `weekly` and `monthly`, each `{ status, percent,
-  resetsAt }`. The endpoint is not in OpenCode's documentation, and the success
+resetsAt }`. The endpoint is not in OpenCode's documentation, and the success
   body was checked against a third-party client, not a live response. A 401 is
   signed out (an `api_key_expired` code says to create a new key in the
   OpenCode Console), a 403 is a key without Go (unsupported), and no Go key is
