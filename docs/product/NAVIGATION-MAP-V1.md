@@ -280,7 +280,37 @@ folder as a workspace and selects it) and `tenon://new-session?directory=<path>&
 - **Command Centre** replaced Activity. It lists only its own threads (never
   Project threads) with rename, archive and delete on each row, searches memory,
   opens **Archived threads** and links to **Routines**, whose rows switch a
-  routine on or off, open its page and run it now. On every other page a handle above the bottom edge
+  routine on or off, open its page and run it now. Its **Mission control**
+  board shows every Project's threads **By state** (Needs you, Running, and
+  Finished in the last day) or **By project**. A running row has **Steer**
+  (one line sent to that thread with Enter) and **Stop**; a Needs you row has
+  **Review**; every row has **Open**. A view switch above the board opens
+  **Waiting on you**: one card per pending permission or question across the
+  Projects (permissions have **Allow once**, **Always allow this** and **Deny**,
+  questions **Open**), what may run without asking per Project (Ask, Auto-edit,
+  Full auto, changed with the same menu as the composer), and **Done on your
+  behalf**, today's messages and stops the Command Centre agent made to other
+  threads, each with **Open**. The third view, **Workflows**, lists saved role
+  setups (such as Build and review: a director, an implementor and a reviewer)
+  with **New workflow**; each role card has a job, a harness and model from the
+  composer's list and what the role may do (direct, edit or read), followed by
+  **Start on** (a Project), an optional **Stop at $** budget, a round cap (1 to
+  10), a **Brief for this run**, **Duplicate**, **Delete** (not for a built-in)
+  and **Start**. Start is refused, with the reasons listed beside it, until every
+  role has a harness and the brief and Project are set; then it opens a director
+  thread in that Project, sends it the generated brief and returns to Mission
+  control. Under the saved workflows, **Runs** lists the started runs (newest
+  first, each with its workflow, Project and status); selecting one shows the
+  run view in place of the editor: the director thread's title, a status
+  (for example "Running · round 2 of 5"), **Pause** and **Stop** (a paused run
+  has **Resume**, which asks the director to carry on), what it repeats until
+  (the reviewer approves), **Rounds** and **Spend** against their limits, one
+  block per round (In progress, Sent back, Approved) with each role's latest
+  entry, and links to the director thread and to the Project's threads on the
+  board. A finished run offers only those links and **Remove from the list**.
+  The limits (the round cap and the budget) are enforced only while Tenon is
+  open, and a run never merges or pushes. A director's row on the board shows
+  "Round n of max" and a **Run view** control that opens the same view. On every other page a handle above the bottom edge
   opens the K3 strip (also `mod+j`; Esc closes it) with the latest reply, a
   composer and **Open full**. On a thread the strip sits on top of the composer.
 - **Settings** contains General, Shortcuts, Servers, Providers, Models and

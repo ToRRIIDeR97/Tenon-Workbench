@@ -31,11 +31,27 @@ export interface MockServerConfig {
   sessionStatus?: Record<string, unknown> | (() => Record<string, unknown>)
   /** Second Brain Projects with their thread directories (GET /second-brain/project-threads). */
   projectThreads?: unknown[] | (() => unknown[])
+  /** A prompt sent to a thread (legacy `prompt_async` or the current `/api/session/:id/prompt`). */
+  onPrompt?: (input: { sessionID: string; directory?: string; body: unknown }) => void
+  /**
+   * A new thread (POST `/api/session`, or the legacy POST `/session`). The mock adds it to `sessions` under a fresh
+   * ID and answers with it; `body` is what the app sent (the folder is `location.directory`).
+   */
+  onSessionCreate?: (input: { sessionID: string; body: unknown; directory?: string }) => void
+  /** An abort of a thread's run (legacy `abort` or the current `interrupt`). */
+  onAbort?: (input: { sessionID: string; directory?: string }) => void
+  /** A reply to a pending permission request (legacy `permissions/:id` or the current `permission/:id/reply`). */
+  onPermissionReply?: (input: { sessionID: string; requestID: string; directory?: string; body: unknown }) => void
+  /** The child threads of a thread (GET `/session/:id/children`); without it a thread has none. */
+  children?: (sessionID: string) => unknown[]
+  /** The Command Centre agent's logged actions (GET /command-centre/actions); the `since` query is not applied. */
+  commandActions?: unknown[] | (() => unknown[])
 }
 
 export async function mockTenonServer(page: Page, config: MockServerConfig) {
   const cursors = new Map<string, string>()
   let nextCursor = 0
+  let createdSessions = 0
   const staticRoutes: Record<string, unknown> = {
     "/path": {
       state: config.directory,
@@ -200,8 +216,31 @@ export async function mockTenonServer(page: Page, config: MockServerConfig) {
       return json(route, { location: location(config), data: { ticket: "e2e-ticket", expires_in: 60 } })
     // The Command Centre reads the folders its threads have lived in; a real server always sends the list.
     if (path === "/command-centre/folders") return json(route, { folders: [] })
+    if (path === "/command-centre/actions")
+      return json(
+        route,
+        typeof config.commandActions === "function" ? config.commandActions() : (config.commandActions ?? []),
+      )
     if (emptyObject.has(path)) return json(route, {})
     if (emptyList.has(path)) return json(route, [])
+    if (
+      config.onSessionCreate &&
+      (path === "/api/session" || path === "/session") &&
+      route.request().method() === "POST"
+    ) {
+      const body = (route.request().postDataJSON() ?? {}) as { location?: { directory?: string } }
+      const created = {
+        id: `ses_created_${++createdSessions}`,
+        projectID: "global",
+        directory: body.location?.directory ?? url.searchParams.get("directory") ?? config.directory,
+        title: "New session",
+        version: "dev",
+        time: { created: Date.now(), updated: Date.now() },
+      }
+      config.sessions.push(created)
+      config.onSessionCreate({ sessionID: created.id, body, directory: created.directory })
+      return json(route, path === "/api/session" ? { data: currentSession(created, config.directory) } : created)
+    }
     if (path === "/api/session") {
       const directory = url.searchParams.get("directory")
       const parentID = url.searchParams.get("parentID")
@@ -227,6 +266,20 @@ export async function mockTenonServer(page: Page, config: MockServerConfig) {
         cursor: { next },
       })
     }
+    const prompt = path.match(/^\/session\/([^/]+)\/prompt_async$/) ?? path.match(/^\/api\/session\/([^/]+)\/prompt$/)
+    if (prompt && route.request().method() === "POST") {
+      config.onPrompt?.({
+        sessionID: prompt[1]!,
+        directory: url.searchParams.get("directory") ?? undefined,
+        body: route.request().postDataJSON(),
+      })
+      return route.fulfill({ status: 204, headers: { "access-control-allow-origin": "*" } })
+    }
+    const abort = path.match(/^\/session\/([^/]+)\/abort$/) ?? path.match(/^\/api\/session\/([^/]+)\/interrupt$/)
+    if (abort && route.request().method() === "POST") {
+      config.onAbort?.({ sessionID: abort[1]!, directory: url.searchParams.get("directory") ?? undefined })
+      return json(route, true)
+    }
     if (path === "/api/session/active") {
       const statuses = (config.sessionStatus ?? {}) as Record<string, { type?: string }>
       return json(route, {
@@ -243,13 +296,21 @@ export async function mockTenonServer(page: Page, config: MockServerConfig) {
     if (/^\/api\/session\/[^/]+\/question\/[^/]+\/(reply|reject)$/.test(path) && route.request().method() === "POST") {
       return route.fulfill({ status: 204, headers: { "access-control-allow-origin": "*" } })
     }
-    if (/^\/api\/session\/[^/]+\/permission\/[^/]+\/reply$/.test(path) && route.request().method() === "POST") {
-      return route.fulfill({ status: 204, headers: { "access-control-allow-origin": "*" } })
+    const reply =
+      path.match(/^\/api\/session\/([^/]+)\/permission\/([^/]+)\/reply$/) ??
+      path.match(/^\/session\/([^/]+)\/permissions\/([^/]+)$/)
+    if (reply && route.request().method() === "POST") {
+      config.onPermissionReply?.({
+        sessionID: reply[1]!,
+        requestID: reply[2]!,
+        directory: url.searchParams.get("directory") ?? undefined,
+        body: route.request().postDataJSON(),
+      })
+      return path.startsWith("/api/")
+        ? route.fulfill({ status: 204, headers: { "access-control-allow-origin": "*" } })
+        : json(route, true)
     }
     if (/^\/question\/[^/]+\/(reply|reject)$/.test(path) && route.request().method() === "POST") {
-      return json(route, true)
-    }
-    if (/^\/session\/[^/]+\/permissions\/[^/]+$/.test(path) && route.request().method() === "POST") {
       return json(route, true)
     }
     if (
@@ -292,6 +353,8 @@ export async function mockTenonServer(page: Page, config: MockServerConfig) {
 
     const todoMatch = path.match(/^\/session\/([^/]+)\/todo$/)
     if (todoMatch) return json(route, config.todos?.(todoMatch[1]!) ?? [])
+    const childrenMatch = path.match(/^\/session\/([^/]+)\/children$/)
+    if (childrenMatch && config.children) return json(route, config.children(childrenMatch[1]!))
     if (/^\/session\/[^/]+\/(children|diff)$/.test(path)) return json(route, [])
 
     if (/^\/api\/session\/[^/]+\/diff$/.test(path)) return json(route, { data: config.sessionDiff ?? [] })

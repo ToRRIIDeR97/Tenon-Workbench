@@ -4,7 +4,8 @@ import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { MenuV2 } from "@tenon/ui/v2/menu-v2"
-import { createEffect, createResource, createSignal, For, onMount, Show } from "solid-js"
+import { SegmentedControlItemV2, SegmentedControlV2 } from "@tenon/ui/v2/segmented-control-v2"
+import { createEffect, createResource, createSignal, For, Match, onMount, Show, Switch } from "solid-js"
 import { createStore } from "solid-js/store"
 import { PageEmpty, PageFrame, PageHeader, pageRowClass } from "@/components/page"
 import { ComposerBox } from "@/components/prompt-input/composer-box"
@@ -19,14 +20,18 @@ import { usePlatform } from "@/context/platform"
 import { useServer } from "@/context/server"
 import { useServerSDK } from "@/context/server-sdk"
 import { useSettings } from "@/context/settings"
+import { AgentHands, createWaitingQueue } from "@/features/command-centre/agent-hands-view"
 import { useCommandCentre, type CommandThread } from "@/features/command-centre/command-centre"
+import { createMissionThreads, MissionBoard } from "@/features/command-centre/mission-board-view"
+import { Workflows } from "@/features/command-centre/workflows-view"
 import { searchCommandMemory } from "@/features/second-brain/client"
 import { sessionHref } from "@/utils/session-route"
 import { getRelativeTime } from "@/utils/time"
 
 /**
- * The Command Centre: its own threads (never Project threads), memory search, the link to Routines and a
- * composer that starts a fresh thread. A thread opens in the thread view, like a Project thread but without
+ * The Command Centre: its own threads (never Project threads), memory search, the link to Routines, the mission
+ * board of every Project's threads (or, from the view switch, what waits on the user and what the agent did on
+ * their behalf, or the saved workflows that start a director thread) and a composer that starts a fresh thread. A thread opens in the thread view, like a Project thread but without
  * review, files or terminal. `/command?thread=<session id>` (older links, the strip's "Open full") opens
  * that thread.
  */
@@ -44,8 +49,18 @@ export default function CommandCentrePage() {
   // The provider outlives this page, so catch up on what changed while it was closed.
   onMount(() => void centre.refetch())
   const [search] = useSearchParams<{ thread?: string }>()
-  const [state, setState] = createStore({ memory: "", query: "", hit: -1 })
+  const [state, setState] = createStore({
+    memory: "",
+    query: "",
+    hit: -1,
+    view: "board" as "board" | "waiting" | "workflows",
+    // The workflow run shown in the Workflows view, and the Project the board is asked to show.
+    run: undefined as string | undefined,
+    project: undefined as string | undefined,
+  })
   const open = (sessionID: string) => navigate(sessionHref(server.key, sessionID))
+  const board = createMissionThreads(ctrl)
+  const queue = createWaitingQueue(ctrl, board)
   createEffect(() => {
     if (search.thread) navigate(sessionHref(server.key, search.thread), { replace: true })
   })
@@ -205,26 +220,83 @@ export default function CommandCentrePage() {
             </ul>
           </Show>
         </aside>
-        <div class="@container flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-6 overflow-y-auto rounded-[16px] bg-v2-background-bg-layer-01 px-6 py-8">
-          <Show when={!centre.loading() && centre.threads().length === 0}>
-            <PageEmpty title={language.t("secondBrain.commandCentre.empty.title")}>
-              {language.t("secondBrain.commandCentre.empty.body")}
-            </PageEmpty>
-          </Show>
-          <ComposerBox
-            size="large"
-            class="w-full max-w-[720px]"
-            controller={composer}
-            label={language.t("secondBrain.commandCentre.composer.label")}
-            placeholder={language.t("secondBrain.commandCentre.composer.placeholder")}
-            sendLabel={language.t("secondBrain.commandCentre.composer.send")}
-            controls={<ComposerModelPill harness={harness} />}
-          />
-          <Show when={centre.error()}>
-            <p role="alert" class="type-meta text-v2-text-text-critical">
-              {language.t("common.requestFailed")}
-            </p>
-          </Show>
+        <div class="@container flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden rounded-[16px] bg-v2-background-bg-layer-01 py-6">
+          <div class="flex min-h-0 flex-1 flex-col overflow-y-auto px-6">
+            <div class="mx-auto flex w-full max-w-[1040px] flex-col gap-4">
+              <SegmentedControlV2
+                aria-label={language.t("secondBrain.commandCentre.hands.view")}
+                value={state.view}
+                onChange={(value) =>
+                  setState({
+                    view: value === "waiting" || value === "workflows" ? value : "board",
+                    project: undefined,
+                  })
+                }
+              >
+                <SegmentedControlItemV2 value="board" data-action="command-view">
+                  {language.t("secondBrain.commandCentre.board.title")}
+                </SegmentedControlItemV2>
+                <SegmentedControlItemV2 value="waiting" data-action="command-view">
+                  {language.t("secondBrain.commandCentre.hands.waiting")}
+                  <Show when={queue().length > 0}>
+                    <span class="ml-1.5 tabular-nums">{queue().length}</span>
+                  </Show>
+                </SegmentedControlItemV2>
+                <SegmentedControlItemV2 value="workflows" data-action="command-view">
+                  {language.t("secondBrain.workflows.title")}
+                </SegmentedControlItemV2>
+              </SegmentedControlV2>
+              <Switch>
+                <Match when={state.view === "workflows"}>
+                  <Workflows
+                    ctrl={ctrl}
+                    started={() => setState("view", "board")}
+                    run={state.run}
+                    selectRun={(run) => setState("run", run)}
+                    open={open}
+                    showProject={(project) => setState({ view: "board", project })}
+                  />
+                </Match>
+                <Match when={state.view === "waiting"}>
+                  <AgentHands ctrl={ctrl} queue={queue()} open={open} />
+                </Match>
+                <Match when={true}>
+                  <Show
+                    when={centre.loading() || centre.threads().length > 0 || board().length > 0}
+                    fallback={
+                      <PageEmpty title={language.t("secondBrain.commandCentre.empty.title")}>
+                        {language.t("secondBrain.commandCentre.empty.body")}
+                      </PageEmpty>
+                    }
+                  >
+                    <MissionBoard
+                      ctrl={ctrl}
+                      threads={board()}
+                      open={open}
+                      openRun={(run) => setState({ view: "workflows", run })}
+                      focusProject={state.project}
+                    />
+                  </Show>
+                </Match>
+              </Switch>
+            </div>
+          </div>
+          <div class="flex shrink-0 flex-col items-center gap-3 px-6">
+            <ComposerBox
+              size="large"
+              class="w-full max-w-[720px]"
+              controller={composer}
+              label={language.t("secondBrain.commandCentre.composer.label")}
+              placeholder={language.t("secondBrain.commandCentre.composer.placeholder")}
+              sendLabel={language.t("secondBrain.commandCentre.composer.send")}
+              controls={<ComposerModelPill harness={harness} />}
+            />
+            <Show when={centre.error()}>
+              <p role="alert" class="type-meta text-v2-text-text-critical">
+                {language.t("common.requestFailed")}
+              </p>
+            </Show>
+          </div>
         </div>
       </div>
     </PageFrame>

@@ -21,6 +21,7 @@ import { SidebarControllerProvider } from "@/components/sidebar/sidebar-controll
 import { AgentWritePill } from "@/features/agent-writes/cards"
 import { AgentWritesProvider } from "@/features/agent-writes/store"
 import { CommandCentreProvider } from "@/features/command-centre/command-centre"
+import { WorkflowsProvider } from "@/features/command-centre/workflow-store"
 import { CommandStrip } from "@/features/command-centre/command-strip"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
@@ -74,29 +75,31 @@ export default function NewLayout(props: ParentProps) {
           }
         />
         <CommandCentreProvider>
-          <SidebarControllerProvider>
-            <div class="relative flex flex-1 min-h-0 min-w-0">
-              <SecondBrainSidebar />
-              <main class="relative flex-1 min-h-0 min-w-0 overflow-x-hidden flex flex-col items-start contain-strict">
-                {/* A failed page request shows a retryable message here and keeps the sidebar usable. */}
-                <ErrorBoundary fallback={(error, reset) => <PageError error={error} reset={reset} />}>
-                  <Suspense>
-                    <ViewSwitch key={pageKey().count} class="flex min-h-0 min-w-0 w-full flex-1 flex-col items-start">
-                      {props.children}
-                    </ViewSwitch>
-                    <FirstRouteMark />
-                  </Suspense>
-                </ErrorBoundary>
-                {/* K3: the Command Centre strip, centred on the page (main contains it), everywhere but the Command Centre. */}
-                <Show when={location.pathname !== "/command"}>
-                  <CommandStrip />
-                </Show>
-                {/* Writes by agents in other threads (W4), centred on the page like K3; the writing thread
+          <WorkflowsProvider>
+            <SidebarControllerProvider>
+              <div class="relative flex flex-1 min-h-0 min-w-0">
+                <SecondBrainSidebar />
+                <main class="relative flex-1 min-h-0 min-w-0 overflow-x-hidden flex flex-col items-start contain-strict">
+                  {/* A failed page request shows a retryable message here and keeps the sidebar usable. */}
+                  <ErrorBoundary fallback={(error, reset) => <PageError error={error} reset={reset} />}>
+                    <Suspense>
+                      <ViewSwitch key={pageKey().count} class="flex min-h-0 min-w-0 w-full flex-1 flex-col items-start">
+                        {props.children}
+                      </ViewSwitch>
+                      <FirstRouteMark />
+                    </Suspense>
+                  </ErrorBoundary>
+                  {/* K3: the Command Centre strip, centred on the page (main contains it), everywhere but the Command Centre. */}
+                  <Show when={location.pathname !== "/command"}>
+                    <CommandStrip />
+                  </Show>
+                  {/* Writes by agents in other threads (W4), centred on the page like K3; the writing thread
                 shows them inline instead. */}
-                <AgentWritePill />
-              </main>
-            </div>
-          </SidebarControllerProvider>
+                  <AgentWritePill />
+                </main>
+              </div>
+            </SidebarControllerProvider>
+          </WorkflowsProvider>
         </CommandCentreProvider>
         {import.meta.env.DEV && state.debugTools && <DebugBar inline />}
         <ToastRegion v2 />

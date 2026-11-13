@@ -155,7 +155,7 @@ function messageState(message: Message) {
 }
 
 /** A message's text parts, streamed text included, one per line. */
-function messageText(data: CommandTranscript, messageID: string) {
+export function messageText(data: CommandTranscript, messageID: string) {
   return (data.part[messageID] ?? [])
     .flatMap((part) => (part.type === "text" ? [readPartText(data.part_text_accum_delta, part)] : []))
     .join("\n")

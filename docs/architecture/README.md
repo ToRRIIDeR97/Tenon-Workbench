@@ -587,7 +587,7 @@ assistant that spans workspaces, with its own threads, memory and routines.
 - **Threads.** Command Centre threads run in `<vault root>/.command-centre`
   (`CommandMemory.directory()` in `tenon/src/agents/command-memory.ts`, created
   on first use; the renderer derives the same folder from `GET
-  /second-brain/vault` and asks `POST /command-centre/directory` before its
+/second-brain/vault` and asks `POST /command-centre/directory` before its
   first thread). No Project card points at that folder, so
   `/second-brain/project-threads` and the sidebar never list these threads, and
   the page lists only sessions whose directory is that folder. A session keeps
@@ -602,6 +602,19 @@ assistant that spans workspaces, with its own threads, memory and routines.
   one with the harness and model from Settings › Command Centre. The list
   refreshes when the page opens and, debounced, on `session.created/updated/deleted`
   events for that folder, so archives, deletes and routine runs show up.
+- **Mission control.** The page also shows a board of every Project's threads
+  (`features/command-centre/mission-board-view.tsx`; the sort and grouping are the
+  pure `mission-board.ts`). It adds no request and no polling: it reads the sidebar
+  controller's thread groups (`useSidebarController().groups()`, built from the
+  `useProjectThreads` query and the session index) and the synced run state
+  (`agentRunStatus`, `needsYou`), and leaves out any thread in a `.command-centre`
+  folder. A thread waiting on the user (approvals plus questions, subagents
+  included) is under **Needs you**, a running or retrying one under **Running**, and
+  an idle one under **Finished** for 24 hours; **By project** groups the same
+  threads per Project with General last. A running row's **Steer** sends one line
+  with `api.session.prompt` (`delivery: "steer"`, through the thread's own folder
+  context) and **Stop** calls `api.session.interrupt`; **Review** and **Open**
+  navigate to the thread. Nothing here answers an approval.
 - **Desktop widget.** One small frameless window on the desktop (the Widgets workshop), nothing on Home.
   `desktop/src/main/windows.ts` `createWidgetWindow` opens it transparent, without a taskbar entry, with the
   main window's session and navigation policy, its saved position, and the renderer at `?surface=widget`;
@@ -639,7 +652,7 @@ assistant that spans workspaces, with its own threads, memory and routines.
   shows Undone, Already changed or Couldn't undo.
 - **Step list.** On `/command` the open thread's writes since its latest user
   message render as one `AgentWriteSteps` list (`[data-agent-write]
-  [data-variant="steps"]`, a row per write and the active row's preview).
+[data-variant="steps"]`, a row per write and the active row's preview).
 - **Memory.** `CommandMemory.compact({ now?, days, summarize })` summarises
   Command Centre root threads last updated more than `days` ago (1–365) into
   `.command-centre/memory/<thread>.md` (readable, synced with the vault), then
@@ -673,8 +686,8 @@ assistant that spans workspaces, with its own threads, memory and routines.
   created; after that the folder stays with its Project. Command Centre
   sessions call it as the `project_setup` app tool.
 - **Tools.** `AgentAppTools.list({ sessionID })` (synchronous) gives a
-  Command Centre thread the app tools plus `memory_search`, `project_setup`
-  and, when `TENON_MAIL_URL` and `TENON_MAIL_TOKEN` are set, `mail_search`,
+  Command Centre thread the app tools plus `memory_search`, `project_setup`,
+  the thread tools (below) and, when `TENON_MAIL_URL` and `TENON_MAIL_TOKEN` are set, `mail_search`,
   `mail_read` and `mail_draft` (`tenon/src/agents/mail-tools.ts`, which posts
   JSON to the desktop's `/search`, `/thread` and `/draft` with the bearer
   token). A thread counts as a Command Centre thread once `session.created`
@@ -694,6 +707,82 @@ assistant that spans workspaces, with its own threads, memory and routines.
   In that folder the built-in agents also ask before `bash`, `webfetch`,
   `websearch` and `edit` (`core/src/plugin/agent.ts`, `tenon/src/agent/agent.ts`),
   and the Command Centre card says when the latest thread is waiting on an approval or a question.
+- **Thread tools and the action log.** `threads_overview` lists the root
+  threads of every Project in the workspace (and its General group) with state
+  `needs_you`, `running` or `idle` (pending permissions and questions and running
+  state are read per thread folder through `InstanceStore.provide`);
+  `thread_read` returns a thread's latest messages as capped text;
+  `thread_message` sends a steering message (a harness thread through
+  `SessionV2.prompt` with `delivery: "steer"`, a built-in one through
+  `SessionPrompt.prompt` in the thread's folder, not waited for) and
+  `thread_stop` cancels it (`SessionPrompt.cancel` and `SessionV2.interrupt`).
+  The reachable set is computed by `threadFolders` and checked by
+  `projectThread`; see the [threat model](../security/threat-model.md#command-centre-memory-and-routines).
+  No tool replies to a permission request or a question. Each message and stop
+  is recorded by `CommandActionLog` (`agents/command-action-log.ts`, pure list
+  logic in `command-actions.ts`) in `<vault root>/.command-centre/actions.json`,
+  which `GET /command-centre/actions` serves. On the page, the "Waiting on you"
+  view (`features/command-centre/agent-hands-view.tsx`, queue order from the pure
+  `approval-queue.ts`) lists the pending requests of the board's threads from the
+  synced `permission` and `question` data (no extra request), answers
+  permissions with `api.permission.reply` through the thread's folder, shows
+  today's log as "Done on your behalf" (read when the view opens and when a
+  Command Centre thread starts or ends a turn, never on a timer), and lists each
+  Project's Ask, Auto-edit or Full auto mode with the same control as the
+  composer (`PermissionModeControl`, state in `usePermission`).
+- **Workflows.** The third view (`features/command-centre/workflows-view.tsx`;
+  pure `workflows.ts`) edits saved role setups and starts them. `validateWorkflow`
+  names what is wrong (name, roles, director, role, rounds, budget) and Start is
+  refused while it returns anything, the brief is blank or no Project is chosen.
+  The harness and model pickers list what the composer lists: the same
+  `listHarnessesRemembered` check (own query key) with Settings' hidden models
+  left out. Start creates a thread in the Project's thread folder with
+  `api.session.create` on the director's harness and model, then sends
+  `directorBrief(workflow, brief)` with `api.session.prompt` (the brief names each
+  role, tells the director to hand work over with the `delegate_task` tool,
+  to report `[[round N | role | status]]` lines and to stop after the round cap,
+  and carries the fixed `WORKFLOW_RULES`: no push, no merge). A failed create or
+  send shows the request-failed message and records nothing. Workflows (the
+  user's edits and additions over the built-in `DEFAULT_WORKFLOWS`) and started
+  runs persist in one `persisted` store, `workflow-store.ts`
+  (`WorkflowsProvider`, mounted in `pages/layout-new.tsx`), under the global key
+  `command-workflows.v1` (`{ workflows, runs }`). A run is recorded as
+  `running` with no rounds. No server route or action-log entry is involved.
+  The harness list follows Settings changes (its query key carries
+  `harnessSettingsVersion`, as the thread composer's does).
+- **Runs and limits.** While the app is open `createWorkflowRuns`
+  (`workflow-tracker.ts`, started by `WorkflowsProvider`) follows every run whose
+  status is `running`, with no timer or polling: it pins the director thread,
+  loads it once through `serverSync().session.sync` (the newest 200 messages) and
+  fetches the threads under it once with `session.children`, then reacts to the
+  synced store. Only the director's finished assistant messages are read
+  (`completedReports` in `workflow-reads.ts`): each is parsed once and cached by
+  message ID, the message still streaming is skipped until it completes (so a
+  streamed token does no work) and the user's brief is never read. The reports go
+  through the pure `workflow-runs.ts`: `parseReports` reads
+  `[[round N | role | status]]` lines and `applyReports` merges them into the
+  run's `Round[]` (a round with an approved entry makes a running run `done`);
+  the run is saved only when that changed it. Spend is `runSpend` over the
+  director and every thread under it by `parentID`, each priced by the session's
+  own `cost` or, when that is empty, the sum of its loaded messages' costs
+  (the `getSessionUsage` fallback that `getSessionTotals` uses). When no thread of a run reports a cost the run view shows
+  "Not reported" and says the budget cannot be enforced, instead of $0. When
+  `stopReason` returns `budget` or `rounds` the director thread is interrupted
+  (`api.session.interrupt` through the thread's folder); a `halting` set stops a
+  second interrupt while the first is in flight. When the interrupt succeeds the
+  run becomes `over-budget` or `out-of-rounds`, but only if it is still `running`
+  (`endRunningRun`): a Pause, Stop or reports-driven `done` that landed meanwhile
+  stays. A failed interrupt is asked again on the next change. A run that leaves
+  `running` is dropped from the loaded set, so Resume loads its thread again. A
+  run that is `running` when the app starts is followed again. Limits are therefore not enforced while Tenon is closed, and
+  the run view says so. The run view (`workflow-run-view.tsx`, shown in the
+  Workflows view instead of the editor; `[data-component="workflow-run"]`) draws
+  the status, the Rounds and Spend meters and one block per round. Pause and Stop
+  interrupt the director and set `paused` or `stopped`; Resume sends the director
+  a short message (`RESUME_TEXT`) and sets `running`. The board row of a director
+  thread (`mission-board-view.tsx`) shows its round and opens the view. A run
+  never merges or pushes: the director's brief carries those rules and the
+  tracker only reads and interrupts.
 - **Pill.** The Command Centre page marks its open thread as focused
   (`useAgentWrites().focus`), so the top pill leaves that thread's writes to
   the step list.
@@ -703,6 +792,7 @@ assistant that spans workspaces, with its own threads, memory and routines.
 | `POST /command-centre/directory` | `{ directory }`; creates `<vault root>/.command-centre` |
 | `GET /command-centre/folders` | `{ folders }`; every Command Centre folder on this machine, the current root's first |
 | `GET /command-centre/memory?search=` | `[{ sessionID?, text, at }]`, at most 20; summaries have no `sessionID` |
+| `GET /command-centre/actions?since=` | `[{ id, at, kind, sessionID, title, project?, text?, by }]`, newest first; the agent's logged messages and stops at or after `since` (ms) |
 | `POST /command-centre/memory/compact` | `{ days, model?: { providerID, modelID } }` → `{ summarised, deleted }` |
 
 ### Routines

@@ -56,6 +56,8 @@ export const MODEL_RETRIES = 10
 // Bumped by Settings after a harness is added, toggled, or removed, so open prompts refetch the list.
 const [settingsVersion, setSettingsVersion] = createSignal(0)
 export const harnessSettingsChanged = () => setSettingsVersion((value) => value + 1)
+/** Changes whenever `harnessSettingsChanged` ran; a query keyed on it asks for the harness list again. */
+export const harnessSettingsVersion = () => settingsVersion()
 
 /**
  * Where a server's persisted harness list is stored for a folder. The desktop sidecar gets a new port on
