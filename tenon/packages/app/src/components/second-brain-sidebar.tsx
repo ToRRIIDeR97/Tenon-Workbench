@@ -129,12 +129,12 @@ export function SecondBrainSidebar() {
     <div
       data-component="second-brain-sidebar"
       data-expanded={layout.sidebar.opened() ? "" : undefined}
-      // One outlined container: its width grows from the rail (80px) into rail plus panel. The outline is an
-      // inset ring like the page panel's, so it takes no width.
+      // One container with no surface of its own, flat on the window background: its width grows from the rail
+      // (80px) into rail plus panel.
       // Not overflow-hidden, so rail labels can still float past its edge; the panel clips itself.
       classList={{
-        // Same 8px inset as the page panel beside it, so the two share a top and bottom edge.
-        "m-2 flex min-h-0 shrink-0 rounded-[24px] bg-v2-background-bg-base shadow-[0_0_0_1px_var(--v2-border-border-muted)] transition-[width] motion-reduce:duration-0": true,
+        // Starts below the title bar, which floats over the window's top; 8px in on the other sides.
+        "titlebar-inset-margin m-2 flex min-h-0 shrink-0 transition-[width] motion-reduce:duration-0": true,
         "w-20 duration-medium ease-emphasized-decelerate md:w-[336px]": layout.sidebar.opened(),
         "w-20 duration-short ease-emphasized-accelerate": !layout.sidebar.opened(),
       }}
@@ -143,11 +143,7 @@ export function SecondBrainSidebar() {
       }}
     >
       <nav
-        // A hairline divides the rail from the Projects panel beside it; alone, the rail is the container.
-        classList={{
-          "flex w-20 shrink-0 flex-col items-center gap-3 border-v2-border-border-muted pb-4 pt-3": true,
-          "md:border-r": layout.sidebar.opened(),
-        }}
+        class="flex w-20 shrink-0 flex-col items-center gap-3 pb-4 pt-3"
         aria-label={language.t("secondBrain.sidebar.title")}
       >
         <For each={items()}>
@@ -175,7 +171,7 @@ export function SecondBrainSidebar() {
         classList={{
           // The rail stays at every width; the Projects panel needs the room of a md window.
           // It fills what the container leaves beside the rail and fades on the container's timing.
-          "hidden min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-r-[24px] transition-opacity motion-reduce:duration-0 md:flex": true,
+          "hidden min-h-0 min-w-0 flex-1 flex-col overflow-hidden transition-opacity motion-reduce:duration-0 md:flex": true,
           "opacity-100 duration-medium ease-emphasized-decelerate": layout.sidebar.opened(),
           "opacity-0 duration-short ease-emphasized-accelerate": !layout.sidebar.opened(),
         }}

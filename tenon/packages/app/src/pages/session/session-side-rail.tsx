@@ -3,7 +3,6 @@ import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { KeybindV2 } from "@tenon/ui/v2/keybind-v2"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
-import { pagePanelClass } from "@/components/page"
 import { SessionContextUsage } from "@/components/session-context-usage"
 import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
@@ -117,7 +116,8 @@ export function SessionSideRail(props: {
       aria-orientation="vertical"
       aria-label={language.t("session.panel.reviewAndFiles")}
       data-component="session-side-rail"
-      class={`relative flex h-full w-10 shrink-0 flex-col items-center gap-1 py-2 ${pagePanelClass}`}
+      // Flat on the window background, like the navigation rail on the other side.
+      class="relative flex h-full w-10 shrink-0 flex-col items-center gap-1 py-2"
       classList={{ "cursor-col-resize": !!props.onDragOut }}
       onPointerDown={(event) => {
         if (!props.onDragOut) return

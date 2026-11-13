@@ -108,7 +108,7 @@ routes and shortcuts.
 
 `pages/layout-new.tsx` is the only shell: the titlebar (window chrome, back
 and forward) and `components/second-brain-sidebar.tsx` (navigation rail plus
-collapsible Projects panel). Pages sit on one rounded panel built from
+collapsible Projects panel, flat on the window background). Pages sit on one square-cornered panel built from
 `components/page.tsx` (`PageFrame`, `PageHeader`, `PageSection`, and
 `PageEmpty` for centred empty states); page titles carry no descriptive subtitle. Shape and motion follow Material 3: radius,
 easing and duration tokens (`--v2-radius-*`, `--v2-ease-*`,

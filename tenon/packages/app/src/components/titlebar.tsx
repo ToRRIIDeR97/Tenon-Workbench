@@ -150,11 +150,33 @@ export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visibl
     })
   })
 
+  // On a desktop-width window the bar floats over the top of the window with no background, so the page panel
+  // can reach the top edge behind it. Its height is published for the sidebar and the page frames to start
+  // below it (see `titlebar-inset-top` in index.css).
+  let header: HTMLElement | undefined
+  createEffect(() => {
+    const root = document.documentElement
+    const bar = header
+    if (mobile() || !bar) {
+      root.style.removeProperty("--tenon-titlebar-height")
+      return
+    }
+    const publish = () => root.style.setProperty("--tenon-titlebar-height", `${bar.offsetHeight}px`)
+    publish()
+    const observer = new ResizeObserver(publish)
+    observer.observe(bar)
+    onCleanup(() => {
+      observer.disconnect()
+      root.style.removeProperty("--tenon-titlebar-height")
+    })
+  })
+
   return (
     <header
+      ref={header}
       data-slot="titlebar-v2"
       classList={{
-        "shrink-0 relative flex flex-row h-9 bg-v2-background-bg-deep overflow-visible": true,
+        "shrink-0 relative flex flex-row h-9 bg-v2-background-bg-deep overflow-visible md:absolute md:left-0 md:top-0 md:z-30 md:w-full md:bg-transparent": true,
         "order-last": bottom(),
       }}
       style={{

@@ -41,7 +41,7 @@ export default function NewSessionPage() {
     <div class="relative size-full overflow-hidden flex flex-col">
       {suspendUntilPromptReady()}
       <NewSessionStatus mount={rightMount} visible={settings.visibility.status} />
-      <div class="flex-1 min-h-0 flex flex-col p-2 pl-0">
+      <div class="titlebar-inset-top flex-1 min-h-0 flex flex-col p-2 pl-0">
         <NewSessionView input={draft.input} harness={draft.harness} project={project} workspace={workspace} />
       </div>
     </div>

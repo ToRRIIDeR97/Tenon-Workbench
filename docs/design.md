@@ -49,9 +49,19 @@ Use `[font-weight:N]` when a weight must differ from the role.
 
 ## Surfaces and layout
 
-- **Page frame:** every page sits on one rounded panel built from
+- **Page frame:** every page sits on one square-cornered panel built from
   `components/page.tsx` (`PageFrame`, `PageHeader`, `PageSection`,
-  `PageEmpty`).
+  `PageEmpty`): `bg-base` with a hairline edge, 8px in from the window's right
+  and bottom. On a desktop-width window it reaches the window's top edge: the
+  title bar has no background and floats over the panel's top band
+  (`page-panel-cap`), a hairline separates that band from the page, and page
+  content starts below it (`titlebar-inset-top`).
+- **Sidebars are flat:** the navigation rail, the Projects panel and the
+  thread's side rail have no card, outline or divider; they sit on the window
+  background (`bg-deep`) beside the page panel. In a thread, the side panel
+  joins the thread as one card, split by a hairline. Rounded corners are for
+  things inside or above the page (cards, docks, menus, floating windows), not
+  for the frame.
 - **Cards:** page-level cards are 16px radius on `bg-layer-01` with an inset
   muted edge. Use 12px cards inside the sidebar and side panels, and 24px for
   dock cards (the composer and approval dock).
