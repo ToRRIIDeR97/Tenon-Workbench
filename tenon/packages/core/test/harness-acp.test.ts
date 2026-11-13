@@ -139,6 +139,131 @@ describe("ACP harness", () => {
     expect(events[7]).toMatchObject({ name: "acp_read", input: { path: "/w/a.txt" } })
   })
 
+  test("a Claude Code subagent's result waits for the token use its tool response reports", () => {
+    const claude = (extra: Record<string, unknown> = {}) => ({ claudeCode: { toolName: "Agent", ...extra } })
+    const start = [
+      update({ sessionUpdate: "tool_call", toolCallId: "ag", status: "pending", rawInput: {}, _meta: claude() }),
+      update({
+        sessionUpdate: "tool_call_update",
+        toolCallId: "ag",
+        status: "in_progress",
+        rawInput: { description: "Poem", prompt: "Write a poem", subagent_type: "general-purpose" },
+        _meta: claude(),
+      }),
+    ]
+    const completed = update({
+      sessionUpdate: "tool_call_update",
+      toolCallId: "ag",
+      status: "completed",
+      content: [{ type: "content", content: { type: "text", text: "the poem" } }],
+      _meta: claude(),
+    })
+    // The PostToolUse hook's update: no status, the whole Agent tool response.
+    const hook = update({
+      sessionUpdate: "tool_call_update",
+      toolCallId: "ag",
+      _meta: claude({
+        toolResponse: {
+          totalTokens: 15_400,
+          usage: {
+            input_tokens: 12,
+            cache_read_input_tokens: 14_000,
+            cache_creation_input_tokens: 1_100,
+            output_tokens: 288,
+            output_tokens_details: { thinking_tokens: 40 },
+          },
+        },
+      }),
+    })
+    const usage = {
+      used: 15_112,
+      inputTokens: 12,
+      outputTokens: 288,
+      thoughtTokens: 40,
+      cachedReadTokens: 14_000,
+      cachedWriteTokens: 1_100,
+    }
+
+    // The hook after the result: the result is held, then settles with the usage.
+    const late = AcpHarness.acpState()
+    const held = [...start, completed].flatMap((n) => AcpHarness.parseAcpNotification(n, "s1", late))
+    expect(held.map((event) => event.type)).toEqual(["tool-call"])
+    const released = AcpHarness.parseAcpNotification(hook, "s1", late)
+    expect(released).toHaveLength(1)
+    expect(released[0]).toMatchObject({ type: "tool-result", id: "ag", providerMetadata: { acp: { usage } } })
+
+    // The hook before the result: the result goes out at once, with the usage.
+    const early = AcpHarness.acpState()
+    const events = [...start, hook, completed].flatMap((n) => AcpHarness.parseAcpNotification(n, "s1", early))
+    expect(events.at(-1)).toMatchObject({ type: "tool-result", providerMetadata: { acp: { usage } } })
+
+    // No hook at all: the turn's end releases the result without usage.
+    const never = AcpHarness.acpState()
+    ;[...start, completed].flatMap((n) => AcpHarness.parseAcpNotification(n, "s1", never))
+    const finish = AcpHarness.finishAcpTurn(Exit.succeed({ stopReason: "end_turn" }), never)
+    expect(finish.map((event) => event.type)).toEqual(["tool-result", "step-finish", "finish"])
+  })
+
+  test("an OpenCode subagent's result carries the token use OpenCode's server keeps for its session", async () => {
+    // The shape `opencode api GET /api/session/<id>` answered for a real subagent session (OpenCode 2.2.5).
+    const answer = JSON.stringify({
+      data: {
+        id: "ses_child",
+        parentID: "ses_root",
+        cost: 0,
+        tokens: { input: 13811, output: 117, reasoning: 310, cache: { read: 1792, write: 0 } },
+      },
+    })
+    const usage = {
+      inputTokens: 13811,
+      outputTokens: 117,
+      thoughtTokens: 310,
+      cachedReadTokens: 1792,
+      cachedWriteTokens: 0,
+    }
+    expect(AcpHarness.openCodeSessionUsage(answer)).toEqual(usage)
+    expect(AcpHarness.openCodeSessionUsage("<!doctype html>")).toBeUndefined()
+
+    const state = AcpHarness.acpState()
+    const events = [
+      update({
+        sessionUpdate: "tool_call",
+        toolCallId: "sub",
+        name: "subagent",
+        kind: "think",
+        status: "pending",
+        rawInput: {},
+      }),
+      update({
+        sessionUpdate: "tool_call_update",
+        toolCallId: "sub",
+        status: "completed",
+        rawInput: { agent: "general", description: "Poem", prompt: "Write a poem" },
+        content: [
+          {
+            type: "content",
+            content: { type: "text", text: '<subagent sessionID="ses_child" state="completed">poem</subagent>' },
+          },
+        ],
+      }),
+    ].flatMap((n) => AcpHarness.parseAcpNotification(n, "s1", state))
+    const asked: string[] = []
+    const lookup = (id: string) => {
+      asked.push(id)
+      return Effect.succeed(AcpHarness.openCodeSessionUsage(answer))
+    }
+    const withUsage = await Effect.runPromise(AcpHarness.withSubagentUsage(events, state, lookup))
+    expect(asked).toEqual(["ses_child"])
+    expect(withUsage.at(-1)).toMatchObject({ type: "tool-result", providerMetadata: { acp: { usage } } })
+
+    // The command that runs `opencode acp` runs `opencode api` the same way; without `acp` there is no lookup.
+    const settings = { command: "opencode", args: ["acp"], env: {}, models: [] }
+    const run = () => Effect.die("not called")
+    expect(AcpHarness.openCodeUsageLookup({ run }, settings, "/w")).toBeFunction()
+    expect(AcpHarness.openCodeUsageLookup({ run }, { ...settings, args: [] }, "/w")).toBeUndefined()
+    expect(AcpHarness.openCodeUsageLookup({}, settings, "/w")).toBeUndefined()
+  })
+
   test("keeps parallel subagent transcripts separate, including a child that starts with a chunk", () => {
     const state = AcpHarness.acpState()
     const childOf = (id: string, title: string) => ({

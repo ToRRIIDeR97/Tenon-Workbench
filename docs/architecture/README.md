@@ -1074,6 +1074,27 @@ started it:
   transcript is cut and marked `truncated`.
 - `usage`: the child's own `usage_update` (`used`, `size`, USD `cost`, and any
   token fields the agent sends). It never changes the parent turn's usage.
+  What each agent reports (checked against the installed agents, 2026-11-13):
+  - Claude Code (`claude-agent-acp`) sends no `usage_update` for a subagent, but
+    its PostToolUse hook sends the Agent/Task tool response in
+    `_meta.claudeCode.toolResponse`, whose `usage` is the subagent's last
+    request (`claudeSubagentUsage`: `used` = input + cache read + cache write).
+    The hook can come after the call's result, so a Claude subagent's result is
+    held until it arrives and released at the turn's end if it never does.
+  - OpenCode forwards a child's chunks and tool calls but sends `usage_update`
+    only for the root session's turn (upstream issue 22103, closed as not
+    planned). When a subagent finishes, the driver asks OpenCode's background
+    server for the child session (`opencode api GET /api/session/<id>`, 10 s
+    limit, `openCodeUsageLookup`) and copies its token totals onto the row. If
+    that fails, the row has no usage and the app shows an estimate from the
+    transcript (`subagent-context.ts`).
+  - Codex (app-server, not ACP) reports a subagent as a `subAgentActivity`
+    item, or a `spawnAgent` collab call, in the turn's thread. The subagent's
+    own thread then sends its messages, `thread/tokenUsage/updated` and
+    `turn/completed`. `harness.ts` maps these to an `acp_subagent` row keyed
+    by the subagent's thread (`codexSubagentNotification`). `used` is the last
+    call's input + output in `modelContextWindow`, and the token fields are
+    the thread totals. Only the turn's own thread ends the turn's stream.
 
 The result carries all of it as `provider.resultMetadata.acp`. While the
 subagent runs, `tool-progress` checkpoints (`session.next.tool.progress`,

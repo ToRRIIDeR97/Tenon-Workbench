@@ -1679,10 +1679,16 @@ export function codexStream(
                       (heard) =>
                         runtime.client.notifications.pipe(
                           Stream.filter((notification) =>
-                            notificationBelongsToTurn(notification, runtime.threadID, turnID),
+                            codexTurnNotification(notification, runtime.threadID, turnID, state),
                           ),
                           Stream.tap(() => heard),
-                          Stream.takeUntil((notification) => notification.method === "turn/completed"),
+                          // A subagent's own thread completes its turns too; only the turn's thread ends the stream.
+                          Stream.takeUntil(
+                            (notification) =>
+                              notification.method === "turn/completed" &&
+                              isRecord(notification.params) &&
+                              notification.params.threadId === runtime.threadID,
+                          ),
                           Stream.flatMap((notification) =>
                             Stream.fromIterable(parseCodexNotification(notification, state)),
                           ),
@@ -1748,9 +1754,19 @@ export interface CodexState {
   usage?: ReturnType<typeof normalizeUsage>
   finished: boolean
   failed: boolean
+  /** The turn's subagents by their own thread ID; their notifications are routed to their row, not the turn. */
+  readonly subagents: Map<string, CodexSubagent>
+}
+
+/** A Codex subagent shown as an `acp_subagent` row: what it said and its own thread's token use. */
+interface CodexSubagent {
+  done: boolean
+  readonly transcript: AcpHarness.AcpTranscriptEntry[]
+  usage?: AcpHarness.AcpUsage
 }
 
 export const codexState = (): CodexState => ({
+  subagents: new Map(),
   startedText: new Set(),
   emittedText: new Set(),
   startedReasoning: new Set(),
@@ -1767,6 +1783,9 @@ export function parseCodexNotification(
   state: CodexState,
 ): ReadonlyArray<LLMEvent> {
   const params = isRecord(notification.params) ? notification.params : {}
+  const subagent = string(params.threadId)
+  if (subagent && state.subagents.has(subagent))
+    return codexSubagentNotification(notification.method, params, subagent, state)
   if (notification.method === "item/agentMessage/delta") {
     const id = string(params.itemId)
     const delta = string(params.delta)
@@ -1789,6 +1808,7 @@ export function parseCodexNotification(
     const item = isRecord(params.item) ? params.item : undefined
     if (!item) return []
     trackOpenItem(notification.method, item, state)
+    if (item.type === "subAgentActivity" || item.type === "collabAgentToolCall") return codexSubagentItem(item, state)
     return codexItemEvents(notification.method, item, state)
   }
   if (notification.method === "thread/tokenUsage/updated") {
@@ -1838,18 +1858,170 @@ export function parseCodexNotification(
   }
   if (notification.method === "turn/completed") {
     state.finished = true
+    // A subagent still open when the turn ends settles with what it has.
+    const settled = [...state.subagents.keys()].flatMap((id) => codexSubagentFinish(id, state, false))
     const turn = isRecord(params.turn) ? params.turn : undefined
     const failed = turn?.status === "failed"
     state.failed = state.failed || failed
     const error = isRecord(turn?.error) ? string(turn.error.message) : undefined
     const unauthorized = isRecord(turn?.error) && turn.error.codexErrorInfo === "unauthorized"
     return [
+      ...settled,
       ...(failed && error ? [LLMEvent.providerError({ message: AcpHarness.signInHint(error, unauthorized) })] : []),
       LLMEvent.stepFinish({ index: 0, reason: state.failed ? "error" : "stop", usage: state.usage }),
       LLMEvent.finish({ reason: state.failed ? "error" : "stop", usage: state.usage }),
     ]
   }
   return []
+}
+
+/**
+ * Codex's own subagents. A `subAgentActivity` item (or a `spawnAgent` collab call) in the turn's thread starts one,
+ * keyed by the subagent's thread; its "completed" activity settles it. The subagent's thread reports its messages and
+ * token use separately (see `codexSubagentNotification`).
+ */
+function codexSubagentItem(item: Record<string, unknown>, state: CodexState): ReadonlyArray<LLMEvent> {
+  if (item.type === "collabAgentToolCall") {
+    if (item.tool !== "spawnAgent") return []
+    const threads = Array.isArray(item.receiverThreadIds)
+      ? item.receiverThreadIds.flatMap((id) => string(id) ?? [])
+      : []
+    return threads.flatMap((thread) =>
+      codexSubagentStart(thread, { prompt: string(item.prompt), model: string(item.model) }, state),
+    )
+  }
+  const thread = string(item.agentThreadId)
+  if (!thread) return []
+  if (item.kind === "completed") return codexSubagentFinish(thread, state, false)
+  if (item.kind === "interrupted") return codexSubagentFinish(thread, state, true)
+  return codexSubagentStart(thread, { path: string(item.agentPath), model: string(item.model) }, state)
+}
+
+function codexSubagentStart(
+  thread: string,
+  about: { readonly path?: string; readonly prompt?: string; readonly model?: string },
+  state: CodexState,
+): ReadonlyArray<LLMEvent> {
+  if (state.subagents.has(thread)) return []
+  state.subagents.set(thread, { done: false, transcript: [] })
+  // "/root/single_word" names the agent; a spawn call's prompt says what it was asked.
+  const name = about.path?.split("/").filter(Boolean).at(-1)?.replace(/[_-]+/g, " ")
+  const description = name ? name.charAt(0).toUpperCase() + name.slice(1) : about.prompt?.split("\n")[0]?.slice(0, 80)
+  return [
+    LLMEvent.toolCall({
+      id: thread,
+      name: "acp_subagent",
+      providerExecuted: true,
+      input: {
+        ...(description ? { description } : {}),
+        ...(about.prompt ? { prompt: about.prompt } : {}),
+        ...(about.model ? { subagent_type: about.model } : {}),
+      },
+    }),
+  ]
+}
+
+function codexSubagentNotification(
+  method: string,
+  params: Record<string, unknown>,
+  thread: string,
+  state: CodexState,
+): ReadonlyArray<LLMEvent> {
+  const agent = state.subagents.get(thread)
+  if (!agent || agent.done) return []
+  if (method === "item/completed" && isRecord(params.item)) {
+    const item = params.item
+    const type = string(item.type) ?? ""
+    const text = string(item.text)
+    if (type === "agentMessage" && text) agent.transcript.push({ type: "text", text })
+    if (type === "reasoning" && Array.isArray(item.summary))
+      agent.transcript.push({
+        type: "reasoning",
+        text: item.summary.filter((part): part is string => typeof part === "string").join("\n"),
+      })
+    if (isCodexTool(type))
+      agent.transcript.push({
+        type: "tool",
+        tool: codexToolName(type),
+        title: string(item.command) ?? string(item.tool) ?? string(item.query),
+        status: string(item.status) ?? "completed",
+      })
+    return [codexSubagentProgress(thread, agent)]
+  }
+  if (method === "thread/tokenUsage/updated") {
+    const tokenUsage = isRecord(params.tokenUsage) ? params.tokenUsage : undefined
+    agent.usage = codexSubagentUsage(
+      counts(tokenUsage?.total),
+      counts(tokenUsage?.last),
+      number(tokenUsage?.modelContextWindow),
+    )
+    return [codexSubagentProgress(thread, agent)]
+  }
+  if (method === "turn/completed") {
+    const turn = isRecord(params.turn) ? params.turn : undefined
+    return codexSubagentFinish(thread, state, turn?.status === "failed")
+  }
+  return []
+}
+
+/** A subagent's own context: its last call's input and output in its window, and its thread's totals. */
+export function codexSubagentUsage(
+  total: Record<string, number> | undefined,
+  last: Record<string, number> | undefined,
+  window: number | undefined,
+): AcpHarness.AcpUsage {
+  const fields = {
+    used: last ? (last.inputTokens ?? 0) + (last.outputTokens ?? 0) : undefined,
+    size: window,
+    inputTokens: total?.inputTokens,
+    outputTokens: total?.outputTokens,
+    thoughtTokens: total?.reasoningOutputTokens,
+    cachedReadTokens: total?.cachedInputTokens,
+    cachedWriteTokens: total?.cacheWriteInputTokens,
+  }
+  return Object.fromEntries(Object.entries(fields).filter((entry) => entry[1] !== undefined))
+}
+
+function codexSubagentSnapshot(agent: CodexSubagent) {
+  return {
+    steps: [],
+    transcript: agent.transcript.map((entry) => ({ ...entry })),
+    ...(agent.usage ? { usage: { ...agent.usage } } : {}),
+  }
+}
+
+function codexSubagentProgress(thread: string, agent: CodexSubagent) {
+  return LLMEvent.toolProgress({ id: thread, name: "acp_subagent", structured: { acp: codexSubagentSnapshot(agent) } })
+}
+
+function codexSubagentFinish(thread: string, state: CodexState, failed: boolean): ReadonlyArray<LLMEvent> {
+  const agent = state.subagents.get(thread)
+  if (!agent || agent.done) return []
+  agent.done = true
+  const reply = agent.transcript.findLast((entry) => entry.type === "text")
+  const value = reply?.type === "text" ? reply.text : ""
+  return [
+    LLMEvent.toolResult({
+      id: thread,
+      name: "acp_subagent",
+      providerExecuted: true,
+      result: failed ? { type: "error", value } : { type: "text", value },
+      providerMetadata: { acp: codexSubagentSnapshot(agent) },
+    }),
+  ]
+}
+
+/** A notification for the turn, or for one of its subagents' own threads. */
+export function codexTurnNotification(
+  notification: { readonly params?: unknown },
+  threadID: string,
+  turnID: string,
+  state: CodexState,
+) {
+  if (notificationBelongsToTurn(notification, threadID, turnID)) return true
+  const params = isRecord(notification.params) ? notification.params : undefined
+  const thread = string(params?.threadId)
+  return thread !== undefined && state.subagents.has(thread)
 }
 
 // Text and reasoning are the model talking, which the silence check should see; the rest can run long unannounced.

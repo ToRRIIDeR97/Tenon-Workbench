@@ -1,5 +1,4 @@
 import { createMemo, createEffect, createSignal, on, onCleanup, For, Show } from "solid-js"
-import type { JSX } from "solid-js"
 import { useSync } from "@/context/sync"
 import { checksum } from "@tenon/core/util/encode"
 import { findLast } from "@tenon/core/util/array"
@@ -28,6 +27,9 @@ import { createSessionContextFormatter } from "./session-context-format"
 import { getSessionTotals, getSessionUsage, getSubagentUsage } from "./session-usage"
 import { stepCountPhrases } from "./turn-steps-summary"
 import { heaviestContextItems } from "./context-heaviest"
+import { SubagentCards, type SubagentCardRow } from "./subagent-cards"
+import { subagentContexts } from "./subagent-context"
+import { threadSubagents } from "./subagent-list"
 import { useCommand } from "@/context/command"
 import { Reveal } from "@tenon/ui/v2/reveal"
 
@@ -201,6 +203,21 @@ export function SessionContextTab() {
           status: tool.state.status,
         },
       ]
+    }),
+  )
+  // Each subagent's own context, for the Subagents cards that take the place of "Taking the most room".
+  const subagentCards = createMemo((): SubagentCardRow[] =>
+    subagentContexts(threadSubagents(messages(), getParts), (id) => sync().session.get(id)).map((row) => {
+      const named = subagentName(row.input)
+      return {
+        ...row,
+        title:
+          named.name ??
+          (row.childID ? sync().session.get(row.childID)?.title : undefined) ??
+          named.tag ??
+          language.t("secondBrain.agentTab.agentFallback"),
+        agent: named.name ? named.tag : undefined,
+      }
     }),
   )
   const counts = createMemo(() => {
@@ -515,53 +532,76 @@ export function SessionContextTab() {
           </Show>
         </section>
 
-        <Show when={heaviest().length > 0}>
-          <section data-slot="session-tab-heaviest" class="flex flex-col gap-2">
-            <div class="flex items-baseline gap-2">
-              <h3 class="m-0 flex-1 text-[13px] leading-[18px] [font-weight:600] text-v2-text-text-base">
-                {language.t("secondBrain.sessionTab.heaviest")}
-              </h3>
-              <span class="text-[12px] text-v2-text-text-muted">{language.t("secondBrain.sessionTab.estimated")}</span>
-            </div>
-            <For each={heaviest()}>
-              {(item) => (
-                <button
-                  type="button"
-                  data-slot="session-tab-heavy-item"
-                  class="flex w-full min-w-0 flex-col gap-1.5 rounded-[14px] bg-v2-background-bg-layer-01 px-3 py-2.5 text-left transition-colors duration-short ease-standard hover:bg-v2-background-bg-layer-02 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
-                  onClick={() => revealTurn(item.turnID)}
+        <Show
+          when={subagentCards().length > 0}
+          fallback={
+            <Show when={heaviest().length > 0}>
+              <section data-slot="session-tab-heaviest" class="flex flex-col gap-2">
+                <div class="flex items-baseline gap-2">
+                  <h3 class="m-0 flex-1 text-[13px] leading-[18px] [font-weight:600] text-v2-text-text-base">
+                    {language.t("secondBrain.sessionTab.heaviest")}
+                  </h3>
+                  <span class="text-[12px] text-v2-text-text-muted">
+                    {language.t("secondBrain.sessionTab.estimated")}
+                  </span>
+                </div>
+                <For each={heaviest()}>
+                  {(item) => (
+                    <button
+                      type="button"
+                      data-slot="session-tab-heavy-item"
+                      class="flex w-full min-w-0 flex-col gap-1.5 rounded-[14px] bg-v2-background-bg-layer-01 px-3 py-2.5 text-left transition-colors duration-short ease-standard hover:bg-v2-background-bg-layer-02 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
+                      onClick={() => revealTurn(item.turnID)}
+                    >
+                      <span class="flex min-w-0 items-baseline gap-2 text-[12.5px] leading-[18px]">
+                        <span class="min-w-0 flex-1 truncate text-v2-text-text-base">{item.name}</span>
+                        <span class="shrink-0 tabular-nums text-v2-text-text-base">{compactNumber(item.tokens)}</span>
+                      </span>
+                      <span
+                        class="block h-[5px] overflow-hidden rounded-full bg-v2-background-bg-layer-03"
+                        aria-hidden="true"
+                      >
+                        <span
+                          class="block h-full rounded-full bg-v2-icon-icon-accent/55"
+                          style={{ width: `${(item.tokens / heaviest()[0]!.tokens) * 100}%` }}
+                        />
+                      </span>
+                      <span class="text-[11.5px] leading-4 text-v2-text-text-muted">
+                        {`${language.t("secondBrain.sessionTab.turn", { turn: item.turn })} · ${language.t(`secondBrain.sessionTab.kind.${item.kind}`)}`}
+                      </span>
+                    </button>
+                  )}
+                </For>
+                <p class="m-0 px-1 text-[12px] leading-4 text-v2-text-text-muted">
+                  {language.t("secondBrain.sessionTab.heaviestHint")}
+                </p>
+                <ButtonV2
+                  size="small"
+                  variant="neutral"
+                  class="self-start"
+                  onClick={() => command.trigger("session.compact")}
                 >
-                  <span class="flex min-w-0 items-baseline gap-2 text-[12.5px] leading-[18px]">
-                    <span class="min-w-0 flex-1 truncate text-v2-text-text-base">{item.name}</span>
-                    <span class="shrink-0 tabular-nums text-v2-text-text-base">{compactNumber(item.tokens)}</span>
-                  </span>
-                  <span
-                    class="block h-[5px] overflow-hidden rounded-full bg-v2-background-bg-layer-03"
-                    aria-hidden="true"
-                  >
-                    <span
-                      class="block h-full rounded-full bg-v2-icon-icon-accent/55"
-                      style={{ width: `${(item.tokens / heaviest()[0]!.tokens) * 100}%` }}
-                    />
-                  </span>
-                  <span class="text-[11.5px] leading-4 text-v2-text-text-muted">
-                    {`${language.t("secondBrain.sessionTab.turn", { turn: item.turn })} · ${language.t(`secondBrain.sessionTab.kind.${item.kind}`)}`}
-                  </span>
-                </button>
-              )}
-            </For>
-            <p class="m-0 px-1 text-[12px] leading-4 text-v2-text-text-muted">
-              {language.t("secondBrain.sessionTab.heaviestHint")}
-            </p>
-            <ButtonV2
-              size="small"
-              variant="neutral"
-              class="self-start"
-              onClick={() => command.trigger("session.compact")}
-            >
-              {language.t("secondBrain.sessionTab.compactNow")}
-            </ButtonV2>
-          </section>
+                  {language.t("secondBrain.sessionTab.compactNow")}
+                </ButtonV2>
+              </section>
+            </Show>
+          }
+        >
+          <SubagentCards
+            rows={subagentCards()}
+            onOpen={
+              data.openSubagent ? (row) => data.openSubagent?.({ sessionID: row.sessionID, partID: row.id }) : undefined
+            }
+            onReveal={revealTurn}
+          />
+          <ButtonV2
+            size="small"
+            variant="neutral"
+            class="-mt-2 self-start"
+            onClick={() => command.trigger("session.compact")}
+          >
+            {language.t("secondBrain.sessionTab.compactNow")}
+          </ButtonV2>
         </Show>
 
         <div class="h-px bg-v2-border-border-muted" />
@@ -634,51 +674,6 @@ export function SessionContextTab() {
             </div>
           </Reveal>
         </section>
-
-        <Show when={subagents().length > 0}>
-          <section data-slot="session-tab-subagents" class="flex flex-col gap-1.5">
-            <h3 class="m-0 text-[13px] leading-[18px] [font-weight:600] text-v2-text-text-base">
-              {language.t("secondBrain.sessionTab.subagents")}
-            </h3>
-            <div class="-mx-2 flex flex-col">
-              <For each={subagents()}>
-                {(agent) => {
-                  const row = () => (
-                    <>
-                      <span class="min-w-0 flex-1 truncate text-[12.5px]">{agent.title}</span>
-                      <Show when={agent.agent}>
-                        <span class="shrink-0 text-[12px] text-v2-text-text-muted">{agent.agent}</span>
-                      </Show>
-                    </>
-                  )
-                  return (
-                    <Show
-                      when={data.openSubagent}
-                      fallback={
-                        <div class="flex min-w-0 items-center gap-2 px-2 py-1.5" data-status={agent.status}>
-                          {row()}
-                        </div>
-                      }
-                    >
-                      {(open) => (
-                        <button
-                          type="button"
-                          data-status={agent.status}
-                          aria-label={language.t("secondBrain.agentTab.open", { agent: agent.title })}
-                          class="flex min-w-0 items-center gap-2 rounded-[10px] px-2 py-1.5 text-left transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus"
-                          onClick={() => open()({ sessionID: agent.sessionID, partID: agent.id })}
-                        >
-                          {row()}
-                          <Icon name="chevron-right" size="small" class="shrink-0 text-v2-icon-icon-muted" />
-                        </button>
-                      )}
-                    </Show>
-                  )
-                }}
-              </For>
-            </div>
-          </section>
-        </Show>
 
         <Show when={systemPrompt()}>
           {(prompt) => (

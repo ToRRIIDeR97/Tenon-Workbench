@@ -4,7 +4,16 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 // Mocks are process-wide in bun, so this one also serves later files that import Electron's default export.
-mock.module("electron", () => ({ default: {}, net: {}, protocol: {} }))
+// Mocks are process-wide in bun: keep the same exports as server.test.ts's Electron mock, whichever runs first.
+mock.module("electron", () => ({
+  default: {},
+  net: {},
+  protocol: {},
+  app: { getPath: () => "", isPackaged: false, on: () => {}, off: () => {} },
+  crashReporter: {},
+  shell: {},
+  utilityProcess: {},
+}))
 const { fileViewerURL, isInside, resolveInside } = await import("./file-viewer")
 
 describe("resolveInside", () => {

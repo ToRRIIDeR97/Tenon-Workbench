@@ -284,6 +284,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
           />
           <Show when={!props.controller.value()}>
             <div
+              data-slot="prompt-placeholder"
               class="pointer-events-none absolute inset-x-0 top-0 px-5 pt-4 text-[15px] font-[450] leading-6 text-v2-text-text-faint"
               classList={{ "font-mono!": state.mode === "shell" }}
             >

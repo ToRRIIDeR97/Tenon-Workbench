@@ -74,3 +74,34 @@ export function appendProfileRule(rules: string, text: string) {
   const body = rules.trimEnd()
   return body ? `${body}\n- ${rule}` : `- ${rule}`
 }
+
+type ModelChoice = { id: string; name: string; provider: { id: string; name: string } }
+
+/**
+ * The models Add profile offers for a search: matches on name, id or provider, without models that already have a
+ * profile (by full or short id), one entry per model id, best first (name starts with the query), at most `limit`.
+ */
+export function profileModelMatches(
+  models: ReadonlyArray<ModelChoice>,
+  query: string,
+  existing: ReadonlyArray<string>,
+  limit = 6,
+) {
+  const q = query.trim().toLowerCase()
+  const taken = new Set(existing.map((key) => key.toLowerCase()))
+  const seen = new Set<string>()
+  return models
+    .filter((model) => {
+      const id = model.id.toLowerCase()
+      if (taken.has(id) || taken.has(`${model.provider.id}/${model.id}`.toLowerCase()) || seen.has(id)) return false
+      const hit = !q || [model.name, model.id, model.provider.name].some((value) => value.toLowerCase().includes(q))
+      if (hit) seen.add(id)
+      return hit
+    })
+    .toSorted(
+      (a, b) =>
+        Number(b.name.toLowerCase().startsWith(q)) - Number(a.name.toLowerCase().startsWith(q)) ||
+        a.name.localeCompare(b.name),
+    )
+    .slice(0, limit)
+}
