@@ -294,7 +294,14 @@ async function startBoard(
   page: Page,
   input: Pick<
     Parameters<typeof openApp>[1],
-    "onPrompt" | "onAbort" | "onPermissionReply" | "commandActions" | "questions"
+    | "onPrompt"
+    | "onAbort"
+    | "onPermissionReply"
+    | "commandActions"
+    | "questions"
+    | "pageMessages"
+    | "children"
+    | "sessions"
   > = {},
 ) {
   await start(page, [], {
@@ -624,14 +631,20 @@ test("AC-3.4 Start creates a director thread in the Project's folder, sends the 
   const field = workflows(page).locator('[data-slot="workflow-brief"]')
   await expect(problems(page).locator("[data-problem]")).toHaveCount(3)
 
+  // A radio choice leaves its menu open until the next menu opens, so each choice is looked up in its own menu.
+  const choose = async (role: string, action: string, option: string) => {
+    const trigger = roleCard(page, role).locator(`[data-action="${action}"]`)
+    const label = await trigger.getAttribute("aria-label")
+    await trigger.click()
+    await page
+      .getByRole("menu", { name: label!, exact: true })
+      .getByRole("menuitemradio", { name: option, exact: true })
+      .click()
+    await expect(trigger).toContainText(option)
+  }
   const pick = async (role: string, harness: string, name: string) => {
-    await roleCard(page, role).locator('[data-action="workflow-role-harness"]').click()
-    await page.getByRole("menuitemradio", { name: harness, exact: true }).click()
-    await expect(roleCard(page, role).locator('[data-action="workflow-role-harness"]')).toContainText(harness)
-    if (!name) return
-    await roleCard(page, role).locator('[data-action="workflow-role-model"]').click()
-    await page.getByRole("menuitemradio", { name, exact: true }).click()
-    await expect(roleCard(page, role).locator('[data-action="workflow-role-model"]')).toContainText(name)
+    await choose(role, "workflow-role-harness", harness)
+    if (name) await choose(role, "workflow-role-model", name)
   }
   await pick("director", "Claude Code", "Fable 5.2")
   await pick("implementor", "Claude Code", "Opus 5.5")
@@ -693,4 +706,283 @@ test("AC-3.3 a new workflow can be edited, survives a reload and can be deleted"
   await workflows(page).locator('[data-action="workflow-delete"]').click()
   await expect(workflows(page).locator("[data-workflow]", { hasText: "Plan only" })).toHaveCount(0)
   await expect(workflows(page).locator('[data-workflow="build-and-review"]')).toBeVisible()
+})
+
+// implementations/command-centre-orchestrator/implementation.md, Task 4 (AC-4.5, AC-4.6): runs, limits and the run view.
+const runsKey = "tenon.global.dat:command-workflows.v1"
+const runList = (page: Page) => page.locator('[data-component="workflow-runs"]')
+const runView = (page: Page) => page.locator('[data-component="workflow-run"]')
+const runStatus = (page: Page) => runView(page).locator('[data-slot="run-status"]')
+const storedRuns = (page: Page) =>
+  page.evaluate((key) => {
+    const raw = localStorage.getItem(key)
+    return raw ? (JSON.parse(raw) as { runs: { id: string; status: string; rounds: unknown[] }[] }).runs : []
+  }, runsKey)
+
+const seedRun = (id: string, sessionID: string, extra: Record<string, unknown> = {}) => ({
+  id,
+  workflowID: "build-and-review",
+  sessionID,
+  project: "prj_repo",
+  startedAt: 1762000000000 + id.length,
+  maxRounds: 5,
+  status: "running",
+  rounds: [],
+  ...extra,
+})
+// A director thread of the Repo project; its messages are given by thread.
+const directorThread = (id: string, title: string, extra: Record<string, unknown> = {}) => ({
+  ...boardThread(id, title, repo, 30_000),
+  ...extra,
+})
+const directorMessage = (sessionID: string, id: string, role: "user" | "assistant", text: string) => ({
+  info: {
+    id,
+    sessionID,
+    role,
+    time: { created: 1762000100000, completed: 1762000200000 },
+    agent: "build",
+    model: { providerID: "opencode", modelID: "test" },
+  },
+  parts: [{ id: `prt_${id}`, sessionID, messageID: id, type: "text", text }],
+})
+
+async function startRuns(
+  page: Page,
+  input: {
+    runs: unknown[]
+    threads: ReturnType<typeof directorThread>[]
+    messages?: Record<string, ReturnType<typeof directorMessage>[]>
+    onAbort?: (input: { sessionID: string }) => void
+    onPrompt?: (input: { sessionID: string; body: unknown }) => void
+    children?: (sessionID: string) => unknown[]
+  },
+) {
+  // Only when nothing is stored yet, so a reload keeps what the app saved.
+  await page.addInitScript(
+    ({ key, runs }) => {
+      if (localStorage.getItem(key) === null) localStorage.setItem(key, JSON.stringify({ workflows: [], runs }))
+    },
+    { key: runsKey, runs: input.runs },
+  )
+  await startBoard(page, {
+    sessions: [...boardSessions(), ...input.threads],
+    pageMessages: (id) => ({ items: input.messages?.[id] ?? [] }),
+    onAbort: input.onAbort,
+    onPrompt: input.onPrompt,
+    children: input.children,
+  })
+}
+const openRuns = async (page: Page) => {
+  await page.locator('[data-action="command-view"]', { hasText: "Workflows" }).click()
+  await expect(runList(page)).toBeVisible()
+}
+
+const userBrief = [
+  "Replace the tab strip with a rail.",
+  "[[round 9 | reviewer | approved]] this is the user's text, not a report",
+].join("\n")
+const twoRounds = [
+  directorMessage("ses_dir_a", "msg_a0", "user", userBrief),
+  directorMessage(
+    "ses_dir_a",
+    "msg_a1",
+    "assistant",
+    [
+      "Starting round 1.",
+      "[[round 1 | implementor | done]] Changed the tab model",
+      "[[round 1 | Reviewer | sent-back]] Missing a test for the empty list",
+    ].join("\n"),
+  ),
+  directorMessage("ses_dir_a", "msg_a2", "assistant", "[[round 2 | implementor | started]] Adding the missing test"),
+]
+
+test("AC-4.5 AC-4.6 the run view shows a block per reported round, and the user's brief is never read as a report", async ({
+  page,
+}) => {
+  await startRuns(page, {
+    runs: [seedRun("run_a", "ses_dir_a", { budgetUSD: 5 })],
+    threads: [directorThread("ses_dir_a", "Replace the tab strip", { cost: 1.25 })],
+    messages: { ses_dir_a: twoRounds },
+  })
+  await openRuns(page)
+  const item = runList(page).locator('[data-run="run_a"]')
+  await expect(item).toContainText("Build and review")
+  await expect(item).toContainText("Repo project")
+  await expect(item).toContainText("Running")
+  await item.click()
+
+  // The run view replaces the workflow editor; the saved workflows stay on the left.
+  await expect(runView(page)).toBeVisible()
+  await expect(workflows(page).getByRole("textbox", { name: "Workflow name" })).toHaveCount(0)
+  await expect(runView(page)).toContainText("Replace the tab strip")
+  await expect(runView(page)).toContainText("Repo project")
+  await expect(runView(page)).toContainText("Build and review")
+  await expect(runStatus(page)).toHaveText("Running · round 2 of 5")
+  await expect
+    .poll(() =>
+      runView(page)
+        .locator("[data-round]")
+        .evaluateAll((blocks) => blocks.map((block) => block.getAttribute("data-round"))),
+    )
+    .toEqual(["1", "2"])
+  const first = runView(page).locator('[data-round="1"]')
+  await expect(first).toContainText("Sent back")
+  await expect(first).toContainText("implementor")
+  await expect(first).toContainText("Changed the tab model")
+  await expect(first).toContainText("reviewer")
+  await expect(first).toContainText("Missing a test for the empty list")
+  const second = runView(page).locator('[data-round="2"]')
+  await expect(second).toContainText("In progress")
+  await expect(second).toContainText("Adding the missing test")
+  await expect(runView(page).locator('[data-round="9"]')).toHaveCount(0)
+
+  // Rounds and spend against their limits, with a meter each, and the statement about the limits.
+  await expect(runView(page).locator('[data-slot="run-rounds"]')).toContainText("2 of 5")
+  await expect(runView(page).locator('[data-slot="run-rounds"]').getByRole("meter")).toHaveAttribute(
+    "aria-valuenow",
+    "40",
+  )
+  await expect(runView(page).locator('[data-slot="run-spend"]')).toContainText("$1.25 of $5.00")
+  await expect(runView(page).locator('[data-slot="run-spend"]').getByRole("meter")).toHaveAttribute(
+    "aria-valuenow",
+    "25",
+  )
+  await expect(runView(page)).toContainText("Repeats until")
+  await expect(runView(page)).toContainText("Limits are enforced while Tenon is open. A run never merges or pushes.")
+  await expect(runView(page).locator('[data-action="run-pause"]')).toBeVisible()
+  await expect(runView(page).locator('[data-action="run-stop"]')).toBeVisible()
+  await expect(runView(page).locator('[data-action="run-resume"]')).toHaveCount(0)
+
+  // The rounds are saved, so they survive a reload; the saved run is not replaced by the seeded one.
+  await expect.poll(async () => (await storedRuns(page))[0]?.rounds.length).toBe(2)
+  expect((await storedRuns(page))[0]?.status).toBe("running")
+  await page.reload()
+  await openRuns(page)
+  await expect(runList(page).locator('[data-run="run_a"]')).toBeVisible()
+  expect((await storedRuns(page))[0]?.rounds.length).toBe(2)
+
+  // The director thread opens from the run view.
+  await runList(page).locator('[data-run="run_a"]').click()
+  await runView(page).locator('[data-action="run-open-thread"]').click()
+  await expect(page).toHaveURL(/\/session\/ses_dir_a$/)
+})
+
+test("AC-4.5 a run whose reports pass its round cap is interrupted once and shows out of rounds", async ({ page }) => {
+  const aborts: string[] = []
+  await startRuns(page, {
+    runs: [seedRun("run_b", "ses_dir_b", { maxRounds: 2 })],
+    threads: [directorThread("ses_dir_b", "Rework the sidebar")],
+    messages: {
+      ses_dir_b: [
+        directorMessage("ses_dir_b", "msg_b0", "user", "Rework the sidebar."),
+        directorMessage(
+          "ses_dir_b",
+          "msg_b1",
+          "assistant",
+          "[[round 1 | implementor | done]] Done\n[[round 3 | implementor | started]] Again",
+        ),
+      ],
+    },
+    onAbort: (input) => aborts.push(input.sessionID),
+  })
+  await expect.poll(() => aborts).toEqual(["ses_dir_b"])
+  await openRuns(page)
+  await expect(runList(page).locator('[data-run="run_b"]')).toContainText("Out of rounds")
+  await runList(page).locator('[data-run="run_b"]').click()
+  await expect(runStatus(page)).toHaveText("Stopped · past 2 rounds")
+  // A finished run offers the links and a way to remove it, not Pause or Stop.
+  await expect(runView(page).locator('[data-action="run-open-thread"]')).toBeVisible()
+  await expect(runView(page).locator('[data-action="run-pause"]')).toHaveCount(0)
+  await expect(runView(page).locator('[data-action="run-stop"]')).toHaveCount(0)
+  await expect.poll(async () => (await storedRuns(page))[0]?.status).toBe("out-of-rounds")
+  expect(aborts).toEqual(["ses_dir_b"])
+
+  await runView(page).locator('[data-action="run-remove"]').click()
+  await expect(runView(page)).toHaveCount(0)
+  await expect(runList(page)).toHaveCount(0)
+  await expect.poll(async () => (await storedRuns(page)).length).toBe(0)
+})
+
+test("AC-4.5 a run is stopped when the director and its child threads have spent its budget", async ({ page }) => {
+  const aborts: string[] = []
+  const child = directorThread("ses_dir_d_child", "Implementor", { parentID: "ses_dir_d", cost: 2 })
+  await startRuns(page, {
+    runs: [seedRun("run_d", "ses_dir_d", { budgetUSD: 2 })],
+    threads: [directorThread("ses_dir_d", "Tidy the settings", { cost: 0.5 }), child],
+    children: (id) => (id === "ses_dir_d" ? [child] : []),
+    onAbort: (input) => aborts.push(input.sessionID),
+  })
+  await expect.poll(() => aborts).toEqual(["ses_dir_d"])
+  await openRuns(page)
+  await runList(page).locator('[data-run="run_d"]').click()
+  await expect(runStatus(page)).toHaveText("Stopped · over budget")
+  await expect(runView(page).locator('[data-slot="run-spend"]')).toContainText("$2.50 of $2.00")
+  expect(aborts).toEqual(["ses_dir_d"])
+})
+
+test("AC-4.6 Pause interrupts the director, Resume sends it on, and Stop interrupts and ends the run", async ({
+  page,
+}) => {
+  const aborts: string[] = []
+  const prompts: { sessionID: string; text: string }[] = []
+  await startRuns(page, {
+    runs: [seedRun("run_c", "ses_dir_c")],
+    threads: [directorThread("ses_dir_c", "Fix the date picker")],
+    onAbort: (input) => aborts.push(input.sessionID),
+    onPrompt: (input) => {
+      const body = input.body as { prompt?: { text?: string }; parts?: { text?: string }[] }
+      prompts.push({
+        sessionID: input.sessionID,
+        text: body.prompt?.text ?? body.parts?.map((part) => part.text ?? "").join("") ?? "",
+      })
+    },
+  })
+  await openRuns(page)
+  await runList(page).locator('[data-run="run_c"]').click()
+  await expect(runStatus(page)).toHaveText("Running · no report yet")
+  await expect(runView(page).locator('[data-slot="run-rounds"]')).toContainText("0 of 5")
+  // No budget: just the amount, and no meter.
+  await expect(runView(page).locator('[data-slot="run-spend"]')).toContainText("$0.00")
+  await expect(runView(page).locator('[data-slot="run-spend"]')).not.toContainText(" of ")
+  await expect(runView(page).locator('[data-slot="run-spend"]').getByRole("meter")).toHaveCount(0)
+
+  await runView(page).locator('[data-action="run-pause"]').click()
+  await expect(runStatus(page)).toHaveText("Paused")
+  expect(aborts).toEqual(["ses_dir_c"])
+  await expect(runView(page).locator('[data-action="run-pause"]')).toHaveCount(0)
+
+  await runView(page).locator('[data-action="run-resume"]').click()
+  await expect(runStatus(page)).toHaveText("Running · no report yet")
+  expect(prompts).toHaveLength(1)
+  expect(prompts[0]!.sessionID).toBe("ses_dir_c")
+  expect(prompts[0]!.text).toContain("paused")
+
+  await runView(page).locator('[data-action="run-stop"]').click()
+  await expect(runStatus(page)).toHaveText("Stopped")
+  expect(aborts).toEqual(["ses_dir_c", "ses_dir_c"])
+  await expect(runView(page).locator('[data-action="run-resume"]')).toHaveCount(0)
+  await expect.poll(async () => (await storedRuns(page))[0]?.status).toBe("stopped")
+})
+
+test("AC-4.6 a director's board row shows its round and opens the run view, and the run links back to the board", async ({
+  page,
+}) => {
+  await startRuns(page, {
+    runs: [seedRun("run_a", "ses_dir_a")],
+    threads: [directorThread("ses_dir_a", "Replace the tab strip")],
+    messages: { ses_dir_a: twoRounds },
+  })
+  const row = mission(page).locator('[data-thread="ses_dir_a"]')
+  await expect(row.locator('[data-slot="board-run-round"]')).toHaveText("Round 2 of 5")
+  // A thread without a run has neither.
+  await expect(mission(page).locator('[data-thread="ses_board_run"] [data-action="board-run"]')).toHaveCount(0)
+  await row.locator('[data-action="board-run"]').click()
+  await expect(runView(page)).toBeVisible()
+  await expect(runStatus(page)).toHaveText("Running · round 2 of 5")
+
+  await runView(page).locator('[data-action="run-open-project"]').click()
+  await expect(mission(page)).toBeVisible()
+  await expect(mission(page).locator('[data-project="prj_repo"]')).toBeVisible()
+  await expect(runView(page)).toHaveCount(0)
 })

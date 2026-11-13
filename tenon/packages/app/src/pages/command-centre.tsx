@@ -54,6 +54,9 @@ export default function CommandCentrePage() {
     query: "",
     hit: -1,
     view: "board" as "board" | "waiting" | "workflows",
+    // The workflow run shown in the Workflows view, and the Project the board is asked to show.
+    run: undefined as string | undefined,
+    project: undefined as string | undefined,
   })
   const open = (sessionID: string) => navigate(sessionHref(server.key, sessionID))
   const board = createMissionThreads(ctrl)
@@ -223,7 +226,12 @@ export default function CommandCentrePage() {
               <SegmentedControlV2
                 aria-label={language.t("secondBrain.commandCentre.hands.view")}
                 value={state.view}
-                onChange={(value) => setState("view", value === "waiting" || value === "workflows" ? value : "board")}
+                onChange={(value) =>
+                  setState({
+                    view: value === "waiting" || value === "workflows" ? value : "board",
+                    project: undefined,
+                  })
+                }
               >
                 <SegmentedControlItemV2 value="board" data-action="command-view">
                   {language.t("secondBrain.commandCentre.board.title")}
@@ -240,7 +248,14 @@ export default function CommandCentrePage() {
               </SegmentedControlV2>
               <Switch>
                 <Match when={state.view === "workflows"}>
-                  <Workflows ctrl={ctrl} started={() => setState("view", "board")} />
+                  <Workflows
+                    ctrl={ctrl}
+                    started={() => setState("view", "board")}
+                    run={state.run}
+                    selectRun={(run) => setState("run", run)}
+                    open={open}
+                    showProject={(project) => setState({ view: "board", project })}
+                  />
                 </Match>
                 <Match when={state.view === "waiting"}>
                   <AgentHands ctrl={ctrl} queue={queue()} open={open} />
@@ -254,7 +269,13 @@ export default function CommandCentrePage() {
                       </PageEmpty>
                     }
                   >
-                    <MissionBoard ctrl={ctrl} threads={board()} open={open} />
+                    <MissionBoard
+                      ctrl={ctrl}
+                      threads={board()}
+                      open={open}
+                      openRun={(run) => setState({ view: "workflows", run })}
+                      focusProject={state.project}
+                    />
                   </Show>
                 </Match>
               </Switch>

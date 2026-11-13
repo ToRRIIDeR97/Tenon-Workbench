@@ -299,7 +299,18 @@ folder as a workspace and selects it) and `tenon://new-session?directory=<path>&
   and **Start**. Start is refused, with the reasons listed beside it, until every
   role has a harness and the brief and Project are set; then it opens a director
   thread in that Project, sends it the generated brief and returns to Mission
-  control. On every other page a handle above the bottom edge
+  control. Under the saved workflows, **Runs** lists the started runs (newest
+  first, each with its workflow, Project and status); selecting one shows the
+  run view in place of the editor: the director thread's title, a status
+  (for example "Running · round 2 of 5"), **Pause** and **Stop** (a paused run
+  has **Resume**, which asks the director to carry on), what it repeats until
+  (the reviewer approves), **Rounds** and **Spend** against their limits, one
+  block per round (In progress, Sent back, Approved) with each role's latest
+  entry, and links to the director thread and to the Project's threads on the
+  board. A finished run offers only those links and **Remove from the list**.
+  The limits (the round cap and the budget) are enforced only while Tenon is
+  open, and a run never merges or pushes. A director's row on the board shows
+  "Round n of max" and a **Run view** control that opens the same view. On every other page a handle above the bottom edge
   opens the K3 strip (also `mod+j`; Esc closes it) with the latest reply, a
   composer and **Open full**. On a thread the strip sits on top of the composer.
 - **Settings** contains General, Shortcuts, Servers, Providers, Models and

@@ -2,25 +2,12 @@ import { createSimpleContext } from "@tenon/ui/context"
 import { createStore } from "solid-js/store"
 import type { Platform } from "@/context/platform"
 import { Persist, persisted } from "@/utils/persist"
+import type { Run, RunStatus } from "./workflow-runs"
+import { createWorkflowRuns } from "./workflow-tracker"
 import { DEFAULT_WORKFLOWS, type Workflow } from "./workflows"
 
-/**
- * A started workflow run, kept so the run view (Task 4) can read it. Task 3 only appends one as `running` with no
- * rounds; `rounds` is typed loosely here and becomes the run view's `Round[]` there.
- */
-export type WorkflowRun = {
-  id: string
-  workflowID: string
-  /** The director thread. */
-  sessionID: string
-  /** The Project's ID. */
-  project: string
-  startedAt: number
-  maxRounds: number
-  budgetUSD?: number
-  status: "running" | "paused" | "stopped" | "done" | "over-budget" | "out-of-rounds"
-  rounds: unknown[]
-}
+/** A started workflow run, kept so the tracker and the run view can read it. Runs from Task 3 stored `rounds: []`. */
+export type WorkflowRun = Run
 
 /** The key under which the user's workflows and the started runs persist (global, per server scope on desktop). */
 export const WORKFLOWS_STORAGE_KEY = "command-workflows.v1"
@@ -66,6 +53,21 @@ export function appendRun(runs: ReadonlyArray<WorkflowRun>, run: WorkflowRun): W
   return [...runs, run]
 }
 
+/** The run list with the run of that ID replaced by `run`; an unknown ID leaves the list as it was. */
+export function updateRun(runs: ReadonlyArray<WorkflowRun>, id: string, run: WorkflowRun): WorkflowRun[] {
+  return runs.map((item) => (item.id === id ? run : item))
+}
+
+/** The run list with that run's status changed; an unknown ID leaves the list as it was. */
+export function setRunStatus(runs: ReadonlyArray<WorkflowRun>, id: string, status: RunStatus): WorkflowRun[] {
+  return runs.map((item) => (item.id === id ? { ...item, status } : item))
+}
+
+/** The run list without that run. */
+export function removeRun(runs: ReadonlyArray<WorkflowRun>, id: string): WorkflowRun[] {
+  return runs.filter((item) => item.id !== id)
+}
+
 /** A run as Start records it. */
 export function newRun(input: {
   id: string
@@ -109,12 +111,23 @@ export function createWorkflowStore(platform?: Platform) {
     remove: (id: string) =>
       setStore("workflows", removeWorkflow(Array.isArray(store.workflows) ? store.workflows : [], id)),
     addRun: (run: WorkflowRun) => setStore("runs", appendRun(Array.isArray(store.runs) ? store.runs : [], run)),
+    /** Replaces the run of that ID. */
+    updateRun: (run: WorkflowRun) =>
+      setStore("runs", updateRun(Array.isArray(store.runs) ? store.runs : [], run.id, run)),
+    setStatus: (id: string, status: RunStatus) =>
+      setStore("runs", setRunStatus(Array.isArray(store.runs) ? store.runs : [], id, status)),
+    removeRun: (id: string) => setStore("runs", removeRun(Array.isArray(store.runs) ? store.runs : [], id)),
   }
 }
 
-/** The saved workflows and started runs, shared by the Command Centre page and (Task 4) the run view. */
+/** The saved workflows and started runs, with what acts on a run (pause, stop, resume), shared by the Command Centre page
+ * and the run view. */
 export const { use: useWorkflows, provider: WorkflowsProvider } = createSimpleContext({
   name: "Workflows",
   gate: false,
-  init: () => createWorkflowStore(),
+  init: () => {
+    const store = createWorkflowStore()
+    // Follows the running runs for as long as the app is open (reports, spend and limits).
+    return { ...store, ...createWorkflowRuns(store) }
+  },
 })

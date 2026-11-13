@@ -42,6 +42,8 @@ export interface MockServerConfig {
   onAbort?: (input: { sessionID: string; directory?: string }) => void
   /** A reply to a pending permission request (legacy `permissions/:id` or the current `permission/:id/reply`). */
   onPermissionReply?: (input: { sessionID: string; requestID: string; directory?: string; body: unknown }) => void
+  /** The child threads of a thread (GET `/session/:id/children`); without it a thread has none. */
+  children?: (sessionID: string) => unknown[]
   /** The Command Centre agent's logged actions (GET /command-centre/actions); the `since` query is not applied. */
   commandActions?: unknown[] | (() => unknown[])
 }
@@ -351,6 +353,8 @@ export async function mockTenonServer(page: Page, config: MockServerConfig) {
 
     const todoMatch = path.match(/^\/session\/([^/]+)\/todo$/)
     if (todoMatch) return json(route, config.todos?.(todoMatch[1]!) ?? [])
+    const childrenMatch = path.match(/^\/session\/([^/]+)\/children$/)
+    if (childrenMatch && config.children) return json(route, config.children(childrenMatch[1]!))
     if (/^\/session\/[^/]+\/(children|diff)$/.test(path)) return json(route, [])
 
     if (/^\/api\/session\/[^/]+\/diff$/.test(path)) return json(route, { data: config.sessionDiff ?? [] })

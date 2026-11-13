@@ -7,7 +7,7 @@ import { MenuV2 } from "@tenon/ui/v2/menu-v2"
 import { createMemo, For, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { HarnessIcon } from "@/components/harness-icon"
-import { MODEL_RETRIES, MODEL_RETRY_MS } from "@/components/prompt-input/harness-controller"
+import { harnessSettingsVersion, MODEL_RETRIES, MODEL_RETRY_MS } from "@/components/prompt-input/harness-controller"
 import { harnessStatusKey, orderHarnesses } from "@/components/prompt-input/harness-controls"
 import type { SidebarController } from "@/components/sidebar/sidebar-controller"
 import { useLanguage } from "@/context/language"
@@ -17,6 +17,7 @@ import { useServerSDK } from "@/context/server-sdk"
 import { useSettings, withVisibleModels } from "@/context/settings"
 import { modelChoice, useCommandCentre } from "@/features/command-centre/command-centre"
 import { duplicateWorkflow, newRun, workflowID, useWorkflows } from "@/features/command-centre/workflow-store"
+import { WorkflowRunList, WorkflowRunView } from "@/features/command-centre/workflow-run-view"
 import {
   DEFAULT_WORKFLOWS,
   directorBrief,
@@ -90,7 +91,8 @@ function createHarnessList(directory: () => string) {
   const serverSDK = useServerSDK()
   const settings = useSettings()
   const query = useQuery(() => ({
-    queryKey: ["workflows", "harnesses", server.key, directory()],
+    // A harness added, toggled or removed in Settings changes the key, so the list is asked again as the composer's is.
+    queryKey: ["workflows", "harnesses", server.key, directory(), harnessSettingsVersion()],
     enabled: !!directory(),
     queryFn: () => listHarnessesRemembered({ server: serverSDK().server.http, fetch: platform.fetch }, directory()),
     placeholderData: () => rememberedHarnesses(serverSDK().server.http.url, directory()),
@@ -113,7 +115,15 @@ function createHarnessList(directory: () => string) {
  * with a harness and model each, the run limits, a Project and a brief) and Start, which creates a director thread
  * in that Project and sends it the generated brief.
  */
-export function Workflows(props: { ctrl: SidebarController; started: () => void }) {
+export function Workflows(props: {
+  ctrl: SidebarController
+  started: () => void
+  /** The run shown in the right pane instead of the workflow editor. */
+  run?: string
+  selectRun: (id: string | undefined) => void
+  open: (sessionID: string) => void
+  showProject: (projectID: string) => void
+}) {
   const language = useLanguage()
   const serverSDK = useServerSDK()
   const centre = useCommandCentre()
@@ -128,6 +138,7 @@ export function Workflows(props: { ctrl: SidebarController; started: () => void 
     failed: false,
   })
   const list = createMemo(() => store.workflows())
+  const run = createMemo(() => store.runs().find((item) => item.id === props.run))
   const workflow = createMemo(() => list().find((item) => item.id === state.selected) ?? list()[0])
   const builtIn = () => DEFAULT_WORKFLOWS.some((item) => item.id === workflow()?.id)
   const projects = () => props.ctrl.projects()
@@ -397,7 +408,10 @@ export function Workflows(props: { ctrl: SidebarController; started: () => void 
                       classList={{
                         "bg-v2-overlay-simple-overlay-pressed [font-weight:600]": workflow()?.id === item().id,
                       }}
-                      onClick={() => setState({ selected: item().id, failed: false })}
+                      onClick={() => {
+                        props.selectRun(undefined)
+                        setState({ selected: item().id, failed: false })
+                      }}
                     >
                       <span class="min-w-0 flex-1 truncate type-row-title text-v2-text-text-base">
                         {item().name || language.t("secondBrain.workflows.new.name")}
@@ -415,137 +429,159 @@ export function Workflows(props: { ctrl: SidebarController; started: () => void 
         <ButtonV2 size="small" variant="outline" icon="plus" data-action="workflow-new" onClick={create}>
           {language.t("secondBrain.workflows.new")}
         </ButtonV2>
+        <WorkflowRunList ctrl={props.ctrl} selected={props.run} select={props.selectRun} />
       </aside>
-      <Show when={workflow()}>
-        {(current) => (
-          <div class="flex min-w-0 flex-1 flex-col gap-4">
-            <div class="flex flex-col gap-2">
-              <input
-                class={`${fieldClass} h-10 type-toolbar-title`}
-                value={current().name}
-                aria-label={language.t("secondBrain.workflows.name")}
-                onInput={(event) => update({ name: event.currentTarget.value })}
-              />
-              <input
-                class={`${fieldClass} h-9`}
-                value={current().description}
-                aria-label={language.t("secondBrain.workflows.description")}
-                placeholder={language.t("secondBrain.workflows.description")}
-                onInput={(event) => update({ description: event.currentTarget.value })}
-              />
-            </div>
-            <h3 class="px-1 type-section text-v2-text-text-base">{language.t("secondBrain.workflows.roles")}</h3>
-            <ol class="flex flex-col gap-3">
-              <For each={current().roles.map((role) => role.id)}>
-                {(id, index) => <RoleCard id={id} number={index() + 1} />}
-              </For>
-            </ol>
-            <div>
-              <ButtonV2 size="small" variant="outline" icon="plus" data-action="workflow-add-role" onClick={addRole}>
-                {language.t("secondBrain.workflows.role.add")}
-              </ButtonV2>
-            </div>
-            <h3 class="px-1 type-section text-v2-text-text-base">{language.t("secondBrain.workflows.run")}</h3>
-            <div class={cardClass}>
-              <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
-                <span class="flex items-center gap-2 type-meta text-v2-text-text-muted">
-                  {language.t("secondBrain.workflows.project")}
-                  <PickChip
-                    action="workflow-project"
-                    label={language.t("secondBrain.workflows.project")}
-                    value={project()?.name ?? language.t("secondBrain.workflows.project.choose")}
-                    current={state.project ?? ""}
-                    choices={projects().map((item) => ({ id: item.id, label: item.name }))}
-                    onPick={(id) => setState("project", id)}
-                  />
-                </span>
-                <label class="flex items-center gap-2 type-meta text-v2-text-text-muted">
-                  {language.t("secondBrain.workflows.budget")}
+      <Show
+        when={run()}
+        fallback={
+          <Show when={workflow()}>
+            {(current) => (
+              <div class="flex min-w-0 flex-1 flex-col gap-4">
+                <div class="flex flex-col gap-2">
                   <input
-                    type="number"
-                    min="0"
-                    step="0.5"
-                    data-slot="workflow-budget"
-                    class={`${fieldClass} h-8 !w-24 tabular-nums`}
-                    value={current().budgetUSD ?? ""}
-                    placeholder={language.t("secondBrain.workflows.budget.placeholder")}
-                    onInput={(event) =>
-                      update({
-                        budgetUSD: event.currentTarget.value === "" ? undefined : event.currentTarget.valueAsNumber,
-                      })
-                    }
+                    class={`${fieldClass} h-10 type-toolbar-title`}
+                    value={current().name}
+                    aria-label={language.t("secondBrain.workflows.name")}
+                    onInput={(event) => update({ name: event.currentTarget.value })}
                   />
-                </label>
-                <label class="flex items-center gap-2 type-meta text-v2-text-text-muted">
-                  {language.t("secondBrain.workflows.rounds")}
                   <input
-                    type="number"
-                    min="1"
-                    max={MAX_ROUNDS}
-                    step="1"
-                    data-slot="workflow-rounds"
-                    class={`${fieldClass} h-8 !w-20 tabular-nums`}
-                    value={Number.isFinite(current().maxRounds) ? current().maxRounds : ""}
-                    onInput={(event) => update({ maxRounds: event.currentTarget.valueAsNumber })}
+                    class={`${fieldClass} h-9`}
+                    value={current().description}
+                    aria-label={language.t("secondBrain.workflows.description")}
+                    placeholder={language.t("secondBrain.workflows.description")}
+                    onInput={(event) => update({ description: event.currentTarget.value })}
                   />
-                </label>
-              </div>
-              <label class="flex flex-col gap-1.5">
-                <span class="type-meta text-v2-text-text-muted">{language.t("secondBrain.workflows.brief")}</span>
-                <textarea
-                  data-slot="workflow-brief"
-                  class={`${fieldClass} resize-y py-2`}
-                  rows={5}
-                  value={state.brief}
-                  placeholder={language.t("secondBrain.workflows.brief.placeholder")}
-                  onInput={(event) => setState("brief", event.currentTarget.value)}
-                />
-              </label>
-              <Show when={problems().length > 0}>
-                <ul
-                  data-slot="workflow-problems"
-                  aria-label={language.t("secondBrain.workflows.problems")}
-                  class="flex flex-col gap-0.5 type-meta"
-                  classList={{
-                    "text-v2-text-text-critical": state.tried,
-                    "text-v2-text-text-muted": !state.tried,
-                  }}
-                >
-                  <For each={problems()}>
-                    {(problem) => (
-                      <li data-problem={problem} role={state.tried ? "alert" : undefined}>
-                        {problemText(problem)}
-                      </li>
-                    )}
+                </div>
+                <h3 class="px-1 type-section text-v2-text-text-base">{language.t("secondBrain.workflows.roles")}</h3>
+                <ol class="flex flex-col gap-3">
+                  <For each={current().roles.map((role) => role.id)}>
+                    {(id, index) => <RoleCard id={id} number={index() + 1} />}
                   </For>
-                </ul>
-              </Show>
-              <Show when={state.failed}>
-                <p role="alert" class="type-meta text-v2-text-text-critical">
-                  {language.t("common.requestFailed")}
-                </p>
-              </Show>
-              <div class="flex flex-wrap items-center justify-end gap-2">
-                <ButtonV2 size="small" variant="ghost" data-action="workflow-duplicate" onClick={duplicate}>
-                  {language.t("secondBrain.workflows.duplicate")}
-                </ButtonV2>
-                <Show when={!builtIn()}>
-                  <ButtonV2 size="small" variant="ghost" data-action="workflow-delete" onClick={remove}>
-                    {language.t("common.delete")}
+                </ol>
+                <div>
+                  <ButtonV2
+                    size="small"
+                    variant="outline"
+                    icon="plus"
+                    data-action="workflow-add-role"
+                    onClick={addRole}
+                  >
+                    {language.t("secondBrain.workflows.role.add")}
                   </ButtonV2>
-                </Show>
-                <ButtonV2
-                  size="small"
-                  variant="contrast"
-                  data-action="workflow-start"
-                  disabled={state.starting}
-                  onClick={start}
-                >
-                  {language.t("secondBrain.workflows.start")}
-                </ButtonV2>
+                </div>
+                <h3 class="px-1 type-section text-v2-text-text-base">{language.t("secondBrain.workflows.run")}</h3>
+                <div class={cardClass}>
+                  <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+                    <span class="flex items-center gap-2 type-meta text-v2-text-text-muted">
+                      {language.t("secondBrain.workflows.project")}
+                      <PickChip
+                        action="workflow-project"
+                        label={language.t("secondBrain.workflows.project")}
+                        value={project()?.name ?? language.t("secondBrain.workflows.project.choose")}
+                        current={state.project ?? ""}
+                        choices={projects().map((item) => ({ id: item.id, label: item.name }))}
+                        onPick={(id) => setState("project", id)}
+                      />
+                    </span>
+                    <label class="flex items-center gap-2 type-meta text-v2-text-text-muted">
+                      {language.t("secondBrain.workflows.budget")}
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        data-slot="workflow-budget"
+                        class={`${fieldClass} h-8 !w-24 tabular-nums`}
+                        value={current().budgetUSD ?? ""}
+                        placeholder={language.t("secondBrain.workflows.budget.placeholder")}
+                        onInput={(event) =>
+                          update({
+                            budgetUSD: event.currentTarget.value === "" ? undefined : event.currentTarget.valueAsNumber,
+                          })
+                        }
+                      />
+                    </label>
+                    <label class="flex items-center gap-2 type-meta text-v2-text-text-muted">
+                      {language.t("secondBrain.workflows.rounds")}
+                      <input
+                        type="number"
+                        min="1"
+                        max={MAX_ROUNDS}
+                        step="1"
+                        data-slot="workflow-rounds"
+                        class={`${fieldClass} h-8 !w-20 tabular-nums`}
+                        value={Number.isFinite(current().maxRounds) ? current().maxRounds : ""}
+                        onInput={(event) => update({ maxRounds: event.currentTarget.valueAsNumber })}
+                      />
+                    </label>
+                  </div>
+                  <label class="flex flex-col gap-1.5">
+                    <span class="type-meta text-v2-text-text-muted">{language.t("secondBrain.workflows.brief")}</span>
+                    <textarea
+                      data-slot="workflow-brief"
+                      class={`${fieldClass} resize-y py-2`}
+                      rows={5}
+                      value={state.brief}
+                      placeholder={language.t("secondBrain.workflows.brief.placeholder")}
+                      onInput={(event) => setState("brief", event.currentTarget.value)}
+                    />
+                  </label>
+                  <Show when={problems().length > 0}>
+                    <ul
+                      data-slot="workflow-problems"
+                      aria-label={language.t("secondBrain.workflows.problems")}
+                      class="flex flex-col gap-0.5 type-meta"
+                      classList={{
+                        "text-v2-text-text-critical": state.tried,
+                        "text-v2-text-text-muted": !state.tried,
+                      }}
+                    >
+                      <For each={problems()}>
+                        {(problem) => (
+                          <li data-problem={problem} role={state.tried ? "alert" : undefined}>
+                            {problemText(problem)}
+                          </li>
+                        )}
+                      </For>
+                    </ul>
+                  </Show>
+                  <Show when={state.failed}>
+                    <p role="alert" class="type-meta text-v2-text-text-critical">
+                      {language.t("common.requestFailed")}
+                    </p>
+                  </Show>
+                  <div class="flex flex-wrap items-center justify-end gap-2">
+                    <ButtonV2 size="small" variant="ghost" data-action="workflow-duplicate" onClick={duplicate}>
+                      {language.t("secondBrain.workflows.duplicate")}
+                    </ButtonV2>
+                    <Show when={!builtIn()}>
+                      <ButtonV2 size="small" variant="ghost" data-action="workflow-delete" onClick={remove}>
+                        {language.t("common.delete")}
+                      </ButtonV2>
+                    </Show>
+                    <ButtonV2
+                      size="small"
+                      variant="contrast"
+                      data-action="workflow-start"
+                      disabled={state.starting}
+                      onClick={start}
+                    >
+                      {language.t("secondBrain.workflows.start")}
+                    </ButtonV2>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
+            )}
+          </Show>
+        }
+      >
+        {(selected) => (
+          <WorkflowRunView
+            run={selected()}
+            ctrl={props.ctrl}
+            open={props.open}
+            showProject={props.showProject}
+            removed={() => props.selectRun(undefined)}
+          />
         )}
       </Show>
     </section>

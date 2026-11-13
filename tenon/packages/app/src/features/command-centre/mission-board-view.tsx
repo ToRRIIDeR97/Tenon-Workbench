@@ -1,7 +1,7 @@
 import { Harness } from "@tenon/schema/harness"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { SegmentedControlItemV2, SegmentedControlV2 } from "@tenon/ui/v2/segmented-control-v2"
-import { createMemo, For, Show, type JSX } from "solid-js"
+import { createEffect, createMemo, For, on, Show, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import type { SidebarController } from "@/components/sidebar/sidebar-controller"
 import { useLanguage } from "@/context/language"
@@ -10,6 +10,8 @@ import { useServerSync } from "@/context/server-sync"
 import { isCommandThread } from "@/features/command-centre/command-centre"
 import { boardByProject, boardByState, steerText, type BoardThread } from "@/features/command-centre/mission-board"
 import { lastUpdate } from "@/features/second-brain/sidebar-grouping"
+import { currentRound } from "@/features/command-centre/workflow-run-view"
+import { useWorkflows } from "@/features/command-centre/workflow-store"
 import { flattenThreads } from "@/features/second-brain/sidebar-threads"
 import { agentRunStatus, needsYou } from "@/pages/activity-runs"
 import { Identifier } from "@/utils/id"
@@ -75,11 +77,22 @@ export function createMissionThreads(ctrl: SidebarController) {
 
 /**
  * The Command Centre's board of every Project's threads: needs you, running and finished (a day), or by Project.
- * Steer sends one line to a running thread; Stop aborts it; Review and Open go to the thread.
+ * Steer sends one line to a running thread; Stop aborts it; Review and Open go to the thread. A director thread of a
+ * workflow run shows its round and opens the run view.
  */
-export function MissionBoard(props: { ctrl: SidebarController; threads: MissionThread[]; open: (id: string) => void }) {
+export function MissionBoard(props: {
+  ctrl: SidebarController
+  threads: MissionThread[]
+  open: (id: string) => void
+  openRun: (runID: string) => void
+  /** A Project to show: the board switches to By project and scrolls to it. */
+  focusProject?: string
+}) {
   const language = useLanguage()
   const serverSDK = useServerSDK()
+  const workflows = useWorkflows()
+  const runByThread = createMemo(() => new Map(workflows.runs().map((run) => [run.sessionID, run] as const)))
+  let root: HTMLElement | undefined
   const [state, setState] = createStore({
     view: "state" as "state" | "project",
     steer: undefined as string | undefined,
@@ -97,6 +110,18 @@ export function MissionBoard(props: { ctrl: SidebarController; threads: MissionT
         ...byState().running.map((thread) => [thread.id, "running"] as const),
         ...byState().needsYou.map((thread) => [thread.id, "needs-you"] as const),
       ]),
+  )
+  createEffect(
+    on(
+      () => props.focusProject,
+      (id) => {
+        if (!id) return
+        setState("view", "project")
+        queueMicrotask(() =>
+          root?.querySelector(`[data-project="${CSS.escape(id)}"]`)?.scrollIntoView({ block: "nearest" }),
+        )
+      },
+    ),
   )
   const empty = () => byState().needsYou.length + byState().running.length + byState().finished.length === 0
 
@@ -153,6 +178,18 @@ export function MissionBoard(props: { ctrl: SidebarController; threads: MissionT
                 {language.t("secondBrain.commandCentre.board.waiting", { count: thread().waiting })}
               </span>
             </Show>
+            <Show when={runByThread().get(thread().id)}>
+              {(run) => (
+                <Show when={currentRound(run()) > 0}>
+                  <span data-slot="board-run-round" class="shrink-0 type-meta text-v2-text-text-muted">
+                    {language.t("secondBrain.commandCentre.board.round", {
+                      round: currentRound(run()),
+                      max: run().maxRounds,
+                    })}
+                  </span>
+                </Show>
+              )}
+            </Show>
             <Show when={thread().subagents > 0}>
               <span class="shrink-0 type-meta text-v2-text-text-muted">
                 {language.t("secondBrain.commandCentre.board.subagents", { count: thread().subagents })}
@@ -185,6 +222,18 @@ export function MissionBoard(props: { ctrl: SidebarController; threads: MissionT
                 >
                   {language.t("secondBrain.widget.review")}
                 </ButtonV2>
+              </Show>
+              <Show when={runByThread().get(thread().id)}>
+                {(run) => (
+                  <ButtonV2
+                    size="small"
+                    variant="outline"
+                    data-action="board-run"
+                    onClick={() => props.openRun(run().id)}
+                  >
+                    {language.t("secondBrain.commandCentre.board.openRun")}
+                  </ButtonV2>
+                )}
               </Show>
               <ButtonV2 size="small" variant="ghost" data-action="board-open" onClick={() => props.open(thread().id)}>
                 {language.t("common.open")}
@@ -231,6 +280,7 @@ export function MissionBoard(props: { ctrl: SidebarController; threads: MissionT
 
   return (
     <section
+      ref={root}
       data-component="mission-board"
       aria-labelledby="mission-board-title"
       class="mx-auto flex w-full max-w-[1040px] flex-col gap-3"

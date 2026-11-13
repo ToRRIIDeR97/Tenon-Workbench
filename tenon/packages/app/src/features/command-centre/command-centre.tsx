@@ -133,6 +133,17 @@ export function lastReplyText(data: CommandTranscript, sessionID: string | undef
   return reply ? messageText(data, reply.id).trim() : ""
 }
 
+/**
+ * What the agent wrote in a thread: the text of its assistant messages only, oldest first, one message per line
+ * break. User messages are left out on purpose: the user's own text must never read as the agent's report.
+ */
+export function assistantText(data: CommandTranscript, sessionID: string | undefined) {
+  if (!sessionID) return ""
+  return (data.message[sessionID] ?? [])
+    .flatMap((message) => (message.role === "assistant" ? [messageText(data, message.id)] : []))
+    .join("\n")
+}
+
 /** `threadWorking` from the thread's last message alone, which needs no text. */
 export function commandWorking(status: string | undefined, data: CommandTranscript, sessionID: string) {
   const last = data.message[sessionID]?.findLast((message) => messageState(message) !== undefined)

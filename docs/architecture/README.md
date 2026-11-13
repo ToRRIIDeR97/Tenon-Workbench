@@ -747,8 +747,34 @@ assistant that spans workspaces, with its own threads, memory and routines.
   runs persist in one `persisted` store, `workflow-store.ts`
   (`WorkflowsProvider`, mounted in `pages/layout-new.tsx`), under the global key
   `command-workflows.v1` (`{ workflows, runs }`). A run is recorded as
-  `running` with no rounds; reading its reports, spend and limits is the run
-  view's job (Task 4). No server route or action-log entry is involved.
+  `running` with no rounds. No server route or action-log entry is involved.
+  The harness list follows Settings changes (its query key carries
+  `harnessSettingsVersion`, as the thread composer's does).
+- **Runs and limits.** While the app is open `createWorkflowRuns`
+  (`workflow-tracker.ts`, started by `WorkflowsProvider`) follows every run whose
+  status is `running`, with no timer or polling: it pins the director thread,
+  loads it once through `serverSync().session.sync` (the newest 200 messages) and
+  fetches the threads under it once with `session.children`, then reacts to the
+  synced store. The director's assistant messages only (`assistantText`; the
+  user's brief is never read) go through the pure `workflow-runs.ts`:
+  `parseReports` reads `[[round N | role | status]]` lines and `applyReports`
+  merges them into the run's `Round[]` (a round with an approved entry makes a
+  running run `done`); the run is saved only when that changed it. Spend is
+  `runSpend` over the synced sessions' `cost` for the director and every thread
+  under it by `parentID`. When `stopReason` returns `budget` or `rounds` the
+  director thread is interrupted (`api.session.interrupt` through the thread's
+  folder) and the run becomes `over-budget` or `out-of-rounds`; the run leaves
+  `running` in the same step and a run still waiting on its interrupt is skipped,
+  so this happens once per run. A run that is `running` when the app starts is
+  followed again. Limits are therefore not enforced while Tenon is closed, and
+  the run view says so. The run view (`workflow-run-view.tsx`, shown in the
+  Workflows view instead of the editor; `[data-component="workflow-run"]`) draws
+  the status, the Rounds and Spend meters and one block per round. Pause and Stop
+  interrupt the director and set `paused` or `stopped`; Resume sends the director
+  a short message (`RESUME_TEXT`) and sets `running`. The board row of a director
+  thread (`mission-board-view.tsx`) shows its round and opens the view. A run
+  never merges or pushes: the director's brief carries those rules and the
+  tracker only reads and interrupts.
 - **Pill.** The Command Centre page marks its open thread as focused
   (`useAgentWrites().focus`), so the top pill leaves that thread's writes to
   the step list.
