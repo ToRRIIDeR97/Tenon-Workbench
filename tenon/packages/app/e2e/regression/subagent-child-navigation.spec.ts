@@ -39,7 +39,7 @@ test("shows the not found fallback when the viewed session is deleted", async ({
     payload: { type: "session.deleted", properties: { info: childSession() } },
   })
 
-  await expect(page.getByText("This session cannot be found")).toBeVisible()
+  await expect(page.getByText("This thread cannot be found")).toBeVisible()
   await expect(page.getByRole("button", { name: "Close Tab" })).toBeVisible()
   await expect(page.getByRole("heading", { name: taskDescription })).toHaveCount(0)
 })
@@ -96,9 +96,11 @@ async function openChildFromParent(page: Page) {
   await expectSessionTitle(page, parentTitle)
   await expandTurnSteps(page)
 
-  const card = page.locator(`a[href="${sessionHref(childID)}"]`)
-  await expect(card).toBeVisible()
-  await card.click()
+  // The side panel's Agents section lists the subagent; its child thread opens from the agent's detail.
+  await page.locator('[data-component="session-side-rail"]').getByRole("tab", { name: "Agents" }).click()
+  const panel = page.locator("#review-panel")
+  await panel.getByRole("button", { name: new RegExp(taskDescription) }).click()
+  await panel.locator('[data-action="agents-tab-open-session"]').click()
 
   await expect(page).toHaveURL(new RegExp(`/server/.+/session/${childID}$`), { timeout: 15_000 })
 }

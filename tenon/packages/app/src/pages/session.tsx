@@ -70,7 +70,15 @@ import {
   SessionComposerRegion,
   SessionRevertTray,
 } from "@/pages/session/composer"
-import { createOpenReviewFile, createSessionTabs, createSizing, shouldShowFileTree } from "@/pages/session/helpers"
+import {
+  SECTION_TAB,
+  SESSION_OPEN_FILE_TAB,
+  createOpenReviewFile,
+  createSessionTabs,
+  createSizing,
+  shouldShowFileTree,
+  type PanelSection,
+} from "@/pages/session/helpers"
 import { MessageTimeline } from "@/pages/session/timeline/message-timeline"
 import { createTimelineModel } from "@/pages/session/timeline/model"
 import { type DiffStyle, SessionReviewTab, type SessionReviewTabProps } from "@/pages/session/review-tab"
@@ -114,6 +122,7 @@ import { createSessionLineage } from "./session/session-lineage"
 import { PageEmpty, pagePanelClass } from "@/components/page"
 import { ComposerContextRing, ComposerWhereRow, createComposerContext } from "@/components/prompt-input/context-strip"
 import { useThreadSubagents } from "@/components/session/subagent-tab"
+import { subagentCounts } from "@/components/session/subagent-list"
 import { SessionTasksButton } from "@/pages/session/composer/session-tasks-button"
 import { ThreadEnvironmentButton } from "@/components/session/thread-environment"
 
@@ -495,9 +504,26 @@ export default function Page() {
   )
   // A closed review panel leaves a slim rail at the right edge to reopen it. A closing panel shrinks into
   // the rail's place first.
-  const desktopRailOpen = createMemo(
-    () => isDesktop() && !!params.id && !commandThread() && !desktopV2ReviewOpen() && !panelClosing(),
-  )
+  const desktopRailOpen = createMemo(() => isDesktop() && !!params.id && !commandThread())
+  // The file tab Files last showed, per session, so leaving the section and coming back returns to it.
+  const lastFileTab = new Map<string, string>()
+  // The rail's buttons: a section's button opens the panel on it, and the open section's button closes the panel.
+  const selectPanelSection = (section: PanelSection) => {
+    if (desktopV2ReviewOpen() && tabState.section() === section) return view().reviewPanel.close()
+    view().reviewPanel.open()
+    if (section !== "files") return tabs().setActive(SECTION_TAB[section])
+    const last = lastFileTab.get(sessionKey())
+    const tab = (last && tabState.openedTabs().includes(last) ? last : undefined) ?? tabState.openedTabs()[0]
+    if (!tab) {
+      // No file is open: show the file browser, as the strip's "open file" button does.
+      tabs().previewTab(SESSION_OPEN_FILE_TAB)
+      queueMicrotask(() => tabs().setActive(SESSION_OPEN_FILE_TAB))
+      return
+    }
+    const path = file.pathFromTab(tab)
+    if (path) void file.load(path)
+    tabs().setActive(tab)
+  }
   const railSpace = createMemo(() => (desktopRailOpen() ? SESSION_SIDE_RAIL_SPACE : 0))
   // The observer reports the row width; subtract the flex gap between the
   // panels and the rail.
@@ -664,9 +690,17 @@ export default function Page() {
     normalizeTab,
     review: reviewTab,
     hasReview: canReview,
+    fileBrowser: () => true,
   })
   const activeTab = tabState.activeTab
   const activeFileTab = tabState.activeFileTab
+  // One scan of the thread's subagents, shared by the composer's Tasks button and the side rail.
+  const threadSubagentGroups = useThreadSubagents(() => true)
+  const runningSubagents = createMemo(() => subagentCounts(threadSubagentGroups()).running)
+  createEffect(() => {
+    const tab = activeFileTab()
+    if (tab) lastFileTab.set(sessionKey(), tab)
+  })
   const revertMessageID = createMemo(() => info()?.revert?.messageID)
   const timeline = createTimelineModel({ sessionID: () => params.id, revertMessageID })
   const historyLoading = timeline.history.loading
@@ -2191,7 +2225,6 @@ export default function Page() {
             },
           })
           const composerContext = createComposerContext()
-          const threadSubagentGroups = useThreadSubagents(() => true)
           const promptController = usePromptInputV2Controller({
             get controls() {
               return inputController()
@@ -2377,7 +2410,16 @@ export default function Page() {
           </div>
         </Show>
         <Show when={desktopRailOpen()}>
-          <SessionSideRail reviewCount={reviewCount()} hasReview={hasReview()} onDragOut={dragOutSidePanel} />
+          <SessionSideRail
+            section={desktopV2ReviewOpen() && !panelClosing() ? tabState.section() : undefined}
+            canReview={canReview()}
+            reviewCount={reviewCount()}
+            hasReview={hasReview()}
+            running={runningSubagents()}
+            canvas={tabState.canvasOpen()}
+            onSelect={selectPanelSection}
+            onDragOut={desktopV2ReviewOpen() || panelClosing() ? undefined : dragOutSidePanel}
+          />
         </Show>
       </div>
     </SessionRouteFrame>

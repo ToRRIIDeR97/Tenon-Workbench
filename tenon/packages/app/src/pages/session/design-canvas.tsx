@@ -44,7 +44,7 @@ function createDesignCanvas() {
     const view = layout.view()
     const tabs = layout.tabs()
     view.reviewPanel.open(view.reviewPanel.opened() ? "other" : "context-button")
-    // Appended directly so opening the canvas never replaces a file preview tab.
+    // Kept in the tab list as the mark that this thread has a canvas, so the rail shows its section.
     if (!tabs.all().includes(CANVAS_TAB)) tabs.setAll([...tabs.all(), CANVAS_TAB])
     tabs.setActive(CANVAS_TAB)
   }

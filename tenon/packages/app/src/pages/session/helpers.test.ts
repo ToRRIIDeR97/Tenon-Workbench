@@ -3,7 +3,12 @@ import { createMemo, createRoot } from "solid-js"
 import { createStore } from "solid-js/store"
 import {
   AGENTS_TAB,
+  BROWSER_TAB,
   CANVAS_TAB,
+  DEVICE_TAB,
+  SECTION_TAB,
+  sectionAttention,
+  setSectionAttention,
   migrateAgentTabs,
   SESSION_OPEN_FILE_TAB,
   createOpenReviewFile,
@@ -179,7 +184,8 @@ describe("createSessionTabs", () => {
       })
 
       expect(result.activeTab()).toBe(CANVAS_TAB)
-      expect(result.closableTab()).toBe(CANVAS_TAB)
+      expect(result.section()).toBe("canvas")
+      expect(result.closableTab()).toBeUndefined()
       expect(result.activeFileTab()).toBeUndefined()
       expect(result.panelTabs()).toEqual(["file://src/a.ts"])
       setState({ active: undefined, all: [CANVAS_TAB] })
@@ -205,7 +211,8 @@ describe("createSessionTabs", () => {
       })
 
       expect(result.activeTab()).toBe("context")
-      expect(result.closableTab()).toBe("context")
+      expect(result.section()).toBe("details")
+      expect(result.closableTab()).toBeUndefined()
       dispose()
     })
 
@@ -228,6 +235,46 @@ describe("createSessionTabs", () => {
       expect(result.closableTab()).toBeUndefined()
       dispose()
     })
+  })
+
+  test("maps the active tab to a section, without the section being in the tab list", () => {
+    const section = (active: string | undefined, all: string[] = []) =>
+      createRoot((dispose) => {
+        const [state] = createStore({ active, all })
+        const tabs = createMemo(() => ({ active: () => state.active, all: () => state.all }))
+        const result = createSessionTabs({
+          tabs,
+          pathFromTab: (tab) => (tab.startsWith("file://") ? tab.slice("file://".length) : undefined),
+          normalizeTab: (tab) => tab,
+          review: () => true,
+          hasReview: () => true,
+          fileBrowser: () => true,
+        })
+        const value = { section: result.section(), closable: result.closableTab() }
+        dispose()
+        return value
+      })
+
+    expect(section("review")).toEqual({ section: "changes", closable: undefined })
+    expect(section("context")).toEqual({ section: "details", closable: undefined })
+    expect(section(AGENTS_TAB)).toEqual({ section: "agents", closable: undefined })
+    expect(section(BROWSER_TAB)).toEqual({ section: "browser", closable: undefined })
+    expect(section(DEVICE_TAB)).toEqual({ section: "device", closable: undefined })
+    expect(section(SESSION_OPEN_FILE_TAB)).toEqual({ section: "files", closable: SESSION_OPEN_FILE_TAB })
+    expect(section("file://src/a.ts", ["file://src/a.ts"])).toEqual({ section: "files", closable: "file://src/a.ts" })
+    // A file tab stays open while another section shows, and only Files can close it.
+    expect(section(AGENTS_TAB, ["file://src/a.ts"])).toEqual({ section: "agents", closable: undefined })
+    expect(Object.entries(SECTION_TAB).map(([name, tab]) => section(tab).section === name)).not.toContain(false)
+  })
+
+  test("marks a section for attention per session and clears it", () => {
+    expect(sectionAttention("dir/ses_1", "browser")).toBe(false)
+    setSectionAttention("dir/ses_1", "browser", true)
+    expect(sectionAttention("dir/ses_1", "browser")).toBe(true)
+    expect(sectionAttention("dir/ses_1", "device")).toBe(false)
+    expect(sectionAttention("dir/ses_2", "browser")).toBe(false)
+    setSectionAttention("dir/ses_1", "browser", false)
+    expect(sectionAttention("dir/ses_1", "browser")).toBe(false)
   })
 
   test("exposes the Open File tab without treating it as a file tab", () => {

@@ -1870,8 +1870,11 @@ On desktop, opening a file the server reads as binary and that isn't media (a
   slide (`panelSettled` in `app/src/pages/session/file-reference.tsx`, set by
   the open edge in `session.tsx`). Other openings still snap: switching
   sessions, or adding Review beside a file tree that is already showing.
-  Closed, the panel leaves a slim rail (`session-side-rail.tsx`); a click on
-  Review opens it, and dragging the rail left pulls it out (`dragOutSidePanel`
+  A rail (`session-side-rail.tsx`) stays at the right edge whether the panel
+  is open or closed. It is the panel's section switcher: `selectPanelSection`
+  in `session.tsx` opens the panel on the clicked section, or closes it when
+  that section is already showing. While the panel is closed, dragging the
+  rail left pulls it out (`dragOutSidePanel`
   in `session.tsx`: past 12px Review opens at the pulled width, then the panel
   follows the pointer like the resize handle and keeps the width on release).
   The tab bar and code then fade in, a skeleton covers loading, and
@@ -2293,17 +2296,25 @@ breakdown's chars/4 estimate), each with its turn and kind, opening that turn in
 (`session.compact`). Below a hairline, Thread (model, harness, messages) with Usage and cost folded under it
 (every reported figure and the tool counts), Subagents, the system prompt, then Raw messages and Export.
 
-Subagents (built-in `task` and ACP `acp_subagent` parts) open in one Agents
-tab (`agents`) in the same side panel. `createSessionTabs`
-(`app/src/pages/session/helpers.ts`) keeps it apart from file tabs; with
-nothing active, a file tab wins, then the Agents tab, then context, then
-review. The selected agent is per-session state held for the app's lifetime
+The side panel has fixed sections (`PanelSection`: changes, files, agents,
+browser, device, canvas, details). `createSessionTabs`
+(`app/src/pages/session/helpers.ts`) derives the section from the stored
+active tab (`SECTION_TAB` maps each section to its tab ID; any file tab is
+Files), so a section needs no entry in the stored tab list and only file tabs
+can be closed. The Canvas ID alone is still appended to the list, as the mark
+that the rail should offer Canvas for that thread. An agent using the browser
+or a device sets `setSectionAttention` for that section (a dot on the rail,
+cleared when the section is shown) instead of switching the panel.
+
+Subagents (built-in `task` and ACP `acp_subagent` parts) open in the Agents
+section (`agents`) of the same side panel. With nothing active, a file tab
+wins, then a stored Agents tab, then context, then review. The selected agent is per-session state held for the app's lifetime
 (`selectAgent`); none selected shows the list. Stored tab lists with the
 retired per-agent `agent://<partID>` tabs are folded into the Agents tab with
 that agent selected (`migrateAgentTabs`, run by the side panel). The opener
 (`onOpenSubagent` in the session-ui data context, wired in
-`pages/directory-layout.tsx`) takes an optional part ID, appends the tab
-without replacing a file preview and focuses it. It only exists on desktop
+`pages/directory-layout.tsx`) takes an optional part ID and switches the
+panel to Agents; open file tabs are left as they are. It only exists on desktop
 widths. The list (`components/session/subagent-tab.tsx`, grouped by
 `threadSubagents` in `subagent-list.ts`) shows every subagent as the same
 `SubagentLane` the live turn card uses (`subagent-lane.tsx`), grouped by user

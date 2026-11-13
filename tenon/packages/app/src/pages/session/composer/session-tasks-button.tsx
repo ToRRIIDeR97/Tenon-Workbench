@@ -60,7 +60,6 @@ export function SessionTasksButton(props: { groups: () => SubagentGroup[] }) {
     const tabs = session.tabs()
     selectAgent(session.sessionKey(), partID)
     view.reviewPanel.open(view.reviewPanel.opened() ? "other" : "context-button")
-    if (!tabs.all().includes(AGENTS_TAB)) tabs.setAll([...tabs.all(), AGENTS_TAB])
     tabs.setActive(AGENTS_TAB)
     setState("open", false)
   }

@@ -297,16 +297,25 @@ folder as a workspace and selects it) and `tenon://new-session?directory=<path>&
   "Show all" to open the full list. While the agent reasons, the current step
   reads "Thinking" with the topic it's on, which slides in as the topic
   changes. The
-  side panel has **Review** and **Details** tabs, plus open files. Details
+  side panel shows one section at a time, picked from a rail of icons at its
+  right edge: **Changes** (with the changed-file count), **Files**, **Agents**
+  (with how many are running), **Browser** and **Device** (desktop app only),
+  **Canvas** (once the thread has opened one) and, at the bottom, **Details**
+  (a ring of context use). The rail stays when the panel is hidden; a section's
+  icon opens the panel on it, and the open section's icon hides the panel. Only
+  Files has tabs: one per open file, and `mod+w` closes the active one. The
+  panel's **+** opens the file browser from any section. When an agent uses the
+  browser or a device while another section shows, that icon gets a dot instead
+  of the panel switching. Details
   replaced the Context tab and follows the Thread board's design: four tiles
   (tokens, context used, messages, harness), a context breakdown bar (system,
   messages, tools), then a details list of the session's totals per harness
   (model, provider, context window, input, output, cache hit, cost, times).
   Values the harness doesn't report are left out. Subagents and tool counts
   show only when there are any, and raw messages open from a button. The side panel keeps its own width (420px by default) and
-  the chat takes the rest. Hide it with the arrow in its tab row, the
-  titlebar button, `mod+shift+r`, or by dragging its edge past the minimum.
-  While hidden, a slim rail at the right edge shows the changed-file count
-  and reopens the panel; context use lives on the composer's ring, whose menu opens Details. Opening the panel under
+  the chat takes the rest. Hide it with the arrow in its header, the open
+  section's rail icon, the titlebar button, `mod+shift+r`, or by dragging its
+  edge past the minimum. While hidden, dragging the rail left pulls the panel
+  out; context use also lives on the composer's ring, whose menu opens Details. Opening the panel under
   1100px wide closes the Projects panel, as does opening Calendar's side panel. Split diffs need an 800px panel;
   a narrower panel shows unified diffs.
