@@ -268,5 +268,43 @@ modules do not exist yet. That is the expected failure; no assertion has run.
 
 ## Completion evidence
 
-To be filled in per task: criteria met, commands run and their results, what the verifier found, and what
-remains unverified.
+Status: all four tasks accepted (13 Nov 2026). Each was built by an implementor and checked by a separate
+verifier (both Claude Sonnet 5.5), then reviewed by the plan author.
+
+| Task | Commits | Verifier | Correction rounds |
+| --- | --- | --- | --- |
+| 1 · Mission control | `bbc7bbd5` | PASS | 0 |
+| 2 · Agent hands | `03050f9e`, `a67f16d3` | PASS after recheck | 1 (tool-name test, action log safety, boundary tests, subagent requests in the queue) |
+| 3 · Workflows | `d499f580` | no blocking issues | 0 (three minor points fixed in Task 4) |
+| 4 · Loops and run limits | `aafc8c9f`, `b3716114` | no blocking issues after recheck | 1 (per-token cost, resumed runs, limit stop vs user action, unreported spend) |
+
+Run by the plan author on the integration branch at `b3716114`:
+
+- Acceptance and verification sets, app: 60 pass, 0 fail. Server: 13 pass, 0 fail.
+- `bun run check` from the root: exit 0.
+- `bun run test:e2e e2e/acceptance/command-centre.spec.ts`: 30 passed.
+
+Run by the verifiers only: `bun test test/agents` (26 pass), the full `tenon` package suite at Task 2
+(2934 pass, 0 fail), `bun run test:unit` (1174 pass), `bun run test:browser` (64 pass).
+
+Deviations from the proposal:
+
+- Task 2's standing rules are each Project's existing Ask / Auto-edit / Full auto mode; no new rule store.
+- Task 3: a role on the built-in harness has no model picker ("Uses the Project's model").
+- Task 4: spend falls back to the sum of a thread's message costs when the thread reports none, and a
+  budgeted run with no cost data says the budget cannot be enforced.
+- Task 4 reads only completed assistant messages, each parsed once.
+
+Not verified, or known limits:
+
+- Three `tenon/packages/core` tests fail on this Windows machine at the base commit too (git trees, harness
+  setup key file, symlinked AGENTS.md); `bun run test:engine` therefore exits 1 before and after.
+- The boundary's path spelling is tested on Windows only; letter case and POSIX behaviour were read, not run.
+- One card test ("draws the reply as Markdown") fails intermittently on a cold dev server and passes on rerun.
+- The resumed-run fix is covered only for a run that starts paused, not for one paused and resumed in a session.
+- Limits apply while the app is open. Pause and Stop interrupt the director thread only, not running child tasks.
+- A budgeted run that has spent nothing yet reads "Not reported" until its first cost arrives.
+- The Waiting on you view and the run view were checked by Playwright assertions only; the board and the
+  Workflows view were also looked at in a screenshot. In the Workflows view the list, runs and editor stack in
+  one column above the composer, which is tighter than the design's two columns.
+- No benchmark baseline was recorded: `bun run test:bench` does not start on this machine.
