@@ -121,6 +121,17 @@ export function SessionSidePanel(props: {
       }),
   )
   const open = createMemo(() => reviewOpen() || fileOpen())
+  // The content mounts once the sliding panel has arrived, not on the click: building the tabs, diffs and file
+  // browser during the slide costs it frames, and they would re-lay out at every width on the way. It then
+  // stays mounted while the panel is open, and fades in if it waited for a slide. Set from an effect, so
+  // `panelSettled` has already taken this open's value when it is read.
+  const [body, setBody] = createStore({ mounted: false, waited: false })
+  createEffect(() => {
+    if (!open()) return setBody({ mounted: false, waited: false })
+    if (body.mounted) return
+    if (!panelSettled()) return setBody("waited", true)
+    setBody("mounted", true)
+  })
   const fileTreeWidth = createMemo(() => Math.max(FILE_TREE_WIDTH_MIN, layout.fileTree.width()))
   const reviewTab = createMemo(() => isDesktop())
   const panelWidth = createMemo(() => {
@@ -591,18 +602,17 @@ export function SessionSidePanel(props: {
           "h-full min-h-0": props.stacked,
           "pointer-events-none": !open(),
           // The same curve as the thread column, so the two edges move together.
-          "transition-[width] duration-medium ease-emphasized-decelerate will-change-[width] motion-reduce:transition-none":
+          "transition-[width] duration-medium ease-emphasized-decelerate motion-reduce:transition-none":
             !props.size.active() && !props.reviewSnap,
           "flex-1": reviewOpen(),
         }}
         style={{ width: panelWidth() }}
       >
-        <Show when={open()}>
-          {/* Mounted at once so files load, but shown only once the sliding panel has arrived. */}
+        <Show when={body.mounted}>
           <div
             ref={content}
             class="size-full flex transition-opacity duration-medium ease-emphasized-decelerate motion-reduce:transition-none"
-            classList={{ "opacity-0": !panelSettled() || !!props.closing }}
+            classList={{ "animate-enter": body.waited, "opacity-0": !panelSettled() || !!props.closing }}
           >
             <Show when={reviewOpen()}>
               <div class="relative min-w-0 h-full flex-1 overflow-hidden bg-v2-background-bg-base">
@@ -759,7 +769,7 @@ export function SessionSidePanel(props: {
                 id="file-tree-panel"
                 class="relative min-w-0 h-full shrink-0 overflow-hidden"
                 classList={{
-                  "transition-[width] duration-medium ease-emphasized-decelerate will-change-[width] motion-reduce:transition-none":
+                  "transition-[width] duration-medium ease-emphasized-decelerate motion-reduce:transition-none":
                     !props.size.active(),
                 }}
                 style={{ width: treeWidth() }}

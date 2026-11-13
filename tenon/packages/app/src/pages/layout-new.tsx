@@ -39,7 +39,7 @@ export default function NewLayout(props: ParentProps) {
   const platform = usePlatform()
   const location = useLocation()
   const [state, setState] = createStore({ debugTools: true })
-  // Derived in the same pass as the route outlet, so the fade-through always freezes the outgoing page.
+  // Changes when the section does; the incoming page then fades in over the one it replaced.
   const pageKey = createMemo<PageMotionKey>((previous) => nextPageMotionKey(previous, location.pathname), {
     section: routeSection(untrack(() => location.pathname)),
     count: 0,
@@ -83,7 +83,12 @@ export default function NewLayout(props: ParentProps) {
                   {/* A failed page request shows a retryable message here and keeps the sidebar usable. */}
                   <ErrorBoundary fallback={(error, reset) => <PageError error={error} reset={reset} />}>
                     <Suspense>
-                      <ViewSwitch key={pageKey().count} class="flex min-h-0 min-w-0 w-full flex-1 flex-col items-start">
+                      {/* No fade-out: a click on the rail shows the next page at once. */}
+                      <ViewSwitch
+                        key={pageKey().count}
+                        exit={false}
+                        class="flex min-h-0 min-w-0 w-full flex-1 flex-col items-start"
+                      >
                         {props.children}
                       </ViewSwitch>
                       <FirstRouteMark />

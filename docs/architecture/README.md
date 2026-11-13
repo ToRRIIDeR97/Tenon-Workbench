@@ -161,8 +161,9 @@ Its grid and clip apply only while it moves (`data-phase` `opening` or
 `Presence` (`@tenon/ui/v2/presence`; `when`, `enterClass`, `exitClass`,
 `class`) keeps a wrapper `div` mounted through its exit animation with
 `solid-presence`, defaulting to `animate-enter` / `animate-exit`; `ViewSwitch`
-(`@tenon/ui/v2/view-switch`; `key`, `class`) fades the outgoing view out
-and the incoming one in when `key` changes, rendering one view at a time.
+(`@tenon/ui/v2/view-switch`; `key`, `exit`, `class`) fades the outgoing view out
+and the incoming one in when `key` changes, rendering one view at a time; with
+`exit={false}` the incoming view replaces the outgoing one at once and fades in.
 `@tenon/ui/v2/motion` exposes `prefersReducedMotion()` and
 `motionDuration()` for JS that times work against these animations, and
 `useSpring` (`@tenon/ui/motion-spring`) jumps to its target under reduced
@@ -171,8 +172,10 @@ motion. Hand-rolled popups (not Kobalte) use `animate-menu-enter` /
 settings `TabsV2` variants slide one selection indicator between tabs; the
 normal variant keeps a static underline because its tabs can be dragged.
 
-In the app shell, `pages/layout-new.tsx` fades pages through a `ViewSwitch`
-keyed by section (`pages/page-motion.ts`): query-string changes do not fade,
+In the app shell, `pages/layout-new.tsx` fades pages in through a `ViewSwitch`
+keyed by section (`pages/page-motion.ts`) with no fade-out, so a rail click
+shows the next page at once; `app.tsx` prefetches every page's chunk when the
+app is idle. Query-string changes do not fade,
 and moving into the thread view (draft or session) swaps at once so its
 composer can focus on mount. Project detail, Calendar views and the
 connect-provider steps use `ViewSwitch` too, so a field that focuses on mount
@@ -1959,9 +1962,10 @@ On desktop, opening a file the server reads as binary and that isn't media (a
 - Click or "Open in Files" on a file opens the right panel, expands the
   ancestor folders and opens the file as a preview tab. Opening a fully closed
   side panel slides it in (300 ms, emphasized decelerate) while the thread column
-  eases left; the panel's content is mounted at once but shown only after the
-  slide (`panelSettled` in `app/src/pages/session/file-reference.tsx`, set by
-  the open edge in `session.tsx`). Other openings still snap: switching
+  eases left; the panel's content mounts and fades in only after the slide, so
+  building it never competes with the animation (`panelSettled` in
+  `app/src/pages/session/file-reference.tsx`, set by the open edge in
+  `session.tsx`, read by `session-side-panel.tsx`). Other openings still snap: switching
   sessions, or adding Review beside a file tree that is already showing.
   A rail (`session-side-rail.tsx`) stays at the right edge whether the panel
   is open or closed. It is the panel's section switcher: `selectPanelSection`

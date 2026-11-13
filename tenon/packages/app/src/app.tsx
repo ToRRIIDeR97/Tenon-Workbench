@@ -86,19 +86,33 @@ const loadSessionPage = () => import("@/pages/session")
 const TargetSessionRouteContent = lazy(() =>
   loadSessionPage().then((module) => ({ default: module.TargetSessionRouteContent })),
 )
-function prefetchSessionPage() {
-  const run = () => void Promise.all([loadSessionPage(), loadFile()]).catch(() => {})
+// The other pages are small next to it. They are prefetched too, after the session page, so the first click
+// on a rail item swaps the page at once instead of waiting on its chunk.
+const pageLoaders = {
+  newSession: () => import("@/pages/new-session"),
+  calendar: () => import("@/pages/calendar"),
+  projects: () => import("@/pages/projects"),
+  projectOverview: () => import("@/pages/project-overview"),
+  brainHome: () => import("@/pages/brain-home"),
+  commandCentre: () => import("@/pages/command-centre"),
+  routines: () => import("@/pages/routines"),
+}
+function prefetchPages() {
+  const run = () =>
+    void Promise.all([loadSessionPage(), loadFile()])
+      .then(() => Promise.all(Object.values(pageLoaders).map((load) => load())))
+      .catch(() => {})
   if (typeof requestIdleCallback === "function") requestIdleCallback(run, { timeout: 3000 })
   else setTimeout(run, 1500)
 }
 
-const NewSession = lazy(() => import("@/pages/new-session"))
-const CalendarPage = lazy(() => import("@/pages/calendar"))
-const ProjectsPage = lazy(() => import("@/pages/projects"))
-const ProjectOverviewPage = lazy(() => import("@/pages/project-overview"))
-const BrainHomePage = lazy(() => import("@/pages/brain-home"))
-const CommandCentrePage = lazy(() => import("@/pages/command-centre"))
-const RoutinesPage = lazy(() => import("@/pages/routines"))
+const NewSession = lazy(pageLoaders.newSession)
+const CalendarPage = lazy(pageLoaders.calendar)
+const ProjectsPage = lazy(pageLoaders.projects)
+const ProjectOverviewPage = lazy(pageLoaders.projectOverview)
+const BrainHomePage = lazy(pageLoaders.brainHome)
+const CommandCentrePage = lazy(pageLoaders.commandCentre)
+const RoutinesPage = lazy(pageLoaders.routines)
 
 function TargetServerRoute(props: ParentProps) {
   const params = useParams<{ serverKey: string; id: string }>()
@@ -558,7 +572,7 @@ export function AppInterface(props: {
   // providers beneath it.
   // The shell reuses AppBaseProviders' QueryClient, the one GlobalProvider's server sync
   // writes to, so live session events reach the sidebar and Home queries.
-  onMount(prefetchSessionPage)
+  onMount(prefetchPages)
   const ServerShell = (shellProps: ParentProps) => (
     <SharedProviders>
       {props.children}
