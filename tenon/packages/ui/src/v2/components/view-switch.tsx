@@ -16,13 +16,19 @@ import "./view-switch-v2.css"
 export interface ViewSwitchProps extends ParentProps {
   /** Identity of the current view. A change plays the fade-through; content updates within one key do not. */
   key: string | number | undefined
+  /**
+   * `false` skips the fade-out: the incoming view replaces the outgoing one at once and fades in. For a
+   * switch that should answer the click straight away, such as the shell's pages.
+   */
+  exit?: boolean
   class?: string
 }
 
 /**
  * Fade-through between views: when `key` changes, the outgoing view fades out (short +
  * emphasized-accelerate), then the incoming view fades in (medium + emphasized-decelerate). Only one view is
- * rendered at a time, so the layout never holds both. Reduced motion swaps at once.
+ * rendered at a time, so the layout never holds both. Reduced motion swaps at once. With `exit={false}` there
+ * is no fade-out: the incoming view takes over at once and fades in.
  *
  * The outgoing view is kept as the DOM it last rendered, so it works best when each key renders its own
  * branch (`Switch`/`Match`, `Dynamic`, a keyed `Show`). While it fades out it is `inert` and `aria-hidden`,
@@ -34,6 +40,7 @@ export function ViewSwitch(props: ViewSwitchProps) {
   const view = createViewSwitch(
     () => props.key,
     () => resolved.toArray(),
+    () => props.exit !== false,
   )
   const [ref, setRef] = createSignal<HTMLDivElement>()
   const focus = { restore: false }
@@ -85,7 +92,11 @@ export type ViewSwitchPhase = "idle" | "out" | "in"
  * ViewSwitch's phase machine, separate from the DOM so it can be tested. `advance` ends the running phase;
  * the component calls it on `animationend`, and a timer calls it when no animation event arrives.
  */
-export function createViewSwitch<K>(key: Accessor<K>, nodes: Accessor<JSX.Element[]>) {
+export function createViewSwitch<K>(
+  key: Accessor<K>,
+  nodes: Accessor<JSX.Element[]>,
+  exit: Accessor<boolean> = () => true,
+) {
   const [phase, setPhase] = createSignal<ViewSwitchPhase>("idle")
   const [frozen, setFrozen] = createSignal<JSX.Element[]>()
   const timer = { current: undefined as ReturnType<typeof setTimeout> | undefined }
@@ -126,6 +137,12 @@ export function createViewSwitch<K>(key: Accessor<K>, nodes: Accessor<JSX.Elemen
       }
       // A key change during the fade-out keeps the view that was on screen when it started.
       if (phase() === "out") return
+      if (!exit()) {
+        setFrozen(undefined)
+        setPhase("in")
+        schedule(motionDuration("medium"))
+        return
+      }
       setFrozen(() => previous.nodes)
       setPhase("out")
       schedule(motionDuration("short"))

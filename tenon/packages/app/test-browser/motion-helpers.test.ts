@@ -119,6 +119,23 @@ describe("createViewSwitch", () => {
     })
   })
 
+  test("without an exit the incoming view shows at once and fades in", () => {
+    createRoot((dispose) => {
+      const [key, setKey] = createSignal("a")
+      const [nodes, setNodes] = createSignal(["A"])
+      const view = createViewSwitch(key, nodes, () => false)
+      batch(() => {
+        setKey("b")
+        setNodes(["B"])
+      })
+      expect(view.phase()).toBe("in")
+      expect(view.nodes()).toEqual(["B"])
+      view.advance()
+      expect(view.phase()).toBe("idle")
+      dispose()
+    })
+  })
+
   test("updates within one key do not fade", () => {
     createRoot((dispose) => {
       const [nodes, setNodes] = createSignal(["A"])
