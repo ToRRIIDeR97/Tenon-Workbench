@@ -602,6 +602,19 @@ assistant that spans workspaces, with its own threads, memory and routines.
   one with the harness and model from Settings › Command Centre. The list
   refreshes when the page opens and, debounced, on `session.created/updated/deleted`
   events for that folder, so archives, deletes and routine runs show up.
+- **Mission control.** The page also shows a board of every Project's threads
+  (`features/command-centre/mission-board-view.tsx`; the sort and grouping are the
+  pure `mission-board.ts`). It adds no request and no polling: it reads the sidebar
+  controller's thread groups (`useSidebarController().groups()`, built from the
+  `useProjectThreads` query and the session index) and the synced run state
+  (`agentRunStatus`, `needsYou`), and leaves out any thread in a `.command-centre`
+  folder. A thread waiting on the user (approvals plus questions, subagents
+  included) is under **Needs you**, a running or retrying one under **Running**, and
+  an idle one under **Finished** for 24 hours; **By project** groups the same
+  threads per Project with General last. A running row's **Steer** sends one line
+  with `api.session.prompt` (`delivery: "steer"`, through the thread's own folder
+  context) and **Stop** calls `api.session.interrupt`; **Review** and **Open**
+  navigate to the thread. Nothing here answers an approval.
 - **Desktop widget.** One small frameless window on the desktop (the Widgets workshop), nothing on Home.
   `desktop/src/main/windows.ts` `createWidgetWindow` opens it transparent, without a taskbar entry, with the
   main window's session and navigation policy, its saved position, and the renderer at `?surface=widget`;

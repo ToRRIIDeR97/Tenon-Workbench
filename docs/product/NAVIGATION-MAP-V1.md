@@ -280,7 +280,11 @@ folder as a workspace and selects it) and `tenon://new-session?directory=<path>&
 - **Command Centre** replaced Activity. It lists only its own threads (never
   Project threads) with rename, archive and delete on each row, searches memory,
   opens **Archived threads** and links to **Routines**, whose rows switch a
-  routine on or off, open its page and run it now. On every other page a handle above the bottom edge
+  routine on or off, open its page and run it now. Its **Mission control**
+  board shows every Project's threads **By state** (Needs you, Running, and
+  Finished in the last day) or **By project**. A running row has **Steer**
+  (one line sent to that thread with Enter) and **Stop**; a Needs you row has
+  **Review**; every row has **Open**. On every other page a handle above the bottom edge
   opens the K3 strip (also `mod+j`; Esc closes it) with the latest reply, a
   composer and **Open full**. On a thread the strip sits on top of the composer.
 - **Settings** contains General, Shortcuts, Servers, Providers, Models and

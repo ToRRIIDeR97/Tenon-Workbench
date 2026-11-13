@@ -65,7 +65,7 @@ test("AC-7.2 the Command Centre lists only its own threads", async ({ page }) =>
   await start(page)
   await page.goto("/command")
   await expect(page.getByText("Plan the billing webhook work")).toBeVisible()
-  await expect(page.getByRole("main").getByText("Cookie migration")).toHaveCount(0)
+  await expect(page.getByRole("list", { name: "Command Centre threads" }).getByText("Cookie migration")).toHaveCount(0)
   await page.goto("/")
   await expect(sidebar(page).getByText("Plan the billing webhook work")).toHaveCount(0)
 })
@@ -236,4 +236,158 @@ test("AC-7.7 a Command Centre thread shows its writes as inline cards in the thr
   const cards = page.locator('[data-agent-write][data-variant="inline"]')
   await expect(cards).toHaveCount(2)
   expect(await page.locator('[data-agent-write][data-variant="pill"]').count()).toBe(0)
+})
+
+// implementations/command-centre-orchestrator/implementation.md, Task 1 (AC-1.4 to AC-1.6): the mission board.
+const repo = "C:/OpenCode/Repo"
+const boardProject = {
+  project: {
+    id: "prj_repo",
+    folder: "projects/prj_repo",
+    name: "Repo project",
+    outcome: "Ship it",
+    instructions: "",
+    status: "active",
+    progressPercent: 0,
+    tags: [],
+    location: { workspaceId: "proj_repo", displayPath: repo },
+    createdAt: "2026-10-01T00:00:00.000Z",
+    updatedAt: "2026-10-01T00:00:00.000Z",
+  },
+  threadDirectory: repo,
+  threadDirectoryKind: "workspace",
+  workspace: { id: "proj_repo", worktree: repo },
+  rootSessionCount: 3,
+  lastActivityAt: null,
+}
+const boardThread = (id: string, title: string, directory: string, age: number) => ({
+  id,
+  slug: id,
+  projectID: "proj_repo",
+  directory,
+  title,
+  version: "dev",
+  time: { created: Date.now() - age, updated: Date.now() - age },
+})
+const hour = 3_600_000
+const boardSessions = () => [
+  commandThread,
+  boardThread("ses_board_run", "Migrate the billing webhook", repo, 60_000),
+  boardThread("ses_board_need", "Rotate the API keys", repo, 2 * hour),
+  boardThread("ses_board_done", "Draft the release notes", brain, 3 * hour),
+  boardThread("ses_board_old", "Archive the 2025 invoices", repo, 3 * 24 * hour),
+]
+const boardPermission = {
+  id: "per_board_need",
+  sessionID: "ses_board_need",
+  permission: "bash",
+  patterns: ["git status"],
+  metadata: {},
+  always: [],
+}
+const mission = (page: Page) => page.locator('[data-component="mission-board"]')
+const group = (page: Page, name: string) => mission(page).locator(`[data-group="${name}"]`)
+const threadIDs = (scope: ReturnType<typeof group>) =>
+  scope.locator("[data-thread]").evaluateAll((rows) => rows.map((row) => row.getAttribute("data-thread")))
+
+async function startBoard(page: Page, input: Pick<Parameters<typeof openApp>[1], "onPrompt" | "onAbort"> = {}) {
+  await start(page, [], {
+    sessions: boardSessions(),
+    projectThreads: [boardProject],
+    sessionStatus: { ses_board_run: { type: "busy" } },
+    permissions: [boardPermission],
+    ...input,
+  })
+  await page.goto("/command")
+  await expect(mission(page)).toBeVisible()
+}
+
+test("AC-1.4 the board lists every Project's recent threads by state, beside the thread list and composer", async ({
+  page,
+}) => {
+  await startBoard(page)
+  await expect.poll(() => threadIDs(group(page, "needs-you"))).toEqual(["ses_board_need"])
+  await expect.poll(() => threadIDs(group(page, "running"))).toEqual(["ses_board_run"])
+  await expect.poll(() => threadIDs(group(page, "finished"))).toEqual(["ses_board_done"])
+  await expect(mission(page).locator('[data-thread="ses_board_old"]')).toHaveCount(0)
+  await expect(mission(page).locator('[data-thread="ses_command_1"]')).toHaveCount(0)
+  await expect(group(page, "running").getByText("Migrate the billing webhook")).toBeVisible()
+
+  // The Command Centre's own thread list, memory search and composer stay on the page.
+  await expect(page.getByRole("list", { name: "Command Centre threads" }).getByText(commandThread.title)).toBeVisible()
+  await expect(page.getByRole("searchbox", { name: "Search memory" })).toBeVisible()
+  await expect(page.getByRole("textbox", { name: "Message the Command Centre", exact: true })).toBeVisible()
+
+  // By project: one section per Project, General last, each row keeping its state.
+  await mission(page).locator('[data-action="board-view"]', { hasText: "By project" }).click()
+  await expect
+    .poll(() =>
+      mission(page)
+        .locator("[data-project]")
+        .evaluateAll((items) => items.map((item) => item.getAttribute("data-project"))),
+    )
+    .toEqual(["prj_repo", "general"])
+  await expect
+    .poll(() => threadIDs(mission(page).locator('[data-project="prj_repo"]')))
+    .toEqual(["ses_board_need", "ses_board_run"])
+  await expect(mission(page).locator('[data-project="general"] [data-thread="ses_board_done"]')).toBeVisible()
+})
+
+test("AC-1.5 Steer sends one line to that thread, an empty line sends nothing, and Stop aborts it", async ({
+  page,
+}) => {
+  const prompts: { sessionID: string; text: string }[] = []
+  const aborts: string[] = []
+  await startBoard(page, {
+    onPrompt: (input) => {
+      const parts = (input.body as { parts?: { type: string; text?: string }[] }).parts ?? []
+      prompts.push({ sessionID: input.sessionID, text: parts.map((part) => part.text ?? "").join("") })
+    },
+    onAbort: (input) => aborts.push(input.sessionID),
+  })
+  const row = mission(page).locator('[data-thread="ses_board_run"]')
+  await expect(row.locator('[data-action="board-steer"]')).toBeVisible()
+  await expect(row.locator('[data-action="board-stop"]')).toBeVisible()
+  // Only a running row can be steered or stopped.
+  await expect(mission(page).locator('[data-thread="ses_board_need"] [data-action="board-steer"]')).toHaveCount(0)
+  await expect(mission(page).locator('[data-thread="ses_board_done"] [data-action="board-stop"]')).toHaveCount(0)
+
+  await row.locator('[data-action="board-steer"]').click()
+  const field = row.getByRole("textbox", { name: "Steer Migrate the billing webhook" })
+  await expect(field).toBeFocused()
+  await field.fill("   ")
+  await field.press("Enter")
+  await expect(field).toBeVisible()
+  expect(prompts).toEqual([])
+
+  await field.fill("  run the tests first  ")
+  await field.press("Enter")
+  await expect.poll(() => prompts).toEqual([{ sessionID: "ses_board_run", text: "run the tests first" }])
+  await expect(field).toHaveCount(0)
+  await expect(page).toHaveURL(/\/command$/)
+
+  await row.locator('[data-action="board-stop"]').click()
+  await expect.poll(() => aborts).toEqual(["ses_board_run"])
+  await expect(page).toHaveURL(/\/command$/)
+})
+
+test("AC-1.5 a failed Stop shows the request-failed message on the row", async ({ page }) => {
+  await startBoard(page)
+  await page.route("**/session/ses_board_run/abort**", (route) => route.fulfill({ status: 500, body: "{}" }))
+  const row = mission(page).locator('[data-thread="ses_board_run"]')
+  await row.locator('[data-action="board-stop"]').click()
+  await expect(row.getByRole("alert")).toHaveText("Request failed")
+})
+
+test("AC-1.6 Review and Open go to the thread", async ({ page }) => {
+  await startBoard(page)
+  const needs = mission(page).locator('[data-thread="ses_board_need"]')
+  await expect(needs.locator('[data-action="board-review"]')).toBeVisible()
+  await expect(mission(page).locator('[data-thread="ses_board_run"] [data-action="board-review"]')).toHaveCount(0)
+  await needs.locator('[data-action="board-review"]').click()
+  await expect(page).toHaveURL(/\/session\/ses_board_need$/)
+
+  await page.goto("/command")
+  await mission(page).locator('[data-thread="ses_board_done"] [data-action="board-open"]').click()
+  await expect(page).toHaveURL(/\/session\/ses_board_done$/)
 })

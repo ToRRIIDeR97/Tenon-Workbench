@@ -20,13 +20,14 @@ import { useServer } from "@/context/server"
 import { useServerSDK } from "@/context/server-sdk"
 import { useSettings } from "@/context/settings"
 import { useCommandCentre, type CommandThread } from "@/features/command-centre/command-centre"
+import { createMissionThreads, MissionBoard } from "@/features/command-centre/mission-board-view"
 import { searchCommandMemory } from "@/features/second-brain/client"
 import { sessionHref } from "@/utils/session-route"
 import { getRelativeTime } from "@/utils/time"
 
 /**
- * The Command Centre: its own threads (never Project threads), memory search, the link to Routines and a
- * composer that starts a fresh thread. A thread opens in the thread view, like a Project thread but without
+ * The Command Centre: its own threads (never Project threads), memory search, the link to Routines, the mission
+ * board of every Project's threads and a composer that starts a fresh thread. A thread opens in the thread view, like a Project thread but without
  * review, files or terminal. `/command?thread=<session id>` (older links, the strip's "Open full") opens
  * that thread.
  */
@@ -46,6 +47,7 @@ export default function CommandCentrePage() {
   const [search] = useSearchParams<{ thread?: string }>()
   const [state, setState] = createStore({ memory: "", query: "", hit: -1 })
   const open = (sessionID: string) => navigate(sessionHref(server.key, sessionID))
+  const board = createMissionThreads(ctrl)
   createEffect(() => {
     if (search.thread) navigate(sessionHref(server.key, search.thread), { replace: true })
   })
@@ -205,26 +207,35 @@ export default function CommandCentrePage() {
             </ul>
           </Show>
         </aside>
-        <div class="@container flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-6 overflow-y-auto rounded-[16px] bg-v2-background-bg-layer-01 px-6 py-8">
-          <Show when={!centre.loading() && centre.threads().length === 0}>
-            <PageEmpty title={language.t("secondBrain.commandCentre.empty.title")}>
-              {language.t("secondBrain.commandCentre.empty.body")}
-            </PageEmpty>
-          </Show>
-          <ComposerBox
-            size="large"
-            class="w-full max-w-[720px]"
-            controller={composer}
-            label={language.t("secondBrain.commandCentre.composer.label")}
-            placeholder={language.t("secondBrain.commandCentre.composer.placeholder")}
-            sendLabel={language.t("secondBrain.commandCentre.composer.send")}
-            controls={<ComposerModelPill harness={harness} />}
-          />
-          <Show when={centre.error()}>
-            <p role="alert" class="type-meta text-v2-text-text-critical">
-              {language.t("common.requestFailed")}
-            </p>
-          </Show>
+        <div class="@container flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden rounded-[16px] bg-v2-background-bg-layer-01 py-6">
+          <div class="flex min-h-0 flex-1 flex-col overflow-y-auto px-6">
+            <Show
+              when={centre.loading() || centre.threads().length > 0 || board().length > 0}
+              fallback={
+                <PageEmpty title={language.t("secondBrain.commandCentre.empty.title")}>
+                  {language.t("secondBrain.commandCentre.empty.body")}
+                </PageEmpty>
+              }
+            >
+              <MissionBoard ctrl={ctrl} threads={board()} open={open} />
+            </Show>
+          </div>
+          <div class="flex shrink-0 flex-col items-center gap-3 px-6">
+            <ComposerBox
+              size="large"
+              class="w-full max-w-[720px]"
+              controller={composer}
+              label={language.t("secondBrain.commandCentre.composer.label")}
+              placeholder={language.t("secondBrain.commandCentre.composer.placeholder")}
+              sendLabel={language.t("secondBrain.commandCentre.composer.send")}
+              controls={<ComposerModelPill harness={harness} />}
+            />
+            <Show when={centre.error()}>
+              <p role="alert" class="type-meta text-v2-text-text-critical">
+                {language.t("common.requestFailed")}
+              </p>
+            </Show>
+          </div>
         </div>
       </div>
     </PageFrame>

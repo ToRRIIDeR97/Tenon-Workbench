@@ -31,6 +31,10 @@ export interface MockServerConfig {
   sessionStatus?: Record<string, unknown> | (() => Record<string, unknown>)
   /** Second Brain Projects with their thread directories (GET /second-brain/project-threads). */
   projectThreads?: unknown[] | (() => unknown[])
+  /** A prompt sent to a thread (legacy `prompt_async` or the current `/api/session/:id/prompt`). */
+  onPrompt?: (input: { sessionID: string; directory?: string; body: unknown }) => void
+  /** An abort of a thread's run (legacy `abort` or the current `interrupt`). */
+  onAbort?: (input: { sessionID: string; directory?: string }) => void
 }
 
 export async function mockTenonServer(page: Page, config: MockServerConfig) {
@@ -226,6 +230,20 @@ export async function mockTenonServer(page: Page, config: MockServerConfig) {
         data: data.map((session) => currentSession(session, config.directory)),
         cursor: { next },
       })
+    }
+    const prompt = path.match(/^\/session\/([^/]+)\/prompt_async$/) ?? path.match(/^\/api\/session\/([^/]+)\/prompt$/)
+    if (prompt && route.request().method() === "POST") {
+      config.onPrompt?.({
+        sessionID: prompt[1]!,
+        directory: url.searchParams.get("directory") ?? undefined,
+        body: route.request().postDataJSON(),
+      })
+      return route.fulfill({ status: 204, headers: { "access-control-allow-origin": "*" } })
+    }
+    const abort = path.match(/^\/session\/([^/]+)\/abort$/) ?? path.match(/^\/api\/session\/([^/]+)\/interrupt$/)
+    if (abort && route.request().method() === "POST") {
+      config.onAbort?.({ sessionID: abort[1]!, directory: url.searchParams.get("directory") ?? undefined })
+      return json(route, true)
     }
     if (path === "/api/session/active") {
       const statuses = (config.sessionStatus ?? {}) as Record<string, { type?: string }>
