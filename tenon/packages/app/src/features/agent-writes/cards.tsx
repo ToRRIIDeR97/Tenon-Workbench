@@ -29,7 +29,7 @@ export function AgentWritesInline(props: { writes: ReadonlyArray<AgentWrite>; ce
         data-slot="agent-writes-inline"
         classList={{
           "flex w-full min-w-0 max-w-full flex-col gap-2 px-4 pb-4 md:px-5": true,
-          "md:mx-auto md:max-w-200 2xl:max-w-[1000px]": props.centered,
+          "md:mx-auto md:max-w-[640px]": props.centered,
         }}
       >
         <For each={props.writes}>{(write) => <AgentWriteCard write={write} store={writes!} />}</For>

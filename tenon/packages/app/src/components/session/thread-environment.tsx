@@ -23,9 +23,9 @@ import { useTerminal } from "@/context/terminal"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { Persist, persisted } from "@/utils/persist"
 
-/** The window's width, and the narrowest the thread's text may get beside it before the window minimizes. */
+/** The window's width, and the gap it keeps from the thread's text column. */
 const WINDOW_WIDTH = 340
-const THREAD_MIN_WIDTH = 480
+const COLUMN_GAP = 12
 
 type ThreadHarness = {
   current: () => Harness.InstanceID
@@ -34,15 +34,17 @@ type ThreadHarness = {
 
 /**
  * The thread's environment: a toggle in the thread's header, beside the "…" menu, opens it as a floating window
- * below the header at the thread's top right. The window stays open while you read and work in the thread (an
- * outside click doesn't close it); the toggle, its close button or Esc inside it close it, and the choice is
- * remembered (`thread.environment`). It opens and closes with the menu motion (scale and fade from the top right).
+ * below the header at the thread's top right. It is open by default and stays open while you read and work in the
+ * thread (an outside click doesn't close it); the toggle, its close button or Esc inside it close it, and only that
+ * choice is remembered (`thread.environment.v2`). It opens and closes with the menu motion (scale and fade from the
+ * top right).
  * Shows where the thread runs (harness and model, folder, branch, approval mode), its context use and what fills it,
  * its MCP servers, its file changes and what is running.
  */
 export function ThreadEnvironmentButton(props: { harness?: ThreadHarness }) {
   const language = useLanguage()
-  const [prefs, setPrefs] = persisted(Persist.global("thread.environment"), createStore({ open: false }))
+  // A new key: the old one stored closed as its default, which would keep the window hidden for everyone.
+  const [prefs, setPrefs] = persisted(Persist.global("thread.environment.v2"), createStore({ open: true }))
   const [anchor, setAnchor] = createStore({
     top: 0,
     right: 0,
@@ -53,19 +55,17 @@ export function ThreadEnvironmentButton(props: { harness?: ThreadHarness }) {
   })
   let button: HTMLButtonElement | undefined
   // The window follows its toggle: the thread's header moves and resizes when the side panel opens, closes or is
-  // dragged, so it is re-placed whenever the header's size changes (and on a window resize). It floats over the
-  // thread, which never moves for it, flush with the header's right edge. When the room beside it would leave the
-  // thread narrower than THREAD_MIN_WIDTH, it minimizes to its toggle and comes back once there is room; the toggle
+  // dragged, so it is re-placed whenever the header's or the thread column's size changes (and on a window resize).
+  // It floats over the thread, which never moves for it, flush with the header's right edge. When it would cover the
+  // thread's text column it minimizes to its toggle, and it comes back once the column is clear of it; the toggle
   // still opens it meanwhile.
   const place = () => {
     if (!button) return
     const rect = button.getBoundingClientRect()
-    const header = button.closest("[data-session-title]")?.getBoundingClientRect()
+    const column = document.querySelector('[data-slot="thread-column"]')?.getBoundingClientRect()
     const width = Math.min(WINDOW_WIDTH, window.innerWidth - 32)
     const right = Math.max(16, window.innerWidth - rect.right)
-    // What the thread would have left beside the window: from its left edge to the window's, less a gap.
-    const room = header ? rect.right - width - 12 - header.left : Infinity
-    const squeezed = room < THREAD_MIN_WIDTH
+    const squeezed = !!column && rect.right - width - COLUMN_GAP < column.right
     setAnchor({ placed: true, top: rect.bottom + 6, right, width })
     // Crossing the threshold either way drops a manual open made while squeezed.
     if (squeezed !== anchor.squeezed) setAnchor({ squeezed, forced: false })
@@ -75,8 +75,10 @@ export function ThreadEnvironmentButton(props: { harness?: ThreadHarness }) {
     if (!prefs.open) return
     place()
     const header = button?.closest("[data-session-title]")
+    const column = document.querySelector('[data-slot="thread-column"]')
     const observer = new ResizeObserver(place)
     if (header) observer.observe(header)
+    if (column) observer.observe(column)
     window.addEventListener("resize", place)
     onCleanup(() => {
       observer.disconnect()

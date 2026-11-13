@@ -66,11 +66,15 @@ Use `[font-weight:N]` when a weight must differ from the role.
   sections are split by hairlines, each with a 13px semibold sentence-case
   title (no uppercase captions, no boxed groups), 12px rows and a label column.
   It has a close button in its title row, ignores outside clicks, closes on Esc
-  and remembers whether it was open. It floats over the content beside it,
-  which never moves for it; when the room beside it would leave that content
-  too narrow to read (under 480px), the window minimizes to its toggle and
-  returns when there is room again. Use a popover instead for anything that should close when you click
+  and remembers only that the user closed it (it starts open). It floats over
+  the content beside it, which never moves for it; when it would cover the
+  thread's text column, the window minimizes to its toggle and returns once the
+  column is clear of it. Use a popover instead for anything that should close when you click
   away.
+- **Thread column:** the timeline's turns, the composer and agent-write cards
+  share one centered column, at most 640px wide. Thread text (replies and the
+  user's messages) and the composer's text are 15px on 24px lines, a step above
+  the app's 14px base; reply headings are 18/16/15px.
 - **Desktop widget:** one card in a small frameless window on the OS desktop
   (nothing on Home): a 22px-radius card on `bg-floating` with a hairline
   edge, a draggable top bar with a mode chip (accent container when it shows

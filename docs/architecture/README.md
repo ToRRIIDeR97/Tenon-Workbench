@@ -2379,13 +2379,14 @@ From the 11 Nov feedback list ([triage](../product/FEEDBACK-2026-11-11.md)):
   `MessageTimeline` as `headerActions`; the header has no "…" menu, the sidebar row's
   menu holds the thread actions), that opens a floating window below it, flush with
   the header's right edge (portalled, menu motion). It re-places itself whenever the
-  thread header resizes (a side panel opening, closing or being dragged). It floats over
-  the thread, which never moves for it; when the room beside it would leave the thread
-  under 480px, it minimizes to its toggle and returns once there is room. The toggle
+  thread header or the thread column (`data-slot="thread-column"`, the composer's
+  640px column) resizes (a side panel opening, closing or being dragged). It floats over
+  the thread, which never moves for it; when it would cover that column, it minimizes to
+  its toggle and returns once the column is clear. The toggle
   still opens it meanwhile, and the remembered choice is unchanged. Its body follows the workshop's variant A:
   one card of hairline-separated sections with sentence-case titles. The window stays open while you work in
-  the thread; the toggle, its close button or Esc close it, and the choice is kept in
-  `thread.environment` (global storage). It shows harness and model,
+  the thread; it starts open, the toggle, its close button or Esc close it, and the choice is kept in
+  `thread.environment.v2` (global storage). It shows harness and model,
   folder, branch, approval mode, context use, MCP servers (Tenon's own for external
   harnesses), file changes with Review, and running subagents and terminals. Context
   use is split by `context-breakdown-model.ts` for every harness: the reported total

@@ -113,10 +113,12 @@ export function SessionComposerRegion(props: {
     >
       {/* The thread fades out above the composer instead of stopping at a hard edge. */}
       <div class="pointer-events-none absolute inset-x-0 bottom-full h-6 bg-linear-to-t from-v2-background-bg-base to-transparent" />
+      {/* The thread's column: the Environment window measures it to stay clear of the thread's text. */}
       <div
+        data-slot="thread-column"
         classList={{
           "w-full px-3 pointer-events-auto flex flex-col": true,
-          "md:max-w-200 md:mx-auto 2xl:max-w-[1000px]": controller.centered(),
+          "md:max-w-[640px] md:mx-auto": controller.centered(),
         }}
       >
         <div ref={swap} class="flex flex-col">
