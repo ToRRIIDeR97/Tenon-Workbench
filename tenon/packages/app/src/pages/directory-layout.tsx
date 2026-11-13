@@ -70,8 +70,6 @@ export function DirectoryDataProvider(
     const tabs = sessionLayout.tabs()
     selectAgent(sessionLayout.sessionKey(), input.partID)
     view.reviewPanel.open(view.reviewPanel.opened() ? "other" : "context-button")
-    // Appended directly so opening an agent never replaces a file preview tab.
-    if (!tabs.all().includes(AGENTS_TAB)) tabs.setAll([...tabs.all(), AGENTS_TAB])
     tabs.setActive(AGENTS_TAB)
   }
 

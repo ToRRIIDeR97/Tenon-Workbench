@@ -1,5 +1,4 @@
 import { For, Match, Show, Switch, createEffect, createMemo, on, onCleanup, onMount, type JSX } from "solid-js"
-import { usePlatform } from "@/context/platform"
 import { createMediaQuery } from "@solid-primitives/media"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { createStore, reconcile } from "solid-js/store"
@@ -22,15 +21,13 @@ import { useDialog } from "@tenon/ui/context/dialog"
 
 import FileTree from "@/components/file-tree"
 import { normalizeFileTreeV2Path } from "@/components/file-tree-v2-model"
-import { SessionContextUsage } from "@/components/session-context-usage"
 
-const reviewTabID = "session-side-panel-review-tab"
 const reviewTabPanelID = "session-side-panel-review-tabpanel"
 const fileBrowserTabPanelID = "session-side-panel-file-browser-tabpanel"
 import { SessionContextTab, SortableTabV2 } from "@/components/session"
 import { OpenInAppV2 } from "@/components/session/open-in-app-v2"
 import { SessionTabClose } from "@/components/session/session-tab-close"
-import { AgentsTab, AgentsTabLabel, useThreadSubagents } from "@/components/session/subagent-tab"
+import { AgentsTab, useThreadSubagents } from "@/components/session/subagent-tab"
 import { useCommand } from "@/context/command"
 import { useFile, type SelectedLineRange } from "@/context/file"
 import { useLanguage } from "@/context/language"
@@ -58,6 +55,7 @@ import { useSessionLayout } from "@/pages/session/session-layout"
 import { panelSettled } from "@/pages/session/file-reference"
 import { pagePanelClass } from "@/components/page"
 import { SessionFileBrowserTab, type SessionFileBrowserState } from "@/pages/session/v2/session-file-browser-tab"
+import { sideRailReviewTabID } from "@/pages/session/session-side-rail"
 import { REVIEW_SIDEBAR_OVERLAY_WIDTH } from "@/pages/session/v2/review-panel-v2-state"
 import { SessionCanvasTab } from "@/pages/session/canvas-tab"
 import { SessionBrowserTab } from "@/pages/session/browser-tab"
@@ -96,7 +94,6 @@ export function SessionSidePanel(props: {
   const settings = useSettings()
   const file = useFile()
   const language = useLanguage()
-  const platform = usePlatform()
   const command = useCommand()
   const dialog = useDialog()
   const sdk = useSDK()
@@ -204,8 +201,8 @@ export function SessionSidePanel(props: {
   const openFileOpen = tabState.openFileOpen
   const panelTabs = tabState.panelTabs
   const openedTabs = tabState.openedTabs
-  const agentsOpen = tabState.agentsOpen
-  const subagents = useThreadSubagents(agentsOpen)
+  const section = tabState.section
+  const subagents = useThreadSubagents(() => section() === "agents")
   // Tab lists saved before the Agents tab held one tab per subagent; fold them in, keeping that agent selected.
   createEffect(() => {
     const migrated = migrateAgentTabs(tabs().all(), tabs().active())
@@ -216,6 +213,19 @@ export function SessionSidePanel(props: {
   })
   const activeTab = tabState.activeTab
   const activeFileTab = tabState.activeFileTab
+  const title = createMemo(() => {
+    const value = section()
+    if (value === "changes")
+      return props.hasReview()
+        ? language.t("session.review.filesChanged", { count: props.reviewCount() })
+        : language.t("secondBrain.environment.changes")
+    if (value === "agents") return language.t("secondBrain.agents.title")
+    if (value === "browser") return language.t("secondBrain.browser.title")
+    if (value === "device") return language.t("secondBrain.device.title")
+    if (value === "canvas") return language.t("secondBrain.canvas.title")
+    if (value === "details") return language.t("secondBrain.sessionTab.title")
+    return language.t("secondBrain.sidebar.files")
+  })
 
   const fileTreeTab = () => layout.fileTree.tab()
 
@@ -376,38 +386,10 @@ export function SessionSidePanel(props: {
     />
   )
 
-  const contextTrigger = () => (
-    <Show when={contextOpen()}>
-      <TabsV2.Trigger value="context" class={tabEnter()} onMiddleClick={() => tabs().close("context")}>
-        <SessionContextUsage variant="indicator" />
-        <span>{language.t("secondBrain.sessionTab.title")}</span>
-        {closeButton("context")}
-      </TabsV2.Trigger>
-    </Show>
-  )
-
-  const canvasTrigger = () => (
-    <Show when={tabState.canvasOpen()}>
-      <TabsV2.Trigger value={CANVAS_TAB} class={tabEnter()} onMiddleClick={() => tabs().close(CANVAS_TAB)}>
-        <span>{language.t("secondBrain.canvas.title")}</span>
-        {closeButton(CANVAS_TAB)}
-      </TabsV2.Trigger>
-    </Show>
-  )
-
   // Tabs opened after the strip has mounted fade and rise in; the tabs it opens with do not.
   const strip = { ready: false }
   onMount(() => requestAnimationFrame(() => (strip.ready = true)))
   const tabEnter = () => (strip.ready ? "animate-enter" : undefined)
-
-  const agentTriggers = () => (
-    <Show when={agentsOpen()}>
-      <TabsV2.Trigger value={AGENTS_TAB} class={tabEnter()} onMiddleClick={() => tabs().close(AGENTS_TAB)}>
-        <AgentsTabLabel groups={subagents()} />
-        {closeButton(AGENTS_TAB)}
-      </TabsV2.Trigger>
-    </Show>
-  )
 
   const agentContent = () => (
     <Show when={activeTab() === AGENTS_TAB}>
@@ -424,15 +406,6 @@ export function SessionSidePanel(props: {
     </Show>
   )
 
-  const browserTrigger = () => (
-    <Show when={tabState.browserOpen()}>
-      <TabsV2.Trigger value={BROWSER_TAB} class={tabEnter()} onMiddleClick={() => tabs().close(BROWSER_TAB)}>
-        <span>{language.t("secondBrain.browser.title")}</span>
-        {closeButton(BROWSER_TAB)}
-      </TabsV2.Trigger>
-    </Show>
-  )
-
   const browserContent = () => (
     <Show when={activeTab() === BROWSER_TAB}>
       <TabsV2.Content value={BROWSER_TAB} class="flex min-h-0 flex-col !overflow-hidden contain-strict">
@@ -443,30 +416,6 @@ export function SessionSidePanel(props: {
     </Show>
   )
 
-  const showBrowserTab = () => {
-    const current = tabs()
-    if (!current.all().includes(BROWSER_TAB)) current.setAll([...current.all(), BROWSER_TAB])
-    current.setActive(BROWSER_TAB)
-  }
-
-  // An agent using the browser brings its tab forward, so the user sees what it does.
-  onMount(() => {
-    const off = platform.browser?.onAgent(() => {
-      openReviewPanel()
-      showBrowserTab()
-    })
-    onCleanup(() => off?.())
-  })
-
-  const deviceTrigger = () => (
-    <Show when={tabState.deviceOpen()}>
-      <TabsV2.Trigger value={DEVICE_TAB} class={tabEnter()} onMiddleClick={() => tabs().close(DEVICE_TAB)}>
-        <span>{language.t("secondBrain.device.title")}</span>
-        {closeButton(DEVICE_TAB)}
-      </TabsV2.Trigger>
-    </Show>
-  )
-
   const deviceContent = () => (
     <Show when={activeTab() === DEVICE_TAB}>
       <TabsV2.Content value={DEVICE_TAB} class="flex min-h-0 flex-col !overflow-hidden contain-strict">
@@ -474,49 +423,6 @@ export function SessionSidePanel(props: {
           <SessionDeviceTab />
         </div>
       </TabsV2.Content>
-    </Show>
-  )
-
-  const showDeviceTab = () => {
-    const current = tabs()
-    if (!current.all().includes(DEVICE_TAB)) current.setAll([...current.all(), DEVICE_TAB])
-    current.setActive(DEVICE_TAB)
-  }
-
-  onMount(() => {
-    const off = platform.device?.onAgent(() => {
-      openReviewPanel()
-      showDeviceTab()
-    })
-    onCleanup(() => off?.())
-  })
-
-  const openBrowserButton = () => (
-    <Show when={platform.browser}>
-      <div class="sticky right-8 z-10 flex h-8 shrink-0 items-center bg-v2-background-bg-base pl-1">
-        <TooltipV2 value={language.t("secondBrain.browser.open")} placement="bottom" class="flex items-center">
-          <IconButtonV2
-            icon={<Icon name="link" />}
-            variant="ghost-muted"
-            size="large"
-            data-action="open-browser-tab"
-            onClick={showBrowserTab}
-            aria-label={language.t("secondBrain.browser.open")}
-          />
-        </TooltipV2>
-        <Show when={platform.device}>
-          <TooltipV2 value={language.t("secondBrain.device.open")} placement="bottom" class="flex items-center">
-            <IconButtonV2
-              icon={<Icon name="monitor" />}
-              variant="ghost-muted"
-              size="large"
-              data-action="open-device-tab"
-              onClick={showDeviceTab}
-              aria-label={language.t("secondBrain.device.open")}
-            />
-          </TooltipV2>
-        </Show>
-      </div>
     </Show>
   )
 
@@ -662,7 +568,7 @@ export function SessionSidePanel(props: {
       <div
         id={reviewTabPanelID}
         role="tabpanel"
-        aria-labelledby={reviewTabID}
+        aria-labelledby={sideRailReviewTabID}
         tabIndex={props.reviewHasFocusableContent() ? undefined : 0}
         class="flex flex-1 min-h-0 flex-col overflow-hidden contain-strict focus-visible:outline-none"
       >
@@ -727,11 +633,34 @@ export function SessionSidePanel(props: {
                         tabs().move(source.id.toString(), source.index)
                       }}
                     >
-                      <TabsV2 class="thread-tabs" value={activeTab()} onChange={activateTab}>
+                      <TabsV2
+                        class="thread-tabs"
+                        value={activeTab()}
+                        // The strip holds file tabs only. Outside Files none of them is selected, and Kobalte then
+                        // picks the first one itself; that pick must not pull the panel back to Files.
+                        onChange={(value: string) => section() === "files" && activateTab(value)}
+                      >
                         <div class="sticky top-0 shrink-0 flex items-center gap-1 bg-v2-background-bg-base px-2.5 pt-2.5 pb-1.5">
+                          <Show when={section() !== "files"}>
+                            {/* Read from props, not a Show accessor: the section can change under this row
+                                (a thread switch), and a stale accessor throws. */}
+                            <Show when={section() === "changes" && props.reviewSidebarToggle}>
+                              <div class="flex h-8 shrink-0 items-center pr-1">
+                                {props.reviewSidebarToggle?.(false)}
+                              </div>
+                            </Show>
+                            <h2
+                              data-slot="side-panel-title"
+                              class="m-0 min-w-0 flex-1 truncate px-1.5 text-[13px] leading-8 [font-weight:600] text-v2-text-text-base"
+                            >
+                              {title()}
+                            </h2>
+                            {openFileButton(() => openFileBrowser())}
+                          </Show>
                           <TabsV2.List
                             // Scroll padding keeps a revealed tab clear of the sticky buttons at either edge.
                             class="min-w-0 flex-1 scroll-ps-11 scroll-pe-22"
+                            classList={{ "!hidden": section() !== "files" }}
                             ref={(el: HTMLDivElement) => {
                               tabList = el
                               const stop = createFileTabListSync({ el, contextOpen })
@@ -749,22 +678,6 @@ export function SessionSidePanel(props: {
                                 </div>
                               )}
                             </Show>
-                            <Show when={reviewTab() && props.canReview()}>
-                              <TabsV2.Trigger
-                                value="review"
-                                id={reviewTabID}
-                                aria-controls={activeTab() === "review" ? reviewTabPanelID : undefined}
-                              >
-                                {props.hasReview()
-                                  ? language.t("session.review.filesChanged", { count: props.reviewCount() })
-                                  : language.t("session.tab.review")}
-                              </TabsV2.Trigger>
-                            </Show>
-                            {contextTrigger()}
-                            {canvasTrigger()}
-                            {browserTrigger()}
-                            {deviceTrigger()}
-                            {agentTriggers()}
                             <For each={panelTabs()}>
                               {(tab) => (
                                 <Show
@@ -784,10 +697,9 @@ export function SessionSidePanel(props: {
                                 </Show>
                               )}
                             </For>
-                            {openBrowserButton()}
                             {openFileButton(() => openFileBrowser())}
                           </TabsV2.List>
-                          {overflowMenu()}
+                          <Show when={section() === "files"}>{overflowMenu()}</Show>
                           <div
                             class="session-review-v2-open-in-app-slot ml-auto flex shrink-0 items-center"
                             onPointerDown={(event) => event.stopPropagation()}

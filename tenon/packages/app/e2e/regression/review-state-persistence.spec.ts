@@ -119,6 +119,10 @@ async function setup(page: Page) {
         }),
       )
       localStorage.setItem("tenon.window.browser.dat:sidebar", JSON.stringify({ expanded: { __brain__: true } }))
+      // At the default width the side panel collapses the review's file tree; these checks need it shown.
+      // Seeded once: this script runs again on a reload, and must not replace the layout the app saved.
+      if (!localStorage.getItem("tenon.global.dat:layout"))
+        localStorage.setItem("tenon.global.dat:layout", JSON.stringify({ sidePanel: { width: 720 } }))
     },
     { directory },
   )
