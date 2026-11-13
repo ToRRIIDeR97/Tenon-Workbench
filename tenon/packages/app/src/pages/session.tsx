@@ -336,7 +336,9 @@ function SessionProviders(props: ParentProps) {
 }
 
 function SessionRouteFrame(props: ParentProps) {
-  return <div class="relative size-full overflow-hidden flex flex-col p-2 pl-0">{props.children}</div>
+  return (
+    <div class="titlebar-inset-top relative size-full overflow-hidden flex flex-col p-2 pl-0">{props.children}</div>
+  )
 }
 
 function SessionPanelFrame(props: ParentProps) {
@@ -2283,7 +2285,7 @@ export default function Page() {
         <div
           ref={sessionPanel}
           classList={{
-            "@container relative shrink-0 flex flex-col min-h-0 h-full flex-1 md:flex-none": true,
+            "page-panel-cap @container relative shrink-0 flex flex-col min-h-0 h-full flex-1 md:flex-none": true,
             // The whole transition goes during a drag: a bare transition-[width] still eases each frame over 150ms.
             "transition-[width] duration-medium ease-emphasized-decelerate motion-reduce:transition-none":
               !size.active() && !ui.reviewSnap,
@@ -2302,7 +2304,9 @@ export default function Page() {
         </div>
 
         <Show when={isDesktop() ? desktopV2PanelLayout().visible || panelClosing() : terminalOpen()}>
-          <div class="relative min-w-0 h-full flex flex-1 flex-col">
+          {/* Pulled 7px into the row's 8px gap: the thread and the side panel read as one card, split by the
+              hairline their two outlines share. */}
+          <div class="page-panel-cap relative min-w-0 h-full flex flex-1 flex-col md:-ml-[7px]">
             <Show when={desktopSessionResizeOpen()}>
               <div onPointerDown={() => size.start()}>
                 <ResizeHandle

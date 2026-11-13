@@ -349,6 +349,40 @@
   }
 }
 
+/* On a desktop-width window the title bar floats over the top of the window (Titlebar sets
+   --tenon-titlebar-height). The sidebar and each page frame start below it, and a page panel's cap carries
+   the panel's surface up behind the title bar to the window's top edge. Without the variable (a narrow
+   window) the frame keeps its 8px inset and the cap has no height. */
+@media (min-width: 48rem) {
+  .titlebar-inset-top {
+    padding-top: var(--tenon-titlebar-height, 0.5rem);
+  }
+
+  .titlebar-inset-margin {
+    margin-top: var(--tenon-titlebar-height, 0.5rem);
+  }
+
+  .page-panel-cap {
+    position: relative;
+  }
+
+  .page-panel-cap::before {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    bottom: 100%;
+    height: var(--tenon-titlebar-height, 0px);
+    background: var(--v2-background-bg-base);
+    /* The panel's side edges continue up; the top edge is the window's. A hairline along the bottom
+       separates the title bar band from the page below it. */
+    box-shadow:
+      -1px 0 0 var(--v2-border-border-muted),
+      1px 0 0 var(--v2-border-border-muted),
+      inset 0 -1px 0 var(--v2-border-border-muted);
+    pointer-events: none;
+  }
+}
+
 /* The composer's send button: the primary text colour on the raised composer (white in dark, near-black in light),
    and an outline when there is nothing to send, so an empty composer doesn't show a dark hole. */
 [data-component="composer-box"] [data-slot="composer-send"][data-component="icon-button-v2"] {
