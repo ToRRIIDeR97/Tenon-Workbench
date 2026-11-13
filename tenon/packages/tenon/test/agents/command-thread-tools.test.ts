@@ -1,6 +1,6 @@
 import { afterEach, describe, expect } from "bun:test"
 import { NodeHttpServer, NodeServices } from "@effect/platform-node"
-import { mkdir, readFile } from "node:fs/promises"
+import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { Config, Effect, Layer } from "effect"
 import { HttpClient, HttpClientRequest, HttpClientResponse, HttpRouter, HttpServer } from "effect/http"
@@ -270,6 +270,107 @@ describe("Command Centre thread tools", () => {
       expect(recent.map((action) => action.id)).toEqual(CommandActions.since(log, log[0].at).map((action) => action.id))
       const none = yield* actions(headers, log[0].at + 1)
       expect(none).toEqual([])
+    }),
+  )
+
+  it.instance("refuse threads in a child folder, a string-prefix sibling and the parent of the workspace", () =>
+    Effect.gen(function* () {
+      const { test, alpha, call } = yield* setup
+      const folder = alpha.directory
+      const outside = {
+        "child folder of a Project": path.join(folder, "child"),
+        "sibling whose path starts with the Project's": `${folder}-old`,
+        "parent of the workspace": path.dirname(test.directory),
+        "folder inside the workspace that is no Project's": path.join(test.directory, "notes"),
+      }
+      const stray = yield* Effect.forEach(Object.entries(outside), ([label, directory]) =>
+        Effect.gen(function* () {
+          yield* Effect.promise(() => mkdir(directory, { recursive: true }))
+          return {
+            label,
+            session: yield* Session.use.create({ title: label }).pipe(provideInstanceEffect(directory)),
+          }
+        }),
+      )
+      for (const item of stray) {
+        for (const name of ["thread_read", "thread_message", "thread_stop"]) {
+          const result = yield* call(name, { threadId: item.session.id, text: "hello" })
+          expect(`${name} ${item.label}: ${result.isError}`).toBe(`${name} ${item.label}: true`)
+          expect(String(result.value)).toContain("root threads")
+        }
+        // Nothing was sent to it.
+        expect(
+          yield* Session.use
+            .messages({ sessionID: item.session.id })
+            .pipe(provideInstanceEffect(item.session.directory)),
+        ).toEqual([])
+      }
+      expect(yield* CommandActionLog.read).toEqual([])
+      // The Project's own folder is still reached.
+      expect((yield* call("thread_read", { threadId: alpha.id })).isError).toBe(false)
+    }),
+  )
+
+  it.instance("a Project folder spelled with other separators or a trailing separator is still reached", () =>
+    Effect.gen(function* () {
+      // `key()` compares with this platform's path rules, so the spellings below exercise them here: on Windows
+      // that is "/" for "\\" and a trailing separator (letter case is folded too); elsewhere a trailing separator.
+      const { alpha, call } = yield* setup
+      const spellings = [`${alpha.directory}${path.sep}`, alpha.directory.replaceAll(path.sep, "/")]
+      for (const spelling of spellings) {
+        const thread = yield* Session.use.create({ title: `spelled ${spelling}` }).pipe(provideInstanceEffect(spelling))
+        const read = yield* call("thread_read", { threadId: thread.id })
+        expect(`${spelling}: ${read.isError} ${String(read.value)}`).toBe(`${spelling}: false ${String(read.value)}`)
+        expect(read.value).toMatchObject({ project: "Alpha" })
+      }
+    }),
+  )
+
+  it.instance("a file that is not a valid log is kept aside and the tools still work", () =>
+    Effect.gen(function* () {
+      const { root, alpha, call } = yield* setup
+      const file = path.join(root, ".command-centre", "actions.json")
+      const asides = () =>
+        Effect.promise(() => readdir(path.dirname(file))).pipe(
+          Effect.map((names) => names.filter((name) => name.startsWith("actions.json.corrupt-"))),
+        )
+      // Not JSON at all, then JSON with an invalid entry: each is moved aside whole, never dropped.
+      for (const [index, content] of ["{ this is not json", JSON.stringify([{ id: 1 }])].entries()) {
+        yield* Effect.promise(() => writeFile(file, content))
+        const result = yield* call("thread_message", { threadId: alpha.id, text: `after ${index}` })
+        expect(result.isError).toBe(false)
+        const stored = JSON.parse(yield* Effect.promise(() => readFile(file, "utf8"))) as CommandActions.Action[]
+        expect(stored.map((action) => action.text)).toEqual([`after ${index}`])
+        const names = yield* asides()
+        expect(names).toHaveLength(index + 1)
+        const kept = yield* Effect.promise(() =>
+          Promise.all(names.map((name) => readFile(path.join(path.dirname(file), name), "utf8"))),
+        )
+        expect(kept).toContain(content)
+        // Let the next aside get its own timestamp.
+        yield* Effect.sleep("5 millis")
+      }
+    }),
+  )
+
+  it.instance("a missing log starts empty, and one that cannot be read is never overwritten", () =>
+    Effect.gen(function* () {
+      const { root, alpha, general, call } = yield* setup
+      const file = path.join(root, ".command-centre", "actions.json")
+      expect(yield* CommandActionLog.read).toEqual([])
+      expect((yield* call("thread_stop", { threadId: alpha.id })).isError).toBe(false)
+      expect((yield* CommandActionLog.read).map((action) => action.kind)).toEqual(["stop"])
+
+      // Read errors other than "missing" (here: a directory where the file should be) leave it untouched, and
+      // the tool still succeeds, because the log is a record and not part of the action.
+      yield* Effect.promise(() => rm(file))
+      yield* Effect.promise(() => mkdir(file))
+      const result = yield* call("thread_stop", { threadId: general.id })
+      expect(result.isError).toBe(false)
+      expect((yield* Effect.promise(() => stat(file))).isDirectory()).toBe(true)
+      expect((yield* Effect.promise(() => readdir(path.dirname(file)))).some((name) => name.includes("corrupt"))).toBe(
+        false,
+      )
     }),
   )
 

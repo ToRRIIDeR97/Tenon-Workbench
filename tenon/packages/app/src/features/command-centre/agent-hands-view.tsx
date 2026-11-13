@@ -13,6 +13,7 @@ import { useServerSync } from "@/context/server-sync"
 import { approvalQueue, type QueueItem } from "@/features/command-centre/approval-queue"
 import { useCommandCentre } from "@/features/command-centre/command-centre"
 import type { MissionThread } from "@/features/command-centre/mission-board-view"
+import { rootThread } from "@/features/command-centre/thread-owner"
 import { listCommandActions, type CommandAction } from "@/features/second-brain/client"
 import { permissionSummary } from "@/pages/session/composer/permission-summary"
 import { getRelativeTime } from "@/utils/time"
@@ -27,26 +28,20 @@ export type WaitingRequest = {
 
 // Commands or paths shown before "Show N more", as in the thread's own approval card.
 const VISIBLE = 3
-// Parent links followed to reach a subagent's root thread.
-const DEPTH = 16
 
 /**
  * Every pending permission and question of the board's threads, subagents included, oldest first. It reads the
  * synced run data the thread pages and the board already read, so it adds no request.
  */
-export function createWaitingQueue(threads: () => MissionThread[]) {
+export function createWaitingQueue(ctrl: SidebarController, threads: () => MissionThread[]) {
   const serverSync = useServerSync()
   return createMemo<WaitingRequest[]>(() => {
     const data = serverSync().session.data
     const roots = new Map(threads().map((thread) => [thread.id, thread]))
-    const rootOf = (id: string, depth = 0): MissionThread | undefined => {
-      const found = roots.get(id)
-      if (found || depth >= DEPTH) return found
-      const parent = serverSync().session.get(id)?.parentID
-      return parent ? rootOf(parent, depth + 1) : undefined
-    }
+    // Parents come from the synced store, then from the sidebar's index links, as the board's Needs you does.
+    const links = ctrl.parentLinks()
     const owned = [...new Set([...Object.keys(data.permission), ...Object.keys(data.question)])].flatMap((id) => {
-      const root = rootOf(id)
+      const root = rootThread(id, roots, (child) => serverSync().session.get(child)?.parentID, links)
       return root ? [{ id, root }] : []
     })
     const rootByID = new Map(owned.map((entry) => [entry.id, entry.root]))

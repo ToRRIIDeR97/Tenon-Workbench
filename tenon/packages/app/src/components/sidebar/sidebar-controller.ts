@@ -984,6 +984,8 @@ export function createSidebarController() {
     stateOf,
     subtreeState: (node: ThreadNode<Session>) => nodeState(node, stateOf, linked),
     projectThreads,
+    /** Child thread to parent thread, from the session index: covers subagents the synced store has not loaded. */
+    parentLinks: childLinks,
     loading: () => projectsQuery.isLoading,
     failed: () => projectsQuery.isError,
     retryProjects: () => void projectsQuery.refetch(),

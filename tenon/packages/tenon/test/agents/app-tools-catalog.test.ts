@@ -48,6 +48,19 @@ describe("AgentAppTools.catalogFor", () => {
   })
 })
 
+describe("AgentAppTools names", () => {
+  // The threat model relies on this: nothing an agent can call approves, allows or answers a request.
+  test("no tool answers a permission request or a question", () => {
+    process.env.TENON_MAIL_URL = "http://127.0.0.1:9/mail"
+    process.env.TENON_MAIL_TOKEN = "t"
+    const names = [...AgentAppTools.TOOLS, ...AgentAppTools.COMMAND_TOOLS, ...AgentAppTools.catalog()].map(
+      (tool) => tool.name,
+    )
+    expect(names.length).toBeGreaterThan(0)
+    expect(names.filter((name) => /approve|permission|allow|answer/i.test(name))).toEqual([])
+  })
+})
+
 describe("AgentAppTools.distinctDirectories", () => {
   test("keeps each folder's first spelling, in the order they came", () => {
     const a = path.resolve("dedupe-root", "a")

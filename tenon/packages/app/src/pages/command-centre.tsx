@@ -51,7 +51,7 @@ export default function CommandCentrePage() {
   const [state, setState] = createStore({ memory: "", query: "", hit: -1, view: "board" as "board" | "waiting" })
   const open = (sessionID: string) => navigate(sessionHref(server.key, sessionID))
   const board = createMissionThreads(ctrl)
-  const queue = createWaitingQueue(board)
+  const queue = createWaitingQueue(ctrl, board)
   createEffect(() => {
     if (search.thread) navigate(sessionHref(server.key, search.thread), { replace: true })
   })
