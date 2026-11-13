@@ -29,6 +29,7 @@ import { agentRunStatus, needsYou } from "@/pages/activity-runs"
 import { Harness } from "@tenon/schema/harness"
 import { harnessAssistantDirectory, listHarnessSetup, listHarnessUsage } from "@/utils/server"
 import { fullestWindow } from "@/components/harness-usage"
+import { HarnessIcon } from "@/components/harness-icon"
 import { ComposerBox } from "@/components/prompt-input/composer-box"
 import { createComposerController } from "@/components/prompt-input/composer-controller"
 import { ComposerModelPill, createComposerHarness } from "@/components/prompt-input/composer-harness"
@@ -469,8 +470,11 @@ export default function BrainHomePage() {
                         <Show when={window()}>
                           {(fullest) => (
                             <li class="flex min-w-0 items-center gap-3 px-3 py-2">
-                              <span class="w-32 shrink-0 truncate type-row-title text-v2-text-text-base">
-                                {harnessName(report.instanceID)}
+                              <span class="flex w-36 shrink-0 items-center gap-2 type-row-title text-v2-text-text-base">
+                                <HarnessIcon
+                                  instance={{ id: report.instanceID, name: harnessName(report.instanceID) }}
+                                />
+                                <span class="min-w-0 truncate">{harnessName(report.instanceID)}</span>
                               </span>
                               <span class="w-16 shrink-0 truncate type-meta text-v2-text-text-muted">
                                 {fullest().label}

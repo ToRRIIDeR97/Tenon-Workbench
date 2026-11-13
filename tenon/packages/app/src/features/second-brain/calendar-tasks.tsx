@@ -280,7 +280,10 @@ export function CalendarTasks(props: {
 
   return (
     <div class={sidePanelGridClass(state.editing || Boolean(peeked()))}>
-      <section class="flex min-h-0 min-w-0 flex-col" aria-label={language.t("secondBrain.tasks.title")}>
+      <section
+        class="mx-auto flex min-h-0 w-full min-w-0 max-w-[760px] flex-col"
+        aria-label={language.t("secondBrain.tasks.title")}
+      >
         <div class="flex flex-col gap-0.5">
           <Show when={visible().length > 0} fallback={<PageEmpty>{language.t("secondBrain.tasks.empty")}</PageEmpty>}>
             <For each={visible()}>

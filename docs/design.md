@@ -75,6 +75,36 @@ Use `[font-weight:N]` when a weight must differ from the role.
   share one centered column, at most 640px wide. Thread text (replies and the
   user's messages) and the composer's text are 15px on 24px lines, a step above
   the app's 14px base; reply headings are 18/16/15px.
+- **Wide windows:** lists and single columns keep a reading width when the
+  window is stretched (pages 720/1040px, the thread 640px). The calendar's
+  Day grid caps at 880px and its Agenda and Tasks lists at 760px, centred;
+  Week and Month use the full width because their columns are the content.
+- **Harness logos:** every harness shows its logo at 16px to the left of its
+  name: the Tenon mark for the built-in agent, its maker's logo for Codex
+  (OpenAI), Claude Code (Anthropic) and OpenCode, and a letter tile for any
+  other agent (`harness-logo.ts`). The model pill shows the logo of the
+  harness that runs the model, not the model's maker, and Home's plan-usage
+  rows lead with it too.
+- **Projects page:** on a wide window, a 300px list beside a preview of the
+  selected Project (progress ring, next-milestone card, open tasks, recent
+  threads and pages, Start work and Open project). The selection is an
+  accent-container highlight that slides between rows; the preview rises in.
+- **MCP servers:** built from the standard Settings parts only: an Installed
+  section (settings card of rows: name, "Local · command" or "Remote · URL",
+  switch), then a Suggested section of rows with an Add button. Adding flies the
+  suggested row into the Installed card. Custom server opens the form.
+- **Model profiles:** folding rows like Harnesses (chevron, model id, rule
+  count, switch). An open profile has the Built-in harness segmented control:
+  Rules lists each rule as a settings row with a remove button and an "Add a
+  rule" field; profile.md edits the Markdown. Add profile in the header opens
+  an inline field; Delete and Build with an agent sit under the open profile.
+- **Settings pages:** new Settings content uses the existing parts (tab header,
+  `settings-v2-section` with its title, `settings-v2-list` cards of
+  `settings-v2-row`s, the Harnesses folding group, the Built-in harness
+  segmented control). No nested panes, custom cards or tiles inside Settings.
+- **Exits:** anything that animates in also animates out. The Reply pill fades
+  where it was (except when it grows into the reply card), and hand-rolled
+  popups such as the folder picker's suggestions use the menu exit.
 - **Desktop widget:** one card in a small frameless window on the OS desktop
   (nothing on Home): a 22px-radius card on `bg-floating` with a hairline
   edge, a draggable top bar with a mode chip (accent container when it shows

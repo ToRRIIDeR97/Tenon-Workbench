@@ -1,4 +1,5 @@
-import { createSignal, onCleanup, onMount, Show } from "solid-js"
+import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js"
+import createPresence from "solid-presence"
 import { Portal } from "solid-js/web"
 import { Icon as IconV2 } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
@@ -41,6 +42,15 @@ export function SelectionReply(props: { root: () => HTMLElement | undefined; onR
   const [card, setCard] = createSignal<Card>()
   let frame = 0
   let pillElement: HTMLDivElement | undefined
+  // The pill fades out where it was when the selection goes, so it keeps the last selection while it leaves. Opening
+  // the card skips the fade: the card grows out of the pill instead.
+  const [pillNode, setPillNode] = createSignal<HTMLDivElement | null>(null)
+  const [shownPill, setShownPill] = createSignal<Pill>()
+  createEffect(() => {
+    const current = pill()
+    if (current) setShownPill(current)
+  })
+  const presence = createPresence({ show: () => !!pill(), element: pillNode })
 
   const read = () => {
     if (card()) return
@@ -122,19 +132,27 @@ export function SelectionReply(props: { root: () => HTMLElement | undefined; onR
 
   return (
     <>
-      <Show when={pill()}>
+      <Show when={presence.present() ? shownPill() : undefined}>
         {(current) => (
           <Portal>
             <div
-              ref={pillElement}
+              ref={(element) => {
+                pillElement = element
+                setPillNode(element)
+              }}
               data-component="selection-reply"
               role="toolbar"
               aria-label={language.t("secondBrain.quote.toolbar")}
-              class="fixed z-50 flex gap-0.5 rounded-[16px] bg-v2-background-bg-floating p-1 shadow-[var(--v2-elevation-floating)] animate-enter"
+              class="fixed z-50 flex gap-0.5 rounded-[16px] bg-v2-background-bg-floating p-1 shadow-[var(--v2-elevation-floating)]"
+              classList={{
+                "animate-enter": !!pill(),
+                "animate-exit pointer-events-none": !pill() && !card(),
+              }}
               style={{
                 left: `${current().x}px`,
                 top: `${current().y}px`,
-                transform: current().below ? "translateX(-50%)" : "translate(-50%, -100%)",
+                // `translate`, not `transform`: the enter animation drives `transform` and would undo the centring.
+                translate: current().below ? "-50% 0" : "-50% -100%",
               }}
               // Keep the selection while the pointer is on the pill.
               onMouseDown={(event) => event.preventDefault()}

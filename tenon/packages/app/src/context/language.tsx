@@ -36,6 +36,7 @@ type PluralKey =
   | "session.revertDock.summary"
   | "secondBrain.calendar.moreOnDate"
   | "secondBrain.sessionTab.messages"
+  | "secondBrain.modelProfiles.ruleCount"
   | "secondBrain.sessionTab.subagentsMissing"
   | "secondBrain.sidebar.cardRunning"
   | "secondBrain.turnSteps.failed"

@@ -48,3 +48,29 @@ export const profileInstruction = (model: string, rules: string) =>
 /** A thread gets the profile on its first message and again whenever its model changes. */
 export const profileDue = (input: { newThread: boolean; previousModel?: string; model: string }) =>
   input.newThread || input.previousModel !== input.model
+
+const BULLET = /^\s*(?:[-*+]|\d+[.)])\s+/
+
+/** A profile's rules as the Rules view lists them: one per non-empty line, without its bullet or number. */
+export function profileRules(rules: string) {
+  return rules
+    .split(/\r?\n/)
+    .map((line, index) => ({ index, text: line.replace(BULLET, "").trim() }))
+    .filter((rule) => rule.text && !rule.text.startsWith("#"))
+}
+
+/** The rules without one line, by its index in the Markdown. */
+export function removeProfileRule(rules: string, index: number) {
+  return rules
+    .split(/\r?\n/)
+    .filter((_, line) => line !== index)
+    .join("\n")
+}
+
+/** The rules with one more bullet at the end. */
+export function appendProfileRule(rules: string, text: string) {
+  const rule = text.trim()
+  if (!rule) return rules
+  const body = rules.trimEnd()
+  return body ? `${body}\n- ${rule}` : `- ${rule}`
+}

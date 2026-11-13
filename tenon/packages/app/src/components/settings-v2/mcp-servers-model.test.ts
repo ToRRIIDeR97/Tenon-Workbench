@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { mcpEntry, mcpRows } from "./mcp-servers-model"
+import { mcpEntry, mcpRows, mcpSuggestions } from "./mcp-servers-model"
 
 describe("MCP servers settings", () => {
   test("the form makes a local command or a remote URL", () => {
@@ -27,5 +27,17 @@ describe("MCP servers settings", () => {
       ["alpha", true, "bunx alpha"],
       ["zed", false, "https://z.example"],
     ])
+  })
+
+  test("suggestions leave out servers already configured by name or by the same command or URL", () => {
+    const ids = (config: Parameters<typeof mcpSuggestions>[0]) => mcpSuggestions(config).map((item) => item.id)
+    expect(ids(undefined)).toEqual(["playwright", "context7", "github", "linear", "sentry"])
+    expect(
+      ids({
+        github: { enabled: false },
+        browser: { type: "local", command: ["npx", "@playwright/mcp@latest"] },
+        docs: { type: "remote", url: "https://mcp.context7.com/mcp" },
+      }),
+    ).toEqual(["linear", "sentry"])
   })
 })
