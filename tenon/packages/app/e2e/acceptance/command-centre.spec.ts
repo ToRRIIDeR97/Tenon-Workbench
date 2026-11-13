@@ -40,6 +40,8 @@ async function start(page: Page, events: unknown[] = [], input: Parameters<typeo
   )
 }
 const strip = (page: Page) => page.locator("[data-command-strip]")
+// The agent panel shows its newest exchange; Threads swaps it for the thread list and memory search.
+const openThreadList = (page: Page) => page.locator('[data-action="command-agent-threads"]').click()
 // The app picks Ctrl or Cmd from navigator.platform, which the "Desktop Chrome" device reports as Win32 on any host.
 const toggleStrip = async (page: Page) => {
   const mac = await page.evaluate(() => /(Mac|iPod|iPhone|iPad)/.test(navigator.platform))
@@ -64,6 +66,7 @@ test("AC-7.1 the rail's fourth destination is Command Centre and /activity redir
 test("AC-7.2 the Command Centre lists only its own threads", async ({ page }) => {
   await start(page)
   await page.goto("/command")
+  await openThreadList(page)
   await expect(page.getByText("Plan the billing webhook work")).toBeVisible()
   await expect(page.getByRole("list", { name: "Command Centre threads" }).getByText("Cookie migration")).toHaveCount(0)
   await page.goto("/")
@@ -76,6 +79,7 @@ const threadURL = new RegExp(`/session/${commandThread.id}$`)
 test("AC-3 a Command Centre thread opens in the thread view, as do older ?thread= links", async ({ page }) => {
   await start(page)
   await page.goto("/command")
+  await openThreadList(page)
   await page.getByRole("link", { name: /Plan the billing webhook work/ }).click()
   await expect(page).toHaveURL(threadURL)
   await page.goto(`/command?thread=${commandThread.id}`)
@@ -326,10 +330,11 @@ test("AC-1.4 the board lists every Project's recent threads by state, beside the
   await expect(mission(page).locator('[data-thread="ses_command_1"]')).toHaveCount(0)
   await expect(group(page, "running").getByText("Migrate the billing webhook")).toBeVisible()
 
-  // The Command Centre's own thread list, memory search and composer stay on the page.
+  // The Command Centre's own thread list, memory search and composer stay on the page, in the agent panel.
+  await expect(page.getByRole("textbox", { name: "Message the Command Centre", exact: true })).toBeVisible()
+  await openThreadList(page)
   await expect(page.getByRole("list", { name: "Command Centre threads" }).getByText(commandThread.title)).toBeVisible()
   await expect(page.getByRole("searchbox", { name: "Search memory" })).toBeVisible()
-  await expect(page.getByRole("textbox", { name: "Message the Command Centre", exact: true })).toBeVisible()
 
   // By project: one section per Project, General last, each row keeping its state.
   await mission(page).locator('[data-action="board-view"]', { hasText: "By project" }).click()
@@ -977,7 +982,7 @@ test("AC-4.6 a director's board row shows its round and opens the run view, and 
     messages: { ses_dir_a: twoRounds },
   })
   const row = mission(page).locator('[data-thread="ses_dir_a"]')
-  await expect(row.locator('[data-slot="board-run-round"]')).toHaveText("Round 2 of 5")
+  await expect(row.locator('[data-slot="board-row-detail"]')).toContainText("Round 2 of 5")
   // A thread without a run has neither.
   await expect(mission(page).locator('[data-thread="ses_board_run"] [data-action="board-run"]')).toHaveCount(0)
   await row.locator('[data-action="board-run"]').click()

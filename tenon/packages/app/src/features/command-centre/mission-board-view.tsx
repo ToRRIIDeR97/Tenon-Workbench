@@ -1,7 +1,8 @@
 import { Harness } from "@tenon/schema/harness"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
+import { Icon } from "@tenon/ui/v2/icon"
 import { SegmentedControlItemV2, SegmentedControlV2 } from "@tenon/ui/v2/segmented-control-v2"
-import { createEffect, createMemo, For, on, Show, type JSX } from "solid-js"
+import { createEffect, createMemo, For, Match, on, Show, Switch, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import type { SidebarController } from "@/components/sidebar/sidebar-controller"
 import { useLanguage } from "@/context/language"
@@ -159,116 +160,162 @@ export function MissionBoard(props: {
   // Rows are looked up by ID so a thread's update rewrites its row in place: an open Steer field keeps its focus.
   const Row = (row: { id: string; state: RowState; project: boolean }): JSX.Element => (
     <Show when={byID().get(row.id)}>
-      {(thread) => (
-        <li data-thread={thread().id} data-state={row.state} class="flex flex-col">
-          <div class="flex min-w-0 items-center gap-3 rounded-[8px] px-3 py-2">
-            <Show when={row.state === "running"}>
-              <span
-                class="size-2 shrink-0 rounded-full bg-v2-icon-icon-accent running-pulse"
-                role="img"
-                aria-label={language.t("secondBrain.sidebar.running")}
-              />
-            </Show>
-            <span class="min-w-0 flex-1 truncate type-row-title text-v2-text-text-base">{thread().title}</span>
-            <Show when={row.project}>
-              <span class="max-w-40 shrink-0 truncate type-meta text-v2-text-text-muted">{thread().project}</span>
-            </Show>
-            <Show when={thread().waiting > 0}>
-              <span class="shrink-0 rounded-full bg-v2-state-bg-warning px-2 py-0.5 type-caption text-v2-state-fg-warning">
-                {language.t("secondBrain.commandCentre.board.waiting", { count: thread().waiting })}
+      {(thread) => {
+        const run = () => runByThread().get(thread().id)
+        // What the row says under its title: the Project (in By state), then what the thread is doing.
+        const detail = () =>
+          [
+            row.project ? thread().project : undefined,
+            run() && currentRound(run()!) > 0
+              ? language.t("secondBrain.commandCentre.board.round", {
+                  round: currentRound(run()!),
+                  max: run()!.maxRounds,
+                })
+              : undefined,
+            thread().subagents > 0
+              ? language.t("secondBrain.commandCentre.board.subagents", { count: thread().subagents })
+              : undefined,
+            getRelativeTime(new Date(thread().updated).toISOString(), language.t),
+          ]
+            .filter(Boolean)
+            .join(" · ")
+        return (
+          <li
+            data-thread={thread().id}
+            data-state={row.state}
+            class="flex flex-col rounded-[16px]"
+            classList={{
+              "bg-v2-background-bg-layer-02": row.state === "needs-you",
+              "shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]": row.state !== "needs-you",
+            }}
+          >
+            <div class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 px-3.5 py-3">
+              <span class="flex size-5 shrink-0 items-center justify-center">
+                <Switch>
+                  <Match when={row.state === "needs-you"}>
+                    <span
+                      class="flex text-v2-state-fg-warning"
+                      role="img"
+                      aria-label={language.t("secondBrain.sidebar.needsYou")}
+                    >
+                      <Icon name="warning" size="small" />
+                    </span>
+                  </Match>
+                  <Match when={row.state === "running"}>
+                    <span
+                      class="size-2 rounded-full bg-v2-icon-icon-accent running-pulse"
+                      role="img"
+                      aria-label={language.t("secondBrain.sidebar.running")}
+                    />
+                  </Match>
+                  <Match when={true}>
+                    <span
+                      class="flex text-v2-icon-icon-muted"
+                      role="img"
+                      aria-label={language.t("secondBrain.commandCentre.board.finished")}
+                    >
+                      <Icon name="check" size="small" />
+                    </span>
+                  </Match>
+                </Switch>
               </span>
-            </Show>
-            <Show when={runByThread().get(thread().id)}>
-              {(run) => (
-                <Show when={currentRound(run()) > 0}>
-                  <span data-slot="board-run-round" class="shrink-0 type-meta text-v2-text-text-muted">
-                    {language.t("secondBrain.commandCentre.board.round", {
-                      round: currentRound(run()),
-                      max: run().maxRounds,
-                    })}
-                  </span>
+              <button
+                type="button"
+                data-action="board-title"
+                class="flex min-w-0 flex-[1_1_220px] flex-col items-start rounded-[8px] text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus"
+                onClick={() => props.open(thread().id)}
+              >
+                <span class="w-full min-w-0 truncate type-row-title [font-weight:600] text-v2-text-text-base">
+                  {thread().title}
+                </span>
+                <span data-slot="board-row-detail" class="w-full min-w-0 truncate type-meta text-v2-text-text-muted">
+                  {detail()}
+                </span>
+              </button>
+              <Show when={thread().waiting > 0}>
+                <span class="shrink-0 rounded-full bg-v2-state-bg-warning px-2.5 py-0.5 type-caption text-v2-state-fg-warning">
+                  {language.t("secondBrain.commandCentre.board.waiting", { count: thread().waiting })}
+                </span>
+              </Show>
+              <div class="flex shrink-0 items-center gap-1.5">
+                <Show when={row.state === "needs-you"}>
+                  <ButtonV2
+                    size="small"
+                    variant="contrast"
+                    data-action="board-review"
+                    onClick={() => props.open(thread().id)}
+                  >
+                    {language.t("secondBrain.widget.review")}
+                  </ButtonV2>
                 </Show>
-              )}
-            </Show>
-            <Show when={thread().subagents > 0}>
-              <span class="shrink-0 type-meta text-v2-text-text-muted">
-                {language.t("secondBrain.commandCentre.board.subagents", { count: thread().subagents })}
-              </span>
-            </Show>
-            <span class="shrink-0 type-meta text-v2-text-text-muted">
-              {getRelativeTime(new Date(thread().updated).toISOString(), language.t)}
-            </span>
-            <div class="flex shrink-0 items-center gap-1">
-              <Show when={row.state === "running"}>
-                <ButtonV2
-                  size="small"
-                  variant="outline"
-                  data-action="board-steer"
-                  aria-expanded={state.steer === thread().id}
-                  onClick={() => toggleSteer(thread().id)}
-                >
-                  {language.t("secondBrain.composer.delivery.steer")}
-                </ButtonV2>
-                <ButtonV2 size="small" variant="outline" data-action="board-stop" onClick={() => stop(thread())}>
-                  {language.t("prompt.action.stop")}
-                </ButtonV2>
-              </Show>
-              <Show when={row.state === "needs-you"}>
-                <ButtonV2
-                  size="small"
-                  variant="outline"
-                  data-action="board-review"
-                  onClick={() => props.open(thread().id)}
-                >
-                  {language.t("secondBrain.widget.review")}
-                </ButtonV2>
-              </Show>
-              <Show when={runByThread().get(thread().id)}>
-                {(run) => (
+                <Show when={row.state === "running"}>
                   <ButtonV2
                     size="small"
                     variant="outline"
-                    data-action="board-run"
-                    onClick={() => props.openRun(run().id)}
+                    data-action="board-steer"
+                    aria-expanded={state.steer === thread().id}
+                    onClick={() => toggleSteer(thread().id)}
                   >
-                    {language.t("secondBrain.commandCentre.board.openRun")}
+                    {language.t("secondBrain.composer.delivery.steer")}
                   </ButtonV2>
-                )}
-              </Show>
-              <ButtonV2 size="small" variant="ghost" data-action="board-open" onClick={() => props.open(thread().id)}>
-                {language.t("common.open")}
-              </ButtonV2>
+                  <ButtonV2 size="small" variant="outline" data-action="board-stop" onClick={() => stop(thread())}>
+                    {language.t("prompt.action.stop")}
+                  </ButtonV2>
+                </Show>
+                <Show when={run()}>
+                  {(value) => (
+                    <ButtonV2
+                      size="small"
+                      variant="outline"
+                      data-action="board-run"
+                      onClick={() => props.openRun(value().id)}
+                    >
+                      {language.t("secondBrain.commandCentre.board.openRun")}
+                    </ButtonV2>
+                  )}
+                </Show>
+                <Show when={row.state === "finished"}>
+                  <ButtonV2
+                    size="small"
+                    variant="outline"
+                    data-action="board-open"
+                    onClick={() => props.open(thread().id)}
+                  >
+                    {language.t("common.open")}
+                  </ButtonV2>
+                </Show>
+              </div>
             </div>
-          </div>
-          <Show when={state.steer === thread().id}>
-            <form
-              class="px-3 pb-2"
-              onSubmit={(event) => {
-                event.preventDefault()
-                steer(thread())
-              }}
-            >
-              <input
-                ref={(element) => queueMicrotask(() => element.focus())}
-                class="h-9 w-full min-w-0 rounded-full bg-v2-background-bg-base px-3 text-[13px] text-v2-text-text-base outline-none [box-shadow:inset_0_0_0_1px_var(--v2-border-border-base)] focus:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)]"
-                value={state.text}
-                disabled={state.busy}
-                aria-label={language.t("secondBrain.commandCentre.board.steerLabel", { title: thread().title })}
-                placeholder={language.t("secondBrain.commandCentre.board.steerPlaceholder")}
-                onInput={(event) => setState("text", event.currentTarget.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Escape") toggleSteer(thread().id)
+            <Show when={state.steer === thread().id}>
+              <form
+                class="px-3.5 pb-3"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  steer(thread())
                 }}
-              />
-            </form>
-          </Show>
-          <Show when={state.failed === thread().id}>
-            <p role="alert" class="px-3 pb-2 type-meta text-v2-text-text-critical">
-              {language.t("common.requestFailed")}
-            </p>
-          </Show>
-        </li>
-      )}
+              >
+                <input
+                  ref={(element) => queueMicrotask(() => element.focus())}
+                  class="h-9 w-full min-w-0 rounded-full bg-v2-background-bg-base px-3 text-[13px] text-v2-text-text-base outline-none [box-shadow:inset_0_0_0_1px_var(--v2-border-border-base)] focus:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)]"
+                  value={state.text}
+                  disabled={state.busy}
+                  aria-label={language.t("secondBrain.commandCentre.board.steerLabel", { title: thread().title })}
+                  placeholder={language.t("secondBrain.commandCentre.board.steerPlaceholder")}
+                  onInput={(event) => setState("text", event.currentTarget.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") toggleSteer(thread().id)
+                  }}
+                />
+              </form>
+            </Show>
+            <Show when={state.failed === thread().id}>
+              <p role="alert" class="px-3.5 pb-3 type-meta text-v2-text-text-critical">
+                {language.t("common.requestFailed")}
+              </p>
+            </Show>
+          </li>
+        )
+      }}
     </Show>
   )
 
@@ -283,11 +330,11 @@ export function MissionBoard(props: {
       ref={root}
       data-component="mission-board"
       aria-labelledby="mission-board-title"
-      class="mx-auto flex w-full max-w-[1040px] flex-col gap-3"
+      class="flex min-h-0 min-w-0 flex-col gap-4 overflow-y-auto rounded-[16px] bg-v2-background-bg-layer-01 p-5"
     >
       <div class="flex min-h-9 items-center gap-2">
         <h2 id="mission-board-title" class="min-w-0 flex-1 truncate type-section text-v2-text-text-base">
-          {language.t("secondBrain.commandCentre.board.title")}
+          {language.t("secondBrain.commandCentre.board.allProjects")}
         </h2>
         <SegmentedControlV2
           aria-label={language.t("secondBrain.commandCentre.board.view")}
@@ -318,9 +365,9 @@ export function MissionBoard(props: {
           fallback={
             <For each={byProject()}>
               {(group) => (
-                <section data-project={group.projectID ?? "general"} class="flex flex-col gap-1">
-                  <h3 class="px-3 type-caption text-v2-text-text-muted">{group.project}</h3>
-                  <ul class="flex flex-col">
+                <section data-project={group.projectID ?? "general"} class="flex flex-col gap-2">
+                  <h3 class="px-1 type-caption text-v2-text-text-muted">{group.project}</h3>
+                  <ul class="flex flex-col gap-2">
                     <For each={group.threads.map((thread) => thread.id)}>
                       {(id) => <Row id={id} project={false} state={stateByID().get(id) ?? "finished"} />}
                     </For>
@@ -333,12 +380,13 @@ export function MissionBoard(props: {
           <For each={states}>
             {(group) => (
               <Show when={group[2]().length > 0}>
-                <section data-group={group[0]} class="flex flex-col gap-1">
-                  <h3 class="flex items-center gap-2 px-3 type-caption text-v2-text-text-muted">
+                <section data-group={group[0]} class="flex flex-col gap-2">
+                  <h3 class="flex items-center gap-1.5 px-1 type-caption text-v2-text-text-muted">
                     {language.t(group[1])}
+                    <span aria-hidden="true">·</span>
                     <span class="tabular-nums">{group[2]().length}</span>
                   </h3>
-                  <ul class="flex flex-col">
+                  <ul class="flex flex-col gap-2">
                     <For each={group[2]().map((thread) => thread.id)}>
                       {(id) => <Row id={id} project state={group[0]} />}
                     </For>
@@ -350,7 +398,7 @@ export function MissionBoard(props: {
         </Show>
       </Show>
       <Show when={empty() && !props.ctrl.loading() && !props.ctrl.failed()}>
-        <p class="px-3 type-body text-v2-text-text-muted">{language.t("secondBrain.commandCentre.board.empty")}</p>
+        <p class="px-1 type-body text-v2-text-text-muted">{language.t("secondBrain.commandCentre.board.empty")}</p>
       </Show>
     </section>
   )
