@@ -1,7 +1,9 @@
 import { useNavigate } from "@solidjs/router"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { makeEventListener } from "@solid-primitives/event-listener"
-import { createEffect, Show } from "solid-js"
+import { createResizeObserver } from "@solid-primitives/resize-observer"
+import { Markdown } from "@tenon/session-ui/markdown"
+import { createEffect, on, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { ComposerBox } from "@/components/prompt-input/composer-box"
 import { createComposerController } from "@/components/prompt-input/composer-controller"
@@ -14,7 +16,7 @@ import { useCommandCentre } from "./command-centre"
 /**
  * The Command Centre card. A handle just above the bottom edge of every page but the Command Centre; Ctrl/Cmd+J
  * or a click raises a 640px card named "Command Centre" with the latest exchange (your last message and the
- * reply, three lines), Undo when that reply made a write, "Open full", and a composer that replies to the shown
+ * reply drawn as Markdown, capped at about five lines with "Show more"), Undo when that reply made a write, "Open full", and a composer that replies to the shown
  * thread (New thread starts a fresh one). An approval or question on that thread is answered in the thread, so the
  * card offers "Review in thread". The draft is the Command Centre page's. Esc hides it. The card rises and fades in
  * over 300 ms emphasized-decelerate and drops out over 200 ms emphasized-accelerate; reduced motion snaps.
@@ -26,12 +28,26 @@ export function CommandStrip() {
   const centre = useCommandCentre()
   const server = useServer()
   // `fresh`: New thread was chosen, so the next send starts a thread instead of replying to the shown one.
-  const [state, setState] = createStore({ open: false, fresh: false })
+  // `expanded`: Show more was chosen for the reply on show; `overflow`: that reply is taller than the cap.
+  const [state, setState] = createStore({ open: false, fresh: false, expanded: false, overflow: false })
   let input: HTMLTextAreaElement | undefined
   let card: HTMLDivElement | undefined
   let full: HTMLButtonElement | undefined
   // Focus goes back where it was when the strip closes, so keyboard users are not dropped on <body>.
   let returnFocus: HTMLElement | undefined
+  let reply: HTMLDivElement | undefined
+  const measureReply = () => {
+    if (!reply || state.expanded) return
+    setState("overflow", reply.scrollHeight > reply.clientHeight + 1)
+  }
+  createResizeObserver(() => reply, measureReply)
+  // A new reply, or the card closing, goes back to the capped view.
+  createEffect(
+    on([() => centre.lastReply(), () => state.open], () => {
+      setState("expanded", false)
+      queueMicrotask(measureReply)
+    }),
+  )
 
   const toggle = () => setState("open", (open) => !open)
   command.register("command-strip", () => [
@@ -196,18 +212,47 @@ export function CommandStrip() {
                   </div>
                 )}
               </Show>
-              <p
-                data-slot="command-card-reply"
-                class="m-0 line-clamp-3 px-1 text-[13px] leading-[21px]"
-                classList={{
-                  "text-v2-text-text-base": !centre.error() && !!centre.lastReply(),
-                  "text-v2-text-text-muted": !!centre.error() || !centre.lastReply(),
-                }}
+              {/* The reply as the thread shows it (Markdown). Capped at about five lines; Show more lets it
+                  grow and scroll inside the card. */}
+              <Show
+                when={!centre.error() && centre.lastReply()}
+                fallback={
+                  <p data-slot="command-card-reply" class="m-0 px-1 text-[13px] leading-[21px] text-v2-text-text-muted">
+                    {centre.error()
+                      ? language.t("common.requestFailed")
+                      : language.t("secondBrain.commandCentre.strip.empty")}
+                  </p>
+                }
               >
-                {centre.error()
-                  ? language.t("common.requestFailed")
-                  : centre.lastReply() || language.t("secondBrain.commandCentre.strip.empty")}
-              </p>
+                <div class="flex min-w-0 flex-col items-start gap-1">
+                  <div
+                    ref={reply}
+                    data-slot="command-card-reply"
+                    data-expanded={state.expanded ? "" : undefined}
+                    class="w-full min-w-0 px-1 text-[13px] leading-[21px] text-v2-text-text-base [&_li]:my-0 [&_li>p]:my-0 [&_ol]:my-1 [&_p]:my-1 [&_ul]:my-1 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+                    classList={{
+                      "max-h-[105px] overflow-hidden": !state.expanded,
+                      // A cut-off reply fades out, so the last line doesn't look like the end.
+                      "[mask-image:linear-gradient(to_bottom,black_65%,transparent)]":
+                        state.overflow && !state.expanded,
+                      "max-h-64 overflow-y-auto": state.expanded,
+                    }}
+                  >
+                    <Markdown text={centre.lastReply()} class="text-[13px]" />
+                  </div>
+                  <Show when={state.overflow || state.expanded}>
+                    <ButtonV2
+                      size="small"
+                      variant="ghost-muted"
+                      data-action="command-card-reply-more"
+                      aria-expanded={state.expanded}
+                      onClick={() => setState("expanded", (expanded) => !expanded)}
+                    >
+                      {language.t(state.expanded ? "ui.sessionTurn.diffs.showLess" : "ui.common.showMore")}
+                    </ButtonV2>
+                  </Show>
+                </div>
+              </Show>
               <Show when={centre.waiting()}>
                 <div class="flex min-w-0 items-center gap-2 rounded-[16px] bg-v2-state-bg-warning px-3 py-1.5">
                   <span class="min-w-0 flex-1 truncate text-[13px] leading-5 text-v2-state-fg-warning">

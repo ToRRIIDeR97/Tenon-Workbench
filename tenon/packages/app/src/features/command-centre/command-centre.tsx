@@ -124,10 +124,13 @@ export function lastAskText(data: CommandTranscript, sessionID: string | undefin
   return ask ? messageText(data, ask.id).trim().replace(/\s+/g, " ") : ""
 }
 
-/** The thread's last assistant reply on one line, reading only that message's parts. */
+/**
+ * The thread's last assistant reply as the agent wrote it (Markdown, line breaks kept), reading only that
+ * message's parts. The card and the desktop widget render it; flattening it would run lists into one line.
+ */
 export function lastReplyText(data: CommandTranscript, sessionID: string | undefined) {
   const reply = sessionID ? data.message[sessionID]?.findLast((message) => message.role === "assistant") : undefined
-  return reply ? messageText(data, reply.id).trim().replace(/\s+/g, " ") : ""
+  return reply ? messageText(data, reply.id).trim() : ""
 }
 
 /** `threadWorking` from the thread's last message alone, which needs no text. */

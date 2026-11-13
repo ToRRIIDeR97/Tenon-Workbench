@@ -623,7 +623,10 @@ assistant that spans workspaces, with its own threads, memory and routines.
   (`[data-command-strip]`) sits inside `<main>` on every page except
   `/command`: a 20 px handle while closed; open, a 640 px, 24 px-radius card
   named "Command Centre" with the latest exchange (your last message,
-  `lastAskText`, and the reply clamped to three lines), New thread, "Open full"
+  `lastAskText`, and the reply drawn as Markdown, as the desktop widget draws
+  it: capped at about five lines with a fade, "Show more" lets it grow and
+  scroll inside the card; `lastReplyText` keeps the reply's line breaks for
+  that), New thread, "Open full"
   (`/command?thread=<id>`) and a composer. A send replies to the shown thread
   (`centre.send(text, latest.id)`); New thread makes the next send start one.
   The card and the page share the persisted draft (`composer.command`). When the

@@ -62,7 +62,10 @@ describe("the card shows the exchange", () => {
   test("the strip renders the ask above the reply", () => {
     expect(strip()).toMatch(/centre\.lastAsk\(\)/)
     expect(strip()).toMatch(/data-slot="command-card-ask"/)
-    expect(strip()).toMatch(/data-slot="command-card-reply"[^>]*line-clamp-3/)
+    // The reply is drawn as Markdown under a height cap, never as a clamped line of source text.
+    expect(strip()).toMatch(/<Markdown text=\{centre\.lastReply\(\)\}/)
+    expect(strip()).toMatch(/data-action="command-card-reply-more"/)
+    expect(strip()).not.toMatch(/line-clamp-3/)
   })
 })
 

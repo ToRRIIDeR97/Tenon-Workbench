@@ -198,6 +198,8 @@ export async function mockTenonServer(page: Page, config: MockServerConfig) {
     if (path === "/api/pty/shells") return json(route, { location: location(config), data: [] })
     if (/^\/api\/pty\/[^/]+\/connect-token$/.test(path))
       return json(route, { location: location(config), data: { ticket: "e2e-ticket", expires_in: 60 } })
+    // The Command Centre reads the folders its threads have lived in; a real server always sends the list.
+    if (path === "/command-centre/folders") return json(route, { folders: [] })
     if (emptyObject.has(path)) return json(route, {})
     if (emptyList.has(path)) return json(route, [])
     if (path === "/api/session") {

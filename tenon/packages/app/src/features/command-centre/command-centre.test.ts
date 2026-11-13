@@ -124,10 +124,7 @@ describe("Command Centre transcript reads", () => {
     for (const data of Object.values(fixtures)) {
       const messages = commandMessages(data, "thread")
       expect(lastReplyText(data, "thread")).toBe(
-        messages
-          .findLast((message) => message.role === "assistant")
-          ?.text.trim()
-          .replace(/\s+/g, " ") ?? "",
+        messages.findLast((message) => message.role === "assistant")?.text.trim() ?? "",
       )
       for (const status of [undefined, "idle", "busy"])
         expect(commandWorking(status, data, "thread")).toBe(threadWorking(status, messages))
@@ -139,7 +136,9 @@ describe("Command Centre transcript reads", () => {
   })
 
   test("the values on the fixtures", () => {
-    expect(lastReplyText(fixtures.streaming, "thread")).toBe("Three meetings, and second part")
+    // Line breaks and spacing are kept: the reply is drawn as Markdown, where they carry lists and paragraphs.
+    expect(lastReplyText(fixtures.streaming, "thread").replace(/\s+/g, " ")).toBe("Three meetings, and second part")
+    expect(lastReplyText(fixtures.streaming, "thread")).toContain("\n")
     expect(lastReplyText(fixtures.userLast, "thread")).toBe("Old reply")
     expect(lastReplyText(fixtures.assistantIncomplete, "thread")).toBe("")
     expect(lastReplyText(fixtures.empty, "thread")).toBe("")
