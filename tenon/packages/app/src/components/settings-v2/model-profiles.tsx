@@ -1,7 +1,7 @@
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
-import { Reveal, RevealShow } from "@tenon/ui/v2/reveal"
+import { Reveal } from "@tenon/ui/v2/reveal"
 import { SegmentedControlItemV2, SegmentedControlV2 } from "@tenon/ui/v2/segmented-control-v2"
 import { Switch as ToggleSwitch } from "@tenon/ui/v2/switch-v2"
 import { TextInputV2 } from "@tenon/ui/v2/text-input-v2"
@@ -12,11 +12,13 @@ import { createStore } from "solid-js/store"
 import { useDrafts } from "@/context/drafts"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
+import { useModels } from "@/context/models"
 import { useServer } from "@/context/server"
 import { useSettings } from "@/context/settings"
 import {
   appendProfileRule,
   parseProfileMarkdown,
+  profileModelMatches,
   profileRules,
   removeProfileRule,
   type ModelProfile,
@@ -40,6 +42,7 @@ export const SettingsModelProfilesV2: Component = () => {
   const layout = useLayout()
   const server = useServer()
   const dialog = useDialog()
+  const catalog = useModels()
   const [state, setState] = createStore({
     open: "",
     view: "rules" as View,
@@ -57,12 +60,14 @@ export const SettingsModelProfilesV2: Component = () => {
     if (current) settings.modelProfiles.set(model, { ...current, ...patch })
   }
   let file: HTMLInputElement | undefined
+  let search: HTMLInputElement | undefined
 
-  const add = () => {
-    const model = state.model.trim()
-    if (!model) return
-    if (!settings.modelProfiles.all()[model]) settings.modelProfiles.set(model, { rules: "", enabled: true })
-    setState({ open: model, view: "rules", adding: false, model: "" })
+  // Add profile searches the models you have; a typed id that matches none can still be added as it is.
+  const matches = createMemo(() => profileModelMatches(catalog.list(), state.model, models()))
+  const add = (id = state.model.trim()) => {
+    if (!id) return
+    if (!settings.modelProfiles.all()[id]) settings.modelProfiles.set(id, { rules: "", enabled: true })
+    setState({ open: id, view: "rules", adding: false, model: "" })
   }
   const importFile = (picked: File | undefined) => {
     if (!picked) return
@@ -102,7 +107,14 @@ export const SettingsModelProfilesV2: Component = () => {
           <ButtonV2 variant="ghost" onClick={() => file?.click()}>
             {language.t("secondBrain.modelProfiles.import")}
           </ButtonV2>
-          <ButtonV2 variant="neutral" icon="plus" onClick={() => setState("adding", (adding) => !adding)}>
+          <ButtonV2
+            variant="neutral"
+            icon="plus"
+            onClick={() => {
+              setState({ adding: !state.adding, model: "" })
+              if (state.adding) requestAnimationFrame(() => search?.focus())
+            }}
+          >
             {language.t("secondBrain.modelProfiles.add")}
           </ButtonV2>
           <input
@@ -119,33 +131,54 @@ export const SettingsModelProfilesV2: Component = () => {
       </div>
       <div class="settings-v2-tab-body flex flex-col gap-5">
         <p class="text-[13px] leading-5 text-v2-text-text-muted">{language.t("secondBrain.modelProfiles.intro")}</p>
-        <RevealShow when={state.adding}>
-          {() => (
+        <Reveal open={state.adding}>
+          <div class="flex flex-col gap-2">
             <form
-              class="flex flex-wrap items-center gap-2"
+              class="flex items-center gap-2"
               onSubmit={(event) => {
                 event.preventDefault()
-                add()
+                add(matches()[0]?.id)
               }}
             >
               <TextInputV2
-                type="text"
+                type="search"
                 class="min-w-[220px] flex-1"
                 value={state.model}
-                autofocus
-                placeholder={language.t("secondBrain.modelProfiles.modelPlaceholder")}
+                ref={(element) => (search = element)}
+                placeholder={language.t("secondBrain.modelProfiles.search")}
                 aria-label={language.t("secondBrain.modelProfiles.model")}
                 onInput={(event) => setState("model", event.currentTarget.value)}
+                onKeyDown={(event) =>
+                  event.key === "Escape" && (event.stopPropagation(), setState({ adding: false, model: "" }))
+                }
               />
-              <ButtonV2 type="submit" variant="contrast" disabled={!state.model.trim()}>
-                {language.t("secondBrain.modelProfiles.create")}
-              </ButtonV2>
               <ButtonV2 type="button" variant="ghost" onClick={() => setState({ adding: false, model: "" })}>
                 {language.t("common.cancel")}
               </ButtonV2>
             </form>
-          )}
-        </RevealShow>
+            <SettingsListV2>
+              <For each={matches()}>
+                {(model) => (
+                  <SettingsRowV2 title={model.name} description={`${model.provider.name} · ${model.id}`}>
+                    <ButtonV2 variant="neutral" icon="plus" onClick={() => add(model.id)}>
+                      {language.t("secondBrain.modelProfiles.create")}
+                    </ButtonV2>
+                  </SettingsRowV2>
+                )}
+              </For>
+              <Show when={state.model.trim() && !matches().some((model) => model.id === state.model.trim())}>
+                <SettingsRowV2
+                  title={language.t("secondBrain.modelProfiles.addTyped", { model: state.model.trim() })}
+                  description={language.t("secondBrain.modelProfiles.addTypedHint")}
+                >
+                  <ButtonV2 variant="ghost" icon="plus" onClick={() => add()}>
+                    {language.t("secondBrain.modelProfiles.create")}
+                  </ButtonV2>
+                </SettingsRowV2>
+              </Show>
+            </SettingsListV2>
+          </div>
+        </Reveal>
 
         <section class="settings-v2-section" aria-labelledby="model-profiles-list-title">
           <h3 id="model-profiles-list-title" class="settings-v2-section-title">
@@ -186,7 +219,7 @@ export const SettingsModelProfilesV2: Component = () => {
                           </span>
                         </button>
                         <ToggleSwitch
-                          checked={!!profile()?.enabled}
+                          checked={profile()?.enabled ?? false}
                           hideLabel
                           onChange={(enabled) => update(model, { enabled })}
                         >

@@ -5,6 +5,7 @@ import {
   profileDue,
   profileFor,
   profileInstruction,
+  profileModelMatches,
   profileRules,
   removeProfileRule,
 } from "./model-profile"
@@ -64,5 +65,21 @@ describe("model profiles", () => {
     expect(appendProfileRule("- a\n", " b ")).toBe("- a\n- b")
     expect(appendProfileRule("", "first")).toBe("- first")
     expect(appendProfileRule("- a", "  ")).toBe("- a")
+  })
+
+  test("Add profile searches models by name, id or provider, leaving out ones that have a profile", () => {
+    const provider = (id: string, name: string) => ({ id, name })
+    const models = [
+      { id: "deepseek-v4.1-flash", name: "DeepSeek V4.1 Flash", provider: provider("opencode", "OpenCode Zen") },
+      { id: "deepseek-v4.1-flash", name: "DeepSeek V4.1 Flash", provider: provider("deepseek", "DeepSeek") },
+      { id: "kimi-k2.5", name: "Kimi K2.5", provider: provider("moonshot", "Moonshot") },
+      { id: "qwen3-coder", name: "Qwen 3 Coder", provider: provider("opencode", "OpenCode Zen") },
+    ]
+    const ids = (query: string, existing: string[] = []) =>
+      profileModelMatches(models, query, existing).map((model) => `${model.provider.id}/${model.id}`)
+    expect(ids("deep")).toEqual(["opencode/deepseek-v4.1-flash"])
+    expect(ids("zen")).toEqual(["opencode/deepseek-v4.1-flash", "opencode/qwen3-coder"])
+    expect(ids("", ["kimi-k2.5", "opencode/qwen3-coder"])).toEqual(["opencode/deepseek-v4.1-flash"])
+    expect(ids("qwen")).toEqual(["opencode/qwen3-coder"])
   })
 })

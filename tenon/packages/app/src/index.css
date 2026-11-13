@@ -378,3 +378,19 @@
 ::highlight(tenon-reply-passage) {
   background-color: color-mix(in srgb, var(--v2-text-text-accent) 28%, transparent);
 }
+
+/* The composer reads a step brighter in dark mode: its muted and faint text (placeholder, model, permissions, branch)
+   take lighter greys, and the placeholder is semi-bold. Both token names are set: utilities read `--color-*`, which
+   the root resolves once, so overriding only `--v2-*` here would not reach them. Light mode keeps the theme greys. */
+:root[data-color-scheme="dark"]
+  :is([data-component="session-prompt-dock"], [data-component="prompt-input-v2"], [data-component="composer-box"]) {
+  --v2-text-text-muted: #f2f2f2;
+  --v2-text-text-faint: #d2d2d2;
+  --color-v2-text-text-muted: #f2f2f2;
+  --color-v2-text-text-faint: #d2d2d2;
+}
+
+:root[data-color-scheme="dark"] [data-slot="prompt-placeholder"],
+:root[data-color-scheme="dark"] [data-component="composer-box"] textarea::placeholder {
+  font-weight: 500;
+}

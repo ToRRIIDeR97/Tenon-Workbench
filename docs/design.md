@@ -97,7 +97,17 @@ Use `[font-weight:N]` when a weight must differ from the role.
   count, switch). An open profile has the Built-in harness segmented control:
   Rules lists each rule as a settings row with a remove button and an "Add a
   rule" field; profile.md edits the Markdown. Add profile in the header opens
-  an inline field; Delete and Build with an agent sit under the open profile.
+  a search over your models (rows with Add; a typed id that matches none can
+  still be added); Delete and Build with an agent sit under the open profile.
+- **Subagent context:** in a thread with subagents, the Context tab's
+  Subagents cards replace "Taking the most room": per subagent its own context
+  (used of its window, or "≈N estimated" from its transcript when the agent
+  reports none, as OpenCode does), agent, turn and how it ended; a card opens
+  its usage with Open in Agents and Show in thread. The Environment window's
+  Running section becomes "Subagents · N done" with a row and small bar each.
+- **Composer text (dark):** inside the composer the muted and faint greys are
+  `#f2f2f2` and `#d2d2d2`, and the placeholder is weight 500, for legibility on
+  the dark surface. Light mode keeps the theme greys.
 - **Settings pages:** new Settings content uses the existing parts (tab header,
   `settings-v2-section` with its title, `settings-v2-list` cards of
   `settings-v2-row`s, the Harnesses folding group, the Built-in harness
@@ -169,6 +179,9 @@ app:
 - Animate only transform, opacity and colour. The virtualized timeline
   expands and collapses instantly.
 - Under `prefers-reduced-motion`, show the end state at once.
+- JS that waits out a CSS animation reads the duration with `motionDuration`
+  (`@tenon/ui/v2/motion`), which understands both `200ms` and the minified
+  `.2s`; never `parseFloat` a duration token yourself.
 
 ## Accessibility
 

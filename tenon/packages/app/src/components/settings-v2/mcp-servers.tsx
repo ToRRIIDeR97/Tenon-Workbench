@@ -1,5 +1,5 @@
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
-import { RevealShow } from "@tenon/ui/v2/reveal"
+import { Reveal } from "@tenon/ui/v2/reveal"
 import { SegmentedControlItemV2, SegmentedControlV2 } from "@tenon/ui/v2/segmented-control-v2"
 import { Switch as ToggleSwitch } from "@tenon/ui/v2/switch-v2"
 import { TextInputV2 } from "@tenon/ui/v2/text-input-v2"
@@ -88,7 +88,7 @@ export const SettingsMcpServersV2: Component = () => {
         transformOrigin: "top left",
       })
       document.body.append(ghost)
-      ghost
+      void ghost
         .animate(
           [
             { transform: "none", opacity: 1 },
@@ -113,58 +113,57 @@ export const SettingsMcpServersV2: Component = () => {
       </div>
       <div class="settings-v2-tab-body flex flex-col gap-5">
         <p class="text-[13px] leading-5 text-v2-text-text-muted">{language.t("secondBrain.mcp.intro")}</p>
-        <RevealShow when={form.open}>
-          {() => (
-            <form
-              class="flex flex-col gap-3 rounded-[24px] bg-v2-background-bg-layer-01 p-4"
-              onSubmit={(event) => {
-                event.preventDefault()
-                add()
-              }}
-            >
-              <div class="settings-v2-fit">
-                <SegmentedControlV2
-                  aria-label={language.t("secondBrain.mcp.kind")}
-                  value={form.kind}
-                  onChange={(value) => setForm("kind", value === "remote" ? "remote" : "local")}
-                >
-                  <SegmentedControlItemV2 value="local">{language.t("secondBrain.mcp.local")}</SegmentedControlItemV2>
-                  <SegmentedControlItemV2 value="remote">{language.t("secondBrain.mcp.remote")}</SegmentedControlItemV2>
-                </SegmentedControlV2>
-              </div>
-              <TextInputV2
-                type="text"
-                class="!w-full"
-                value={form.name}
-                placeholder={language.t("secondBrain.mcp.namePlaceholder")}
-                aria-label={language.t("secondBrain.mcp.name")}
-                onInput={(event) => setForm("name", event.currentTarget.value)}
-              />
-              <TextInputV2
-                type="text"
-                class="!w-full"
-                value={form.target}
-                placeholder={language.t(
-                  form.kind === "local" ? "secondBrain.mcp.commandPlaceholder" : "secondBrain.mcp.urlPlaceholder",
-                )}
-                aria-label={language.t(form.kind === "local" ? "secondBrain.mcp.command" : "secondBrain.mcp.url")}
-                onInput={(event) => setForm("target", event.currentTarget.value)}
-              />
-              <div class="flex justify-end gap-2">
-                <ButtonV2 type="button" variant="ghost" onClick={() => setForm("open", false)}>
-                  {language.t("common.cancel")}
-                </ButtonV2>
-                <ButtonV2
-                  type="submit"
-                  variant="contrast"
-                  disabled={form.busy || !form.name.trim() || !mcpEntry(form.kind, form.target)}
-                >
-                  {language.t("common.save")}
-                </ButtonV2>
-              </div>
-            </form>
-          )}
-        </RevealShow>
+        {/* A panel, not a notice line: it opens over medium and closes over short, like the rest of Settings. */}
+        <Reveal open={form.open}>
+          <form
+            class="flex flex-col gap-3 rounded-[24px] bg-v2-background-bg-layer-01 p-4"
+            onSubmit={(event) => {
+              event.preventDefault()
+              add()
+            }}
+          >
+            <div class="settings-v2-fit">
+              <SegmentedControlV2
+                aria-label={language.t("secondBrain.mcp.kind")}
+                value={form.kind}
+                onChange={(value) => setForm("kind", value === "remote" ? "remote" : "local")}
+              >
+                <SegmentedControlItemV2 value="local">{language.t("secondBrain.mcp.local")}</SegmentedControlItemV2>
+                <SegmentedControlItemV2 value="remote">{language.t("secondBrain.mcp.remote")}</SegmentedControlItemV2>
+              </SegmentedControlV2>
+            </div>
+            <TextInputV2
+              type="text"
+              class="!w-full"
+              value={form.name}
+              placeholder={language.t("secondBrain.mcp.namePlaceholder")}
+              aria-label={language.t("secondBrain.mcp.name")}
+              onInput={(event) => setForm("name", event.currentTarget.value)}
+            />
+            <TextInputV2
+              type="text"
+              class="!w-full"
+              value={form.target}
+              placeholder={language.t(
+                form.kind === "local" ? "secondBrain.mcp.commandPlaceholder" : "secondBrain.mcp.urlPlaceholder",
+              )}
+              aria-label={language.t(form.kind === "local" ? "secondBrain.mcp.command" : "secondBrain.mcp.url")}
+              onInput={(event) => setForm("target", event.currentTarget.value)}
+            />
+            <div class="flex justify-end gap-2">
+              <ButtonV2 type="button" variant="ghost" onClick={() => setForm("open", false)}>
+                {language.t("common.cancel")}
+              </ButtonV2>
+              <ButtonV2
+                type="submit"
+                variant="contrast"
+                disabled={form.busy || !form.name.trim() || !mcpEntry(form.kind, form.target)}
+              >
+                {language.t("common.save")}
+              </ButtonV2>
+            </div>
+          </form>
+        </Reveal>
 
         <section class="settings-v2-section" aria-labelledby="mcp-installed-title">
           <h3 id="mcp-installed-title" class="settings-v2-section-title">

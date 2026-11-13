@@ -396,8 +396,12 @@ export function withConfigured(models: ReadonlyArray<Harness.Model>, configured:
   return models.length > 0 ? [...models] : configuredModels(configured)
 }
 
-export const open = Effect.fn("AcpHarness.open")(function* (process: Process, input: OpenInput) {
+export const open = Effect.fn("AcpHarness.open")(function* (
+  process: Process & Partial<Pick<AppProcess.Interface, "run">>,
+  input: OpenInput,
+) {
   const scope = yield* Effect.scope
+  const usageLookup = openCodeUsageLookup(process, input.settings, input.directory)
   const items = yield* Queue.unbounded<Item>()
   const { client, initialize } = yield* connect(process, input.settings, input.directory, {
     handleRequest: (request) => handleRequest(request, input.approve, input.ask),
@@ -580,13 +584,16 @@ export const open = Effect.fn("AcpHarness.open")(function* (process: Process, in
           Stream.fromQueue(items).pipe(
             Stream.tap(() => heard),
             Stream.takeUntil((item) => item.type === "done"),
-            Stream.flatMap((item) =>
-              Stream.fromIterable(
+            Stream.mapEffect((item) =>
+              withSubagentUsage(
                 item.type === "done"
                   ? finishAcpTurn(item.exit, parser)
                   : parseAcpNotification(item.notification, session.sessionId, parser),
+                parser,
+                usageLookup,
               ),
             ),
+            Stream.flatMap((events) => Stream.fromIterable(events)),
           )
         const watch = turnInput.watch
         const stoppable = stopOnSteer(
@@ -674,6 +681,13 @@ export interface AcpTool {
   chars: number
   truncated?: boolean
   usage?: AcpUsage
+  /**
+   * A Claude Code subagent's settled result, held until its token use arrives: the adapter sends that with the tool
+   * response from a PostToolUse hook, which can come after the result. The turn's end releases anything still held.
+   */
+  held?: { readonly failed: boolean; readonly update: Record<string, unknown> }
+  /** An OpenCode subagent's own session, where its token use can be read once it ends (`openCodeUsageLookup`). */
+  childSession?: string
 }
 
 export interface AcpStep {
@@ -785,7 +799,7 @@ export function parseAcpNotification(
     const id = string(update.toolCallId)
     if (!id) return []
     const closed = closeBlocks(state)
-    const tool = state.tools.get(id) ?? {
+    const tool: AcpTool = state.tools.get(id) ?? {
       name: toolName(update),
       input: {},
       called: false,
@@ -804,8 +818,19 @@ export function parseAcpNotification(
     const ready = !tool.called && (terminal || status === "in_progress")
     if (ready) tool.called = true
     const start = ready ? [LLMEvent.toolCall({ id, name: tool.name, input: tool.input, providerExecuted: true })] : []
+    // Claude Code reports a subagent's own token use only with its tool response; release a result held for it.
+    const reported = tool.name === "acp_subagent" ? claudeSubagentUsage(update) : undefined
+    if (reported) tool.usage = { ...tool.usage, ...reported }
+    if (reported && tool.held) return [...closed, ...start, ...releaseHeld(id, tool)]
     if (tool.done || !terminal) return [...closed, ...start]
     tool.done = true
+    // OpenCode names the subagent's session in its result even when it forwarded none of its updates.
+    if (tool.name === "acp_subagent")
+      tool.childSession ??= /<subagent sessionID="([^"]+)"/.exec(toolOutput(update))?.[1]
+    if (tool.name === "acp_subagent" && !tool.usage && isClaudeCodeUpdate(update)) {
+      tool.held = { failed: status === "failed", update }
+      return [...closed, ...start]
+    }
     const value = toolOutput(update)
     return [
       ...closed,
@@ -871,7 +896,9 @@ export function replayedCost(notifications: ReadonlyArray<Notification>) {
 
 export function finishAcpTurn(exit: Exit.Exit<unknown, ProtocolError>, state: AcpState): ReadonlyArray<LLMEvent> {
   state.finished = true
-  const closed = closeBlocks(state)
+  // Subagent results still waiting for a usage report settle without it.
+  const held = [...state.tools].flatMap(([id, tool]) => (tool.held ? releaseHeld(id, tool) : []))
+  const closed = [...closeBlocks(state), ...held]
   if (Exit.isFailure(exit)) {
     const error = Option.getOrUndefined(Exit.findErrorOption(exit))
     return [
@@ -1116,7 +1143,8 @@ function permissionResources(tool: Record<string, unknown>, title: string) {
 function toolName(update: Record<string, unknown>) {
   // OpenCode reports its subagent tool with the generic `think` kind; its own tool name is clearer.
   // Claude Code names its subagent tool `Task` or `Agent`.
-  const name = string(update.name)?.toLowerCase()
+  const claude = isRecord(update._meta) && isRecord(update._meta.claudeCode) ? update._meta.claudeCode : undefined
+  const name = (string(update.name) ?? string(claude?.toolName))?.toLowerCase()
   if (name === "subagent" || name === "task" || name === "agent") return "acp_subagent"
   const kind = string(update.kind)
   return kind ? `acp_${kind}` : "acp_tool"
@@ -1161,6 +1189,7 @@ function recordChild(
   const parentId = state.children.get(child.id) ?? subagentFor(state, description)
   const parent = parentId === undefined ? undefined : state.tools.get(parentId)
   if (parentId === undefined || !parent) return []
+  if (!child.id.startsWith("claude:")) parent.childSession ??= child.id
   if (kind === "agent_message_chunk" || kind === "agent_thought_chunk") {
     state.children.set(child.id, parentId)
     const content = isRecord(update.content) ? update.content : undefined
@@ -1256,6 +1285,133 @@ function commandList(update: Record<string, unknown>): AcpCommand[] {
     const description = string(command.description)
     return name ? [{ name, ...(description === undefined ? {} : { description }) }] : []
   })
+}
+
+/**
+ * How an OpenCode subagent's token use is read: OpenCode sends none over ACP (only the root session gets
+ * `usage_update`), but its server keeps each session's totals, and `opencode api` reaches the server `opencode acp`
+ * uses. The same command runs with `api GET /api/session/<id>` in place of `acp`; any failure leaves no usage.
+ */
+export function openCodeUsageLookup(
+  process: Partial<Pick<AppProcess.Interface, "run">>,
+  settings: Settings,
+  directory: string,
+): ((sessionID: string) => Effect.Effect<AcpUsage | undefined>) | undefined {
+  const at = settings.args.lastIndexOf("acp")
+  const run = process.run
+  if (at < 0 || !run) return undefined
+  return (sessionID) =>
+    run(
+      ChildProcess.make(settings.command, [...settings.args.slice(0, at), "api", "GET", `/api/session/${sessionID}`], {
+        cwd: directory,
+        env: harnessEnvironment(settings.env),
+        extendEnv: false,
+        stdin: "ignore",
+      }),
+      { timeout: "10 seconds", maxOutputBytes: 1_000_000 },
+    ).pipe(
+      Effect.map((result) => openCodeSessionUsage(result.stdout.toString())),
+      Effect.catch(() => Effect.succeed(undefined)),
+    )
+}
+
+/** The token totals of an OpenCode session from its server's `GET /api/session/:id` answer. */
+export function openCodeSessionUsage(text: string): AcpUsage | undefined {
+  const parsed: unknown = (() => {
+    try {
+      return JSON.parse(text)
+    } catch {
+      return undefined
+    }
+  })()
+  const data = isRecord(parsed) && isRecord(parsed.data) ? parsed.data : undefined
+  const tokens = isRecord(data?.tokens) ? data.tokens : undefined
+  if (!tokens) return undefined
+  const cache = isRecord(tokens.cache) ? tokens.cache : {}
+  const cost = number(data?.cost)
+  const fields = {
+    inputTokens: number(tokens.input),
+    outputTokens: number(tokens.output),
+    thoughtTokens: number(tokens.reasoning),
+    cachedReadTokens: number(cache.read),
+    cachedWriteTokens: number(cache.write),
+    cost: cost && cost > 0 ? cost : undefined,
+  }
+  return Object.fromEntries(Object.entries(fields).filter((entry) => entry[1] !== undefined))
+}
+
+/** Adds an OpenCode subagent's token use to its result, read from OpenCode's server as the result goes out. */
+export function withSubagentUsage(
+  events: ReadonlyArray<LLMEvent>,
+  state: AcpState,
+  lookup: ((sessionID: string) => Effect.Effect<AcpUsage | undefined>) | undefined,
+): Effect.Effect<ReadonlyArray<LLMEvent>> {
+  if (!lookup) return Effect.succeed(events)
+  return Effect.forEach(events, (event) => {
+    if (event.type !== "tool-result" || event.name !== "acp_subagent") return Effect.succeed(event)
+    const tool = state.tools.get(event.id)
+    const acp = isRecord(event.providerMetadata?.acp) ? event.providerMetadata.acp : undefined
+    if (!tool?.childSession || !acp || isRecord(acp.usage)) return Effect.succeed(event)
+    return lookup(tool.childSession).pipe(
+      Effect.map((usage) => {
+        if (!usage) return event
+        tool.usage = { ...tool.usage, ...usage }
+        return LLMEvent.toolResult({
+          id: event.id,
+          name: event.name,
+          providerExecuted: event.providerExecuted,
+          result: event.result,
+          providerMetadata: { ...event.providerMetadata, acp: { ...acp, usage } },
+        })
+      }),
+    )
+  })
+}
+
+/** Settles a held subagent result with whatever usage it has now. */
+function releaseHeld(id: string, tool: AcpTool): ReadonlyArray<LLMEvent> {
+  const held = tool.held
+  if (!held) return []
+  tool.held = undefined
+  const value = toolOutput(held.update)
+  return [
+    LLMEvent.toolResult({
+      id,
+      name: tool.name,
+      providerExecuted: true,
+      result: held.failed ? { type: "error", value } : { type: "text", value },
+      ...resultMetadata(tool, held.update),
+    }),
+  ]
+}
+
+function isClaudeCodeUpdate(update: Record<string, unknown>) {
+  return isRecord(update._meta) && isRecord(update._meta.claudeCode)
+}
+
+/**
+ * A Claude Code subagent's token use, from the Agent/Task tool response its adapter sends with
+ * `_meta.claudeCode.toolResponse`. Its `usage` is the subagent's last request, so the input, cache read and cache
+ * write it counts are the context the subagent ended with.
+ */
+export function claudeSubagentUsage(update: Record<string, unknown>): AcpUsage | undefined {
+  const meta = isRecord(update._meta) && isRecord(update._meta.claudeCode) ? update._meta.claudeCode : undefined
+  const response = isRecord(meta?.toolResponse) ? meta.toolResponse : undefined
+  const usage = isRecord(response?.usage) ? response.usage : undefined
+  if (!usage) return undefined
+  const input = number(usage.input_tokens)
+  const cacheRead = number(usage.cache_read_input_tokens)
+  const cacheWrite = number(usage.cache_creation_input_tokens)
+  const details = isRecord(usage.output_tokens_details) ? usage.output_tokens_details : undefined
+  const fields = {
+    used: input === undefined ? undefined : input + (cacheRead ?? 0) + (cacheWrite ?? 0),
+    inputTokens: input,
+    outputTokens: number(usage.output_tokens),
+    thoughtTokens: number(details?.thinking_tokens),
+    cachedReadTokens: cacheRead,
+    cachedWriteTokens: cacheWrite,
+  }
+  return Object.fromEntries(Object.entries(fields).filter((entry) => entry[1] !== undefined))
 }
 
 function childUsage(update: Record<string, unknown>): AcpUsage {
