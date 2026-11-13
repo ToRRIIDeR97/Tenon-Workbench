@@ -290,3 +290,29 @@
     transition: none;
   }
 }
+
+/* Thread text reads a step larger than the app's 14px base, in the narrower 640px column (design.md, Thread). */
+[data-component="session-turn"] [data-component="markdown"] {
+  font-size: 15px;
+  line-height: 24px;
+
+  h1 {
+    font-size: 18px;
+  }
+
+  h2 {
+    font-size: 16px;
+  }
+
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-size: 15px;
+  }
+}
+
+[data-component="session-turn"] [data-component="user-message"] {
+  font-size: 15px;
+  line-height: 24px;
+}

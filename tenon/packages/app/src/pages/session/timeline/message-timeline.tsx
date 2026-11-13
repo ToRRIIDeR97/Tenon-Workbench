@@ -919,7 +919,7 @@ export function MessageTimeline(props: {
         data-timeline-row={input.row()._tag}
         classList={{
           "min-w-0 w-full max-w-full": true,
-          "md:max-w-200 2xl:max-w-[1000px]": props.centered,
+          "md:max-w-[640px]": props.centered,
           "md:mx-auto": props.centered,
           "pt-3": previousAssistantPart(),
         }}
