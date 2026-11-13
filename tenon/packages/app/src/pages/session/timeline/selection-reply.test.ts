@@ -22,25 +22,39 @@ describe("quoteText", () => {
 describe("placeReplyCard", () => {
   const viewport = { width: 1200, height: 800 }
 
-  test("sits under the selection, centred, when it fits", () => {
-    expect(placeReplyCard({ x: 600, top: 200, bottom: 220 }, viewport)).toEqual({
-      left: 390,
-      width: 420,
-      top: 228,
+  test("grows up from the corner of a pill that sits above the selection", () => {
+    expect(placeReplyCard({ left: 500, top: 300, bottom: 340, below: false }, viewport)).toEqual({
+      left: 500,
+      width: 400,
+      top: 340,
+      below: false,
+    })
+  })
+
+  test("grows down from a pill under the selection", () => {
+    expect(placeReplyCard({ left: 500, top: 60, bottom: 100, below: true }, viewport)).toEqual({
+      left: 500,
+      width: 400,
+      top: 60,
       below: true,
     })
   })
 
-  test("goes above a selection near the bottom of the window", () => {
-    const placed = placeReplyCard({ x: 600, top: 700, bottom: 720 }, viewport)
-    expect(placed.below).toBe(false)
-    expect(placed.top).toBe(692)
+  test("grows the other way when its side has no room", () => {
+    expect(placeReplyCard({ left: 500, top: 40, bottom: 80, below: false }, viewport)).toMatchObject({
+      top: 40,
+      below: true,
+    })
+    expect(placeReplyCard({ left: 500, top: 740, bottom: 780, below: true }, viewport)).toMatchObject({
+      top: 780,
+      below: false,
+    })
   })
 
   test("stays on screen at the edges and in a narrow window", () => {
-    expect(placeReplyCard({ x: 10, top: 200, bottom: 220 }, viewport).left).toBe(16)
-    expect(placeReplyCard({ x: 1190, top: 200, bottom: 220 }, viewport).left).toBe(764)
-    const narrow = placeReplyCard({ x: 150, top: 200, bottom: 220 }, { width: 300, height: 800 })
+    expect(placeReplyCard({ left: 4, top: 300, bottom: 340, below: false }, viewport).left).toBe(16)
+    expect(placeReplyCard({ left: 1100, top: 300, bottom: 340, below: false }, viewport).left).toBe(784)
+    const narrow = placeReplyCard({ left: 100, top: 300, bottom: 340, below: false }, { width: 300, height: 800 })
     expect(narrow).toMatchObject({ left: 16, width: 268 })
   })
 })
