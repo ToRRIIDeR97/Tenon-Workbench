@@ -10,6 +10,13 @@ const updaterHandler = (_: unknown, state: UpdaterState) => {
   updaterCallbacks.forEach((callback) => callback(state))
 }
 
+// Harness sync handlers settle as `{ value }` or `{ error }`; rethrow the error with just its message.
+const settled = async <T>(channel: string, ...args: unknown[]): Promise<T> => {
+  const result = (await ipcRenderer.invoke(channel, ...args)) as { value: T } | { error: string }
+  if ("error" in result) throw new Error(result.error)
+  return result.value
+}
+
 const api: ElectronAPI = {
   killSidecar: () => ipcRenderer.invoke("kill-sidecar"),
   awaitInitialization: () => ipcRenderer.invoke("await-initialization"),
@@ -212,6 +219,24 @@ const api: ElectronAPI = {
       return () => ipcRenderer.removeListener("dictation-download-progress", handler)
     },
     openPermissionSettings: () => ipcRenderer.invoke("dictation-open-permission-settings"),
+  },
+  harnessSync: {
+    status: () => settled("harness-sync-status"),
+    syncNow: () => settled("harness-sync-now"),
+    readToolInstructions: (tool) => settled("harness-sync-read-tool", tool),
+    createSyncFile: (seed) => settled("harness-sync-create", seed),
+    openSyncFile: () => settled("harness-sync-open"),
+    join: (seed) => settled("harness-sync-join", seed),
+    cancelJoin: () => settled("harness-sync-cancel-join"),
+    useThisComputer: (seed, revision) => settled("harness-sync-use-this-computer", seed, revision),
+    disconnect: () => settled("harness-sync-disconnect"),
+    save: (presets, revision) => settled("harness-sync-save", presets, revision),
+    setDeviceName: (name) => settled("harness-sync-set-device-name", name),
+    onChange: (cb) => {
+      const handler = (_: unknown, notice: Parameters<typeof cb>[0]) => cb(notice)
+      ipcRenderer.on("harness-sync-changed", handler)
+      return () => ipcRenderer.removeListener("harness-sync-changed", handler)
+    },
   },
   mail: {
     available: () => ipcRenderer.invoke("mail-available"),

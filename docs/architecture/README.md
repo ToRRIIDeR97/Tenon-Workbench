@@ -92,6 +92,79 @@ platform exposes `dictation` (desktop); the web build has no mic.
   `THIRD_PARTY_NOTICES.md`; build steps in
   [release operations](../release-operations.md#dictation-engine-rust).
 
+## Harness sync
+
+Settings › Instructions and the top of Settings › Skills write one set of global
+instructions and skills into every coding harness on this computer, and keep
+computers the same through one `harness-sync.json` file in a Google Drive for
+desktop folder. It is the [Harness Sync](https://github.com/ToRRIIDeR97/Harness-Sync)
+app's behaviour rebuilt inside Tenon: the same file format (version 5), so the
+standalone app can keep running on other computers.
+
+![Harness sync: Settings pages call the preload API; the harness-sync module in Electron main reads and writes the Drive sync file, each harness's instructions file and skills folder, and its own state and backups](../diagrams/harness-sync.svg)
+
+- **Harnesses and files.** `desktop/src/main/harness-sync/tools.ts` knows six
+  harnesses and where each keeps its global files. The skills folder is
+  `skills/` beside the instructions file, except Antigravity's.
+
+  | Harness | Instructions | Overrides |
+  | --- | --- | --- |
+  | Tenon | `<config>/tenon-workbench/AGENTS.md` | `XDG_CONFIG_HOME` |
+  | Claude Code | `~/.claude/CLAUDE.md` | `CLAUDE_CONFIG_DIR` |
+  | Codex | `~/.codex/AGENTS.md` | `CODEX_HOME` |
+  | OpenCode | `<config>/opencode/AGENTS.md` | `XDG_CONFIG_HOME` |
+  | Antigravity | `~/.gemini/GEMINI.md` (skills in `~/.gemini/antigravity/skills`) | |
+  | Command Code | `~/.commandcode/AGENTS.md` | |
+
+  `<config>` is `XDG_CONFIG_HOME` or `~/.config` on macOS and Windows alike, as
+  `xdg-basedir` resolves it for Tenon's own agent (`core/src/global.ts`). `~` is
+  the home folder (`%USERPROFILE%` on Windows). Relative overrides are ignored.
+  A harness counts as installed when its config folder exists or its command is
+  on PATH (`claude`, `codex`, `opencode`, `agy`, `commandcode`, with `.exe`,
+  `.cmd`, `.bat` and `.ps1` tried on Windows); Tenon always is. Paths are built
+  with `path.win32` or `path.posix`, and the tests check both.
+- **Sync file.** `document.ts` parses, migrates (versions 3 and 4), validates
+  and saves the file: a save rereads it and refuses when the revision moved,
+  then writes revision + 1 through a temporary sibling and rename. Tools absent
+  from `tools` use the shared preset. Tenon's own preset is stored under a
+  top-level `tenon` key, because the standalone app refuses unknown tool IDs
+  but ignores unknown top-level keys; when the standalone app saves, it drops
+  that key and Tenon falls back to the shared preset. Drive conflict copies
+  (`harness-sync (1).json`) are reported, never merged.
+- **Applying.** `apply.ts` renders each harness's preset (Shared, Shared +
+  extra, Own, Off) and replaces a differing file atomically. `skills.ts` makes
+  each wanted skill folder identical to the library copy, backs up a copy it
+  did not write under `backups/<harness>/<skill>/` first (five kept), removes
+  copies it wrote when a skill leaves a harness's set, and finds outside edits
+  that are safe to upload (the sync file has not moved since, and every edited
+  copy on this computer agrees). Automatic applies leave files and skills
+  edited outside Tenon alone; Sync now, Save and joining replace them.
+- **Background check.** `service.ts` runs every read-modify-write through one
+  queue. While Tenon is open it checks the sync file's size and modified time
+  every 5 seconds, rereads it at least once a minute, and applies it when its
+  hash changes. Once a minute it uploads safe skill edits that two checks in a
+  row found unchanged, after backing up the file's previous version under
+  `backups/library/`. A change applied from another computer reaches every
+  window as `harness-sync-changed`; `HarnessSyncNotifier` shows a toast.
+- **State.** `<userData>/harness-sync/state.json` holds the sync file path, the
+  computer name, and the hashes Tenon last wrote or confirmed per harness file
+  and per skill copy; an unreadable file is renamed aside and reported. Nothing
+  here is synced. Development builds accept `TENON_HARNESS_SYNC_SANDBOX=<folder>`
+  so harness files and app data stay under that folder.
+- **IPC.** `harness-sync-service.ts` creates the service with native dialogs;
+  `ipc.ts` exposes thin `harness-sync-*` handlers that settle as `{ value }` or
+  `{ error }`. The renderer passes harness IDs, presets, skill names and a
+  computer name, all validated in main (`parsePresets`); sync files are chosen
+  only in native dialogs. Types are in `app/src/harness-sync/types.ts`.
+- **UI.** `settings-v2/instructions.tsx` (status and Sync now, sync file and
+  computer, make this computer the main one, shared text, a folding row per
+  harness with its mode, extra text and a preview) and
+  `settings-v2/harness-sync-skills.tsx` (shared set, per-harness skill mode and
+  extras, Share for skills found on this computer, Use this version for edited
+  copies). Each tab saves only its own part of the presets
+  (`harness-sync-model.ts`). The web build has no `harnessSync` platform, so
+  both stay hidden there.
+
 ## Product entry points and persistence
 
 `tenon/packages/app/src/app.tsx` owns routing: `/`, `/projects` (Projects: the vault's page tree and every

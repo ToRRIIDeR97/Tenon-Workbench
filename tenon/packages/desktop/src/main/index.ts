@@ -26,6 +26,7 @@ import { forwardInitializationFailure } from "./initialization"
 import { createGoogleCalendarService } from "./google-calendar"
 import { createDictationService } from "./dictation-service"
 import { createMailService, startMailEndpoint } from "./mail/service"
+import { createHarnessSyncService } from "./harness-sync-service"
 import { exportDebugLogs, initCrashReporter, initLogging, sinceProcessStart, write as writeLog } from "./logging"
 import { createMenu } from "./menu"
 import {
@@ -439,6 +440,9 @@ const main = Effect.gen(function* () {
   const updater = setupAutoUpdater(stopSidecars)
   const googleCalendar = createGoogleCalendarService()
   const mail = createMailService({ onGoogleGrant: googleCalendar.adoptGrant })
+  const harnessSync = createHarnessSyncService()
+  harnessSync.start()
+  app.once("will-quit", () => harnessSync.stop())
   const menuDeps = {
     trigger: (id: string) => {
       const win = getLastFocusedWindow()
@@ -483,6 +487,7 @@ const main = Effect.gen(function* () {
     },
     dictation: createDictationService(),
     mail,
+    harnessSync,
   })
   registerWslIpcHandlers(wslServers)
   const updateTimer = setInterval(() => void updater.check(), 10 * 60 * 1000)

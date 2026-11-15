@@ -34,9 +34,13 @@ import {
   isBuiltInSkill,
   skillSections,
 } from "./skills-sections"
+import { HarnessSyncSkills } from "./harness-sync-skills"
 import "./settings-v2.css"
 
-/** Settings → Skills: Tenon's skills, which can be switched off, then each harness's skills, read-only. */
+/**
+ * Settings → Skills: on desktop, the skills synced between harnesses and computers first; then Tenon's skills,
+ * which can be switched off, then each harness's skills, read-only.
+ */
 export const SettingsSkillsV2: Component<{ directory: Accessor<string | undefined> }> = (props) => {
   const language = useLanguage()
   const platform = usePlatform()
@@ -98,6 +102,7 @@ export const SettingsSkillsV2: Component<{ directory: Accessor<string | undefine
       </div>
 
       <div class="settings-v2-tab-body" data-component="skill-settings">
+        <Show when={platform.harnessSync}>{(sync) => <HarnessSyncSkills sync={sync()} />}</Show>
         <Switch>
           <Match when={!directory()}>
             <div class="settings-v2-provider-empty" role="alert">

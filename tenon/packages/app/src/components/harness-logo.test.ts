@@ -11,7 +11,9 @@ describe("harnessLogo", () => {
 
   test("a registered agent is known by its name, or shows its first letter", () => {
     expect(harnessLogo({ id: "my-gemini", name: "Gemini CLI" })).toEqual({ kind: "provider", id: "google" })
-    expect(harnessLogo({ id: "command-code", name: "Command Code" })).toEqual({ kind: "letter", letter: "C" })
+    expect(harnessLogo({ id: "command-code", name: "Command Code" })).toEqual({ kind: "brand", id: "command-code" })
+    expect(harnessLogo({ id: "agy", name: "Antigravity" })).toEqual({ kind: "brand", id: "antigravity" })
+    expect(harnessLogo({ id: "custom", name: "Aider" })).toEqual({ kind: "letter", letter: "A" })
     expect(harnessLogo({ id: "x", name: "  " })).toEqual({ kind: "letter", letter: "?" })
   })
 })

@@ -2,8 +2,12 @@ import { Match, Switch } from "solid-js"
 import { Mark } from "@tenon/ui/logo"
 import { ProviderIcon } from "@tenon/ui/provider-icon"
 import { harnessLogo } from "./harness-logo"
+import antigravity from "../assets/harness-logos/antigravity.png"
+import commandCode from "../assets/harness-logos/command-code.png"
 
-/** A harness's logo at icon size (16px unless `class` sets a size): the Tenon mark, its maker's logo, or its letter. */
+const BRAND_SRC = { antigravity, "command-code": commandCode }
+
+/** A harness's logo at icon size (16px unless `class` sets a size): the Tenon mark, its maker's logo, its own mark, or its letter. */
 export function HarnessIcon(props: { instance?: { id: string; name: string }; class?: string }) {
   const logo = () => (props.instance ? harnessLogo(props.instance) : undefined)
   const provider = () => {
@@ -14,6 +18,10 @@ export function HarnessIcon(props: { instance?: { id: string; name: string }; cl
     const current = logo()
     return current?.kind === "letter" ? current.letter : undefined
   }
+  const brand = () => {
+    const current = logo()
+    return current?.kind === "brand" ? BRAND_SRC[current.id] : undefined
+  }
   const size = () => props.class ?? "size-4"
   return (
     <Switch>
@@ -22,6 +30,11 @@ export function HarnessIcon(props: { instance?: { id: string; name: string }; cl
       </Match>
       <Match when={provider()}>
         {(id) => <ProviderIcon id={id()} class={`${size()} shrink-0 text-v2-icon-icon-base`} aria-hidden="true" />}
+      </Match>
+      <Match when={brand()}>
+        {(src) => (
+          <img src={src()} alt="" aria-hidden="true" class={`${size()} shrink-0 rounded-[4px] object-contain`} />
+        )}
       </Match>
       <Match when={letter()}>
         {(initial) => (

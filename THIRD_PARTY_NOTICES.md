@@ -111,3 +111,12 @@ with copyright held by Andrew Gallant.
 Crate `earshot` 1.2, https://github.com/pykeio/earshot, used under the MIT licence of its
 `MIT OR Apache-2.0` dual licence. The MIT terms are the permission notice reproduced above,
 with copyright held by the earshot authors.
+
+## Harness logos
+
+`tenon/packages/app/src/assets/harness-logos/` holds two marks, downscaled to 64 px and otherwise
+unchanged, shown only to identify those harnesses in Settings. They belong to their owners; no
+affiliation is implied.
+
+- `antigravity.png`: the Google Antigravity icon from the press assets at https://antigravity.google/press
+- `command-code.png`: the Command Code favicon from https://commandcode.ai/

@@ -4,6 +4,7 @@ import type { WslServersPlatform } from "@tenon/app/wsl/types"
 import type { UpdaterState } from "@tenon/app/updater"
 import type { DesktopNativeBundle } from "@tenon/app/i18n/desktop-native"
 import type { DictationPlatform, MailPlatform } from "@tenon/app"
+import type { HarnessSyncPlatform } from "@tenon/app/harness-sync/types"
 export type {
   WslDistroProbe,
   WslInstalledDistro,
@@ -149,6 +150,7 @@ export type ElectronAPI = {
   setNativeTranslations: (bundle: DesktopNativeBundle) => Promise<void>
   dictation: DictationPlatform
   mail: MailPlatform
+  harnessSync: HarnessSyncPlatform
 }
 
 export type BrowserBounds = { x: number; y: number; width: number; height: number }

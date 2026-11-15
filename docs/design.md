@@ -91,7 +91,8 @@ Use `[font-weight:N]` when a weight must differ from the role.
   Week and Month use the full width because their columns are the content.
 - **Harness logos:** every harness shows its logo at 16px to the left of its
   name: the Tenon mark for the built-in agent, its maker's logo for Codex
-  (OpenAI), Claude Code (Anthropic) and OpenCode, and a letter tile for any
+  (OpenAI), Claude Code (Anthropic) and OpenCode, its own mark for Antigravity
+  and Command Code (`app/src/assets/harness-logos/`), and a letter tile for any
   other agent (`harness-logo.ts`). The model pill shows the logo of the
   harness that runs the model, not the model's maker, and Home's plan-usage
   rows lead with it too.
@@ -118,6 +119,15 @@ Use `[font-weight:N]` when a weight must differ from the role.
 - **Composer text (dark):** inside the composer the muted and faint greys are
   `#f2f2f2` and `#d2d2d2`, and the placeholder is weight 500, for legibility on
   the dark surface. Light mode keeps the theme greys.
+- **Instructions (harness sync):** a status row (headline, detail, Sync now),
+  then Sync across computers as settings rows, the shared text in a monospace
+  textarea, and one folding row per harness (chevron, logo, name, file path,
+  mode pill) that opens to the mode segmented control, the extra or own text
+  and a preview of the file. Changed-outside states use the warning text
+  colour on a layer-02 fill, never a yellow fill. A save bar at the bottom says
+  whether changes are unsaved and offers Discard and Save to all computers.
+  Settings › Skills opens with the same sync part: shared skills, a mode per
+  harness with an extras checklist, and Share for skills found locally.
 - **Settings pages:** new Settings content uses the existing parts (tab header,
   `settings-v2-section` with its title, `settings-v2-list` cards of
   `settings-v2-row`s, the Harnesses folding group, the Built-in harness
