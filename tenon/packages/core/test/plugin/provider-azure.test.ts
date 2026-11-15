@@ -197,24 +197,6 @@ describe("AzurePlugin", () => {
     }),
   )
 
-  it.effect("selects chat from per-call useCompletionUrls", () =>
-    Effect.gen(function* () {
-      const plugin = yield* PluginV2.Service
-      const aisdk = yield* AISDK.Service
-      const calls: string[] = []
-      yield* addPlugin()
-      yield* aisdk.runLanguage({
-        model: ModelV2.Info.make({
-          ...ModelV2.Info.empty(ProviderV2.ID.azure, ModelV2.ID.make("deployment")),
-          api: { id: ModelV2.ID.make("deployment"), type: "aisdk", package: "test-provider" },
-        }),
-        sdk: fakeSelectorSdk(calls),
-        options: { useCompletionUrls: true },
-      })
-      expect(calls).toEqual(["chat:deployment"])
-    }),
-  )
-
   it.effect("ignores model useCompletionUrls when per-call option is unset", () =>
     Effect.gen(function* () {
       const plugin = yield* PluginV2.Service

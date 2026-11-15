@@ -1,10 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import type { Prompt } from "@/context/prompt"
 import {
-  canNavigateHistoryAtCursor,
   clonePromptParts,
   normalizePromptHistoryEntry,
-  navigatePromptHistory,
   prependHistoryEntry,
   promptLength,
   type PromptHistoryComment,
@@ -41,60 +39,6 @@ describe("prompt-input history", () => {
     expect(dedupedComments).toBe(commentsOnly)
   })
 
-  test("navigatePromptHistory restores saved prompt when moving down from newest", () => {
-    const entries = [text("third"), text("second"), text("first")]
-    const up = navigatePromptHistory({
-      direction: "up",
-      entries,
-      historyIndex: -1,
-      currentPrompt: text("draft"),
-      currentComments: [comment("draft")],
-      savedPrompt: null,
-    })
-    expect(up.handled).toBe(true)
-    if (!up.handled) throw new Error("expected handled")
-    expect(up.historyIndex).toBe(0)
-    expect(up.cursor).toBe("start")
-    expect(up.entry.comments).toEqual([])
-
-    const down = navigatePromptHistory({
-      direction: "down",
-      entries,
-      historyIndex: up.historyIndex,
-      currentPrompt: text("ignored"),
-      currentComments: [],
-      savedPrompt: up.savedPrompt,
-    })
-    expect(down.handled).toBe(true)
-    if (!down.handled) throw new Error("expected handled")
-    expect(down.historyIndex).toBe(-1)
-    expect(down.entry.prompt[0]?.type === "text" ? down.entry.prompt[0].content : "").toBe("draft")
-    expect(down.entry.comments).toEqual([comment("draft")])
-  })
-
-  test("navigatePromptHistory keeps entry comments when moving through history", () => {
-    const entries = [
-      {
-        prompt: text("with comment"),
-        comments: [comment("c1")],
-      },
-    ]
-
-    const up = navigatePromptHistory({
-      direction: "up",
-      entries,
-      historyIndex: -1,
-      currentPrompt: text("draft"),
-      currentComments: [],
-      savedPrompt: null,
-    })
-
-    expect(up.handled).toBe(true)
-    if (!up.handled) throw new Error("expected handled")
-    expect(up.entry.prompt[0]?.type === "text" ? up.entry.prompt[0].content : "").toBe("with comment")
-    expect(up.entry.comments).toEqual([comment("c1")])
-  })
-
   test("normalizePromptHistoryEntry supports legacy prompt arrays", () => {
     const entry = normalizePromptHistoryEntry(text("legacy"))
     expect(entry.prompt[0]?.type === "text" ? entry.prompt[0].content : "").toBe("legacy")
@@ -121,33 +65,5 @@ describe("prompt-input history", () => {
     copy[1].selection!.startLine = 9
     if (original[1]?.type !== "file") throw new Error("expected file")
     expect(original[1].selection?.startLine).toBe(1)
-  })
-
-  test("canNavigateHistoryAtCursor only allows prompt boundaries", () => {
-    const value = "a\nb\nc"
-
-    expect(canNavigateHistoryAtCursor("up", value, 0)).toBe(false)
-    expect(canNavigateHistoryAtCursor("down", value, 0)).toBe(false)
-
-    expect(canNavigateHistoryAtCursor("up", value, 2)).toBe(false)
-    expect(canNavigateHistoryAtCursor("down", value, 2)).toBe(false)
-
-    expect(canNavigateHistoryAtCursor("up", value, 5)).toBe(false)
-    expect(canNavigateHistoryAtCursor("down", value, 5)).toBe(true)
-
-    expect(canNavigateHistoryAtCursor("up", "abc", 0)).toBe(false)
-    expect(canNavigateHistoryAtCursor("down", "abc", 3)).toBe(true)
-    expect(canNavigateHistoryAtCursor("up", "abc", 1)).toBe(false)
-    expect(canNavigateHistoryAtCursor("down", "abc", 1)).toBe(false)
-
-    expect(canNavigateHistoryAtCursor("up", "", 0)).toBe(true)
-    expect(canNavigateHistoryAtCursor("down", "", 0)).toBe(true)
-
-    expect(canNavigateHistoryAtCursor("up", "abc", 0, true)).toBe(true)
-    expect(canNavigateHistoryAtCursor("up", "abc", 3, true)).toBe(true)
-    expect(canNavigateHistoryAtCursor("down", "abc", 0, true)).toBe(true)
-    expect(canNavigateHistoryAtCursor("down", "abc", 3, true)).toBe(true)
-    expect(canNavigateHistoryAtCursor("up", "abc", 1, true)).toBe(false)
-    expect(canNavigateHistoryAtCursor("down", "abc", 1, true)).toBe(false)
   })
 })

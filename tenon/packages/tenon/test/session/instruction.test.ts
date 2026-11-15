@@ -205,8 +205,6 @@ describe("Instruction.resolve", () => {
       }),
     ),
   )
-
-  test.todo("fetches remote instructions from config URLs via HttpClient", () => {})
 })
 
 describe("Instruction.system", () => {
