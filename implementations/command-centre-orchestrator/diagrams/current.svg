@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 300" width="760" role="img" font-family="Inter, system-ui, sans-serif">
+<title>Current Command Centre</title><desc>The page and agent reach only the Command Centre threads; Project threads are visible only through the sidebar.</desc>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#6b7280"/></marker></defs>
+<rect width="760" height="300" fill="#ffffff"/>
+<rect x="20" y="20" width="220" height="52" rx="6" fill="#fdebe4" stroke="#b4532a"/>
+<text x="130.0" y="43.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">Command Centre page</text>
+<text x="130.0" y="60.0" text-anchor="middle" font-size="11" fill="#374151">pages/command-centre.tsx</text>
+<rect x="270" y="20" width="220" height="52" rx="6" fill="#f3f4f6" stroke="#9ca3af"/>
+<text x="380.0" y="43.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">useCommandCentre</text>
+<text x="380.0" y="60.0" text-anchor="middle" font-size="11" fill="#374151">own threads, send, last reply</text>
+<rect x="520" y="20" width="220" height="52" rx="6" fill="#f3f4f6" stroke="#9ca3af"/>
+<text x="630.0" y="43.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">Command Centre threads</text>
+<text x="630.0" y="60.0" text-anchor="middle" font-size="11" fill="#374151">vault/.command-centre</text>
+<rect x="20" y="120" width="220" height="52" rx="6" fill="#f3f4f6" stroke="#9ca3af"/>
+<text x="130.0" y="143.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">Sidebar</text>
+<text x="130.0" y="160.0" text-anchor="middle" font-size="11" fill="#374151">Project threads, Attention group</text>
+<rect x="270" y="120" width="220" height="52" rx="6" fill="#f3f4f6" stroke="#9ca3af"/>
+<text x="380.0" y="143.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">useProjectThreads</text>
+<text x="380.0" y="160.0" text-anchor="middle" font-size="11" fill="#374151">every Project of the workspace</text>
+<rect x="520" y="120" width="220" height="52" rx="6" fill="#f3f4f6" stroke="#9ca3af"/>
+<text x="630.0" y="143.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">Project threads</text>
+<text x="630.0" y="160.0" text-anchor="middle" font-size="11" fill="#374151">status, approvals, questions</text>
+<rect x="20" y="220" width="220" height="52" rx="6" fill="#fdebe4" stroke="#b4532a"/>
+<text x="130.0" y="243.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">Command Centre agent</text>
+<text x="130.0" y="260.0" text-anchor="middle" font-size="11" fill="#374151">COMMAND_TOOLS on tenon MCP</text>
+<rect x="270" y="220" width="220" height="52" rx="6" fill="#fdebe4" stroke="#b4532a"/>
+<text x="380.0" y="243.0" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">threads_list</text>
+<text x="380.0" y="260.0" text-anchor="middle" font-size="11" fill="#374151">titles only, one folder</text>
+<path d="M240 46H268" fill="none" stroke="#6b7280" stroke-width="1.3" marker-end="url(#a)"/>
+<path d="M490 46H518" fill="none" stroke="#6b7280" stroke-width="1.3" marker-end="url(#a)"/>
+<path d="M240 146H268" fill="none" stroke="#6b7280" stroke-width="1.3" marker-end="url(#a)"/>
+<path d="M490 146H518" fill="none" stroke="#6b7280" stroke-width="1.3" marker-end="url(#a)"/>
+<path d="M240 246H268" fill="none" stroke="#6b7280" stroke-width="1.3" marker-end="url(#a)"/>
+<text x="520" y="238" font-size="11" fill="#374151">No read, message or stop.</text>
+<text x="520" y="254" font-size="11" fill="#374151">Orange: where the limit sits.</text>
+</svg>

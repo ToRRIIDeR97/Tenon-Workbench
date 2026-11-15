@@ -275,24 +275,56 @@ export default function FileTreeV2(props: {
       style={{ position: "relative", height: `${virtualizer.getTotalSize()}px` }}
     >
       <For each={virtualRowKeys()}>
-        {(key) => (
-          <Show when={virtualItemByKey().get(key)}>
-            {(item) => (
-              <div
-                style={{
-                  position: "absolute",
-                  top: "0",
-                  "inset-inline-start": "0",
-                  width: "100%",
-                  height: `${item().size}px`,
-                  transform: `translateY(${item().start}px)`,
-                }}
-              >
-                <Show when={rowByKey().get(key as string)}>
-                  {(row) => (
-                    <Show
-                      when={row().node.type === "directory"}
-                      fallback={
+        {(key) => {
+          // The rows can change a tick before the virtual keys do (a thread switch swaps the file list). Hold
+          // the row this key last had, so a row on its way out is never read as missing: that read throws.
+          const heldRow = createMemo<ReturnType<typeof rows>[number] | undefined>(
+            (prev) => rowByKey().get(key as string) ?? prev,
+          )
+          return (
+            <Show when={virtualItemByKey().get(key)}>
+              {(item) => (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "0",
+                    "inset-inline-start": "0",
+                    width: "100%",
+                    height: `${item().size}px`,
+                    transform: `translateY(${item().start}px)`,
+                  }}
+                >
+                  <Show when={heldRow()}>
+                    {(row) => (
+                      <Show
+                        when={row().node.type === "directory"}
+                        fallback={
+                          <FileTreeNodeV2
+                            node={row().node}
+                            level={row().level}
+                            active={active()}
+                            draggable={draggable()}
+                            kinds={props.kinds}
+                            as="button"
+                            type="button"
+                            class="relative"
+                            data-reveal-child={revealChild(row().node.path) ? "" : undefined}
+                            onFocus={() => setFocused(row().node.path)}
+                            onBlur={() => setFocused(undefined)}
+                            onClick={() => selectFile(row().node, props.onFileClick)}
+                            onDblClick={() => selectFile(row().node, props.onFileDoubleClick)}
+                          >
+                            <GuideLines level={row().level} />
+                            <Show when={row().level > 0}>
+                              <div class="w-4 shrink-0" />
+                            </Show>
+                            <span class="filetree-iconpair size-4">
+                              <FileIcon node={row().node} class="size-4 filetree-icon filetree-icon--color" />
+                              <FileIcon node={row().node} class="size-4 filetree-icon filetree-icon--mono" mono />
+                            </span>
+                          </FileTreeNodeV2>
+                        }
+                      >
                         <FileTreeNodeV2
                           node={row().node}
                           level={row().level}
@@ -302,56 +334,31 @@ export default function FileTreeV2(props: {
                           as="button"
                           type="button"
                           class="relative"
+                          data-revealed={row().node.path === revealed() ? "" : undefined}
+                          data-reveal-flash={row().node.path === flash() ? "" : undefined}
                           data-reveal-child={revealChild(row().node.path) ? "" : undefined}
                           onFocus={() => setFocused(row().node.path)}
                           onBlur={() => setFocused(undefined)}
-                          onClick={() => selectFile(row().node, props.onFileClick)}
-                          onDblClick={() => selectFile(row().node, props.onFileDoubleClick)}
+                          aria-expanded={expanded(row().node.path)}
+                          onClick={() => toggleDirectory(row().node.path, row().node.originalPath)}
                         >
                           <GuideLines level={row().level} />
-                          <Show when={row().level > 0}>
-                            <div class="w-4 shrink-0" />
-                          </Show>
-                          <span class="filetree-iconpair size-4">
-                            <FileIcon node={row().node} class="size-4 filetree-icon filetree-icon--color" />
-                            <FileIcon node={row().node} class="size-4 filetree-icon filetree-icon--mono" mono />
-                          </span>
+                          <div
+                            data-slot="file-tree-v2-chevron"
+                            data-expanded={expanded(row().node.path) ? "" : undefined}
+                            class="size-4 flex items-center justify-center"
+                          >
+                            <Icon name="chevron-down" />
+                          </div>
                         </FileTreeNodeV2>
-                      }
-                    >
-                      <FileTreeNodeV2
-                        node={row().node}
-                        level={row().level}
-                        active={active()}
-                        draggable={draggable()}
-                        kinds={props.kinds}
-                        as="button"
-                        type="button"
-                        class="relative"
-                        data-revealed={row().node.path === revealed() ? "" : undefined}
-                        data-reveal-flash={row().node.path === flash() ? "" : undefined}
-                        data-reveal-child={revealChild(row().node.path) ? "" : undefined}
-                        onFocus={() => setFocused(row().node.path)}
-                        onBlur={() => setFocused(undefined)}
-                        aria-expanded={expanded(row().node.path)}
-                        onClick={() => toggleDirectory(row().node.path, row().node.originalPath)}
-                      >
-                        <GuideLines level={row().level} />
-                        <div
-                          data-slot="file-tree-v2-chevron"
-                          data-expanded={expanded(row().node.path) ? "" : undefined}
-                          class="size-4 flex items-center justify-center"
-                        >
-                          <Icon name="chevron-down" />
-                        </div>
-                      </FileTreeNodeV2>
-                    </Show>
-                  )}
-                </Show>
-              </div>
-            )}
-          </Show>
-        )}
+                      </Show>
+                    )}
+                  </Show>
+                </div>
+              )}
+            </Show>
+          )
+        }}
       </For>
     </div>
   )

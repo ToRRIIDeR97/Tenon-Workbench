@@ -17,7 +17,10 @@ import {
   directoryAcceptKey,
   isDirectoryAutoAccepting,
   autoRespondsPermission,
+  modeAllows,
+  permissionMode,
   sessionAutoAccept,
+  type PermissionMode,
 } from "./permission-auto-respond"
 
 type PermissionRespondFn = (input: {
@@ -151,6 +154,12 @@ export const { use: usePermission, provider: PermissionProvider } = createSimple
       autoResponds(permission: PermissionRequest, directory?: string) {
         return selected().autoResponds(permission, directory)
       },
+      mode(sessionID: string | undefined, directory: string) {
+        return selected().mode(sessionID, directory)
+      },
+      setMode(sessionID: string | undefined, directory: string, mode: PermissionMode) {
+        selected().setMode(sessionID, directory, mode)
+      },
       isAutoAccepting(sessionID: string, directory?: string) {
         return selected().isAutoAccepting(sessionID, directory)
       },
@@ -201,6 +210,8 @@ function createServerPermissionState(input: { sdk: ServerSDK; sync: ServerSync }
     },
     createStore({
       autoAccept: {} as Record<string, boolean>,
+      // Auto-edit: the same keys as autoAccept, for folders and threads where only file edits run unasked.
+      autoEdit: {} as Record<string, boolean>,
     }),
   )
 
@@ -288,8 +299,31 @@ function createServerPermissionState(input: { sdk: ServerSDK; sync: ServerSync }
     return isDirectoryAutoAccepting(store.autoAccept, directory)
   }
 
+  function modeOf(sessionID: string | undefined, directory: string) {
+    if (!sessionID)
+      return isDirectoryAutoAccepting(store.autoAccept, directory)
+        ? "full"
+        : isDirectoryAutoAccepting(store.autoEdit ?? {}, directory)
+          ? "edit"
+          : "ask"
+    return permissionMode(
+      { full: store.autoAccept, edit: store.autoEdit ?? {} },
+      sessions(directory),
+      sessionID,
+      directory,
+    )
+  }
+
   function shouldAutoRespond(permission: PermissionRequest, directory?: string) {
-    return autoRespondsPermission(store.autoAccept, sessions(directory), permission, directory)
+    return modeAllows(
+      permissionMode(
+        { full: store.autoAccept, edit: store.autoEdit ?? {} },
+        sessions(directory),
+        permission.sessionID,
+        directory,
+      ),
+      permission,
+    )
   }
 
   function isPending(permission: PermissionRequest) {
@@ -298,8 +332,12 @@ function createServerPermissionState(input: { sdk: ServerSDK; sync: ServerSync }
   }
 
   async function shouldAutoRespondResolved(permission: PermissionRequest, directory?: string) {
-    const override = sessionAutoAccept(store.autoAccept, sessions(directory), permission, directory)
-    if (override !== undefined) return override
+    // A choice on the thread itself (or a parent we already know) needs no lineage lookup.
+    if (
+      sessionAutoAccept(store.autoAccept, sessions(directory), permission, directory) !== undefined ||
+      sessionAutoAccept(store.autoEdit ?? {}, sessions(directory), permission, directory) !== undefined
+    )
+      return shouldAutoRespond(permission, directory)
     if (input.sync.session.lineage.peek(permission.sessionID)) return shouldAutoRespond(permission, directory)
     const lineage = await input.sync.session.lineage.resolve(permission.sessionID).catch(() => undefined)
     if (meta.disposed || !lineage) return false
@@ -415,8 +453,35 @@ function createServerPermissionState(input: { sdk: ServerSDK; sync: ServerSync }
     )
   }
 
+  /** Sets Ask, Auto-edit or Full auto for a thread, or for its folder when there is no thread yet. */
+  function setMode(sessionID: string | undefined, directory: string, mode: PermissionMode) {
+    if (meta.disposed) return
+    const key = sessionID ? acceptKey(sessionID, directory) : directoryAcceptKey(directory)
+    setStore(
+      produce((draft) => {
+        draft.autoEdit = { ...(draft.autoEdit ?? {}), [key]: mode === "edit" }
+      }),
+    )
+    if (mode === "full") return sessionID ? enable(sessionID, directory) : enableDirectory(directory)
+    if (sessionID) disable(sessionID, directory)
+    else disableDirectory(directory)
+    if (mode !== "edit") return
+    list(directory)
+      .then((permissions) =>
+        permissions.forEach((permission) =>
+          respondPending(permission, directory, () => modeOf(sessionID, directory) === "edit"),
+        ),
+      )
+      .catch(() => undefined)
+  }
+
   const api = {
     ready: () => !meta.disposed && ready(),
+    mode(sessionID: string | undefined, directory: string): PermissionMode {
+      if (meta.disposed) return "ask"
+      return modeOf(sessionID, directory)
+    },
+    setMode,
     respond,
     autoResponds(permission: PermissionRequest, directory?: string) {
       if (meta.disposed) return false

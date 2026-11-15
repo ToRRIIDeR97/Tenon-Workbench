@@ -149,6 +149,7 @@ export const SettingsModelsV2: Component = () => {
                               <SettingsRowV2 title={item.name}>
                                 <div>
                                   <Switch
+                                    size="small"
                                     checked={models.visible(key)}
                                     disabled={!models.providerVisible(item.provider.id)}
                                     onChange={(checked) => {

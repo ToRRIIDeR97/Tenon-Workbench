@@ -53,6 +53,71 @@ describe("harness approvals", () => {
     expect(asked[0]).toMatchObject({ header: "Pick", question: "Which?" })
   })
 
+  // Codex 0.164 asks the client to approve each MCP tool call with `mcpServer/elicitation/request`; an
+  // unanswered method reads as "user rejected MCP tool call", so a forwarded server could never run.
+  test("approve a Codex MCP tool call through the approval card", async () => {
+    const asserted: PermissionV2.AssertInput[] = []
+    const run = (allow: boolean) =>
+      Effect.runPromise<unknown, unknown>(
+        handleCodexRequest(
+          {
+            method: "mcpServer/elicitation/request",
+            params: {
+              threadId: "t1",
+              turnId: "u1",
+              serverName: "tenoncheck",
+              mode: "form",
+              _meta: null,
+              message: "Allow tenoncheck to run the ping tool?",
+              requestedSchema: { type: "object", properties: {} },
+            },
+          },
+          { sessionID, directory: "/work", request: {} as StreamInput["request"] },
+          {
+            assert: (input: PermissionV2.AssertInput) =>
+              Effect.sync(() => void asserted.push(input)).pipe(
+                Effect.andThen(allow ? Effect.void : Effect.fail(new PermissionV2.DeclinedError())),
+              ),
+          } as unknown as PermissionV2.Interface,
+          () => Effect.succeed(undefined),
+          turnGate().guard,
+        ),
+      )
+    expect(await run(true)).toEqual({ action: "accept", content: {}, _meta: null })
+    expect(await run(false)).toEqual({ action: "decline", content: null, _meta: null })
+    expect(asserted[0]).toMatchObject({ action: "mcp", resources: ["tenoncheck"] })
+    expect(asserted[0]?.metadata).toMatchObject({ harness: "codex", message: "Allow tenoncheck to run the ping tool?" })
+  })
+
+  test("ask a Codex MCP form in the dock and decline a link", async () => {
+    const asked: unknown[] = []
+    const run = (params: Record<string, unknown>) =>
+      Effect.runPromise<unknown, unknown>(
+        handleCodexRequest(
+          {
+            method: "mcpServer/elicitation/request",
+            params: { threadId: "t1", turnId: null, serverName: "s", _meta: null, ...params },
+          },
+          { sessionID, directory: "/work", request: {} as StreamInput["request"] },
+          {} as PermissionV2.Interface,
+          (prompts) => Effect.sync(() => asked.push(...prompts)).pipe(Effect.as([["Blue"]])),
+          turnGate().guard,
+        ),
+      )
+    const form = await run({
+      mode: "form",
+      message: "Pick a colour",
+      requestedSchema: { type: "object", properties: { colour: { type: "string", enum: ["Blue", "Red"] } } },
+    })
+    expect(form).toEqual({ action: "accept", content: { colour: "Blue" }, _meta: null })
+    expect(asked.length).toBe(1)
+    expect(await run({ mode: "url", message: "Sign in", url: "https://example.com", elicitationId: "e1" })).toEqual({
+      action: "decline",
+      content: null,
+      _meta: null,
+    })
+  })
+
   test("pass the ACP toolCallId with the permission request", async () => {
     const requests: PermissionRequest[] = []
     await Effect.runPromise(

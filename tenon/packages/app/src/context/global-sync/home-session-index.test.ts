@@ -106,6 +106,54 @@ describe("Home session parent links", () => {
     })
     expect(index?.sessions).toEqual([])
   })
+
+  test("events that change neither list keep the index object, and later events still apply", () => {
+    const queryClient = new QueryClient()
+    const cache = createHomeSessionIndexCache(queryClient, "server")
+    const root = legacy("root")
+    queryClient.setQueryData<HomeSessionIndex>(cache.indexKey, {
+      sessions: [root],
+      eventSequence: 0,
+      parents: { child: "root" },
+    })
+    const index = queryClient.getQueryData<HomeSessionIndex>(cache.indexKey)!
+
+    // A subagent working, an archived thread Home never listed, a deleted unknown thread.
+    cache.apply(event("session.updated", legacy("child", "root"), 0).event)
+    cache.apply(event("session.updated", legacy("old", undefined, 5), 0).event)
+    cache.apply(event("session.deleted", legacy("gone"), 0).event)
+
+    const events = queryClient.getQueryData<HomeSessionEvents>(cache.eventsKey)
+    expect(queryClient.getQueryData<HomeSessionIndex>(cache.indexKey)).toBe(index)
+    expect(events).toEqual({ sequence: 3, entries: [] })
+    expect(cache.sessions(index, events)).toBe(index.sessions)
+    expect(cache.parents(index, events)).toBe(index.parents!)
+
+    const renamed = { ...root, title: "renamed" }
+    cache.apply(event("session.updated", renamed, 0).event)
+    const next = queryClient.getQueryData<HomeSessionIndex>(cache.indexKey)!
+    expect(next.eventSequence).toBe(4)
+    expect(cache.sessions(next, queryClient.getQueryData<HomeSessionEvents>(cache.eventsKey))).toEqual([renamed])
+  })
+
+  test("a fetch after skipped events keeps the events that arrive while it runs", async () => {
+    const queryClient = new QueryClient()
+    const cache = createHomeSessionIndexCache(queryClient, "server")
+    const list = Promise.withResolvers<{ data: { data: SessionV2Info[]; cursor: object } }>()
+    const options = homeSessionIndexQueryOptions(cache, () => list.promise)
+    queryClient.setQueryData<HomeSessionIndex>(cache.indexKey, { sessions: [], eventSequence: 0, parents: {} })
+    cache.apply(event("session.updated", legacy("unknown", undefined, 5), 0).event)
+
+    // A refetch, as after a reconnect: the cached index is not stale by itself.
+    const fetching = queryClient.fetchQuery({ ...options, staleTime: 0 })
+    const added = legacy("added")
+    cache.apply(event("session.created", added, 0).event)
+    list.resolve({ data: { data: [], cursor: {} } })
+    const index = await fetching
+
+    expect(index.eventSequence).toBe(1)
+    expect(cache.sessions(index, queryClient.getQueryData<HomeSessionEvents>(cache.eventsKey))).toEqual([added])
+  })
 })
 
 describe("Home V2 session index", () => {

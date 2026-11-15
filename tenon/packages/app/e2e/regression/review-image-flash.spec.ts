@@ -139,6 +139,10 @@ async function openReview(page: Page) {
   await expectSessionTitle(page, title)
   await page.getByRole("button", { name: "Toggle review" }).click()
   await expectAppVisible(page.locator('#review-panel [data-component="session-review-v2"]'))
+  // At this width the side panel collapses the file tree; open it over the viewer to pick the image.
+  const treeToggle = page.locator("#review-panel").getByRole("button", { name: "Toggle file tree" })
+  await treeToggle.click()
+  await expect(treeToggle).toHaveAttribute("aria-expanded", "true")
   await expectAppVisible(page.getByRole("button", { name: /preview\.png/ }))
 }
 

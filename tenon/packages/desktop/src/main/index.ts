@@ -21,6 +21,7 @@ import { CHANNEL, DEEP_LINK_SCHEME } from "./constants"
 import { createDeepLinkQueue, parseDeepLink, type DeepLink } from "./deep-links"
 import { redactURL } from "./external-url"
 import { registerIpcHandlers, sendDeepLinks, sendMenuCommand } from "./ipc"
+import { hideWidget, openInApp, registerWidgetShortcut, resizeWidget, toggleWidget } from "./widget"
 import { forwardInitializationFailure } from "./initialization"
 import { createGoogleCalendarService } from "./google-calendar"
 import { createDictationService } from "./dictation-service"
@@ -437,7 +438,7 @@ const main = Effect.gen(function* () {
   setDockIcon()
   const updater = setupAutoUpdater(stopSidecars)
   const googleCalendar = createGoogleCalendarService()
-  const mail = createMailService()
+  const mail = createMailService({ onGoogleGrant: googleCalendar.adoptGrant })
   const menuDeps = {
     trigger: (id: string) => {
       const win = getLastFocusedWindow()
@@ -472,6 +473,7 @@ const main = Effect.gen(function* () {
     googleCalendar,
     showUpdater: () => showUpdaterDialog(updater, true),
     setBackgroundColor: (color) => setBackgroundColor(color),
+    widget: { toggle: toggleWidget, hide: hideWidget, resize: resizeWidget, openInApp },
     exportDebugLogs: () => exportDebugLogs(),
     recordFatalRendererError: (error) => writeLog("renderer", "fatal renderer error", { ...error }, "error"),
     recordStartupMilestone: (name, sinceNavigation) =>
@@ -536,9 +538,11 @@ const main = Effect.gen(function* () {
         }),
       ]),
     )
-    if (bridge) Object.assign(process.env, { TENON_BROWSER_URL: bridge.url, TENON_BROWSER_TOKEN: bridge.token })
-    if (mailEndpoint)
-      Object.assign(process.env, { TENON_MAIL_URL: mailEndpoint.url, TENON_MAIL_TOKEN: mailEndpoint.token })
+    // Passed to the server only: in this process's env, every later child (editors, terminals) would inherit them.
+    const bridgeEnv = {
+      ...(bridge && { TENON_BROWSER_URL: bridge.url, TENON_BROWSER_TOKEN: bridge.token }),
+      ...(mailEndpoint && { TENON_MAIL_URL: mailEndpoint.url, TENON_MAIL_TOKEN: mailEndpoint.token }),
+    }
     const startSidecar = (port: number) =>
       superviseSidecar({
         spawn: () => {
@@ -548,6 +552,7 @@ const main = Effect.gen(function* () {
             onStdout: (message) => writeLog("server", "stdout", { message }),
             onStderr: (message) => writeLog("server", "stderr", { message }, "warn"),
             onExit: (code) => writeLog("utility", "sidecar exited", { code }, "warn"),
+            env: bridgeEnv,
           })
         },
         log: (message, meta) => writeLog("utility", message, meta, "warn"),
@@ -610,6 +615,7 @@ const main = Effect.gen(function* () {
   })
 
   const windows = restoreMainWindows()
+  registerWidgetShortcut()
   if (windows.length) createMenu(menuDeps)
 
   const loaded = yield* Fiber.await(loadingTask)

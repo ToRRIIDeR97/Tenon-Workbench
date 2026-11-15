@@ -145,7 +145,7 @@ export function SessionDeviceTab() {
         when={!unavailable()}
         fallback={
           <div
-            class="m-auto max-w-80 px-6 text-center text-13-regular leading-6 text-v2-text-text-muted"
+            class="m-auto max-w-80 px-6 text-center text-[13px] leading-6 text-v2-text-text-muted"
             data-slot="device-unavailable"
           >
             {unavailable()}
@@ -162,7 +162,7 @@ export function SessionDeviceTab() {
         <Show
           when={current()}
           fallback={
-            <div class="m-auto flex max-w-80 flex-col items-center gap-3 px-6 text-center text-13-regular text-v2-text-text-muted">
+            <div class="m-auto flex max-w-80 flex-col items-center gap-3 px-6 text-center text-[13px] text-v2-text-text-muted">
               <span>{language.t("secondBrain.device.start")}</span>
               <For each={state.os === "android" ? (status()?.android.avds ?? []) : devices().map((item) => item.id)}>
                 {(id) => (
@@ -179,8 +179,9 @@ export function SessionDeviceTab() {
           }
         >
           <div class="flex min-h-0 flex-1 items-center justify-center gap-2">
-            <div class="flex h-full max-h-[640px] items-center rounded-[28px] bg-neutral-900 p-2 shadow">
-              <Show when={state.frame} fallback={<div class="h-80 w-44 animate-pulse rounded-[22px] bg-neutral-800" />}>
+            {/* Fixed near-black: the bezel is a picture of a phone, so it does not follow the theme. */}
+            <div class="flex h-full max-h-[640px] items-center rounded-[28px] bg-[#171717] p-2 shadow-[var(--v2-elevation-raised)]">
+              <Show when={state.frame} fallback={<div class="h-80 w-44 animate-pulse rounded-[22px] bg-[#262626]" />}>
                 <img
                   ref={image}
                   src={state.frame}

@@ -65,6 +65,35 @@ export const BROWSER_TAB = "browser"
 export const DEVICE_TAB = "device"
 const toolTabs = new Set([BROWSER_TAB, DEVICE_TAB])
 
+/** The side panel's fixed sections. The rail switches between them; only Files holds tabs. */
+export type PanelSection = "changes" | "files" | "agents" | "browser" | "device" | "canvas" | "details"
+
+/** The tab ID each section shows. Files has none of its own: it shows the active file tab. */
+export const SECTION_TAB = {
+  changes: "review",
+  agents: AGENTS_TAB,
+  browser: BROWSER_TAB,
+  device: DEVICE_TAB,
+  canvas: CANVAS_TAB,
+  details: "context",
+} satisfies Record<Exclude<PanelSection, "files">, string>
+
+const tabSections: Record<string, PanelSection> = {
+  review: "changes",
+  [AGENTS_TAB]: "agents",
+  [BROWSER_TAB]: "browser",
+  [DEVICE_TAB]: "device",
+  [CANVAS_TAB]: "canvas",
+  context: "details",
+}
+
+// Sections where an agent did something the user hasn't looked at yet, per session key. Kept for the app's
+// lifetime only.
+const [attention, setAttention] = createStore<Record<string, Partial<Record<PanelSection, boolean>>>>({})
+export const sectionAttention = (sessionKey: string, section: PanelSection) => !!attention[sessionKey]?.[section]
+export const setSectionAttention = (sessionKey: string, section: PanelSection, value: boolean) =>
+  setAttention(sessionKey, (prev) => ({ ...prev, [section]: value }))
+
 export const getSessionKey = (dir: string | undefined, id: string | undefined) => `${dir ?? ""}${id ? `/${id}` : ""}`
 
 export function shouldShowFileTree(input: { visible: boolean; opened: boolean }) {
@@ -121,11 +150,13 @@ export const createSessionTabs = (input: TabsInput) => {
   )
   const activeTab = createMemo(() => {
     const active = input.tabs().active()
-    if (active === "context" || active === CANVAS_TAB || (active && toolTabs.has(active))) return active
+    // A section is always there to switch to; it need not be in the stored tab list.
+    if (active === "context" || active === CANVAS_TAB || active === AGENTS_TAB) return active
+    if (active && toolTabs.has(active)) return active
     if (active === SESSION_OPEN_FILE_TAB && openFileOpen()) return active
     if (active === "review" && review()) return active
     if (active && input.pathFromTab(active)) return input.normalizeTab(active)
-    if ((active === AGENTS_TAB || isAgentTab(active)) && agentsOpen()) return AGENTS_TAB
+    if (isAgentTab(active) && agentsOpen()) return AGENTS_TAB
 
     const first = openedTabs()[0] ?? (agentsOpen() ? AGENTS_TAB : undefined)
     if (first) return first
@@ -139,16 +170,18 @@ export const createSessionTabs = (input: TabsInput) => {
     if (!openedTabs().includes(active)) return
     return active
   })
+  // Only file tabs close. Sections are fixed.
   const closableTab = createMemo(() => {
     const active = activeTab()
-    if (active === "context" || active === CANVAS_TAB || toolTabs.has(active)) return active
     if (active === SESSION_OPEN_FILE_TAB && openFileOpen()) return active
-    if (active === AGENTS_TAB) return active
     if (!openedTabs().includes(active)) return
     return active
   })
+  // Anything that isn't a section's own tab is a file tab, the Open File placeholder or the empty Files view.
+  const section = createMemo<PanelSection>(() => tabSections[activeTab()] ?? "files")
 
   return {
+    section,
     contextOpen,
     canvasOpen,
     browserOpen: () => toolOpen(BROWSER_TAB),

@@ -4,7 +4,7 @@ import { useI18n } from "@tenon/ui/context/i18n"
 import { Card } from "@tenon/ui/card"
 import { Reveal } from "@tenon/ui/v2/reveal"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
-import { Spinner } from "@tenon/ui/spinner"
+import { LoaderV2 } from "@tenon/ui/v2/loader-v2"
 
 export function SessionRetry(props: { status: SessionStatus; show?: boolean }) {
   const i18n = useI18n()
@@ -58,7 +58,7 @@ export function SessionRetry(props: { status: SessionStatus; show?: boolean }) {
       <div data-slot="session-turn-retry">
         <Card variant="error" class="error-card">
           <div class="flex items-start gap-2">
-            <Spinner class="size-4 mt-0.5" />
+            <LoaderV2 class="size-4 mt-0.5" style={{ color: "inherit" }} />
             <div class="min-w-0">
               <Show when={truncated()} fallback={<div data-slot="session-turn-retry-message">{message()}</div>}>
                 <TooltipV2 value={retry()?.message ?? ""} placement="top" contentClass="max-w-[320px] break-words">

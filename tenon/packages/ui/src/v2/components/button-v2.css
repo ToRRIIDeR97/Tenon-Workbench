@@ -306,7 +306,7 @@
 }
 
 [data-component="button-v2"][data-size="large"] {
-  height: 36px;
+  height: var(--v2-control-md);
   padding: 0 18px;
 }
 

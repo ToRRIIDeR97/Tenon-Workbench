@@ -56,11 +56,16 @@ export default function RoutinesPage() {
   // A failed list shows inline instead of throwing into the error boundary.
   const [routines, { refetch }] = createResource(workspace, (directory) =>
     listRoutines(client(directory)).then(
-      (items) => ({ items, failed: false }),
+      (items) => {
+        lastRoutines.set(`${server.key}\0${directory}`, items)
+        return { items, failed: false }
+      },
       () => ({ items: [] as Routine[], failed: true }),
     ),
   )
-  const items = (): ReadonlyArray<Routine & { unsupported?: ReadonlyArray<string> }> => settled(routines)?.items ?? []
+  // A revisit shows the last list at once, while the fresh read is in flight, instead of the loading state.
+  const items = (): ReadonlyArray<Routine & { unsupported?: ReadonlyArray<string> }> =>
+    settled(routines)?.items ?? lastRoutines.get(`${server.key}\0${workspace() ?? ""}`) ?? []
   // A run ends on the server, so the list is re-read while one is in flight.
   createEffect(() => {
     if (!items().some((routine) => routine.lastStatus === "running")) return
@@ -321,6 +326,9 @@ export default function RoutinesPage() {
     </PageFrame>
   )
 }
+
+// The list last read per server and workspace, kept for the life of the window. Rebuilt by the next read.
+const lastRoutines = new Map<string, ReadonlyArray<Routine>>()
 
 /** A routine's page in the editor; `from=routines` sends Back here and keeps the rail on Command Centre. */
 const routineHref = (path: string) => `/projects?page=${encodeURIComponent(path)}&from=routines`

@@ -142,7 +142,13 @@ test("keeps the review tree and terminal sized when both panels are open", async
     localStorage.setItem("settings.v3", JSON.stringify({ general: {} }))
     localStorage.setItem(
       "tenon.global.dat:layout",
-      JSON.stringify({ review: { diffStyle: "split", panelOpened: true } }),
+      // A side panel wide enough to keep the file tree beside the diff instead of collapsing it; the
+      // Projects panel is closed to leave it that room.
+      JSON.stringify({
+        review: { diffStyle: "split", panelOpened: true },
+        sidePanel: { width: 720 },
+        sidebar: { opened: false },
+      }),
     )
   })
 
@@ -152,7 +158,7 @@ test("keeps the review tree and terminal sized when both panels are open", async
   await expectTree(page, 8, "git-0.ts")
 
   await selectMode(page, "Git changes", "Branch changes")
-  await expect(page.locator("#session-side-panel-review-tab")).toHaveText("Files Changed 2740")
+  await expect(page.locator('#review-panel [data-slot="side-panel-title"]')).toHaveText("Files Changed 2740")
   await page.keyboard.press("Control+Backquote")
   await expect(page.locator("#terminal-panel")).toBeVisible()
   await expectTree(page, 2_773, "action.yml")
@@ -227,8 +233,8 @@ test("keeps the review tree and terminal sized when both panels are open", async
   await expect(page.locator("#review-panel")).toHaveCount(0)
   await page.getByRole("button", { name: "Toggle review" }).click()
   await expectTree(page, 2_773, "action.yml")
+  // At this width the side panel collapses the file tree; the stack still has to fill its column.
   await page.setViewportSize({ width: 1_000, height: 700 })
-  await expectTree(page, 2_773, "action.yml")
   await expectStackGeometry(page)
   await page.setViewportSize({ width: 1_000, height: 120 })
   await page.setViewportSize({ width: 1_400, height: 900 })
@@ -271,7 +277,8 @@ async function expectStackGeometry(page: Page) {
     Promise.all(
       [document.querySelector("#review-panel"), document.querySelector("#terminal-panel")]
         .flatMap((panel) => panel?.parentElement?.getAnimations() ?? [])
-        .map((animation) => animation.finished),
+        // A cancelled animation (the layout changed under it) has ended too; its promise rejects.
+        .map((animation) => animation.finished.catch(() => undefined)),
     ),
   )
   const geometry = await page.evaluate(() => {

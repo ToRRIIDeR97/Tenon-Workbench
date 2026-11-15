@@ -206,9 +206,7 @@ export function SessionBrowserTab() {
     <Show
       when={browser}
       fallback={
-        <div class="px-6 py-4 text-13-regular text-v2-text-text-muted">
-          {language.t("secondBrain.browser.desktopOnly")}
-        </div>
+        <div class="px-6 py-4 text-[13px] text-v2-text-text-muted">{language.t("secondBrain.browser.desktopOnly")}</div>
       }
     >
       <div class="flex h-full min-h-0 flex-col gap-2 px-3 pb-3" data-component="browser-tab">
@@ -306,12 +304,13 @@ export function SessionBrowserTab() {
             </span>
           </TooltipV2>
         </div>
+        {/* Fixed white: pages without their own background expect a white canvas, in either theme. */}
         <div
           ref={stage}
-          class="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-v2-border-border-base bg-white"
+          class="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-v2-border-border-base bg-[#fff]"
         >
           <Show when={!page.url && !annotate.active}>
-            <div class="absolute inset-0 flex items-center justify-center p-6 text-center text-13-regular text-neutral-500">
+            <div class="absolute inset-0 flex items-center justify-center bg-v2-background-bg-base p-6 text-center text-[13px] text-v2-text-text-muted">
               {language.t("secondBrain.browser.empty")}
             </div>
           </Show>
@@ -359,7 +358,7 @@ export function SessionBrowserTab() {
             <For each={annotate.notes}>
               {(note, index) => (
                 <input
-                  class="absolute w-40 rounded-md bg-[#fff7d6] px-2 py-1 text-12-regular text-[#3b3200] shadow"
+                  class="absolute w-40 rounded-md bg-[#fff7d6] px-2 py-1 text-12-regular text-[#3b3200] shadow-[var(--v2-elevation-raised)]"
                   style={{ left: `${note.x}px`, top: `${note.y - 14}px` }}
                   aria-label={language.t("secondBrain.browser.note", { index: index() + 1 })}
                   value={note.text}

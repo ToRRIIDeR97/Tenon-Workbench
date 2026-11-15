@@ -36,23 +36,40 @@ const claudeWindows = [
 /**
  * Reads Anthropic's OAuth usage response: `{ five_hour: { utilization, resets_at } | null, seven_day: ..., ... }`.
  * Only the known windows are reported, in a fixed order: the response also carries internal keys with the same
- * shape that aren't meant for people. Malformed input yields `[]`.
+ * shape that aren't meant for people. Per-model weekly limits that have no key of their own, such as Fable on Max
+ * and Ultra plans, come from `limits[]` entries of kind `weekly_scoped` (checked against a live Max response,
+ * 2026-11-12). Malformed input yields `[]`.
  */
 export function parseClaudeUsage(body: unknown): UsageWindow[] {
   if (!isRecord(body)) return []
-  return claudeWindows.flatMap((window) => {
+  const windows: UsageWindow[] = claudeWindows.flatMap((window) => {
     const value = body[window.id]
     if (!isRecord(value) || !finite(value.utilization)) return []
-    const resetsAt = typeof value.resets_at === "string" ? Date.parse(value.resets_at) : Number.NaN
-    return [
-      {
-        id: window.id,
-        label: window.label,
-        usedPercent: clamp(value.utilization),
-        ...(Number.isFinite(resetsAt) ? { resetsAt } : {}),
-      },
-    ]
+    return [{ id: window.id, label: window.label, usedPercent: clamp(value.utilization), ...resets(value.resets_at) }]
   })
+  const scoped = Array.isArray(body.limits) ? body.limits : []
+  for (const limit of scoped) {
+    if (!isRecord(limit) || limit.kind !== "weekly_scoped" || !finite(limit.percent)) continue
+    const model = isRecord(limit.scope) && isRecord(limit.scope.model) ? limit.scope.model.display_name : undefined
+    if (typeof model !== "string" || !model.trim()) continue
+    const label = `Weekly (${model.trim()})`
+    if (windows.some((window) => window.label === label)) continue
+    windows.push({
+      id: `weekly_${model
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_")}`,
+      label,
+      usedPercent: clamp(limit.percent),
+      ...resets(limit.resets_at),
+    })
+  }
+  return windows
+}
+
+function resets(value: unknown) {
+  const resetsAt = typeof value === "string" ? Date.parse(value) : Number.NaN
+  return Number.isFinite(resetsAt) ? { resetsAt } : {}
 }
 
 /**
@@ -251,9 +268,28 @@ export const fetchOpenCodeGoUsage = (key: string, request: typeof fetch = fetch)
     catch: () => new Error("Could not reach opencode.ai."),
   })
 
-/** OpenCode Go usage for an OpenCode data folder; without a Go key there is no plan to report. */
-export const openCodeGoUsage = (dataDir: string, request: typeof fetch = fetch) =>
-  readOpenCodeGoKey(dataDir).pipe(
+/**
+ * The OpenCode key the built-in agent chats with, from Tenon's credential store: an `opencode-go` key first, then the
+ * OpenCode (Zen) key, which carries a Go subscription too. The legacy `auth.json` can hold an older key.
+ */
+export function openCodeGoKeyFrom(
+  credentials: ReadonlyArray<{
+    readonly integrationID: string
+    readonly value: { readonly type: string; readonly key?: string }
+  }>,
+) {
+  const key = (integrationID: string) =>
+    credentials.find((item) => item.integrationID === integrationID && item.value.type === "key" && item.value.key)
+      ?.value.key
+  return key("opencode-go") ?? key("opencode")
+}
+
+/**
+ * OpenCode Go usage for an OpenCode data folder; without a Go key there is no plan to report. A `key` the caller
+ * already holds (the built-in agent's stored credential) is used before the folder's `auth.json`.
+ */
+export const openCodeGoUsage = (dataDir: string, request: typeof fetch = fetch, key?: string) =>
+  (key ? Effect.succeed<string | undefined>(key) : readOpenCodeGoKey(dataDir)).pipe(
     Effect.flatMap(
       (key): Effect.Effect<Result, Error> =>
         key ? fetchOpenCodeGoUsage(key, request) : Effect.succeed(unsupported("No OpenCode Go key is connected.")),

@@ -29,6 +29,11 @@ type Context = {
   usage: number | null
   /** A compaction finished after this message, so its figures describe the context before it. */
   compacted: boolean
+  /**
+   * False when `total` can't be the context in use: an external harness that sent no live context report, whose
+   * message tokens add up every model call in the turn.
+   */
+  reported: boolean
 }
 
 const tokenTotal = (msg: AssistantMessage) => {
@@ -69,7 +74,9 @@ const build = (
   // A harness's own report wins: it names the window it ran with, and its model id may be an alias.
   const limit = (message as HarnessAssistant).contextWindow || model?.limit.context
   // A harness's reported context in use wins: its token counts add up every model call in the turn.
-  const total = (message as HarnessAssistant).contextUsed || tokenTotal(message)
+  const live = (message as HarnessAssistant).contextUsed
+  const total = live || tokenTotal(message)
+  const reported = !!live || harnessID(message) === Harness.OpenCode
 
   return {
     message,
@@ -80,8 +87,9 @@ const build = (
     limit,
     input: message.tokens.input,
     total,
-    usage: limit ? Math.round((total / limit) * 100) : null,
+    usage: limit && reported ? Math.round((total / limit) * 100) : null,
     compacted: compactedAfter(messages, message, parts),
+    reported,
   }
 }
 

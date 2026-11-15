@@ -106,7 +106,8 @@ export function FileViewer(props: {
           </Match>
           <Match when={props.kind === "video" && url()}>
             <div class="flex justify-center px-4 pb-40">
-              <video class="max-h-[70vh] max-w-full rounded-xl bg-black" src={url()} controls preload="metadata" />
+              {/* Fixed black: the letterbox around a video stays black in either theme. */}
+              <video class="max-h-[70vh] max-w-full rounded-xl bg-[#000]" src={url()} controls preload="metadata" />
             </div>
           </Match>
           <Match when={props.kind === "sheet" && url()}>
@@ -116,7 +117,7 @@ export function FileViewer(props: {
             <Doc url={url()!} />
           </Match>
           <Match when={!url.loading && !url()}>
-            <div class="px-6 py-4 text-13-regular text-v2-text-text-muted">
+            <div class="px-6 py-4 text-[13px] text-v2-text-text-muted">
               {language.t("secondBrain.fileViewer.unavailable")}
             </div>
           </Match>
@@ -268,12 +269,12 @@ function Sheet(props: { url: string }) {
   )
   const [active, setActive] = createSignal(0)
   return (
-    <Show when={book()} fallback={<div class="px-6 py-4 text-13-regular">{language.t("common.loading")}</div>}>
+    <Show when={book()} fallback={<div class="px-6 py-4 text-[13px]">{language.t("common.loading")}</div>}>
       {(sheets) => (
         <Show
           when={sheets().length > 0}
           fallback={
-            <div class="px-6 py-4 text-13-regular text-v2-text-text-muted">
+            <div class="px-6 py-4 text-[13px] text-v2-text-text-muted">
               {language.t("secondBrain.fileViewer.unavailable")}
             </div>
           }
@@ -323,19 +324,19 @@ function Doc(props: { url: string }) {
   return (
     <Show
       when={html() !== undefined}
-      fallback={<div class="px-6 py-4 text-13-regular">{language.t("common.loading")}</div>}
+      fallback={<div class="px-6 py-4 text-[13px]">{language.t("common.loading")}</div>}
     >
       <Show
         when={html()}
         fallback={
-          <div class="px-6 py-4 text-13-regular text-v2-text-text-muted">
+          <div class="px-6 py-4 text-[13px] text-v2-text-text-muted">
             {language.t("secondBrain.fileViewer.unavailable")}
           </div>
         }
       >
         <div class="px-4 pb-40">
           <article
-            class="prose mx-auto max-w-[720px] rounded-xl bg-white px-10 py-8 text-[13px] leading-6 text-neutral-900 shadow-sm"
+            class="prose mx-auto max-w-[720px] rounded-[16px] bg-v2-background-bg-layer-01 px-10 py-8 text-[13px] leading-6 text-v2-text-text-base shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]"
             innerHTML={html()}
           />
         </div>

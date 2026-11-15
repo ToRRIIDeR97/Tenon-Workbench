@@ -190,7 +190,23 @@ export type GoogleTokenResponse = {
   access_token?: string
   refresh_token?: string
   expires_in?: number
+  /** Space-separated scopes the user granted; with granular consent this can be fewer than were asked for. */
+  scope?: string
   error?: string
+}
+
+/**
+ * The Calendar access a Google grant carries, read from the token response's `scope`: "write" needs event and
+ * task writes, "read" needs at least the read-only calendar. Undefined when the user left Calendar unticked, so a
+ * Gmail sign-in that also asked for Calendar only adds a Calendar account when Google granted it.
+ */
+export function grantedCalendarAccess(scope: string | undefined): "read" | "write" | undefined {
+  const granted = new Set((scope ?? "").split(/\s+/).filter(Boolean))
+  const has = (item: string) => granted.has(`https://www.googleapis.com/auth/${item}`)
+  // Sync reads the primary calendar's details, which needs the calendar read scope either way.
+  if (!has("calendar.readonly")) return undefined
+  if (has("calendar.events") && has("tasks")) return "write"
+  return has("tasks") || has("tasks.readonly") ? "read" : undefined
 }
 
 type Fetch = (input: string, init: RequestInit) => Promise<Response>

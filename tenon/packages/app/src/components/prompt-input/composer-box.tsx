@@ -29,6 +29,8 @@ export function ComposerBox(props: {
   onExpand?: (text: string) => void
   expandLabel?: string
   ref?: (element: HTMLTextAreaElement) => void
+  /** Handles a key in the text box before the box does (Enter sends); return true when it took the key. */
+  onKeyDown?: (event: KeyboardEvent) => boolean
   class?: string
 }) {
   const platform = usePlatform()
@@ -97,6 +99,7 @@ export function ComposerBox(props: {
           if (/(^|\s)[/@]$/.test(text)) props.onExpand?.(text)
         }}
         onKeyDown={(event) => {
+          if (props.onKeyDown?.(event)) return
           if (!composerKeySends(event)) return
           event.preventDefault()
           void props.controller.send()

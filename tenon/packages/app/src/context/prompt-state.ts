@@ -66,6 +66,8 @@ export type FileContextItem = {
 export type QuoteContextItem = {
   type: "quote"
   text: string
+  /** The user's reply to this passage, written in its reply card. */
+  comment?: string
   messageID?: string
 }
 
@@ -147,7 +149,14 @@ function clonePrompt(prompt: Prompt): Prompt {
 }
 
 function contextItemKey(item: ContextItem) {
-  if (item.type === "quote") return `quote:${(checksum(item.text) ?? item.text).slice(0, 12)}`
+  if (item.type === "quote") {
+    // A passage with a reply is its own item, so two replies to the same passage both stay.
+    const content = item.comment?.trim()
+      ? `${item.text}
+${item.comment.trim()}`
+      : item.text
+    return `quote:${(checksum(content) ?? content).slice(0, 12)}`
+  }
   const start = item.selection?.startLine
   const end = item.selection?.endLine
   const key = `${item.type}:${item.path}:${start}:${end}`

@@ -1,6 +1,6 @@
 import { useDialog } from "@tenon/ui/context/dialog"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
-import { CheckboxV2 } from "@tenon/ui/v2/checkbox-v2"
+import { Switch as ToggleSwitch } from "@tenon/ui/v2/switch-v2"
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { KeybindV2 } from "@tenon/ui/v2/keybind-v2"
@@ -317,7 +317,9 @@ export function NotesPageView(props: {
                   >
                     <Match when={typeof value() === "boolean"}>
                       <span class="flex h-7 items-center px-2">
-                        <CheckboxV2 hideLabel label={label()} checked={value() === true} onChange={set} />
+                        <ToggleSwitch size="small" hideLabel checked={value() === true} onChange={set}>
+                          {label()}
+                        </ToggleSwitch>
                       </span>
                     </Match>
                     <Match when={key === "status" && typeof value() === "string"}>
@@ -384,6 +386,7 @@ export function NotesPageView(props: {
       <article class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <PageHeader
           crumb
+          column="wide"
           title={
             project()
               ? language.t("secondBrain.vault.breadcrumb", { project: project()!.name, page: state.title })

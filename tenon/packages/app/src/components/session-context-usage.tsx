@@ -38,7 +38,6 @@ export function openSessionContext(args: {
 }) {
   args.view.reviewPanel.open(args.view.reviewPanel.opened() ? "other" : "context-button")
   if (args.layout.fileTree.opened() && args.layout.fileTree.tab() !== "all") args.layout.fileTree.setTab("all")
-  void args.tabs.open("context")
   args.tabs.setActive("context")
 }
 

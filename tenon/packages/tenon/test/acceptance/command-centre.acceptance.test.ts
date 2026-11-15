@@ -1,6 +1,6 @@
-import { afterEach, describe, expect, test as bunTest } from "bun:test"
+import { afterEach, describe, expect, spyOn, test as bunTest } from "bun:test"
 import { NodeHttpServer, NodeServices } from "@effect/platform-node"
-import { mkdir, readFile, readdir, realpath, symlink, writeFile } from "node:fs/promises"
+import { mkdir, readFile, readdir, realpath, rm, symlink, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { Config, Effect, Layer } from "effect"
 import { HttpClient, HttpClientRequest, HttpClientResponse, HttpRouter, HttpServer } from "effect/http"
@@ -233,6 +233,122 @@ describe("Command Centre", () => {
       const billing = yield* CommandMemory.search("billing")
       expect(billing).toHaveLength(20)
       expect(billing.some((hit) => hit.sessionID === command.id)).toBe(true)
+    }),
+  )
+
+  it.instance("memory search reads only new or changed threads again, and forgets removed ones", () =>
+    Effect.gen(function* () {
+      const { commandDirectory, command } = yield* setup
+      const sessions = yield* Session.Service
+      const reads: string[] = []
+      const counted = Effect.provideService(Session.Service, {
+        ...sessions,
+        messages: (input) => {
+          reads.push(input.sessionID)
+          return sessions.messages(input)
+        },
+      })
+      const survey = yield* Session.use
+        .create({ title: "Kestrel survey" })
+        .pipe(provideInstanceEffect(commandDirectory))
+      const messageID = MessageID.ascending()
+      const partID = PartID.ascending()
+      const write = (text: string) =>
+        Effect.gen(function* () {
+          yield* sessions.updateMessage({
+            id: messageID,
+            sessionID: survey.id,
+            role: "user",
+            time: { created: Date.now() },
+            agent: "test",
+            model: { providerID: "test", modelID: "test" },
+            tools: {},
+            mode: "",
+          } as never)
+          yield* sessions.updatePart({ id: partID, sessionID: survey.id, messageID, type: "text", text })
+        })
+      yield* write("Count the kestrel nests by the quarry.")
+      // A thread written in the millisecond a search reads it is read again by the next search; step past it
+      // so the second search below can show an unchanged thread isn't.
+      yield* Effect.sleep("2 millis")
+
+      const first = yield* CommandMemory.search("kestrel").pipe(counted)
+      expect(first.map((hit) => hit.sessionID)).toEqual([survey.id])
+      expect(reads.toSorted()).toEqual([command.id, survey.id].toSorted())
+
+      // Nothing changed, so nothing is read again.
+      reads.length = 0
+      expect((yield* CommandMemory.search("kestrel").pipe(counted)).map((hit) => hit.sessionID)).toEqual([survey.id])
+      expect(reads).toEqual([])
+
+      // An in-place edit and a rename: the new text matches, the old no longer does, and only that thread is read.
+      yield* write("Count the osprey nests by the quarry.")
+      yield* sessions.setTitle({ sessionID: survey.id, title: "Osprey survey" })
+      expect(yield* CommandMemory.search("kestrel").pipe(counted)).toEqual([])
+      expect(reads).toEqual([survey.id])
+      const osprey = yield* CommandMemory.search("osprey")
+      expect(osprey).toHaveLength(1)
+      expect(osprey[0]).toMatchObject({ sessionID: survey.id })
+      expect(osprey[0]?.text).toBe("Osprey survey\n\nCount the osprey nests by the quarry.")
+
+      // A removed thread no longer matches.
+      yield* sessions.remove(survey.id)
+      expect(yield* CommandMemory.search("osprey")).toEqual([])
+      expect((yield* CommandMemory.search("billing")).map((hit) => hit.sessionID)).toEqual([command.id])
+    }),
+  )
+
+  it.instance("memory search sees a part rewritten in the same millisecond it was indexed", () =>
+    Effect.gen(function* () {
+      const { commandDirectory } = yield* setup
+      const sessions = yield* Session.Service
+      const thread = yield* Session.use.create({ title: "Field notes" }).pipe(provideInstanceEffect(commandDirectory))
+      const messageID = MessageID.ascending()
+      const partID = PartID.ascending()
+      const write = (text: string) =>
+        Effect.gen(function* () {
+          yield* sessions.updateMessage({
+            id: messageID,
+            sessionID: thread.id,
+            role: "user",
+            time: { created: Date.now() },
+            agent: "test",
+            model: { providerID: "test", modelID: "test" },
+            tools: {},
+            mode: "",
+          } as never)
+          yield* sessions.updatePart({ id: partID, sessionID: thread.id, messageID, type: "text", text })
+        })
+      // Every write and search below happens in one frozen millisecond.
+      const now = Date.now()
+      const clock = spyOn(Date, "now").mockReturnValue(now)
+      yield* Effect.gen(function* () {
+        yield* write("Count the kestrel nests.")
+        expect((yield* CommandMemory.search("kestrel")).map((hit) => hit.sessionID)).toEqual([thread.id])
+        yield* write("Count the osprey nests.")
+        expect(yield* CommandMemory.search("kestrel")).toEqual([])
+        expect((yield* CommandMemory.search("osprey")).map((hit) => hit.text)).toEqual([
+          "Field notes\n\nCount the osprey nests.",
+        ])
+      }).pipe(Effect.ensuring(Effect.sync(() => clock.mockRestore())))
+    }),
+  )
+
+  it.instance("memory search picks up rewritten summaries and forgets deleted ones", () =>
+    Effect.gen(function* () {
+      const { commandDirectory } = yield* setup
+      const folder = path.join(commandDirectory, "memory")
+      const file = path.join(folder, "old.md")
+      yield* Effect.promise(() => mkdir(folder, { recursive: true }))
+      yield* Effect.promise(() => writeFile(file, "<!-- at: 5 -->\nThe heron count ran long.\n"))
+      expect(yield* CommandMemory.search("heron")).toEqual([{ text: "The heron count ran long.", at: 5 }])
+
+      yield* Effect.promise(() => writeFile(file, "<!-- at: 6 -->\nThe egret count ran over time.\n"))
+      expect(yield* CommandMemory.search("heron")).toEqual([])
+      expect(yield* CommandMemory.search("egret")).toEqual([{ text: "The egret count ran over time.", at: 6 }])
+
+      yield* Effect.promise(() => rm(file))
+      expect(yield* CommandMemory.search("egret")).toEqual([])
     }),
   )
 

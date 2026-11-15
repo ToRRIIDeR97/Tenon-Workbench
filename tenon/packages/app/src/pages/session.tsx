@@ -70,7 +70,15 @@ import {
   SessionComposerRegion,
   SessionRevertTray,
 } from "@/pages/session/composer"
-import { createOpenReviewFile, createSessionTabs, createSizing, shouldShowFileTree } from "@/pages/session/helpers"
+import {
+  SECTION_TAB,
+  SESSION_OPEN_FILE_TAB,
+  createOpenReviewFile,
+  createSessionTabs,
+  createSizing,
+  shouldShowFileTree,
+  type PanelSection,
+} from "@/pages/session/helpers"
 import { MessageTimeline } from "@/pages/session/timeline/message-timeline"
 import { createTimelineModel } from "@/pages/session/timeline/model"
 import { type DiffStyle, SessionReviewTab, type SessionReviewTabProps } from "@/pages/session/review-tab"
@@ -113,6 +121,10 @@ import { createSessionOwnership } from "./session/session-ownership"
 import { createSessionLineage } from "./session/session-lineage"
 import { PageEmpty, pagePanelClass } from "@/components/page"
 import { ComposerContextRing, ComposerWhereRow, createComposerContext } from "@/components/prompt-input/context-strip"
+import { useThreadSubagents } from "@/components/session/subagent-tab"
+import { subagentCounts } from "@/components/session/subagent-list"
+import { SessionTasksButton } from "@/pages/session/composer/session-tasks-button"
+import { ThreadEnvironmentButton } from "@/components/session/thread-environment"
 
 type ChangeMode = "git" | "branch" | "turn"
 type VcsMode = "git" | "branch"
@@ -324,7 +336,9 @@ function SessionProviders(props: ParentProps) {
 }
 
 function SessionRouteFrame(props: ParentProps) {
-  return <div class="relative size-full overflow-hidden flex flex-col p-2 pl-0">{props.children}</div>
+  return (
+    <div class="titlebar-inset-top relative size-full overflow-hidden flex flex-col p-2 pl-0">{props.children}</div>
+  )
 }
 
 function SessionPanelFrame(props: ParentProps) {
@@ -492,9 +506,26 @@ export default function Page() {
   )
   // A closed review panel leaves a slim rail at the right edge to reopen it. A closing panel shrinks into
   // the rail's place first.
-  const desktopRailOpen = createMemo(
-    () => isDesktop() && !!params.id && !commandThread() && !desktopV2ReviewOpen() && !panelClosing(),
-  )
+  const desktopRailOpen = createMemo(() => isDesktop() && !!params.id && !commandThread())
+  // The file tab Files last showed, per session, so leaving the section and coming back returns to it.
+  const lastFileTab = new Map<string, string>()
+  // The rail's buttons: a section's button opens the panel on it, and the open section's button closes the panel.
+  const selectPanelSection = (section: PanelSection) => {
+    if (desktopV2ReviewOpen() && tabState.section() === section) return view().reviewPanel.close()
+    view().reviewPanel.open()
+    if (section !== "files") return tabs().setActive(SECTION_TAB[section])
+    const last = lastFileTab.get(sessionKey())
+    const tab = (last && tabState.openedTabs().includes(last) ? last : undefined) ?? tabState.openedTabs()[0]
+    if (!tab) {
+      // No file is open: show the file browser, as the strip's "open file" button does.
+      tabs().previewTab(SESSION_OPEN_FILE_TAB)
+      queueMicrotask(() => tabs().setActive(SESSION_OPEN_FILE_TAB))
+      return
+    }
+    const path = file.pathFromTab(tab)
+    if (path) void file.load(path)
+    tabs().setActive(tab)
+  }
   const railSpace = createMemo(() => (desktopRailOpen() ? SESSION_SIDE_RAIL_SPACE : 0))
   // The observer reports the row width; subtract the flex gap between the
   // panels and the rail.
@@ -532,6 +563,40 @@ export default function Page() {
     layout.sidePanel.resize(width)
     // The reactive style only writes when its value changes, so restore it in case the drag ended where it began.
     if (sessionPanel) sessionPanel.style.width = sessionPanelWidth()
+  }
+  // Dragging the collapsed rail to the left pulls the side panel out: past a small threshold Review opens at the
+  // pulled width, then the panel follows the pointer like the resize handle and keeps its width on release.
+  const dragOutSidePanel = (event: PointerEvent) => {
+    if (event.button !== 0) return
+    const startX = event.clientX
+    let width: number | undefined
+    const pulledWidth = (x: number) =>
+      Math.min(sidePanelMax(), Math.max(SIDE_PANEL_WIDTH_MIN, startX - x + SESSION_SIDE_RAIL_SPACE))
+    const move = (next: PointerEvent) => {
+      if (width === undefined) {
+        if (startX - next.clientX < 12) return
+        window.getSelection()?.removeAllRanges()
+        document.body.style.userSelect = "none"
+        size.start()
+        width = pulledWidth(next.clientX)
+        layout.sidePanel.resize(width)
+        view().reviewPanel.open()
+        tabs().setActive("review")
+        return
+      }
+      width = pulledWidth(next.clientX)
+      previewSidePanelWidth(width)
+    }
+    const end = () => {
+      window.removeEventListener("pointermove", move)
+      window.removeEventListener("pointerup", end)
+      window.removeEventListener("pointercancel", end)
+      document.body.style.userSelect = ""
+      if (width !== undefined) commitSidePanelWidth(width)
+    }
+    window.addEventListener("pointermove", move)
+    window.addEventListener("pointerup", end)
+    window.addEventListener("pointercancel", end)
   }
   const sessionPanelWidth = createMemo(() => {
     if (panelClosing()) return `calc(100% - ${SESSION_SIDE_RAIL_SPACE}px)`
@@ -627,9 +692,17 @@ export default function Page() {
     normalizeTab,
     review: reviewTab,
     hasReview: canReview,
+    fileBrowser: () => true,
   })
   const activeTab = tabState.activeTab
   const activeFileTab = tabState.activeFileTab
+  // One scan of the thread's subagents, shared by the composer's Tasks button and the side rail.
+  const threadSubagentGroups = useThreadSubagents(() => true)
+  const runningSubagents = createMemo(() => subagentCounts(threadSubagentGroups()).running)
+  createEffect(() => {
+    const tab = activeFileTab()
+    if (tab) lastFileTab.set(sessionKey(), tab)
+  })
   const revertMessageID = createMemo(() => info()?.revert?.messageID)
   const timeline = createTimelineModel({ sessionID: () => params.id, revertMessageID })
   const historyLoading = timeline.history.loading
@@ -981,6 +1054,11 @@ export default function Page() {
   let scroller: HTMLDivElement | undefined
   let content: HTMLDivElement | undefined
   let revealMessage = (_id: string) => {}
+  // The Details tab's "Taking the most room" asks for a turn by its user message.
+  makeEventListener(window, "tenon:reveal-message", (event) => {
+    const id = (event as CustomEvent<unknown>).detail
+    if (typeof id === "string") revealMessage(id)
+  })
   let scrollToEnd = () => {}
   let scrollMark = 0
   let messageMark = 0
@@ -2058,6 +2136,7 @@ export default function Page() {
                   scroll={ui.scroll}
                   onResumeScroll={resumeScroll}
                   setScrollRef={setScrollRef}
+                  headerActions={<ThreadEnvironmentButton harness={sessionHarness} />}
                   onScheduleScrollState={scheduleScrollState}
                   onAutoScrollHandleScroll={autoScroll.handleScroll}
                   onMarkScrollGesture={markScrollGesture}
@@ -2171,19 +2250,27 @@ export default function Page() {
             },
           })
           return (
-            <SessionComposerRegion
-              controller={controller}
-              promptInput={
-                <PromptInputV2Composer
-                  controller={promptController}
-                  harness={sessionHarness}
-                  borderUnderlay
-                  header={<SessionRevertTray dock={controller.revert} />}
-                  boxHeader={<ComposerWhereRow />}
-                  trailing={<ComposerContextRing context={composerContext} harness={sessionHarness} />}
-                />
-              }
-            />
+            <>
+              <SessionComposerRegion
+                controller={controller}
+                external={!!sessionHarness.driver() && sessionHarness.driver() !== Harness.OpenCodeDriver}
+                promptInput={
+                  <PromptInputV2Composer
+                    controller={promptController}
+                    harness={sessionHarness}
+                    borderUnderlay
+                    header={<SessionRevertTray dock={controller.revert} />}
+                    boxHeader={<ComposerWhereRow />}
+                    trailing={
+                      <>
+                        <SessionTasksButton groups={threadSubagentGroups} />
+                        <ComposerContextRing context={composerContext} harness={sessionHarness} />
+                      </>
+                    }
+                  />
+                }
+              />
+            </>
           )
         }}
       </Show>
@@ -2198,9 +2285,9 @@ export default function Page() {
         <div
           ref={sessionPanel}
           classList={{
-            "@container relative shrink-0 flex flex-col min-h-0 h-full flex-1 md:flex-none": true,
+            "page-panel-cap @container relative shrink-0 flex flex-col min-h-0 h-full flex-1 md:flex-none": true,
             // The whole transition goes during a drag: a bare transition-[width] still eases each frame over 150ms.
-            "transition-[width] duration-medium ease-emphasized-decelerate will-change-[width] motion-reduce:transition-none":
+            "transition-[width] duration-medium ease-emphasized-decelerate motion-reduce:transition-none":
               !size.active() && !ui.reviewSnap,
           }}
           style={{
@@ -2217,7 +2304,9 @@ export default function Page() {
         </div>
 
         <Show when={isDesktop() ? desktopV2PanelLayout().visible || panelClosing() : terminalOpen()}>
-          <div class="relative min-w-0 h-full flex flex-1 flex-col">
+          {/* Pulled 7px into the row's 8px gap: the thread and the side panel read as one card, split by the
+              hairline their two outlines share. */}
+          <div class="page-panel-cap relative min-w-0 h-full flex flex-1 flex-col md:-ml-[7px]">
             <Show when={desktopSessionResizeOpen()}>
               <div onPointerDown={() => size.start()}>
                 <ResizeHandle
@@ -2325,7 +2414,16 @@ export default function Page() {
           </div>
         </Show>
         <Show when={desktopRailOpen()}>
-          <SessionSideRail reviewCount={reviewCount()} hasReview={hasReview()} />
+          <SessionSideRail
+            section={desktopV2ReviewOpen() && !panelClosing() ? tabState.section() : undefined}
+            canReview={canReview()}
+            reviewCount={reviewCount()}
+            hasReview={hasReview()}
+            running={runningSubagents()}
+            canvas={tabState.canvasOpen()}
+            onSelect={selectPanelSection}
+            onDragOut={desktopV2ReviewOpen() || panelClosing() ? undefined : dragOutSidePanel}
+          />
         </Show>
       </div>
     </SessionRouteFrame>

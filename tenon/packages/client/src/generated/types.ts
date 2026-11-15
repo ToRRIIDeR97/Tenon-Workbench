@@ -2974,6 +2974,7 @@ export type HarnessesVerifyOutput = {
       readonly defaultServiceTier?: string
       readonly isDefault: boolean
     }>
+    readonly capabilities?: { readonly mcpHttp: boolean; readonly image: boolean; readonly loadSession: boolean }
     readonly reply: string
     readonly ok: boolean
   }

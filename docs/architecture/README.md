@@ -108,13 +108,33 @@ routes and shortcuts.
 
 `pages/layout-new.tsx` is the only shell: the titlebar (window chrome, back
 and forward) and `components/second-brain-sidebar.tsx` (navigation rail plus
-collapsible Projects panel). Pages sit on one rounded panel built from
+collapsible Projects panel, flat on the window background). Pages sit on one square-cornered panel built from
 `components/page.tsx` (`PageFrame`, `PageHeader`, `PageSection`, and
 `PageEmpty` for centred empty states); page titles carry no descriptive subtitle. Shape and motion follow Material 3: radius,
 easing and duration tokens (`--v2-radius-*`, `--v2-ease-*`,
 `--v2-duration-*`) and the accent-container colors live in
 `packages/ui/src/v2/styles/theme.css` and `packages/ui/src/theme/v2/mapping.ts`,
 and the v2 components (pill buttons, circular icon buttons) use them.
+
+Each style has one job. The item open in a list is the neutral fill
+(`overlay-pressed`, 8px corners, weight 600): sidebar rows, page rows, the
+Calendar's schedule and task rows, the settings navigation. Accent container
+marks where you are in the app (the navigation rail) and checked or toggle
+states (today's day, checkboxes, checked menu items), and primary buttons use
+accent. Underlined text tabs are for the sidebar's Group by only; view switches
+and filters on a page use the segmented look (`SegmentedControlV2`, the
+`TabsV2` pill variant, the thread tab lists that hold only tabs). Page-level
+cards are 16px on `bg-layer-01` with an inset muted edge; 12px cards are for
+inside the sidebar and side panels. A spinner is `LoaderV2` (900ms, linear) and
+a running dot is the `.running-pulse` ring (transform only).
+
+Type uses the named roles in `packages/ui/src/styles/tailwind/utilities.css`
+(`type-display` 26px for pages you read, Notes and Project details;
+`type-page-title` 20px for the others; `type-toolbar-title` 15px for thread
+and panel titles; `type-body-compact` 13px; `type-meta` 12px for helper and
+error text). The theme resets Tailwind's defaults, so `font-semibold`,
+`font-bold`, `font-normal`, `text-xs` and the default colour palette emit
+nothing; use the roles, `[font-weight:N]` and v2 colour tokens.
 
 Motion rules: an element entering uses `--v2-duration-medium` with
 `--v2-ease-emphasized-decelerate`; one leaving uses `--v2-duration-short` with
@@ -129,8 +149,8 @@ and `animate-enter` (fade and 4px rise) / `animate-exit` (fade)
 popovers) keep their content mounted for an exit only when the `[data-closed]`
 rule sets a different `animation-name`, so each has its own exit keyframes;
 `context/dialog.tsx` disposes a closed dialog after the short exit. MenuV2 and
-SelectV2 menus enter with short + emphasized-decelerate and close at once: an
-exit would keep the menu mounted, so a selection or dismissal would wait on it.
+SelectV2 menus enter with short + emphasized-decelerate and leave over
+`--v2-duration-exit-small` on `--v2-ease-exit`.
 Three helpers in `packages/ui/src/v2/components/` cover in-page motion:
 `Reveal` (`@tenon/ui/v2/reveal`; `open`, `class`, `onTransitionEnd`)
 expands and collapses through grid rows and opacity, keeps its children while
@@ -141,8 +161,9 @@ Its grid and clip apply only while it moves (`data-phase` `opening` or
 `Presence` (`@tenon/ui/v2/presence`; `when`, `enterClass`, `exitClass`,
 `class`) keeps a wrapper `div` mounted through its exit animation with
 `solid-presence`, defaulting to `animate-enter` / `animate-exit`; `ViewSwitch`
-(`@tenon/ui/v2/view-switch`; `key`, `class`) fades the outgoing view out
-and the incoming one in when `key` changes, rendering one view at a time.
+(`@tenon/ui/v2/view-switch`; `key`, `exit`, `class`) fades the outgoing view out
+and the incoming one in when `key` changes, rendering one view at a time; with
+`exit={false}` the incoming view replaces the outgoing one at once and fades in.
 `@tenon/ui/v2/motion` exposes `prefersReducedMotion()` and
 `motionDuration()` for JS that times work against these animations, and
 `useSpring` (`@tenon/ui/motion-spring`) jumps to its target under reduced
@@ -151,8 +172,10 @@ motion. Hand-rolled popups (not Kobalte) use `animate-menu-enter` /
 settings `TabsV2` variants slide one selection indicator between tabs; the
 normal variant keeps a static underline because its tabs can be dragged.
 
-In the app shell, `pages/layout-new.tsx` fades pages through a `ViewSwitch`
-keyed by section (`pages/page-motion.ts`): query-string changes do not fade,
+In the app shell, `pages/layout-new.tsx` fades pages in through a `ViewSwitch`
+keyed by section (`pages/page-motion.ts`) with no fade-out, so a rail click
+shows the next page at once; `app.tsx` prefetches every page's chunk when the
+app is idle. Query-string changes do not fade,
 and moving into the thread view (draft or session) swaps at once so its
 composer can focus on mount. Project detail, Calendar views and the
 connect-provider steps use `ViewSwitch` too, so a field that focuses on mount
@@ -178,8 +201,10 @@ frames moved the anchor and the rows below it on every frame (breaking the
 and grid-row wrappers on every row made each layout pass of a streaming turn
 markedly more expensive. Inside a row only transform, opacity and colour
 animate (chevrons, hover colours, the count and status labels). Outside the
-timeline, the question and permission docks grow in as the composer folds away,
-and the queued and rolled-back docks keep removed rows closing in place with
+timeline, a question or permission takes the composer's place as a swap: only one
+shows at a time, the incoming one fades and rises in (`animate-enter`) and the dock
+area's height eases once from the old content's height to the new
+(`session-composer-region.tsx`), so the region never grows past either; the queued and rolled-back docks keep removed rows closing in place with
 `createExitList` (`pages/session/composer/exit-list.ts`).
 
 The sidebar's controller (`components/sidebar/sidebar-controller.ts`, provided by
@@ -207,8 +232,12 @@ recent-session index keeps only roots, so a collapsed Project's roots have no
 child nodes. The index therefore also keeps child-to-parent links, read from
 the same session list and updated by the same session events, and
 `linkedStates` carries each working child's state up through them with no
-per-directory request. Home's root list doesn't use the links. A card shows its
-marks and, while `summary.running` is above zero, the top line
+per-directory request. Home's root list doesn't use the links. The controller
+also counts the roots waiting for approval in every grouping (`needsYou`), for
+the Attention tab. The view draws the switch as text tabs and each card as a
+flat group with its marks; the selected row (`data-selected`) carries its own
+highlight, which appears and disappears at once (no highlight slides between rows). In Attention, Needs you and Running list
+their threads as cards, and a running one shows the top line
 (`.sidebar-card-line`, animated with `transform` only and still under reduced
 motion). The view keys cards by ID and rows by thread node, because card objects
 are rebuilt on every status change. Previous and next thread walk the open cards
@@ -425,6 +454,10 @@ to it.
   (pages with no known Project), with search (`GET …/vault/pages?search=`, plus Projects whose name or outcome
   matches), New page and New Project. The command palette finds the same Projects and pages for the sidebar's
   workspace: Projects filter in the renderer, and pages are searched on the server behind a 250 ms delay.
+  On a window 1024px or wider the landing is two columns: the list (300px), and a preview of the selected Project
+  (`features/second-brain/project-preview.tsx`, summary in `project-preview-model.ts`) with its next milestone,
+  open tasks (its timeline, read once per selection), recent threads and pages, Start work and Open project. A click
+  previews and a double click opens; narrower, a click opens as before.
 - A Project (`features/second-brain/project-view.tsx`) is one page: a header (title, status chip, a "···" menu with
   Pause/Resume, Archive, Save current state and Project settings, and Start work), then two columns at 1100px and
   wider (tasks, and a 300px context rail that stacks under them on narrower windows):
@@ -557,7 +590,7 @@ assistant that spans workspaces, with its own threads, memory and routines.
 - **Threads.** Command Centre threads run in `<vault root>/.command-centre`
   (`CommandMemory.directory()` in `tenon/src/agents/command-memory.ts`, created
   on first use; the renderer derives the same folder from `GET
-  /second-brain/vault` and asks `POST /command-centre/directory` before its
+/second-brain/vault` and asks `POST /command-centre/directory` before its
   first thread). No Project card points at that folder, so
   `/second-brain/project-threads` and the sidebar never list these threads, and
   the page lists only sessions whose directory is that folder. A session keeps
@@ -572,28 +605,73 @@ assistant that spans workspaces, with its own threads, memory and routines.
   one with the harness and model from Settings › Command Centre. The list
   refreshes when the page opens and, debounced, on `session.created/updated/deleted`
   events for that folder, so archives, deletes and routine runs show up.
-- **K3 strip.** `features/command-centre/command-strip.tsx`
+- **Mission control.** The page also shows a board of every Project's threads
+  (`features/command-centre/mission-board-view.tsx`; the sort and grouping are the
+  pure `mission-board.ts`). It adds no request and no polling: it reads the sidebar
+  controller's thread groups (`useSidebarController().groups()`, built from the
+  `useProjectThreads` query and the session index) and the synced run state
+  (`agentRunStatus`, `needsYou`), and leaves out any thread in a `.command-centre`
+  folder. A thread waiting on the user (approvals plus questions, subagents
+  included) is under **Needs you**, a running or retrying one under **Running**, and
+  an idle one under **Finished** for 24 hours; **By project** groups the same
+  threads per Project with General last. A running row's **Steer** sends one line
+  with `api.session.prompt` (`delivery: "steer"`, through the thread's own folder
+  context) and **Stop** calls `api.session.interrupt`; **Review** and **Open**
+  navigate to the thread. Nothing here answers an approval.
+- **Desktop widget.** One small frameless window on the desktop (the Widgets workshop), nothing on Home.
+  `desktop/src/main/windows.ts` `createWidgetWindow` opens it transparent, without a taskbar entry, with the
+  main window's session and navigation policy, its saved position, and the renderer at `?surface=widget`;
+  it is in `windowIDs` (so trusted IPC accepts it) but not the registry (so it never restores as a main
+  window). `main/widget.ts` creates it on first show and toggles it from the global shortcut
+  `CommandOrControl+Alt+Space` (or `CommandOrControl+Alt+W` when another app holds it; `widget.log` says which) and the `desktop.widget.toggle` command; its close button hides it. Closing the last main window closes it too, so the app quits as before (on Windows; macOS keeps running). The renderer
+  sizes it to its card (`widget-resize`), and "Open in Tenon" (`widget-open-in-app`, app routes only) focuses a
+  main window, opening one when none is left, and sends it `navigate`. With `surface="widget"`, `AppInterface`
+  renders `WidgetLayout` (server data, `LayoutProvider`, `ModelsProvider`, agent writes and the Command
+  Centre) instead of the shell, without its calendar sync or harness update notices.
+  `features/desktop-widget/desktop-widget.tsx` shows one face: **Note** adds a dated `## Note · <ISO>` entry to
+  the vault's `Inbox.md` (`inbox.ts`, read then written with `expectedRevision`, created when missing, retried
+  on a 409); **Status** lists threads that need you, then running ones, then ones finished in the last half
+  hour; **Command** shows the Command Centre's latest exchange and replies to that thread. `widget-mode.ts`
+  switches: a thread starting to need you or stopping turns it to Status, a new Command Centre reply to
+  Command, never while text is being typed, and it settles on Note after a quiet minute (hover or focus holds
+  it). The web dev build previews it at `/?surface=widget`.
+- **Command Centre card.** `features/command-centre/command-strip.tsx`
   (`[data-command-strip]`) sits inside `<main>` on every page except
-  `/command`: a 20 px handle while closed, an 84 px strip when open with the
-  latest reply on one line, a composer and "Open full"
-  (`/command?thread=<id>`). Ctrl+J / Cmd+J (`commandCentre.strip.toggle`,
-  `mod+j`) or a click opens it; Esc closes it. Height moves over 300 ms
+  `/command`: a 20 px handle while closed; open, a 640 px, 24 px-radius card
+  named "Command Centre" with the latest exchange (your last message,
+  `lastAskText`, and the reply drawn as Markdown, as the desktop widget draws
+  it: capped at about five lines with a fade, "Show more" lets it grow and
+  scroll inside the card; `lastReplyText` keeps the reply's line breaks for
+  that), New thread, "Open full"
+  (`/command?thread=<id>`) and a composer. A send replies to the shown thread
+  (`centre.send(text, latest.id)`); New thread makes the next send start one.
+  The card and the page share the persisted draft (`composer.command`). When the
+  shown thread waits on an approval or a question (`needsYou`), the card offers
+  "Review in thread"; it never answers approvals itself. Ctrl+J / Cmd+J
+  (`commandCentre.strip.toggle`, `mod+j`) or a click opens it; Esc closes it. Height moves over 300 ms
   emphasized-decelerate when opening and 200 ms emphasized-accelerate when
   closing, with no motion under reduced motion. When the latest reply made
   a write, Undo redeems that write's token (`useAgentWrites().undo`) and then
   shows Undone, Already changed or Couldn't undo.
 - **Step list.** On `/command` the open thread's writes since its latest user
   message render as one `AgentWriteSteps` list (`[data-agent-write]
-  [data-variant="steps"]`, a row per write and the active row's preview).
+[data-variant="steps"]`, a row per write and the active row's preview).
 - **Memory.** `CommandMemory.compact({ now?, days, summarize })` summarises
   Command Centre root threads last updated more than `days` ago (1–365) into
   `.command-centre/memory/<thread>.md` (readable, synced with the vault), then
   deletes those threads. A thread whose summary fails, or that has no text to
   summarise, is kept. A thread over 24,000 characters reaches the summariser as
   its start and end. Project threads are never read.
-  `CommandMemory.search(query)` builds a temporary SQLite FTS5
-  table on the profile database's connection from thread titles, message text
-  and the memory files, so the index is never stored. Compactions run one at a
+  `CommandMemory.search(query)` searches a temporary SQLite FTS5
+  table on the profile database's connection, holding thread titles, message
+  text and the memory files. The table lasts as long as that connection (the
+  server process). Each search brings it up to date: it re-reads only threads
+  whose time, title or parts changed and memory files whose mtime or size
+  changed, and deletes the rows of the ones that are gone. A thread or file
+  written within the instant it was indexed is read again by the next search.
+  The index is never written to the profile database file and is rebuilt after
+  a restart or a reconnect; SQLite may spill it to its unnamed temporary file
+  (see the [threat model](../security/threat-model.md)). Compactions run one at a
   time and share a lock with search only while removing a thread, so search
   doesn't wait on model calls. The renderer calls
   `POST /command-centre/memory/compact` at most once a day with the age from
@@ -611,8 +689,8 @@ assistant that spans workspaces, with its own threads, memory and routines.
   created; after that the folder stays with its Project. Command Centre
   sessions call it as the `project_setup` app tool.
 - **Tools.** `AgentAppTools.list({ sessionID })` (synchronous) gives a
-  Command Centre thread the app tools plus `memory_search`, `project_setup`
-  and, when `TENON_MAIL_URL` and `TENON_MAIL_TOKEN` are set, `mail_search`,
+  Command Centre thread the app tools plus `memory_search`, `project_setup`,
+  the thread tools (below) and, when `TENON_MAIL_URL` and `TENON_MAIL_TOKEN` are set, `mail_search`,
   `mail_read` and `mail_draft` (`tenon/src/agents/mail-tools.ts`, which posts
   JSON to the desktop's `/search`, `/thread` and `/draft` with the bearer
   token). A thread counts as a Command Centre thread once `session.created`
@@ -631,7 +709,83 @@ assistant that spans workspaces, with its own threads, memory and routines.
   thread's list still fails with "… is only available in the Command Centre."
   In that folder the built-in agents also ask before `bash`, `webfetch`,
   `websearch` and `edit` (`core/src/plugin/agent.ts`, `tenon/src/agent/agent.ts`),
-  and the K3 strip says when the latest thread is waiting on a prompt.
+  and the Command Centre card says when the latest thread is waiting on an approval or a question.
+- **Thread tools and the action log.** `threads_overview` lists the root
+  threads of every Project in the workspace (and its General group) with state
+  `needs_you`, `running` or `idle` (pending permissions and questions and running
+  state are read per thread folder through `InstanceStore.provide`);
+  `thread_read` returns a thread's latest messages as capped text;
+  `thread_message` sends a steering message (a harness thread through
+  `SessionV2.prompt` with `delivery: "steer"`, a built-in one through
+  `SessionPrompt.prompt` in the thread's folder, not waited for) and
+  `thread_stop` cancels it (`SessionPrompt.cancel` and `SessionV2.interrupt`).
+  The reachable set is computed by `threadFolders` and checked by
+  `projectThread`; see the [threat model](../security/threat-model.md#command-centre-memory-and-routines).
+  No tool replies to a permission request or a question. Each message and stop
+  is recorded by `CommandActionLog` (`agents/command-action-log.ts`, pure list
+  logic in `command-actions.ts`) in `<vault root>/.command-centre/actions.json`,
+  which `GET /command-centre/actions` serves. On the page, the "Waiting on you"
+  view (`features/command-centre/agent-hands-view.tsx`, queue order from the pure
+  `approval-queue.ts`) lists the pending requests of the board's threads from the
+  synced `permission` and `question` data (no extra request), answers
+  permissions with `api.permission.reply` through the thread's folder, shows
+  today's log as "Done on your behalf" (read when the view opens and when a
+  Command Centre thread starts or ends a turn, never on a timer), and lists each
+  Project's Ask, Auto-edit or Full auto mode with the same control as the
+  composer (`PermissionModeControl`, state in `usePermission`).
+- **Workflows.** The third view (`features/command-centre/workflows-view.tsx`;
+  pure `workflows.ts`) edits saved role setups and starts them. `validateWorkflow`
+  names what is wrong (name, roles, director, role, rounds, budget) and Start is
+  refused while it returns anything, the brief is blank or no Project is chosen.
+  The harness and model pickers list what the composer lists: the same
+  `listHarnessesRemembered` check (own query key) with Settings' hidden models
+  left out. Start creates a thread in the Project's thread folder with
+  `api.session.create` on the director's harness and model, then sends
+  `directorBrief(workflow, brief)` with `api.session.prompt` (the brief names each
+  role, tells the director to hand work over with the `delegate_task` tool,
+  to report `[[round N | role | status]]` lines and to stop after the round cap,
+  and carries the fixed `WORKFLOW_RULES`: no push, no merge). A failed create or
+  send shows the request-failed message and records nothing. Workflows (the
+  user's edits and additions over the built-in `DEFAULT_WORKFLOWS`) and started
+  runs persist in one `persisted` store, `workflow-store.ts`
+  (`WorkflowsProvider`, mounted in `pages/layout-new.tsx`), under the global key
+  `command-workflows.v1` (`{ workflows, runs }`). A run is recorded as
+  `running` with no rounds. No server route or action-log entry is involved.
+  The harness list follows Settings changes (its query key carries
+  `harnessSettingsVersion`, as the thread composer's does).
+- **Runs and limits.** While the app is open `createWorkflowRuns`
+  (`workflow-tracker.ts`, started by `WorkflowsProvider`) follows every run whose
+  status is `running`, with no timer or polling: it pins the director thread,
+  loads it once through `serverSync().session.sync` (the newest 200 messages) and
+  fetches the threads under it once with `session.children`, then reacts to the
+  synced store. Only the director's finished assistant messages are read
+  (`completedReports` in `workflow-reads.ts`): each is parsed once and cached by
+  message ID, the message still streaming is skipped until it completes (so a
+  streamed token does no work) and the user's brief is never read. The reports go
+  through the pure `workflow-runs.ts`: `parseReports` reads
+  `[[round N | role | status]]` lines and `applyReports` merges them into the
+  run's `Round[]` (a round with an approved entry makes a running run `done`);
+  the run is saved only when that changed it. Spend is `runSpend` over the
+  director and every thread under it by `parentID`, each priced by the session's
+  own `cost` or, when that is empty, the sum of its loaded messages' costs
+  (the `getSessionUsage` fallback that `getSessionTotals` uses). When no thread of a run reports a cost the run view shows
+  "Not reported" and says the budget cannot be enforced, instead of $0. When
+  `stopReason` returns `budget` or `rounds` the director thread is interrupted
+  (`api.session.interrupt` through the thread's folder); a `halting` set stops a
+  second interrupt while the first is in flight. When the interrupt succeeds the
+  run becomes `over-budget` or `out-of-rounds`, but only if it is still `running`
+  (`endRunningRun`): a Pause, Stop or reports-driven `done` that landed meanwhile
+  stays. A failed interrupt is asked again on the next change. A run that leaves
+  `running` is dropped from the loaded set, so Resume loads its thread again. A
+  run that is `running` when the app starts is followed again. Limits are therefore not enforced while Tenon is closed, and
+  the run view says so. The run view (`workflow-run-view.tsx`, shown in the
+  Workflows view instead of the editor; `[data-component="workflow-run"]`) draws
+  the status, the Rounds and Spend meters and one block per round. Pause and Stop
+  interrupt the director and set `paused` or `stopped`; Resume sends the director
+  a short message (`RESUME_TEXT`) and sets `running`. The board row of a director
+  thread (`mission-board-view.tsx`) shows its round and opens the view. A run
+  never merges or pushes: the director's brief carries those rules and the
+  tracker only reads and interrupts.
 - **Pill.** The Command Centre page marks its open thread as focused
   (`useAgentWrites().focus`), so the top pill leaves that thread's writes to
   the step list.
@@ -641,6 +795,7 @@ assistant that spans workspaces, with its own threads, memory and routines.
 | `POST /command-centre/directory` | `{ directory }`; creates `<vault root>/.command-centre` |
 | `GET /command-centre/folders` | `{ folders }`; every Command Centre folder on this machine, the current root's first |
 | `GET /command-centre/memory?search=` | `[{ sessionID?, text, at }]`, at most 20; summaries have no `sessionID` |
+| `GET /command-centre/actions?since=` | `[{ id, at, kind, sessionID, title, project?, text?, by }]`, newest first; the agent's logged messages and stops at or after `since` (ms) |
 | `POST /command-centre/memory/compact` | `{ days, model?: { providerID, modelID } }` → `{ summarised, deleted }` |
 
 ### Routines
@@ -1015,6 +1170,27 @@ started it:
   transcript is cut and marked `truncated`.
 - `usage`: the child's own `usage_update` (`used`, `size`, USD `cost`, and any
   token fields the agent sends). It never changes the parent turn's usage.
+  What each agent reports (checked against the installed agents, 2026-11-13):
+  - Claude Code (`claude-agent-acp`) sends no `usage_update` for a subagent, but
+    its PostToolUse hook sends the Agent/Task tool response in
+    `_meta.claudeCode.toolResponse`, whose `usage` is the subagent's last
+    request (`claudeSubagentUsage`: `used` = input + cache read + cache write).
+    The hook can come after the call's result, so a Claude subagent's result is
+    held until it arrives and released at the turn's end if it never does.
+  - OpenCode forwards a child's chunks and tool calls but sends `usage_update`
+    only for the root session's turn (upstream issue 22103, closed as not
+    planned). When a subagent finishes, the driver asks OpenCode's background
+    server for the child session (`opencode api GET /api/session/<id>`, 10 s
+    limit, `openCodeUsageLookup`) and copies its token totals onto the row. If
+    that fails, the row has no usage and the app shows an estimate from the
+    transcript (`subagent-context.ts`).
+  - Codex (app-server, not ACP) reports a subagent as a `subAgentActivity`
+    item, or a `spawnAgent` collab call, in the turn's thread. The subagent's
+    own thread then sends its messages, `thread/tokenUsage/updated` and
+    `turn/completed`. `harness.ts` maps these to an `acp_subagent` row keyed
+    by the subagent's thread (`codexSubagentNotification`). `used` is the last
+    call's input + output in `modelContextWindow`, and the token fields are
+    the thread totals. Only the turn's own thread ends the turn's stream.
 
 The result carries all of it as `provider.resultMetadata.acp`. While the
 subagent runs, `tool-progress` checkpoints (`session.next.tool.progress`,
@@ -1678,6 +1854,14 @@ synthetic text part instead of a file part: a Tenon skill carries its
 reads the same text; a harness-only skill is named for that harness to load
 itself. A prompt with chips is never sent as a single slash command.
 
+The v2 and harness prompt route has no hidden parts, so `harnessPromptInput`
+(`build-request-parts.ts`) sends only what the user typed as the text and each
+skill's instructions as a `data:text/plain` attachment named `<skill> skill`.
+The built-in loop and every harness read such an attachment inline, so the skill
+still applies while the thread shows a chip instead of the skill's body. The `/`
+list holds each skill name once (`pickerSkills`), and `HarnessSkills.scan` keeps
+the first of several folders that install a skill of the same name.
+
 ## Chat diagram windows
 
 Agents draw diagrams in chat by writing a fenced code block tagged `svg`. The
@@ -1778,10 +1962,18 @@ On desktop, opening a file the server reads as binary and that isn't media (a
 - Click or "Open in Files" on a file opens the right panel, expands the
   ancestor folders and opens the file as a preview tab. Opening a fully closed
   side panel slides it in (300 ms, emphasized decelerate) while the thread column
-  eases left; the panel's content is mounted at once but shown only after the
-  slide (`panelSettled` in `app/src/pages/session/file-reference.tsx`, set by
-  the open edge in `session.tsx`). Other openings still snap: switching
+  eases left; the panel's content mounts and fades in only after the slide, so
+  building it never competes with the animation (`panelSettled` in
+  `app/src/pages/session/file-reference.tsx`, set by the open edge in
+  `session.tsx`, read by `session-side-panel.tsx`). Other openings still snap: switching
   sessions, or adding Review beside a file tree that is already showing.
+  A rail (`session-side-rail.tsx`) stays at the right edge whether the panel
+  is open or closed. It is the panel's section switcher: `selectPanelSection`
+  in `session.tsx` opens the panel on the clicked section, or closes it when
+  that section is already showing. While the panel is closed, dragging the
+  rail left pulls it out (`dragOutSidePanel`
+  in `session.tsx`: past 12px Review opens at the pulled width, then the panel
+  follows the pointer like the resize handle and keeps the width on release).
   The tab bar and code then fade in, a skeleton covers loading, and
   `file-tabs.tsx` glides the viewer to the start line (350 ms ease-in-out),
   started after the fade-in, then sets the selected lines and marks them (`data-file-reference`): the
@@ -1986,9 +2178,11 @@ CLIs refresh tokens themselves.
   read from its bundle (v1.88.1), so they may change without notice. No key is
   signed out.
 - OpenCode Go, for the OpenCode harness and the built-in agent
-  (`openCodeGoUsage`): the `opencode-go` key in `auth.json` (the OpenCode
-  CLI's data folder for the harness, the app's data folder for the built-in
-  agent) goes to `GET https://opencode.ai/zen/go/v1/usage`, which returns
+  (`openCodeGoUsage`): for the built-in agent, the key it chats with from
+  Tenon's credential store (an `opencode-go` key, else the `opencode` key;
+  `openCodeGoKeyFrom`), falling back to the `opencode-go` key in the app's
+  `auth.json`; for the OpenCode harness, the `opencode-go` key in the OpenCode
+  CLI's `auth.json`. The key goes to `GET https://opencode.ai/zen/go/v1/usage`, which returns
   `usage.rolling` (5-hour), `weekly` and `monthly`, each `{ status, percent,
   resetsAt }`. The endpoint is not in OpenCode's documentation, and the success
   body was checked against a third-party client, not a live response. A 401 is
@@ -2000,15 +2194,30 @@ CLIs refresh tokens themselves.
 ### Quote replies
 
 Selecting text in an assistant reply shows a Reply pill over the selection
-(`app/src/pages/session/timeline/selection-reply.tsx`). Reply adds a `quote`
-context item (`QuoteContextItem` in `app/src/context/prompt-state.ts`) beside
-the file comments, so it persists with the draft and shows as a chip in the
-composer's attachment strip. On send, `buildRequestParts` turns it into a
-synthetic text part: the passage as a Markdown quote for the model, plus
-`tenonQuote` metadata (`session-ui/src/components/quote-note.ts`). The user
-message reads that metadata and shows the quote above the text. A quote, like a
-comment, comes back to the composer if sending fails. Passages over 2,000
-characters are cut.
+(`app/src/pages/session/timeline/selection-reply.tsx`). Reply grows the pill
+into a reply card: the passage, a text box with dictation (`ComposerBox`), and
+Send. The passage keeps a CSS highlight (`tenon-reply-passage`) while the card
+is open. The card reaches the thread composer through
+`app/src/components/prompt-input/reply-bridge.ts`, where the composer registers
+two actions:
+
+- Enter (`add`) keeps the reply in the composer as a `quote` context item
+  (`QuoteContextItem` in `app/src/context/prompt-state.ts`) whose `comment` is
+  the reply, shown as a two-line chip. Several can be collected and go out with
+  the draft.
+- Ctrl/⌘+Enter or Send (`send`) posts it at once: `handleSubmit` (`submit.ts`)
+  sends that one quote, with no typed text, instead of the composer's contents,
+  so the composer's draft, attachments and chips stay as they are. A reply that
+  fails to send lands in the composer as a chip when the composer is empty.
+
+On send, `buildRequestParts` turns each quote into a synthetic text part: the
+passage as a Markdown quote plus "Their reply: …" for the model, and
+`tenonQuote` metadata (`session-ui/src/components/quote-note.ts`). External
+harnesses receive the prompt as one text, so `splitQuoteNotes` recovers the
+notes from the message text for display. The user message draws each passage
+and its reply in an inset box inside the bubble, with any typed text after them.
+With no thread composer mounted, Reply falls back to adding the passage to the
+composer as a quote chip. Passages over 2,000 characters are cut.
 
 ### Composer delivery, background send and stash
 
@@ -2143,11 +2352,12 @@ the same card once it is settled or the turn ends. Each tool is a full-width ton
 `stepVerbKey`, target, duration) that opens to `toolDetail` (the error, or a
 command with its output); a subagent row opens its tab. A reasoning part is a
 one-line note that opens to its full text. The body grows with a `0fr` to
-`1fr` grid-row transition (`turn-steps-summary.css`, 450 ms open; folding
+`1fr` grid-row transition (`turn-steps-summary.css`, 300 ms open; folding
 takes 300 to 700 ms by the card's height, `foldDuration`, on the standard
 curve) and its rows mount on first open; on an open while the card is on
 screen the steps slide in one after another. A row's output (in the app's
-`ScrollView`, a pill thumb on hover) and a reasoning note open the same way.
+`ScrollView`, a pill thumb on hover) and a reasoning note open and close with
+`Reveal`'s timing (300 ms open, 150 ms close).
 A toggle keeps the clicked row in place: it pauses auto-scroll's bottom follow
 (`onPauseFollow`, as a scroll up does), `message-timeline.tsx` treats the list
 as start-anchored for row resizes during the next 800 ms (virtual-core
@@ -2174,18 +2384,34 @@ from ACP `usage_update.size` or Codex `tokenUsage.modelContextWindow`), else
 the provider's limit for that model. Harness model IDs can be aliases such as
 Claude Code's `haiku` that no provider lists. Subagents are built-in `task` and ACP `acp_subagent` parts; each row opens it in the Agents tab. Tool counts come from
 `summarizeTurn` over the harness's parts.
+The tab (labelled Details) follows the Details workshop's variant C, context first: the used tokens over the
+window (compact numbers), one bar that scales the estimated parts to the window so the rest reads as free, and an
+inline legend; then "Taking the most room", the four biggest single items in the context
+(`context-heaviest.ts`: messages, replies, attached files, tool results and subagent reports, sized with the
+breakdown's chars/4 estimate), each with its turn and kind, opening that turn in the thread (a
+`tenon:reveal-message` window event that `session.tsx` passes to `revealMessage`), and Compact now
+(`session.compact`). Below a hairline, Thread (model, harness, messages) with Usage and cost folded under it
+(every reported figure and the tool counts), Subagents, the system prompt, then Raw messages and Export.
 
-Subagents (built-in `task` and ACP `acp_subagent` parts) open in one Agents
-tab (`agents`) in the same side panel. `createSessionTabs`
-(`app/src/pages/session/helpers.ts`) keeps it apart from file tabs; with
-nothing active, a file tab wins, then the Agents tab, then context, then
-review. The selected agent is per-session state held for the app's lifetime
+The side panel has fixed sections (`PanelSection`: changes, files, agents,
+browser, device, canvas, details). `createSessionTabs`
+(`app/src/pages/session/helpers.ts`) derives the section from the stored
+active tab (`SECTION_TAB` maps each section to its tab ID; any file tab is
+Files), so a section needs no entry in the stored tab list and only file tabs
+can be closed. The Canvas ID alone is still appended to the list, as the mark
+that the rail should offer Canvas for that thread. An agent using the browser
+or a device sets `setSectionAttention` for that section (a dot on the rail,
+cleared when the section is shown) instead of switching the panel.
+
+Subagents (built-in `task` and ACP `acp_subagent` parts) open in the Agents
+section (`agents`) of the same side panel. With nothing active, a file tab
+wins, then a stored Agents tab, then context, then review. The selected agent is per-session state held for the app's lifetime
 (`selectAgent`); none selected shows the list. Stored tab lists with the
 retired per-agent `agent://<partID>` tabs are folded into the Agents tab with
 that agent selected (`migrateAgentTabs`, run by the side panel). The opener
 (`onOpenSubagent` in the session-ui data context, wired in
-`pages/directory-layout.tsx`) takes an optional part ID, appends the tab
-without replacing a file preview and focuses it. It only exists on desktop
+`pages/directory-layout.tsx`) takes an optional part ID and switches the
+panel to Agents; open file tabs are left as they are. It only exists on desktop
 widths. The list (`components/session/subagent-tab.tsx`, grouped by
 `threadSubagents` in `subagent-list.ts`) shows every subagent as the same
 `SubagentLane` the live turn card uses (`subagent-lane.tsx`), grouped by user
@@ -2256,10 +2482,88 @@ and common dir in one process.
 Settings → Harnesses → "Default for new threads" stores
 `settings.v3` `harnesses.defaults` (`mode: "fixed" | "last"`, `harnessID`,
 `model`). `drafts.create` and Brain Home start new threads on it; with
-"Start from the last one I used", `harnesses.lastUsed` (written on each new
-thread's first send) wins. A reused empty draft takes the current default. The
+"Start from the last one I used", `harnesses.lastUsed` wins. It is written on
+each new thread's first send and on every harness, model or reasoning pick in a
+composer (`rememberingHarness` in `prompt-input/harness-choice.ts`, used by the
+thread composer and by Home and the Command Centre's `ComposerModelPill`). A reused empty draft takes the current default. The
 composer keeps its harness until a confirmed check says it is unavailable; a
 saved or remembered list never moves it.
+
+## Composer and settings additions (November 2026)
+
+From the 11 Nov feedback list ([triage](../product/FEEDBACK-2026-11-11.md)):
+
+- **Permission modes.** A pill beside the model pill (`permission-mode-pill.tsx`)
+  sets Ask, Auto-edit or Full auto for the open thread, or for its folder before
+  the thread exists. `context/permission.tsx` keeps `autoAccept` (Full auto) and
+  `autoEdit` records keyed like before; a subagent follows its thread
+  (`permissionMode`). `modeAllows` answers `edit` requests in Auto-edit and
+  everything in Full auto, except `external_directory`, which always asks. Every
+  harness maps its approvals to these kinds (Codex `commandExecution` → `bash`,
+  `fileChange` → `edit`, MCP tool approvals → `mcp`; ACP `execute` → `bash`,
+  `edit`/`delete`/`move` → `edit`, other tools → `acp_tool`). The modes can only
+  answer requests the server raises, so the built-in agents' rules
+  (`core/src/plugin/agent.ts`) ask for `bash`, `edit`, `webfetch`, `websearch`,
+  `mcp` and `acp_tool` in every folder; config rules can still allow them. Codex
+  runs sandboxed commands without asking anyone, so Ask covers its escalations
+  and MCP calls, not every command.
+- **Thread environment.** `components/session/thread-environment.tsx` is an
+  Environment toggle at the right end of the thread header (passed to
+  `MessageTimeline` as `headerActions`; the header has no "…" menu, the sidebar row's
+  menu holds the thread actions), that opens a floating window below it, flush with
+  the header's right edge (portalled, menu motion). It re-places itself whenever the
+  thread header or the thread column (`data-slot="thread-column"`, the composer's
+  640px column) resizes (a side panel opening, closing or being dragged). It floats over
+  the thread, which never moves for it; when it would cover that column, it minimizes to
+  its toggle and returns once the column is clear. The toggle
+  still opens it meanwhile, and the remembered choice is unchanged. Its body follows the workshop's variant A:
+  one card of hairline-separated sections with sentence-case titles. The window stays open while you work in
+  the thread; it starts open, the toggle, its close button or Esc close it, and the choice is kept in
+  `thread.environment.v2` (global storage). It shows harness and model,
+  folder, branch, approval mode, context use, MCP servers (Tenon's own for external
+  harnesses), file changes with Review, and running subagents and terminals. Context
+  use is split by `context-breakdown-model.ts` for every harness: the reported total
+  divided by a chars/4 estimate of the system prompt, messages and tool calls, with
+  the remainder shown as the agent's own instructions and tools (Codex, Claude Code,
+  OpenCode report only totals) and the unused window as free.
+- **Approval card.** `session-permission-dock.tsx` shows one line from
+  `permissionSummary` and the first three commands or paths ("Show N more" for
+  the rest). Deny and Allow once are split buttons: Allow once offers Always
+  allow this (`always`) and Allow everything in this thread (Full auto); Deny
+  offers Deny with a reason, sent as the reply's `message`; in a Codex or ACP
+  thread the reason also follows as a queued message, since those approval
+  protocols carry none. Outside-folder requests keep the warning tone and offer
+  no "always".
+- **Subagents.** The context menu lists the latest turn's subagents with their
+  own context (`latestSubagentContexts`). A running lane with no new step for five
+  minutes says so (`laneQuiet`). With an external harness, a follow-up sent while
+  its subagents run is queued (`followupPreference`), because a steer would stop
+  them; Ctrl+Enter still steers.
+- **Tasks panel.** `session-tasks-button.tsx` in the thread composer counts
+  running subagents and open terminals and lists them with the workspace's next
+  routines.
+- **Model profiles.** `settings.v3` `modelProfiles` (`utils/model-profile.ts`)
+  holds rules per model id. `submit.ts` attaches the active profile as a hidden
+  `data:text/plain` attachment (like a skill) on a thread's first message and
+  when the model changes. Settings › Model profiles adds, imports a `profile.md`,
+  edits and switches them; "Build with an agent" only opens a draft.
+- **Settings.** Built-in harness (Providers and Models), MCP servers (the global
+  config's `mcp` entries: an Installed list of settings rows with switches, Suggested
+  common servers as rows added in one click (`mcpSuggestions`), and Custom server for a local
+  command or remote URL;
+  `core/src/harness/forwarded-mcp.ts` passes the enabled ones to Codex as `-c`
+  overrides and to ACP agents in `session/new`, so every harness sees them),
+  Skills search and per-harness filters, a VS Code theme import
+  (`ui/src/theme/vscode.ts`, stored under `tenon-custom-themes`), Tenon sounds,
+  and Google Calendar and Tasks switches per address on Accounts. "Add Google
+  account" asks for Gmail, Calendar and Tasks in one consent; the mail service
+  hands the grant to the Calendar service (`adoptGrant`), which keeps a Calendar
+  account when Google granted those scopes (`grantedCalendarAccess`).
+- **Add harness.** The dialog runs discovery then one test prompt and shows a
+  checklist (`harness-checklist.ts`); the verify result now carries the agent's
+  `capabilities` (MCP over HTTP, images, `loadSession`).
+- **Codex path.** `codexCommand` falls back to `codex` on PATH when a saved
+  absolute `binaryPath` no longer exists.
 
 ## Thread references
 

@@ -582,6 +582,22 @@ describe("BrainProject project folders", () => {
     expect(JSON.parse(readFileSync(path.join(data, "workspace-links.json"), "utf8"))).toEqual({})
   })
 
+  // AC-3: adding a folder that was removed before brings its Project back to the sidebar.
+  test("linking a folder again makes its archived card active", async () => {
+    await using tmp = await tmpdir()
+    const root = path.join(tmp.path, "Brain")
+    const data = path.join(tmp.path, "data")
+    const outside = path.join(tmp.path, "repos", "tool")
+    workspace(root)
+    mkdirSync(outside, { recursive: true })
+    await run(root, data, BrainProject.link({ folder: outside }))
+    await run(root, data, BrainProject.unlink({ folder: outside }))
+    await run(root, data, BrainProject.link({ folder: outside }))
+    const tools = (await run(root, data, BrainProject.list())).filter((project) => project.name === "tool")
+    expect(tools).toHaveLength(1)
+    expect(tools[0]?.status).toBe("active")
+  })
+
   test("a manifest that cannot be read is never overwritten", async () => {
     await using tmp = await tmpdir()
     const root = path.join(tmp.path, "Brain")

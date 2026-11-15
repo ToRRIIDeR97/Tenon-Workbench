@@ -37,8 +37,23 @@
   position: sticky;
   top: 0;
   z-index: 10;
-  padding: 40px 40px 32px;
+  /* Same sides as the body, so actions end on the cards' edge; the close button sits above the 40px top. */
+  padding: 40px 40px 32px 40px;
   background: linear-gradient(to bottom, var(--v2-background-bg-base) calc(100% - 24px), transparent);
+}
+
+/* The part switch above a tab that holds two pages, such as Built-in harness (Providers, Models). */
+.settings-v2-subtabs {
+  padding: 28px 64px 0 40px;
+}
+
+.settings-v2-fit > [data-slot="segmented-control-v2"],
+.settings-v2-subtabs > [data-slot="segmented-control-v2"] {
+  width: fit-content;
+}
+
+.settings-v2-subtabs + .settings-v2-tab-header {
+  padding-top: 20px;
 }
 
 .settings-v2-tab-title {
@@ -64,8 +79,7 @@
 }
 
 .settings-v2-section-title {
-  padding-inline-start: 4px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 20px;
   color: var(--v2-text-text-base);
@@ -237,20 +251,20 @@
 
 [data-component="tabs-v2"][data-variant="settings"][data-orientation="vertical"]
   [data-slot="tabs-v2-trigger-wrapper"]:has([data-selected]) {
-  color: var(--v2-text-text-on-accent-container);
+  color: var(--v2-text-text-base);
 }
 
-/* The selection pill slides between tabs (tabs-v2 indicator); before it is placed, the tab draws it. */
+/* The neutral selection fill slides between tabs (tabs-v2 indicator); before it is placed, the tab draws it. */
 [data-component="tabs-v2"][data-variant="settings"][data-orientation="vertical"]
   [data-slot="tabs-v2-list"]:not([data-indicator])
   [data-slot="tabs-v2-trigger-wrapper"]:has([data-selected]) {
-  background-color: var(--v2-background-bg-accent-container);
+  background-color: var(--v2-overlay-simple-overlay-pressed);
 }
 
 [data-component="tabs-v2"][data-variant="settings"][data-orientation="vertical"]
   [data-slot="tabs-v2-list"][data-indicator]
   [data-slot="tabs-v2-indicator"] {
-  background-color: var(--v2-background-bg-accent-container);
+  background-color: var(--v2-overlay-simple-overlay-pressed);
 }
 
 /* Tab panels fade through as they swap (tabs-v2.css, settings variant). */
@@ -540,7 +554,7 @@
 }
 
 .settings-v2-harness-dot[data-state="error"] {
-  background: var(--v2-state-fg-warning);
+  background: var(--v2-state-fill-warning);
 }
 
 .settings-v2-harness-update-dot {

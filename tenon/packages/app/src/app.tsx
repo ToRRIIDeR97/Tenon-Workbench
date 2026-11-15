@@ -61,6 +61,10 @@ import { SDKProvider } from "@/context/sdk"
 import { WslServersProvider } from "@/wsl/context"
 import { DirectoryDataProvider } from "@/pages/directory-layout"
 import NewLayout from "@/pages/layout-new"
+import { DesktopWidget } from "@/features/desktop-widget/desktop-widget"
+import { AgentWritesProvider } from "@/features/agent-writes/store"
+import { CommandCentreProvider } from "@/features/command-centre/command-centre"
+import { ToastRegion } from "@/utils/toast"
 import { ErrorPage } from "./pages/error"
 import { useCheckServerHealth } from "./utils/server-health"
 import { parseServerKey, requireServerKey, sessionHref } from "./utils/session-route"
@@ -82,19 +86,33 @@ const loadSessionPage = () => import("@/pages/session")
 const TargetSessionRouteContent = lazy(() =>
   loadSessionPage().then((module) => ({ default: module.TargetSessionRouteContent })),
 )
-function prefetchSessionPage() {
-  const run = () => void Promise.all([loadSessionPage(), loadFile()]).catch(() => {})
+// The other pages are small next to it. They are prefetched too, after the session page, so the first click
+// on a rail item swaps the page at once instead of waiting on its chunk.
+const pageLoaders = {
+  newSession: () => import("@/pages/new-session"),
+  calendar: () => import("@/pages/calendar"),
+  projects: () => import("@/pages/projects"),
+  projectOverview: () => import("@/pages/project-overview"),
+  brainHome: () => import("@/pages/brain-home"),
+  commandCentre: () => import("@/pages/command-centre"),
+  routines: () => import("@/pages/routines"),
+}
+function prefetchPages() {
+  const run = () =>
+    void Promise.all([loadSessionPage(), loadFile()])
+      .then(() => Promise.all(Object.values(pageLoaders).map((load) => load())))
+      .catch(() => {})
   if (typeof requestIdleCallback === "function") requestIdleCallback(run, { timeout: 3000 })
   else setTimeout(run, 1500)
 }
 
-const NewSession = lazy(() => import("@/pages/new-session"))
-const CalendarPage = lazy(() => import("@/pages/calendar"))
-const ProjectsPage = lazy(() => import("@/pages/projects"))
-const ProjectOverviewPage = lazy(() => import("@/pages/project-overview"))
-const BrainHomePage = lazy(() => import("@/pages/brain-home"))
-const CommandCentrePage = lazy(() => import("@/pages/command-centre"))
-const RoutinesPage = lazy(() => import("@/pages/routines"))
+const NewSession = lazy(pageLoaders.newSession)
+const CalendarPage = lazy(pageLoaders.calendar)
+const ProjectsPage = lazy(pageLoaders.projects)
+const ProjectOverviewPage = lazy(pageLoaders.projectOverview)
+const BrainHomePage = lazy(pageLoaders.brainHome)
+const CommandCentrePage = lazy(pageLoaders.commandCentre)
+const RoutinesPage = lazy(pageLoaders.routines)
 
 function TargetServerRoute(props: ParentProps) {
   const params = useParams<{ serverKey: string; id: string }>()
@@ -247,6 +265,14 @@ function DesktopCommands() {
 
   command.register("desktop", () => {
     const commands: CommandOption[] = []
+    if (platform.desktopWidget) {
+      commands.push({
+        id: "desktop.widget.toggle",
+        title: language.t("secondBrain.widget.toggle"),
+        category: language.t("command.category.view"),
+        onSelect: () => void platform.desktopWidget?.toggle(),
+      })
+    }
     if (platform.platform === "desktop" && platform.exportDebugLogs) {
       commands.push({
         id: "logs.export",
@@ -277,6 +303,27 @@ function ServerScopedProviders(props: ServerScopedShellProps) {
       <CalendarAutoSync />
       <ModelsProvider directory={props.directory}>{props.children}</ModelsProvider>
     </LayoutProvider>
+  )
+}
+
+/**
+ * The desktop widget's window: the selected server's data and the Command Centre, without the sidebar, pages or
+ * the shell's background jobs (calendar sync, harness update notices), which the main window already runs.
+ */
+function WidgetLayout() {
+  return (
+    <SelectedServerProviders>
+      <LayoutProvider>
+        <ModelsProvider>
+          <AgentWritesProvider>
+            <CommandCentreProvider>
+              <DesktopWidget />
+              <ToastRegion v2 />
+            </CommandCentreProvider>
+          </AgentWritesProvider>
+        </ModelsProvider>
+      </LayoutProvider>
+    </SelectedServerProviders>
   )
 }
 
@@ -442,7 +489,7 @@ function ConnectionError(props: { onRetry?: () => void; onServerSelected?: (key:
           </svg>
         </span>
         <div class="flex flex-col gap-1.5">
-          <h1 class="text-[20px] text-v2-text-text-base [font-weight:600]">
+          <h1 class="type-page-title text-v2-text-text-base">
             {unreachable()[0]}
             <span class="font-mono text-[18px]">{name()}</span>
             {unreachable()[1]}
@@ -517,13 +564,15 @@ export function AppInterface(props: {
   disableHealthCheck?: boolean
   startup?: Promise<void>
   serverScoped?: JSX.Element
+  /** `widget`: the desktop widget's window, which shows the widget instead of the app shell and its pages. */
+  surface?: "app" | "widget"
 }) {
   // The visual new layout lives in the router root so it remains mounted across
   // route changes. Draft and session routes override only their server-bound data
   // providers beneath it.
   // The shell reuses AppBaseProviders' QueryClient, the one GlobalProvider's server sync
   // writes to, so live session events reach the sidebar and Home queries.
-  onMount(prefetchSessionPage)
+  onMount(prefetchPages)
   const ServerShell = (shellProps: ParentProps) => (
     <SharedProviders>
       {props.children}
@@ -547,7 +596,14 @@ export function AppInterface(props: {
                   <PermissionProvider>
                     <NotificationProvider>
                       <ServerShell>
-                        <NewAppLayout serverScoped={props.serverScoped}>{routerProps.children}</NewAppLayout>
+                        <Show
+                          when={props.surface === "widget"}
+                          fallback={
+                            <NewAppLayout serverScoped={props.serverScoped}>{routerProps.children}</NewAppLayout>
+                          }
+                        >
+                          <WidgetLayout />
+                        </Show>
                       </ServerShell>
                     </NotificationProvider>
                   </PermissionProvider>

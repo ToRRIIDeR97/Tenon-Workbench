@@ -372,6 +372,20 @@ export type Routine = {
 export type ModelChoice = { providerID: string; modelID: string }
 export type MemoryHit = { sessionID?: string; text: string; at: number }
 
+/** Something the Command Centre agent did to another thread on the user's behalf. */
+export type CommandAction = {
+  id: string
+  /** ms. */
+  at: number
+  kind: "message" | "stop" | "start"
+  sessionID: string
+  title: string
+  project?: string
+  text?: string
+  /** The Command Centre thread that acted. */
+  by: string
+}
+
 export const listRoutines = (client: Client) => request<Routine[]>(client, "/second-brain/routines")
 
 export const runRoutine = (client: Client, id: string, model?: ModelChoice) =>
@@ -395,6 +409,10 @@ export const commandFolders = (client: Client) => request<{ folders: string[] }>
 
 export const searchCommandMemory = (client: Client, search: string) =>
   request<MemoryHit[]>(client, `/command-centre/memory?search=${encodeURIComponent(search)}`)
+
+/** The Command Centre agent's logged actions at or after `since` (ms), newest first. */
+export const listCommandActions = (client: Client, since: number) =>
+  request<CommandAction[]>(client, `/command-centre/actions?since=${since}`)
 
 export const compactCommandMemory = (client: Client, input: { days: number; model?: ModelChoice }) =>
   request<{ summarised: number; deleted: number }>(client, "/command-centre/memory/compact", {

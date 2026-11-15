@@ -40,7 +40,7 @@ import {
 } from "./windows"
 import type { UpdaterController } from "./updater-controller"
 import { createUpdaterSubscriptions } from "./updater-subscriptions"
-import { isOpenWithApp, isUncPath, localFileAction } from "./local-file-policy"
+import { isOpenWithApp, isUncPath, localFileAction, openWithLaunch } from "./local-file-policy"
 import { createDesktopDraftStore, requireDraftBlob, requireDraftKey, requireDraftValue } from "./draft-store"
 import { write as writeLog } from "./logging"
 import { saveSessionExport } from "./session-export"
@@ -111,6 +111,12 @@ type Deps = {
   googleCalendar: GoogleCalendarPlatform
   showUpdater: () => Promise<void> | void
   setBackgroundColor: (color: string) => void
+  widget: {
+    toggle: () => void
+    hide: () => void
+    resize: (height: number) => void
+    openInApp: (path: string) => void
+  }
   exportDebugLogs: () => Promise<string>
   recordFatalRendererError: (error: FatalRendererError) => Promise<void> | void
   recordStartupMilestone: (name: StartupMilestone, sinceNavigation: number) => void
@@ -233,6 +239,13 @@ export function registerIpcHandlers(deps: Deps) {
   })
   trustedHandle("mail-remove", (_event, id: unknown) => deps.mail.remove(String(id ?? "")))
   trustedHandle("set-background-color", (_event: IpcMainInvokeEvent, color: string) => deps.setBackgroundColor(color))
+  // The desktop widget: shown and hidden from any window, sized to its card, and able to open a route in a main window.
+  trustedHandle("widget-toggle", () => deps.widget.toggle())
+  trustedHandle("widget-hide", () => deps.widget.hide())
+  trustedHandle("widget-resize", (_event: IpcMainInvokeEvent, height: unknown) => deps.widget.resize(Number(height)))
+  trustedHandle("widget-open-in-app", (_event: IpcMainInvokeEvent, path: unknown) =>
+    deps.widget.openInApp(typeof path === "string" ? path : ""),
+  )
   trustedHandle("export-debug-logs", () => deps.exportDebugLogs())
   trustedHandle("set-force-focus", (event: IpcMainInvokeEvent, enabled: boolean) =>
     setForceFocus(event.sender, enabled),
@@ -461,15 +474,11 @@ export function registerIpcHandlers(deps: Deps) {
     }
     // "Open in" passes a project folder; a file handed to an app such as Terminal could run.
     if (!info.isDirectory()) throw new Error("open-path with an application requires a directory")
-    if (process.platform === "darwin") {
-      return await new Promise<void>((resolve, reject) => {
-        execFile("open", ["-a", app, path], (err) => (err ? reject(err) : resolve()))
-      })
-    }
-    const resolved = await resolveAppPath(app)
-    if (!resolved || !isAbsolute(resolved)) throw new Error("Unknown application")
+    const resolved = process.platform === "darwin" ? app : await resolveAppPath(app)
+    if (!resolved || (process.platform !== "darwin" && !isAbsolute(resolved))) throw new Error("Unknown application")
+    const launch = openWithLaunch(app, path, resolved)
     await new Promise<void>((resolve, reject) => {
-      execFile(resolved, [path], (err) => (err ? reject(err) : resolve()))
+      execFile(launch.command, launch.args, launch.options ?? {}, (err) => (err ? reject(err) : resolve()))
     })
   })
 

@@ -48,9 +48,7 @@ export function CalendarPeek(props: {
       </div>
       <div class="flex items-start gap-3">
         <Show when={props.task}>{(task) => <TaskCheck task={task()} onToggle={props.onToggle} />}</Show>
-        <h2 class="min-w-0 break-words text-[20px] leading-[26px] text-v2-text-text-base [font-weight:600]">
-          {props.title}
-        </h2>
+        <h2 class="min-w-0 break-words type-page-title text-v2-text-text-base">{props.title}</h2>
       </div>
       <dl class="grid grid-cols-[16px_minmax(0,1fr)] items-start gap-x-3 gap-y-3.5 text-[13px] text-v2-text-text-base">
         <dt class="pt-0.5 text-v2-icon-icon-muted">

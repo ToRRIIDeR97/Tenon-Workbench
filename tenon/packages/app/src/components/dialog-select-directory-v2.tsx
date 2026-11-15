@@ -30,6 +30,7 @@ import {
 } from "./directory-picker-domain"
 import "./dialog-select-directory-v2.css"
 import { DividerV2 } from "@tenon/ui/v2/divider-v2"
+import { Presence } from "@tenon/ui/v2/presence"
 import { getFilename } from "@tenon/core/util/path"
 
 interface DialogSelectDirectoryV2Props {
@@ -355,12 +356,14 @@ export function DialogSelectDirectoryV2(props: DialogSelectDirectoryV2Props) {
               {language.t("dialog.directory.parent")}
             </ButtonV2>
           </div>
-          <Show when={suggestionsOpen() && currentSuggestions().length > 0}>
-            <div
-              id="directory-picker-v2-suggestions"
-              role="listbox"
-              class="directory-picker-v2-suggestions origin-top animate-menu-enter"
-            >
+          {/* Opens and closes with the menu motion; the list inside keeps the listbox semantics. */}
+          <Presence
+            when={suggestionsOpen() && currentSuggestions().length > 0}
+            class="directory-picker-v2-suggestions origin-top"
+            enterClass="animate-menu-enter"
+            exitClass="animate-menu-exit"
+          >
+            <div id="directory-picker-v2-suggestions" role="listbox" class="flex flex-col">
               <For each={currentSuggestions()}>
                 {(suggestion, index) => (
                   <button
@@ -378,7 +381,7 @@ export function DialogSelectDirectoryV2(props: DialogSelectDirectoryV2Props) {
                 )}
               </For>
             </div>
-          </Show>
+          </Presence>
         </div>
         <div
           class="directory-picker-v2-browser"

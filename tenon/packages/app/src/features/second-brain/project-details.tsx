@@ -259,7 +259,7 @@ function ProjectSettingsDialog(props: { card: ProjectCard }) {
             />
           </label>
           <Show when={state.error}>
-            <p role="alert" class="type-caption text-v2-text-text-critical">
+            <p role="alert" class="type-meta text-v2-text-text-critical">
               {state.error}
             </p>
           </Show>
@@ -354,7 +354,7 @@ export function ProjectCreate(props: {
   }
   const fieldError = (field: "name" | "outcome") => (
     <Show when={state.error && state.errorField === field}>
-      <p id={`project-${field}-error`} role="alert" class="text-[12px] text-v2-text-text-critical">
+      <p id={`project-${field}-error`} role="alert" class="type-meta text-v2-text-text-critical">
         {state.error}
       </p>
     </Show>
@@ -376,7 +376,7 @@ export function ProjectCreate(props: {
         props.onCancel()
       }}
     >
-      <h1 id="project-create-title" class="type-display text-v2-text-text-base">
+      <h1 id="project-create-title" class="type-page-title text-v2-text-text-base">
         {language.t("secondBrain.projects.create.title")}
       </h1>
       <label class={labelClass} for="project-name">
@@ -385,6 +385,7 @@ export function ProjectCreate(props: {
           id="project-name"
           ref={focusWhenConnected}
           appearance="large"
+          class="!w-full"
           invalid={state.errorField === "name"}
           aria-describedby={state.errorField === "name" ? "project-name-error" : undefined}
           value={state.draft.name}
@@ -396,6 +397,7 @@ export function ProjectCreate(props: {
         {language.t("secondBrain.projects.outcome")}
         <TextareaV2
           id="project-outcome"
+          class="!w-full"
           rows={4}
           invalid={state.errorField === "outcome"}
           aria-describedby={state.errorField === "outcome" ? "project-outcome-error" : undefined}
@@ -409,7 +411,7 @@ export function ProjectCreate(props: {
         <SelectV2
           id="project-location"
           aria-label={language.t("secondBrain.projects.location")}
-          class="!h-9 !w-full"
+          class="!h-[var(--v2-control-md)] !w-full"
           appearance="large"
           options={["__none__", ...locations().map((location) => location.id)]}
           current={state.draft.locationId || "__none__"}
@@ -424,7 +426,11 @@ export function ProjectCreate(props: {
       </label>
       <details class="group">
         <summary class={summaryClass}>
-          <Icon name="chevron-right" size="small" class="transition-transform group-open:rotate-90" />
+          <Icon
+            name="chevron-right"
+            size="small"
+            class="transition-transform motion-reduce:transition-none group-open:rotate-90"
+          />
           {language.t("secondBrain.projects.advanced")}
         </summary>
         <div class="mt-3 flex flex-col gap-4">
@@ -449,7 +455,7 @@ export function ProjectCreate(props: {
         </div>
       </details>
       <Show when={state.error && !state.errorField}>
-        <p id="project-create-error" role="alert" class="text-[12px] text-v2-text-text-critical">
+        <p id="project-create-error" role="alert" class="type-meta text-v2-text-text-critical">
           {state.error}
         </p>
       </Show>

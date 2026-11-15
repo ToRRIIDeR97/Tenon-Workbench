@@ -30,10 +30,6 @@ import {
 } from "@tenon/session-ui/message-part"
 import { DiffChanges } from "@tenon/ui/v2/diff-changes-v2"
 import { FileIcon } from "@tenon/ui/file-icon"
-import { Icon as IconV2 } from "@tenon/ui/v2/icon"
-import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
-import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
-import { MenuV2 } from "@tenon/ui/v2/menu-v2"
 import { InlineInput } from "@tenon/ui/inline-input"
 import { SessionRetry } from "@tenon/session-ui/session-retry"
 import { isScrollKeyTarget, scrollKey, scrollKeyOwner, ScrollView } from "@tenon/ui/scroll-view"
@@ -43,7 +39,6 @@ import type {
   AssistantMessage,
   Message as MessageType,
   Part as PartType,
-  Session,
   ToolPart,
   UserMessage,
 } from "@opencode-ai/sdk/v2"
@@ -62,9 +57,6 @@ import { ServerConnection } from "@/context/server"
 import { useServerSDK } from "@/context/server-sdk"
 import { useSync } from "@/context/sync"
 import { sessionTitle } from "@/utils/session-title"
-import { sessionPinnedAt } from "@/utils/session"
-import { useSidebarController } from "@/components/sidebar/sidebar-controller"
-import { onThreadMenuKey, ThreadMenuItems, type ThreadMenuRun } from "@/components/sidebar/thread-menu"
 import { scheduleConnectedMeasure } from "./measure"
 import { observeElementOffsetReconnectAware } from "./observe-element-offset"
 import { createTimelineProjection } from "./projection"
@@ -174,9 +166,14 @@ function TimelineDiffSummaryRow(props: { diffs: SummaryDiff[] }) {
         </span>
         <DiffChanges changes={props.diffs} />
         <Show when={overflow() > 0}>
-          <span data-slot="session-turn-diffs-toggle" onClick={() => setState("showAll", !showAll())}>
+          <button
+            type="button"
+            data-slot="session-turn-diffs-toggle"
+            aria-expanded={showAll()}
+            onClick={() => setState("showAll", !showAll())}
+          >
             {showAll() ? language.t("ui.sessionTurn.diffs.showLess") : language.t("ui.sessionTurn.diffs.showAll")}
-          </span>
+          </button>
         </Show>
       </div>
       <div data-component="session-turn-diffs-content">
@@ -258,6 +255,8 @@ export function MessageTimeline(props: {
   onPauseFollow?: () => void
   centered: boolean
   setContentRef: (el: HTMLDivElement) => void
+  /** Extra controls in the thread header, before the "…" menu (the Environment button). */
+  headerActions?: JSX.Element
   userMessages: UserMessage[]
   anchor: (id: string) => string
   setRevealMessage?: (fn: (id: string) => void) => void
@@ -271,7 +270,6 @@ export function MessageTimeline(props: {
   const serverSDK = useServerSDK()
   const sync = useSync()
   const settings = useSettings()
-  const threads = useSidebarController()
   const language = useLanguage()
   const data = useData()
   const { params, sessionKey } = useSessionKey()
@@ -627,8 +625,6 @@ export function MessageTimeline(props: {
   const [title, setTitle] = createStore({
     draft: "",
     editing: false,
-    menuOpen: false,
-    pendingRename: false,
   })
   let titleRef: HTMLInputElement | undefined
 
@@ -745,8 +741,6 @@ export function MessageTimeline(props: {
         setTitle({
           draft: "",
           editing: false,
-          menuOpen: false,
-          pendingRename: false,
         }),
       { defer: true },
     ),
@@ -791,27 +785,6 @@ export function MessageTimeline(props: {
     }
 
     titleMutation.mutate({ id, title: next })
-  }
-
-  const headerPinned = (id: string) => {
-    const session = sync().session.get(id)
-    return !!session && sessionPinnedAt(session) !== undefined
-  }
-
-  // The header menu runs the same thread actions as the sidebar row, so both share one undo queue.
-  const threadMenu = (id: string): ThreadMenuRun => {
-    const withSession = (action: (session: Session) => void) => () => {
-      const session = sync().session.get(id)
-      if (session) action(session)
-    }
-    return {
-      rename: () => setTitle("pendingRename", true),
-      pin: withSession((session) => void threads.setThreadPinned(session, sessionPinnedAt(session) === undefined)),
-      fork: withSession((session) => void threads.forkThread(session)),
-      export: withSession((session) => void threads.exportThread(session)),
-      archive: withSession((session) => void threads.archiveThread(session)),
-      delete: withSession((session) => threads.deleteThread(session)),
-    }
   }
 
   const navigateParent = () => {
@@ -946,7 +919,7 @@ export function MessageTimeline(props: {
         data-timeline-row={input.row()._tag}
         classList={{
           "min-w-0 w-full max-w-full": true,
-          "md:max-w-200 2xl:max-w-[1000px]": props.centered,
+          "md:max-w-[640px]": props.centered,
           "md:mx-auto": props.centered,
           "pt-3": previousAssistantPart(),
         }}
@@ -1324,7 +1297,7 @@ export function MessageTimeline(props: {
                       fallback={
                         <h1
                           data-slot="session-title-child"
-                          class="truncate text-[15px] font-[600] leading-5 text-v2-text-text-base w-fit rounded-full px-3 py-1 transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none"
+                          class="truncate type-toolbar-title text-v2-text-text-base w-fit rounded-full px-3 py-1 transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none"
                           onClick={openTitleEditor}
                         >
                           {childTitle()}
@@ -1338,7 +1311,7 @@ export function MessageTimeline(props: {
                         data-slot="session-title-child"
                         value={title.draft}
                         disabled={titleMutation.isPending}
-                        class="block text-[15px] font-[600] leading-5 text-v2-text-text-base field-sizing-content self-start rounded-full px-3 py-1"
+                        class="block type-toolbar-title text-v2-text-text-base field-sizing-content self-start rounded-full px-3 py-1"
                         style={{
                           "--inline-input-shadow": "none",
                         }}
@@ -1361,64 +1334,25 @@ export function MessageTimeline(props: {
                   </Show>
                 </div>
               </div>
-              <Show when={sessionID()} keyed>
-                {(id) => (
-                  <div class="shrink-0 flex items-center gap-1">
-                    <Show when={changes()}>
-                      {(summary) => (
-                        <button
-                          type="button"
-                          data-action="session-changes"
-                          class="hidden md:flex h-7 items-center rounded-full px-2.5 transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none"
-                          aria-label={`${language.t("session.review.change.other")} +${summary().additions} -${summary().deletions}`}
-                          aria-expanded={sessionView().reviewPanel.opened()}
-                          aria-controls="review-panel"
-                          onClick={() => sessionView().reviewPanel.toggle()}
-                        >
-                          <DiffChanges changes={summary()} />
-                        </button>
-                      )}
-                    </Show>
-                    <Show when={!parentID()}>
-                      <MenuV2
-                        gutter={6}
-                        placement="bottom-end"
-                        open={title.menuOpen}
-                        onOpenChange={(open) => {
-                          setTitle("menuOpen", open)
-                          if (open) return
-                        }}
+              <Show when={sessionID()}>
+                <div class="shrink-0 flex items-center gap-1">
+                  <Show when={changes()}>
+                    {(summary) => (
+                      <button
+                        type="button"
+                        data-action="session-changes"
+                        class="hidden md:flex h-7 items-center rounded-full px-2.5 transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none"
+                        aria-label={`${language.t("session.review.change.other")} +${summary().additions} -${summary().deletions}`}
+                        aria-expanded={sessionView().reviewPanel.opened()}
+                        aria-controls="review-panel"
+                        onClick={() => sessionView().reviewPanel.toggle()}
                       >
-                        <TooltipV2 placement="bottom" value={language.t("common.moreOptions")}>
-                          <MenuV2.Trigger
-                            as={IconButtonV2}
-                            icon={<IconV2 name="outline-dots" />}
-                            variant="ghost-muted"
-                            size="large"
-                            aria-label={language.t("common.moreOptions")}
-                            aria-expanded={title.menuOpen}
-                          />
-                        </TooltipV2>
-                        <MenuV2.Portal>
-                          <MenuV2.Content
-                            onKeyDown={(event) =>
-                              onThreadMenuKey(event, threadMenu(id), () => setTitle("menuOpen", false))
-                            }
-                            onCloseAutoFocus={(event) => {
-                              if (title.pendingRename) {
-                                event.preventDefault()
-                                setTitle("pendingRename", false)
-                                openTitleEditor()
-                              }
-                            }}
-                          >
-                            <ThreadMenuItems run={threadMenu(id)} pinned={headerPinned(id)} />
-                          </MenuV2.Content>
-                        </MenuV2.Portal>
-                      </MenuV2>
-                    </Show>
-                  </div>
-                )}
+                        <DiffChanges changes={summary()} />
+                      </button>
+                    )}
+                  </Show>
+                  {props.headerActions}
+                </div>
               </Show>
             </div>
           </div>

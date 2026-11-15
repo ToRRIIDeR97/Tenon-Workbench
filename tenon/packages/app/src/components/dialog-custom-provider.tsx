@@ -185,7 +185,7 @@ export function CustomProviderForm(props: { autofocus?: boolean } = {}) {
     <div class="flex max-h-[60vh] flex-col gap-6 overflow-y-auto px-3 pb-3">
       <div class="flex items-center gap-3 px-3">
         <ProviderIcon id="synthetic" class="size-5 shrink-0 text-v2-icon-icon-base" />
-        <h2 class="type-row-title font-semibold text-v2-text-text-base">{language.t("provider.custom.title")}</h2>
+        <h2 class="type-row-title text-v2-text-text-base [font-weight:600]">{language.t("provider.custom.title")}</h2>
       </div>
 
       <form onSubmit={save} class="flex flex-col gap-6 px-3 pb-6">

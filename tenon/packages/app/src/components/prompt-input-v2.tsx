@@ -1,5 +1,8 @@
 import { THREAD_REFERENCE_MIME, threadReferenceURI } from "@/utils/thread-reference"
-import { SKILL_REFERENCE_MIME, skillReferenceURI } from "@/utils/skill-reference"
+import { SKILL_REFERENCE_MIME, pickerSkills, skillReferenceURI } from "@/utils/skill-reference"
+import { rememberingHarness } from "@/components/prompt-input/harness-choice"
+import { subagentCounts, threadSubagents } from "@/components/session/subagent-list"
+import { PermissionModePill } from "@/components/prompt-input/permission-mode-pill"
 import { listSkillCatalog, listSkills } from "@/utils/server"
 import { useServerSDK } from "@/context/server-sdk"
 import type { Skill } from "@tenon/schema/skill"
@@ -14,7 +17,7 @@ import { KeybindV2 } from "@tenon/ui/v2/keybind-v2"
 import { MenuV2 } from "@tenon/ui/v2/menu-v2"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import type { ReferenceInfo } from "@opencode-ai/sdk/v2/client"
-import { createEffect, createMemo, createSignal, For, on, Show, type JSX } from "solid-js"
+import { createEffect, createMemo, createSignal, For, on, onCleanup, Show, type JSX } from "solid-js"
 import { ModelSelectorPopoverV2 } from "@/components/dialog-select-model"
 import { DialogSelectModelUnpaidV2 } from "@/components/dialog-select-model-unpaid-v2"
 import { PromptModelPill } from "@/components/prompt-input/model-pill"
@@ -24,7 +27,8 @@ import type { PromptInputHarnessController } from "@/components/prompt-input/har
 import { normalizePromptHistoryEntry, promptLength, type PromptHistoryComment } from "@/components/prompt-input/history"
 import { createPersistedPromptInputHistory } from "@/components/prompt-input/history-store"
 import { promptDesignPlaceholder, promptPlaceholder } from "@/components/prompt-input/placeholder"
-import { createPromptSubmit } from "@/components/prompt-input/submit"
+import { createPromptSubmit, followupPreference } from "@/components/prompt-input/submit"
+import { registerReplySender } from "@/components/prompt-input/reply-bridge"
 import { createPersistedPromptStash, type PromptStash } from "@/components/prompt-input/stash-store"
 import { selectionFromLines, type SelectedLineRange, useFile } from "@/context/file"
 import { useComments } from "@/context/comments"
@@ -71,6 +75,9 @@ export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
   const command = useCommand()
   const language = useLanguage()
   const platform = usePlatform()
+  const settings = useSettings()
+  // A pick here is the next new thread's starting harness and model (Settings › Harnesses, "last one I used").
+  const harness = () => props.harness && rememberingHarness(props.harness, settings.harnesses.setLastUsed)
   // The built-in loop is known by id, so its model and variant controls don't wait on the harness list.
   const builtInLoop = () => {
     if (!props.harness) return true
@@ -95,21 +102,24 @@ export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
         headerControl={props.boxHeader}
         quoteRemoveLabel={language.t("secondBrain.quote.remove")}
         runtimeControl={
-          props.harness ? (
-            <PromptModelPill
-              harness={props.harness}
-              builtIn={builtInLoop()}
-              builtInModel={{
-                name: props.controller.model.selection.current()?.name ?? language.t("dialog.model.select.title"),
-                choose: chooseBuiltInModel,
-              }}
-              builtInVariant={{
-                options: () => ["default", ...props.controller.model.selection.variant.list()],
-                current: () => props.controller.model.selection.variant.current() ?? "default",
-                set: (value) => props.controller.model.selection.variant.set(value === "default" ? undefined : value),
-                disabled: () => props.controller.model.loading,
-              }}
-            />
+          harness() ? (
+            <>
+              <PromptModelPill
+                harness={harness()!}
+                builtIn={builtInLoop()}
+                builtInModel={{
+                  name: props.controller.model.selection.current()?.name ?? language.t("dialog.model.select.title"),
+                  choose: chooseBuiltInModel,
+                }}
+                builtInVariant={{
+                  options: () => ["default", ...props.controller.model.selection.variant.list()],
+                  current: () => props.controller.model.selection.variant.current() ?? "default",
+                  set: (value) => props.controller.model.selection.variant.set(value === "default" ? undefined : value),
+                  disabled: () => props.controller.model.loading,
+                }}
+              />
+              <PermissionModePill />
+            </>
           ) : undefined
         }
         agentControlVisible={builtInLoop()}
@@ -207,12 +217,18 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
   const skills = createMemo(() => {
     const catalog = skillData()?.[0]
     if (!catalog) return []
-    const harness = props.newSessionHarness ?? (info() as { harnessInstanceID?: string } | undefined)?.harnessInstanceID
-    const tenon = catalog.tenon.filter((skill) => skill.enabled !== false)
-    const own = catalog.harnesses.find((entry) => entry.id === harness)?.skills ?? []
-    return [...tenon, ...own.filter((skill) => !tenon.some((item) => item.name === skill.name))]
+    return pickerSkills(
+      catalog,
+      props.newSessionHarness ?? (info() as { harnessInstanceID?: string } | undefined)?.harnessInstanceID,
+    )
   })
   const working = createMemo(() => sync().data.session_working(props.controls.session.id ?? ""))
+  const runningSubagents = createMemo(() => {
+    const id = props.controls.session.id
+    if (!id) return 0
+    return subagentCounts(threadSubagents(sync().data.message[id] ?? [], (messageID) => sync().data.part[messageID]))
+      .running
+  })
   const attachments = createMemo(() =>
     prompt.current().filter((part): part is ImageAttachmentPart => part.type === "image"),
   )
@@ -299,6 +315,7 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
   const submission = createPromptSubmit({
     onNewSessionHarness: (choice) => settings.harnesses.setLastUsed(choice),
     skill: (name) => skillData()?.[1].find((skill) => skill.name === name)?.content,
+    modelProfile: (modelID) => settings.modelProfiles.for(modelID),
     prompt,
     info,
     imageAttachments: attachments,
@@ -321,7 +338,12 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
     harnessDriver: () => props.harnessDriver,
     harnessChanging: () => props.harnessChanging,
     onNewSessionWorktreeReset: props.onNewSessionWorktreeReset,
-    followup: () => settings.general.followup(),
+    followup: () =>
+      followupPreference({
+        preference: settings.general.followup(),
+        external: !!props.harnessDriver && props.harnessDriver !== Harness.OpenCodeDriver,
+        runningSubagents: runningSubagents(),
+      }),
     onAbort: props.onAbort,
     onSubmit: props.onSubmit,
     model: props.controls.model.selection,
@@ -581,6 +603,13 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
       stash: () => stash.save(),
     },
   })
+  // The reply card over the timeline sends a reply to a passage through this composer's send path.
+  onCleanup(
+    registerReplySender({
+      send: (reply) => void submission.handleSubmit(new Event("submit"), { reply }),
+      add: (reply) => prompt.context.add({ type: "quote", text: reply.quote, comment: reply.text.trim() || undefined }),
+    }),
+  )
   Object.defineProperty(controller, "model", { get: () => props.controls.model })
   // Stash keeps prompt text, mentions, and images; comment context stays attached to the composer.
   const stashStore = createPersistedPromptStash()

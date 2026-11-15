@@ -65,18 +65,23 @@ is hidden and the rail remains.
    it is first shown; if that scan fails, a toast says so and it runs again the
    next time the workspace is shown. If the Project list cannot load, the
    panel shows **Request failed** with **Retry**.
-   - **Group by** switches the list between **Project**, **Attention** and
-     **Recent**, and the choice is remembered for the window. Each group is a
-     rounded card. Attention has **Needs you**, **Running** and **Other
-     threads**; Recent has **Today**, **Yesterday** and **Earlier**. Those cards
-     start open, and empty ones don't show.
+   - **Group by** is a row of text tabs, **Project**, **Attention** and
+     **Recent**, with an underline that slides to the chosen one (arrow keys
+     move between them). The choice is remembered for the window. Attention
+     shows how many threads are waiting for approval. Groups sit flat on the
+     panel, and one highlight slides to the selected row. Attention has **Needs
+     you**, **Running** and **Other threads**; Recent has **Today**,
+     **Yesterday** and **Earlier**. Those groups start open, and empty ones
+     don't show. In Needs you and Running each thread is a card that names its
+     Project (or General) and, when it waits for approval, says so; a running
+     card has a thin line moving along its top edge, still with reduced motion.
    - A thread waiting for approval shows a warning triangle and a running thread
-     shows an accent dot, on its row and on its card's header. A root shows the
+     shows an accent dot, on its row and on its group's header. A root shows the
      most urgent state of itself and its child threads, even when they aren't
-     listed. While a thread in a card runs, even in a collapsed card, a thin
-     line runs along the card's top edge; with reduced motion it stays still.
-   - One card per active Project, sorted by name, expandable. Expanding shows
-     **New thread** and the Project's root threads: pinned threads first (most
+     listed.
+   - One group per active Project, sorted by name, expandable. Expanding lists
+     its root threads flat under the header (no guide lines; the header's **+**
+     starts a new thread): pinned threads first (most
      recently pinned first, with a pin icon), then the rest newest first.
      Child threads (`parentID`) nest under their
      parent while that parent or one of its children is open.
@@ -105,6 +110,15 @@ the 500 most recently updated), each with **Unarchive**. It is on a Project's
 menu (its thread directory), the General row's menu (the workspace folder
 itself, so threads archived in its non-Project subfolders are not listed) and
 the Command Centre page.
+
+### Desktop widget
+
+A small window on the desktop, outside the app window, toggled with Ctrl+Alt+Space (Cmd+Option+Space on macOS), or Ctrl+Alt+W (Cmd+Option+W) when another app already uses that,
+or **Show or hide the desktop widget** in the command palette. It shows one face at a time: **Note** (Enter
+adds the text to the vault's Inbox), **Status** (threads that need you, running and just finished; Review
+opens one in Tenon) or **Command** (the Command Centre's latest exchange and a reply box). A status update or a
+Command Centre reply switches it, never while you type; after a quiet minute it returns to Note. Its close
+button hides it; **Open in Tenon** brings the main window forward on that thread.
 
 ### Undo
 
@@ -213,6 +227,11 @@ folder as a workspace and selects it) and `tenon://new-session?directory=<path>&
   opens the Projects page's create form (`/projects?new=1`). Sending from Home's composer opens
   the new thread and sends the message in one step. Home's box stays usable while its data loads, so it is a plain
   text box: its **+**, or typing `/` or `@`, moves the text to the full composer on a draft.
+- **Project picker** (the folder chip in every composer: Home, drafts and threads; the Feedback
+  workshop's switcher): a search field, then **Recent** (up to three Projects with the latest thread
+  activity) and **Workspace** (General and the rest), each with its folder's branch, and **Add a project
+  folder…**. The chip and the current Project take the accent container. Picking one starts a draft there
+  carrying what's typed; a thread keeps its own folder.
 - **Projects** (Notes and the old Projects page, merged 2026-11-03; one page
   per Project since the workshop's variant B). With nothing open it lists
   **Projects** (name, outcome, progress; **All projects** first), **Archived**
@@ -258,10 +277,47 @@ folder as a workspace and selects it) and `tenon://new-session?directory=<path>&
 - Pages (on the Projects page) hold global notes and Project notes. A page's file name keeps
   the title's letters and digits in any script. If a save finds the note
   changed on disk, **Reload from disk** replaces the edits with the saved copy.
-- **Command Centre** replaced Activity. It lists only its own threads (never
-  Project threads) with rename, archive and delete on each row, searches memory,
-  opens **Archived threads** and links to **Routines**, whose rows switch a
-  routine on or off, open its page and run it now. On every other page a handle above the bottom edge
+- **Command Centre** replaced Activity. The header switches between three views
+  and links to **Routines**, whose rows switch a routine on or off, open its
+  page and run it now. **Mission control** puts the agent beside the board. The
+  agent panel shows its newest thread's last exchange (your message and the
+  reply), **Open thread**, **Undo** for that reply's last write, and a composer
+  with the model pill that replies to that thread; **New thread** makes the next
+  send start one. **Threads** swaps the exchange for memory search, the
+  Command Centre's own threads (never Project threads) with rename, archive and
+  delete on each row, and **Archived threads**. The **All projects** board shows
+  every Project's threads as cards **By state** (Needs you, Running, and
+  Finished in the last day) or **By project**; each card's title opens the
+  thread. A running card has **Steer** (one line sent to that thread with
+  Enter) and **Stop**; a Needs you card has **Review**; a finished card has
+  **Open**. **Waiting on you** is a queue with **Done on your behalf** beside
+  it: one card per pending permission or question across the Projects
+  (permissions have **Allow once**, **Always allow this**, **Deny** and **Open
+  thread**, questions **Open thread**), what may run without asking per
+  Project (Ask, Auto-edit, Full auto, changed with the same menu as the
+  composer), and today's messages and stops the Command Centre agent made to
+  other threads, each with **Open**. **Workflows** lists saved role setups
+  (such as Build and review: a director, an implementor and a reviewer) beside
+  the selected one's editor, with **New workflow**; the editor has
+  **Duplicate**, **Delete** (not for a built-in) and **Start** by its name, and
+  each role card has a job, a harness and model from the
+  composer's list and what the role may do (direct, edit or read), followed by
+  **Start on** (a Project), an optional **Stop at $** budget, a round cap (1 to
+  10) and a **Brief for this run**. Start is refused, with the reasons listed under the brief, until every
+  role has a harness and the brief and Project are set; then it opens a director
+  thread in that Project, sends it the generated brief and returns to Mission
+  control. Under the saved workflows, **Runs** lists the started runs (newest
+  first, each with its workflow, Project and status); selecting one shows the
+  run view in place of the editor: the director thread's title, a status
+  (for example "Running · round 2 of 5"), **Pause** and **Stop** (a paused run
+  has **Resume**, which asks the director to carry on), what it repeats until
+  (the reviewer approves), **Rounds** and **Spend** against their limits, one
+  block per round (In progress, Sent back, Approved) with each role's latest
+  entry, and links to the director thread and to the Project's threads on the
+  board. A finished run offers only those links and **Remove from the list**.
+  The limits (the round cap and the budget) are enforced only while Tenon is
+  open, and a run never merges or pushes. A director's row on the board shows
+  "Round n of max" and a **Run view** control that opens the same view. On every other page a handle above the bottom edge
   opens the K3 strip (also `mod+j`; Esc closes it) with the latest reply, a
   composer and **Open full**. On a thread the strip sits on top of the composer.
 - **Settings** contains General, Shortcuts, Servers, Providers, Models and
@@ -278,16 +334,25 @@ folder as a workspace and selects it) and `tenon://new-session?directory=<path>&
   "Show all" to open the full list. While the agent reasons, the current step
   reads "Thinking" with the topic it's on, which slides in as the topic
   changes. The
-  side panel has **Review** and **Details** tabs, plus open files. Details
+  side panel shows one section at a time, picked from a rail of icons at its
+  right edge: **Changes** (with the changed-file count), **Files**, **Agents**
+  (with how many are running), **Browser** and **Device** (desktop app only),
+  **Canvas** (once the thread has opened one) and, at the bottom, **Details**
+  (a ring of context use). The rail stays when the panel is hidden; a section's
+  icon opens the panel on it, and the open section's icon hides the panel. Only
+  Files has tabs: one per open file, and `mod+w` closes the active one. The
+  panel's **+** opens the file browser from any section. When an agent uses the
+  browser or a device while another section shows, that icon gets a dot instead
+  of the panel switching. Details
   replaced the Context tab and follows the Thread board's design: four tiles
   (tokens, context used, messages, harness), a context breakdown bar (system,
   messages, tools), then a details list of the session's totals per harness
   (model, provider, context window, input, output, cache hit, cost, times).
   Values the harness doesn't report are left out. Subagents and tool counts
   show only when there are any, and raw messages open from a button. The side panel keeps its own width (420px by default) and
-  the chat takes the rest. Hide it with the arrow in its tab row, the
-  titlebar button, `mod+shift+r`, or by dragging its edge past the minimum.
-  While hidden, a slim rail at the right edge shows the changed-file count
-  and reopens the panel; context use lives on the composer's ring, whose menu opens Details. Opening the panel under
+  the chat takes the rest. Hide it with the arrow in its header, the open
+  section's rail icon, the titlebar button, `mod+shift+r`, or by dragging its
+  edge past the minimum. While hidden, dragging the rail left pulls the panel
+  out; context use also lives on the composer's ring, whose menu opens Details. Opening the panel under
   1100px wide closes the Projects panel, as does opening Calendar's side panel. Split diffs need an 800px panel;
   a narrower panel shows unified diffs.

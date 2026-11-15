@@ -413,7 +413,13 @@ export const link = Effect.fn("BrainProject.link")(function* (input: LinkInput) 
   const manifest = yield* readManifest()
   if (!manifest.value.linkedFolders.some((item) => path.resolve(item) === folder))
     yield* writeManifest({ ...manifest.value, linkedFolders: [...manifest.value.linkedFolders, folder] })
-  return yield* scan()
+  const result = yield* scan()
+  // The scan reuses the card of a folder that was removed before; adding it again brings that card back.
+  const archived = (yield* all()).find(
+    (item) => item.location?.path && path.resolve(item.location.path) === folder && item.status === "archived",
+  )
+  if (archived) yield* update(archived.id, { status: "active" })
+  return result
 })
 
 /** Stop treating a linked folder as a Project: drop it from the manifest and archive its card. */

@@ -13,7 +13,7 @@ Detailed permission and request flows are in
 
 | Boundary                   | Current control and location                                                                                                                                                                                                                                                                                                                                           |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Renderer to native process | The main window uses `contextIsolation`, `sandbox`, and disabled `nodeIntegration`. `tenon/packages/desktop/src/preload/index.ts` exposes specific IPC methods implemented in `tenon/packages/desktop/src/main/ipc.ts`. Packaged builds ignore `ELECTRON_RENDERER_URL`; see Renderer content policy for remote media.                                     |
+| Renderer to native process | The main window uses `contextIsolation`, `sandbox`, and disabled `nodeIntegration`. `tenon/packages/desktop/src/preload/index.ts` exposes specific IPC methods implemented in `tenon/packages/desktop/src/main/ipc.ts`. The desktop widget's window (`createWidgetWindow`) has the same isolation and session policy; its IPC (`widget-*`) only toggles, hides and sizes that window, and `widget-open-in-app` accepts app routes starting with `/` (not `//`). Packaged builds ignore `ELECTRON_RENDERER_URL`; see Renderer content policy for remote media.                                     |
 | Renderer to managed server | Electron starts the Tenon server on `127.0.0.1` with a generated password. Server authorization checks credentials for protected routes. See `tenon/packages/desktop/src/main/index.ts` and `tenon/packages/tenon/src/server/routes/instance/httpapi/middleware/authorization.ts`.                                                                         |
 | Server to workspace files  | Second Brain handlers run in an instance location context. Project code and the vault migration resolve workspace targets through `LocationMutation` before reading or writing files. See `tenon/packages/tenon/src/server/routes/instance/httpapi/handlers/second-brain.ts`, `tenon/packages/tenon/src/knowledge/vault.ts`, and `tenon/packages/tenon/src/project/brain.ts`. |
 | Server to the Tenon vault  | Vault pages, timelines and logs live outside the workspace, under `TENON_VAULT_DIR` (default `<Documents>/Tenon`). Every vault path is a validated relative path resolved inside the workspace's vault folder, with its real path checked; see [Tenon vault](#tenon-vault) and `tenon/packages/tenon/src/knowledge/vault.ts`. |
@@ -156,8 +156,8 @@ must preserve both canonical workspace files and session/draft profile state.
 ## Renderer content policy
 
 Rendered Markdown drops every image and media source that is not `data:` or
-`blob:` before it reaches the DOM (`session-ui/src/components/markdown-media.ts`),
-so a note or model reply cannot beacon to a remote host.
+`blob:`, and every legacy `background` attribute, before it reaches the DOM
+(`session-ui/src/components/markdown-media.ts`), so a note or model reply cannot beacon to a remote host.
 
 The renderer's HTML is served with a partial Content-Security-Policy
 (`addDocumentPolicy` and `addRendererHeaders` in `desktop/src/main/windows.ts`):
@@ -173,11 +173,11 @@ the Markdown rule above.
 `file://` links (terminal output, Markdown) open with the default app only for
 documents. Executables (the default Windows `PATHEXT` and the user's own, which
 adds to it, plus shell launchers such as `.lnk`, `.hta`, `.msi`, `.scr`, `.cpl`,
-`.jar`, `.chm`, `.msix`, `.rdp`, `.scf`, `.inf`, `.library-ms`, `.search-ms`,
-`.xll` and `.diagcab`, and any file name with
+`.chm`, `.msix`, `.msixbundle`, `.appx`, `.appxbundle`, `.msu`, `.rdp`, `.scf`, `.inf`, `.library-ms`, `.search-ms`,
+`.searchconnector-ms`, `.desktopthemepackfile`, `.xll` and `.diagcab`, and any file name with
 a colon, which names an alternate data stream; macOS bundles and scripts such as
 `.app`, `.command`, `.terminal`, `.workflow`, `.fileloc`, `.webloc`,
-`.mobileconfig`, `.dmg` and `.vncloc`; any POSIX file with an execute bit) and anything that cannot be
+`.mobileconfig`, `.dmg`, `.vncloc` and `.py`; `.jar` on every platform (off Windows, `.py` and `.jar` only for files, so a project folder named `x.py` still opens); any POSIX file with an execute bit) and anything that cannot be
 inspected are revealed in the file manager instead
 (`desktop/src/main/local-file-policy.ts`). A file name ending in a dot or space
 is not handled: `stat` fails on it on Windows, so it is revealed.
@@ -369,10 +369,13 @@ the location query and has the same auth as the other harness routes.
   account's non-secret `orgId` in the query when it has one), under the same
   60 s cache. These are undocumented endpoints; only the 5-hour and weekly
   `used`, `cap` and `resetAt` values are kept from the responses.
-- **OpenCode Go key read.** For the OpenCode harness and the built-in agent,
-  the server reads only the `opencode-go` entry's `key` from `auth.json` in the
-  OpenCode CLI's data folder (`$XDG_DATA_HOME/opencode` or
-  `~/.local/share/opencode`) or the app's data folder, on each uncached call.
+- **OpenCode Go key read.** For the built-in agent, the server first takes the
+  key the agent chats with from its own credential store (an `opencode-go` key,
+  else the `opencode` key), so plan limits check the same key as chats. Without
+  one, and for the OpenCode harness, it reads only the `opencode-go` entry's
+  `key` from `auth.json` in the app's data folder or the OpenCode CLI's data
+  folder (`$XDG_DATA_HOME/opencode` or `~/.local/share/opencode`), on each
+  uncached call.
   Other providers' keys in the same file are not used. The key is handled like
   the Claude token: only in the `Authorization` header, never returned, logged,
   written or put in a URL.
@@ -451,10 +454,13 @@ CLI allows:
   `bash` to `ask` (requests reach Tenon's approvals over ACP), unless the
   user's global OpenCode config sets `permission` or the harness's configured
   `env` sets that variable.
-- Claude Code starts in the user's `defaultMode`. When a new session reports
-  `bypassPermissions`, the app switches it to `default` with
-  `session/set_mode` (`safeAcpMode` in `core/src/harness/acp.ts`), so its
-  tools ask too. Other modes (`acceptEdits`, `plan`, `auto`) are left as set.
+- Claude Code starts in the user's `defaultMode`, or in its own Auto mode
+  when none is set (claude-agent-acp 0.106 reports `currentModeId: "auto"`).
+  Auto, `acceptEdits`, `bypassPermissions` and any other self-approving mode
+  decide on the agent's side and never ask Tenon, so when a new or loaded
+  session reports one, the app switches it to `default` with `session/set_mode`
+  (`safeAcpMode` in `core/src/harness/acp.ts`). Its tools then ask Tenon, and
+  the thread's Ask, Auto-edit or Full auto answers. `plan` is left as set.
 
 Test and Save run the typed command. The local API already lets authenticated
 clients start processes through its PTY routes, so this adds no new kind of
@@ -547,6 +553,17 @@ Agents can start work in another harness through the delegation endpoint
   wouldn't ask for anyway. Its approvals reach the delegating Run's composer.
 - The built-in loop asks permission `delegate` before starting or stopping a
   task. Codex and ACP agents apply their own MCP tool policy to the call.
+- Codex asks before each MCP tool call (`mcpServer/elicitation/request`). Tenon answers it
+  with its own approval (action `mcp`, saved per server); an MCP form becomes questions in
+  the dock and a link request is declined. Before this, the unhandled request made Codex
+  report every MCP call as rejected.
+- The user's own MCP servers (Settings › MCP servers, from config documents
+  that already drop `mcp` in untrusted folders) are forwarded to Codex and ACP
+  agents too (`harness/forwarded-mcp.ts`). Environment values and headers are
+  secrets: Codex gets only their variable names in `-c` (`env_vars`,
+  `env_http_headers`) with the values in its environment, and ACP agents get
+  them over stdio. Switched-off servers, the reserved name `tenon` and names
+  that aren't bare TOML keys are left out.
 - A delegated agent may delegate once more (depth 2), and a Run may have at
   most four delegated tasks running, which bounds runaway fan-out and cost.
 - The delegated agent receives only the task text the caller wrote, framed as
@@ -927,9 +944,18 @@ is an assistant whose threads span workspaces.
   model provider, which is the same exposure the thread already had. The
   renderer triggers compaction at most once a day; the server clamps `days`
   to 1–365. Project threads are never read or deleted.
-- **Search.** Memory search builds a temporary FTS5 table on the profile
-  database connection and empties it after each query; nothing is indexed at
-  rest. Hits carry at most 600 characters of text.
+- **Search.** Memory search indexes Command Centre thread titles, message
+  text and the memory files in a temporary FTS5 table on the profile
+  database's connection. The table lives as long as that connection (the
+  server process) and each search updates it, re-reading only threads and
+  files that changed. It is never written to the profile database file, and
+  it is gone after a restart or a reconnect. It is not purely in memory,
+  though: the SQLite builds in Bun and Node keep the default temporary store
+  (`TEMP_STORE=1`, `temp_store` 0), so SQLite may spill the table's pages,
+  in plaintext, to an unnamed temporary file in the OS temp folder. On macOS
+  and Linux that file is deleted as soon as it is opened; on Windows it is
+  opened delete-on-close. Either way it disappears when the connection
+  closes. Hits carry at most 600 characters of text.
 - **Project setup.** `CommandSetup.run` writes only into a folder that does
   not exist or is empty (a non-empty folder is refused untouched), runs
   `git init` from PATH without a shell, and removes a folder only when its own
@@ -941,6 +967,28 @@ is an assistant whose threads span workspaces.
   widens an agent's deny. A user's `permission` config still wins, so allowing
   one of these there takes the prompt away. Harness-run threads keep their own
   policy. Browser and device tools are unchanged.
+- **Thread tools.** A Command Centre thread can see, read, message and stop
+  Project threads (`threads_overview`, `thread_read`, `thread_message`,
+  `thread_stop`), so a prompt injection in mail, a note or another thread's
+  text could steer other agents. The boundary is `threadFolders` and
+  `projectThread` in `agents/app-tools.ts`: only a root, unarchived thread whose
+  folder is a Project's thread folder in the caller's workspace (or the
+  workspace's own General folder) is reachable. Another Command Centre thread,
+  the caller's own thread, a subagent thread and any folder outside the workspace
+  are refused with a plain reason. No tool approves, allows, denies or answers a
+  permission request or a question; those stay with the user, and the catalog
+  test fails if a tool name contains `approve`, `permission`, `allow` or
+  `answer`. `thread_read` returns at most 12,000 characters and marks them as
+  another thread's data, never instructions. A steering message is capped at
+  4,000 characters and is delivered as a normal user message, so the target
+  thread's own permission policy still applies to anything it then does. Every
+  message and stop is appended to `<vault root>/.command-centre/actions.json`
+  (`CommandActionLog`, newest first, 200 entries, 500 characters of text each),
+  shown on the Command Centre page as "Done on your behalf" and readable with
+  `GET /command-centre/actions`. The log is in the vault, so it syncs with it and
+  can be edited by anyone with vault access; it is a record for the user, not a
+  control. A thread already set to Full auto still runs what the steered agent
+  decides without asking.
 - **Routines.** A routine is a vault page under `Routines/`; its body is sent
   as a prompt to a new Command Centre thread on its schedule. Anyone who can
   write the vault (including a sync account, or a process with file access) can
@@ -982,7 +1030,10 @@ Mail lives in the desktop main process (`desktop/src/main/mail/`; see
   `gmail.compose` scope would technically allow sending; the app never uses
   it for that, and Graph's `Mail.Send` is not requested.
 - **Scopes.** Gmail asks for `gmail.readonly` and `gmail.compose` through the
-  app's Google OAuth client; Outlook asks for `Mail.Read`, `Mail.ReadWrite`
+  app's Google OAuth client, together with the Calendar and Tasks scopes
+  (`calendar.readonly`, `calendar.events`, `tasks`) so one consent connects
+  both; the Calendar account is kept only for the scopes the token response
+  says were granted, and the shared refresh token is encrypted in each store; Outlook asks for `Mail.Read`, `Mail.ReadWrite`
   and `offline_access` through a public Microsoft identity client
   (`MAIN_VITE_MICROSOFT_CLIENT_ID`, no secret) with PKCE. Both sign-ins use a
   one-shot loopback redirect that checks `state` and refuses other requests.
@@ -999,8 +1050,11 @@ Mail lives in the desktop main process (`desktop/src/main/mail/`; see
   port and needs `Authorization: Bearer <32 random bytes>` (compared in
   constant time); requests with an `Origin` header are refused. Only the
   server process receives the URL and token (`TENON_MAIL_URL`,
-  `TENON_MAIL_TOKEN`); `ChildEnv.from` removes them, and the browser bridge's
-  pair, from every child it builds. Routes are `/search`, `/thread` and `/draft`; bodies
+  `TENON_MAIL_TOKEN`): the main process adds them, and the browser bridge's
+  pair, to the server's environment only (`spawnLocalServer`, again on each
+  supervised restart), never to its own `process.env`, so editors, terminals
+  and other children it starts don't inherit them. The WSL server doesn't get
+  them. `ChildEnv.from` removes both pairs from every child the server builds. Routes are `/search`, `/thread` and `/draft`; bodies
   are capped at 256 KiB. Logs record the route and error message, never mail
   content.
 - **Mail is data.** Message text reaches the model only as tool results in
@@ -1188,8 +1242,11 @@ message and shows in a toast. It doesn't run outside git.
 - **`tenon-file://`.** The renderer names a folder and a relative path; main
   refuses UNC folders, paths that leave the folder (checked again after
   resolving symlinks on both sides, case-insensitively on Windows and macOS)
-  and non-files, then issues an opaque URL for the resolved file.
-  The protocol serves only issued URLs (the most recent 500), read-only, and
+  non-files, and symlinks whose target has a different extension (compared
+  case-insensitively; the renderer picks the viewer from the requested name,
+  the served content type follows the target), then issues an opaque URL for
+  the resolved file. The protocol serves only issued URLs (the most recent
+  500), read-only, with `X-Content-Type-Options: nosniff`, and
   sub-frames may load only those URLs and Chromium's PDF viewer. `plugins: true`
   is set on app windows for that viewer. Word documents are converted to HTML
   and passed through the markdown sanitizer before they reach the page.
@@ -1296,6 +1353,26 @@ location and canonical Git worktree.
 - A cloned repository is not trusted by being opened. See
   [Folder trust](#folder-trust).
 
+### Permission modes, model profiles and imported themes
+
+- **Modes.** Auto-edit answers only `edit` requests; Full auto answers every
+  request in the thread's folder. A request with the `external_directory` kind
+  always reaches the user in both modes, so neither mode lets an agent read or
+  write outside the folder unasked. The choice is stored per thread or folder in
+  the renderer, as auto-accept was.
+- **The server asks, the mode answers.** The built-in agents' default rules ask
+  for `bash`, `edit`, `webfetch`, `websearch`, `mcp` and `acp_tool`, so these
+  reach the app and the thread's mode decides. Before, a wildcard allow approved
+  them on the server and Ask showed nothing. A user config rule that allows an
+  action still wins, and a client with no renderer (the bare server) must answer
+  these requests itself.
+- **Model profiles.** Profile rules are the user's own text, added to prompts as
+  a hidden attachment. They are trusted like a typed message; an imported
+  `profile.md` is read only as text.
+- **VS Code themes.** An imported theme file is parsed as JSON; only colour
+  values that match `#rgb`, `#rrggbb` or `#rrggbbaa` are used, and nothing in it
+  runs. Imported themes stay in the window's local storage.
+
 ### Folder trust
 
 The user's approved folders are a JSON array in `trusted-folders.json` in the
@@ -1382,7 +1459,12 @@ fix lands.
   (`\\host\share`, `\\?\`, `//host`) on every platform, so a stat cannot make
   Windows authenticate to a remote host. Without an app, `open-path` applies the local-file policy
   (`localFileAction`): an executable is revealed in the file manager, never
-  opened. With an app, the path must be a directory. Opening other files from a
+  opened. With an app, the path must be a directory. "Open in PowerShell" on
+  Windows runs the System32 `cmd.exe /d /c start "" <resolved powershell.exe> -NoExit`
+  with that directory as the working directory, so PowerShell gets its own console
+  and the path is never an argument: PowerShell reads a positional argument as
+  `-Command` and would run a folder name such as `x;iex(...)` as code, and cmd
+  would re-parse `&` (`openWithLaunch`). Opening other files from a
   compromised main-frame renderer remains possible until the workspace-ID
   contract lands.
 - `store-*` handlers accept only the renderer's own store files, `default.dat`

@@ -36,6 +36,7 @@ type PluralKey =
   | "session.revertDock.summary"
   | "secondBrain.calendar.moreOnDate"
   | "secondBrain.sessionTab.messages"
+  | "secondBrain.modelProfiles.ruleCount"
   | "secondBrain.sessionTab.subagentsMissing"
   | "secondBrain.sidebar.cardRunning"
   | "secondBrain.turnSteps.failed"
@@ -43,6 +44,15 @@ type PluralKey =
   | "secondBrain.sidebar.scanResultCount"
   | "secondBrain.turnSteps.laneSteps"
   | "secondBrain.vault.moved"
+  | "secondBrain.workflows.roleCount"
+  | "secondBrain.permission.bash"
+  | "secondBrain.permission.edit"
+  | "secondBrain.permission.read"
+  | "secondBrain.permission.webfetch"
+  | "secondBrain.permission.mcp"
+  | "secondBrain.permission.external"
+  | "secondBrain.permission.other"
+  | "secondBrain.permission.details"
   | `secondBrain.turnSteps.${StepKind}`
 type Source = { dict: Record<string, string> }
 

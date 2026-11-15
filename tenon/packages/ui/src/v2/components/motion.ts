@@ -20,8 +20,20 @@ export function prefersReducedMotion() {
 /** `--v2-duration-<name>` in milliseconds, read from `element` (default: the root element). */
 export function motionDuration(name: MotionDuration, element?: Element) {
   if (typeof document === "undefined") return FALLBACK[name]
-  const value = parseFloat(
-    getComputedStyle(element ?? document.documentElement).getPropertyValue(`--v2-duration-${name}`),
+  return (
+    cssDuration(getComputedStyle(element ?? document.documentElement).getPropertyValue(`--v2-duration-${name}`)) ??
+    FALLBACK[name]
   )
-  return Number.isFinite(value) ? value : FALLBACK[name]
+}
+
+/**
+ * A CSS time in milliseconds. The production build minifies `200ms` to `.2s`, so seconds must be read as such:
+ * taking `.2s` as 0.2 ms disposed every exit after one frame in the packaged app.
+ */
+export function cssDuration(value: string) {
+  const match = value.trim().match(/^(-?[\d.]+)(ms|s)?$/i)
+  if (!match) return undefined
+  const amount = Number(match[1])
+  if (!Number.isFinite(amount)) return undefined
+  return match[2]?.toLowerCase() === "s" ? amount * 1000 : amount
 }

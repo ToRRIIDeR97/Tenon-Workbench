@@ -6,6 +6,9 @@ import { SegmentedControlItemV2, SegmentedControlV2 } from "@tenon/ui/v2/segment
 import { SelectV2 } from "@tenon/ui/v2/select-v2"
 import { Switch } from "@tenon/ui/v2/switch-v2"
 import { TextInputV2 } from "@tenon/ui/v2/text-input-v2"
+import { useTheme } from "@tenon/ui/theme/context"
+import { importedThemeId, parseJsonc, vscodeToDesktopTheme } from "@tenon/ui/theme/vscode"
+import { showToast } from "@/utils/toast"
 import { formatKeybind } from "@/context/command"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
@@ -213,11 +216,71 @@ const AppearanceSection: Component<{ controller: AppearanceSettingsController }>
           />
         </SettingsRowV2>
 
+        <VscodeThemeImport />
+
         <FontSetting kind="ui" fonts={props.controller.fonts} />
         <FontSetting kind="code" fonts={props.controller.fonts} />
         <FontSetting kind="terminal" fonts={props.controller.fonts} />
       </SettingsListV2>
     </div>
+  )
+}
+
+/**
+ * Import a VS Code colour theme (a .json theme file): its editor, button and terminal colours become a Tenon theme
+ * that appears in the theme list. An imported theme can be removed again.
+ */
+const VscodeThemeImport: Component = () => {
+  const language = useLanguage()
+  const theme = useTheme()
+  let input: HTMLInputElement | undefined
+  const current = () => (theme.customThemeIds().includes(theme.themeId()) ? theme.themeId() : undefined)
+  const pick = (file: File | undefined) => {
+    if (!file) return
+    void file
+      .text()
+      .then((text) => {
+        const converted = vscodeToDesktopTheme(parseJsonc(text), importedThemeId(file.name))
+        if (!converted) throw new Error(language.t("secondBrain.vscodeTheme.invalid"))
+        theme.importTheme(converted)
+        showToast({ title: language.t("secondBrain.vscodeTheme.imported"), description: converted.name })
+      })
+      .catch((error: unknown) =>
+        showToast({
+          variant: "error",
+          title: language.t("secondBrain.vscodeTheme.failed"),
+          description: error instanceof Error ? error.message : String(error),
+        }),
+      )
+  }
+  return (
+    <SettingsRowV2
+      title={language.t("secondBrain.vscodeTheme.title")}
+      description={language.t("secondBrain.vscodeTheme.description")}
+    >
+      <div class="flex items-center gap-1">
+        <Show when={current()}>
+          {(id) => (
+            <ButtonV2 size="normal" variant="ghost" onClick={() => theme.removeTheme(id())}>
+              {language.t("secondBrain.vscodeTheme.remove")}
+            </ButtonV2>
+          )}
+        </Show>
+        <ButtonV2 size="normal" variant="neutral" onClick={() => input?.click()}>
+          {language.t("secondBrain.vscodeTheme.import")}
+        </ButtonV2>
+        <input
+          ref={input}
+          type="file"
+          accept=".json,.jsonc,application/json"
+          class="hidden"
+          onChange={(event) => {
+            pick(event.currentTarget.files?.[0])
+            event.currentTarget.value = ""
+          }}
+        />
+      </div>
+    </SettingsRowV2>
   )
 }
 

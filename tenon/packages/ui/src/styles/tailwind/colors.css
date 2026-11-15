@@ -284,6 +284,7 @@
   --color-v2-state-bg-warning: var(--v2-state-bg-warning);
   --color-v2-state-fg-warning: var(--v2-state-fg-warning);
   --color-v2-state-border-warning: var(--v2-state-border-warning);
+  --color-v2-state-fill-warning: var(--v2-state-fill-warning);
   --color-v2-state-bg-danger: var(--v2-state-bg-danger);
   --color-v2-state-fg-danger: var(--v2-state-fg-danger);
   --color-v2-state-border-danger: var(--v2-state-border-danger);

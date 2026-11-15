@@ -5,6 +5,7 @@ import { Icon } from "@tenon/ui/v2/icon"
 import { useDialog } from "@tenon/ui/context/dialog"
 import { useLanguage } from "@/context/language"
 import { harnessModelSlot } from "./harness-model-slot"
+import { HarnessIcon } from "@/components/harness-icon"
 
 export type PromptInputHarnessController = {
   instances: () => ReadonlyArray<Harness.Instance> | undefined
@@ -137,7 +138,7 @@ export function PromptInputHarnessControls(props: { controller: PromptInputHarne
               options={item().models.map((option) => ({ id: option.id, label: option.name }))}
               current={props.controller.model.current()?.id ?? item().models[0]?.id ?? ""}
               control="harness-model"
-              currentIcon={<Icon name="monitor" />}
+              currentIcon={<HarnessIcon instance={item()} />}
               class={SELECT_CLASS}
               capitalize={false}
               disabled={props.controller.disabled?.()}

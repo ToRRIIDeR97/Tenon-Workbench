@@ -179,7 +179,8 @@ async function setup(
       )
       localStorage.setItem(
         "tenon.global.dat:layout",
-        JSON.stringify({ review: { diffStyle: "split", panelOpened: true } }),
+        // A side panel wide enough to keep the file tree beside the viewer instead of collapsing it.
+        JSON.stringify({ review: { diffStyle: "split", panelOpened: true }, sidePanel: { width: 720 } }),
       )
       localStorage.setItem(
         "tenon.global.dat:review-panel-v2",

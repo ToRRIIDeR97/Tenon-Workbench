@@ -75,7 +75,8 @@ function legacyMessageSource(items: { info: Message; parts: Part[] }[]): Session
         return {
           id: item.info.id,
           type: "user" as const,
-          text: item.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n"),
+          // Synthetic parts (a skill's instructions, a quote or comment note) are for the model, not the transcript.
+          text: item.parts.flatMap((part) => (part.type === "text" && !part.synthetic ? [part.text] : [])).join("\n"),
           time: item.info.time,
         }
       }

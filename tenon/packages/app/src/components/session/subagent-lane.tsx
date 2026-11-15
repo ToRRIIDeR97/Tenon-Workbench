@@ -1,4 +1,4 @@
-import { Show, createMemo } from "solid-js"
+import { Show, createEffect, createMemo, createSignal, on } from "solid-js"
 import type { Part, Session, ToolPart } from "@opencode-ai/sdk/v2"
 import { Icon as StepIcon } from "@tenon/ui/icon"
 import { stepIcon, stepOf, stepVerbKey, subagentName, toolStep } from "@tenon/session-ui/step-kind"
@@ -23,6 +23,17 @@ export interface Lane {
 
 export const isSubagentPart = (part: Part): part is ToolPart => part.type === "tool" && stepOf(part).kind === "subagent"
 export const subagentRunning = (part: ToolPart) => part.state.status === "pending" || part.state.status === "running"
+// A running subagent with no new step for this long gets a "no activity" note: a harness that loses a subagent
+// (OpenCode can) never reports it finished, so the lane would otherwise look busy forever.
+export const QUIET_MS = 5 * 60_000
+
+/** How long a running lane has gone without a new step, once that passes QUIET_MS; else undefined. */
+export function laneQuiet(running: boolean, now: number, lastChange: number) {
+  if (!running) return undefined
+  const quiet = now - lastChange
+  return quiet >= QUIET_MS ? quiet : undefined
+}
+
 const stepGoing = (step: LaneStep) => step.status === "pending" || step.status === "in_progress"
 
 /** The child session a built-in `task` subagent runs in. */
@@ -116,6 +127,14 @@ export function SubagentLane(props: {
   const time = () => props.formatDuration(laneElapsed(props.lane.part, props.now))
   const status = () => (props.lane.failed ? "error" : props.lane.running ? "running" : "done")
   const error = () => (props.lane.part.state.status === "error" ? props.lane.part.state.error : undefined)
+  const [lastChange, setLastChange] = createSignal(props.now)
+  createEffect(
+    on(
+      () => `${props.lane.steps.length}:${props.lane.current?.status}:${props.lane.current?.title}`,
+      () => setLastChange(props.now),
+    ),
+  )
+  const quiet = () => props.formatDuration(laneQuiet(props.lane.running, props.now, lastChange()))
 
   const content = () => (
     <>
@@ -202,6 +221,13 @@ export function SubagentLane(props: {
                 <span class="shrink-0">{language.t(stepVerbKey(current.kind, stepGoing(step)))}</span>
                 <Show when={current.target}>
                   {(target) => <span class="min-w-0 truncate font-mono">{target()}</span>}
+                </Show>
+                <Show when={quiet()}>
+                  {(value) => (
+                    <span data-slot="subagent-lane-quiet" class="ml-auto shrink-0 text-v2-state-fg-warning">
+                      {language.t("secondBrain.agents.quiet", { duration: value() })}
+                    </span>
+                  )}
                 </Show>
               </div>
             )

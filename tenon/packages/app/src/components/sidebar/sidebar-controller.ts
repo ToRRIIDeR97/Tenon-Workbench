@@ -1,3 +1,4 @@
+import { needsYou } from "@/pages/activity-runs"
 import type { Session } from "@opencode-ai/sdk/v2/client"
 import { useLocation, useNavigate } from "@solidjs/router"
 import { type QueryClient, useQueries, useQuery, useQueryClient } from "@tanstack/solid-query"
@@ -333,18 +334,13 @@ export function createSidebarController() {
   )
   // Reconciled so a refetch that returns the same threads (e.g. after a reconnect) keeps
   // their identity and does not re-render every row.
+  // Most session events leave this list as the same array; the memo stops them before the group and sort.
+  const indexSessions = createMemo(() => homeSessions().sessions(sessionIndex.data, sessionEvents.data))
   const [indexStore, setIndexStore] = createStore({ sessions: [] as Session[] })
   createComputed(() =>
     setIndexStore(
       "sessions",
-      reconcile(
-        retainHomeSessions(
-          homeSessions().sessions(sessionIndex.data, sessionEvents.data),
-          HOME_SESSION_LIMIT,
-          Date.now(),
-        ),
-        { key: "id" },
-      ),
+      reconcile(retainHomeSessions(indexSessions(), HOME_SESSION_LIMIT, Date.now()), { key: "id" }),
     ),
   )
 
@@ -381,7 +377,7 @@ export function createSidebarController() {
   const grouping = () => parseGrouping(state.grouping)
   const stateOf = (session: Pick<Session, "id">) => {
     const data = serverSync().session.data
-    return threadState(data.session_status[session.id], data.permission[session.id]?.length ?? 0)
+    return threadState(data.session_status[session.id], needsYou(data, session.id))
   }
   // Only expanded Projects load child threads; elsewhere a root has no child nodes. The session index's
   // parent links still carry a child's state up to its root, with no request per folder.
@@ -413,6 +409,13 @@ export function createSidebarController() {
     return mode === "attention"
       ? attentionCards(roots, stateOf, linked)
       : recentCards(roots, stateOf, Date.now(), linked)
+  })
+  /** Root threads waiting on the user anywhere in the workspace, whichever grouping is showing. */
+  const waitingCount = createMemo(() => {
+    const value = groups()
+    return [...value.projects.flatMap((group) => group.threads), ...value.workspace].filter(
+      (node) => nodeState(node, stateOf, linked) === "approval",
+    ).length
   })
   /** Each Project's root threads by Project ID, so a row looks its threads up instead of scanning every group. */
   const projectThreads = createMemo(
@@ -977,9 +980,12 @@ export function createSidebarController() {
     card: (id: string) => cardByID().get(id),
     grouping,
     setGrouping: (value: ThreadGrouping) => setState("grouping", value),
+    needsYou: waitingCount,
     stateOf,
     subtreeState: (node: ThreadNode<Session>) => nodeState(node, stateOf, linked),
     projectThreads,
+    /** Child thread to parent thread, from the session index: covers subagents the synced store has not loaded. */
+    parentLinks: childLinks,
     loading: () => projectsQuery.isLoading,
     failed: () => projectsQuery.isError,
     retryProjects: () => void projectsQuery.refetch(),

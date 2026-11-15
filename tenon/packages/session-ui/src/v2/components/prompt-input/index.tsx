@@ -28,7 +28,9 @@ import type {
 import type { PromptInputV2Interaction, PromptInputV2SelectControl } from "./interaction"
 import { promptInputV2KeyIntent, type PromptInputV2InteractionState } from "./machine"
 import { placePromptPopover, type PromptPopoverPlacement } from "./popover-position"
+import { watchComposerLinks } from "./link-highlight"
 import "./attachments.css"
+import "./link-highlight.css"
 import "./responsive-controls.css"
 
 export type {
@@ -243,6 +245,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
               editor = element
               props.controller.setEditor(element)
               renderPromptInputV2Editor(element, props.controller.parts(), threadLabels())
+              onCleanup(watchComposerLinks(element))
             }}
             data-component="prompt-input"
             role="textbox"
@@ -254,7 +257,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
             spellcheck={state.mode === "normal"}
             // @ts-expect-error
             autocomplete="off"
-            class="relative z-10 block min-h-[60px] max-h-[180px] w-full overflow-y-auto whitespace-pre-wrap bg-transparent px-5 pt-4 pb-2 text-[14px] font-[450] leading-[22px] text-v2-text-text-base focus:outline-none [&_[data-mention=file]]:text-syntax-property [&_[data-mention=agent]]:text-syntax-type [&_[data-mention=skill]]:text-syntax-type [&_[data-mention=reference]]:text-syntax-keyword"
+            class="relative z-10 block min-h-[60px] max-h-[180px] w-full overflow-y-auto whitespace-pre-wrap bg-transparent px-5 pt-4 pb-2 text-[15px] font-[450] leading-6 text-v2-text-text-base focus:outline-none [&_[data-mention=file]]:text-syntax-property [&_[data-mention=agent]]:text-syntax-type [&_[data-mention=skill]]:text-syntax-type [&_[data-mention=reference]]:text-syntax-keyword"
             classList={{ "font-mono!": state.mode === "shell", "opacity-50": props.disabled }}
             onInput={(event) => syncEditor(event.currentTarget)}
             // A thread reference switches between its summary and the full thread on click.
@@ -281,7 +284,8 @@ export function PromptInputV2(props: PromptInputV2Props) {
           />
           <Show when={!props.controller.value()}>
             <div
-              class="pointer-events-none absolute inset-x-0 top-0 px-5 pt-4 text-[14px] font-[450] leading-[22px] text-v2-text-text-faint"
+              data-slot="prompt-placeholder"
+              class="pointer-events-none absolute inset-x-0 top-0 px-5 pt-4 text-[15px] font-[450] leading-6 text-v2-text-text-faint"
               classList={{ "font-mono!": state.mode === "shell" }}
             >
               {view.placeholder?.() ??
@@ -546,10 +550,25 @@ export function PromptInputV2Attachments(props: {
               <TooltipV2 value={quote.text} placement="top" contentClass="max-w-[360px] break-words" class="shrink-0">
                 <div
                   data-slot="prompt-quote"
-                  class="flex h-8 max-w-[360px] items-center gap-2 rounded-full bg-v2-background-bg-accent-container pl-3 pr-1 text-[13px] text-v2-text-text-on-accent-container animate-enter"
+                  data-reply={quote.comment ? "true" : undefined}
+                  class="flex max-w-[360px] items-center gap-2 pl-3 pr-1 text-[13px] animate-enter"
+                  classList={{
+                    "h-8 rounded-full bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container":
+                      !quote.comment,
+                    // A passage with the user's reply to it: two lines, the passage muted above the reply.
+                    "min-h-11 rounded-[14px] bg-v2-background-bg-layer-02 py-1.5 text-v2-text-text-base":
+                      !!quote.comment,
+                  }}
                 >
-                  <IconV2 name="reply" class="shrink-0" />
-                  <span class="min-w-0 truncate">{`“${quote.text}”`}</span>
+                  <IconV2 name="reply" class="shrink-0" classList={{ "text-v2-icon-icon-muted": !!quote.comment }} />
+                  <Show when={quote.comment} fallback={<span class="min-w-0 truncate">{`“${quote.text}”`}</span>}>
+                    {(reply) => (
+                      <span class="flex min-w-0 flex-col">
+                        <span class="truncate text-[11.5px] leading-4 text-v2-text-text-muted">{`“${quote.text}”`}</span>
+                        <span class="truncate leading-5">{reply()}</span>
+                      </span>
+                    )}
+                  </Show>
                   <button
                     type="button"
                     onClick={() => props.onQuoteRemove?.(quote)}
@@ -577,7 +596,7 @@ export function PromptInputV2Attachments(props: {
                 <button
                   type="button"
                   onClick={() => props.onCommentRemove?.(comment)}
-                  class="absolute -top-1 -end-1 size-4 rounded-full bg-v2-icon-icon-muted outline-solid outline-1 outline-v2-icon-icon-contrast flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity motion-reduce:transition-none"
+                  class="absolute -top-1 -end-1 size-5 rounded-full bg-v2-icon-icon-muted outline-solid outline-1 outline-v2-icon-icon-contrast flex items-center justify-center opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:outline-2 focus-visible:outline-v2-border-border-focus transition-opacity motion-reduce:transition-none"
                   aria-label={props.removeLabel}
                 >
                   <IconV2 name="outline-xmark" class="text-v2-icon-icon-contrast" />
@@ -597,19 +616,21 @@ export function PromptInputV2Attachments(props: {
                       </AttachmentCardV2>
                     }
                   >
-                    <img
-                      src={attachment.blob.url}
-                      alt={attachment.filename}
-                      class="w-[58px] h-[46px] rounded-[12px] object-cover"
+                    <button
+                      type="button"
+                      class="block rounded-[12px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus"
+                      aria-label={attachment.filename}
                       onClick={() => props.onAttachmentClick?.(attachment)}
-                    />
+                    >
+                      <img src={attachment.blob.url} alt="" class="w-[58px] h-[46px] rounded-[12px] object-cover" />
+                    </button>
                     <div class="absolute inset-0 rounded-[12px] shadow-[inset_0_0_0_1px_var(--v2-border-border-base)] pointer-events-none" />
                   </Show>
                 </TooltipV2>
                 <button
                   type="button"
                   onClick={() => props.onAttachmentRemove(attachment)}
-                  class="absolute -top-1 -end-1 size-4 rounded-full bg-v2-icon-icon-muted outline-solid outline-1 outline-v2-icon-icon-contrast flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity motion-reduce:transition-none"
+                  class="absolute -top-1 -end-1 size-5 rounded-full bg-v2-icon-icon-muted outline-solid outline-1 outline-v2-icon-icon-contrast flex items-center justify-center opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:outline-2 focus-visible:outline-v2-border-border-focus transition-opacity motion-reduce:transition-none"
                   aria-label={props.removeLabel}
                 >
                   <IconV2 name="outline-xmark" class="text-v2-icon-icon-contrast" />
@@ -660,6 +681,7 @@ export function PromptInputV2AddMenu(props: {
           as={IconButtonV2}
           data-action="prompt-attach"
           type="button"
+          class="!size-8"
           icon={<IconV2 name="plus" />}
           variant="ghost-muted"
           size="large"
@@ -915,7 +937,7 @@ export function PromptInputV2SubmitButton(props: {
         tabIndex={props.mode === "normal" ? undefined : -1}
         icon={props.stopping ? "stop" : props.mode === "shell" ? "arrow-undo-down" : "arrow-up"}
         variant="primary"
-        class="size-9 rounded-full p-[9px] enabled:!bg-v2-text-text-base enabled:[&_[data-slot=icon-svg]]:!text-v2-background-bg-base disabled:!bg-transparent disabled:shadow-[inset_0_0_0_1px_var(--v2-border-border-strong)] disabled:[&_[data-slot=icon-svg]]:!text-v2-icon-icon-muted transition-[border-radius,opacity] duration-short ease-standard enabled:hover:opacity-90 active:rounded-[12px] motion-reduce:transition-none"
+        class="size-8 rounded-full p-[7px] enabled:!bg-v2-text-text-base enabled:[&_[data-slot=icon-svg]]:!text-v2-background-bg-base disabled:!bg-transparent disabled:shadow-[inset_0_0_0_1px_var(--v2-border-border-strong)] disabled:[&_[data-slot=icon-svg]]:!text-v2-icon-icon-muted transition-[border-radius,opacity] duration-short ease-standard enabled:hover:opacity-90 active:rounded-[12px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
         aria-label={props.stopping ? props.stopLabel : props.sendLabel}
         onClick={(event) => {
           event.preventDefault()

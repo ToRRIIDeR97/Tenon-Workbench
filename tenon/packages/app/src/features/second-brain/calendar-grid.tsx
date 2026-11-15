@@ -229,7 +229,7 @@ export function CalendarGrid(props: {
                 <For each={blocks(day)}>
                   {(block) => (
                     <div class="absolute" style={block.style}>
-                      {/* A short block has room for one line: the title, with the time in the tooltip and label. */}
+                      {/* A short block has room for one line; the full title and time are in the tooltip and label. */}
                       <TooltipV2
                         class="size-full"
                         value={
@@ -257,10 +257,17 @@ export function CalendarGrid(props: {
                           }}
                           onClick={() => props.onOpenEvent(block.event)}
                         >
-                          <span class="min-w-0 truncate [font-weight:600]">{block.event.title}</span>
-                          <Show when={!block.short}>
-                            <span class="truncate opacity-85">{`${block.event.start} – ${block.event.end}`}</span>
-                          </Show>
+                          {/* A short block keeps one line: the title, then the time beside it while there is room. */}
+                          <span
+                            class="min-w-0 truncate [font-weight:600]"
+                            classList={{ "shrink-0 max-w-full": block.short }}
+                          >
+                            {block.event.title}
+                          </span>
+                          <span
+                            class="truncate opacity-85"
+                            classList={{ "min-w-0 pl-2 tabular-nums": block.short }}
+                          >{`${block.event.start} – ${block.event.end}`}</span>
                         </button>
                       </TooltipV2>
                     </div>

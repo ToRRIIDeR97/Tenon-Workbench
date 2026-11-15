@@ -16,6 +16,7 @@ const STORAGE_KEYS = {
   COLOR_SCHEME: "tenon-color-scheme",
   THEME_CSS_LIGHT: "tenon-theme-css-light",
   THEME_CSS_DARK: "tenon-theme-css-dark",
+  CUSTOM_THEMES: "tenon-custom-themes",
 } as const
 
 const THEME_STYLE_ID = "oc-theme"
@@ -111,6 +112,20 @@ function drop(key: string) {
   } catch {}
 }
 
+/** Themes imported from VS Code, kept in this window's storage beside the theme choice. */
+function readCustomThemes(): Record<string, DesktopTheme> {
+  try {
+    const value = JSON.parse(read(STORAGE_KEYS.CUSTOM_THEMES) ?? "[]") as DesktopTheme[]
+    return Object.fromEntries(
+      (Array.isArray(value) ? value : [])
+        .filter((theme) => theme?.id && theme.light && theme.dark)
+        .map((theme) => [theme.id, theme]),
+    )
+  } catch {
+    return {}
+  }
+}
+
 function clear() {
   drop(STORAGE_KEYS.THEME_CSS_LIGHT)
   drop(STORAGE_KEYS.THEME_CSS_DARK)
@@ -183,6 +198,7 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
     const [store, setStore] = createStore({
       themes: {
         "oc-2": oc2Theme,
+        ...readCustomThemes(),
       } as Record<string, DesktopTheme>,
       themeId,
       colorScheme,
@@ -324,6 +340,22 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
       setTheme,
       setColorScheme,
       registerTheme: (theme: DesktopTheme) => setStore("themes", theme.id, theme),
+      /** Adds an imported theme, keeps it across restarts, and switches to it. */
+      importTheme: (theme: DesktopTheme) => {
+        setStore("themes", theme.id, theme)
+        write(STORAGE_KEYS.CUSTOM_THEMES, JSON.stringify(Object.values({ ...readCustomThemes(), [theme.id]: theme })))
+        setTheme(theme.id)
+      },
+      /** Imported themes, which can be removed; built-in ones can't. */
+      customThemeIds: () => Object.keys(store.themes).filter((id) => id in readCustomThemes()),
+      removeTheme: (id: string) => {
+        const custom = readCustomThemes()
+        if (!(id in custom)) return
+        delete custom[id]
+        write(STORAGE_KEYS.CUSTOM_THEMES, JSON.stringify(Object.values(custom)))
+        if (store.themeId === id) setTheme("oc-2")
+        setStore("themes", id, undefined!)
+      },
       previewTheme: (id: string) => {
         const next = normalize(id)
         if (!next) return

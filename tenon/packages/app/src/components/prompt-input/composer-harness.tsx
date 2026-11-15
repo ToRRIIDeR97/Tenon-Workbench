@@ -6,6 +6,7 @@ import { FolderModelPill } from "@/components/prompt-input/folder-model-pill"
 import type { PromptInputHarnessController } from "@/components/prompt-input/harness-controls"
 import { MODEL_RETRIES, MODEL_RETRY_MS, defaultModel } from "@/components/prompt-input/harness-controller"
 import { PromptModelPill } from "@/components/prompt-input/model-pill"
+import { rememberingHarness } from "@/components/prompt-input/harness-choice"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
 import type { PromptModel } from "@/context/prompt"
@@ -129,6 +130,9 @@ export function createComposerHarness(input: {
 /** The model pill for a `createComposerHarness` composer, for its `controls` slot. */
 export function ComposerModelPill(props: { harness: ComposerHarness }) {
   const language = useLanguage()
+  const settings = useSettings()
+  // A pick here is the next new thread's starting harness and model, as in a thread's composer.
+  const controller = rememberingHarness(props.harness.controller, settings.harnesses.setLastUsed)
   return (
     // The harness query suspends while it loads; this boundary keeps the rest of the page on screen.
     <Suspense
@@ -141,12 +145,12 @@ export function ComposerModelPill(props: { harness: ComposerHarness }) {
       <Show
         when={props.harness.directory()}
         keyed
-        fallback={<PromptModelPill harness={props.harness.controller} builtIn={props.harness.builtIn()} />}
+        fallback={<PromptModelPill harness={controller} builtIn={props.harness.builtIn()} />}
       >
         {(folder) => (
           <FolderModelPill
             directory={folder}
-            harness={props.harness.controller}
+            harness={controller}
             builtIn={props.harness.builtIn()}
             onModel={props.harness.setBuiltInModel}
           />

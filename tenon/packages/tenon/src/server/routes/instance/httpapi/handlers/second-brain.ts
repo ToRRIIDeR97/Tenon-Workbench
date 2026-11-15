@@ -1,3 +1,4 @@
+import { CommandActionLog } from "@/agents/command-action-log"
 import { CommandMemory } from "@/agents/command-memory"
 import { CommandThreads } from "@/agents/command-threads"
 import { Routines } from "@/agents/routines"
@@ -288,6 +289,11 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
         ),
       )
       .handle("commandFolders", () => Effect.sync(() => ({ folders: CommandMemory.folders() })))
+      .handle("listCommandActions", (ctx) =>
+        (ctx.query.since === undefined ? CommandActionLog.read : CommandActionLog.readSince(ctx.query.since)).pipe(
+          failure("listCommandActions"),
+        ),
+      )
       .handle("searchCommandMemory", (ctx) =>
         commandServices(CommandMemory.search(ctx.query.search ?? "")).pipe(failure("searchCommandMemory")),
       )

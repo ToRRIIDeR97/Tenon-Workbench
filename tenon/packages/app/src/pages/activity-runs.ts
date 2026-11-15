@@ -13,6 +13,20 @@ export function agentRunStatus(status: SessionStatus | undefined, approvals: num
   return undefined
 }
 
+/**
+ * How many things a session is waiting on the user for: pending approvals plus pending questions. A question
+ * stops the agent as surely as an approval does, so both count as "needs you".
+ */
+export function needsYou(
+  data: {
+    permission: Record<string, ReadonlyArray<unknown> | undefined>
+    question: Record<string, ReadonlyArray<unknown> | undefined>
+  },
+  sessionID: string,
+) {
+  return (data.permission[sessionID]?.length ?? 0) + (data.question[sessionID]?.length ?? 0)
+}
+
 /** Active runs first, keeping the incoming recency order inside each group. */
 export function agentRuns<T>(records: T[], status: (record: T) => AgentRunStatus | undefined) {
   const runs = records.map((record) => ({ record, status: status(record) }))

@@ -112,6 +112,12 @@ export const Verification = Schema.Struct({
   agentName: Schema.String.pipe(optional),
   version: Schema.String.pipe(optional),
   models: Schema.Array(Model),
+  /** What the agent reported in its handshake: MCP over HTTP (delegation, app tools), images, resuming. */
+  capabilities: Schema.Struct({
+    mcpHttp: Schema.Boolean,
+    image: Schema.Boolean,
+    loadSession: Schema.Boolean,
+  }).pipe(optional),
   reply: Schema.String,
   ok: Schema.Boolean,
 }).annotate({ identifier: "Harness.Verification" })

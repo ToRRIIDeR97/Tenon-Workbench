@@ -210,20 +210,31 @@ test("Codex exposes one effort selector and an independent service tier", async 
     }),
   )
   await page.goto(`/${base64Encode(directory)}/session`)
-  await page.getByRole("button", { name: "Harness", exact: true }).click()
+  // The model pill holds the harness list: its Harness row opens it.
+  const pill = page.locator('[data-action="prompt-model-pill"]')
+  await expect(pill).toBeEnabled()
+  await pill.click()
+  await page.locator('[data-component="prompt-model-pill-panel"] [data-step="harness"]').click()
   await page.getByRole("menuitemradio", { name: "Codex", exact: true }).click()
-  const effort = page.locator('[data-control="harness-effort"]')
+  // Back on the pill's summary, reasoning and speed are one row each.
+  const panel = page.locator('[data-component="prompt-model-pill-panel"]')
+  const effort = panel.locator('[data-step="effort"]')
   await expect(effort).toHaveCount(1)
-  await expect(effort).toHaveText("low")
-  await expect(page.locator('[data-control="harness-service-tier"]')).toHaveCount(1)
+  await expect(effort).toContainText("low")
+  await expect(panel.locator('[data-step="speed"]')).toHaveCount(1)
   await effort.click()
   await page.getByRole("menuitemradio", { name: "high", exact: true }).click()
-  await expect(effort).toHaveText("high")
+  await expect(effort).toContainText("high")
   await page.screenshot({ path: testInfo.outputPath("codex-controls.png"), fullPage: true })
 })
 
 test("Last turn review displays native session snapshots", async ({ page }, testInfo) => {
   await setup(page)
+  // With no git changes the review mode menu sits in the file tree's header, which the side panel
+  // collapses at its default width; a wider panel keeps the tree, and so the menu, in view.
+  await page.addInitScript(() =>
+    localStorage.setItem("tenon.global.dat:layout", JSON.stringify({ sidePanel: { width: 720 } })),
+  )
   await page.route(`**/api/session/${sessionA}/message*`, (route) =>
     route.fulfill({
       json: {

@@ -4,11 +4,15 @@ import { LoaderV2 } from "@tenon/ui/v2/loader-v2"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { children, Show, type JSX, type ParentProps } from "solid-js"
 
-/** The rounded surface every page sits on, next to the nav rail and projects panel. */
-export const pagePanelClass = "rounded-[24px] bg-v2-background-bg-base shadow-[0_0_0_1px_var(--v2-border-border-muted)]"
+/**
+ * The square-cornered surface every page sits on. The nav rail, the Projects panel and the thread's side rail
+ * have no surface of their own: they sit on the window background beside it. Wrap the panel in
+ * `page-panel-cap` inside a `titlebar-inset-top` frame so its surface reaches the window's top edge.
+ */
+export const pagePanelClass = "bg-v2-background-bg-base shadow-[0_0_0_1px_var(--v2-border-border-muted)]"
 
 /**
- * Full-height page: one rounded panel that scrolls. `scroll={false}` keeps the panel fixed for pages whose
+ * Full-height page: one panel that scrolls. `scroll={false}` keeps the panel fixed for pages whose
  * columns scroll on their own. Pages with their own layout use `pagePanelClass`.
  */
 export function PageFrame(
@@ -16,14 +20,17 @@ export function PageFrame(
 ) {
   return (
     <section
-      class="flex size-full min-h-0 flex-col p-2 pl-0"
+      class="titlebar-inset-top flex size-full min-h-0 flex-col p-2 pl-0"
       aria-labelledby={props.labelledBy}
       aria-label={props.label}
     >
-      <div
-        class={`min-h-0 flex-1 ${props.scroll === false ? "flex flex-col overflow-hidden" : "overflow-y-auto"} ${pagePanelClass} ${props.class ?? ""}`}
-      >
-        {props.children}
+      {/* The cap sits outside the panel, which clips its own content. */}
+      <div class="page-panel-cap flex min-h-0 flex-1 flex-col">
+        <div
+          class={`min-h-0 flex-1 ${props.scroll === false ? "flex flex-col overflow-hidden" : "overflow-y-auto"} ${pagePanelClass} ${props.class ?? ""}`}
+        >
+          {props.children}
+        </div>
       </div>
     </section>
   )
@@ -41,11 +48,20 @@ export function PageHeader(props: {
   id?: string
   title: string
   crumb?: boolean
+  /** Puts the header in the page's content column, so the title starts on the content's left edge. */
+  column?: "narrow" | "wide"
   back?: { label: string; onClick: () => void }
   actions?: JSX.Element
 }) {
   return (
-    <header class="flex min-h-14 shrink-0 flex-wrap items-center gap-2 px-6 pt-3">
+    <header
+      class="flex min-h-14 shrink-0 flex-wrap items-center gap-2 px-6 pt-3"
+      classList={{
+        "mx-auto w-full sm:px-10": !!props.column,
+        "max-w-[720px]": props.column === "narrow",
+        "max-w-[1040px]": props.column === "wide",
+      }}
+    >
       <Show when={props.back}>
         {(back) => (
           <TooltipV2 value={back().label}>
@@ -137,6 +153,6 @@ export function PageEmpty(
   )
 }
 
-/** Shared list-row look: a 12px-radius row with hover, pressed and focus states. */
+/** Shared list-row look: an 8px-radius row with hover, pressed and focus states. */
 export const pageRowClass =
-  "flex w-full min-w-0 items-center gap-3 rounded-[12px] px-3 py-2 text-left transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover active:bg-v2-overlay-simple-overlay-pressed focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
+  "flex w-full min-w-0 items-center gap-3 rounded-[8px] px-3 py-2 text-left transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover active:bg-v2-overlay-simple-overlay-pressed focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"

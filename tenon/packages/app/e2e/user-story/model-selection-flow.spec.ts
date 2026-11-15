@@ -81,7 +81,7 @@ test("opens a project from the sidebar, connects OpenCode Go, and selects its mo
   const brain = page.locator('[data-sidebar-group="__brain__"]')
   await expect(brain).toBeVisible()
   await brain.getByRole("button", { name: "General" }).click()
-  await brain.locator("[data-sidebar-new-thread]").click()
+  await brain.getByRole("button", { name: "New thread", exact: true }).click()
   await expectAppVisible(page.locator('[data-component="prompt-input-v2"]'))
 
   // The generic model picker lists connected models; OpenCode Go is not connected yet.

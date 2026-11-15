@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 import { realpath, stat } from "node:fs/promises"
-import { basename, isAbsolute, posix, resolve, win32 } from "node:path"
+import { basename, extname, isAbsolute, posix, resolve, win32 } from "node:path"
 import { pathToFileURL } from "node:url"
 import { net, protocol } from "electron"
 import { isUncPath } from "./local-file-policy"
@@ -45,6 +45,9 @@ export async function fileViewerURL(directory: string, path: string) {
   // links on both sides and check again. The issued URL serves the resolved file.
   const [root, file] = await Promise.all([realpath(directory), realpath(lexical)]).catch(() => [])
   if (!root || !file || !isInside(root, file)) return
+  // The renderer picks the viewer from the requested name, but the served type follows the resolved file, so
+  // `report.pdf -> page.html` would run HTML in the frame. A link must keep its target's extension.
+  if (extname(file).toLowerCase() !== extname(lexical).toLowerCase()) return
   const info = await stat(file).catch(() => undefined)
   if (!info?.isFile()) return
   const token = randomUUID()
@@ -74,6 +77,7 @@ export function registerFileViewerProtocol() {
     // The renderer (oc://renderer, or the dev server) reads spreadsheets and documents with fetch().
     const headers = new Headers(response.headers)
     headers.set("Access-Control-Allow-Origin", "*")
+    headers.set("X-Content-Type-Options", "nosniff")
     return new Response(response.body, { status: response.status, statusText: response.statusText, headers })
   })
 }

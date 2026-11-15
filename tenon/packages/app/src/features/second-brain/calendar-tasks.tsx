@@ -280,7 +280,10 @@ export function CalendarTasks(props: {
 
   return (
     <div class={sidePanelGridClass(state.editing || Boolean(peeked()))}>
-      <section class="flex min-h-0 min-w-0 flex-col" aria-label={language.t("secondBrain.tasks.title")}>
+      <section
+        class="mx-auto flex min-h-0 w-full min-w-0 max-w-[760px] flex-col"
+        aria-label={language.t("secondBrain.tasks.title")}
+      >
         <div class="flex flex-col gap-0.5">
           <Show when={visible().length > 0} fallback={<PageEmpty>{language.t("secondBrain.tasks.empty")}</PageEmpty>}>
             <For each={visible()}>
@@ -288,7 +291,7 @@ export function CalendarTasks(props: {
                 <div
                   classList={{
                     [`${pageRowClass} min-h-12 py-1.5 [content-visibility:auto] [contain-intrinsic-size:auto_48px]`]: true,
-                    "bg-v2-background-bg-accent-container": state.peek === task.id,
+                    "!bg-v2-overlay-simple-overlay-pressed": state.peek === task.id,
                   }}
                 >
                   <TaskCheck task={task} onToggle={props.onToggle} />
@@ -301,6 +304,7 @@ export function CalendarTasks(props: {
                     <span
                       classList={{
                         "block truncate type-row-title": true,
+                        "[font-weight:600]": state.peek === task.id,
                         "text-v2-text-text-base": !task.completedAt,
                         "text-v2-text-text-muted line-through": Boolean(task.completedAt),
                       }}
@@ -408,7 +412,7 @@ export function CalendarTasks(props: {
               when={!state.draft.id && (props.googleAccounts?.length ?? 0) > 0}
               fallback={
                 <Show when={state.draft.source === "google"}>
-                  <p class="text-[11px] text-v2-text-text-muted">
+                  <p class="type-meta text-v2-text-text-muted">
                     {state.draft.taskListTitle || language.t("secondBrain.tasks.google.defaultList")} ·{" "}
                     {language.t(`secondBrain.calendar.sync.${state.draft.syncState}`)}
                   </p>
@@ -523,13 +527,13 @@ export function CalendarTasks(props: {
               />
             </label>
             <Show when={state.error}>
-              <p id="task-error" role="alert" class="text-[12px] text-v2-text-text-critical">
+              <p id="task-error" role="alert" class="type-meta text-v2-text-text-critical">
                 {state.error}
               </p>
             </Show>
             <Show when={inConflict()}>
               <div class="flex flex-col items-start gap-2 rounded-[12px] bg-v2-background-bg-base px-3 py-2">
-                <p class="text-[12px] leading-5 text-v2-text-text-muted">
+                <p class="type-meta text-v2-text-text-muted">
                   {language.t("secondBrain.calendar.google.conflictNote")}
                 </p>
                 <ButtonV2

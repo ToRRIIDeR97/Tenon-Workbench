@@ -8,6 +8,7 @@ import {
   codexInputItems,
   codexState,
   codexStream,
+  codexTurnNotification,
   continuationFor,
   lowestEffort,
   onTurnSuccess,
@@ -21,6 +22,95 @@ import { ChatDisplay } from "@tenon/core/chat-display"
 import { AcpHarness } from "@tenon/core/harness/acp"
 import { ProtocolError } from "@tenon/core/harness/codex-app-server"
 import { Token } from "@tenon/core/util/token"
+
+describe("Codex subagents", () => {
+  // Trimmed from a live Codex 0.164 turn that spawned one subagent (`subAgentActivity`, then its own thread).
+  const main = "thread-main"
+  const child = "thread-child"
+  const notifications = [
+    { method: "turn/started", params: { threadId: main, turnId: "t1" } },
+    {
+      method: "item/started",
+      params: {
+        threadId: main,
+        turnId: "t1",
+        item: {
+          type: "subAgentActivity",
+          id: "call_1",
+          kind: "started",
+          agentThreadId: child,
+          agentPath: "/root/single_word",
+          model: "gpt-6-luna",
+        },
+      },
+    },
+    { method: "turn/started", params: { threadId: child, turnId: "c1" } },
+    {
+      method: "item/completed",
+      params: { threadId: child, turnId: "c1", item: { type: "agentMessage", id: "m1", text: "OK" } },
+    },
+    {
+      method: "thread/tokenUsage/updated",
+      params: {
+        threadId: child,
+        turnId: "c1",
+        tokenUsage: {
+          total: {
+            totalTokens: 18067,
+            inputTokens: 18062,
+            cachedInputTokens: 0,
+            cacheWriteInputTokens: 0,
+            outputTokens: 5,
+            reasoningOutputTokens: 0,
+          },
+          last: {
+            totalTokens: 18067,
+            inputTokens: 18062,
+            cachedInputTokens: 0,
+            cacheWriteInputTokens: 0,
+            outputTokens: 5,
+            reasoningOutputTokens: 0,
+          },
+          modelContextWindow: 258400,
+        },
+      },
+    },
+    { method: "turn/completed", params: { threadId: child, turnId: "c1", turn: { status: "completed" } } },
+    { method: "thread/status/changed", params: { threadId: "someone-else" } },
+    { method: "turn/completed", params: { threadId: main, turnId: "t1", turn: { status: "completed" } } },
+  ]
+
+  test("a subagent becomes a row with its own thread's reply and token use, and only the turn's thread ends it", () => {
+    const state = codexState()
+    // One at a time, as the stream does: a subagent's thread is let through once its start has been read.
+    const events = notifications.flatMap((n) =>
+      codexTurnNotification(n, main, "t1", state) ? parseCodexNotification(n, state) : [],
+    )
+    const types = events.map((event) => event.type)
+    expect(types).toEqual(["tool-call", "tool-progress", "tool-progress", "tool-result", "step-finish", "finish"])
+    expect(events[0]).toMatchObject({
+      name: "acp_subagent",
+      input: { description: "Single word", subagent_type: "gpt-6-luna" },
+    })
+    expect(events[3]).toMatchObject({
+      type: "tool-result",
+      id: child,
+      result: { type: "text", value: "OK" },
+      providerMetadata: {
+        acp: {
+          transcript: [{ type: "text", text: "OK" }],
+          usage: { used: 18067, size: 258400, inputTokens: 18062, outputTokens: 5, cachedReadTokens: 0 },
+        },
+      },
+    })
+  })
+
+  test("a subagent still open when the turn ends settles with what it has", () => {
+    const state = codexState()
+    const events = [notifications[1]!, notifications.at(-1)!].flatMap((n) => parseCodexNotification(n, state))
+    expect(events.map((event) => event.type)).toEqual(["tool-call", "tool-result", "step-finish", "finish"])
+  })
+})
 
 describe("Codex harness", () => {
   test("maps assistant and provider-executed tool items", () => {

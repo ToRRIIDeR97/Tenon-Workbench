@@ -9,8 +9,12 @@ export function isLocalMediaSource(value: string) {
 
 const mediaAttributes = ["src", "srcset", "poster"] as const
 
-/** Remove every non-local source from a media element (`img`, `source`, `video`, `audio`, `input`). */
+/**
+ * Remove every non-local source from a media element (`img`, `source`, `video`, `audio`, `input`), and the
+ * legacy `background` attribute from any element: Chromium also fetches `<table background="https://...">`.
+ */
 export function stripRemoteMedia(node: Element) {
+  node.removeAttribute("background")
   if (!["IMG", "SOURCE", "VIDEO", "AUDIO", "INPUT", "TRACK"].includes(node.tagName)) return
   for (const attribute of mediaAttributes) {
     const value = node.getAttribute(attribute)

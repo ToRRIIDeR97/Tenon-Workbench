@@ -1,3 +1,5 @@
+import { prefersReducedMotion } from "@tenon/ui/v2/motion"
+
 type Input = {
   prevScrollWidth: number
   scrollWidth: number
@@ -33,7 +35,7 @@ export const createFileTabListSync = (input: { el: HTMLDivElement; contextOpen: 
     if (left !== undefined) {
       input.el.scrollTo({
         left,
-        behavior: "smooth",
+        behavior: prefersReducedMotion() ? "auto" : "smooth",
       })
     }
 

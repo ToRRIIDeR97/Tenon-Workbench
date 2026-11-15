@@ -238,9 +238,7 @@ export function ProjectView(props: {
               aria-label={language.t("secondBrain.project.renameItem", { title: item.title })}
               disabled={state.saving}
               classList={{
-                "min-w-0 flex-1 truncate rounded-[8px] text-left focus-visible:outline-offset-2": true,
-                "type-row-title": item.kind === "milestone",
-                "text-[13px]": item.kind === "task",
+                "min-w-0 flex-1 truncate rounded-[8px] text-left type-row-title focus-visible:outline-offset-2": true,
                 "text-v2-text-text-muted line-through": status() === "done",
                 "text-v2-text-text-base": status() !== "done",
               }}

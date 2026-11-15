@@ -19,7 +19,7 @@ change.
 | Sidebar | S4: rail and Projects panel share one outlined container in the old neutral colour; opening widens it (300 ms, emphasized-decelerate), closing narrows it (200 ms, emphasized-accelerate). |
 | Agent tools | Extend the existing `tenon` MCP server (`packages/core/src/harness/browser-tools.ts`) so every harness gets them. Project agents are limited to their own Project. |
 | Write previews | W5 (inline card) for project agents; W3 (step list) and W4 (top pill) for the Command Centre. One shared preview for note, Google Tasks, calendar, timeline and email draft. Every write offers Open and Undo. |
-| Command Centre | Replaces Activity. Fresh thread per request; its threads are a separate kind from project threads. Default harness and model are its own settings. |
+| Command Centre | Replaces Activity. The page's composer starts a fresh thread per request; the Ctrl/Cmd+J card replies to the thread it shows, with New thread for a fresh one (decided 12 Nov 2026). Its threads are a separate kind from project threads. Default harness and model are its own settings. Pending questions count as needs-you, like approvals. |
 | Memory | All Command Centre threads stored; recent ones searched raw (SQLite FTS5); after a set age (default 45 days) summarised, then the originals deleted. |
 | Quick access | The Command Centre agent opens from any page with Ctrl+J / Cmd+J. Variant (K1–K4) still to choose. |
 | Email | Provider-neutral tools (search, read, summarise, draft). Gmail, then Outlook through Microsoft Graph, then IMAP. Drafts only, never send. |

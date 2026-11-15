@@ -2,6 +2,7 @@ import { Schema } from "effect"
 import { KnowledgeVault } from "@/knowledge/vault"
 import { PlannerCalendar } from "@/planner/calendar"
 import { BrainProject } from "@/project/brain"
+import { CommandActions } from "@/agents/command-actions"
 import { CommandMemory } from "@/agents/command-memory"
 import { CommandThreads } from "@/agents/command-threads"
 import { Routines } from "@/agents/routines"
@@ -77,6 +78,7 @@ export const SecondBrainPaths = {
   commandFolders: "/command-centre/folders",
   commandMemory: "/command-centre/memory",
   commandMemoryCompact: "/command-centre/memory/compact",
+  commandActions: "/command-centre/actions",
 } as const
 
 export const SecondBrainApi = HttpApi.make("secondBrain").add(
@@ -276,6 +278,14 @@ export const SecondBrainApi = HttpApi.make("secondBrain").add(
       HttpApiEndpoint.get("searchCommandMemory", SecondBrainPaths.commandMemory, {
         query: Schema.Struct({ ...WorkspaceRoutingQueryFields, search: Schema.optional(Schema.String) }),
         success: described(Schema.Array(CommandMemory.Hit), "Command Centre threads and summaries that match"),
+        error: errors,
+      }),
+      HttpApiEndpoint.get("listCommandActions", SecondBrainPaths.commandActions, {
+        query: Schema.Struct({ ...WorkspaceRoutingQueryFields, since: Schema.optional(Schema.NumberFromString) }),
+        success: described(
+          Schema.Array(CommandActions.Action),
+          "What the Command Centre agent did to other threads (messages, stops), newest first; since keeps those at or after that time in epoch milliseconds",
+        ),
         error: errors,
       }),
       HttpApiEndpoint.post("compactCommandMemory", SecondBrainPaths.commandMemoryCompact, {
