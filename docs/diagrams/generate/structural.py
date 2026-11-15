@@ -16,7 +16,7 @@ def component():
     s.box(20, 280, 250, 64, "window.api", ["desktop/src/preload (contextBridge)"], stereo="interface")
     s.box(20, 390, 250, 170, "Electron main", ["desktop/src/main", "IPC registry (ipc.ts)", "windows + URL policy",
           "server launcher (server.ts)", "Google Calendar/Tasks service", "mail accounts + loopback endpoint",
-          "drafts, export, dictation.ts"], stereo="component")
+          "drafts, dictation, harness-sync/"], stereo="component")
     s.box(20, 590, 200, 60, "userData stores", ["drafts.sqlite, electron-store", "(second-brain.google)"], cls="store")
     # server container
     s.zone(340, 60, 360, 570, "Tenon server «subsystem» · 127.0.0.1")
@@ -65,6 +65,38 @@ def component():
     s.edge([(20, 545), (10, 545), (10, 827), (20, 827)], "spawn, JSON lines\non stdio", at=(150, 784))
     s.edge([(270, 505), (310, 505), (310, 827), (340, 827)], "model download", at=(400, 784))
     s.save(f"{OUT}/component-overview.svg")
+
+
+def harness_sync():
+    s = SVG(980, 470, "Harness sync in Tenon",
+            "Settings pages call window.api.harnessSync; the harness-sync module in Electron main reads and writes the "
+            "sync file in a Google Drive folder, each harness's instructions file and skills folder, and its own state "
+            "and backups in userData. Google Drive for desktop carries the sync file to other computers.")
+    s.heading("Harness sync", "component view · paths relative to tenon/packages/")
+    s.zone(20, 60, 250, 310, "Renderer (app/src/components)")
+    s.box(35, 90, 220, 64, "Settings › Instructions", ["settings-v2/instructions.tsx"], cls="sub")
+    s.box(35, 170, 220, 64, "Settings › Skills (sync part)", ["settings-v2/harness-sync-skills.tsx"], cls="sub")
+    s.box(35, 250, 220, 64, "HarnessSyncNotifier", ["toast when another computer saved"], cls="sub")
+    s.box(300, 150, 190, 104, "window.api.harnessSync", ["desktop/src/preload", "harness IDs, presets,", "skill names only"], stereo="interface")
+    s.zone(520, 60, 250, 310, "Electron main (desktop/src/main)")
+    s.box(535, 90, 220, 264, "harness-sync/", ["service.ts: one queue, 5 s check", "document.ts: sync file v5",
+          "apply.ts: instruction files", "skills.ts: copies, backups", "tools.ts: paths on macOS/Windows",
+          "state.ts: last applied hashes", "ipc.ts: harness-sync-* handlers", "harness-sync-service.ts:", "native file dialogs"], cls="sub")
+    s.box(800, 70, 160, 76, "Drive folder", ["harness-sync.json", "+ conflict copies"], cls="store")
+    s.box(800, 165, 160, 92, "Harness files", ["CLAUDE.md, AGENTS.md,", "GEMINI.md + skills/", "for six harnesses"], cls="store")
+    s.box(800, 276, 160, 76, "App data", ["userData/harness-sync/", "state.json, backups/"], cls="store")
+    s.box(800, 390, 160, 60, "Drive for desktop", ["sign-in, transport"], cls="ext")
+    s.box(560, 390, 190, 60, "Other computers", ["Tenon or Harness Sync app"], cls="proc")
+    s.edge([(255, 122), (300, 180)], "invoke", at=(282, 140))
+    s.edge([(255, 202), (300, 202)])
+    s.edge([(300, 236), (255, 282)], "changed", at=(285, 272))
+    s.edge([(490, 202), (535, 202)], "IPC", at=(512, 196))
+    s.edge([(755, 108), (800, 108)])
+    s.edge([(755, 211), (800, 211)], "atomic", at=(778, 205))
+    s.edge([(755, 314), (800, 314)])
+    s.edge([(960, 108), (972, 108), (972, 420), (960, 420)], tail="a")
+    s.edge([(800, 420), (750, 420)], "sync", at=(775, 414), tail="a")
+    s.save(f"{OUT}/harness-sync.svg")
 
 
 def trust():
@@ -177,6 +209,7 @@ def workflow():
 
 
 component()
+harness_sync()
 trust()
 deployment()
 workflow()

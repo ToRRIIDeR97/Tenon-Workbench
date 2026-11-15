@@ -1,4 +1,5 @@
 import { createSimpleContext } from "@tenon/ui/context"
+import type { HarnessSyncPlatform } from "@/harness-sync/types"
 import type { AsyncStorage, SyncStorage } from "@solid-primitives/storage"
 import type { Accessor } from "solid-js"
 import type { DesktopMenuAction } from "../desktop-menu"
@@ -297,6 +298,9 @@ type PlatformBase = {
 
   /** Mail accounts for the Command Centre (desktop only); absent in the web build, which hides Settings › Accounts. */
   mail?: MailPlatform
+
+  /** Harness sync of global instructions and skills (desktop only); absent in the web build, which hides Settings › Instructions. */
+  harnessSync?: HarnessSyncPlatform
 
   /** The Tenon vault folder and whether the user chose it (desktop only). */
   getVaultFolder?(): Promise<{ folder: string; chosen: boolean }>

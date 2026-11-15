@@ -47,6 +47,7 @@ import { saveSessionExport } from "./session-export"
 import { nativeT } from "./native-translations"
 import type { DictationService } from "./dictation-service"
 import type { MailService } from "./mail/service"
+import type { HarnessSyncService } from "./harness-sync/service"
 
 // Renderer-supplied IPC is only trusted from the main frame of an app window:
 // any other frame or webContents that reaches ipcRenderer must not reach the
@@ -123,7 +124,16 @@ type Deps = {
   setNativeTranslations: (bundle: DesktopNativeBundle) => void
   dictation: DictationService
   mail: MailService
+  harnessSync: HarnessSyncService
 }
+
+// Harness sync calls settle as `{ value }` or `{ error }`, so the renderer gets the message without Electron's
+// "Error invoking remote method" prefix.
+const settle = (work: () => Promise<unknown>) =>
+  work().then(
+    (value) => ({ value }),
+    (error: unknown) => ({ error: error instanceof Error ? error.message : String(error) }),
+  )
 
 export function registerIpcHandlers(deps: Deps) {
   const drafts = createDesktopDraftStore(
@@ -220,6 +230,26 @@ export function registerIpcHandlers(deps: Deps) {
   )
   trustedHandle("dictation-cancel-download", (_event, id: unknown) => deps.dictation.cancelDownload(id))
   trustedHandle("dictation-open-permission-settings", () => deps.dictation.openPermissionSettings())
+  // Harness sync: the renderer passes harness IDs, presets and names; sync files come from native dialogs.
+  trustedHandle("harness-sync-status", () => settle(() => deps.harnessSync.status()))
+  trustedHandle("harness-sync-now", () => settle(() => deps.harnessSync.syncNow()))
+  trustedHandle("harness-sync-read-tool", (_event, tool: unknown) =>
+    settle(() => deps.harnessSync.readToolInstructions(tool)),
+  )
+  trustedHandle("harness-sync-create", (_event, seed: unknown) => settle(() => deps.harnessSync.createSyncFile(seed)))
+  trustedHandle("harness-sync-open", () => settle(() => deps.harnessSync.openSyncFile()))
+  trustedHandle("harness-sync-join", (_event, seed: unknown) => settle(() => deps.harnessSync.join(seed)))
+  trustedHandle("harness-sync-cancel-join", () => settle(() => deps.harnessSync.cancelJoin()))
+  trustedHandle("harness-sync-use-this-computer", (_event, seed: unknown, revision: unknown) =>
+    settle(() => deps.harnessSync.useThisComputer(seed, revision)),
+  )
+  trustedHandle("harness-sync-disconnect", () => settle(() => deps.harnessSync.disconnect()))
+  trustedHandle("harness-sync-save", (_event, presets: unknown, revision: unknown) =>
+    settle(() => deps.harnessSync.save(presets, revision)),
+  )
+  trustedHandle("harness-sync-set-device-name", (_event, name: unknown) =>
+    settle(() => deps.harnessSync.setDeviceName(name)),
+  )
   trustedHandle("mail-available", () => deps.mail.available())
   trustedHandle("mail-accounts", () => deps.mail.accounts())
   trustedHandle("mail-connect", (_event, provider: unknown) => {

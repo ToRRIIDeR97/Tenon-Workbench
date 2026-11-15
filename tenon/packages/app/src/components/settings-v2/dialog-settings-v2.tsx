@@ -12,6 +12,7 @@ import { SettingsProvidersV2 } from "./providers"
 import { SettingsModelsV2 } from "./models"
 import { SettingsHarnessesV2 } from "./harnesses"
 import { SettingsSkillsV2 } from "./skills"
+import { SettingsInstructionsV2 } from "./instructions"
 import { SettingsModelProfilesV2 } from "./model-profiles"
 import { SettingsMcpServersV2 } from "./mcp-servers"
 import { SettingsCalendarV2 } from "./calendar"
@@ -127,6 +128,12 @@ export const DialogSettings: Component<{
                       <Icon name="terminal" />
                       {language.t("harness.settings.title")}
                     </TabsV2.Trigger>
+                    <Show when={platform.harnessSync}>
+                      <TabsV2.Trigger value="instructions">
+                        <Icon name="edit" />
+                        {language.t("harness.sync.tab")}
+                      </TabsV2.Trigger>
+                    </Show>
                     <TabsV2.Trigger value="skills">
                       <Icon name="book" />
                       {language.t("secondBrain.skills.title")}
@@ -193,6 +200,11 @@ export const DialogSettings: Component<{
         <TabsV2.Content value="harnesses" class="settings-v2-panel">
           <SettingsHarnessesV2 directory={directory} onBack={showHarnesses} />
         </TabsV2.Content>
+        <Show when={platform.harnessSync}>
+          <TabsV2.Content value="instructions" class="settings-v2-panel">
+            <SettingsInstructionsV2 />
+          </TabsV2.Content>
+        </Show>
         <TabsV2.Content value="skills" class="settings-v2-panel">
           <SettingsSkillsV2 directory={directory} />
         </TabsV2.Content>

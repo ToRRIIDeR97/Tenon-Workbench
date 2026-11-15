@@ -81,7 +81,7 @@
 <text x="30" y="488" text-anchor="start" class="s">server launcher (server.ts)</text>
 <text x="30" y="504" text-anchor="start" class="s">Google Calendar/Tasks service</text>
 <text x="30" y="520" text-anchor="start" class="s">mail accounts + loopback endpoint</text>
-<text x="30" y="536" text-anchor="start" class="s">drafts, export, dictation.ts</text>
+<text x="30" y="536" text-anchor="start" class="s">drafts, dictation, harness-sync/</text>
 <rect class="store" x="20" y="590" width="200" height="60" rx="6"/>
 <text x="30" y="608" text-anchor="start" class="t">userData stores</text>
 <text x="30" y="624" text-anchor="start" class="s">drafts.sqlite, electron-store</text>

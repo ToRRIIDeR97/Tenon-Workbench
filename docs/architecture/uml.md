@@ -32,12 +32,21 @@ reading of the code, not a runtime trace, except where a step says it was run.
 | --- | --- | --- |
 | Solid renderer | Routes, server connection and capability detection, compat API, Second Brain pages | `app/src/app.tsx`, `app/src/context/server-sdk.tsx`, `app/src/utils/server-compat.ts`, `app/src/features/second-brain/client.ts` |
 | Preload bridge | Exposes `window.api` through an allowlist of IPC wrappers | `desktop/src/preload/index.ts` |
-| Electron main | App lifecycle, windows (main windows and the desktop widget) and URL policy, IPC handlers, server launch, Google service, mail accounts and the mail loopback endpoint, drafts, dictation supervisor | `desktop/src/main/index.ts`, `ipc.ts`, `windows.ts`, `widget.ts`, `server.ts`, `google-calendar.ts`, `mail/`, `draft-store.ts`, `dictation.ts`, `dictation-service.ts` |
+| Electron main | App lifecycle, windows (main windows and the desktop widget) and URL policy, IPC handlers, server launch, Google service, mail accounts and the mail loopback endpoint, drafts, dictation supervisor, harness sync | `desktop/src/main/index.ts`, `ipc.ts`, `windows.ts`, `widget.ts`, `server.ts`, `google-calendar.ts`, `mail/`, `draft-store.ts`, `dictation.ts`, `dictation-service.ts`, `harness-sync/`, `harness-sync-service.ts` |
 | Dictation engine | Microphone capture, voice activity, local transcription; JSON lines on stdio | `dictation/src/main.rs`, `dictation/src/audio.rs` (Rust, `tenon-dictation`) |
 | HTTP API | Native `/api` routes plus legacy instance routes, with Basic auth and workspace routing | `server/src/handlers/`, `protocol/src/groups/`, `tenon/src/server/routes/instance/httpapi/` |
 | Second Brain domains | Notes and the Tenon vault (pages, Project timelines and logs, history, migration), project cards, local calendar, Command Centre memory and project setup, routines and their scheduler | `tenon/src/knowledge/vault.ts`, `tenon/src/project/brain.ts`, `tenon/src/planner/calendar.ts`, `tenon/src/agents/` |
 | Location services | Path containment and compare-and-swap file writes | `core/src/location-mutation.ts`, `core/src/file-mutation.ts`, `core/src/location-services.ts` |
 | Agent runtime | Prompt admission, run draining, harness dispatch, permissions, durable events, snapshots | `core/src/session.ts`, `core/src/session/`, `core/src/harness.ts`, `core/src/harness/`, `core/src/permission.ts`, `core/src/event.ts`, `core/src/snapshot.ts` |
+
+### Component: harness sync
+
+![Harness sync: Settings pages call window.api.harnessSync; the harness-sync module in Electron main reads and writes the Drive sync file, harness files and its state and backups](../diagrams/harness-sync.svg)
+
+The module runs in Electron main because it writes files in the home folder
+outside every workspace; the server is not involved. Details are in the
+[README](README.md#harness-sync) and the
+[threat model](../security/threat-model.md#harness-sync).
 
 ### Deployment
 
@@ -73,6 +82,13 @@ reading of the code, not a runtime trace, except where a step says it was run.
   synced between machines; the map from workspace directories to vault folders
   and the machine id stay in `vault-machine.json` in the XDG data folder
   ([README](README.md#tenon-vault)).
+- Harness sync writes each harness's global instructions file and skills folder
+  in the home folder (`~/.claude`, `~/.codex`, `<config>/opencode`,
+  `<config>/tenon-workbench`, `~/.gemini`, `~/.commandcode`), reads and writes
+  the sync file in a folder the user picked (normally Google Drive for
+  desktop, which carries it between machines), and keeps its state and backups
+  in `<userData>/harness-sync/`
+  ([README](README.md#harness-sync)).
 - The `opencode-cli` daemon (`TENON_SIDECAR_V2=1`) ships only in
   development-channel builds made with `TENON_BUNDLE_CLI=1`. Packaging and
   update limits are covered in [release operations](../release-operations.md).
@@ -256,6 +272,9 @@ store (`KnowledgeVault.writeTimeline`, `appendLog`,
 | Page frame and visual system (Material 3 shape and motion tokens, motion helpers) | Subsystem | Text in [README](README.md#product-entry-points-and-persistence) | `app/src/components/page.tsx`, `ui/src/v2/styles/theme.css`, `ui/src/theme/v2/mapping.ts`, `ui/src/v2/components/*-v2.css`, `ui/src/styles/tailwind/` (motion utilities), `ui/src/v2/components/{reveal,presence,view-switch,motion}` (motion helpers), `ui/src/context/dialog.tsx` (dialog exit), `app/src/pages/page-motion.ts` (page fade-through key), `app/src/features/second-brain/side-panel.tsx`, `app/src/utils/{focus-when-connected,fresh-items,replay-animation}.ts` (shell motion) |
 | Preload and IPC | Subsystem | Component, Sequence: startup | `desktop/src/preload/index.ts`, `desktop/src/main/ipc.ts` |
 | Local dictation (engine, supervisor, model downloads, composer mic, Settings › Dictation) | Subsystem | Component, Deployment; text in [README](README.md#local-dictation) and the [threat model](../security/threat-model.md#local-dictation) | `dictation/src/`, `desktop/src/main/dictation.ts`, `desktop/src/main/dictation-service.ts`, `desktop/src/main/dictation-models.ts`, `desktop/src/main/dictation-download.ts`, `app/src/components/prompt-input/dictation-button.tsx`, `app/src/components/settings-v2/dictation.tsx` |
+| Harness sync (global instructions and skills for six harnesses, Drive sync file, background check, Settings › Instructions, sync part of Settings › Skills) | Subsystem | Component: harness sync, Deployment; text in [README](README.md#harness-sync) and the [threat model](../security/threat-model.md#harness-sync) | `desktop/src/main/harness-sync/`, `desktop/src/main/harness-sync-service.ts`, `desktop/src/main/ipc.ts` (`harness-sync-*`), `desktop/src/preload/index.ts` (`harnessSync`), `app/src/harness-sync/types.ts`, `app/src/components/settings-v2/{instructions,harness-sync-skills,harness-sync-model}.ts*`, `app/src/components/harness-sync-notifier.tsx` |
+| `harness-sync.json` and `<userData>/harness-sync/` (state, backups) | Shared store | Component: harness sync, Deployment | `desktop/src/main/harness-sync/document.ts` (sync file, shared with the standalone Harness Sync app), `state.ts`, `skill-files.ts` (`backUpSkill`) |
+| Harness global instruction files and skills folders | Shared store | Component: harness sync, Deployment | `desktop/src/main/harness-sync/tools.ts` (paths), `apply.ts`, `skills.ts`; read by each harness, written only by harness sync |
 | Server launch and lifecycle | Subsystem | Deployment, State: sidecar, Sequence: startup | `desktop/src/main/server.ts`, `desktop/src/main/sidecar.ts`, `desktop/src/main/sidecar-supervisor.ts` |
 | Second Brain notes, projects, calendar | Subsystem | Component, Class, Activity: write, State: project status | `tenon/src/knowledge/`, `tenon/src/project/brain.ts`, `tenon/src/planner/calendar.ts` |
 | Workspace project scan and AGENTS.md defaults | Critical workflow | Class; text in [README](README.md#projects-and-thread-directories) | `tenon/src/project/brain.ts` (`scan`, `link`, `unlink`, instructions), `core/src/workspace-instructions.ts`, `core/src/instruction-context.ts`, `tenon/src/session/instruction.ts` |

@@ -252,6 +252,7 @@ const createPlatform = (windowState: DesktopWindowState): Platform => {
     desktopWidget: window.api.widget,
     dictation: window.api.dictation,
     mail: window.api.mail,
+    harnessSync: window.api.harnessSync,
     getVaultFolder: () => window.api.getVaultFolder(),
     chooseVaultFolder: () => window.api.chooseVaultFolder(),
 

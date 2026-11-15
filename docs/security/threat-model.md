@@ -18,6 +18,7 @@ Detailed permission and request flows are in
 | Server to workspace files  | Second Brain handlers run in an instance location context. Project code and the vault migration resolve workspace targets through `LocationMutation` before reading or writing files. See `tenon/packages/tenon/src/server/routes/instance/httpapi/handlers/second-brain.ts`, `tenon/packages/tenon/src/knowledge/vault.ts`, and `tenon/packages/tenon/src/project/brain.ts`. |
 | Server to the Tenon vault  | Vault pages, timelines and logs live outside the workspace, under `TENON_VAULT_DIR` (default `<Documents>/Tenon`). Every vault path is a validated relative path resolved inside the workspace's vault folder, with its real path checked; see [Tenon vault](#tenon-vault) and `tenon/packages/tenon/src/knowledge/vault.ts`. |
 | Desktop to Google          | Calendar and Tasks integration uses OAuth in the Electron main process. The service keeps any number of accounts, encrypts each account's client secret and refresh token with Electron `safeStorage`, and disables connection when secure storage is unavailable. Access tokens are cached per account, writes are routed to the account named by the item, and the loopback callback ignores requests without the expected state. See `tenon/packages/desktop/src/main/google-calendar.ts`. |
+| Desktop to harness files   | Harness sync in the Electron main process writes each coding harness's global instructions file and skills folder in the home folder, from a sync file in a folder the user picked. Only fixed per-harness paths are written; the sync file is validated before use and the renderer never passes a path. See [Harness sync](#harness-sync) and `tenon/packages/desktop/src/main/harness-sync/`. |
 
 `POST /second-brain/projects/workspace` takes only a Tenon project id. The
 server looks the id up in its own project table and rejects `global` and the
@@ -1116,6 +1117,59 @@ the Electron main process (see [architecture](../architecture/README.md#local-di
 - **Known gaps.** The packaged engine is signed with the app on macOS but is
   not separately signed on Windows (unsigned candidates). Model files are
   trusted once their checksum matches; transcribe-cpp parses them natively.
+
+## Harness sync
+
+Settings › Instructions writes the person's global instructions and skills into
+every harness on this computer from one `harness-sync.json` in a Google Drive
+for desktop folder (see [architecture](../architecture/README.md#harness-sync)).
+This is a new boundary: Tenon writes files in the home folder, outside every
+workspace, and those files become instructions for every harness.
+
+- **What it writes.** Only the fixed paths in `harness-sync/tools.ts`: each
+  harness's global instructions file (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`)
+  and the skill subfolders of its global skills folder. Overrides come only
+  from `CODEX_HOME`, `CLAUDE_CONFIG_DIR` and `XDG_CONFIG_HOME` in Tenon's own
+  environment, and must be absolute. A harness set to Off, an empty preset, a
+  symbolic link or a non-regular file is never written. Skills Tenon did not
+  share are never touched; a skill copy is deleted only when Tenon wrote it and
+  it is unchanged since.
+- **The sync file is input from other machines.** Anyone who can write the
+  Drive folder can change what every harness is told, so the folder should be
+  private. `document.ts` refuses files that are not version 3 to 5, unknown
+  tool IDs, unknown modes, NUL characters, more than 8 MB, skill names outside
+  `[A-Za-z0-9._-]` (not starting with `.`), skill file paths with empty, `.`,
+  `..`, `\` or `:` parts, more than 200 files and files over 1 MB, so nothing
+  read from it can write outside a skill folder. Settings shows who saved last,
+  and a toast names the computer whenever its change is applied.
+- **Outside edits are kept.** Automatic applies leave a harness file or skill
+  copy that changed since Tenon last wrote it alone and flag it. A skill copy
+  Tenon did not write is saved under `<userData>/harness-sync/backups/` before
+  Sync now replaces it; if the backup fails, the copy is left alone. Uploading
+  an edited skill without asking happens only when the sync file has not moved
+  since the last apply and every edited copy on this computer agrees; the
+  file's previous version is backed up first. Instruction files are replaced
+  without a backup, as in the standalone app.
+- **Renderer input.** The `harness-sync-*` IPC handlers accept harness IDs from
+  a fixed list, presets checked by `parsePresets`, skill names checked by
+  `validSkillName`, a computer name of 1 to 64 characters and a revision
+  number. The renderer never sends a path: sync files are chosen in native
+  open and save dialogs owned by main. Status sent back includes paths for
+  display only.
+- **Writes.** Files are written through a flushed temporary sibling and
+  renamed over the target. One queue serializes the background check and every
+  action, and saves are compare-and-swap on the file's revision.
+- **No secrets, no content in logs.** The sync file holds instructions and
+  skill text only, no credentials. Nothing logs preset or skill content.
+- **Windows and macOS.** Paths are built with `path.win32` or `path.posix`
+  (both tested). On Windows the dot folders sit under `%USERPROFILE%` and PATH
+  lookup tries `.exe`, `.cmd`, `.bat` and `.ps1`; Tenon never runs those
+  commands, it only checks they exist. File permissions are the user's
+  defaults on both platforms.
+- **Known gaps.** Tenon cannot confirm that Drive uploaded or downloaded the
+  file, and the file is not signed, so a person with write access to the Drive
+  folder is trusted like the owner. Instruction files have no backup. Sync runs
+  only while Tenon is open.
 
 ## Agent-authored SVG in chat
 
