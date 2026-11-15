@@ -1,5 +1,7 @@
 import fs from "fs/promises"
 import path from "path"
+import { pathToFileURL } from "url"
+import { $ } from "bun"
 import { describe, expect, test } from "bun:test"
 import { Effect, Option } from "effect"
 import { AppNodeBuilder } from "@tenon/core/effect/app-node-builder"
@@ -80,5 +82,28 @@ describe("Npm.install", () => {
 
     await expect(fs.stat(path.join(tmp.path, "node_modules", "prod-pkg"))).resolves.toBeDefined()
     await expect(fs.stat(path.join(tmp.path, "node_modules", "dev-pkg"))).rejects.toThrow()
+  })
+
+  test("does not run lifecycle scripts of git dependencies", async () => {
+    await using tmp = await tmpdir()
+    const repo = path.join(tmp.path, "git-pkg")
+    const marker = path.join(tmp.path, "prepare-ran")
+    await fs.mkdir(repo)
+    await writePackage(repo, { name: "git-pkg", scripts: { prepare: "node prepare.js" } })
+    await Bun.write(path.join(repo, "prepare.js"), `require("fs").writeFileSync(${JSON.stringify(marker)}, "")\n`)
+    await $`git init -q`.cwd(repo).quiet()
+    await $`git add package.json prepare.js`.cwd(repo).quiet()
+    await $`git -c user.email=test@tenon.test -c user.name=test -c commit.gpgsign=false commit -q -m init`
+      .cwd(repo)
+      .quiet()
+    await writePackage(tmp.path, {
+      name: "fixture",
+      dependencies: { "git-pkg": `git+${pathToFileURL(repo).href}` },
+    })
+
+    await Npm.install(tmp.path)
+
+    await expect(fs.stat(path.join(tmp.path, "node_modules", "git-pkg", "package.json"))).resolves.toBeDefined()
+    await expect(fs.stat(marker)).rejects.toThrow()
   })
 })

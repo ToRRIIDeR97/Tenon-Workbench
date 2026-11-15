@@ -102,7 +102,7 @@
     "@xmldom/xmldom": "0.8.15",
     "fast-uri": "3.1.9",
     "ip-address": "10.7.6",
-    "pacote": "21.5.2",
+    "pacote": "21.5.3",
     "tar": "7.5.22",
     "ws": "8.22.1"
   },
@@ -115,7 +115,7 @@
     "@ai-sdk/xai@3.0.149": "patches/@ai-sdk%2Fxai@3.0.149.patch",
     "@ai-sdk/mistral@3.0.79": "patches/@ai-sdk%2Fmistral@3.0.79.patch",
     "gcp-metadata@8.1.2": "patches/gcp-metadata@8.1.2.patch",
-    "pacote@21.5.2": "patches/pacote@21.5.2.patch",
+    "pacote@21.5.3": "patches/pacote@21.5.3.patch",
     "@ai-sdk/google@3.0.141": "patches/@ai-sdk%2Fgoogle@3.0.141.patch",
     "@pierre/trees@1.0.0-beta.4": "patches/@pierre%2Ftrees@1.0.0-beta.4.patch",
     "@modelcontextprotocol/sdk@1.32.2": "patches/@modelcontextprotocol%2Fsdk@1.32.2.patch",
