@@ -189,9 +189,22 @@ Use `[font-weight:N]` when a weight must differ from the role.
   being written. The header shows the title, a "Drawing" chip with the
   running dot (it settles to "Drawn just now") and a Preview / Code segmented
   switch; Code shows the source so far with an accent caret, kept scrolled to
-  the end. "Use this one" appears once the design is done. In the list, a
-  design still drawing shows the running dot and "Drawing…" instead of a
-  preview.
+  the end. "Use this one" appears once the design is done.
+- **Canvas board** (`design-board.tsx`, `board-camera.ts`): the Canvas list
+  is a pan/zoom board. Designs are 1280×800 artboards (white, hairline edge)
+  on a dotted layer-01 surface (dots from the muted border token, 12px
+  radius, inset hairline). Each has a screen-size label above it:
+  "A · Title" and a muted status ("Drawing…", or "Done" with "Use this one";
+  narrow labels keep only "Use this one"). The board being drawn has an
+  accent outline. A zoom pill in the header (− NN% +, the % fits all
+  designs) zooms around the centre; wheel or pinch zooms at the pointer, a
+  drag pans, and the focused board takes +/− (zoom), arrows (pan) and 0 (fit
+  all). While a design draws the camera glides to its board
+  (`--v2-duration-long`, emphasized-decelerate); when nothing draws it shows
+  all boards. Once the user pans or zooms it stays put until the next design
+  starts. Under reduced motion the camera jumps. Clicking a board opens it
+  large. Someone already on the board stays there when a new design starts:
+  the camera follows it instead of opening it large.
 
 ## Motion
 

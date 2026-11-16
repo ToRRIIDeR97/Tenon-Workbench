@@ -1,4 +1,4 @@
-import { createContext, createEffect, createMemo, on, useContext, type ParentProps } from "solid-js"
+import { createContext, createEffect, createMemo, on, untrack, useContext, type ParentProps } from "solid-js"
 import { createStore } from "solid-js/store"
 import { createMediaQuery } from "@solid-primitives/media"
 import { DesignSpaceProvider } from "@tenon/session-ui/context/design"
@@ -77,9 +77,13 @@ function createDesignCanvas(panel: () => boolean) {
         }
         if (revealed.has(key) || seen === design.source || !panel() || !hasVisibleMarkup(design.source)) return
         revealed.add(key)
+        // Someone already looking at the board keeps it: its camera follows the new design instead.
+        if (untrack(boardInView)) return
         show(design)
       })
   })
+  const boardInView = () =>
+    layout.view().reviewPanel.opened() && layout.tabs().active() === CANVAS_TAB && !current()?.selected
   createEffect(on(sessionID, () => first.clear(), { defer: true }))
 
   return {

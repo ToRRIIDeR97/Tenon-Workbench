@@ -1,5 +1,11 @@
-import { createEffect, on, onCleanup } from "solid-js"
-import { DESIGN_SANDBOX, designDocument, type CanvasDesign } from "@tenon/session-ui/design-fence"
+import { Show, createEffect, on, onCleanup } from "solid-js"
+import {
+  DESIGN_SANDBOX,
+  designDocument,
+  designTooLarge,
+  type CanvasDesign,
+  type Design,
+} from "@tenon/session-ui/design-fence"
 import {
   DESIGN_FRAME_MESSAGE,
   hasVisibleMarkup,
@@ -7,6 +13,7 @@ import {
   partialDesignMarkup,
 } from "@tenon/session-ui/design-stream"
 import { motionDuration } from "@tenon/ui/v2/motion"
+import { useLanguage } from "@/context/language"
 
 // At most 8 frames a second reach the sandbox; the newest source always goes in the next one.
 const FRAME_INTERVAL = 125
@@ -73,5 +80,40 @@ export function LiveDesignFrame(props: { design: CanvasDesign; title: string; cl
       data-live-design={props.design.streaming ? "drawing" : "done"}
       class={props.class}
     />
+  )
+}
+
+/** A finished design in a sandboxed frame (see design-fence.ts), or a notice when it is over the size cap. */
+export function DesignFrame(props: {
+  design: Design
+  title: string
+  class: string
+  style?: Record<string, string>
+  preview?: boolean
+}) {
+  const language = useLanguage()
+  return (
+    <Show
+      when={!designTooLarge(props.design.source)}
+      fallback={
+        <div class="flex size-full items-center justify-center p-4 text-center text-[13px] text-v2-text-text-muted bg-v2-background-bg-layer-01">
+          {language.t("secondBrain.canvas.tooLarge")}
+        </div>
+      }
+    >
+      <iframe
+        ref={(el) => {
+          // Sandboxed before the document is set and before the frame is attached.
+          el.setAttribute("sandbox", DESIGN_SANDBOX)
+          el.srcdoc = designDocument(props.design.source)
+        }}
+        referrerpolicy="no-referrer"
+        loading="lazy"
+        title={props.title}
+        tabIndex={props.preview ? -1 : undefined}
+        class={props.class}
+        style={props.style}
+      />
+    </Show>
   )
 }

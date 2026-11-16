@@ -1,12 +1,6 @@
-import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount, untrack } from "solid-js"
+import { Show, createEffect, createMemo, on, untrack } from "solid-js"
 import { createStore } from "solid-js/store"
-import {
-  DESIGN_SANDBOX,
-  designDocument,
-  designTooLarge,
-  type CanvasDesign,
-  type Design,
-} from "@tenon/session-ui/design-fence"
+import { designTooLarge, type CanvasDesign, type Design } from "@tenon/session-ui/design-fence"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
@@ -15,13 +9,10 @@ import { ViewSwitch } from "@tenon/ui/v2/view-switch"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { useLanguage } from "@/context/language"
 import { useDesignCanvas } from "@/pages/session/design-canvas"
-import { LiveDesignFrame } from "@/pages/session/live-design-frame"
+import { DesignBoard } from "@/pages/session/design-board"
+import { DesignFrame, LiveDesignFrame } from "@/pages/session/live-design-frame"
 
-// Previews lay a design out at a desktop width, then scale it down to the card.
-const ARTBOARD_WIDTH = 1280
-const ARTBOARD_HEIGHT = 800
-
-/** The Canvas tab: the thread's designs as a grid of artboards, or one of them shown large. */
+/** The Canvas tab: the thread's designs as artboards on a pan/zoom board, or one of them shown large. */
 export function SessionCanvasTab() {
   const canvas = useDesignCanvas()
   const language = useLanguage()
@@ -40,7 +31,7 @@ export function SessionCanvasTab() {
   const title = (design: Design) => design.title ?? language.t("secondBrain.canvas.untitled")
 
   return (
-    // The grid and a design shown large fade through to each other.
+    // The board and a design shown large fade through to each other.
     <ViewSwitch key={selected() ?? ""} class="h-full">
       <Show
         when={selected()}
@@ -56,53 +47,13 @@ export function SessionCanvasTab() {
               </div>
             }
           >
-            <div class="h-full overflow-y-auto px-3 pb-3">
-              <div class="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
-                <For each={keys()}>
-                  {(key) => (
-                    <Show when={byKey().get(key)}>
-                      {(design) => (
-                        <div class="flex min-w-0 flex-col gap-1.5 rounded-[16px] bg-v2-background-bg-layer-01 p-1.5 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]">
-                          {/* Fixed white: a design is a standalone page that assumes a white canvas. */}
-                          <button
-                            type="button"
-                            class="relative block aspect-[16/10] w-full overflow-hidden rounded-[10px] bg-[#fff]"
-                            aria-label={language.t("secondBrain.canvas.view", { title: title(design()) })}
-                            onClick={() => canvas.select(key)}
-                          >
-                            {/* A streaming design draws in the large view; its card waits for the finished page. */}
-                            <Show
-                              when={!design().streaming}
-                              fallback={
-                                <div class="absolute inset-0 flex items-center justify-center gap-2 bg-v2-background-bg-layer-01 text-[13px] text-v2-text-text-muted">
-                                  <span class="size-2 shrink-0 rounded-full bg-v2-icon-icon-accent running-pulse" />
-                                  {language.t("secondBrain.canvas.drawingCard")}
-                                </div>
-                              }
-                            >
-                              <DesignPreview design={design()} title={title(design())} />
-                            </Show>
-                          </button>
-                          <div class="flex min-w-0 items-center gap-2 pl-1.5">
-                            <span class="min-w-0 truncate text-[13px] text-v2-text-text-base">{title(design())}</span>
-                            <Show when={!design().streaming}>
-                              <ButtonV2
-                                size="small"
-                                variant="ghost"
-                                class="ml-auto shrink-0"
-                                onClick={() => canvas.use(design())}
-                              >
-                                {language.t("secondBrain.canvas.use")}
-                              </ButtonV2>
-                            </Show>
-                          </div>
-                        </div>
-                      )}
-                    </Show>
-                  )}
-                </For>
-              </div>
-            </div>
+            <DesignBoard
+              keys={keys()}
+              design={(key) => byKey().get(key)}
+              title={title}
+              onOpen={(key) => canvas.select(key)}
+              onUse={(design) => canvas.use(design)}
+            />
           </Show>
         }
       >
@@ -228,61 +179,5 @@ function LargeDesign(props: { design: CanvasDesign; title: string }) {
         </Show>
       </div>
     </div>
-  )
-}
-
-function DesignPreview(props: { design: Design; title: string }) {
-  const [scale, setScale] = createSignal(0)
-  let box!: HTMLDivElement
-  onMount(() => {
-    const observer = new ResizeObserver((entries) => setScale((entries[0]?.contentRect.width ?? 0) / ARTBOARD_WIDTH))
-    observer.observe(box)
-    onCleanup(() => observer.disconnect())
-  })
-  return (
-    <div ref={box} class="absolute inset-0" aria-hidden="true">
-      <DesignFrame
-        design={props.design}
-        title={props.title}
-        class="pointer-events-none origin-top-left border-0"
-        style={{ width: `${ARTBOARD_WIDTH}px`, height: `${ARTBOARD_HEIGHT}px`, transform: `scale(${scale()})` }}
-        preview
-      />
-    </div>
-  )
-}
-
-/** The design in a sandboxed frame (see design-fence.ts), or a notice when it is over the size cap. */
-function DesignFrame(props: {
-  design: Design
-  title: string
-  class: string
-  style?: Record<string, string>
-  preview?: boolean
-}) {
-  const language = useLanguage()
-  return (
-    <Show
-      when={!designTooLarge(props.design.source)}
-      fallback={
-        <div class="flex size-full items-center justify-center p-4 text-center text-[13px] text-v2-text-text-muted bg-v2-background-bg-layer-01">
-          {language.t("secondBrain.canvas.tooLarge")}
-        </div>
-      }
-    >
-      <iframe
-        ref={(el) => {
-          // Sandboxed before the document is set and before the frame is attached.
-          el.setAttribute("sandbox", DESIGN_SANDBOX)
-          el.srcdoc = designDocument(props.design.source)
-        }}
-        referrerpolicy="no-referrer"
-        loading="lazy"
-        title={props.title}
-        tabIndex={props.preview ? -1 : undefined}
-        class={props.class}
-        style={props.style}
-      />
-    </Show>
   )
 }

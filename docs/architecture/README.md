@@ -1985,14 +1985,31 @@ note preview keep `html` blocks as highlighted code.
   from assistant text, in message order, including one still streaming
   (`collectDesigns(..., { streaming: true })`), then `write` calls to `.html`
   or `.htm` files (`collectToolDesigns`, live while the call is pending or
-  running), plus inline designs sent there with "Open in Canvas", as scaled
-  previews; clicking one shows it large. Designs are told apart by `key`
+  running), plus inline designs sent there with "Open in Canvas", as
+  artboards on a pan/zoom board (`design-board.tsx`); clicking one shows it
+  large. Designs are told apart by `key`
   (`<part id>:<fence index>`, or the call ID), which stays the same when a
   fence closes and its `id` becomes the checksum. `createDesignList` in
   `design-canvas.tsx` keeps one object per key while it doesn't change, the
-  grid iterates keys and the large view is keyed on the key, so a streamed
-  token or a closing fence never rebuilds an artboard or its frame. A
-  streaming design's card shows "Drawing…" until it is done. Only designs in
+  board iterates keys and the large view is keyed on the key, so a streamed
+  token or a closing fence never rebuilds an artboard or its frame.
+- The board (`app/src/pages/session/design-board.tsx`) places 1280×800
+  artboards on a two-column grid in world space (`boardLayout` in
+  `board-camera.ts`) inside one world layer whose CSS transform is the camera
+  (`screen = world · scale + (x, y)`); moving the camera changes only that
+  transform, the dot grid's offset and the screen-space labels, never the
+  frames. A board that is streaming when it mounts draws through
+  `LiveDesignFrame`, others through the finished `DesignFrame`. The camera
+  follows the board being drawn (`boardCamera` fits it), otherwise fits all
+  boards, gliding frame by frame with the `--v2-duration-long` and
+  emphasized-decelerate tokens (`cssEasing`) and jumping under reduced
+  motion; a requestAnimationFrame loop runs only during those glides. Wheel or
+  pinch zooms at the pointer (`zoomAt`, 5%–400%), a drag beyond 4 px pans
+  with pointer capture (and swallows the click that ends it), the pill and
+  the focused board's keys zoom around the centre. Any of those stops the
+  following until the next design starts drawing. When the board is already
+  in view, a newly streaming design doesn't open the large view: the reveal
+  marks its key as revealed and leaves the camera to follow it. Only designs in
   a reply still in progress (no `time.completed`, no error) are drawing: an
   open fence or pending call left in a reply that ended (stopped, out of
   tokens) is listed as done with its source so far, so its live view swaps to

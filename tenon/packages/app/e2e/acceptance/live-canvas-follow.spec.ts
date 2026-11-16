@@ -169,12 +169,16 @@ test("AC-9 going back to the list while a design draws keeps the list", async ({
   await expect(view).toBeVisible()
   await view.getByRole("button", { name: "All designs" }).click()
   await expect(view).toHaveCount(0)
+  // On the board the design keeps drawing in its artboard; its label says so.
   const card = page.getByRole("button", { name: "View Pricing" })
-  await expect(card).toContainText("Drawing…")
+  const label = page.locator('[data-slot="board-label"]')
+  await expect(card.locator("iframe")).toHaveCount(1)
+  await expect(label).toContainText("Drawing…")
 
   feed.push(partEvent(2), partEvent(3))
+  await expect(label).toContainText("Use this one")
+  await expect(label).not.toContainText("Drawing…")
   await expect(card.locator("iframe")).toHaveCount(1)
-  await expect(card).not.toContainText("Drawing…")
   await expect(view).toHaveCount(0)
 })
 
@@ -204,7 +208,8 @@ test("AC-11 a reply that ends inside an open canvas fence settles with what it d
   await view.getByRole("button", { name: "All designs" }).click()
   const card = page.getByRole("button", { name: "View Pricing" })
   await expect(card.locator("iframe")).toHaveCount(1)
-  await expect(card).not.toContainText("Drawing…")
+  await expect(page.locator('[data-slot="board-label"]')).toContainText("Use this one")
+  await expect(page.locator('[data-slot="board-label"]')).not.toContainText("Drawing…")
   const tab = page.locator('[id$="-content-canvas"]')
   await expect(tab.getByRole("button", { name: "Use this one" })).toBeVisible()
 })
