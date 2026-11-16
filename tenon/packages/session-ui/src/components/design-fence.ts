@@ -97,15 +97,21 @@ export function designTooLarge(source: string) {
  * are ignored or merged by the HTML parser, and its head elements still land in this head.
  * DNS prefetch is turned off and the WebRTC guard runs before any page script, because the CSP
  * covers neither. `autosize` adds a script that reports the content height to the parent (a bare number).
+ * With `nonce`, scripts may run only when they carry that nonce (Tenon's own, never the page's inline
+ * scripts, handlers or javascript: URLs); the guard and autosize scripts get it.
  */
-export function designDocument(source: string, options: { autosize?: boolean } = {}) {
+export function designDocument(source: string, options: { autosize?: boolean; nonce?: string } = {}) {
+  const csp = options.nonce
+    ? DESIGN_CSP.replace("script-src 'unsafe-inline'", `script-src 'nonce-${options.nonce}'`)
+    : DESIGN_CSP
+  const script = options.nonce ? `<script nonce="${options.nonce}">` : "<script>"
   return [
     "<!doctype html><html><head>",
-    `<meta http-equiv="Content-Security-Policy" content="${DESIGN_CSP}">`,
+    `<meta http-equiv="Content-Security-Policy" content="${csp}">`,
     '<meta http-equiv="x-dns-prefetch-control" content="off">',
-    webrtcGuardScript,
+    webrtcGuardScript.replace("<script>", script),
     '<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">',
-    options.autosize ? autosizeScript : "",
+    options.autosize ? autosizeScript.replace("<script>", script) : "",
     source,
   ].join("")
 }

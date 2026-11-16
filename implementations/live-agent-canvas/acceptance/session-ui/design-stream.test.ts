@@ -66,14 +66,27 @@ describe("AC-5 morphChildren", () => {
   })
 })
 
-// AC-6: the live frame document applies the design CSP before any script and speaks the frame protocol.
+// AC-6: the live frame document applies a nonce-only script CSP before any script and speaks the frame protocol.
 describe("AC-6 liveDesignDocument", () => {
+  const policy = (doc: string) => doc.match(/http-equiv="Content-Security-Policy" content="([^"]*)"/)?.[1] ?? ""
   test("CSP first, then the bootstrap that listens for frames from its parent", () => {
     const doc = liveDesignDocument()
-    const csp = doc.indexOf(DESIGN_CSP)
+    const csp = doc.indexOf("Content-Security-Policy")
     expect(csp).toBeGreaterThan(-1)
     expect(csp).toBeLessThan(doc.toLowerCase().indexOf("<script"))
     expect(doc).toContain(DESIGN_FRAME_MESSAGE)
     expect(doc).toContain("parent")
+  })
+  test("scripts need the nonce: the design CSP without unsafe-inline scripts", () => {
+    const doc = liveDesignDocument()
+    const scriptSrc = policy(doc).split(";").map((d) => d.trim()).find((d) => d.startsWith("script-src")) ?? ""
+    const nonce = scriptSrc.match(/'nonce-([^']+)'/)?.[1]
+    expect(nonce).toBeTruthy()
+    expect(scriptSrc).not.toContain("unsafe-inline")
+    expect(policy(doc)).toContain(DESIGN_CSP.split(";")[0])
+    const scripts = doc.match(/<script\b[^>]*>/gi) ?? []
+    expect(scripts.length).toBeGreaterThan(0)
+    scripts.forEach((tag) => expect(tag).toContain(`nonce="${nonce}"`))
+    expect(policy(liveDesignDocument())).not.toBe(policy(doc))
   })
 })

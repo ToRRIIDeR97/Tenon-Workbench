@@ -1636,7 +1636,9 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
   const emptyInput: Record<string, any> = {}
   const emptyMetadata: Record<string, any> = {}
 
-  const input = () => part().state?.input ?? emptyInput
+  // A pending part's input is healed from the stream and changes on every delta. Cards keep their
+  // title row until the tool runs, so no body, diff or file view is built (or the timeline re-measured) per delta.
+  const input = () => (part().state?.status === "pending" ? emptyInput : (part().state?.input ?? emptyInput))
   // @ts-expect-error
   const partMetadata = () => part().state?.metadata ?? emptyMetadata
   const taskId = createMemo(() => {

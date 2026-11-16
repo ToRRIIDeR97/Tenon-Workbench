@@ -1,11 +1,35 @@
 import { describe, expect, test } from "bun:test"
 import { runInNewContext } from "node:vm"
+import { DESIGN_CSP, designDocument } from "./design-fence"
 import { DESIGN_FRAME_MESSAGE, liveDesignDocument, morphChildren, partialDesignMarkup } from "./design-stream"
 
 describe("partialDesignMarkup", () => {
   test("keeps closed comments and a lone style", () => {
     expect(partialDesignMarkup("<!-- a --><p>x</p>")).toBe("<!-- a --><p>x</p>")
     expect(partialDesignMarkup("<style>.a{color:red}")).toBe("<style>.a{color:red}")
+  })
+
+  test("cuts at the first comment that never closes", () => {
+    expect(partialDesignMarkup("<p>a</p><!-- a > b <!-- c")).toBe("<p>a</p>")
+    expect(partialDesignMarkup("<!-- a --><p>x</p><!-- b")).toBe("<!-- a --><p>x</p>")
+  })
+})
+
+describe("live frame script policy", () => {
+  const policy = (doc: string) => doc.match(/http-equiv="Content-Security-Policy" content="([^"]*)"/)?.[1] ?? ""
+
+  test("only nonced scripts may run, with a fresh nonce per document", () => {
+    const doc = liveDesignDocument()
+    const nonce = policy(doc).match(/script-src 'nonce-([0-9a-f]{32})'/)?.[1]
+    expect(nonce).toBeTruthy()
+    expect(policy(doc)).toBe(DESIGN_CSP.replace("script-src 'unsafe-inline'", `script-src 'nonce-${nonce}'`))
+    expect(doc.match(/<script\b[^>]*>/gi)).toEqual([`<script nonce="${nonce}">`, `<script nonce="${nonce}">`])
+    expect(policy(liveDesignDocument())).not.toBe(policy(doc))
+  })
+
+  test("finished designs keep the inline script policy", () => {
+    expect(policy(designDocument("<p>x</p>"))).toBe(DESIGN_CSP)
+    expect(designDocument("<p>x</p>")).not.toContain("nonce")
   })
 })
 
@@ -33,7 +57,7 @@ describe.skipIf(dom)("morphChildren", () => {
 
 describe.skipIf(dom)("liveDesignDocument bootstrap", () => {
   const boot = () => {
-    const script = liveDesignDocument().match(/<script>(\(\(\)=>\{const __name[\s\S]*?)<\/script>/)?.[1]
+    const script = liveDesignDocument().match(/<script nonce="\w+">(\(\(\)=>\{const __name[\s\S]*?)<\/script>/)?.[1]
     const listeners: ((event: { source: unknown; data: unknown }) => void)[] = []
     const parent = {}
     document.body.innerHTML = ""
@@ -74,5 +98,25 @@ describe.skipIf(dom)("liveDesignDocument bootstrap", () => {
       markup: '<p onclick="x()">a</p><script>x()</script><iframe srcdoc="x"></iframe><a href="javascript:x()">b</a>',
     })
     expect(document.body.innerHTML).toBe("<p>a</p><a>b</a>")
+  })
+
+  test("drops javascript: URLs spelled with control characters", () => {
+    const frame = boot()
+    frame.send(frame.parent, {
+      type: DESIGN_FRAME_MESSAGE,
+      markup: '<a href="java&#9;script:x()">a</a><a href=" &#10;JavaScript:x()">b</a><a href="https://x.test/">c</a>',
+    })
+    expect(document.body.innerHTML).toBe('<a>a</a><a>b</a><a href="https://x.test/">c</a>')
+  })
+
+  test("drops SVG animations that could set a javascript: href", () => {
+    const frame = boot()
+    frame.send(frame.parent, {
+      type: DESIGN_FRAME_MESSAGE,
+      markup:
+        '<svg><a><animate attributeName="href" values="0;javascript:x()"></animate><set attributeName="href" to="javascript:x()"></set><animateMotion></animateMotion><animateTransform></animateTransform><text>t</text></a></svg>',
+    })
+    expect(document.body.querySelectorAll("animate, set, animateMotion, animateTransform").length).toBe(0)
+    expect(document.body.querySelector("text")?.textContent).toBe("t")
   })
 })

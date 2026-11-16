@@ -124,8 +124,13 @@ Interfaces named here are the contract both test sets use.
   attributes are added, changed and removed, children recurse; a different node replaces it;
   extra nodes are removed. It returns the elements it inserted (including ones inserted inside a
   kept parent), in document order, so callers can fade them in.
-- **AC-6** `liveDesignDocument()` returns a document that starts with `<!doctype html>`, has the
-  design CSP meta before any `<script>`, keeps the WebRTC guard, and contains a bootstrap that
+- **AC-6** `liveDesignDocument()` returns a document that starts with `<!doctype html>`, has a CSP
+  meta before any `<script>` that is the design CSP except that `script-src` allows only a nonce
+  fresh per call (no `'unsafe-inline'`), so inline handlers and `javascript:` URLs in streamed
+  markup can't run however they are spelled; only the WebRTC guard (kept) and the bootstrap carry
+  the nonce. The bootstrap also drops `on*` attributes, `javascript:` URLs (after removing control
+  characters and whitespace) and SVG `animate`, `set`, `animateMotion`, `animateTransform` as defence
+  in depth. It contains a bootstrap that
   morphs `markup` from messages `{ type: DESIGN_FRAME_MESSAGE, markup }` into the body, ignoring
   any message whose `source` isn't `parent` or whose data has another shape. It makes no network
   requests. `DESIGN_FRAME_MESSAGE` is `"tenon:design-frame"`.
