@@ -261,10 +261,16 @@ function SessionFileViewV2(props: { tab: string }) {
   // pane showed when the call began, never one read after a reload (the watcher's or another call's)
   // replaced it. A call first seen streaming begins then; one first seen running or finished may have
   // changed the file already, so it began when the previous call on this file finished.
+  // Only texts some call can still ask for are kept: see `shownTexts`.
   const shown = shownTexts()
-  createEffect(() => shown.show(contents()))
   const since = new Map<string, number>()
-  const finished = { mark: 0 }
+  const finished = { mark: undefined as number | undefined }
+  const handled = new Set<string>()
+  const marks = () => [
+    ...(finished.mark === undefined ? [] : [finished.mark]),
+    ...tracked().flatMap((write) => (handled.has(write.callID) ? [] : (since.get(write.callID) ?? []))),
+  ]
+  createEffect(() => shown.show(contents(), untrack(marks)))
   const before = (callID: string) => shown.at(since.get(callID) ?? shown.mark())
   const liveText = () => {
     const write = live()
@@ -276,23 +282,22 @@ function SessionFileViewV2(props: { tab: string }) {
   // watcher, and never settling for a read that started before they finished) if any succeeded, and
   // flash the blocks that changed since the first of them began.
   const [flash, setFlash] = createSignal<{ id: number; before: string; after: string }>()
-  const handled = new Set<string>()
   createEffect(() => {
     const p = path()
     const calls = tracked()
-    shown.show(untrack(contents))
+    shown.show(untrack(contents), untrack(marks))
     calls.forEach((write) => {
-      if (!since.has(write.callID)) since.set(write.callID, write.status === "streaming" ? shown.mark() : finished.mark)
+      if (!since.has(write.callID))
+        since.set(write.callID, write.status === "streaming" ? shown.mark() : (finished.mark ?? 0))
     })
     const done = calls.filter((write) => !isWriting(write) && !handled.has(write.callID))
     if (!p || done.length === 0) return
     done.forEach((write) => handled.add(write.callID))
     const saved = done.filter((write) => write.status === "completed")
-    const start = Math.min(...saved.map((write) => since.get(write.callID) ?? finished.mark))
+    const start = Math.min(...saved.map((write) => since.get(write.callID) ?? 0))
     const prior = saved.length ? shown.at(start) : ""
     finished.mark = shown.mark()
-    const open = calls.filter((write) => !handled.has(write.callID)).map((write) => since.get(write.callID) ?? 0)
-    shown.forget(Math.min(finished.mark, ...open))
+    shown.keep(untrack(marks))
     if (saved.length === 0) return
     void file.load(p, { fresh: true }).then(() => {
       const after = untrack(contents)

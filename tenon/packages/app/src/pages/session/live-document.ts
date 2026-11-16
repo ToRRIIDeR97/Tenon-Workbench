@@ -120,28 +120,47 @@ export function editPreview(text: string, oldString: string | undefined, newStri
  * The texts a file view has shown, in order, so a call's "before" text comes from when the call began
  * rather than being read after a reload (the watcher's, or another call's) already replaced it.
  * `mark()` names the current moment; `at(mark)` is the text shown then or, when nothing was loaded
- * then, the first text loaded after it. `forget(mark)` drops what no later `at(mark or later)` needs.
+ * then, the first text loaded after it. `show(text, marks)` and `keep(marks)` keep only what `at` can
+ * still answer for `marks` (the open calls' and the last finished call's): for each, the text shown at
+ * it and the first loaded after it, plus the latest text, so a view with no open call holds one text.
+ * At most `SHOWN_LIMIT` texts stay in any case (the oldest go first).
  */
 export function shownTexts() {
   const state = { tick: 0, entries: [] as { tick: number; text: string }[] }
+  const keep = (marks: readonly number[]) => {
+    const kept = new Set<{ tick: number; text: string }>()
+    const last = state.entries.at(-1)
+    if (last) kept.add(last)
+    marks.forEach((mark) => {
+      const then = state.entries.findLast((entry) => entry.tick <= mark)
+      if (then) kept.add(then)
+      if (then?.text) return
+      const next = state.entries.find((entry) => entry.tick > mark && entry.text)
+      if (next) kept.add(next)
+    })
+    state.entries = state.entries.filter((entry) => kept.has(entry)).slice(-SHOWN_LIMIT)
+  }
   return {
-    show(text: string) {
-      if (state.entries.at(-1)?.text === text) return
-      state.tick += 1
-      state.entries.push({ tick: state.tick, text })
+    show(text: string, marks: readonly number[]) {
+      if (state.entries.at(-1)?.text !== text) {
+        state.tick += 1
+        state.entries.push({ tick: state.tick, text })
+      }
+      keep(marks)
     },
+    keep,
     mark: () => state.tick,
+    size: () => state.entries.length,
     at(mark: number) {
       const then = state.entries.findLast((entry) => entry.tick <= mark)?.text
       if (then) return then
       return state.entries.find((entry) => entry.tick > mark && entry.text)?.text ?? ""
     },
-    forget(mark: number) {
-      const keep = state.entries.findLastIndex((entry) => entry.tick <= mark)
-      if (keep > 0) state.entries.splice(0, keep)
-    },
   }
 }
+
+/** The most texts `shownTexts` holds, whatever calls are open. */
+export const SHOWN_LIMIT = 16
 
 /**
  * Whether a finished call happened while the view watched rather than in history: it was seen pending
