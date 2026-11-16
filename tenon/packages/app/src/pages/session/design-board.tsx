@@ -386,7 +386,7 @@ function BoardLabel(props: {
   const language = useLanguage()
   const [size, setSize] = createStore({ title: 0, use: 0, done: 0 })
   let title!: HTMLSpanElement
-  let use: HTMLButtonElement | undefined
+  let use: HTMLSpanElement | undefined
   let done: HTMLSpanElement | undefined
   createEffect(
     on(
@@ -426,19 +426,26 @@ function BoardLabel(props: {
         >
           {language.t("secondBrain.canvas.done")}
         </span>
-        <ButtonV2
+        {/* The wrapper takes the hidden state: the button's own CSS keeps it position: relative. */}
+        <span
           ref={use}
-          size="small"
-          variant="ghost"
-          class="pointer-events-auto ml-auto h-5 shrink-0"
-          classList={{ "invisible absolute pointer-events-none": !showUse() }}
+          data-slot="board-label-use"
+          class="ml-auto flex shrink-0"
+          classList={{ "invisible absolute": !showUse() }}
           aria-hidden={showUse() ? undefined : "true"}
-          tabIndex={showUse() ? undefined : -1}
-          onPointerDown={(event: PointerEvent) => event.stopPropagation()}
-          onClick={() => props.onUse()}
         >
-          {language.t("secondBrain.canvas.use")}
-        </ButtonV2>
+          <ButtonV2
+            size="small"
+            variant="ghost"
+            class="h-5"
+            classList={{ "pointer-events-auto": showUse() }}
+            tabIndex={showUse() ? undefined : -1}
+            onPointerDown={(event: PointerEvent) => event.stopPropagation()}
+            onClick={() => props.onUse()}
+          >
+            {language.t("secondBrain.canvas.use")}
+          </ButtonV2>
+        </span>
       </Show>
     </div>
   )

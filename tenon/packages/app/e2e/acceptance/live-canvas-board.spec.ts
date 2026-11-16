@@ -209,6 +209,17 @@ test("AC-24 the board follows each design as it draws, then shows them all", asy
     .click()
   await expect(page.locator('[data-component="prompt-input"]')).toContainText('Use design "Beta"')
 
+  // A short window shrinks the boards below what title and Use need: Use steps aside, the titles stay whole.
+  await page.setViewportSize({ width: 1440, height: 420 })
+  await expect.poll(() => percent(page)).toBeLessThanOrEqual(12)
+  await expect(board).not.toHaveAttribute("data-camera-moving", "")
+  await expect(titles).toHaveText(["A · Alpha", "B · Beta", "C · Gamma"])
+  expect(await titles.evaluateAll((items) => items.every((item) => item.scrollWidth <= item.clientWidth))).toBe(true)
+  for (const use of await page.locator('[data-slot="board-label-use"]').all()) await expect(use).toBeHidden()
+  await shot(page, "3-short-window")
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await expect(page.locator('[data-slot="board-label-use"]').first()).toBeVisible()
+
   // Clicking a board opens it large.
   await beta.click()
   const opened = page.locator('[data-canvas-design="history"], [data-canvas-design="live"]')
