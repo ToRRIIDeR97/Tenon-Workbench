@@ -10,6 +10,7 @@ import { SkillPlugin } from "@tenon/core/plugin/skill"
 import { Permission } from "@/permission"
 import { FSUtil } from "@tenon/core/fs-util"
 import { Config } from "@/config/config"
+import { ConfigTrust } from "@tenon/core/config/trust"
 import { FrontmatterError } from "@tenon/core/v1/config/error"
 import { ConfigMarkdown } from "@/config/markdown"
 import { RuntimeFlags } from "@/effect/runtime-flags"
@@ -18,9 +19,8 @@ import { Discovery } from "./discovery"
 import { isRecord } from "@/util/record"
 import { escapeHtml } from "@/util/html"
 
-const CLAUDE_EXTERNAL_DIR = ".claude"
-const AGENTS_EXTERNAL_DIR = ".agents"
-const EXTERNAL_SKILL_PATTERN = "skills/**/SKILL.md"
+const [CLAUDE_EXTERNAL_DIR, AGENTS_EXTERNAL_DIR] = ConfigTrust.EXTERNAL_DIRS
+const EXTERNAL_SKILL_PATTERN = ConfigTrust.EXTERNAL_SKILLS
 const TENON_SKILL_PATTERN = "{skill,skills}/**/SKILL.md"
 const SKILL_PATTERN = "**/SKILL.md"
 
@@ -193,9 +193,13 @@ const discoverSkills = Effect.fnUntraced(function* (
       yield* scan(state, root, EXTERNAL_SKILL_PATTERN, { dot: true, scope: "global" })
     }
 
-    const upDirs = yield* fsys
+    // A folder the user hasn't approved keeps the skills inside it off until it is.
+    const trust = yield* config.trust()
+    const upDirs = (yield* fsys
       .up({ targets: externalDirs, start: directory, stop: worktree })
-      .pipe(Effect.catch(() => Effect.succeed([] as string[])))
+      .pipe(Effect.catch(() => Effect.succeed([] as string[])))).filter(
+      (dir) => trust.trusted || !ConfigTrust.covers([trust.root], dir),
+    )
 
     for (const root of upDirs) {
       yield* scan(state, root, EXTERNAL_SKILL_PATTERN, { dot: true, scope: "project" })

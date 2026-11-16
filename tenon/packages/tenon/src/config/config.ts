@@ -524,7 +524,10 @@ const layer = Layer.effect(
             deps.push(dep)
           }
 
-          result.command = mergeDeep(result.command ?? {}, yield* Effect.promise(() => ConfigCommand.load(dir)))
+          const commands = yield* Effect.promise(() => ConfigCommand.load(dir))
+          const limitedCommands = trusted ? { commands, withheld: false } : ConfigTrust.commandsV1(commands)
+          if (limitedCommands.withheld) withheld.add("commands")
+          result.command = mergeDeep(result.command ?? {}, limitedCommands.commands)
           const agents = yield* Effect.promise(() => ConfigAgent.load(dir))
           const modes = yield* Effect.promise(() => ConfigAgent.loadMode(dir))
           result.agent = mergeDeep(result.agent ?? {}, user ? agents : ConfigTrust.agentsV1(agents))
@@ -662,11 +665,26 @@ const layer = Layer.effect(
         }
 
         const root = ConfigTrust.root(ctx.directory, ctx.worktree)
+        const trustedRoot = ConfigTrust.covers(approved, root)
+        // Skills in the folder's own `.claude` and `.agents` folders wait for approval too (the skill
+        // service skips them); the home copies are the user's own.
+        if (!trustedRoot) {
+          const homes = new Set(ConfigTrust.EXTERNAL_DIRS.map((name) => path.join(Global.Path.home, name)))
+          const external = yield* fs
+            .up({ targets: [...ConfigTrust.EXTERNAL_DIRS], start: ctx.directory, stop: root })
+            .pipe(Effect.orElseSucceed(() => [] as string[]))
+          const skills = external.some(
+            (dir) =>
+              !homes.has(dir) &&
+              Glob.scanSync(ConfigTrust.EXTERNAL_SKILLS, { cwd: dir, absolute: true, dot: true, symlink: true }).length,
+          )
+          if (skills) withheld.add("skills")
+        }
         return {
           config: result,
           // Custom tools and skills load from these folders, so an unapproved one stays out.
           directories: directories.filter((dir) => userDirectories.has(dir) || ConfigTrust.covers(approved, dir)),
-          trust: { root, trusted: ConfigTrust.covers(approved, root), withheld: Array.from(withheld) },
+          trust: { root, trusted: trustedRoot, withheld: Array.from(withheld) },
           deps,
           consoleState: {
             consoleManagedProviders: Array.from(consoleManagedProviders),

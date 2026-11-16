@@ -1527,12 +1527,20 @@ folder stays unapproved. Until a folder is approved:
   in a URL or header. A file that only decodes once its variables expand, such
   as one with a number supplied by `{env:}`, is skipped until approval, so its
   error can't stop the app from asking.
+- Commands whose template has a `` !`line` `` block, in the `command` key or
+  as `.tenon`/`.opencode` `command(s)/*.md` files, are dropped
+  (`ConfigTrust.commandsV1`). That block runs in a shell without asking each
+  time the command is used, and a project command can replace a built-in one
+  such as `/review`. Commands that only send text still load.
+- Skills under the folder's own `.claude` and `.agents` folders (inside the
+  approval root) aren't loaded (`tenon/src/skill/index.ts`). The home copies,
+  `~/.claude/skills` and `~/.agents/skills`, are the user's and always load.
 - Nothing is written into the folder: no `$schema` line, `.gitignore` or
   dependency install.
 
 Other keys, such as `model`, `experimental.policies` (provider access only, and
-user rules override it), markdown agents and commands, and skills under the
-folder's `.claude` and `.agents` still apply. The user's own `~/.tenon` and
+user rules override it) and markdown agents (with the permission limits below)
+still apply. The user's own `~/.tenon` and
 `~/.opencode` are never project folders, even when a folder with no repository
 walks up past them. A linked Git worktree is its own folder, so it needs its own
 approval. When something was withheld, `GET /config/trust` names it and the app
@@ -1551,6 +1559,13 @@ stay, and user config isn't limited.
 The gate protects against a repository, not against an agent. An agent with
 shell access runs as the user and could edit the list itself. An approved
 folder's `references` are still added to the `external_directory` allowlist.
+
+Known gap: once a folder is approved, an npm plugin spec in its config with no
+version (or `*`) installs `latest` (`tenon/src/plugin/shared.ts`), so a later
+publish of that package runs on the next load. Before approval no project
+plugin installs at all. Some built-in language servers (Biome, oxc) start the
+binary in the folder's own `node_modules/.bin` whether or not it is approved
+(`tenon/src/lsp/server.ts`); that is upstream behaviour and isn't gated yet.
 
 ### Windows command lookup
 

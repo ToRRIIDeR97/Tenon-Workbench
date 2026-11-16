@@ -952,6 +952,7 @@ export const dict = {
   "folderTrust.withheld.plugin": "Plugins",
   "folderTrust.withheld.tools": "Custom tools",
   "folderTrust.withheld.skills": "Skills",
+  "folderTrust.withheld.commands": "Commands that run shell lines",
   "folderTrust.withheld.provider": "Model provider settings",
   "folderTrust.withheld.lsp": "Language servers",
   "folderTrust.withheld.formatter": "Formatters",

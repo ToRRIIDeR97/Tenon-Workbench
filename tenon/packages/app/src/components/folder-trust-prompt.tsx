@@ -20,6 +20,7 @@ const withheldLabel = (language: Language, key: string) => {
     plugin: "folderTrust.withheld.plugin",
     tools: "folderTrust.withheld.tools",
     skills: "folderTrust.withheld.skills",
+    commands: "folderTrust.withheld.commands",
     provider: "folderTrust.withheld.provider",
     lsp: "folderTrust.withheld.lsp",
     formatter: "folderTrust.withheld.formatter",

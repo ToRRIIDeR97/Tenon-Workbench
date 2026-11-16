@@ -82,6 +82,22 @@ export function agentsV1<T extends { permission?: ConfigPermissionV1.Info }>(age
   ) as Record<string, T>
 }
 
+/** Other harnesses' folders whose `skills/` load too; the project's copies wait for approval. */
+export const EXTERNAL_DIRS = [".claude", ".agents"] as const
+export const EXTERNAL_SKILLS = "skills/**/SKILL.md"
+
+/** A command template with a `` !`line` `` block runs that line in a shell, without asking, each time the command is used. */
+export const runsShell = (template: string) => /!`[^`]+`/.test(template)
+
+/** Keeps the project commands that only send text; ones that run a shell line wait for approval. */
+export function commandsV1<T extends { template: string }>(commands: Record<string, T>) {
+  const kept = Object.entries(commands).filter(([, command]) => !runsShell(command.template))
+  return {
+    commands: Object.fromEntries(kept) as Record<string, T>,
+    withheld: kept.length < Object.keys(commands).length,
+  }
+}
+
 const GATED_V1 = [
   "mcp",
   "plugin",
@@ -119,6 +135,11 @@ export function projectV1<T extends ConfigV1.Info>(config: T, trusted: boolean) 
   if (config.instructions) {
     limited.instructions = config.instructions.filter(localInstruction)
     if (limited.instructions.length < config.instructions.length) withheld.push("instructions")
+  }
+  if (config.command) {
+    const commands = commandsV1(config.command)
+    limited.command = commands.commands
+    if (commands.withheld) withheld.push("commands")
   }
   return { config: limited, withheld }
 }
