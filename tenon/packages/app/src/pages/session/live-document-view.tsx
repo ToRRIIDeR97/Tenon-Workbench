@@ -30,6 +30,27 @@ export function createSessionWrites() {
   })
 }
 
+/**
+ * The newest message time (server clock) of the thread when this view first saw its messages: a
+ * message created after it is new to the view, one at or before it (or paging in) is history.
+ */
+export function createViewNewest() {
+  const sync = useSync()
+  const layout = useSessionLayout()
+  const [newest, setNewest] = createSignal<{ id: string; time: number }>()
+  createEffect(() => {
+    const id = layout.params.id
+    if (!id || untrack(newest)?.id === id) return
+    const messages = sync().data.message[id] ?? []
+    if (messages.length === 0) return
+    setNewest({ id, time: Math.max(...messages.map((message) => message.time.created)) })
+  })
+  return () => {
+    const known = newest()
+    return known && known.id === layout.params.id ? known.time : undefined
+  }
+}
+
 export const isWriting = (write: LiveWrite | undefined) => write?.status === "streaming" || write?.status === "running"
 const isDesign = (path: string) => /\.html?$/i.test(path)
 
@@ -214,18 +235,26 @@ export function flashChangedBlocks(root: HTMLElement, before: string, after: str
           position: anchor.getBoundingClientRect().top - top + viewport.scrollTop,
         }
       : undefined
-  const state = { done: false }
+  const accent = getComputedStyle(document.documentElement)
+    .getPropertyValue("--v2-background-bg-accent-container")
+    .trim()
+  const animated = new WeakSet<HTMLElement>()
+  const state = { applied: false, scroll: undefined as number | undefined }
+  // The renderer shows a block's text first and its parsed HTML later, morphing elements in place (which
+  // drops attributes it didn't set), so every render step until the flash ends is matched again: the
+  // changed blocks keep their mark, each element fades once, and the reader stays put unless they scroll.
   const apply = () => {
-    if (state.done) return
-    state.done = true
-    observer.disconnect()
     clearTimeout(fallback)
+    if (!state.applied) {
+      state.applied = true
+      setTimeout(() => stop(), FLASH_MS)
+    }
     const list = elements()
     const owners = blockOwners(
       list.map((el) => el.textContent ?? ""),
       after,
     )
-    if (held && viewport) {
+    if (held && viewport && (state.scroll === undefined || state.scroll === viewport.scrollTop)) {
       // The same text may occur more than once: take the occurrence nearest where the anchor was.
       const offset = (el: HTMLElement) =>
         el.getBoundingClientRect().top - viewport.getBoundingClientRect().top + viewport.scrollTop
@@ -234,24 +263,40 @@ export function flashChangedBlocks(root: HTMLElement, before: string, after: str
         .sort((a, b) => Math.abs(offset(a) - held.position) - Math.abs(offset(b) - held.position))[0]
       if (same)
         viewport.scrollTop += same.getBoundingClientRect().top - viewport.getBoundingClientRect().top - held.offset
+      state.scroll = viewport.scrollTop
     }
-    const accent = getComputedStyle(document.documentElement)
-      .getPropertyValue("--v2-background-bg-accent-container")
-      .trim()
-    list
-      .filter((_, index) => changed.has(owners[index] ?? -1))
-      .forEach((el) => {
-        el.dataset.liveFlash = ""
-        if (prefersReducedMotion() || !accent) return
-        el.animate([{ backgroundColor: accent }, { backgroundColor: "transparent" }], {
-          duration: FLASH_MS,
-          easing: "ease-out",
-        })
+    list.forEach((el, index) => {
+      if (!changed.has(owners[index] ?? -1)) {
+        delete el.dataset.liveFlash
+        return
+      }
+      el.dataset.liveFlash = ""
+      if (animated.has(el) || prefersReducedMotion() || !accent) return
+      animated.add(el)
+      el.animate([{ backgroundColor: accent }, { backgroundColor: "transparent" }], {
+        duration: FLASH_MS,
+        easing: "ease-out",
       })
+    })
   }
+  flashing.get(root)?.()
   root.querySelectorAll<HTMLElement>("[data-live-flash]").forEach((el) => delete el.dataset.liveFlash)
-  // The renderer updates asynchronously; apply once its DOM changes (or soon, if nothing changes).
-  const observer = new MutationObserver(() => requestAnimationFrame(apply))
+  // The renderer updates asynchronously; apply as its DOM changes (or soon, if nothing changes).
+  const frame = { id: 0 }
+  const observer = new MutationObserver(() => {
+    cancelAnimationFrame(frame.id)
+    frame.id = requestAnimationFrame(apply)
+  })
   observer.observe(root, { childList: true, subtree: true, characterData: true })
   const fallback = setTimeout(apply, 1000)
+  const stop = () => {
+    observer.disconnect()
+    clearTimeout(fallback)
+    cancelAnimationFrame(frame.id)
+    if (flashing.get(root) === stop) flashing.delete(root)
+  }
+  flashing.set(root, stop)
 }
+
+// The flash running in each rendered root, so a newer one replaces it.
+const flashing = new WeakMap<HTMLElement, () => void>()

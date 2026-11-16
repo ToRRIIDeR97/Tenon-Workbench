@@ -20,8 +20,8 @@ import { usePrompt } from "@/context/prompt"
 import { useSDK } from "@/context/sdk"
 import { clearFileReveal, fileReveal, panelSettled } from "@/pages/session/file-reference"
 import { FileViewer, LiveSource, viewerKind } from "@/pages/session/file-viewer"
-import { editPreview } from "@/pages/session/live-document"
-import { createSessionWrites, isWriting } from "@/pages/session/live-document-view"
+import { editPreview, isLiveCall, shownTexts } from "@/pages/session/live-document"
+import { createSessionWrites, createViewNewest, isWriting } from "@/pages/session/live-document-view"
 import { getSessionHandoff } from "@/pages/session/handoff"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { createSessionTabs } from "@/pages/session/helpers"
@@ -237,9 +237,10 @@ function SessionFileViewV2(props: { tab: string }) {
 
   // Live document: the agent's writes and edits of this file, from the session parts. A finished call is
   // history (no live text, chip, reload or flash) unless this view saw it run, its reply is still in
-  // progress, or its message is newer than the view, so older messages paging in or a restored tab stay quiet.
+  // progress, or its message is newer than the newest one the view first knew (server times), so older
+  // messages paging in or a restored tab stay quiet.
   const writes = createSessionWrites()
-  const mounted = Date.now()
+  const newest = createViewNewest()
   const ran = new Set<string>()
   const fileWrites = createMemo(() => {
     const p = path()
@@ -249,40 +250,54 @@ function SessionFileViewV2(props: { tab: string }) {
   createEffect(() => fileWrites().forEach((write) => isWriting(write) && ran.add(write.callID)))
   const tracked = createMemo(() =>
     fileWrites().filter(
-      (write) => isWriting(write) || ran.has(write.callID) || write.ongoing || write.created > mounted,
+      (write) =>
+        isWriting(write) ||
+        isLiveCall({ seen: ran.has(write.callID), ongoing: write.ongoing, created: write.created, newest: newest() }),
     ),
   )
   const live = createMemo(() => tracked().findLast((write) => isWriting(write)) ?? tracked().at(-1))
   const writing = () => isWriting(live())
-  // The text before each call, for an edit's preview and for the flash when it finishes.
-  const baseline = new Map<string, string>()
-  createEffect(() =>
-    tracked().forEach((write) => {
-      if (!baseline.has(write.callID)) baseline.set(write.callID, untrack(contents))
-    }),
-  )
+  // The text before each call, for an edit's preview and for the flash when it finishes, is the text the
+  // pane showed when the call began, never one read after a reload (the watcher's or another call's)
+  // replaced it. A call first seen streaming begins then; one first seen running or finished may have
+  // changed the file already, so it began when the previous call on this file finished.
+  const shown = shownTexts()
+  createEffect(() => shown.show(contents()))
+  const since = new Map<string, number>()
+  const finished = { mark: 0 }
+  const before = (callID: string) => shown.at(since.get(callID) ?? shown.mark())
   const liveText = () => {
     const write = live()
     if (!write || !writing()) return undefined
     if (write.tool === "write") return write.content ?? ""
-    return editPreview(baseline.get(write.callID) || contents(), write.oldString, write.newString)
+    return editPreview(before(write.callID) || contents(), write.oldString, write.newString)
   }
   // When tracked calls finish, read the file from disk once for all of them (without waiting for the
-  // watcher) if any succeeded, and flash the blocks that changed since the first of them started.
+  // watcher, and never settling for a read that started before they finished) if any succeeded, and
+  // flash the blocks that changed since the first of them began.
   const [flash, setFlash] = createSignal<{ id: number; before: string; after: string }>()
   const handled = new Set<string>()
   createEffect(() => {
     const p = path()
-    const done = tracked().filter((write) => !isWriting(write) && !handled.has(write.callID))
+    const calls = tracked()
+    shown.show(untrack(contents))
+    calls.forEach((write) => {
+      if (!since.has(write.callID)) since.set(write.callID, write.status === "streaming" ? shown.mark() : finished.mark)
+    })
+    const done = calls.filter((write) => !isWriting(write) && !handled.has(write.callID))
     if (!p || done.length === 0) return
     done.forEach((write) => handled.add(write.callID))
     const saved = done.filter((write) => write.status === "completed")
+    const start = Math.min(...saved.map((write) => since.get(write.callID) ?? finished.mark))
+    const prior = saved.length ? shown.at(start) : ""
+    finished.mark = shown.mark()
+    const open = calls.filter((write) => !handled.has(write.callID)).map((write) => since.get(write.callID) ?? 0)
+    shown.forget(Math.min(finished.mark, ...open))
     if (saved.length === 0) return
-    const before = baseline.get(saved[0].callID) || untrack(contents)
-    void file.load(p, { force: true }).then(() => {
+    void file.load(p, { fresh: true }).then(() => {
       const after = untrack(contents)
       // While another call streams the pane shows its live text, so there is nothing to flash yet.
-      if (after !== before && !untrack(writing)) setFlash({ id: (untrack(flash)?.id ?? 0) + 1, before, after })
+      if (after !== prior && !untrack(writing)) setFlash({ id: (untrack(flash)?.id ?? 0) + 1, before: prior, after })
     })
   })
   const cacheKey = createMemo(() => sampledChecksum(contents()))

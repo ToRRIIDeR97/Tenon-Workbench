@@ -2735,20 +2735,31 @@ product) adds three tools to Review, Session, Canvas, agent and file tabs.
   shows the raw text). The header chip reads "Tenon is writing", then "Saved
   just now". When the call finishes, or a finished call arrives from a
   harness without streamed input, the viewer reloads the file with
-  `file.load(path, { force: true })` (the watcher may also reload it) and
-  diffs the text from before the call against the reloaded text with
-  `changedBlocks`. Rendered elements are matched to those Markdown blocks by
+  `file.load(path, { fresh: true })`, which waits out a read already in
+  flight and then reads again, so the result reflects the disk after the
+  call (the watcher may also reload it), and diffs the text from before the
+  call against the reloaded text with `changedBlocks`. The text before a
+  call comes from `shownTexts`, the texts the pane has shown: the one shown
+  when the call began (when it was first seen streaming, or, for a call first
+  seen running or finished, when the previous call on the file finished), or
+  the first loaded after that if none was loaded then, never one read after a
+  reload replaced it. Rendered elements are matched to those Markdown blocks by
   their text, in order (the renderer's blocks differ from `markdownBlocks`),
   get `data-live-flash` and an accent-container fade (1.6 s, none under
   reduced motion), and the first visible element keeps its offset in the
-  viewport (the occurrence of its text nearest where it was). Rendered
-  elements match blocks exactly first and the match only moves forward
-  (`blockOwners`). Every tracked call on the file counts: when any of them
-  finishes successfully the file reloads once (calls finishing together
+  viewport (the occurrence of its text nearest where it was). The renderer
+  shows plain text first and morphs in the parsed HTML later, dropping
+  attributes it didn't set, so each render step during the flash is matched
+  again (each element fades once; the reader is held until they scroll).
+  Rendered elements match blocks exactly first and the match only moves
+  forward (`blockOwners`). Every tracked call on the file counts: when any of
+  them finishes successfully the file reloads once (calls finishing together
   share it; a failed call doesn't reload), and the flash runs only when the
   text changed and no other call is streaming. A finished call is history
   (no live text, chip, reload or flash) unless the view saw it run, its reply
-  is still in progress, or its message is newer than the view.
+  is still in progress, or its message is newer than the newest message the
+  view knew when it first saw the thread's messages (`isLiveCall`; server
+  times on both sides, no client clock).
 - **Browser tab.** One `WebContentsView` in the `persist:tenon-browser`
   session, laid over the tab (`desktop/src/main/browser.ts`,
   `app/src/pages/session/browser-tab.tsx`). The user can select elements (an

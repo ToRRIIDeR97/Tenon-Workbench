@@ -164,7 +164,12 @@ export const { use: useFile, provider: FileProvider } = createSimpleContext({
       })
     }
 
-    const load = (input: string, options?: { force?: boolean }) => {
+    /**
+     * Reads a file into the store. A read already in flight is shared; with `fresh`, one that started
+     * before this call is awaited and followed by a read that starts now, so the result reflects the
+     * file as it is after the caller's change (a live document's write that just finished).
+     */
+    const load = (input: string, options?: { force?: boolean; fresh?: boolean }): Promise<void> => {
       const file = path.normalize(input)
       if (!file) return Promise.resolve()
 
@@ -173,9 +178,12 @@ export const { use: useFile, provider: FileProvider } = createSimpleContext({
       ensure(file)
 
       const current = store.file[file]
-      if (!options?.force && current?.loaded) return Promise.resolve()
+      if (!options?.force && !options?.fresh && current?.loaded) return Promise.resolve()
 
       const pending = inflight.get(key)
+      // A read started after this one was asked for (by the time `pending` settles) is fresh enough.
+      if (pending && options?.fresh)
+        return pending.then(() => (scope() === directory ? load(file, { force: true }) : undefined))
       if (pending) return pending
 
       setLoading(file)

@@ -115,3 +115,39 @@ export function editPreview(text: string, oldString: string | undefined, newStri
   if (!oldString || newString === undefined || !text.includes(oldString)) return text
   return text.replace(oldString, () => newString)
 }
+
+/**
+ * The texts a file view has shown, in order, so a call's "before" text comes from when the call began
+ * rather than being read after a reload (the watcher's, or another call's) already replaced it.
+ * `mark()` names the current moment; `at(mark)` is the text shown then or, when nothing was loaded
+ * then, the first text loaded after it. `forget(mark)` drops what no later `at(mark or later)` needs.
+ */
+export function shownTexts() {
+  const state = { tick: 0, entries: [] as { tick: number; text: string }[] }
+  return {
+    show(text: string) {
+      if (state.entries.at(-1)?.text === text) return
+      state.tick += 1
+      state.entries.push({ tick: state.tick, text })
+    },
+    mark: () => state.tick,
+    at(mark: number) {
+      const then = state.entries.findLast((entry) => entry.tick <= mark)?.text
+      if (then) return then
+      return state.entries.find((entry) => entry.tick > mark && entry.text)?.text ?? ""
+    },
+    forget(mark: number) {
+      const keep = state.entries.findLastIndex((entry) => entry.tick <= mark)
+      if (keep > 0) state.entries.splice(0, keep)
+    },
+  }
+}
+
+/**
+ * Whether a finished call happened while the view watched rather than in history: it was seen pending
+ * or running here, its reply is still in progress, or its message is newer than the newest message the
+ * view knew when it first saw the thread's messages (server times on both sides, no client clock).
+ */
+export function isLiveCall(call: { seen: boolean; ongoing: boolean; created: number; newest: number | undefined }) {
+  return call.seen || call.ongoing || (call.newest !== undefined && call.created > call.newest)
+}

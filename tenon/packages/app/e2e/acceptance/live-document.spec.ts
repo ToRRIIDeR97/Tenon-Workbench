@@ -85,7 +85,8 @@ test.use({ viewport: { width: 1440, height: 900 } })
 
 async function start(page: Page, parts: Record<string, unknown>[] = [intro], completed?: number) {
   const feed: unknown[] = []
-  const disk = { text: plan }
+  // `reads` counts the reads of the plan: the mock serves the text as it is when the request arrives.
+  const disk = { text: plan, reads: 0 }
   await openApp(page, {
     sessions: [thread],
     pageMessages: (id) =>
@@ -97,7 +98,10 @@ async function start(page: Page, parts: Record<string, unknown>[] = [intro], com
             ],
           }
         : { items: [] },
-    fileContent: () => ({ type: "text", content: disk.text }),
+    fileContent: (file) => {
+      if (file.endsWith("plan.md")) disk.reads += 1
+      return { type: "text", content: disk.text }
+    },
     // A heartbeat on otherwise empty connections keeps the app's reconnect backoff at its base.
     events: () => (feed.length ? feed.splice(0, 1) : [heartbeat]),
     eventRetry: 40,
@@ -132,8 +136,12 @@ test("AC-18 … AC-19 a write types into the Files tab live, then an edit flashe
   await expect(viewer.locator('[data-slot="live-document-source"]')).toContainText("## Goals")
   await viewer.locator('[data-action="file-viewer-rendered"]').click()
 
-  // The write finishes: the file reloads from disk and the chip settles.
+  // The write finishes: the file reloads from disk and the chip settles. The panel read the file when it
+  // opened; the write's own reload follows it, and the edit below changes the disk only after that read.
+  await expect.poll(() => disk.reads).toBeGreaterThan(0)
+  const reads = disk.reads
   feed.push(writing(plan, "completed"))
+  await expect.poll(() => disk.reads).toBeGreaterThan(reads)
   await expect(status).toHaveText("Saved just now")
   await expect(viewer.getByText("The reader is here.")).toBeVisible()
   await expect(viewer.locator('[data-slot="live-document-caret"]')).toHaveCount(0)
