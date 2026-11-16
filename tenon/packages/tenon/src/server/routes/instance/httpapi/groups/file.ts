@@ -2,7 +2,7 @@ import { FileSystem } from "@tenon/core/filesystem"
 import { NonNegativeInt } from "@tenon/core/schema"
 import { LSP } from "@/lsp/lsp"
 import { Schema } from "effect"
-import { HttpApi, HttpApiEndpoint, HttpApiGroup, OpenApi } from "effect/http-api"
+import { HttpApi, HttpApiEndpoint, HttpApiError, HttpApiGroup, OpenApi } from "effect/http-api"
 import { Authorization } from "../middleware/authorization"
 import { InstanceContextMiddleware } from "../middleware/instance-context"
 import {
@@ -92,6 +92,33 @@ export const LegacyStatus = Schema.Struct({
   status: Schema.Literals(["added", "deleted", "modified"]),
 }).annotate({ identifier: "File" })
 
+/** Writes an existing text file back when the caller read the text it replaces (an Undo of an agent edit). */
+export const FileWriteInput = Schema.Struct({
+  path: Schema.String,
+  content: Schema.String,
+  expectedHash: Schema.String,
+}).annotate({ identifier: "FileWriteInput" })
+
+export const FileWriteResult = Schema.Struct({ hash: Schema.String }).annotate({ identifier: "FileWriteResult" })
+
+/** The file changed since the caller read it: `currentHash` is the SHA-256 of its trimmed text now. */
+export class FileConflictError extends Schema.Error<FileConflictError>("FileConflictError")(
+  {
+    name: Schema.Literal("FileConflictError"),
+    currentHash: Schema.String,
+  },
+  { httpApiStatus: 409 },
+) {}
+
+/** A path outside the folder, a folder, or a binary file: `data.message` names the reason. */
+export class FileInvalidError extends Schema.Error<FileInvalidError>("FileInvalidError")(
+  {
+    name: Schema.Literal("FileInvalidError"),
+    data: Schema.Struct({ message: Schema.String }),
+  },
+  { httpApiStatus: 400 },
+) {}
+
 export const FilePaths = {
   findText: "/find",
   findFile: "/find/file",
@@ -99,6 +126,7 @@ export const FilePaths = {
   list: "/file",
   content: "/file/content",
   status: "/file/status",
+  write: "/file/content",
 } as const
 
 export const FileApi = HttpApi.make("file")
@@ -153,6 +181,19 @@ export const FileApi = HttpApi.make("file")
             identifier: "file.read",
             summary: "Read file",
             description: "Read the content of a specified file.",
+          }),
+        ),
+        HttpApiEndpoint.put("write", FilePaths.write, {
+          query: WorkspaceRoutingQuery,
+          payload: FileWriteInput,
+          success: described(FileWriteResult, "File written"),
+          error: [FileInvalidError, HttpApiError.NotFound, FileConflictError],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "file.write",
+            summary: "Write file",
+            description:
+              "Replace the text of an existing text file in the folder when its current trimmed text hashes to expectedHash (SHA-256 hex); the file keeps its outer whitespace.",
           }),
         ),
         HttpApiEndpoint.get("status", FilePaths.status, {

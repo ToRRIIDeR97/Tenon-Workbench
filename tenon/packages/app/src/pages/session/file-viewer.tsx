@@ -64,6 +64,8 @@ export function FileViewer(props: {
   live?: { text?: string; writing: boolean }
   /** Blocks to flash after a write or edit finished: the text before and after it. */
   flash?: { id: number; before: string; after: string }
+  /** `source()` shows the agent's tracked edits (live while an edit streams) instead of the raw text. */
+  tracked?: boolean
 }) {
   onMount(() => props.onReady?.())
   const language = useLanguage()
@@ -128,7 +130,7 @@ export function FileViewer(props: {
       <Show
         when={!(textKind() && mode() === "source")}
         fallback={
-          <Show when={writing()} fallback={props.source()}>
+          <Show when={writing() && !props.tracked} fallback={props.source()}>
             <LiveSource text={shown()} />
           </Show>
         }

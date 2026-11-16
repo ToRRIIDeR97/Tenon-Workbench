@@ -17,6 +17,7 @@
  * - `.json(...)` / `.jsonEffect(...)` assert response shape and optional side effects.
  * - `.mutating()` tells the runner to reset isolated state after destructive routes.
  */
+import { createHash } from "crypto"
 import { Effect } from "effect"
 import { OpenApi } from "effect/http-api"
 import { TestLLMServer } from "../../lib/llm-server"
@@ -36,6 +37,8 @@ import { runScenario } from "./runner"
 import { disposeApps } from "./backend"
 import { runtime } from "./runtime"
 import { type Scenario } from "./types"
+
+const sha256 = (text: string) => createHash("sha256").update(text).digest("hex")
 
 function cursor(input: Record<string, unknown>) {
   return Buffer.from(JSON.stringify(input)).toString("base64url")
@@ -347,6 +350,36 @@ const scenarios: Scenario[] = [
     .json(200, (body) => {
       object(body)
       check(body.type === "text" && body.content === "", "missing file content should return an empty text result")
+    }),
+  http.protected
+    .put("/file/content", "file.write")
+    .mutating()
+    .seeded((ctx) => ctx.file("hello.txt", "hello\n"))
+    .at((ctx) => ({
+      path: "/file/content",
+      headers: ctx.headers(),
+      body: { path: "hello.txt", content: "bye", expectedHash: sha256("hello") },
+    }))
+    .jsonEffect(200, (body, ctx) =>
+      Effect.gen(function* () {
+        object(body)
+        check(body.hash === sha256("bye"), `write should answer the new text's hash: ${JSON.stringify(body)}`)
+        const text = yield* Effect.promise(() => Bun.file(path.join(ctx.directory ?? "", "hello.txt")).text())
+        check(text === "bye\n", "write should keep the file's trailing newline")
+      }),
+    ),
+  http.protected
+    .put("/file/content", "file.write.conflict")
+    .mutating()
+    .seeded((ctx) => ctx.file("hello.txt", "hello\n"))
+    .at((ctx) => ({
+      path: "/file/content",
+      headers: ctx.headers(),
+      body: { path: "hello.txt", content: "bye", expectedHash: sha256("stale") },
+    }))
+    .json(409, (body) => {
+      object(body)
+      check(body.currentHash === sha256("hello"), `conflict should answer the current hash: ${JSON.stringify(body)}`)
     }),
   http.protected.get("/file/status", "file.status").json(200, array),
   http.protected

@@ -2763,6 +2763,33 @@ product) adds three tools to Review, Session, Canvas, agent and file tabs.
   is still in progress, or its message is newer than the newest message the
   view knew when it first saw the thread's messages (`isLiveCall`; server
   times on both sides, no client clock).
+- **Tracked edits.** The Source view of a file the agent edited in this thread
+  shows each change (`app/src/pages/session/tracked-edits.ts`,
+  `tracked-source.tsx`, `file-tabs.tsx`). The review's base is the text shown
+  when the first unreviewed agent call on the file began (from `shownTexts`,
+  as for the flash), held while changes stay unreviewed; `trackedHunks(base,
+  current)` splits the line diff into runs, `current` being the loaded text
+  or, while an `edit` streams, its preview. Removed lines show struck through,
+  added lines highlighted, with line numbers. When the tool finishes each
+  change gets Keep (marks it reviewed; nothing is written) and Undo, and the
+  header reads "N edits by Tenon" with Undo all and Keep all. Undo applies
+  `revertHunk` to the text last read (all unreviewed changes last first, for
+  Undo all) and sends it with `contentHash` of that text to `PUT
+  /file/content` (`file.write`, `file-write.ts`, a thin fetch with the
+  server's credentials and the folder header; the vendored SDK isn't
+  regenerated for it), then reloads the file. A 409 shows "This file changed
+  since Tenon's edit" with Reload and Override (retry with `currentHash`).
+  Review state is in memory per thread and file; an app reload forgets it.
+- **File write route.** `PUT /file/content` (`FilePaths.write`,
+  `httpapi/groups/file.ts`, handler in `handlers/file.ts`) takes `{ path,
+  content, expectedHash }`. Only an existing text file inside the request
+  folder (also after resolving symlinks) is written, and only when the
+  SHA-256 of its trimmed text equals `expectedHash` (else 409 `{ currentHash
+  }`); the file keeps its leading and trailing whitespace and the write goes
+  through `FileMutation.writeIfUnchanged` (locked compare, synced temp file,
+  rename). 200 answers `{ hash }` of the new trimmed text; a path outside the
+  folder, a folder or a binary file is 400, a missing file 404. See the
+  [threat model](../security/threat-model.md#tracked-edits-the-file-write-route).
 - **Browser tab.** One `WebContentsView` in the `persist:tenon-browser`
   session, laid over the tab (`desktop/src/main/browser.ts`,
   `app/src/pages/session/browser-tab.tsx`). The user can select elements (an

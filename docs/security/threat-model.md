@@ -1367,6 +1367,44 @@ message and shows in a toast. It doesn't run outside git.
   thread contained, so it is subject to the same prompt-injection limits as
   workspace content.
 
+## Tracked edits: the file write route
+
+Undo in the Files tab (tracked agent edits, `app/src/pages/session/tracked-edits.ts`,
+`file-write.ts`) writes a file back through `PUT /file/content` (`file.write`,
+`httpapi/handlers/file.ts`), the only route that lets the renderer change an
+arbitrary workspace file's text.
+
+- **Who can call it.** Any holder of the server credential, like every other
+  instance route: the Authorization middleware applies and
+  `httpapi-route-auth-coverage.test.ts` checks that it answers 401 without
+  one. The folder comes from `x-opencode-directory` (or `directory` /
+  `workspace`), as for reads.
+- **Containment.** The path is resolved against the request's folder and must
+  stay inside it (`FSUtil.contains`, relative or absolute). The real path is
+  then resolved and checked again against the folder's real path, so a symlink
+  or junction inside the folder can't lead the write outside it; Windows
+  drive letters compare case-insensitively.
+- **Existing text files only.** A missing path answers 404; a folder, or a file
+  with a NUL byte or invalid UTF-8, answers 400. The route never creates,
+  removes or renames a file and writes nothing on any error.
+- **Hash precondition.** The SHA-256 of the file's trimmed text (as the content
+  route returns it) must equal `expectedHash`, else 409 `{ currentHash }`. The
+  write goes through `FileMutation.writeIfUnchanged` under the file's lock,
+  comparing the bytes it hashed, through a synced temp file and a rename (the
+  file's mode is copied), so a change in between is also a 409. The written
+  text keeps the file's leading and trailing whitespace; only the trimmed body
+  comes from the caller.
+- **Override.** The 409 banner's Override retries with `currentHash`, so the
+  hash proves only that the caller read the file, not that the user reviewed
+  the other change.
+- **What a compromised renderer could do.** With the credential and control of
+  the renderer, an attacker can read any text file in an open folder (the
+  content route already allows that) and, with this route, replace the text of
+  any existing text file inside it. It can't create, delete or reach files
+  outside the folder, binaries, or other folders the server hasn't opened. The
+  agent's own tools already have this power; the route adds no new kind of
+  access, only a second caller of it.
+
 ## Checks
 
 From the repository root, `bun run typecheck` checks every workspace package

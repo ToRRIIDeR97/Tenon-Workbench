@@ -11,7 +11,8 @@ persistence") holds the implementation detail behind these rules.
   (blue, `--v2-background-bg-accent`). No colour coding: status, harness,
   project and category are told apart by text, icons and position, not hue.
   The one exception is the warning state (`--v2-state-fill-warning`,
-  `--v2-state-fg-warning`), used for things that need the user.
+  `--v2-state-fg-warning`), used for things that need the user; diff tints
+  for added and removed lines in tracked edits are the other (below).
 - **The thread comes first.** Chrome stays out of the reading area. Thread
   details (environment, context, connectors) open on demand from a toggle in
   the thread header or from the side panel; nothing floats over the timeline
@@ -201,6 +202,18 @@ Use `[font-weight:N]` when a weight must differ from the role.
   When an edit finishes, the changed blocks flash once (accent container
   fading out over 1.6 s, none under reduced motion) while the block the reader
   is on stays where it is. `.html` writes go to the Canvas instead.
+- **Tracked edits** (`tracked-source.tsx`): in Source, the agent's unreviewed
+  changes to a file show inline with line numbers: removed lines struck
+  through and muted on the danger tint (`--v2-state-bg-danger`), added lines
+  on the success tint (`--v2-state-bg-success`) with a 2px success bar on the
+  left. These diff tints are the one other exception to "no colour coding",
+  and only for added and removed text. While an edit streams the change grows
+  live without controls; when it finishes, a row of small pills (outlined
+  Keep, text Undo) sits under each change, never over its text, and a sticky
+  header reads "N edits by Tenon" with Undo all and Keep all. Keep fades the
+  tints out over `--v2-duration-medium` (instantly under reduced motion). A conflict shows a
+  warning banner, "This file changed since Tenon's edit", with Reload and
+  Override.
 - **Canvas board** (`design-board.tsx`, `board-camera.ts`): the Canvas list
   is a pan/zoom board. Designs are 1280×800 artboards (white, hairline edge)
   on a dotted layer-01 surface (dots from the muted border token, 12px
