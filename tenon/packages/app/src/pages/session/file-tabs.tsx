@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, Match, on, onCleanup, Show, Switch } from "solid-js"
+import { createEffect, createMemo, createSignal, Match, on, onCleanup, Show, Switch, untrack } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Dynamic } from "solid-js/web"
 import { makeEventListener } from "@solid-primitives/event-listener"
@@ -19,7 +19,9 @@ import { useLanguage } from "@/context/language"
 import { usePrompt } from "@/context/prompt"
 import { useSDK } from "@/context/sdk"
 import { clearFileReveal, fileReveal, panelSettled } from "@/pages/session/file-reference"
-import { FileViewer, viewerKind } from "@/pages/session/file-viewer"
+import { FileViewer, LiveSource, viewerKind } from "@/pages/session/file-viewer"
+import { editPreview } from "@/pages/session/live-document"
+import { createSessionWrites, isWriting } from "@/pages/session/live-document-view"
 import { getSessionHandoff } from "@/pages/session/handoff"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { createSessionTabs } from "@/pages/session/helpers"
@@ -232,6 +234,49 @@ function SessionFileViewV2(props: { tab: string }) {
     return file.get(p)
   })
   const contents = createMemo(() => state()?.content?.content ?? "")
+
+  // Live document: this file's latest write or edit by the agent, from the session parts. Calls that had
+  // already finished when the view opened are history: they neither go live nor reload or flash.
+  const writes = createSessionWrites()
+  const initial = new Set(
+    untrack(writes)
+      .filter((write) => !isWriting(write))
+      .map((write) => write.callID),
+  )
+  const live = createMemo(() => {
+    const p = path()
+    if (!p) return undefined
+    const write = writes().findLast((item) => file.normalize(item.path) === p)
+    return write && !initial.has(write.callID) ? write : undefined
+  })
+  const writing = () => isWriting(live())
+  // The text before each call, for an edit's preview and for the flash when it finishes.
+  const baseline = new Map<string, string>()
+  createEffect(() => {
+    const write = live()
+    if (write && !baseline.has(write.callID)) baseline.set(write.callID, untrack(contents))
+  })
+  const liveText = () => {
+    const write = live()
+    if (!write || !writing()) return undefined
+    if (write.tool === "write") return write.content ?? ""
+    return editPreview(baseline.get(write.callID) || contents(), write.oldString, write.newString)
+  }
+  // When a call finishes (or arrives finished from a harness without streamed input), read the file
+  // from disk once, without waiting for the watcher, and flash the blocks that changed.
+  const [flash, setFlash] = createSignal<{ id: number; before: string; after: string }>()
+  const reloaded = new Set<string>()
+  createEffect(() => {
+    const write = live()
+    const p = path()
+    if (!write || !p || writing() || reloaded.has(write.callID)) return
+    reloaded.add(write.callID)
+    const before = baseline.get(write.callID) || untrack(contents)
+    void file.load(p, { force: true }).then(() => {
+      const after = untrack(contents)
+      if (after !== before) setFlash({ id: (untrack(flash)?.id ?? 0) + 1, before, after })
+    })
+  })
   const cacheKey = createMemo(() => sampledChecksum(contents()))
   const selectedLines = createMemo<SelectedLineRange | null>(() => {
     const p = path()
@@ -615,10 +660,13 @@ function SessionFileViewV2(props: { tab: string }) {
         onScroll={scrollSync.handleScroll as any}
       >
         <Switch>
-          <Match when={state()?.error}>
-            {(err) => <div class="px-6 py-4 text-[13px] text-v2-state-fg-danger">{err()}</div>}
+          <Match when={writing() && !viewerKind(path())}>
+            <LiveSource text={liveText() ?? ""} />
           </Match>
-          <Match when={state()?.loaded && viewerKind(path())}>
+          <Match when={state()?.error && !writing()}>
+            <div class="px-6 py-4 text-[13px] text-v2-state-fg-danger">{state()?.error}</div>
+          </Match>
+          <Match when={(state()?.loaded || writing()) && viewerKind(path())}>
             {(kind) => (
               <FileViewer
                 kind={kind()}
@@ -627,13 +675,15 @@ function SessionFileViewV2(props: { tab: string }) {
                 content={state()?.content}
                 source={() => renderFile(contents())}
                 onReady={() => setRendered(true)}
+                live={live() ? { text: liveText(), writing: writing() } : undefined}
+                flash={flash()}
               />
             )}
           </Match>
           <Match when={state()?.loaded}>{renderFile(contents())}</Match>
         </Switch>
       </ScrollView>
-      <Show when={!state()?.error && !rendered()}>
+      <Show when={!state()?.error && !rendered() && !writing()}>
         <div
           role="status"
           class="pointer-events-none absolute inset-x-0 top-0 flex flex-col gap-2.5 px-6 py-4 animate-enter"

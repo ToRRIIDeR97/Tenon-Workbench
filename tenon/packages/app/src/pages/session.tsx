@@ -93,6 +93,7 @@ import {
   sidePanelWidthMax,
 } from "@/pages/session/session-panel-width"
 import { SessionSidePanel } from "@/pages/session/session-side-panel"
+import { createLiveDocumentOpener } from "@/pages/session/live-document-view"
 import { motionDuration, prefersReducedMotion } from "@tenon/ui/v2/motion"
 import { SessionFileReferences, panelSettled, slidePanelOpen } from "@/pages/session/file-reference"
 import { DesignCanvasProvider } from "@/pages/session/design-canvas"
@@ -507,6 +508,8 @@ export default function Page() {
   // A closed review panel leaves a slim rail at the right edge to reopen it. A closing panel shrinks into
   // the rail's place first.
   const desktopRailOpen = createMemo(() => isDesktop() && !!params.id && !commandThread())
+  // A file the agent starts writing in this view opens in the Files tab (live document).
+  createLiveDocumentOpener(desktopRailOpen)
   // The file tab Files last showed, per session, so leaving the section and coming back returns to it.
   const lastFileTab = new Map<string, string>()
   // The rail's buttons: a section's button opens the panel on it, and the open section's button closes the panel.

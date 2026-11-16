@@ -186,11 +186,15 @@ Interfaces named here are the contract both test sets use.
 - **AC-17** `changedBlocks(before, after)` returns the indexes in `markdownBlocks(after)` of blocks
   that are new or changed (line-diff of blocks); `[]` when `before` is empty or when more than half
   of `after`'s blocks changed.
-- **AC-18** When the agent starts a `write` or `edit` on a text file in the open thread, the side
-  panel opens on Files with that file, in live mode: Markdown renders as it streams with a caret at
-  the end and a shimmer line after the last block; Source shows the raw text. A note says the file
-  is read-only while Tenon writes; a Follow pill keeps the caret in view until the user scrolls
-  ("Jump to Tenon" brings it back). Opening happens once per call ID.
+- **AC-18** When the agent starts a `write` or `edit` on a text file (not `.html`/`.htm`, which go to
+  the Canvas) in the open thread, streamed in this view (not history), the side panel opens on Files
+  with that file, in live mode: Markdown renders as it streams with a caret at the end and a shimmer
+  line after the last block; Source shows the raw text. A streaming `edit` previews the last loaded
+  text with `oldString` replaced by the `newString` so far. The header shows a "Tenon is writing"
+  chip with the live dot (the Files tab has no editor, so there is no read-only note); a Follow pill
+  keeps the caret in view until the user scrolls ("Jump to Tenon" brings it back). Opening happens
+  once per call ID; if the user closed the panel or switched tab after that, the same call doesn't
+  reopen it.
 - **AC-19** When the tool finishes, the file reloads from disk; blocks from `changedBlocks` flash
   once (accent container fade, 1.6 s, none under reduced motion) and the block the reader is on
   keeps its position when blocks above it change. Edits from harnesses without streamed input get

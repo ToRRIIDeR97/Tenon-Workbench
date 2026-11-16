@@ -1,9 +1,22 @@
 import { sanitizeMarkdown } from "@tenon/session-ui/markdown-cache"
 import { Markdown } from "@tenon/session-ui/markdown"
-import { For, Match, Show, Switch, createMemo, createResource, createSignal, onMount, type JSX } from "solid-js"
+import {
+  For,
+  Match,
+  Show,
+  Switch,
+  createEffect,
+  createMemo,
+  createResource,
+  createSignal,
+  on,
+  onMount,
+  type JSX,
+} from "solid-js"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
 import { sheetRows } from "./sheet-rows"
+import { LiveDocumentChip, LiveDocumentFollow, LiveDocumentTail, flashChangedBlocks } from "./live-document-view"
 
 /** File types the Workbench panel renders instead of showing their source or bytes. */
 export type ViewerKind = "markdown" | "csv" | "json" | "pdf" | "video" | "sheet" | "doc"
@@ -47,6 +60,10 @@ export function FileViewer(props: {
   content?: { content: string; encoding?: string; mimeType?: string }
   source: () => JSX.Element
   onReady?: () => void
+  /** The file as Tenon writes it (live mode), or once it has saved this view's write. */
+  live?: { text?: string; writing: boolean }
+  /** Blocks to flash after a write or edit finished: the text before and after it. */
+  flash?: { id: number; before: string; after: string }
 }) {
   onMount(() => props.onReady?.())
   const language = useLanguage()
@@ -63,10 +80,24 @@ export function FileViewer(props: {
         : undefined),
   )
   const text = () => (props.content?.encoding === "base64" ? "" : (props.content?.content ?? ""))
+  const writing = () => !!props.live?.writing
+  const shown = () => (writing() ? (props.live?.text ?? "") : text())
+  const [rendered, setRendered] = createSignal<HTMLDivElement>()
+  createEffect(
+    on(
+      () => props.flash?.id,
+      () => {
+        const flash = props.flash
+        const root = rendered()
+        if (flash && root) flashChangedBlocks(root, flash.before, flash.after)
+      },
+      { defer: true },
+    ),
+  )
 
   return (
     <div class="flex h-full min-h-0 flex-col" data-component="file-viewer" data-kind={props.kind}>
-      <Show when={textKind()}>
+      <Show when={textKind() || props.live}>
         <div
           class="flex items-center gap-1 px-4 pb-2"
           role="group"
@@ -85,13 +116,31 @@ export function FileViewer(props: {
               </button>
             )}
           </For>
+          <Show when={props.live}>
+            {(live) => (
+              <span class="ml-auto">
+                <LiveDocumentChip writing={live().writing} />
+              </span>
+            )}
+          </Show>
         </div>
       </Show>
-      <Show when={!(textKind() && mode() === "source")} fallback={props.source()}>
+      <Show
+        when={!(textKind() && mode() === "source")}
+        fallback={
+          <Show when={writing()} fallback={props.source()}>
+            <LiveSource text={shown()} />
+          </Show>
+        }
+      >
         <Switch>
           <Match when={props.kind === "markdown"}>
-            <div class="px-6 pb-40">
-              <Markdown text={text()} class="max-w-none text-[14px] leading-6" />
+            <div class="px-6 pb-40" ref={setRendered}>
+              <Markdown text={shown()} streaming={writing()} class="max-w-none text-[14px] leading-6" />
+              <Show when={writing()}>
+                <LiveDocumentTail />
+                <LiveDocumentFollow text={shown()} anchor={rendered} />
+              </Show>
             </div>
           </Match>
           <Match when={props.kind === "csv"}>
@@ -342,5 +391,26 @@ function Doc(props: { url: string }) {
         </div>
       </Show>
     </Show>
+  )
+}
+
+/** The raw text while Tenon writes it, with the caret at its end. */
+export function LiveSource(props: { text: string }) {
+  let pre: HTMLPreElement | undefined
+  return (
+    <div class="px-4 pb-40">
+      <pre
+        ref={pre}
+        data-slot="live-document-source"
+        class="whitespace-pre-wrap break-words font-mono text-[12px] leading-5 text-v2-text-text-base"
+      >
+        {props.text}
+        <span
+          data-slot="live-document-caret"
+          class="ml-px inline-block h-[1.1em] w-0.5 translate-y-[0.2em] bg-v2-background-bg-accent"
+        />
+      </pre>
+      <LiveDocumentFollow text={props.text} anchor={() => pre} />
+    </div>
   )
 }

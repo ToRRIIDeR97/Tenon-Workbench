@@ -2719,6 +2719,30 @@ product) adds three tools to Review, Session, Canvas, agent and file tabs.
   (`desktop/src/main/file-viewer.ts`); the protocol serves only issued URLs,
   read-only, with range requests. Other platforms fall back to the base64 the
   server read.
+- **Live document.** A file the agent writes or edits types into its Files tab
+  (`app/src/pages/session/live-document.ts`, `live-document-view.tsx`,
+  `file-tabs.tsx`, `file-viewer.tsx`). `liveWrites` reads the thread's `write`
+  and `edit` calls from the session parts, using the healed pending input
+  while a call streams (P1). The session page's opener
+  (`createLiveDocumentOpener`) opens the side panel on that file, through the
+  same `file.tab` / `previewTab` path as file references and the file
+  context's path normalization (a `..` path never opens), once per call ID and
+  only for a call whose input grew while this view watched; history and
+  `.html`/`.htm` writes (Canvas designs) never open it. While the call streams
+  the viewer shows the live text: a write's content, or for an edit the text
+  loaded before it with `oldString` replaced by the `newString` so far, as
+  streaming Markdown with a caret, a shimmer line and a Follow pill (Source
+  shows the raw text). The header chip reads "Tenon is writing", then "Saved
+  just now". When the call finishes, or a finished call arrives from a
+  harness without streamed input, the viewer reloads the file once with
+  `file.load(path, { force: true })` (the watcher may also reload it) and
+  diffs the text from before the call against the reloaded text with
+  `changedBlocks`. Rendered elements are matched to those Markdown blocks by
+  their text, in order (the renderer's blocks differ from `markdownBlocks`),
+  get `data-live-flash` and an accent-container fade (1.6 s, none under
+  reduced motion), and the first visible element keeps its offset in the
+  viewport. Calls that had already finished when the file view opened are
+  history: no live text, reload or flash.
 - **Browser tab.** One `WebContentsView` in the `persist:tenon-browser`
   session, laid over the tab (`desktop/src/main/browser.ts`,
   `app/src/pages/session/browser-tab.tsx`). The user can select elements (an

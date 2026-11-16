@@ -190,6 +190,17 @@ Use `[font-weight:N]` when a weight must differ from the role.
   running dot (it settles to "Drawn just now") and a Preview / Code segmented
   switch; Code shows the source so far with an accent caret, kept scrolled to
   the end. "Use this one" appears once the design is done.
+- **Live document** (`live-document-view.tsx`, `file-viewer.tsx`): when the
+  agent starts writing or editing a text file in the open thread, the side
+  panel opens on Files with that file, once per call (never for history, and
+  not again after the user closed the panel or moved on). The header shows a
+  "Tenon is writing" chip with the running dot beside Rendered / Source; it
+  settles to "Saved just now". Rendered text grows with an accent caret and a
+  shimmer line after the last block; a floating "Following Tenon" pill keeps
+  the end in view and turns into "Jump to Tenon" once the reader scrolls.
+  When an edit finishes, the changed blocks flash once (accent container
+  fading out over 1.6 s, none under reduced motion) while the block the reader
+  is on stays where it is. `.html` writes go to the Canvas instead.
 - **Canvas board** (`design-board.tsx`, `board-camera.ts`): the Canvas list
   is a pan/zoom board. Designs are 1280×800 artboards (white, hairline edge)
   on a dotted layer-01 surface (dots from the muted border token, 12px
