@@ -125,7 +125,6 @@ import { PageEmpty, pagePanelClass } from "@/components/page"
 import { ComposerContextRing, ComposerWhereRow, createComposerContext } from "@/components/prompt-input/context-strip"
 import { useThreadSubagents } from "@/components/session/subagent-tab"
 import { subagentCounts } from "@/components/session/subagent-list"
-import { SessionTasksButton } from "@/pages/session/composer/session-tasks-button"
 import { ThreadEnvironmentButton } from "@/components/session/thread-environment"
 
 type ChangeMode = "git" | "branch" | "turn"
@@ -2265,12 +2264,7 @@ export default function Page() {
                     borderUnderlay
                     header={<SessionRevertTray dock={controller.revert} />}
                     boxHeader={<ComposerWhereRow />}
-                    trailing={
-                      <>
-                        <SessionTasksButton groups={threadSubagentGroups} />
-                        <ComposerContextRing context={composerContext} harness={sessionHarness} />
-                      </>
-                    }
+                    trailing={<ComposerContextRing context={composerContext} harness={sessionHarness} />}
                   />
                 }
               />

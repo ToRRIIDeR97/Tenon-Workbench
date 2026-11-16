@@ -57,12 +57,23 @@ Use `[font-weight:N]` when a weight must differ from the role.
   title bar has no background and floats over the panel's top band
   (`page-panel-cap`), a hairline separates that band from the page, and page
   content starts below it (`titlebar-inset-top`).
-- **Sidebars are flat:** the navigation rail, the Projects panel and the
-  thread's side rail have no card, outline or divider; they sit on the window
-  background (`bg-deep`) beside the page panel. In a thread, the side panel
-  joins the thread as one card, split by a hairline. Rounded corners are for
+- **Sidebar: two surfaces.** The navigation rail is a rounded card: 64px wide,
+  16px corners, `bg-layer-01` with an inset muted hairline, 8px in from the
+  window. Its destinations are 44px icon boxes (12px corners, 20px icons, 6px
+  apart): hover is `overlay-hover`, where you are is the accent container, and
+  each has a tooltip with its name. Settings sits at the rail's foot. 8px
+  beside the rail, the Projects panel is a page-style panel (`bg-base`, a
+  hairline edge, square corners); the two never touch. Add project and Scan
+  sit in one bordered button group in the panel's header (10px corners,
+  `bg-layer-01`, a hairline between the 32×30 buttons).
+- **Thread side rail:** the same rail spec on the right: a 48px card (16px
+  corners, `bg-layer-01`, inset hairline) with 36px buttons (10px corners,
+  6px apart; hover `overlay-hover`, the open section the accent container),
+  badges at each button's top right. Context (the usage ring) is the last
+  button in the list, after Canvas. In a thread, the side panel joins the
+  thread as one card, split by a hairline. Rounded corners are otherwise for
   things inside or above the page (cards, docks, menus, floating windows), not
-  for the frame.
+  for the page frame.
 - **Cards:** page-level cards are 16px radius on `bg-layer-01` with an inset
   muted edge. Use 12px cards inside the sidebar and side panels, and 24px for
   dock cards (the composer and approval dock).
@@ -119,6 +130,9 @@ Use `[font-weight:N]` when a weight must differ from the role.
   reports none, as OpenCode does), agent, turn and how it ended; a card opens
   its usage with Open in Agents and Show in thread. The Environment window's
   Running section becomes "Subagents · N done" with a row and small bar each.
+- **Composer row:** the composer's bottom row ends with the context ring.
+  There is no Tasks button: running subagents show on the thread rail's
+  Agents button, as a count badge.
 - **Composer text (dark):** inside the composer the muted and faint greys are
   `#f2f2f2` and `#d2d2d2`, and the placeholder is weight 500, for legibility on
   the dark surface. Light mode keeps the theme greys.

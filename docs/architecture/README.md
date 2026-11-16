@@ -180,8 +180,8 @@ rather than standalone routes. The
 routes and shortcuts.
 
 `pages/layout-new.tsx` is the only shell: the titlebar (window chrome, back
-and forward) and `components/second-brain-sidebar.tsx` (navigation rail plus
-collapsible Projects panel, flat on the window background). Pages sit on one square-cornered panel built from
+and forward) and `components/second-brain-sidebar.tsx` (navigation rail card plus
+collapsible Projects panel, two surfaces 8px apart). Pages sit on one square-cornered panel built from
 `components/page.tsx` (`PageFrame`, `PageHeader`, `PageSection`, and
 `PageEmpty` for centred empty states); page titles carry no descriptive subtitle. Shape and motion follow Material 3: radius,
 easing and duration tokens (`--v2-radius-*`, `--v2-ease-*`,
@@ -2662,9 +2662,6 @@ From the 11 Nov feedback list ([triage](../product/FEEDBACK-2026-11-11.md)):
   minutes says so (`laneQuiet`). With an external harness, a follow-up sent while
   its subagents run is queued (`followupPreference`), because a steer would stop
   them; Ctrl+Enter still steers.
-- **Tasks panel.** `session-tasks-button.tsx` in the thread composer counts
-  running subagents and open terminals and lists them with the workspace's next
-  routines.
 - **Model profiles.** `settings.v3` `modelProfiles` (`utils/model-profile.ts`)
   holds rules per model id. `submit.ts` attaches the active profile as a hidden
   `data:text/plain` attachment (like a skill) on a thread's first message and
