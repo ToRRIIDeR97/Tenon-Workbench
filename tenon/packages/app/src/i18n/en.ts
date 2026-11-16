@@ -1326,6 +1326,9 @@ export const dict = {
   "secondBrain.composer.modelPill.title": "Harness, model, reasoning and speed",
   "secondBrain.composer.modelPill.choose": "Choose from your providers",
   "secondBrain.composer.modelPill.reasoning": "Reasoning",
+  "secondBrain.composer.modelPill.modelPart": "Model: {{model}}",
+  "secondBrain.composer.modelPill.reasoningPart": "Reasoning: {{level}}",
+  "secondBrain.composer.modelPill.defaultResolved": "Default ({{level}})",
   "secondBrain.composer.modelPill.speed": "Speed",
   "secondBrain.composer.modelPill.back": "Back",
   "secondBrain.composer.modelPill.chooseInThread":

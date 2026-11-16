@@ -8,7 +8,6 @@ import { useServerSDK } from "@/context/server-sdk"
 import type { Skill } from "@tenon/schema/skill"
 import { sessionTitle } from "@/utils/session-title"
 import { useDialog } from "@tenon/ui/context/dialog"
-import { ProviderIcon } from "@tenon/ui/provider-icon"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Dialog, DialogBody, DialogHeader, DialogTitle } from "@tenon/ui/v2/dialog-v2"
 import { Icon } from "@tenon/ui/v2/icon"
@@ -21,6 +20,7 @@ import { createEffect, createMemo, createSignal, For, on, onCleanup, Show, type 
 import { ModelSelectorPopoverV2 } from "@/components/dialog-select-model"
 import { DialogSelectModelUnpaidV2 } from "@/components/dialog-select-model-unpaid-v2"
 import { PromptModelPill } from "@/components/prompt-input/model-pill"
+import { HarnessIcon } from "@/components/harness-icon"
 import { PromptDictationButton } from "@/components/prompt-input/dictation-button"
 import type { PromptInputProps } from "@/components/prompt-input/contracts"
 import type { PromptInputHarnessController } from "@/components/prompt-input/harness-controls"
@@ -149,7 +149,6 @@ export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
               title={language.t("command.model.choose")}
               keybind={command.keybindParts("model.choose")}
               model={props.controller.model.selection}
-              providerID={props.controller.model.selection.current()?.provider?.id}
               modelName={props.controller.model.selection.current()?.name ?? language.t("dialog.model.select.title")}
               onClose={props.controller.restoreFocus}
               onUnpaidClick={() =>
@@ -745,28 +744,24 @@ function PromptInputV2ModelControl(props: {
   title: string
   keybind: string[]
   model: PromptInputV2ComposerController["model"]["selection"]
-  providerID?: string
   modelName: string
   onClose: () => void
   onUnpaidClick: () => void
 }) {
   // While providers load (first open, or a session switch to another directory) the control stays in
   // its slot, disabled, with the last model it showed.
-  const shown = createMemo<{ providerID?: string; modelName: string }>((previous) =>
-    props.loading && previous ? previous : { providerID: props.providerID, modelName: props.modelName },
+  const shown = createMemo<{ modelName: string }>((previous) =>
+    props.loading && previous ? previous : { modelName: props.modelName },
   )
   const content = () => (
     <>
       <span class="prompt-input-control-icon flex shrink-0">
-        <Show when={shown().providerID} fallback={<Icon name="monitor" />}>
-          {(providerID) => (
-            <ProviderIcon
-              id={providerID()}
-              class="size-4 shrink-0 opacity-40 group-hover:opacity-100 transition-opacity motion-reduce:transition-none"
-              style={{ "will-change": "opacity", transform: "translateZ(0)" }}
-            />
-          )}
-        </Show>
+        {/* Only the built-in loop reaches this control (no harness controller), so it shows that harness's logo,
+            never the model provider's. */}
+        <HarnessIcon
+          instance={{ id: Harness.OpenCode, name: "" }}
+          class="size-4 opacity-40 group-hover:opacity-100 transition-opacity motion-reduce:transition-none"
+        />
       </span>
       <span class="prompt-input-control-label truncate leading-4">{shown().modelName}</span>
       <span class="prompt-input-control-chevron -ml-0.5 -mr-1 flex shrink-0">

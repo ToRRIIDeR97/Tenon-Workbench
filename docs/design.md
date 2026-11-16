@@ -143,6 +143,17 @@ Use `[font-weight:N]` when a weight must differ from the role.
   border of its own, its controls ghost as elsewhere, and it ends with the
   context ring. There is no Tasks button: running subagents show on the
   thread rail's Agents button, as a count badge.
+- **Model pill** (`model-pill.tsx`): leads with the logo of the harness that
+  runs the model (the Tenon mark for the built-in loop), never the model
+  maker's. When the model offers reasoning levels the pill always shows one,
+  "Model · Level": the chosen level, or on default the level the harness says
+  default means (Codex reports it; the list then reads "Default (low)"), else
+  "Default". It is then two targets in
+  one pill, split by a faint divider, each with its own hover, focus ring and
+  name ("Model: …", "Reasoning: …"): the logo and model open the full
+  harness/model/reasoning/speed stack, the level opens just the reasoning
+  list, where a pick applies and closes. Speed shows after the model only
+  when it isn't the default. Without reasoning levels the pill is one target.
 - **Composer text:** the placeholder is 13px regular (400) in both themes;
   typed text stays 15px. In dark mode the composer's muted and faint greys
   are `#f2f2f2` and `#d2d2d2`, for legibility on the dark surface. Light mode
