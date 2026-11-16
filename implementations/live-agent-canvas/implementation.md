@@ -282,5 +282,47 @@ missing); `tenon/file-write`: two tests fail with 404 (no write route), the out-
 
 ## Completion evidence
 
-To be filled per phase: verified SHA, verifier results (kept apart from implementor reports),
-commands run, limitations.
+Mode: TOR-2 (one implementor, one verifier; Opus 5.5, medium effort). The first implementor did
+P1–P4 (initial); its context ran out, and a fresh implementor took over from `cb5742b9` for the rest
+of P4 and P5. One verifier checked every candidate. Base `b136d877`.
+
+| Phase | Verified SHA | Correction rounds | Main defects the verifier found |
+| --- | --- | --- | --- |
+| P1 | `8dd791f3` | 1 | live frame filter bypassable → nonce-only script CSP; comment cut; thread cards re-rendered per delta |
+| P2 | `f858abb8` | 1 | unclosed fence in an ended reply stayed "Drawing…"; theme values unescaped in the frame script; frame jumped at the end |
+| P3 | `26c11431` | 3 | board labels truncated titles (2-column overview, hidden button kept its space, labels measured before layout) |
+| P4 | `d82e486c` | 4 | flash missed duplicated/substring blocks; reload race made the flash flaky; unbounded shown-text history; first harness edit lost its "before" text |
+| P5 | `f9be273b` | 1 | UTF-8 BOM stripped by Undo; threat model understated the write route's reach; Keep acted on identical changes together |
+
+**Verifier results on `f9be273b`** (independent): acceptance app 31, session-ui 23, tenon 3 pass;
+verification app 28, session-ui 19, tenon 4 pass; `httpapi-file` 6 pass, 1 skip (file symlinks need
+privileges on Windows; the junction escape test runs); app `test:unit` 1193 pass; session-ui
+`bun test src` 172 pass, 9 skip (DOM tests, pass with the happy-dom preload); root typecheck, lint,
+format:check, check:generated exit 0; e2e `live-canvas-follow`, `live-canvas-board`, `live-document`,
+`live-tracked-edits` 16 pass, 1 skip (screenshot-only test). Whole-branch scan: no debug output,
+TODOs or `.only`; all 31 new strings in `en.ts`.
+
+**Plan author's run on `f9be273b`:** acceptance 31 + 23 + 3 pass, verification 28 + 19 + 4 pass.
+
+**Pre-existing failures (same on `b136d877`, not regressions):** `test:httpapi` reports 58 routes
+without a scenario (the new `file.write` scenarios pass); `packages/core` 3 failures (Git trees diff,
+harness setup key file, instructions symlink); `tool.shell abort` PowerShell quoting failures; the
+perf unit test "applies message latency after a list response gate is released".
+
+**Deviations from the proposal (diagrams show the proposal):**
+- AC-23: no client regeneration (the generated client has no instance file routes); the app calls the
+  route through `app/src/pages/session/file-write.ts`. AC-23 text amended.
+- AC-6: the live frame uses a nonce-only script CSP instead of the shared design CSP. AC-6 amended.
+- AC-18: no read-only note (the Files tab has no editor); a "Tenon is writing" chip. AC-18 amended.
+- P2/P3: when the user is already on the Canvas board, a new design is followed on the board instead
+  of opening large; the board chooses its column count from the panel's shape (`boardColumns`).
+- P1: pending tool cards in the thread render an empty input until the tool runs (keeps the timeline
+  from re-measuring per delta).
+
+**Known limitations:** tracked edits count changes by the user or another tool made after Tenon's
+edit (hunks run from the review base to the current text); review state is in memory; a file Tenon
+created isn't tracked and Undo never deletes; the write route accepts any folder the request names
+(no more than the session and shell routes allow; restricting it is listed as hardening); small
+inline thread designs still appear when their block closes; Codex/ACP edits update when the tool
+finishes (no streamed input). Not checked by hand: a real trackpad pinch, keyboard arrow panning, and
+the app on macOS; the e2e ran against the mock server, not a live model.
