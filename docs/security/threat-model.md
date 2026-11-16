@@ -1224,6 +1224,11 @@ sanitizing, is the control (`session-ui/src/components/design-fence.ts`,
   only from a design frame's own window, with origin `"null"` and a finite
   number, clamps it to 48–720 px and sends nothing back. Canvas frames send
   nothing.
+- Agent-supplied tool paths (a `write` or `edit` call's `filePath`) can open
+  Files tabs (live document, `app/src/pages/session/live-document-view.tsx`).
+  They go through the file context's path normalization and the server's
+  read guard: a path with a `..` segment is rejected client-side, and reads
+  outside the workspace are refused server-side.
 - A canvas design that streams draws in a live frame
   (`session-ui/src/components/design-stream.ts`,
   `app/src/pages/session/live-design-frame.tsx`) with the same sandbox and

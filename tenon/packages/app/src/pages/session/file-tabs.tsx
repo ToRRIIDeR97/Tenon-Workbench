@@ -235,46 +235,54 @@ function SessionFileViewV2(props: { tab: string }) {
   })
   const contents = createMemo(() => state()?.content?.content ?? "")
 
-  // Live document: this file's latest write or edit by the agent, from the session parts. Calls that had
-  // already finished when the view opened are history: they neither go live nor reload or flash.
+  // Live document: the agent's writes and edits of this file, from the session parts. A finished call is
+  // history (no live text, chip, reload or flash) unless this view saw it run, its reply is still in
+  // progress, or its message is newer than the view, so older messages paging in or a restored tab stay quiet.
   const writes = createSessionWrites()
-  const initial = new Set(
-    untrack(writes)
-      .filter((write) => !isWriting(write))
-      .map((write) => write.callID),
-  )
-  const live = createMemo(() => {
+  const mounted = Date.now()
+  const ran = new Set<string>()
+  const fileWrites = createMemo(() => {
     const p = path()
-    if (!p) return undefined
-    const write = writes().findLast((item) => file.normalize(item.path) === p)
-    return write && !initial.has(write.callID) ? write : undefined
+    if (!p) return []
+    return writes().filter((item) => file.normalize(item.path) === p)
   })
+  createEffect(() => fileWrites().forEach((write) => isWriting(write) && ran.add(write.callID)))
+  const tracked = createMemo(() =>
+    fileWrites().filter(
+      (write) => isWriting(write) || ran.has(write.callID) || write.ongoing || write.created > mounted,
+    ),
+  )
+  const live = createMemo(() => tracked().findLast((write) => isWriting(write)) ?? tracked().at(-1))
   const writing = () => isWriting(live())
   // The text before each call, for an edit's preview and for the flash when it finishes.
   const baseline = new Map<string, string>()
-  createEffect(() => {
-    const write = live()
-    if (write && !baseline.has(write.callID)) baseline.set(write.callID, untrack(contents))
-  })
+  createEffect(() =>
+    tracked().forEach((write) => {
+      if (!baseline.has(write.callID)) baseline.set(write.callID, untrack(contents))
+    }),
+  )
   const liveText = () => {
     const write = live()
     if (!write || !writing()) return undefined
     if (write.tool === "write") return write.content ?? ""
     return editPreview(baseline.get(write.callID) || contents(), write.oldString, write.newString)
   }
-  // When a call finishes (or arrives finished from a harness without streamed input), read the file
-  // from disk once, without waiting for the watcher, and flash the blocks that changed.
+  // When tracked calls finish, read the file from disk once for all of them (without waiting for the
+  // watcher) if any succeeded, and flash the blocks that changed since the first of them started.
   const [flash, setFlash] = createSignal<{ id: number; before: string; after: string }>()
-  const reloaded = new Set<string>()
+  const handled = new Set<string>()
   createEffect(() => {
-    const write = live()
     const p = path()
-    if (!write || !p || writing() || reloaded.has(write.callID)) return
-    reloaded.add(write.callID)
-    const before = baseline.get(write.callID) || untrack(contents)
+    const done = tracked().filter((write) => !isWriting(write) && !handled.has(write.callID))
+    if (!p || done.length === 0) return
+    done.forEach((write) => handled.add(write.callID))
+    const saved = done.filter((write) => write.status === "completed")
+    if (saved.length === 0) return
+    const before = baseline.get(saved[0].callID) || untrack(contents)
     void file.load(p, { force: true }).then(() => {
       const after = untrack(contents)
-      if (after !== before) setFlash({ id: (untrack(flash)?.id ?? 0) + 1, before, after })
+      // While another call streams the pane shows its live text, so there is nothing to flash yet.
+      if (after !== before && !untrack(writing)) setFlash({ id: (untrack(flash)?.id ?? 0) + 1, before, after })
     })
   })
   const cacheKey = createMemo(() => sampledChecksum(contents()))

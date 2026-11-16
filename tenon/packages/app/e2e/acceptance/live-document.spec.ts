@@ -123,7 +123,7 @@ test("AC-18 … AC-19 a write types into the Files tab live, then an edit flashe
   await expect(viewer.getByRole("heading", { name: "Goals" })).toBeVisible()
   await expect(viewer.getByText("Paragraph 3 of the plan")).toBeVisible()
   await expect(viewer.locator('[data-slot="live-document-caret"]')).toBeVisible()
-  const follow = viewer.locator('[data-slot="live-document-follow"]')
+  const follow = page.locator('[data-slot="live-document-follow"]')
   await expect(follow).toHaveText("Following Tenon")
   await shot(page, "1-writing")
 
@@ -168,9 +168,9 @@ test("AC-18 closing the panel while the file streams doesn't reopen it", async (
   await page.getByRole("button", { name: "Toggle review" }).click()
   await expect(viewer).toHaveCount(0)
   feed.push(writing("# Plan\n\n## Goals\n\nShip it."), writing("# Plan\n\n## Goals\n\nShip it.\n\nMore."))
-  // The stream goes on in the thread; the panel stays closed.
-  await expect.poll(() => feed.length).toBe(0)
-  await expect(page.getByRole("button", { name: "Toggle review" })).toBeVisible()
+  // The stream goes on; a last reply update proves the app took every event, and the panel stays closed.
+  feed.push(partEvent({ ...intro, text: "Writing the plan. All written." }))
+  await expect(page.getByText("Writing the plan. All written.")).toBeVisible()
   await expect(viewer).toHaveCount(0)
 })
 

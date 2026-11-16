@@ -2734,15 +2734,21 @@ product) adds three tools to Review, Session, Canvas, agent and file tabs.
   streaming Markdown with a caret, a shimmer line and a Follow pill (Source
   shows the raw text). The header chip reads "Tenon is writing", then "Saved
   just now". When the call finishes, or a finished call arrives from a
-  harness without streamed input, the viewer reloads the file once with
+  harness without streamed input, the viewer reloads the file with
   `file.load(path, { force: true })` (the watcher may also reload it) and
   diffs the text from before the call against the reloaded text with
   `changedBlocks`. Rendered elements are matched to those Markdown blocks by
   their text, in order (the renderer's blocks differ from `markdownBlocks`),
   get `data-live-flash` and an accent-container fade (1.6 s, none under
   reduced motion), and the first visible element keeps its offset in the
-  viewport. Calls that had already finished when the file view opened are
-  history: no live text, reload or flash.
+  viewport (the occurrence of its text nearest where it was). Rendered
+  elements match blocks exactly first and the match only moves forward
+  (`blockOwners`). Every tracked call on the file counts: when any of them
+  finishes successfully the file reloads once (calls finishing together
+  share it; a failed call doesn't reload), and the flash runs only when the
+  text changed and no other call is streaming. A finished call is history
+  (no live text, chip, reload or flash) unless the view saw it run, its reply
+  is still in progress, or its message is newer than the view.
 - **Browser tab.** One `WebContentsView` in the `persist:tenon-browser`
   session, laid over the tab (`desktop/src/main/browser.ts`,
   `app/src/pages/session/browser-tab.tsx`). The user can select elements (an

@@ -1,4 +1,5 @@
 import { Show, createEffect, createMemo, createSignal, onCleanup, onMount, untrack } from "solid-js"
+import { Portal } from "solid-js/web"
 import { prefersReducedMotion } from "@tenon/ui/v2/motion"
 import { useFile } from "@/context/file"
 import { useLanguage } from "@/context/language"
@@ -18,7 +19,14 @@ export function createSessionWrites() {
     if (!id) return []
     return (sync().data.message[id] ?? [])
       .filter((message) => message.role === "assistant")
-      .flatMap((message) => liveWrites(sync().data.part[message.id] ?? []))
+      .flatMap((message) =>
+        liveWrites(sync().data.part[message.id] ?? []).map((write) => ({
+          ...write,
+          created: message.time.created,
+          // A reply still in progress: its finished calls happened in this turn, not in history.
+          ongoing: message.role === "assistant" && !message.time.completed && !message.error,
+        })),
+      )
   })
 }
 
@@ -105,9 +113,12 @@ export function LiveDocumentFollow(props: { text: string; anchor: () => HTMLElem
     void props.text
     if (following()) queueMicrotask(toEnd)
   })
+  // The pill floats at the bottom of the pane, over the scrolling text, like the thread's Jump to latest.
+  const [host, setHost] = createSignal<HTMLElement>()
   onMount(() => {
     const el = viewport()
     if (!el) return
+    setHost(el.closest<HTMLElement>(".scroll-view") ?? undefined)
     const stop = () => setFollowing(false)
     el.addEventListener("wheel", stop, { passive: true })
     el.addEventListener("pointerdown", stop)
@@ -119,25 +130,65 @@ export function LiveDocumentFollow(props: { text: string; anchor: () => HTMLElem
     })
   })
   return (
-    <div class="pointer-events-none sticky bottom-4 flex justify-center">
-      <button
-        type="button"
-        data-slot="live-document-follow"
-        data-following={following() ? "" : undefined}
-        class="pointer-events-auto h-7 rounded-full bg-v2-background-bg-base px-3 type-control text-v2-text-text-base shadow-[0_0_0_1px_var(--v2-border-border-muted),var(--v2-elevation-floating)] outline-none transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover focus-visible:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)] motion-reduce:transition-none"
-        onPointerDown={(event) => event.stopPropagation()}
-        onClick={() => {
-          setFollowing(true)
-          toEnd()
-        }}
-      >
-        {following() ? language.t("secondBrain.liveDocument.following") : language.t("secondBrain.liveDocument.jump")}
-      </button>
-    </div>
+    <Show when={host()}>
+      {(mount) => (
+        <Portal mount={mount()}>
+          <div class="pointer-events-none absolute inset-x-0 bottom-6 z-10 flex justify-center">
+            <button
+              type="button"
+              data-slot="live-document-follow"
+              data-following={following() ? "" : undefined}
+              class="pointer-events-auto h-7 rounded-full bg-v2-background-bg-base px-3 type-control text-v2-text-text-base shadow-[0_0_0_1px_var(--v2-border-border-muted),var(--v2-elevation-floating)] outline-none transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover focus-visible:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)] motion-reduce:transition-none"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={() => {
+                setFollowing(true)
+                toEnd()
+              }}
+            >
+              {following()
+                ? language.t("secondBrain.liveDocument.following")
+                : language.t("secondBrain.liveDocument.jump")}
+            </button>
+          </div>
+        </Portal>
+      )}
+    </Show>
   )
 }
 
 const plain = (text: string) => text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "")
+
+/**
+ * Which source block (index in `markdownBlocks(markdown)`) each rendered element's text belongs to, in
+ * order. Exact matches come first and the walk only moves forward: an element continues the current
+ * block while it matches the block's next unconsumed text, else it takes the next block that equals it
+ * or starts with it, and only then one that merely contains it. A fully matched block is never reused.
+ */
+export function blockOwners(texts: readonly string[], markdown: string): number[] {
+  const blocks = markdownBlocks(markdown).map(plain)
+  const walk = { block: 0, used: 0 }
+  const take = (block: number, used: number) => {
+    walk.block = used >= (blocks[block]?.length ?? 0) ? block + 1 : block
+    walk.used = used >= (blocks[block]?.length ?? 0) ? 0 : used
+    return block
+  }
+  return texts.map((raw) => {
+    const text = plain(raw)
+    const current = blocks[walk.block]
+    if (current !== undefined && text && current.startsWith(text, walk.used))
+      return take(walk.block, walk.used + text.length)
+    const from = walk.used ? walk.block + 1 : walk.block
+    const later = (match: (source: string) => boolean) =>
+      blocks.findIndex((source, index) => index >= from && match(source))
+    const equal = later((source) => source === text)
+    if (equal !== -1) return take(equal, text.length)
+    const starts = later((source) => source.startsWith(text))
+    if (starts !== -1) return take(starts, text.length)
+    const inside = later((source) => source.includes(text))
+    if (inside !== -1) return take(inside, (blocks[inside]?.indexOf(text) ?? 0) + text.length)
+    return Math.min(walk.block, Math.max(0, blocks.length - 1))
+  })
+}
 
 /**
  * After the rendered Markdown under `root` changes from `before` to `after`: flash the rendered elements
@@ -155,29 +206,32 @@ export function flashChangedBlocks(root: HTMLElement, before: string, after: str
   // The reader's anchor: the first element whose bottom is below the viewport's top.
   const top = viewport?.getBoundingClientRect().top ?? 0
   const anchor = elements().find((el) => el.getBoundingClientRect().bottom > top)
-  const held = anchor
-    ? { text: plain(anchor.textContent ?? ""), offset: anchor.getBoundingClientRect().top - top }
-    : undefined
+  const held =
+    anchor && viewport
+      ? {
+          text: plain(anchor.textContent ?? ""),
+          offset: anchor.getBoundingClientRect().top - top,
+          position: anchor.getBoundingClientRect().top - top + viewport.scrollTop,
+        }
+      : undefined
   const state = { done: false }
   const apply = () => {
     if (state.done) return
     state.done = true
     observer.disconnect()
     clearTimeout(fallback)
-    const blocks = markdownBlocks(after).map(plain)
     const list = elements()
-    // Walk the rendered elements in order, moving to the next source block when one isn't in it.
-    const owners = list.reduce<{ block: number; owners: number[] }>(
-      (walk, el) => {
-        const text = plain(el.textContent ?? "")
-        const block = blocks.findIndex((source, index) => index >= walk.block && source.includes(text))
-        const owner = block === -1 ? walk.block : block
-        return { block: owner, owners: [...walk.owners, owner] }
-      },
-      { block: 0, owners: [] },
-    ).owners
+    const owners = blockOwners(
+      list.map((el) => el.textContent ?? ""),
+      after,
+    )
     if (held && viewport) {
-      const same = list.find((el) => plain(el.textContent ?? "") === held.text)
+      // The same text may occur more than once: take the occurrence nearest where the anchor was.
+      const offset = (el: HTMLElement) =>
+        el.getBoundingClientRect().top - viewport.getBoundingClientRect().top + viewport.scrollTop
+      const same = list
+        .filter((el) => plain(el.textContent ?? "") === held.text)
+        .sort((a, b) => Math.abs(offset(a) - held.position) - Math.abs(offset(b) - held.position))[0]
       if (same)
         viewport.scrollTop += same.getBoundingClientRect().top - viewport.getBoundingClientRect().top - held.offset
     }
