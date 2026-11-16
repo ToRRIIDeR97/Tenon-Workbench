@@ -126,6 +126,20 @@ describe("file write HttpApi", () => {
     expect(await Bun.file(file).text()).toBe("\r\n# New\r\nline\r\n\r\n")
   })
 
+  test("keeps a UTF-8 byte-order mark, hashing the text as the content route returns it", async () => {
+    await using tmp = await tmpdir({ git: true })
+    const file = path.join(tmp.path, "notes.md")
+    await Bun.write(file, new Uint8Array([0xef, 0xbb, 0xbf, ...new TextEncoder().encode("# Old\r\n")]))
+    const read = await request(FilePaths.content, tmp.path, { path: "notes.md" })
+    const shown = ((await read.json()) as { content: string }).content
+    expect(shown).toBe("# Old")
+    const response = await write(tmp.path, { path: "notes.md", content: "# New", expectedHash: sha(shown) })
+    expect(response.status).toBe(200)
+    const bytes = new Uint8Array(await Bun.file(file).arrayBuffer())
+    expect(Array.from(bytes.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf])
+    expect(new TextDecoder().decode(bytes.slice(3))).toBe("# New\r\n")
+  })
+
   test("refuses missing files, folders, binary files and absolute paths outside, writing nothing", async () => {
     await using tmp = await tmpdir({ git: true })
     await fs.mkdir(path.join(tmp.path, "docs"))

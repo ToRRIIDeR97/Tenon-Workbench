@@ -1378,7 +1378,9 @@ arbitrary workspace file's text.
   instance route: the Authorization middleware applies and
   `httpapi-route-auth-coverage.test.ts` checks that it answers 401 without
   one. The folder comes from `x-opencode-directory` (or `directory` /
-  `workspace`), as for reads.
+  `workspace`), as for reads, and `InstanceContextMiddleware` loads any folder
+  on demand: it is whatever directory the request names that the server
+  process can open, not only folders the user opened.
 - **Containment.** The path is resolved against the request's folder and must
   stay inside it (`FSUtil.contains`, relative or absolute). The real path is
   then resolved and checked again against the folder's real path, so a symlink
@@ -1392,18 +1394,22 @@ arbitrary workspace file's text.
   write goes through `FileMutation.writeIfUnchanged` under the file's lock,
   comparing the bytes it hashed, through a synced temp file and a rename (the
   file's mode is copied), so a change in between is also a 409. The written
-  text keeps the file's leading and trailing whitespace; only the trimmed body
+  text keeps the file's leading and trailing whitespace (and a UTF-8 byte-order
+  mark); only the trimmed body
   comes from the caller.
 - **Override.** The 409 banner's Override retries with `currentHash`, so the
   hash proves only that the caller read the file, not that the user reviewed
   the other change.
-- **What a compromised renderer could do.** With the credential and control of
-  the renderer, an attacker can read any text file in an open folder (the
-  content route already allows that) and, with this route, replace the text of
-  any existing text file inside it. It can't create, delete or reach files
-  outside the folder, binaries, or other folders the server hasn't opened. The
-  agent's own tools already have this power; the route adds no new kind of
-  access, only a second caller of it.
+- **What a credential holder or compromised renderer could do.** Since the
+  request names the folder, it can read any text file the server process can
+  read (the content route already allows that) and, given that one read for the
+  hash, overwrite the text of any existing text file the user can write, by
+  naming its parent (or any ancestor) as the folder. It can't create, delete or
+  rename files or change binaries through this route. That is no more than the
+  existing session and shell routes already allow the same caller (an agent
+  run or a terminal in any folder). A possible hardening, not done: accept
+  writes only for folders the app has open (a Project, workspace or open
+  thread's folder) rather than any folder the request names.
 
 ## Checks
 

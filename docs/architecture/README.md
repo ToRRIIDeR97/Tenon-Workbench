@@ -2778,14 +2778,21 @@ product) adds three tools to Review, Session, Canvas, agent and file tabs.
   /file/content` (`file.write`, `file-write.ts`, a thin fetch with the
   server's credentials and the folder header; the vendored SDK isn't
   regenerated for it), then reloads the file. A 409 shows "This file changed
-  since Tenon's edit" with Reload and Override (retry with `currentHash`).
-  Review state is in memory per thread and file; an app reload forgets it.
+  since Tenon's edit" with Reload and Override (retry with `currentHash`);
+  Override discards the other change by design. Review state is in memory
+  per thread and file, keyed by each change's first line in the base and its
+  lines (`hunkKeys`), so Keep and Undo act on one change even when another
+  is identical; an app reload forgets it. Known limitation: hunks run from
+  the base to the current text, so a change the user or another tool makes
+  to the file after Tenon's edit, while Tenon's changes are unreviewed, also
+  shows and counts in "N edits by Tenon".
 - **File write route.** `PUT /file/content` (`FilePaths.write`,
   `httpapi/groups/file.ts`, handler in `handlers/file.ts`) takes `{ path,
   content, expectedHash }`. Only an existing text file inside the request
   folder (also after resolving symlinks) is written, and only when the
   SHA-256 of its trimmed text equals `expectedHash` (else 409 `{ currentHash
-  }`); the file keeps its leading and trailing whitespace and the write goes
+  }`); the file keeps its leading and trailing whitespace (a UTF-8
+  byte-order mark included; CRLF lines pass through) and the write goes
   through `FileMutation.writeIfUnchanged` (locked compare, synced temp file,
   rename). 200 answers `{ hash }` of the new trimmed text; a path outside the
   folder, a folder or a binary file is 400, a missing file 404. See the

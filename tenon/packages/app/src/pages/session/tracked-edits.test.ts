@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { revertHunk, trackedHunks, trackedRows } from "./tracked-edits"
+import { hunkKeys, revertHunk, trackedHunks, trackedRows } from "./tracked-edits"
 
 describe("tracked edits", () => {
   test("CRLF lines round-trip through a revert", () => {
@@ -29,6 +29,20 @@ describe("tracked edits", () => {
       { kind: "same", text: "B", line: 2 },
       { kind: "same", text: "c", line: 3 },
     ])
+  })
+
+  test("identical changes get their own keys, which hold when a change above is undone", () => {
+    const base = "x\na\ny\na\nz"
+    const after = "x\nA\ny\nA\nz"
+    const hunks = trackedHunks(base, after)
+    const keys = hunkKeys(hunks)
+    expect(new Set(keys).size).toBe(2)
+    const undone = revertHunk(after, hunks[0])
+    expect(hunkKeys(trackedHunks(base, undone))).toEqual([keys[1]])
+    // A change that adds lines moves the ones below it in the new text but not in the base.
+    const grown = "x\nA\nA2\ny\nA\nz"
+    const [, second] = hunkKeys(trackedHunks(base, grown))
+    expect(second).toBe(keys[1])
   })
 
   test("a very large change is one hunk", () => {

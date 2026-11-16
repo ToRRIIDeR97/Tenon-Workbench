@@ -1,7 +1,7 @@
 import { For, Match, Show, Switch, onMount } from "solid-js"
 import { motionDuration, prefersReducedMotion } from "@tenon/ui/v2/motion"
 import { useLanguage } from "@/context/language"
-import type { Hunk, TrackedRow } from "@/pages/session/tracked-edits"
+import type { TrackedRow } from "@/pages/session/tracked-edits"
 
 /** A file's unreviewed agent edits: the text before the first of them, and the changes kept since. */
 export type TrackedReview = { base: string; kept: ReadonlySet<string> }
@@ -12,9 +12,6 @@ export const trackedReview = {
   get: (key: string) => reviews.get(key),
   set: (key: string, review: TrackedReview | undefined) => (review ? reviews.set(key, review) : reviews.delete(key)),
 }
-
-/** Identifies a change across reloads by what it removed and added (its line moves when one above is undone). */
-export const hunkKey = (hunk: Hunk) => `${hunk.removed.join("\n")}\u0000${hunk.added.join("\n")}`
 
 const pill =
   "h-7 rounded-full px-3 type-control text-v2-text-text-base outline-none transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover focus-visible:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)] disabled:opacity-50 motion-reduce:transition-none"

@@ -128,6 +128,7 @@ async function start(page: Page, answer: (body: Write, index: number) => { statu
   await expect(viewer).toBeVisible()
   await expect.poll(() => disk.reads).toBeGreaterThan(0)
   await viewer.locator('[data-action="file-viewer-source"]').click()
+  await expect(viewer.locator('[data-action="file-viewer-source"]')).toHaveAttribute("aria-pressed", "true")
   await expect(tracked.locator('[data-row="removed"]')).toHaveText(/Ship it\./)
   await expect(tracked.locator('[data-row="added"]')).toContainText("Ship it soon, in two")
   await expect(tracked.locator('[data-slot="tracked-review"]')).toHaveCount(0)
@@ -204,5 +205,9 @@ test("AC-25 the live edit, for the screenshot", async ({ page }) => {
   await expect(viewer).toBeVisible()
   await viewer.locator('[data-action="file-viewer-source"]').click()
   await expect(viewer.locator('[data-row="added"]')).toContainText("in two steps")
+  // The segmented control says which view shows.
+  await expect(viewer.locator('[data-action="file-viewer-source"]')).toHaveAttribute("aria-pressed", "true")
+  await expect(viewer.locator('[data-action="file-viewer-rendered"]')).toHaveAttribute("aria-pressed", "false")
+  await page.mouse.move(0, 0)
   await shot(page, "1-live-edit")
 })

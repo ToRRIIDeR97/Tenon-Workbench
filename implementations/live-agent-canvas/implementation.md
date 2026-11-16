@@ -213,8 +213,10 @@ Interfaces named here are the contract both test sets use.
   its current leading whitespace + `content` (trimmed) + its current trailing whitespace and answers
   200 `{ hash }` (hash of the new trimmed text). A different hash answers 409 `{ currentHash }`.
   A path outside the folder (relative or absolute), a missing file or a binary file answers 4xx.
-  Nothing is written on any error. The client is regenerated; authorization and httpapi coverage
-  checks include the route.
+  Nothing is written on any error. A UTF-8 byte-order mark and CRLF line endings survive. The app
+  calls the route through a typed helper that uses the same auth and folder header as the other
+  instance file calls (the generated client in `packages/client` has no instance file routes, so
+  there is nothing to regenerate); authorization and httpapi coverage checks include the route.
 - **AC-25** In the Files tab Source view of a file the agent edited in this thread, each change
   shows removed lines struck through and added lines highlighted (diff colours), live while an
   edit streams. When the agent's tool finishes, each change gets Keep and Undo; the header gets

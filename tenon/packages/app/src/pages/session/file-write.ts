@@ -30,7 +30,9 @@ export async function writeFileText(input: {
       "Authorization",
       `Basic ${authTokenFromCredentials({ username: input.server.http.username, password: input.server.http.password })}`,
     )
-  const response = await (input.fetch ?? globalThis.fetch)(new URL("/file/content", input.server.http.url), {
+  // Appended to the server URL as `instanceRequest` in utils/server.ts does, so a path prefix in it is kept.
+  const url = `${input.server.http.url.replace(/\/+$/, "")}/file/content`
+  const response = await (input.fetch ?? globalThis.fetch)(url, {
     method: "PUT",
     headers,
     body: JSON.stringify({ path: input.path, content: input.content, expectedHash: input.expectedHash }),

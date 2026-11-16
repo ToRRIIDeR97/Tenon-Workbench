@@ -63,6 +63,20 @@ export function trackedHunks(before: string, after: string): Hunk[] {
   return hunks
 }
 
+/**
+ * A key per hunk of `trackedHunks(base, …)`: its first line in `base` and its lines. The base doesn't
+ * change while it is reviewed, so the key stays the same when a change above it is undone, and two
+ * identical changes in different places get different keys.
+ */
+export function hunkKeys(hunks: readonly Hunk[]) {
+  const shift = { lines: 0 }
+  return hunks.map((hunk) => {
+    const start = hunk.start - shift.lines
+    shift.lines += hunk.added.length - hunk.removed.length
+    return `${start}\u0000${hunk.removed.join("\n")}\u0000${hunk.added.join("\n")}`
+  })
+}
+
 /** `after` with the hunk's added lines replaced by its removed lines. */
 export function revertHunk(after: string, hunk: Hunk) {
   const next = lines(after)

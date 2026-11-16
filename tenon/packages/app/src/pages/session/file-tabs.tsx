@@ -23,8 +23,8 @@ import { FileViewer, LiveSource, viewerKind } from "@/pages/session/file-viewer"
 import { editPreview, isLiveCall, shownMarks, shownTexts } from "@/pages/session/live-document"
 import { createSessionWrites, createViewNewest, isWriting } from "@/pages/session/live-document-view"
 import { writeFileText } from "@/pages/session/file-write"
-import { contentHash, revertHunk, trackedHunks, trackedRows, type Hunk } from "@/pages/session/tracked-edits"
-import { TrackedSource, hunkKey, trackedReview, type TrackedReview } from "@/pages/session/tracked-source"
+import { contentHash, hunkKeys, revertHunk, trackedHunks, trackedRows, type Hunk } from "@/pages/session/tracked-edits"
+import { TrackedSource, trackedReview, type TrackedReview } from "@/pages/session/tracked-source"
 import { usePlatform } from "@/context/platform"
 import { useServerSDK } from "@/context/server-sdk"
 import { getSessionHandoff } from "@/pages/session/handoff"
@@ -345,9 +345,12 @@ function SessionFileViewV2(props: { tab: string }) {
     if (!current || (writing() && !editing())) return []
     return trackedHunks(current.base, shownText())
   })
+  // Each change's key is its place in the base plus its lines, so Keep acts on one change even when
+  // another is identical, and stays put when a change above it is undone.
+  const keys = createMemo(() => hunkKeys(hunks()))
   const kept = createMemo(() => {
-    const keys = review()?.kept ?? new Set<string>()
-    return new Set(hunks().flatMap((hunk, index) => (keys.has(hunkKey(hunk)) ? [index] : [])))
+    const reviewed = review()?.kept ?? new Set<string>()
+    return new Set(keys().flatMap((key, index) => (reviewed.has(key) ? [index] : [])))
   })
   const unreviewed = createMemo(() => hunks().filter((_, index) => !kept().has(index)))
   const trackedRowsShown = createMemo(() => trackedRows(shownText(), hunks(), kept()))
@@ -382,11 +385,12 @@ function SessionFileViewV2(props: { tab: string }) {
     const text = [...list].sort((a, b) => b.start - a.start).reduce((next, hunk) => revertHunk(next, hunk), read)
     return send(text, await contentHash(read))
   }
-  const keepHunks = (list: readonly Hunk[]) => {
+  const keepHunk = (index: number) => {
     const current = review()
-    if (!current) return
-    const keys = new Set([...current.kept, ...list.map(hunkKey)])
-    saveReview(unreviewed().every((hunk) => keys.has(hunkKey(hunk))) ? undefined : { ...current, kept: keys })
+    const key = keys()[index]
+    if (!current || key === undefined) return
+    const next = new Set([...current.kept, key])
+    saveReview(keys().every((item) => next.has(item)) ? undefined : { ...current, kept: next })
   }
   const trackedView = () => (
     <TrackedSource
@@ -395,7 +399,7 @@ function SessionFileViewV2(props: { tab: string }) {
       review={!writing()}
       busy={busy()}
       conflict={!!conflict()}
-      onKeep={(index) => keepHunks(hunks().slice(index, index + 1))}
+      onKeep={keepHunk}
       onUndo={(index) => void undo(hunks().slice(index, index + 1))}
       onKeepAll={() => saveReview(undefined)}
       onUndoAll={() =>

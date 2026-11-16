@@ -17,11 +17,15 @@ import { FileConflictError, FileInvalidError } from "../groups/file"
 const sha256 = (text: string) => createHash("sha256").update(text, "utf8").digest("hex")
 const invalid = (message: string) => new FileInvalidError({ name: "FileInvalidError", data: { message } })
 
-/** The text as the content route decodes it, or `undefined` for a binary file. */
+/**
+ * The file's text, or `undefined` for a binary file. A UTF-8 byte-order mark stays as a leading U+FEFF,
+ * which `trim()` removes, so the trimmed text (and its hash) is the content route's, and the mark is
+ * written back with the leading whitespace.
+ */
 const decodeText = (bytes: Uint8Array) =>
   bytes.includes(0)
     ? Effect.succeed(undefined)
-    : Effect.sync(() => new TextDecoder("utf-8", { fatal: true }).decode(bytes)).pipe(
+    : Effect.sync(() => new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes)).pipe(
         Effect.catchDefect(() => Effect.succeed(undefined)),
       )
 
