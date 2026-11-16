@@ -205,8 +205,8 @@ Use `[font-weight:N]` when a weight must differ from the role.
   (`--v2-duration-long`, emphasized-decelerate); when nothing draws it shows
   all boards. Once the user pans or zooms it stays put until the next design
   starts. Under reduced motion the camera jumps. Clicking a board opens it
-  large. Someone already on the board stays there when a new design starts:
-  the camera follows it instead of opening it large.
+  large. Someone already on the board stays there when a new design starts
+  or arrives finished: the camera follows it instead of opening it large.
 
 ## Motion
 

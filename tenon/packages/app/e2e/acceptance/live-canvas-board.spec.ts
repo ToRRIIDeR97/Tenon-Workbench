@@ -39,12 +39,12 @@ const steps = [
   intro + done("Alpha") + done("Beta") + done("Gamma"),
 ]
 
-const message = (role: "user" | "assistant", id: string, parts: Record<string, unknown>[]) => ({
+const message = (role: "user" | "assistant", id: string, parts: Record<string, unknown>[], completed?: number) => ({
   info: {
     id,
     sessionID,
     role,
-    time: { created: role === "user" ? 1762000000000 : 1762000001000 },
+    time: { created: role === "user" ? 1762000000000 : 1762000001000, ...(completed ? { completed } : {}) },
     agent: "build",
     model,
     ...(role === "assistant"
@@ -284,4 +284,73 @@ test("AC-24 the next design starting resumes the following", async ({ page }) =>
   await expect(beta).toHaveAttribute("data-board-drawing", "")
   await expect(board).toHaveAttribute("data-following", "")
   await expectCentred(board, beta)
+})
+
+test("AC-24 a board opened from history keeps every title whole", async ({ page }) => {
+  const titles = ["One", "Two", "Three", "Four", "Five", "Six"]
+  await openApp(page, {
+    sessions: [thread],
+    pageMessages: (id) =>
+      id === sessionID
+        ? {
+            items: [
+              message("user", userID, [{ id: "prt_live_board_user", type: "text", text: "Draw six pages" }]),
+              message("assistant", assistantID, [textPart(intro + titles.map(done).join(""))], 1762000009000),
+            ],
+          }
+        : { items: [] },
+    events: () => [heartbeat],
+    eventRetry: 40,
+  })
+  await page.goto(`/${base64(directory)}/session/${sessionID}`)
+  await expect(page.getByText("Here are three pages.")).toBeVisible()
+  // History never opens the panel: open one design from the thread, then go back to all of them.
+  await page.getByRole("button", { name: "Open in Canvas" }).first().click()
+  const large = page.locator("[data-canvas-design]")
+  await expect(large).toBeVisible()
+  await large.getByRole("button", { name: "All designs" }).click()
+  const board = page.locator('[data-slot="design-board"]')
+  await expect(board).toBeVisible()
+  await expect(board).not.toHaveAttribute("data-camera-moving", "")
+
+  const labels = page.locator('[data-slot="board-label-title"]')
+  await expect(labels).toHaveText(titles.map((title, index) => `${String.fromCharCode(65 + index)} · ${title}`))
+  // Every title whole, and no label row overflows (Use and Done only where they fit beside it).
+  await expect
+    .poll(() =>
+      page.locator('[data-slot="board-label"]').evaluateAll((rows) =>
+        rows.every((row) => {
+          const title = row.querySelector<HTMLElement>('[data-slot="board-label-title"]')
+          return !!title && title.scrollWidth <= title.clientWidth && row.scrollWidth <= row.clientWidth + 1
+        }),
+      ),
+    )
+    .toBe(true)
+  // Use is shown exactly where the whole title, the gap and Use fit in the row.
+  const rows = await page.locator('[data-slot="board-label"]').evaluateAll((items) =>
+    items.map((row) => {
+      const title = row.querySelector<HTMLElement>('[data-slot="board-label-title"]')!
+      const use = row.querySelector<HTMLElement>('[data-slot="board-label-use"]')!
+      return {
+        shown: getComputedStyle(use).visibility === "visible",
+        fits: title.scrollWidth + 8 + use.offsetWidth <= row.clientWidth,
+      }
+    }),
+  )
+  expect(rows.map((row) => row.shown)).toEqual(rows.map((row) => row.fits))
+  expect(rows.some((row) => row.shown)).toBe(true)
+  await shot(page, "4-history-six")
+})
+
+test("AC-24 a design that arrives already finished leaves the board in view", async ({ page }) => {
+  const { feed, board } = await start(page)
+  await expectCentred(board, page.getByRole("button", { name: "View Alpha" }))
+  // Beta opens and closes within one update: it never streams on the board, it only closes.
+  feed.push(partEvent(2), {
+    ...partEvent(5),
+  })
+  await expect(page.getByRole("button", { name: "View Beta" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "View Beta" })).not.toHaveAttribute("data-board-drawing", "")
+  await expect(page.locator("[data-canvas-design]")).toHaveCount(0)
+  await expect(board).toBeVisible()
 })

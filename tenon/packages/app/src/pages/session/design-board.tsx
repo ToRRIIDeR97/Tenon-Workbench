@@ -371,8 +371,10 @@ function BoardArtboard(props: {
 
 /**
  * A board's screen-size label. The title comes first: "Use this one" joins when it fits beside the
- * whole title, then "Done" when that fits too (both stay in the large view). Text widths don't change
- * with zoom, so each part is measured once, laid out but hidden while it doesn't fit.
+ * whole title, then "Done" when that fits too (both stay in the large view). Each part is laid out even
+ * while hidden, and its natural width is read from a ResizeObserver (first layout, resize, new text) and
+ * again once web fonts load. A 0 reading means not laid out yet: it is never taken as a width, and Use
+ * stays hidden until both widths are known.
  */
 function BoardLabel(props: {
   boardKey: string
@@ -386,21 +388,27 @@ function BoardLabel(props: {
   const language = useLanguage()
   const [size, setSize] = createStore({ title: 0, use: 0, done: 0 })
   let title!: HTMLSpanElement
-  let use: HTMLSpanElement | undefined
-  let done: HTMLSpanElement | undefined
-  createEffect(
-    on(
-      () => [props.title, props.streaming] as const,
-      () =>
-        setSize({
-          title: title.scrollWidth,
-          use: use?.offsetWidth ?? 0,
-          done: done?.offsetWidth ?? 0,
-        }),
-    ),
-  )
-  const showUse = () => !props.streaming && props.width >= size.title + LABEL_GAP + size.use
-  const showDone = () => showUse() && props.width >= size.title + LABEL_GAP + size.use + LABEL_GAP + size.done
+  let use!: HTMLSpanElement
+  let done!: HTMLSpanElement
+  const measure = () =>
+    setSize({
+      title: title.scrollWidth || size.title,
+      use: use.offsetWidth || size.use,
+      done: done.offsetWidth || size.done,
+    })
+  onMount(() => {
+    const observer = new ResizeObserver(measure)
+    observer.observe(title)
+    observer.observe(use)
+    observer.observe(done)
+    void document.fonts?.ready.then(measure)
+    onCleanup(() => observer.disconnect())
+  })
+  createEffect(on(() => props.title, measure, { defer: true }))
+  const showUse = () =>
+    !props.streaming && size.title > 0 && size.use > 0 && props.width >= size.title + LABEL_GAP + size.use
+  const showDone = () =>
+    showUse() && size.done > 0 && props.width >= size.title + LABEL_GAP + size.use + LABEL_GAP + size.done
   return (
     <div
       data-slot="board-label"
@@ -414,39 +422,38 @@ function BoardLabel(props: {
       <span ref={title} data-slot="board-label-title" class="min-w-0 truncate text-v2-text-text-base [font-weight:500]">
         {props.title}
       </span>
-      <Show
-        when={!props.streaming}
-        fallback={<span class="shrink-0 text-v2-text-text-muted">{language.t("secondBrain.canvas.drawingCard")}</span>}
-      >
-        <span
-          ref={done}
-          aria-hidden={showDone() ? undefined : "true"}
-          class="shrink-0 text-v2-text-text-muted"
-          classList={{ "invisible absolute": !showDone() }}
-        >
-          {language.t("secondBrain.canvas.done")}
-        </span>
-        {/* The wrapper takes the hidden state: the button's own CSS keeps it position: relative. */}
-        <span
-          ref={use}
-          data-slot="board-label-use"
-          class="ml-auto flex shrink-0"
-          classList={{ "invisible absolute": !showUse() }}
-          aria-hidden={showUse() ? undefined : "true"}
-        >
-          <ButtonV2
-            size="small"
-            variant="ghost"
-            class="h-5"
-            classList={{ "pointer-events-auto": showUse() }}
-            tabIndex={showUse() ? undefined : -1}
-            onPointerDown={(event: PointerEvent) => event.stopPropagation()}
-            onClick={() => props.onUse()}
-          >
-            {language.t("secondBrain.canvas.use")}
-          </ButtonV2>
-        </span>
+      <Show when={props.streaming}>
+        <span class="shrink-0 text-v2-text-text-muted">{language.t("secondBrain.canvas.drawingCard")}</span>
       </Show>
+      {/* Hidden parts leave the row (absolute) but keep their size for measuring. */}
+      <span
+        ref={done}
+        aria-hidden={showDone() ? undefined : "true"}
+        class="shrink-0 text-v2-text-text-muted"
+        classList={{ "invisible absolute": !showDone() }}
+      >
+        {language.t("secondBrain.canvas.done")}
+      </span>
+      {/* The wrapper takes the hidden state: the button's own CSS keeps it position: relative. */}
+      <span
+        ref={use}
+        data-slot="board-label-use"
+        class="ml-auto flex shrink-0"
+        classList={{ "invisible absolute": !showUse() }}
+        aria-hidden={showUse() ? undefined : "true"}
+      >
+        <ButtonV2
+          size="small"
+          variant="ghost"
+          class="h-5"
+          classList={{ "pointer-events-auto": showUse() }}
+          tabIndex={showUse() ? undefined : -1}
+          onPointerDown={(event: PointerEvent) => event.stopPropagation()}
+          onClick={() => props.onUse()}
+        >
+          {language.t("secondBrain.canvas.use")}
+        </ButtonV2>
+      </span>
     </div>
   )
 }

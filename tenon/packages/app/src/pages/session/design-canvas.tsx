@@ -104,12 +104,16 @@ function createDesignCanvas(panel: () => boolean) {
       command.trigger("input.focus")
     },
     open: (design: Design) => show(designs().find((item) => item.id === design.id) ?? design),
-    /** A canvas block finished streaming in the thread; a design that already opened the panel stays put. */
+    /**
+     * A canvas block finished streaming in the thread; a design that already opened the panel stays put,
+     * and someone on the board keeps it (as when a design starts streaming).
+     */
     reveal: (design: Design) => {
       const listed = designs().find((item) => item.id === design.id)
       const key = `${sessionID()}:${listed?.key ?? design.id}`
       if (revealed.has(key)) return
       revealed.add(key)
+      if (untrack(boardInView)) return
       show(listed ?? design)
     },
   }

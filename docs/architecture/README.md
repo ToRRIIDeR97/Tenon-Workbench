@@ -2011,7 +2011,11 @@ note preview keep `html` blocks as highlighted code.
   the focused board's keys zoom around the centre. Any of those stops the
   following until the next design starts drawing. When the board is already
   in view, a newly streaming design doesn't open the large view: the reveal
-  marks its key as revealed and leaves the camera to follow it. Only designs in
+  marks its key as revealed and leaves the camera to follow it. The reveal at
+  a fence's close follows the same rule, for a design that arrived already
+  finished. Board labels read their parts' natural widths from a
+  ResizeObserver (and again once web fonts load), never taking an unlaid-out
+  0 as a width. Only designs in
   a reply still in progress (no `time.completed`, no error) are drawing: an
   open fence or pending call left in a reply that ended (stopped, out of
   tokens) is listed as done with its source so far, so its live view swaps to
