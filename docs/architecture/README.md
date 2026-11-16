@@ -1994,8 +1994,10 @@ note preview keep `html` blocks as highlighted code.
   board iterates keys and the large view is keyed on the key, so a streamed
   token or a closing fence never rebuilds an artboard or its frame.
 - The board (`app/src/pages/session/design-board.tsx`) places 1280×800
-  artboards on a two-column grid in world space (`boardLayout` in
-  `board-camera.ts`) inside one world layer whose CSS transform is the camera
+  artboards on a grid in world space (`boardLayout` in `board-camera.ts`),
+  with the column count that fits them largest in the current viewport
+  (`boardColumns`, recomputed on resize; the camera re-fits and the frames
+  stay), inside one world layer whose CSS transform is the camera
   (`screen = world · scale + (x, y)`); moving the camera changes only that
   transform, the dot grid's offset and the screen-space labels, never the
   frames. A board that is streaming when it mounts draws through

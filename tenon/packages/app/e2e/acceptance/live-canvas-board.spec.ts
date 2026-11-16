@@ -191,6 +191,15 @@ test("AC-24 the board follows each design as it draws, then shows them all", asy
   await expectInside(board, [alpha, beta, gamma])
   await expect(page.locator('[data-slot="board-label"]')).toHaveCount(3)
   await expect(page.locator('[data-slot="board-label"]').filter({ hasText: "Use this one" })).toHaveCount(3)
+  // The tall side panel stacks the boards, so they fit larger than a two-column grid would.
+  const area = await board.boundingBox()
+  const twoColumns = Math.min((area!.width - 64) / 2760, (area!.height - 64) / 1800)
+  expect(await percent(page)).toBeGreaterThan(Math.round(twoColumns * 100))
+  // Short titles are shown whole.
+  const titles = page.locator('[data-slot="board-label-title"]')
+  await expect(titles).toHaveText(["A · Alpha", "B · Beta", "C · Gamma"])
+  expect(await titles.evaluateAll((items) => items.every((item) => item.scrollWidth <= item.clientWidth))).toBe(true)
+  await expect(zoomText(page)).toHaveAttribute("aria-label", `Fit all designs, ${await percent(page)}%`)
   await shot(page, "2-overview")
 
   // A label's Use this one references that design in the composer.

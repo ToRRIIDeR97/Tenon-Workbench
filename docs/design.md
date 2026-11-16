@@ -193,11 +193,13 @@ Use `[font-weight:N]` when a weight must differ from the role.
 - **Canvas board** (`design-board.tsx`, `board-camera.ts`): the Canvas list
   is a pan/zoom board. Designs are 1280×800 artboards (white, hairline edge)
   on a dotted layer-01 surface (dots from the muted border token, 12px
-  radius, inset hairline). Each has a screen-size label above it:
-  "A · Title" and a muted status ("Drawing…", or "Done" with "Use this one";
-  narrow labels keep only "Use this one"). The board being drawn has an
-  accent outline. A zoom pill in the header (− NN% +, the % fits all
-  designs) zooms around the centre; wheel or pinch zooms at the pointer, a
+  radius, inset hairline), in as many columns as show them largest (a tall
+  side panel stacks them in one). Each has a screen-size label above it:
+  "A · Title" and a status ("Drawing…", or "Done" with "Use this one"). The
+  title keeps its full width: "Use this one" joins only when it fits beside
+  it, then "Done" (both are in the large view too). The board being drawn
+  has an accent outline. A zoom pill in the header (− NN% +, the % fits all
+  designs and announces the zoom) zooms around the centre; wheel or pinch zooms at the pointer, a
   drag pans, and the focused board takes +/− (zoom), arrows (pan) and 0 (fit
   all). While a design draws the camera glides to its board
   (`--v2-duration-long`, emphasized-decelerate); when nothing draws it shows

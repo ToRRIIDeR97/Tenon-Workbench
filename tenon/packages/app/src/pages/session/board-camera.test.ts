@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { blendCamera, boardCamera, boardLayout, cssEasing, zoomAt } from "./board-camera"
+import { blendCamera, boardCamera, boardColumns, boardLayout, cssEasing, zoomAt } from "./board-camera"
 
 describe("board camera", () => {
   test("one board fills the view", () => {
@@ -21,6 +21,18 @@ describe("board camera", () => {
     expect(back.x).toBeCloseTo(start.x)
     expect(back.y).toBeCloseTo(start.y)
     expect(back.scale).toBeCloseTo(start.scale)
+  })
+
+  test("columns follow the viewport's shape", () => {
+    // The side panel at its default width: tall and narrow, so three boards stack.
+    expect(boardColumns(3, { width: 400, height: 730 })).toBe(1)
+    expect(boardColumns(3, { width: 1600, height: 500 })).toBe(3)
+    expect(boardColumns(4, { width: 1200, height: 800 })).toBe(2)
+    expect(boardColumns(1, { width: 400, height: 730 })).toBe(1)
+    expect(boardColumns(3, { width: 0, height: 0 })).toBe(2)
+    const viewport = { width: 400, height: 730 }
+    const stacked = boardCamera({ layout: boardLayout(3, { columns: boardColumns(3, viewport) }), viewport })
+    expect(stacked.scale).toBeGreaterThan(boardCamera({ layout: boardLayout(3), viewport }).scale)
   })
 
   test("blend moves part way", () => {

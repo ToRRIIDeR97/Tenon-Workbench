@@ -46,6 +46,20 @@ export function boardCamera(input: { layout: Rect[]; drawing?: number; viewport:
   return fitCamera({ x: left, y: top, width: right - left, height: bottom - top }, input.viewport, input.pad)
 }
 
+/**
+ * How many columns show `count` boards largest in `viewport`: a tall narrow view stacks them in one
+ * column, a wide one spreads them out. Ties keep fewer columns.
+ */
+export function boardColumns(count: number, viewport: Size, pad = 32) {
+  if (count < 2 || viewport.width <= 0 || viewport.height <= 0) return Math.max(1, Math.min(2, count))
+  return Array.from({ length: count }, (_, index) => index + 1).reduce((best, columns) =>
+    boardCamera({ layout: boardLayout(count, { columns }), viewport, pad }).scale >
+    boardCamera({ layout: boardLayout(count, { columns: best }), viewport, pad }).scale + 1e-9
+      ? columns
+      : best,
+  )
+}
+
 /** The camera part way from `from` to `to`, `progress` already eased (0–1). */
 export function blendCamera(from: Camera, to: Camera, progress: number): Camera {
   return {

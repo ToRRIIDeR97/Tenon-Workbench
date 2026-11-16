@@ -667,6 +667,7 @@ export const dict = {
   "secondBrain.canvas.zoomIn": "Zoom in",
   "secondBrain.canvas.zoomOut": "Zoom out",
   "secondBrain.canvas.fitAll": "Fit all designs",
+  "secondBrain.canvas.fitAllZoom": "Fit all designs, {{percent}}%",
   "secondBrain.sessionTab.notReported": "Not reported",
   "secondBrain.sessionTab.none": "None",
   "secondBrain.sessionTab.messages.one": "{{count}} message",

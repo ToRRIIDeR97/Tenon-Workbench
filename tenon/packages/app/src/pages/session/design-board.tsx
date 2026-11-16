@@ -10,6 +10,7 @@ import {
   ARTBOARD,
   blendCamera,
   boardCamera,
+  boardColumns,
   boardLayout,
   cssEasing,
   zoomAt,
@@ -21,8 +22,8 @@ import { DesignFrame, LiveDesignFrame } from "@/pages/session/live-design-frame"
 const DRAG_THRESHOLD = 4
 const ZOOM_STEP = 1.25
 const KEY_PAN = 48
-// Narrower labels drop the word Done (Use this one already says the design is finished).
-const DONE_MIN_WIDTH = 260
+// The gap between a label's parts (gap-2).
+const LABEL_GAP = 8
 
 const sameCamera = (a: Camera, b: Camera) =>
   Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5 && Math.abs(a.scale - b.scale) < 0.0005
@@ -48,7 +49,9 @@ export function DesignBoard(props: {
     placed: false,
     moving: false,
   })
-  const layout = createMemo(() => boardLayout(props.keys.length))
+  // The column count that shows the boards largest in this viewport; a resize may change it.
+  const columns = createMemo(() => boardColumns(props.keys.length, view.size))
+  const layout = createMemo(() => boardLayout(props.keys.length, { columns: columns() }))
   const drawingKey = createMemo(() => props.keys.findLast((key) => props.design(key)?.streaming))
   const drawing = createMemo(() => {
     const key = drawingKey()
@@ -207,7 +210,9 @@ export function DesignBoard(props: {
               type="button"
               data-slot="board-zoom"
               class="h-7 min-w-12 rounded-full px-2 type-control tabular-nums text-v2-text-text-base outline-none transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover focus-visible:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)] motion-reduce:transition-none"
-              aria-label={language.t("secondBrain.canvas.fitAll")}
+              aria-label={language.t("secondBrain.canvas.fitAllZoom", {
+                percent: Math.round(view.camera.scale * 100),
+              })}
               onClick={fitAll}
             >
               {`${Math.round(view.camera.scale * 100)}%`}
@@ -294,40 +299,18 @@ export function DesignBoard(props: {
               {(key, index) => (
                 <Show when={props.design(key)}>
                   {(design) => (
-                    <div
-                      data-slot="board-label"
-                      data-board-key={key}
-                      class="absolute left-0 top-0 flex h-5 items-center gap-2 pb-0.5 text-[12px] leading-4"
-                      style={{
-                        transform: `translate(${screen(index()).x}px, calc(${screen(index()).y}px - 100%))`,
-                        width: `${screen(index()).width}px`,
-                      }}
-                    >
-                      <span class="min-w-0 truncate text-v2-text-text-base [font-weight:500]">
-                        {language.t("secondBrain.canvas.boardTitle", {
-                          letter: letter(index()),
-                          title: props.title(design()),
-                        })}
-                      </span>
-                      <Show when={design().streaming || screen(index()).width >= DONE_MIN_WIDTH}>
-                        <span class="shrink-0 text-v2-text-text-muted">
-                          {design().streaming
-                            ? language.t("secondBrain.canvas.drawingCard")
-                            : language.t("secondBrain.canvas.done")}
-                        </span>
-                      </Show>
-                      <Show when={!design().streaming}>
-                        <ButtonV2
-                          size="small"
-                          variant="ghost"
-                          class="pointer-events-auto ml-auto h-5 shrink-0"
-                          onPointerDown={(event: PointerEvent) => event.stopPropagation()}
-                          onClick={() => props.onUse(design())}
-                        >
-                          {language.t("secondBrain.canvas.use")}
-                        </ButtonV2>
-                      </Show>
-                    </div>
+                    <BoardLabel
+                      boardKey={key}
+                      title={language.t("secondBrain.canvas.boardTitle", {
+                        letter: letter(index()),
+                        title: props.title(design()),
+                      })}
+                      streaming={!!design().streaming}
+                      x={screen(index()).x}
+                      y={screen(index()).y}
+                      width={screen(index()).width}
+                      onUse={() => props.onUse(design())}
+                    />
                   )}
                 </Show>
               )}
@@ -383,5 +366,80 @@ function BoardArtboard(props: {
         />
       </Show>
     </button>
+  )
+}
+
+/**
+ * A board's screen-size label. The title comes first: "Use this one" joins when it fits beside the
+ * whole title, then "Done" when that fits too (both stay in the large view). Text widths don't change
+ * with zoom, so each part is measured once, laid out but hidden while it doesn't fit.
+ */
+function BoardLabel(props: {
+  boardKey: string
+  title: string
+  streaming: boolean
+  x: number
+  y: number
+  width: number
+  onUse: () => void
+}) {
+  const language = useLanguage()
+  const [size, setSize] = createStore({ title: 0, use: 0, done: 0 })
+  let title!: HTMLSpanElement
+  let use: HTMLButtonElement | undefined
+  let done: HTMLSpanElement | undefined
+  createEffect(
+    on(
+      () => [props.title, props.streaming] as const,
+      () =>
+        setSize({
+          title: title.scrollWidth,
+          use: use?.offsetWidth ?? 0,
+          done: done?.offsetWidth ?? 0,
+        }),
+    ),
+  )
+  const showUse = () => !props.streaming && props.width >= size.title + LABEL_GAP + size.use
+  const showDone = () => showUse() && props.width >= size.title + LABEL_GAP + size.use + LABEL_GAP + size.done
+  return (
+    <div
+      data-slot="board-label"
+      data-board-key={props.boardKey}
+      class="absolute left-0 top-0 flex h-5 items-center gap-2 pb-0.5 text-[12px] leading-4"
+      style={{
+        transform: `translate(${props.x}px, calc(${props.y}px - 100%))`,
+        width: `${props.width}px`,
+      }}
+    >
+      <span ref={title} data-slot="board-label-title" class="min-w-0 truncate text-v2-text-text-base [font-weight:500]">
+        {props.title}
+      </span>
+      <Show
+        when={!props.streaming}
+        fallback={<span class="shrink-0 text-v2-text-text-muted">{language.t("secondBrain.canvas.drawingCard")}</span>}
+      >
+        <span
+          ref={done}
+          aria-hidden={showDone() ? undefined : "true"}
+          class="shrink-0 text-v2-text-text-muted"
+          classList={{ "invisible absolute": !showDone() }}
+        >
+          {language.t("secondBrain.canvas.done")}
+        </span>
+        <ButtonV2
+          ref={use}
+          size="small"
+          variant="ghost"
+          class="pointer-events-auto ml-auto h-5 shrink-0"
+          classList={{ "invisible absolute pointer-events-none": !showUse() }}
+          aria-hidden={showUse() ? undefined : "true"}
+          tabIndex={showUse() ? undefined : -1}
+          onPointerDown={(event: PointerEvent) => event.stopPropagation()}
+          onClick={() => props.onUse()}
+        >
+          {language.t("secondBrain.canvas.use")}
+        </ButtonV2>
+      </Show>
+    </div>
   )
 }
