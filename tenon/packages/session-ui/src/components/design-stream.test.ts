@@ -56,7 +56,7 @@ describe.skipIf(dom)("morphChildren", () => {
 })
 
 describe.skipIf(dom)("liveDesignDocument bootstrap", () => {
-  const boot = () => {
+  const boot = (reduced = true) => {
     const script = liveDesignDocument().match(/<script nonce="\w+">(\(\(\)=>\{const __name[\s\S]*?)<\/script>/)?.[1]
     const listeners: ((event: { source: unknown; data: unknown }) => void)[] = []
     const parent = {}
@@ -65,6 +65,7 @@ describe.skipIf(dom)("liveDesignDocument bootstrap", () => {
       document,
       parent,
       Element,
+      matchMedia: () => ({ matches: reduced }),
       addEventListener: (_: string, listener: (typeof listeners)[number]) => listeners.push(listener),
     })
     return {
@@ -72,13 +73,15 @@ describe.skipIf(dom)("liveDesignDocument bootstrap", () => {
       parent,
     }
   }
+  // The element being written carries an outline mark; the shape tests ignore it.
+  const html = () => document.body.innerHTML.replaceAll(' data-tenon-writing=""', "")
 
   test("morphs frames from the parent into the body", () => {
     const frame = boot()
     frame.send(frame.parent, { type: DESIGN_FRAME_MESSAGE, markup: "<main><h1>Pri</h1></main>" })
     const main = document.body.firstElementChild
     frame.send(frame.parent, { type: DESIGN_FRAME_MESSAGE, markup: "<main><h1>Pricing</h1></main><p>x</p>" })
-    expect(document.body.innerHTML).toBe("<main><h1>Pricing</h1></main><p>x</p>")
+    expect(html()).toBe("<main><h1>Pricing</h1></main><p>x</p>")
     expect(document.body.firstElementChild).toBe(main)
   })
 
@@ -88,7 +91,7 @@ describe.skipIf(dom)("liveDesignDocument bootstrap", () => {
     frame.send(frame.parent, { type: "other", markup: "<p>other</p>" })
     frame.send(frame.parent, { type: DESIGN_FRAME_MESSAGE, markup: 1 })
     frame.send(frame.parent, "<p>other</p>")
-    expect(document.body.innerHTML).toBe("")
+    expect(html()).toBe("")
   })
 
   test("drops scripts, handlers and nested frames", () => {
@@ -97,7 +100,7 @@ describe.skipIf(dom)("liveDesignDocument bootstrap", () => {
       type: DESIGN_FRAME_MESSAGE,
       markup: '<p onclick="x()">a</p><script>x()</script><iframe srcdoc="x"></iframe><a href="javascript:x()">b</a>',
     })
-    expect(document.body.innerHTML).toBe("<p>a</p><a>b</a>")
+    expect(html()).toBe("<p>a</p><a>b</a>")
   })
 
   test("drops javascript: URLs spelled with control characters", () => {
@@ -106,7 +109,7 @@ describe.skipIf(dom)("liveDesignDocument bootstrap", () => {
       type: DESIGN_FRAME_MESSAGE,
       markup: '<a href="java&#9;script:x()">a</a><a href=" &#10;JavaScript:x()">b</a><a href="https://x.test/">c</a>',
     })
-    expect(document.body.innerHTML).toBe('<a>a</a><a>b</a><a href="https://x.test/">c</a>')
+    expect(html()).toBe('<a>a</a><a>b</a><a href="https://x.test/">c</a>')
   })
 
   test("drops SVG animations that could set a javascript: href", () => {
@@ -118,5 +121,32 @@ describe.skipIf(dom)("liveDesignDocument bootstrap", () => {
     })
     expect(document.body.querySelectorAll("animate, set, animateMotion, animateTransform").length).toBe(0)
     expect(document.body.querySelector("text")?.textContent).toBe("t")
+  })
+
+  test("outlines the deepest last element that draws, skipping trailing styles", () => {
+    const frame = boot()
+    frame.send(frame.parent, {
+      type: DESIGN_FRAME_MESSAGE,
+      markup: "<main><h1>A</h1><section><p>One</p><p>Tw</p></section><style>p{}</style></main>",
+    })
+    expect(Array.from(document.querySelectorAll("[data-tenon-writing]"), (el) => el.textContent)).toEqual(["Tw"])
+    frame.send(frame.parent, { type: DESIGN_FRAME_MESSAGE, markup: "<main><h1>A</h1></main><footer>F</footer>" })
+    expect(Array.from(document.querySelectorAll("[data-tenon-writing]"), (el) => el.textContent)).toEqual(["F"])
+  })
+
+  test("fades in only the inserted elements, and nothing under reduced motion", () => {
+    const animated: string[] = []
+    const original = Element.prototype.animate
+    Element.prototype.animate = function (this: Element) {
+      animated.push(this.tagName)
+      return {} as Animation
+    }
+    const moving = boot(false)
+    moving.send(moving.parent, { type: DESIGN_FRAME_MESSAGE, markup: "<main><h1>A</h1></main>" })
+    moving.send(moving.parent, { type: DESIGN_FRAME_MESSAGE, markup: "<main><h1>A</h1><p>B</p></main>" })
+    const still = boot(true)
+    still.send(still.parent, { type: DESIGN_FRAME_MESSAGE, markup: "<main><h1>A</h1></main>" })
+    Element.prototype.animate = original
+    expect(animated).toEqual(["MAIN", "P"])
   })
 })

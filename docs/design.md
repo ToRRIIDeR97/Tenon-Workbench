@@ -179,6 +179,19 @@ Use `[font-weight:N]` when a weight must differ from the role.
   drawn with the CSS Highlight API so the editor's text is untouched. A plain
   click edits; Ctrl/⌘-click opens the link.
 - **Switches in lists** use the small size.
+- **Canvas follows the agent** (`canvas-tab.tsx`, `live-design-frame.tsx`):
+  when a canvas design starts drawing in the open thread, the side panel opens
+  on Canvas with it large, once per design, at its first visible element; a
+  design the user closed or left for the list stays closed, and history never
+  opens the panel. The page draws in place, element by element: new elements
+  fade in over `--v2-duration-medium` with the emphasized-decelerate easing
+  (none under reduced motion) and a soft accent outline marks the element
+  being written. The header shows the title, a "Drawing" chip with the
+  running dot (it settles to "Drawn just now") and a Preview / Code segmented
+  switch; Code shows the source so far with an accent caret, kept scrolled to
+  the end. "Use this one" appears once the design is done. In the list, a
+  design still drawing shows the running dot and "Drawing…" instead of a
+  preview.
 
 ## Motion
 

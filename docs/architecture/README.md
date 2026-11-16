@@ -1981,16 +1981,38 @@ note preview keep `html` blocks as highlighted code.
   "Open in Canvas" and a design over the size cap, so the code stays reachable.
 - An `html canvas` block becomes a compact card in the thread and an artboard
   in the right panel's Canvas tab (`app/src/pages/session/canvas-tab.tsx`,
-  tab ID `canvas` in `helpers.ts`). The tab lists the thread's closed canvas
-  blocks from assistant text, in message order, plus inline designs sent there
-  with "Open in Canvas", as scaled previews; clicking one shows it large.
-  `createDesignList` in `design-canvas.tsx` keeps one object per design ID and
-  the large view is keyed on the ID, so a streamed token never rebuilds an
-  unchanged artboard's frame.
-- While a fence is open the thread shows a placeholder, and the frame is built
-  once, when the fence closes. When a canvas block finishes streaming in the
-  current view, the panel opens on the Canvas tab once per design; loading
-  history never opens it.
+  tab ID `canvas` in `helpers.ts`). The tab lists the thread's canvas blocks
+  from assistant text, in message order, including one still streaming
+  (`collectDesigns(..., { streaming: true })`), then `write` calls to `.html`
+  or `.htm` files (`collectToolDesigns`, live while the call is pending or
+  running), plus inline designs sent there with "Open in Canvas", as scaled
+  previews; clicking one shows it large. Designs are told apart by `key`
+  (`<part id>:<fence index>`, or the call ID), which stays the same when a
+  fence closes and its `id` becomes the checksum. `createDesignList` in
+  `design-canvas.tsx` keeps one object per key while it doesn't change, the
+  grid iterates keys and the large view is keyed on the key, so a streamed
+  token or a closing fence never rebuilds an artboard or its frame. A
+  streaming design's card shows "Drawing…" until it is done.
+- A design shown large while it streams draws live in one frame
+  (`app/src/pages/session/live-design-frame.tsx`): the frame loads
+  `liveDesignDocument()` (`session-ui/src/components/design-stream.ts`) once,
+  then gets `partialDesignMarkup(source)` by `postMessage`, at most 8 frames a
+  second (the newest source goes in the next frame), skipping frames with
+  nothing visible. The frame's bootstrap morphs each frame into its body
+  (`morphChildren`), fades new elements in and outlines the element being
+  written. When the design is done the frame's `srcdoc` becomes
+  `designDocument(source)` once, so the page's scripts run only then. Its
+  header has a Drawing chip (then "Drawn just now"), a Preview / Code switch
+  (Code shows the source so far with a caret) and, once done, "Use this one".
+  Designs from history open as a finished page, as before.
+- In the thread, an open fence shows a placeholder card, and the frame is
+  built once, when the fence closes. A canvas design streaming in the current
+  view opens the panel on the Canvas tab, large, at its first frame with
+  visible markup, once per key: a design counts as streaming here only once
+  its source has grown since this view first saw it, so history never opens
+  the panel. When a canvas block finishes streaming, `reveal` opens the panel
+  only if that key hasn't opened it already, so a design the user closed or
+  left for the list stays closed.
 - "Use this one" appends `Use design "<title>"` to the composer prompt
   (`appendPromptText` in `app/src/utils/prompt.ts`).
 - `session-ui/src/context/design.tsx` (`DesignSpaceProvider`) carries the

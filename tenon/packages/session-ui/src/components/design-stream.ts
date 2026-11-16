@@ -73,8 +73,12 @@ export function morphChildren(to: Node, from: Node): Element[] {
  * The srcdoc of a live design frame: `designDocument` (CSP first, WebRTC guard) with a fresh script
  * nonce, and a bootstrap that morphs frames from the parent into the body. Messages from anywhere else,
  * or of another shape, are ignored. The bootstrap loads nothing.
+ *
+ * Each frame fades its new elements in (none under reduced motion) and outlines the element being
+ * written: the deepest last element. The frame can't read the app's tokens, so the caller passes their
+ * values (`duration` in ms, `easing`, `accent` colour); the defaults only stand in for them in tests.
  */
-export function liveDesignDocument() {
+export function liveDesignDocument(motion: { duration?: number; easing?: string; accent?: string } = {}) {
   const nonce = Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
     byte.toString(16).padStart(2, "0"),
   ).join("")
@@ -85,6 +89,18 @@ export function liveDesignDocument() {
       "const __name=(value)=>value;",
       `const morph=(${String(morphChildren)});`,
       `const type=${JSON.stringify(DESIGN_FRAME_MESSAGE)};`,
+      `const duration=${JSON.stringify(Number.isFinite(motion.duration) ? motion.duration : 300)};`,
+      `const easing=${JSON.stringify(motion.easing || "ease-out")};`,
+      `const accent=${JSON.stringify(motion.accent || "Highlight")};`,
+      "const still=matchMedia('(prefers-reduced-motion: reduce)');",
+      "const hidden=new Set(['style','script','title','template','link','meta']);",
+      "const outline=document.createElement('style');",
+      "outline.textContent='[data-tenon-writing]{outline:2px solid color-mix(in srgb,'+accent+' 55%,transparent);outline-offset:2px}';",
+      "document.head.append(outline);",
+      // The element being written: from the body down through each last child that draws something.
+      "const writing=()=>{let node=document.body;while(node){let child=node.lastElementChild;",
+      "while(child&&hidden.has(child.localName.toLowerCase()))child=child.previousElementSibling;",
+      "if(!child)return node===document.body?undefined:node;node=child}};",
       "addEventListener('message',(event)=>{",
       "if(event.source!==parent)return;",
       "const data=event.data;",
@@ -99,7 +115,10 @@ export function liveDesignDocument() {
       // URL parsers drop control characters and whitespace (java&#9;script:), so the scheme is tested without them.
       "const value=attribute.value.replace(/[\\u0000-\\u0020\\u007f-\\u009f\\s]/g,'');",
       "if(/^on/i.test(attribute.name)||/^javascript:/i.test(value))node.removeAttribute(attribute.name)})});",
-      "morph(document.body,template.content)",
+      "const added=morph(document.body,template.content);",
+      "if(!still.matches)added.forEach((node)=>node.animate?.([{opacity:0},{opacity:1}],{duration,easing}));",
+      "document.querySelectorAll('[data-tenon-writing]').forEach((node)=>node.removeAttribute('data-tenon-writing'));",
+      "writing()?.setAttribute('data-tenon-writing','')",
       "})})()</script>",
     ].join(""),
     { nonce },

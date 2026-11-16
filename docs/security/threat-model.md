@@ -1224,6 +1224,26 @@ sanitizing, is the control (`session-ui/src/components/design-fence.ts`,
   only from a design frame's own window, with origin `"null"` and a finite
   number, clamps it to 48–720 px and sends nothing back. Canvas frames send
   nothing.
+- A canvas design that streams draws in a live frame
+  (`session-ui/src/components/design-stream.ts`,
+  `app/src/pages/session/live-design-frame.tsx`) with the same sandbox and
+  WebRTC guard. Its CSP is `DESIGN_CSP` except `script-src 'nonce-<n>'`, a
+  128-bit nonce from `crypto.getRandomValues`, new for every frame document;
+  only the guard and Tenon's bootstrap carry it, so inline scripts, event
+  handler attributes and `javascript:` URLs in the streamed markup can't run
+  however they are spelled. The parent posts `{ type: "tenon:design-frame",
+  markup }` with target `"*"` (the frame's origin is opaque) and sends nothing
+  else; the bootstrap ignores any message whose `source` isn't `parent` or
+  whose data has another shape. As defence in depth the parent strips
+  `<script>` blocks first (`partialDesignMarkup`), and the bootstrap drops
+  `script`, `iframe`, `frame`, `object`, `embed`, `meta`, `base` and SVG
+  `animate`, `set`, `animateMotion` and `animateTransform` elements, every
+  `on*` attribute and any value that starts with `javascript:` once control
+  characters and whitespace are removed. The frame posts nothing back. When
+  the design is done the frame gets the ordinary `designDocument`, whose
+  scripts then run under the rules above. The frame gets motion values
+  (duration, easing, accent colour) from the app's tokens, JSON-encoded into
+  the bootstrap.
 - The main window keeps `contextIsolation`, `sandbox` and no
   `nodeIntegrationInSubFrames`, so the preload never runs in frames. Electron
   main's `will-frame-navigate` handler drops any subframe navigation other than
