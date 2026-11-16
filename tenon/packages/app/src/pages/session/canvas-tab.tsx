@@ -180,11 +180,19 @@ function LargeDesign(props: { design: CanvasDesign; title: string }) {
               <SegmentedControlItemV2 value="code">{language.t("secondBrain.canvas.code")}</SegmentedControlItemV2>
             </SegmentedControlV2>
           </Show>
-          <Show when={!props.design.streaming}>
-            <ButtonV2 size="small" variant="neutral" class="shrink-0" onClick={() => canvas.use(props.design)}>
-              {language.t("secondBrain.canvas.use")}
-            </ButtonV2>
-          </Show>
+          {/* Laid out while drawing too, only hidden, so the header (and the frame below it) doesn't move at the end. */}
+          <ButtonV2
+            size="small"
+            variant="neutral"
+            class="shrink-0"
+            classList={{ invisible: !!props.design.streaming }}
+            disabled={!!props.design.streaming}
+            aria-hidden={props.design.streaming ? "true" : undefined}
+            tabIndex={props.design.streaming ? -1 : undefined}
+            onClick={() => canvas.use(props.design)}
+          >
+            {language.t("secondBrain.canvas.use")}
+          </ButtonV2>
         </div>
       </div>
       <div class="relative min-h-0 flex-1 px-3 pb-3">

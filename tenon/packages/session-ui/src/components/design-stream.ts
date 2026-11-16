@@ -16,6 +16,9 @@ import { designDocument } from "./design-fence"
 export const DESIGN_FRAME_MESSAGE = "tenon:design-frame"
 
 const script = /<script\b[\s\S]*?(?:<\/script\s*>|$)/gi
+// A colour or easing as a token resolves to: names, numbers, #hex and functions such as rgb() or
+// cubic-bezier(). No quotes, braces, semicolons or angle brackets.
+const cssValue = /^[\w\s#(),.%/+-]{1,200}$/
 const hidden =
   /<(style|script|title)\b[\s\S]*?(?:<\/\1\s*>|$)|<!--[\s\S]*?(?:-->|$)|<!doctype[^>]*>|<\/?(?:html|head|body|meta|link)\b[^>]*>/gi
 
@@ -77,21 +80,25 @@ export function morphChildren(to: Node, from: Node): Element[] {
  * Each frame fades its new elements in (none under reduced motion) and outlines the element being
  * written: the deepest last element. The frame can't read the app's tokens, so the caller passes their
  * values (`duration` in ms, `easing`, `accent` colour); the defaults only stand in for them in tests.
+ * Themes can be imported, so a value outside plain CSS characters falls back to the default, and every
+ * embedded value has `<` escaped so it can't end the script or open a comment.
  */
 export function liveDesignDocument(motion: { duration?: number; easing?: string; accent?: string } = {}) {
   const nonce = Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
     byte.toString(16).padStart(2, "0"),
   ).join("")
+  const embed = (value: unknown) => JSON.stringify(value).replace(/</g, "\\u003c")
+  const css = (value: string | undefined, fallback: string) => (value && cssValue.test(value) ? value : fallback)
   return designDocument(
     [
       `<script nonce="${nonce}">(()=>{`,
       // Bundles built with esbuild's keepNames wrap named functions in __name(); make it a no-op here.
       "const __name=(value)=>value;",
       `const morph=(${String(morphChildren)});`,
-      `const type=${JSON.stringify(DESIGN_FRAME_MESSAGE)};`,
-      `const duration=${JSON.stringify(Number.isFinite(motion.duration) ? motion.duration : 300)};`,
-      `const easing=${JSON.stringify(motion.easing || "ease-out")};`,
-      `const accent=${JSON.stringify(motion.accent || "Highlight")};`,
+      `const type=${embed(DESIGN_FRAME_MESSAGE)};`,
+      `const duration=${embed(Number.isFinite(motion.duration) ? motion.duration : 300)};`,
+      `const easing=${embed(css(motion.easing, "ease-out"))};`,
+      `const accent=${embed(css(motion.accent, "Highlight"))};`,
       "const still=matchMedia('(prefers-reduced-motion: reduce)');",
       "const hidden=new Set(['style','script','title','template','link','meta']);",
       "const outline=document.createElement('style');",

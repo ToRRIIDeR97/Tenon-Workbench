@@ -1242,8 +1242,12 @@ sanitizing, is the control (`session-ui/src/components/design-fence.ts`,
   characters and whitespace are removed. The frame posts nothing back. When
   the design is done the frame gets the ordinary `designDocument`, whose
   scripts then run under the rules above. The frame gets motion values
-  (duration, easing, accent colour) from the app's tokens, JSON-encoded into
-  the bootstrap.
+  (duration, easing, accent colour) from the app's tokens, which user-imported
+  themes can set: the easing and colour must match plain CSS characters
+  (letters, digits, spaces, `#(),.%/+-`; no quotes, braces, semicolons or
+  angle brackets) or fall back to a default, and every value embedded in the
+  bootstrap is JSON-encoded with `<` escaped as `<`, so a value can't
+  close the script, open a comment or break out of the outline style.
 - The main window keeps `contextIsolation`, `sandbox` and no
   `nodeIntegrationInSubFrames`, so the preload never runs in frames. Electron
   main's `will-frame-navigate` handler drops any subframe navigation other than

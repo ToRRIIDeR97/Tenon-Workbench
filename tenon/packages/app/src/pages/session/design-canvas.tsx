@@ -5,6 +5,7 @@ import { DesignSpaceProvider } from "@tenon/session-ui/context/design"
 import {
   collectDesigns,
   collectToolDesigns,
+  designID,
   designFences,
   type CanvasDesign,
   type Design,
@@ -155,6 +156,19 @@ function createDesignList(
     if (!id) return []
     const keep = pinned()
     const messages = sync().data.message[id] ?? []
+    // Parts (and tool calls) of replies still in progress: only their open designs are drawing.
+    const live = new Set(
+      messages
+        .filter((message) => message.role === "assistant" && !message.time.completed && !message.error)
+        .flatMap((message) =>
+          (sync().data.part[message.id] ?? []).flatMap((part) =>
+            part.type === "tool" ? [part.id, part.callID] : [part.id],
+          ),
+        ),
+    )
+    // An open fence or call in a reply that ended (stopped, out of tokens) is done with what it has.
+    const settle = (design: CanvasDesign, owner: string): CanvasDesign =>
+      design.streaming && !live.has(owner) ? { ...design, id: designID(design.source), streaming: false } : design
     const found = [
       ...collectDesigns(
         messages,
@@ -162,8 +176,8 @@ function createDesignList(
         keep.map((design) => design.id),
         scan,
         { streaming: true },
-      ),
-      ...collectToolDesigns(messages, sync().data.part),
+      ).map((design) => settle(design, design.key.slice(0, design.key.lastIndexOf(":")))),
+      ...collectToolDesigns(messages, sync().data.part).map((design) => settle(design, design.key)),
     ]
     const ids = new Set(found.map((design) => design.id))
     return [

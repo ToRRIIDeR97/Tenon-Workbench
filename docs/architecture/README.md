@@ -1992,7 +1992,12 @@ note preview keep `html` blocks as highlighted code.
   `design-canvas.tsx` keeps one object per key while it doesn't change, the
   grid iterates keys and the large view is keyed on the key, so a streamed
   token or a closing fence never rebuilds an artboard or its frame. A
-  streaming design's card shows "Drawing…" until it is done.
+  streaming design's card shows "Drawing…" until it is done. Only designs in
+  a reply still in progress (no `time.completed`, no error) are drawing: an
+  open fence or pending call left in a reply that ended (stopped, out of
+  tokens) is listed as done with its source so far, so its live view swaps to
+  the finished page once and its chip settles. A `write` that was stopped ends
+  in `error` and is done too.
 - A design shown large while it streams draws live in one frame
   (`app/src/pages/session/live-design-frame.tsx`): the frame loads
   `liveDesignDocument()` (`session-ui/src/components/design-stream.ts`) once,

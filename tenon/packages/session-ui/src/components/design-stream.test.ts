@@ -27,6 +27,21 @@ describe("live frame script policy", () => {
     expect(policy(liveDesignDocument())).not.toBe(policy(doc))
   })
 
+  test("theme values can't end the bootstrap script or open a comment", () => {
+    const doc = liveDesignDocument({
+      accent: "red</script><script>alert(1)</script><!--",
+      easing: "ease-out;}</script>",
+    })
+    expect(doc).not.toContain("alert(1)")
+    expect(doc).not.toContain("<!--")
+    expect(doc.match(/<\/script>/gi)).toHaveLength(2)
+    expect(doc).toContain('const accent="Highlight"')
+    expect(doc).toContain('const easing="ease-out"')
+    const plain = liveDesignDocument({ accent: "rgb(10 20 30 / 50%)", easing: "cubic-bezier(0.05, 0.7, 0.1, 1)" })
+    expect(plain).toContain('const accent="rgb(10 20 30 / 50%)"')
+    expect(plain).toContain('const easing="cubic-bezier(0.05, 0.7, 0.1, 1)"')
+  })
+
   test("finished designs keep the inline script policy", () => {
     expect(policy(designDocument("<p>x</p>"))).toBe(DESIGN_CSP)
     expect(designDocument("<p>x</p>")).not.toContain("nonce")
