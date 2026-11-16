@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { SHOWN_LIMIT, isLiveCall, shownTexts } from "./live-document"
+import { SHOWN_LIMIT, changedBlocks, isLiveCall, shownMarks, shownTexts } from "./live-document"
 
 describe("shownTexts", () => {
   test("a call's text before is the one shown when it began, not one a reload put there later", () => {
@@ -41,6 +41,20 @@ describe("shownTexts", () => {
     expect(shown.at(began)).toBe("plan")
     expect(shown.at(began - 1)).toBe("plan")
     expect(shown.at(shown.mark())).toBe("later 999")
+  })
+
+  test("first finished-only edit after a watcher reload flashes against the first loaded text", () => {
+    // The view keeps mark 0 until a call finishes; the harness edit arrives finished, so it began at 0.
+    const shown = shownTexts()
+    const plan = "# Plan\n\nShip it.\n\nOne.\n\nTwo.\n\nThree."
+    const edited = plan.replace("Ship it.", "Ship it soon.")
+    shown.show("", shownMarks(0, []))
+    shown.show(plan, shownMarks(0, []))
+    shown.show(edited, shownMarks(0, []))
+    const before = shown.at(0)
+    expect(before).toBe(plan)
+    expect(shown.size()).toBe(2)
+    expect(changedBlocks(before, edited)).toEqual([1])
   })
 
   test("never more than the limit, whatever the marks", () => {

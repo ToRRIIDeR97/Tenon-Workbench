@@ -159,6 +159,14 @@ export function shownTexts() {
   }
 }
 
+/**
+ * The marks a file view keeps texts for: when the last call on the file finished (0, the first loaded
+ * text, until one has) and when each open call began.
+ */
+export function shownMarks(finished: number, open: readonly number[]) {
+  return [finished, ...open]
+}
+
 /** The most texts `shownTexts` holds, whatever calls are open. */
 export const SHOWN_LIMIT = 16
 

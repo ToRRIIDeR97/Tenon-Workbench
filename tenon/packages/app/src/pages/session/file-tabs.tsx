@@ -20,7 +20,7 @@ import { usePrompt } from "@/context/prompt"
 import { useSDK } from "@/context/sdk"
 import { clearFileReveal, fileReveal, panelSettled } from "@/pages/session/file-reference"
 import { FileViewer, LiveSource, viewerKind } from "@/pages/session/file-viewer"
-import { editPreview, isLiveCall, shownTexts } from "@/pages/session/live-document"
+import { editPreview, isLiveCall, shownMarks, shownTexts } from "@/pages/session/live-document"
 import { createSessionWrites, createViewNewest, isWriting } from "@/pages/session/live-document-view"
 import { getSessionHandoff } from "@/pages/session/handoff"
 import { useSessionLayout } from "@/pages/session/session-layout"
@@ -264,12 +264,15 @@ function SessionFileViewV2(props: { tab: string }) {
   // Only texts some call can still ask for are kept: see `shownTexts`.
   const shown = shownTexts()
   const since = new Map<string, number>()
-  const finished = { mark: undefined as number | undefined }
+  // Mark 0 until a call finishes: the first loaded text stays for a call that arrives already finished
+  // (a harness edit), even when the watcher reloaded the file with its change first.
+  const finished = { mark: 0 }
   const handled = new Set<string>()
-  const marks = () => [
-    ...(finished.mark === undefined ? [] : [finished.mark]),
-    ...tracked().flatMap((write) => (handled.has(write.callID) ? [] : (since.get(write.callID) ?? []))),
-  ]
+  const marks = () =>
+    shownMarks(
+      finished.mark,
+      tracked().flatMap((write) => (handled.has(write.callID) ? [] : (since.get(write.callID) ?? []))),
+    )
   createEffect(() => shown.show(contents(), untrack(marks)))
   const before = (callID: string) => shown.at(since.get(callID) ?? shown.mark())
   const liveText = () => {
@@ -287,8 +290,7 @@ function SessionFileViewV2(props: { tab: string }) {
     const calls = tracked()
     shown.show(untrack(contents), untrack(marks))
     calls.forEach((write) => {
-      if (!since.has(write.callID))
-        since.set(write.callID, write.status === "streaming" ? shown.mark() : (finished.mark ?? 0))
+      if (!since.has(write.callID)) since.set(write.callID, write.status === "streaming" ? shown.mark() : finished.mark)
     })
     const done = calls.filter((write) => !isWriting(write) && !handled.has(write.callID))
     if (!p || done.length === 0) return

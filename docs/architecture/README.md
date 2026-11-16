@@ -2740,8 +2740,9 @@ product) adds three tools to Review, Session, Canvas, agent and file tabs.
   call (the watcher may also reload it), and diffs the text from before the
   call against the reloaded text with `changedBlocks`. The text before a
   call comes from `shownTexts`, the texts the pane has shown (pruned on every
-  update to those an open or the last finished call can still ask for, one
-  text when none is open, at most 16): the one shown
+  update to those an open or the last finished call can still ask for, the
+  first loaded text standing in for the last finished until a call has, at
+  most 16): the one shown
   when the call began (when it was first seen streaming, or, for a call first
   seen running or finished, when the previous call on the file finished), or
   the first loaded after that if none was loaded then, never one read after a
