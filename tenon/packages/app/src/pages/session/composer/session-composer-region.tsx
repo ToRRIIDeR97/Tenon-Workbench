@@ -118,7 +118,7 @@ export function SessionComposerRegion(props: {
         data-slot="thread-column"
         classList={{
           "w-full px-3 pointer-events-auto flex flex-col": true,
-          "md:max-w-[640px] md:mx-auto": controller.centered(),
+          "md:max-w-[var(--tenon-thread-width,640px)] md:mx-auto": controller.centered(),
         }}
       >
         <div ref={swap} class="flex flex-col">

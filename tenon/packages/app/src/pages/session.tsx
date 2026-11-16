@@ -93,9 +93,11 @@ import {
   sidePanelWidthMax,
 } from "@/pages/session/session-panel-width"
 import { SessionSidePanel } from "@/pages/session/session-side-panel"
+import { createLiveDocumentOpener } from "@/pages/session/live-document-view"
 import { motionDuration, prefersReducedMotion } from "@tenon/ui/v2/motion"
 import { SessionFileReferences, panelSettled, slidePanelOpen } from "@/pages/session/file-reference"
 import { DesignCanvasProvider } from "@/pages/session/design-canvas"
+import { panelCapRef } from "@/utils/panel-cap"
 import { SESSION_SIDE_RAIL_SPACE, SessionSideRail } from "@/pages/session/session-side-rail"
 import { sessionPanelLayout } from "@/pages/session/session-panel-layout"
 import { SessionReviewEmptyChangesV2 } from "@tenon/session-ui/v2/session-review-empty-changes-v2"
@@ -123,7 +125,6 @@ import { PageEmpty, pagePanelClass } from "@/components/page"
 import { ComposerContextRing, ComposerWhereRow, createComposerContext } from "@/components/prompt-input/context-strip"
 import { useThreadSubagents } from "@/components/session/subagent-tab"
 import { subagentCounts } from "@/components/session/subagent-list"
-import { SessionTasksButton } from "@/pages/session/composer/session-tasks-button"
 import { ThreadEnvironmentButton } from "@/components/session/thread-environment"
 
 type ChangeMode = "git" | "branch" | "turn"
@@ -507,6 +508,8 @@ export default function Page() {
   // A closed review panel leaves a slim rail at the right edge to reopen it. A closing panel shrinks into
   // the rail's place first.
   const desktopRailOpen = createMemo(() => isDesktop() && !!params.id && !commandThread())
+  // A file the agent starts writing in this view opens in the Files tab (live document).
+  createLiveDocumentOpener(desktopRailOpen)
   // The file tab Files last showed, per session, so leaving the section and coming back returns to it.
   const lastFileTab = new Map<string, string>()
   // The rail's buttons: a section's button opens the panel on it, and the open section's button closes the panel.
@@ -2261,12 +2264,7 @@ export default function Page() {
                     borderUnderlay
                     header={<SessionRevertTray dock={controller.revert} />}
                     boxHeader={<ComposerWhereRow />}
-                    trailing={
-                      <>
-                        <SessionTasksButton groups={threadSubagentGroups} />
-                        <ComposerContextRing context={composerContext} harness={sessionHarness} />
-                      </>
-                    }
+                    trailing={<ComposerContextRing context={composerContext} harness={sessionHarness} />}
                   />
                 }
               />
@@ -2283,7 +2281,10 @@ export default function Page() {
       <SessionHeader />
       <div ref={panelRow} class="flex-1 min-h-0 flex flex-col md:flex-row gap-2">
         <div
-          ref={sessionPanel}
+          ref={(el) => {
+            sessionPanel = el
+            panelCapRef(el)
+          }}
           classList={{
             "page-panel-cap @container relative shrink-0 flex flex-col min-h-0 h-full flex-1 md:flex-none": true,
             // The whole transition goes during a drag: a bare transition-[width] still eases each frame over 150ms.
@@ -2306,7 +2307,7 @@ export default function Page() {
         <Show when={isDesktop() ? desktopV2PanelLayout().visible || panelClosing() : terminalOpen()}>
           {/* Pulled 7px into the row's 8px gap: the thread and the side panel read as one card, split by the
               hairline their two outlines share. */}
-          <div class="page-panel-cap relative min-w-0 h-full flex flex-1 flex-col md:-ml-[7px]">
+          <div ref={panelCapRef} class="page-panel-cap relative min-w-0 h-full flex flex-1 flex-col md:-ml-[7px]">
             <Show when={desktopSessionResizeOpen()}>
               <div onPointerDown={() => size.start()}>
                 <ResizeHandle

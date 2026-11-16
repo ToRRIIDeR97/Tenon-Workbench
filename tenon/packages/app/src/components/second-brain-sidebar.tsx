@@ -3,6 +3,7 @@ import type { Session } from "@opencode-ai/sdk/v2/client"
 import { useNavigate } from "@solidjs/router"
 import {
   createEffect,
+  createMemo,
   createSignal,
   For,
   Match,
@@ -105,6 +106,19 @@ export function SecondBrainSidebar() {
   ])
   // The panel keeps its content while its width collapses, so it never closes as an empty column.
   const panel = createReveal(() => layout.sidebar.opened())
+  // The Projects content mounts once the width has settled, not on the click: building every group and thread
+  // row while the width animates relayouts the page beside it on each frame (#309). It stays mounted while
+  // the panel closes, and fades in when it waited for the slide, like the thread's side panel.
+  const body = createMemo<{ mounted: boolean; waited: boolean }>(
+    (was) => {
+      const phase = panel.phase()
+      if (phase === "closed") return { mounted: false, waited: false }
+      if (phase === "opening") return was.mounted ? was : { mounted: false, waited: true }
+      if (phase === "open") return was.mounted ? was : { mounted: true, waited: was.waited }
+      return was
+    },
+    { mounted: panel.phase() === "open", waited: false },
+  )
   const path = () => ctrl.location.pathname
   // Routine pages open in the page editor under /projects but belong to the Command Centre.
   const fromRoutines = () => new URLSearchParams(ctrl.location.search).get("from") === "routines"
@@ -129,21 +143,22 @@ export function SecondBrainSidebar() {
     <div
       data-component="second-brain-sidebar"
       data-expanded={layout.sidebar.opened() ? "" : undefined}
-      // One container with no surface of its own, flat on the window background: its width grows from the rail
-      // (80px) into rail plus panel.
-      // Not overflow-hidden, so rail labels can still float past its edge; the panel clips itself.
+      // Two surfaces, and no container surface of its own: the rail card and, 8px beside it, the Projects
+      // panel. The width grows from the rail (72px with its margin) into rail plus panel.
+      // Not overflow-hidden, so the rail's focus rings are never cut; the panel clips itself.
       classList={{
         // Starts below the title bar, which floats over the window's top; 8px in on the other sides.
-        "titlebar-inset-margin m-2 flex min-h-0 shrink-0 transition-[width] motion-reduce:duration-0": true,
-        "w-20 duration-medium ease-emphasized-decelerate md:w-[336px]": layout.sidebar.opened(),
-        "w-20 duration-short ease-emphasized-accelerate": !layout.sidebar.opened(),
+        "titlebar-inset-margin m-2 flex min-h-0 shrink-0 gap-2 transition-[width] motion-reduce:duration-0": true,
+        "w-[72px] duration-medium ease-emphasized-decelerate md:w-[336px]": layout.sidebar.opened(),
+        "w-[72px] duration-short ease-emphasized-accelerate": !layout.sidebar.opened(),
       }}
       onTransitionEnd={(event) => {
         if (event.target === event.currentTarget && event.propertyName === "width") panel.settle()
       }}
     >
+      {/* The rail is a rounded card; Settings sits at its foot. */}
       <nav
-        class="flex w-20 shrink-0 flex-col items-center gap-3 pb-4 pt-3"
+        class="ml-2 flex w-16 shrink-0 flex-col items-center gap-1.5 self-stretch rounded-[16px] bg-v2-background-bg-layer-01 py-2 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]"
         aria-label={language.t("secondBrain.sidebar.title")}
       >
         <For each={items()}>
@@ -170,16 +185,18 @@ export function SecondBrainSidebar() {
         inert={layout.sidebar.opened() ? undefined : true}
         classList={{
           // The rail stays at every width; the Projects panel needs the room of a md window.
-          // It fills what the container leaves beside the rail and fades on the container's timing.
-          "hidden min-h-0 min-w-0 flex-1 flex-col overflow-hidden transition-opacity motion-reduce:duration-0 md:flex": true,
+          // It fills what the container leaves beside the rail and fades on the container's timing. A page-style
+          // panel: bg-base with a hairline edge, square cornered.
+          "hidden min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-v2-background-bg-base shadow-[0_0_0_1px_var(--v2-border-border-muted)] transition-opacity motion-reduce:duration-0 md:flex": true,
           "opacity-100 duration-medium ease-emphasized-decelerate": layout.sidebar.opened(),
           "opacity-0 duration-short ease-emphasized-accelerate": !layout.sidebar.opened(),
         }}
       >
-        <Show when={panel.mounted()}>
+        <Show when={body().mounted}>
           <div
             data-sidebar-section="projects"
             class="flex min-h-0 w-[256px] flex-1 flex-col overflow-y-auto px-2 pb-3 pt-1"
+            classList={{ "animate-enter": body().waited }}
           >
             <WorkspaceHeader ctrl={ctrl} />
             <Show
@@ -240,40 +257,31 @@ export function SecondBrainSidebar() {
   )
 }
 
-/** Material 3 navigation rail destination: icon in a pill indicator that grows in when selected, label below. */
+/** A navigation rail destination: a 44px icon box, accent container when selected. The tooltip names it. */
 function RailItem(props: { id: string; icon: string; label: string; active?: boolean; onClick: () => void }) {
   return (
-    <button
-      type="button"
-      data-sidebar-item={props.id}
-      data-selected={props.active ? "" : undefined}
-      class="group/rail relative flex w-full justify-center focus-visible:outline-none"
-      aria-label={props.label}
-      aria-current={props.active ? "page" : undefined}
-      onClick={props.onClick}
-    >
-      <span class="relative flex h-8 w-14 items-center justify-center rounded-full group-focus-visible/rail:outline group-focus-visible/rail:outline-2 group-focus-visible/rail:outline-offset-2 group-focus-visible/rail:outline-v2-border-border-focus">
+    <TooltipV2 placement="right" value={props.label} class={props.id === "settings" ? "mt-auto w-full" : "w-full"}>
+      <button
+        type="button"
+        data-sidebar-item={props.id}
+        data-selected={props.active ? "" : undefined}
+        class="group/rail flex w-full justify-center focus-visible:outline-none"
+        aria-label={props.label}
+        aria-current={props.active ? "page" : undefined}
+        onClick={props.onClick}
+      >
         <span
           classList={{
-            "absolute inset-y-0 left-1/2 -translate-x-1/2 rounded-full transition-[width,background-color] ease-standard motion-reduce:transition-none": true,
-            // Selection grows the indicator slowly; a hover answers faster.
-            "w-14 bg-v2-background-bg-accent-container duration-long": !!props.active,
-            "w-0 duration-medium group-hover/rail:w-14 group-hover/rail:bg-v2-overlay-simple-overlay-hover":
+            "flex size-11 items-center justify-center rounded-[12px] transition-colors duration-short ease-standard group-focus-visible/rail:outline group-focus-visible/rail:outline-2 group-focus-visible/rail:outline-offset-2 group-focus-visible/rail:outline-v2-border-border-focus motion-reduce:transition-none": true,
+            "bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container": !!props.active,
+            "text-v2-icon-icon-muted group-hover/rail:bg-v2-overlay-simple-overlay-hover group-hover/rail:text-v2-icon-icon-base":
               !props.active,
           }}
-        />
-        <span class="relative flex text-v2-icon-icon-muted transition-colors duration-short ease-standard group-hover/rail:text-v2-icon-icon-base group-data-[selected]/rail:text-v2-text-text-on-accent-container motion-reduce:transition-none">
+        >
           <Icon name={props.icon} size="large" />
         </span>
-      </span>
-      {/* The name slides out to the right on hover or keyboard focus; the button's aria-label carries it. */}
-      <span
-        aria-hidden="true"
-        class="pointer-events-none absolute left-[calc(50%+32px)] top-1/2 z-50 -translate-x-2 -translate-y-1/2 scale-90 whitespace-nowrap rounded-full bg-v2-background-bg-base px-2.5 py-1 text-[12px] leading-4 text-v2-text-text-base opacity-0 shadow-[var(--v2-elevation-floating)] [font-weight:500] transition-[opacity,translate,scale] duration-short ease-standard group-hover/rail:translate-x-0 group-hover/rail:scale-100 group-hover/rail:opacity-100 group-focus-visible/rail:translate-x-0 group-focus-visible/rail:scale-100 group-focus-visible/rail:opacity-100 motion-reduce:transition-none"
-      >
-        {props.label}
-      </span>
-    </button>
+      </button>
+    </TooltipV2>
   )
 }
 
@@ -323,7 +331,7 @@ function WorkspaceHeader(props: { ctrl: SidebarController }) {
     return item?.name || directory.split(/[\\/]/).filter(Boolean).pop() || directory
   }
   return (
-    <div class="flex h-10 shrink-0 items-center gap-1">
+    <div class="flex h-10 w-full shrink-0 items-center gap-1 pt-1.5">
       <MenuV2 gutter={4} modal={false} placement="bottom-start" onOpenChange={props.ctrl.setSwitcherOpen}>
         <MenuV2.Trigger
           as="button"
@@ -396,27 +404,32 @@ function WorkspaceHeader(props: { ctrl: SidebarController }) {
       </MenuV2>
       <div class="flex-1" />
       <Show when={present()}>
-        <TooltipV2 placement="bottom" value={language.t("secondBrain.sidebar.addProject")}>
-          <IconButtonV2
-            type="button"
-            data-sidebar-item="add-project"
-            variant="ghost-muted"
-            size="large"
-            icon={<Icon name="folder-add-left" size="small" />}
-            aria-label={language.t("secondBrain.sidebar.addProject")}
-            onClick={addProject}
-          />
-        </TooltipV2>
-        <TooltipV2 placement="bottom" value={language.t("secondBrain.sidebar.scanProjects")}>
-          <IconButtonV2
-            type="button"
-            variant="ghost-muted"
-            size="large"
-            icon={<Icon name="refresh" size="small" />}
-            aria-label={language.t("secondBrain.sidebar.scanProjects")}
-            onClick={props.ctrl.scanFolders}
-          />
-        </TooltipV2>
+        {/* Add project and Scan share one bordered button group, which clips their square corners. */}
+        <div class="flex shrink-0 overflow-hidden rounded-[10px] bg-v2-background-bg-layer-01 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]">
+          <TooltipV2 placement="bottom" class="flex" value={language.t("secondBrain.sidebar.addProject")}>
+            <IconButtonV2
+              type="button"
+              data-sidebar-item="add-project"
+              variant="ghost-muted"
+              size="large"
+              class="!h-[30px] !w-8 !rounded-none focus-visible:!outline-offset-[-2px]"
+              icon={<Icon name="folder-add-left" size="small" />}
+              aria-label={language.t("secondBrain.sidebar.addProject")}
+              onClick={addProject}
+            />
+          </TooltipV2>
+          <TooltipV2 placement="bottom" class="flex" value={language.t("secondBrain.sidebar.scanProjects")}>
+            <IconButtonV2
+              type="button"
+              variant="ghost-muted"
+              size="large"
+              class="!h-[30px] !w-8 !rounded-none border-l border-v2-border-border-muted focus-visible:!outline-offset-[-2px]"
+              icon={<Icon name="refresh" size="small" />}
+              aria-label={language.t("secondBrain.sidebar.scanProjects")}
+              onClick={props.ctrl.scanFolders}
+            />
+          </TooltipV2>
+        </div>
       </Show>
     </div>
   )

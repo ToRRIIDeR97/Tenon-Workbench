@@ -366,10 +366,13 @@
     position: relative;
   }
 
+  /* On Windows the band stops where the caption buttons begin (--tenon-cap-cut, utils/panel-cap.ts): the
+     buttons sit on the window background and the band's edge turns down beside them. */
   .page-panel-cap::before {
     content: "";
     position: absolute;
-    inset-inline: 0;
+    left: 0;
+    right: var(--tenon-cap-cut, 0px);
     bottom: 100%;
     height: var(--tenon-titlebar-height, 0px);
     background: var(--v2-background-bg-base);
@@ -414,7 +417,8 @@
 }
 
 /* The composer reads a step brighter in dark mode: its muted and faint text (placeholder, model, permissions, branch)
-   take lighter greys, and the placeholder is semi-bold. Both token names are set: utilities read `--color-*`, which
+   take lighter greys. The thread composer's placeholder stays 13px regular (session-ui prompt-input); the other
+   composers' (composer-box) placeholder is semi-bold. Both token names are set: utilities read `--color-*`, which
    the root resolves once, so overriding only `--v2-*` here would not reach them. Light mode keeps the theme greys. */
 :root[data-color-scheme="dark"]
   :is([data-component="session-prompt-dock"], [data-component="prompt-input-v2"], [data-component="composer-box"]) {
@@ -424,7 +428,6 @@
   --color-v2-text-text-faint: #d2d2d2;
 }
 
-:root[data-color-scheme="dark"] [data-slot="prompt-placeholder"],
 :root[data-color-scheme="dark"] [data-component="composer-box"] textarea::placeholder {
   font-weight: 500;
 }

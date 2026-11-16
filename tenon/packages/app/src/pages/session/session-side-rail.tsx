@@ -10,8 +10,8 @@ import { usePlatform } from "@/context/platform"
 import { sectionAttention, setSectionAttention, type PanelSection } from "@/pages/session/helpers"
 import { useSessionLayout } from "@/pages/session/session-layout"
 
-/** Rail width plus the flex gap before it. */
-export const SESSION_SIDE_RAIL_SPACE = 48
+/** Rail width (48px) plus the flex gap before it. */
+export const SESSION_SIDE_RAIL_SPACE = 56
 
 export const sideRailReviewTabID = "session-side-panel-review-tab"
 
@@ -67,7 +67,7 @@ export function SessionSideRail(props: {
     id?: string
     controls?: string
     tooltip?: JSX.Element
-    /** The icon brings its own tooltip. */
+    /** The icon brings its own tooltip (the context ring's usage). */
     plain?: boolean
   }) => {
     const button = () => (
@@ -83,6 +83,8 @@ export function SessionSideRail(props: {
           aria-label={input.label}
           aria-selected={props.section === input.section}
           aria-controls={input.controls ?? "review-panel"}
+          // A 36px box with 10px corners; the unlayered icon-button rules need the overrides.
+          class="!size-9 !rounded-[10px]"
           classList={{
             "!bg-v2-background-bg-accent-container !text-v2-text-text-on-accent-container":
               props.section === input.section,
@@ -116,8 +118,8 @@ export function SessionSideRail(props: {
       aria-orientation="vertical"
       aria-label={language.t("session.panel.reviewAndFiles")}
       data-component="session-side-rail"
-      // Flat on the window background, like the navigation rail on the other side.
-      class="relative flex h-full w-10 shrink-0 flex-col items-center gap-1 py-2"
+      // A rounded card, like the navigation rail on the other side.
+      class="relative flex h-full w-12 shrink-0 flex-col items-center gap-1.5 rounded-[16px] bg-v2-background-bg-layer-01 py-2 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]"
       classList={{ "cursor-col-resize": !!props.onDragOut }}
       onPointerDown={(event) => {
         if (!props.onDragOut) return
@@ -193,14 +195,12 @@ export function SessionSideRail(props: {
           icon: <Icon name="photo" />,
         })}
       </Show>
-      <div class="mt-auto">
-        {item({
-          section: "details",
-          label: language.t("secondBrain.sessionTab.title"),
-          icon: <SessionContextUsage variant="indicator" placement="left" />,
-          plain: true,
-        })}
-      </div>
+      {item({
+        section: "details",
+        label: language.t("secondBrain.sessionTab.title"),
+        icon: <SessionContextUsage variant="indicator" placement="left" />,
+        plain: true,
+      })}
     </div>
   )
 }

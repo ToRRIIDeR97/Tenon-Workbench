@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" role="img" aria-labelledby="t d" font-family="Inter, system-ui, sans-serif" font-size="12">
+  <title id="t">Implementation detail: one streaming design and one streaming document</title>
+  <desc id="d">Sequence from a streamed token to the live frame and to the live document, including the end-of-stream swap and the write route's conflict check.</desc>
+  <style>
+    .bg{fill:#ffffff}.l{stroke:#c9ccd3;stroke-dasharray:3 4}.h{fill:#f4f5f7;stroke:#c9ccd3}.t{fill:#1b1d22}.m{fill:#5b6070}.k{fill:#3b5cf6}.a{stroke:#7a7f8c;fill:none;marker-end:url(#h)}.e{stroke:#c0503f;fill:none;marker-end:url(#he)}
+    @media (prefers-color-scheme: dark){.bg{fill:#121316}.l{stroke:#3a3d45}.h{fill:#1d1f24;stroke:#3a3d45}.t{fill:#ececf0}.m{fill:#a0a4b0}.k{fill:#9db0ff}.a{stroke:#8d92a0}}
+  </style>
+  <defs>
+    <marker id="h" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 8 4 0 8z" fill="#8d92a0"/></marker>
+    <marker id="he" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 8 4 0 8z" fill="#c0503f"/></marker>
+  </defs>
+  <rect class="bg" width="960" height="600"/>
+  <text class="t" x="24" y="30" font-size="15" font-weight="600">Implementation detail (sequence)</text>
+  <g font-weight="600" class="t">
+    <rect class="h" x="24" y="46" width="150" height="30" rx="8"/><text x="36" y="66">Parts store</text>
+    <rect class="h" x="214" y="46" width="170" height="30" rx="8"/><text x="226" y="66">design-canvas.tsx</text>
+    <rect class="h" x="424" y="46" width="170" height="30" rx="8"/><text x="436" y="66">LiveDesignFrame</text>
+    <rect class="h" x="634" y="46" width="140" height="30" rx="8"/><text x="646" y="66">Sandboxed frame</text>
+    <rect class="h" x="806" y="46" width="130" height="30" rx="8"/><text x="818" y="66">Server</text>
+  </g>
+  <path class="l" d="M99 76V580M299 76V580M509 76V580M704 76V580M871 76V580"/>
+
+  <path class="a" d="M99 106H295"/><text class="m" x="108" y="100">text part grows (open canvas fence)</text>
+  <path class="a" d="M299 136H505"/><text class="m" x="306" y="130">design {key, streaming:true, source}</text>
+  <text class="k" x="306" y="150">reveal(key) once, at first visible markup · AC-9</text>
+  <path class="a" d="M509 180H700"/><text class="m" x="516" y="174">srcdoc = liveDesignDocument() (once per key)</text>
+  <path class="a" d="M509 214H700"/><text class="m" x="516" y="208">postMessage {type, markup: partialDesignMarkup(src)}</text>
+  <text class="k" x="516" y="228">≤ 8 frames/s · AC-3, AC-6, AC-10</text>
+  <path class="a" d="M704 250H704"/><text class="m" x="712" y="246">morphChildren(body, parsed)</text>
+  <text class="m" x="712" y="262">new elements fade in · AC-5</text>
+  <path class="a" d="M99 294H295"/><text class="m" x="108" y="288">fence closes</text>
+  <path class="a" d="M509 320H700"/><text class="m" x="516" y="314">srcdoc = designDocument(source): scripts run</text>
+  <text class="k" x="516" y="334">chip: Drawing → done · AC-11</text>
+
+  <path class="a" d="M99 380H505"/><text class="m" x="108" y="374">write tool pending: healed {filePath, content} · AC-2</text>
+  <text class="m" x="306" y="398">live-document.ts: liveWrites() → Files tab opens path in live mode · AC-15, AC-18</text>
+  <path class="a" d="M99 430H505"/><text class="m" x="108" y="424">tool completed → file.watcher.updated → reload from disk</text>
+  <text class="k" x="306" y="448">changedBlocks(before, after) flash; anchor kept · AC-17, AC-19</text>
+
+  <path class="a" d="M509 492H867"/><text class="m" x="516" y="486">Undo: PUT /file/content {path, revertHunk(...), expectedHash}</text>
+  <path class="a" d="M871 520H513"/><text class="m" x="600" y="514">200 {hash} · AC-23, AC-25</text>
+  <path class="e" d="M871 552H513"/><text class="m" x="560" y="546">409 {currentHash} → banner: Reload / Override</text>
+  <text class="m" x="24" y="590">Failure handling: a frame that has no visible markup is not sent; oversized designs (512 KB) show the notice; a write that 409s never touches the file.</text>
+</svg>

@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, Match, on, onCleanup, Show, Switch } from "solid-js"
+import { createEffect, createMemo, createSignal, Match, on, onCleanup, Show, Switch, untrack } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Dynamic } from "solid-js/web"
 import { makeEventListener } from "@solid-primitives/event-listener"
@@ -19,7 +19,14 @@ import { useLanguage } from "@/context/language"
 import { usePrompt } from "@/context/prompt"
 import { useSDK } from "@/context/sdk"
 import { clearFileReveal, fileReveal, panelSettled } from "@/pages/session/file-reference"
-import { FileViewer, viewerKind } from "@/pages/session/file-viewer"
+import { FileViewer, LiveSource, viewerKind } from "@/pages/session/file-viewer"
+import { editPreview, isLiveCall, shownMarks, shownTexts } from "@/pages/session/live-document"
+import { createSessionWrites, createViewNewest, isWriting } from "@/pages/session/live-document-view"
+import { writeFileText } from "@/pages/session/file-write"
+import { contentHash, hunkKeys, revertHunk, trackedHunks, trackedRows, type Hunk } from "@/pages/session/tracked-edits"
+import { TrackedSource, trackedReview, type TrackedReview } from "@/pages/session/tracked-source"
+import { usePlatform } from "@/context/platform"
+import { useServerSDK } from "@/context/server-sdk"
 import { getSessionHandoff } from "@/pages/session/handoff"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { createSessionTabs } from "@/pages/session/helpers"
@@ -210,6 +217,8 @@ function SessionFileViewV2(props: { tab: string }) {
   const prompt = usePrompt()
   const fileComponent = useFileComponent()
   const sdk = useSDK()
+  const serverSDK = useServerSDK()
+  const platform = usePlatform()
   const { sessionKey, tabs, view } = useSessionLayout()
   const activeFileTab = createSessionTabs({
     tabs,
@@ -232,6 +241,184 @@ function SessionFileViewV2(props: { tab: string }) {
     return file.get(p)
   })
   const contents = createMemo(() => state()?.content?.content ?? "")
+
+  // Live document: the agent's writes and edits of this file, from the session parts. A finished call is
+  // history (no live text, chip, reload or flash) unless this view saw it run, its reply is still in
+  // progress, or its message is newer than the newest one the view first knew (server times), so older
+  // messages paging in or a restored tab stay quiet.
+  const writes = createSessionWrites()
+  const newest = createViewNewest()
+  const ran = new Set<string>()
+  const fileWrites = createMemo(() => {
+    const p = path()
+    if (!p) return []
+    return writes().filter((item) => file.normalize(item.path) === p)
+  })
+  createEffect(() => fileWrites().forEach((write) => isWriting(write) && ran.add(write.callID)))
+  const tracked = createMemo(() =>
+    fileWrites().filter(
+      (write) =>
+        isWriting(write) ||
+        isLiveCall({ seen: ran.has(write.callID), ongoing: write.ongoing, created: write.created, newest: newest() }),
+    ),
+  )
+  const live = createMemo(() => tracked().findLast((write) => isWriting(write)) ?? tracked().at(-1))
+  const writing = () => isWriting(live())
+  // The text before each call, for an edit's preview and for the flash when it finishes, is the text the
+  // pane showed when the call began, never one read after a reload (the watcher's or another call's)
+  // replaced it. A call first seen streaming begins then; one first seen running or finished may have
+  // changed the file already, so it began when the previous call on this file finished.
+  // Only texts some call can still ask for are kept: see `shownTexts`.
+  const shown = shownTexts()
+  const since = new Map<string, number>()
+  // Mark 0 until a call finishes: the first loaded text stays for a call that arrives already finished
+  // (a harness edit), even when the watcher reloaded the file with its change first.
+  const finished = { mark: 0 }
+  const handled = new Set<string>()
+  const marks = () =>
+    shownMarks(
+      finished.mark,
+      tracked().flatMap((write) => (handled.has(write.callID) ? [] : (since.get(write.callID) ?? []))),
+    )
+  createEffect(() => shown.show(contents(), untrack(marks)))
+  const before = (callID: string) => shown.at(since.get(callID) ?? shown.mark())
+  const liveText = () => {
+    const write = live()
+    if (!write || !writing()) return undefined
+    if (write.tool === "write") return write.content ?? ""
+    return editPreview(before(write.callID) || contents(), write.oldString, write.newString)
+  }
+  // When tracked calls finish, read the file from disk once for all of them (without waiting for the
+  // watcher, and never settling for a read that started before they finished) if any succeeded, and
+  // flash the blocks that changed since the first of them began.
+  const [flash, setFlash] = createSignal<{ id: number; before: string; after: string }>()
+  const reviewKey = createMemo(() => `${sessionKey()}\n${path() ?? ""}`)
+  const [review, setReview] = createSignal<TrackedReview>()
+  createEffect(on(reviewKey, (key) => setReview(trackedReview.get(key))))
+  const saveReview = (next: TrackedReview | undefined) => {
+    trackedReview.set(untrack(reviewKey), next)
+    setReview(next)
+  }
+  const based = new Set<string>()
+  createEffect(() => {
+    const p = path()
+    const calls = tracked()
+    shown.show(untrack(contents), untrack(marks))
+    calls.forEach((write) => {
+      if (!since.has(write.callID)) since.set(write.callID, write.status === "streaming" ? shown.mark() : finished.mark)
+    })
+    // Tracked edits: the text before the first unreviewed agent call on this file is the review's base,
+    // held while changes stay unreviewed. Before the file has loaded, a running call tries again.
+    calls.forEach((write) => {
+      if (based.has(write.callID)) return
+      const text = shown.at(since.get(write.callID) ?? finished.mark)
+      if (!text && isWriting(write)) return
+      based.add(write.callID)
+      if (text && !untrack(review)) saveReview({ base: text, kept: new Set() })
+    })
+    const done = calls.filter((write) => !isWriting(write) && !handled.has(write.callID))
+    if (!p || done.length === 0) return
+    done.forEach((write) => handled.add(write.callID))
+    const saved = done.filter((write) => write.status === "completed")
+    const start = Math.min(...saved.map((write) => since.get(write.callID) ?? 0))
+    const prior = saved.length ? shown.at(start) : ""
+    finished.mark = shown.mark()
+    shown.keep(untrack(marks))
+    if (saved.length === 0) return
+    void file.load(p, { fresh: true }).then(() => {
+      const after = untrack(contents)
+      // While another call streams the pane shows its live text, so there is nothing to flash yet.
+      if (after !== prior && !untrack(writing)) setFlash({ id: (untrack(flash)?.id ?? 0) + 1, before: prior, after })
+    })
+  })
+
+  // Tracked edits in the Source view: the changes from the review's base to the file as loaded (or as an
+  // edit streams), each with Keep and Undo once the tool finished. Undo writes the file back through the
+  // server, which refuses it (409) if the file changed since the text it was computed from was read.
+  const editing = () => {
+    const write = live()
+    return !!write && writing() && write.tool === "edit"
+  }
+  const shownText = () => (editing() ? (liveText() ?? contents()) : contents())
+  const hunks = createMemo(() => {
+    const current = review()
+    if (!current || (writing() && !editing())) return []
+    return trackedHunks(current.base, shownText())
+  })
+  // Each change's key is its place in the base plus its lines, so Keep acts on one change even when
+  // another is identical, and stays put when a change above it is undone.
+  const keys = createMemo(() => hunkKeys(hunks()))
+  const kept = createMemo(() => {
+    const reviewed = review()?.kept ?? new Set<string>()
+    return new Set(keys().flatMap((key, index) => (reviewed.has(key) ? [index] : [])))
+  })
+  const unreviewed = createMemo(() => hunks().filter((_, index) => !kept().has(index)))
+  const trackedRowsShown = createMemo(() => trackedRows(shownText(), hunks(), kept()))
+  const showTracked = () => unreviewed().length > 0
+  const [busy, setBusy] = createSignal(false)
+  const [conflict, setConflict] = createSignal<{ text: string; currentHash: string }>()
+  const send = async (text: string, expectedHash: string) => {
+    const p = path()
+    if (!p) return
+    setBusy(true)
+    const result = await writeFileText({
+      server: serverSDK().server,
+      fetch: platform.fetch,
+      directory: sdk().directory,
+      path: p,
+      content: text,
+      expectedHash,
+    })
+    if (result.status === "conflict") setConflict({ text, currentHash: result.currentHash })
+    if (result.status === "failed")
+      showToast({ variant: "error", title: language.t("secondBrain.trackedEdits.failed") })
+    if (result.status === "saved") {
+      setConflict(undefined)
+      await file.load(p, { fresh: true })
+    }
+    setBusy(false)
+    return result.status
+  }
+  // Last first, so each change's line positions still hold in the text it is applied to.
+  const undo = async (list: readonly Hunk[]) => {
+    const read = contents()
+    const text = [...list].sort((a, b) => b.start - a.start).reduce((next, hunk) => revertHunk(next, hunk), read)
+    return send(text, await contentHash(read))
+  }
+  const keepHunk = (index: number) => {
+    const current = review()
+    const key = keys()[index]
+    if (!current || key === undefined) return
+    const next = new Set([...current.kept, key])
+    saveReview(keys().every((item) => next.has(item)) ? undefined : { ...current, kept: next })
+  }
+  const trackedView = () => (
+    <TrackedSource
+      rows={trackedRowsShown()}
+      count={unreviewed().length}
+      review={!writing()}
+      busy={busy()}
+      conflict={!!conflict()}
+      onKeep={keepHunk}
+      onUndo={(index) => void undo(hunks().slice(index, index + 1))}
+      onKeepAll={() => saveReview(undefined)}
+      onUndoAll={() =>
+        void undo(unreviewed()).then((status) => {
+          if (status === "saved" && review()?.kept.size === 0) saveReview(undefined)
+        })
+      }
+      onReload={() => {
+        setConflict(undefined)
+        const p = path()
+        if (p) void file.load(p, { fresh: true })
+      }}
+      onOverride={() => {
+        const pending = conflict()
+        if (pending) void send(pending.text, pending.currentHash)
+      }}
+      onReady={() => setRendered(true)}
+    />
+  )
   const cacheKey = createMemo(() => sampledChecksum(contents()))
   const selectedLines = createMemo<SelectedLineRange | null>(() => {
     const p = path()
@@ -615,25 +802,32 @@ function SessionFileViewV2(props: { tab: string }) {
         onScroll={scrollSync.handleScroll as any}
       >
         <Switch>
-          <Match when={state()?.error}>
-            {(err) => <div class="px-6 py-4 text-[13px] text-v2-state-fg-danger">{err()}</div>}
+          <Match when={showTracked() && !viewerKind(path())}>{trackedView()}</Match>
+          <Match when={writing() && !viewerKind(path())}>
+            <LiveSource text={liveText() ?? ""} />
           </Match>
-          <Match when={state()?.loaded && viewerKind(path())}>
+          <Match when={state()?.error && !writing()}>
+            <div class="px-6 py-4 text-[13px] text-v2-state-fg-danger">{state()?.error}</div>
+          </Match>
+          <Match when={(state()?.loaded || writing()) && viewerKind(path())}>
             {(kind) => (
               <FileViewer
                 kind={kind()}
                 directory={sdk().directory}
                 path={path()!}
                 content={state()?.content}
-                source={() => renderFile(contents())}
+                source={() => (showTracked() ? trackedView() : renderFile(contents()))}
+                tracked={showTracked()}
                 onReady={() => setRendered(true)}
+                live={live() ? { text: liveText(), writing: writing() } : undefined}
+                flash={flash()}
               />
             )}
           </Match>
           <Match when={state()?.loaded}>{renderFile(contents())}</Match>
         </Switch>
       </ScrollView>
-      <Show when={!state()?.error && !rendered()}>
+      <Show when={!state()?.error && !rendered() && !writing()}>
         <div
           role="status"
           class="pointer-events-none absolute inset-x-0 top-0 flex flex-col gap-2.5 px-6 py-4 animate-enter"

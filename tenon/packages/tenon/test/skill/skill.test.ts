@@ -9,6 +9,7 @@ import { Config } from "../../src/config/config"
 import { CrossSpawnSpawner } from "@tenon/core/cross-spawn-spawner"
 import { FSUtil } from "@tenon/core/fs-util"
 import { Global } from "@tenon/core/global"
+import { ConfigTrust } from "@tenon/core/config/trust"
 import { provideInstance, provideTmpdirInstance, testInstanceStoreLayer, tmpdir } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 import path from "path"
@@ -267,6 +268,36 @@ description: A skill in the .claude/skills directory.
           expect(item!.location).toContain(path.join(".claude", "skills", "claude-skill", "SKILL.md"))
         }),
       { git: true },
+    ),
+  )
+
+  it.live("keeps an unapproved folder's .claude and .agents skills off", () =>
+    Effect.acquireUseRelease(
+      Effect.promise(async () => {
+        const file = ConfigTrust.file(Global.Path.data)
+        const before = await fs.readFile(file, "utf8")
+        await fs.writeFile(file, "[]")
+        return before
+      }),
+      () =>
+        provideTmpdirInstance(
+          (dir) =>
+            Effect.gen(function* () {
+              for (const folder of [".claude", ".agents"]) {
+                yield* Effect.promise(() =>
+                  Bun.write(
+                    path.join(dir, folder, "skills", `${folder.slice(1)}-skill`, "SKILL.md"),
+                    `---\nname: ${folder.slice(1)}-skill\ndescription: A project skill.\n---\n\n# Skill\n`,
+                  ),
+                )
+              }
+
+              const skill = yield* Skill.Service
+              expect((yield* skill.all()).filter((s) => s.location !== "<built-in>")).toEqual([])
+            }),
+          { git: true },
+        ),
+      (before) => Effect.promise(() => fs.writeFile(ConfigTrust.file(Global.Path.data), before)),
     ),
   )
 

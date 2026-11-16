@@ -43,9 +43,11 @@ describe("streaming tool input", () => {
     ] as SessionMessageInfo[]).parts.get("msg_2")?.[0] as { state: { input: unknown } }
 
   test.each([
-    ['{"content":"par', {}],
-    ['{"content":"}', {}],
+    ['{"content":"par', { content: "par" }],
+    ['{"content":"}', { content: "}" }],
     ['{"content":"done"}  ', { content: "done" }],
+    ['{"path":"a.md","content', { path: "a.md", filePath: "a.md" }],
+    ["", {}],
   ])("%s", (raw, expected) => {
     expect(input(raw).state.input).toEqual(expected)
   })

@@ -742,14 +742,18 @@ export function AssistantParts(props: {
                   <Show when={parts().length > 0}>
                     <ToolGroup parts={parts()}>
                       {(item) => (
-                        <Show when={msgs().get(item.messageID)}>
+                        <Show when={msgs().get(item().messageID)}>
                           {(message) => (
                             <Part
-                              part={item}
+                              part={item()}
                               message={message()}
                               turnDurationMs={props.turnDurationMs}
                               useV2Actions={props.useV2Actions}
-                              defaultOpen={partDefaultOpen(item, props.shellToolDefaultOpen, props.editToolDefaultOpen)}
+                              defaultOpen={partDefaultOpen(
+                                item(),
+                                props.shellToolDefaultOpen,
+                                props.editToolDefaultOpen,
+                              )}
                             />
                           )}
                         </Show>
@@ -996,7 +1000,7 @@ export function AssistantMessageDisplay(props: {
                 return (
                   <Show when={parts().length > 0}>
                     <ToolGroup parts={parts()}>
-                      {(item) => <Part part={item} message={props.message} useV2Actions={props.useV2Actions} />}
+                      {(item) => <Part part={item()} message={props.message} useV2Actions={props.useV2Actions} />}
                     </ToolGroup>
                   </Show>
                 )
@@ -1141,7 +1145,8 @@ export function ContextToolGroup(props: {
 
 export function ToolGroup(props: {
   parts: ToolPart[]
-  children: (part: ToolPart) => JSX.Element
+  /** Called once per part ID; the accessor follows that part when its object is rebuilt (#311). */
+  children: (part: () => ToolPart) => JSX.Element
   open?: boolean
   onOpenChange?: (open: boolean) => void
   onSizeChange?: () => void
@@ -1149,6 +1154,9 @@ export function ToolGroup(props: {
   const [localOpen, setLocalOpen] = createSignal(false)
   const open = () => props.open ?? localOpen()
   const counts = createMemo(() => toolGroupCounts(props.parts))
+  const partIDs = createMemo(() => props.parts.map((part) => part.id), [], {
+    equals: (a, b) => a.length === b.length && a.every((id, index) => id === b[index]),
+  })
   const handleOpenChange = (value: boolean) => {
     if (props.open === undefined) setLocalOpen(value)
     props.onOpenChange?.(value)
@@ -1192,7 +1200,16 @@ export function ToolGroup(props: {
       </Collapsible.Trigger>
       <Collapsible.Content>
         <div data-component="tool-group-list">
-          <For each={props.parts}>{(part) => props.children(part)}</For>
+          {/* Keyed by part ID, not by object: a whole-message write rebuilds every part object, and keying by
+              object would recreate every card in the group when one tool call updates. */}
+          <For each={partIDs()}>
+            {(id) => {
+              const part = createMemo<ToolPart | undefined>(
+                (last) => props.parts.find((item) => item.id === id) ?? last,
+              )
+              return <Show when={part()}>{(item) => props.children(item)}</Show>
+            }}
+          </For>
         </div>
       </Collapsible.Content>
     </Collapsible>
@@ -1636,7 +1653,9 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
   const emptyInput: Record<string, any> = {}
   const emptyMetadata: Record<string, any> = {}
 
-  const input = () => part().state?.input ?? emptyInput
+  // A pending part's input is healed from the stream and changes on every delta. Cards keep their
+  // title row until the tool runs, so no body, diff or file view is built (or the timeline re-measured) per delta.
+  const input = () => (part().state?.status === "pending" ? emptyInput : (part().state?.input ?? emptyInput))
   // @ts-expect-error
   const partMetadata = () => part().state?.metadata ?? emptyMetadata
   const taskId = createMemo(() => {

@@ -16,6 +16,13 @@ export type DesignFence = DesignInfo & { source: string; closed: boolean }
 
 export type Design = { id: string; title?: string; source: string; canvas: boolean }
 
+/**
+ * A design on the Canvas tab. `key` stays the same from its first streamed token to its close:
+ * `<part id>:<fence index>` for a fence, the call ID for a `write`. While it streams `id` is the key;
+ * once closed a fence's `id` is its `designID`.
+ */
+export type CanvasDesign = Design & { key: string; streaming?: boolean }
+
 /** Larger pages show a notice instead of rendering. */
 export const MAX_DESIGN_BYTES = 512 * 1024
 
@@ -90,15 +97,21 @@ export function designTooLarge(source: string) {
  * are ignored or merged by the HTML parser, and its head elements still land in this head.
  * DNS prefetch is turned off and the WebRTC guard runs before any page script, because the CSP
  * covers neither. `autosize` adds a script that reports the content height to the parent (a bare number).
+ * With `nonce`, scripts may run only when they carry that nonce (Tenon's own, never the page's inline
+ * scripts, handlers or javascript: URLs); the guard and autosize scripts get it.
  */
-export function designDocument(source: string, options: { autosize?: boolean } = {}) {
+export function designDocument(source: string, options: { autosize?: boolean; nonce?: string } = {}) {
+  const csp = options.nonce
+    ? DESIGN_CSP.replace("script-src 'unsafe-inline'", `script-src 'nonce-${options.nonce}'`)
+    : DESIGN_CSP
+  const script = options.nonce ? `<script nonce="${options.nonce}">` : "<script>"
   return [
     "<!doctype html><html><head>",
-    `<meta http-equiv="Content-Security-Policy" content="${DESIGN_CSP}">`,
+    `<meta http-equiv="Content-Security-Policy" content="${csp}">`,
     '<meta http-equiv="x-dns-prefetch-control" content="off">',
-    webrtcGuardScript,
+    webrtcGuardScript.replace("<script>", script),
     '<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">',
-    options.autosize ? autosizeScript : "",
+    options.autosize ? autosizeScript.replace("<script>", script) : "",
     source,
   ].join("")
 }
@@ -120,27 +133,75 @@ const autosizeScript =
 /**
  * Every canvas design of a thread in message order, plus the inline designs the user pinned to the
  * Canvas tab. Only assistant text parts count; repeated pages keep their first position.
- * `scan` lets callers cache fence parsing per part while a reply streams.
+ * `scan` lets callers cache fence parsing per part while a reply streams. With `streaming`, a canvas
+ * fence that is still open is included too, marked `streaming`.
  */
 export function collectDesigns(
   messages: readonly { id: string; role: string }[],
   parts: Readonly<Record<string, readonly { id: string; type: string; text?: string }[] | undefined>>,
   pinned: readonly string[] = [],
   scan: (part: { id: string; text: string }) => DesignFence[] = (part) => designFences(part.text),
+  options: { streaming?: boolean } = {},
 ) {
   const keep = new Set(pinned)
   const seen = new Set<string>()
   return messages
     .filter((message) => message.role === "assistant")
     .flatMap((message) => parts[message.id] ?? [])
-    .flatMap((part) => (part.type === "text" && part.text ? scan({ id: part.id, text: part.text }) : []))
-    .flatMap((item): Design[] => {
-      if (!item.closed) return []
-      const id = designID(item.source)
-      if (seen.has(id) || !(item.canvas || keep.has(id))) return []
+    .flatMap((part) =>
+      part.type === "text" && part.text
+        ? scan({ id: part.id, text: part.text }).map((fence, index) => ({ fence, key: `${part.id}:${index}` }))
+        : [],
+    )
+    .flatMap((item): CanvasDesign[] => {
+      const fence = item.fence
+      if (!fence.closed)
+        return options.streaming && fence.canvas
+          ? [{ id: item.key, key: item.key, title: fence.title, source: fence.source, canvas: true, streaming: true }]
+          : []
+      const id = designID(fence.source)
+      if (seen.has(id) || !(fence.canvas || keep.has(id))) return []
       seen.add(id)
-      return [{ id, title: item.title, source: item.source, canvas: item.canvas }]
+      return [{ id, key: item.key, title: fence.title, source: fence.source, canvas: fence.canvas }]
     })
+}
+
+/**
+ * Canvas designs the agent writes as files: every `write` call of an assistant message to an `.html`
+ * or `.htm` file, keyed by its call ID and live while the call is pending or running.
+ */
+export function collectToolDesigns(
+  messages: readonly { id: string; role: string }[],
+  parts: Readonly<Record<string, readonly ToolPartLike[] | undefined>>,
+) {
+  return messages
+    .filter((message) => message.role === "assistant")
+    .flatMap((message) => parts[message.id] ?? [])
+    .flatMap((part): CanvasDesign[] => {
+      const path = part.state?.input?.filePath
+      if (part.type !== "tool" || part.tool !== "write" || !part.callID || !part.state) return []
+      if (typeof path !== "string" || !/\.html?$/i.test(path)) return []
+      const content = part.state.input?.content
+      const source = typeof content === "string" ? content : ""
+      const streaming = part.state.status === "pending" || part.state.status === "running"
+      return [
+        {
+          id: streaming ? part.callID : designID(source),
+          key: part.callID,
+          title: path.split(/[\\/]/).pop(),
+          source,
+          canvas: true,
+          streaming,
+        },
+      ]
+    })
+}
+
+type ToolPartLike = {
+  type: string
+  tool?: string
+  callID?: string
+  state?: { status: string; input?: Readonly<Record<string, unknown>> }
 }
 
 function cleanTitle(value: string) {

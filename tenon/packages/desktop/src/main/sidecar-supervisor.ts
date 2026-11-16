@@ -22,6 +22,12 @@ export function superviseSidecar<T extends SupervisedSidecar>(input: {
   log: (message: string, meta?: Record<string, unknown>) => void
   sleep?: (ms: number) => Promise<void>
   now?: () => number
+  /**
+   * Holds the sidecar's port while it is down, so no other local process can bind it and receive the
+   * renderers' credential and traffic during the backoff (#164). Resolves to the release, called just before
+   * the respawn binds the port again; a hold that fails is skipped.
+   */
+  hold?: () => Promise<() => Promise<void>>
 }) {
   const sleep = input.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)))
   const now = input.now ?? Date.now
@@ -47,18 +53,38 @@ export function superviseSidecar<T extends SupervisedSidecar>(input: {
       },
     )
 
+  // The port's hold while the sidecar is down; released before a respawn or when the supervisor stops.
+  let held: (() => Promise<void>) | undefined
+  const release = async () => {
+    const free = held
+    held = undefined
+    await free?.().catch((error: unknown) =>
+      input.log("sidecar port release failed", { error: error instanceof Error ? error.message : String(error) }),
+    )
+  }
+
   const restart = async () => {
+    if (!held && input.hold)
+      held = await input.hold().catch((error: unknown) => {
+        input.log("sidecar port hold failed", { error: error instanceof Error ? error.message : String(error) })
+        return undefined
+      })
+    if (stopped) return release()
     const time = now()
     restarts = restarts.filter((at) => time - at < RESTART_WINDOW)
     if (restarts.length >= MAX_RESTARTS) {
+      // The hold stays: renderers keep reaching a closed door instead of whatever binds the port next.
       input.log("sidecar restart limit reached", { restarts: restarts.length })
       return
     }
     const delay = restartDelay(restarts.length)
     restarts.push(time)
     await sleep(delay)
-    if (stopped) return
+    if (stopped) return release()
     input.log("restarting sidecar", { attempt: restarts.length, delay })
+    await release()
+    // Stopped while the port was being released: the stop has already run, so nothing would stop this spawn.
+    if (stopped) return
     current = input.spawn()
     watch(current, true)
   }
@@ -69,7 +95,7 @@ export function superviseSidecar<T extends SupervisedSidecar>(input: {
     initial,
     stop: () => {
       stopped = true
-      return current.stop()
+      return Promise.all([current.stop(), release()]).then(() => undefined)
     },
   }
 }

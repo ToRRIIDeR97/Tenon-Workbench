@@ -27,6 +27,11 @@ export interface MockServerConfig {
   questions?: unknown[] | (() => unknown[])
   fileList?: (path: string) => unknown | Promise<unknown>
   fileContent?: (path: string) => unknown | Promise<unknown>
+  /** PUT /file/content (an Undo of an agent edit): the answer's status and body. Without it the route answers 404. */
+  fileWrite?: (input: {
+    body: unknown
+    directory?: string
+  }) => { status: number; body: unknown } | Promise<{ status: number; body: unknown }>
   findFiles?: (input: { query: string; dirs?: string; limit?: number }) => unknown | Promise<unknown>
   sessionStatus?: Record<string, unknown> | (() => Record<string, unknown>)
   /** Second Brain Projects with their thread directories (GET /second-brain/project-threads). */
@@ -135,6 +140,15 @@ export async function mockTenonServer(page: Page, config: MockServerConfig) {
     if (path === "/vcs/diff" && config.vcsDiff) return json(route, config.vcsDiff)
     if (path === "/file" && config.fileList)
       return json(route, await config.fileList(url.searchParams.get("path") ?? ""))
+    if (path === "/file/content" && route.request().method() === "PUT") {
+      if (!config.fileWrite) return json(route, { name: "NotFound" }, undefined, 404)
+      const directory = route.request().headers()["x-opencode-directory"]
+      const answer = await config.fileWrite({
+        body: route.request().postDataJSON(),
+        directory: directory ? decodeURIComponent(directory) : undefined,
+      })
+      return json(route, answer.body, undefined, answer.status)
+    }
     if (path === "/file/content" && config.fileContent)
       return json(route, await config.fileContent(url.searchParams.get("path") ?? ""))
     if (path === "/find/file" && config.findFiles)

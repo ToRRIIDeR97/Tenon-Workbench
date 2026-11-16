@@ -839,19 +839,20 @@ export function MessageTimeline(props: {
     })
     const groupOpenKey = () => `context:${row().group.key}`
 
-    const renderPart = (part: PartType, message: MessageType) => {
+    // Accessors, so a card follows its part when a whole-message write rebuilds the part objects (#311).
+    const renderPart = (part: Accessor<PartType>, message: Accessor<MessageType>) => {
       const defaultOpen = () =>
-        partDefaultOpen(part, settings.general.shellToolPartsExpanded(), settings.general.editToolPartsExpanded())
+        partDefaultOpen(part(), settings.general.shellToolPartsExpanded(), settings.general.editToolPartsExpanded())
       return (
         <MessagePart
-          part={part}
-          message={message}
+          part={part()}
+          message={message()}
           showAssistantCopyPartID={assistantCopyPartID(row().userMessageID)}
           turnDurationMs={turnDurationMs(row().userMessageID)}
           useV2Actions
           defaultOpen={defaultOpen()}
-          toolOpen={toolOpen[part.id] ?? defaultOpen()}
-          onToolOpenChange={(open) => setToolOpen(part.id, open)}
+          toolOpen={toolOpen[part().id] ?? defaultOpen()}
+          onToolOpenChange={(open) => setToolOpen(part().id, open)}
           deferToolContent
           virtualizeDiff={false}
           onContentRendered={onSizeChange}
@@ -890,13 +891,11 @@ export function MessageTimeline(props: {
             onOpenChange={(value) => setToolOpen(groupOpenKey(), value)}
             onSizeChange={onSizeChange}
           >
-            {(item) => <Show when={messageByID().get(item.messageID)}>{(message) => renderPart(item, message())}</Show>}
+            {(item) => <Show when={messageByID().get(item().messageID)}>{(message) => renderPart(item, message)}</Show>}
           </ToolGroup>
         </Match>
         <Match when={groupType() === "part"}>
-          <Show when={message()}>
-            {(message) => <Show when={part()}>{(part) => renderPart(part(), message())}</Show>}
-          </Show>
+          <Show when={message()}>{(message) => <Show when={part()}>{(part) => renderPart(part, message)}</Show>}</Show>
         </Match>
       </Switch>
     )
@@ -919,7 +918,7 @@ export function MessageTimeline(props: {
         data-timeline-row={input.row()._tag}
         classList={{
           "min-w-0 w-full max-w-full": true,
-          "md:max-w-[640px]": props.centered,
+          "md:max-w-[var(--tenon-thread-width,640px)]": props.centered,
           "md:mx-auto": props.centered,
           "pt-3": previousAssistantPart(),
         }}

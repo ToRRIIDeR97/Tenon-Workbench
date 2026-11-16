@@ -3,13 +3,39 @@ import { FileSystem } from "@tenon/core/filesystem"
 import { LocationServiceMap, locationServiceMapLayer } from "@tenon/core/location-services"
 import { Ripgrep } from "@tenon/core/ripgrep"
 import { FSUtil } from "@tenon/core/fs-util"
+import { FileMutation } from "@tenon/core/file-mutation"
 import { Location } from "@tenon/core/location"
 import { AbsolutePath, RelativePath } from "@tenon/core/schema"
 import { Effect, Layer, Option } from "effect"
 import ignore from "ignore"
 import path from "path"
-import { HttpApiBuilder } from "effect/http-api"
+import { createHash } from "crypto"
+import { HttpApiBuilder, HttpApiError } from "effect/http-api"
 import { InstanceHttpApi } from "../api"
+import { FileConflictError, FileInvalidError } from "../groups/file"
+
+const sha256 = (text: string) => createHash("sha256").update(text, "utf8").digest("hex")
+const invalid = (message: string) => new FileInvalidError({ name: "FileInvalidError", data: { message } })
+
+/**
+ * The file's text, or `undefined` for a binary file. A UTF-8 byte-order mark stays as a leading U+FEFF,
+ * which `trim()` removes, so the trimmed text (and its hash) is the content route's, and the mark is
+ * written back with the leading whitespace.
+ */
+const decodeText = (bytes: Uint8Array) =>
+  bytes.includes(0)
+    ? Effect.succeed(undefined)
+    : Effect.sync(() => new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes)).pipe(
+        Effect.catchDefect(() => Effect.succeed(undefined)),
+      )
+
+/** `content` (trimmed) between the leading and trailing whitespace of `current`. */
+export const withOuterWhitespace = (current: string, content: string) => {
+  if (!current.trim()) return current + content.trim()
+  const leading = current.slice(0, current.length - current.trimStart().length)
+  const trailing = current.slice(current.trimEnd().length)
+  return leading + content.trim() + trailing
+}
 
 export const fileHandlers = HttpApiBuilder.group(InstanceHttpApi, "file", (handlers) =>
   Effect.gen(function* () {
@@ -124,6 +150,50 @@ export const fileHandlers = HttpApiBuilder.group(InstanceHttpApi, "file", (handl
       )
     })
 
+    // Writes back only an existing text file inside the folder, also after resolving symlinks, and only
+    // when the caller saw its current text (the hash precondition). Nothing is created or removed.
+    const write = Effect.fn("FileHttpApi.write")(function* (ctx: {
+      payload: { path: string; content: string; expectedHash: string }
+    }) {
+      const directory = (yield* InstanceState.context).directory
+      const file = path.resolve(directory, ctx.payload.path)
+      if (!FSUtil.contains(directory, file)) return yield* invalid("path_outside_folder")
+      const fs = yield* FSUtil.Service
+      const real = yield* fs.realPath(file).pipe(Effect.option)
+      if (Option.isNone(real)) return yield* new HttpApiError.NotFound({})
+      const root = yield* fs.realPath(directory).pipe(Effect.orElseSucceed(() => directory))
+      if (!FSUtil.contains(root, real.value)) return yield* invalid("path_outside_folder")
+      const info = yield* fs.stat(real.value).pipe(Effect.option)
+      if (Option.isNone(info)) return yield* new HttpApiError.NotFound({})
+      if (info.value.type !== "File") return yield* invalid("not_a_file")
+      const bytes = yield* fs.readFile(real.value).pipe(Effect.option)
+      if (Option.isNone(bytes)) return yield* new HttpApiError.NotFound({})
+      const current = yield* decodeText(bytes.value)
+      if (current === undefined) return yield* invalid("binary_file")
+      const currentHash = sha256(current.trim())
+      if (currentHash !== ctx.payload.expectedHash)
+        return yield* new FileConflictError({ name: "FileConflictError", currentHash })
+      // Atomic (synced temp file and rename) and only if the bytes are still the ones just compared.
+      const stale = yield* filesystem(
+        FileMutation.Service.use((files) =>
+          files.writeIfUnchanged({
+            target: { canonical: real.value, resource: path.relative(root, real.value) },
+            content: withOuterWhitespace(current, ctx.payload.content),
+            expected: bytes.value,
+          }),
+        ),
+      ).pipe(
+        Effect.as(false),
+        Effect.catchTag("FileMutation.StaleContentError", () => Effect.succeed(true)),
+        Effect.orDie,
+      )
+      if (stale) {
+        const now = yield* fs.readFile(real.value).pipe(Effect.flatMap(decodeText), Effect.orDie)
+        return yield* new FileConflictError({ name: "FileConflictError", currentHash: sha256((now ?? "").trim()) })
+      }
+      return { hash: sha256(ctx.payload.content.trim()) }
+    })
+
     const status = Effect.fn("FileHttpApi.status")(function* () {
       return []
     })
@@ -134,6 +204,7 @@ export const fileHandlers = HttpApiBuilder.group(InstanceHttpApi, "file", (handl
       .handle("findSymbol", findSymbol)
       .handle("list", list)
       .handle("content", content)
+      .handle("write", write)
       .handle("status", status)
   }),
 ).pipe(Layer.provide(locationServiceMapLayer))

@@ -13,7 +13,7 @@ import { formatKeybind } from "@/context/command"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
 import { useUpdaterAction } from "../updater-action"
-import { useSettings } from "@/context/settings"
+import { useSettings, type ThreadWidth } from "@/context/settings"
 import { SettingsListV2 } from "./parts/list"
 import { SettingsRowV2 } from "./parts/row"
 import {
@@ -216,6 +216,8 @@ const AppearanceSection: Component<{ controller: AppearanceSettingsController }>
           />
         </SettingsRowV2>
 
+        <ThreadWidthSetting />
+
         <VscodeThemeImport />
 
         <FontSetting kind="ui" fonts={props.controller.fonts} />
@@ -223,6 +225,34 @@ const AppearanceSection: Component<{ controller: AppearanceSettingsController }>
         <FontSetting kind="terminal" fonts={props.controller.fonts} />
       </SettingsListV2>
     </div>
+  )
+}
+
+const threadWidthOptions: ThreadWidth[] = ["narrow", "medium", "wide", "full"]
+
+/** How wide the thread's messages and composer run on a desktop-width window. */
+const ThreadWidthSetting: Component = () => {
+  const language = useLanguage()
+  const settings = useSettings()
+  return (
+    <SettingsRowV2
+      title={language.t("secondBrain.settings.threadWidth.title")}
+      description={language.t("secondBrain.settings.threadWidth.description")}
+    >
+      <SegmentedControlV2
+        data-action="settings-thread-width"
+        aria-label={language.t("secondBrain.settings.threadWidth.title")}
+        value={settings.appearance.threadWidth()}
+      >
+        <For each={threadWidthOptions}>
+          {(option) => (
+            <SegmentedControlItemV2 value={option} onClick={() => settings.appearance.setThreadWidth(option)}>
+              {language.t(`secondBrain.settings.threadWidth.${option}`)}
+            </SegmentedControlItemV2>
+          )}
+        </For>
+      </SegmentedControlV2>
+    </SettingsRowV2>
   )
 }
 

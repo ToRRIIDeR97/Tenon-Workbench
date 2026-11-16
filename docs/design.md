@@ -11,7 +11,8 @@ persistence") holds the implementation detail behind these rules.
   (blue, `--v2-background-bg-accent`). No colour coding: status, harness,
   project and category are told apart by text, icons and position, not hue.
   The one exception is the warning state (`--v2-state-fill-warning`,
-  `--v2-state-fg-warning`), used for things that need the user.
+  `--v2-state-fg-warning`), used for things that need the user; diff tints
+  for added and removed lines in tracked edits are the other (below).
 - **The thread comes first.** Chrome stays out of the reading area. Thread
   details (environment, context, connectors) open on demand from a toggle in
   the thread header or from the side panel; nothing floats over the timeline
@@ -56,12 +57,23 @@ Use `[font-weight:N]` when a weight must differ from the role.
   title bar has no background and floats over the panel's top band
   (`page-panel-cap`), a hairline separates that band from the page, and page
   content starts below it (`titlebar-inset-top`).
-- **Sidebars are flat:** the navigation rail, the Projects panel and the
-  thread's side rail have no card, outline or divider; they sit on the window
-  background (`bg-deep`) beside the page panel. In a thread, the side panel
-  joins the thread as one card, split by a hairline. Rounded corners are for
+- **Sidebar: two surfaces.** The navigation rail is a rounded card: 64px wide,
+  16px corners, `bg-layer-01` with an inset muted hairline, 8px in from the
+  window. Its destinations are 44px icon boxes (12px corners, 20px icons, 6px
+  apart): hover is `overlay-hover`, where you are is the accent container, and
+  each has a tooltip with its name. Settings sits at the rail's foot. 8px
+  beside the rail, the Projects panel is a page-style panel (`bg-base`, a
+  hairline edge, square corners); the two never touch. Add project and Scan
+  sit in one bordered button group in the panel's header (10px corners,
+  `bg-layer-01`, a hairline between the 32×30 buttons).
+- **Thread side rail:** the same rail spec on the right: a 48px card (16px
+  corners, `bg-layer-01`, inset hairline) with 36px buttons (10px corners,
+  6px apart; hover `overlay-hover`, the open section the accent container),
+  badges at each button's top right. Context (the usage ring) is the last
+  button in the list, after Canvas. In a thread, the side panel joins the
+  thread as one card, split by a hairline. Rounded corners are otherwise for
   things inside or above the page (cards, docks, menus, floating windows), not
-  for the frame.
+  for the page frame.
 - **Cards:** page-level cards are 16px radius on `bg-layer-01` with an inset
   muted edge. Use 12px cards inside the sidebar and side panels, and 24px for
   dock cards (the composer and approval dock).
@@ -82,11 +94,13 @@ Use `[font-weight:N]` when a weight must differ from the role.
   column is clear of it. Use a popover instead for anything that should close when you click
   away.
 - **Thread column:** the timeline's turns, the composer and agent-write cards
-  share one centered column, at most 640px wide. Thread text (replies and the
+  share one centered column, 640px wide by default. Settings → Appearance →
+  Thread width sets it to Narrow (640px), Medium (800px), Wide (960px) or Full
+  (the whole thread panel) through `--tenon-thread-width`. Thread text (replies and the
   user's messages) and the composer's text are 15px on 24px lines, a step above
   the app's 14px base; reply headings are 18/16/15px.
 - **Wide windows:** lists and single columns keep a reading width when the
-  window is stretched (pages 720/1040px, the thread 640px). The calendar's
+  window is stretched (pages 720/1040px, the thread 640px unless Thread width changes it). The calendar's
   Day grid caps at 880px and its Agenda and Tasks lists at 760px, centred;
   Week and Month use the full width because their columns are the content.
 - **Harness logos:** every harness shows its logo at 16px to the left of its
@@ -116,9 +130,34 @@ Use `[font-weight:N]` when a weight must differ from the role.
   reports none, as OpenCode does), agent, turn and how it ended; a card opens
   its usage with Open in Agents and Show in thread. The Environment window's
   Running section becomes "Subagents · N done" with a row and small bar each.
-- **Composer text (dark):** inside the composer the muted and faint greys are
-  `#f2f2f2` and `#d2d2d2`, and the placeholder is weight 500, for legibility on
-  the dark surface. Light mode keeps the theme greys.
+- **Composer: card on tray** (`session-ui` `prompt-input`, both the thread
+  and the new-thread composer). Two tones in one 28px shape: the composer
+  itself is the tray (`bg-base`; `bg-layer-01` in light, where base and
+  raised are both white), with a 1px `border-base` ring at rest and the focus
+  ring while focused. The where row (42px, hairline under it), attachments
+  and prompt (at least 72px) sit on one raised card (`bg-raised`) that runs
+  the full width with square bottom corners, so no tray shows at its
+  corners; only the tray's own clip rounds its top. A hairline and a short
+  shadow under the card's bottom edge rest it on the tray.
+- **Composer row:** the 50px controls row sits on the tray with no fill or
+  border of its own, its controls ghost as elsewhere, and it ends with the
+  context ring. There is no Tasks button: running subagents show on the
+  thread rail's Agents button, as a count badge.
+- **Model pill** (`model-pill.tsx`): leads with the logo of the harness that
+  runs the model (the Tenon mark for the built-in loop), never the model
+  maker's. When the model offers reasoning levels the pill always shows one,
+  "Model · Level": the chosen level, or on default the level the harness says
+  default means (Codex reports it; the list then reads "Default (low)"), else
+  "Default". It is then two targets in
+  one pill, split by a faint divider, each with its own hover, focus ring and
+  name ("Model: …", "Reasoning: …"): the logo and model open the full
+  harness/model/reasoning/speed stack, the level opens just the reasoning
+  list, where a pick applies and closes. Speed shows after the model only
+  when it isn't the default. Without reasoning levels the pill is one target.
+- **Composer text:** the placeholder is 13px regular (400) in both themes;
+  typed text stays 15px. In dark mode the composer's muted and faint greys
+  are `#f2f2f2` and `#d2d2d2`, for legibility on the dark surface. Light mode
+  keeps the theme greys.
 - **Instructions (harness sync):** a status row (headline, detail, Sync now),
   then Sync across computers as settings rows, the shared text in a monospace
   textarea, and one folding row per harness (chevron, logo, name, file path,
@@ -179,6 +218,57 @@ Use `[font-weight:N]` when a weight must differ from the role.
   drawn with the CSS Highlight API so the editor's text is untouched. A plain
   click edits; Ctrl/⌘-click opens the link.
 - **Switches in lists** use the small size.
+- **Canvas follows the agent** (`canvas-tab.tsx`, `live-design-frame.tsx`):
+  when a canvas design starts drawing in the open thread, the side panel opens
+  on Canvas with it large, once per design, at its first visible element; a
+  design the user closed or left for the list stays closed, and history never
+  opens the panel. The page draws in place, element by element: new elements
+  fade in over `--v2-duration-medium` with the emphasized-decelerate easing
+  (none under reduced motion) and a soft accent outline marks the element
+  being written. The header shows the title, a "Drawing" chip with the
+  running dot (it settles to "Drawn just now") and a Preview / Code segmented
+  switch; Code shows the source so far with an accent caret, kept scrolled to
+  the end. "Use this one" appears once the design is done.
+- **Live document** (`live-document-view.tsx`, `file-viewer.tsx`): when the
+  agent starts writing or editing a text file in the open thread, the side
+  panel opens on Files with that file, once per call (never for history, and
+  not again after the user closed the panel or moved on). The header shows a
+  "Tenon is writing" chip with the running dot beside Rendered / Source; it
+  settles to "Saved just now". Rendered text grows with an accent caret and a
+  shimmer line after the last block; a floating "Following Tenon" pill keeps
+  the end in view and turns into "Jump to Tenon" once the reader scrolls.
+  When an edit finishes, the changed blocks flash once (accent container
+  fading out over 1.6 s, none under reduced motion) while the block the reader
+  is on stays where it is. `.html` writes go to the Canvas instead.
+- **Tracked edits** (`tracked-source.tsx`): in Source, the agent's unreviewed
+  changes to a file show inline with line numbers: removed lines struck
+  through and muted on the danger tint (`--v2-state-bg-danger`), added lines
+  on the success tint (`--v2-state-bg-success`) with a 2px success bar on the
+  left. These diff tints are the one other exception to "no colour coding",
+  and only for added and removed text. While an edit streams the change grows
+  live without controls; when it finishes, a row of small pills (outlined
+  Keep, text Undo) sits under each change, never over its text, and a sticky
+  header reads "N edits by Tenon" with Undo all and Keep all. Keep fades the
+  tints out over `--v2-duration-medium` (instantly under reduced motion). A conflict shows a
+  warning banner, "This file changed since Tenon's edit", with Reload and
+  Override.
+- **Canvas board** (`design-board.tsx`, `board-camera.ts`): the Canvas list
+  is a pan/zoom board. Designs are 1280×800 artboards (white, hairline edge)
+  on a dotted layer-01 surface (dots from the muted border token, 12px
+  radius, inset hairline), in as many columns as show them largest (a tall
+  side panel stacks them in one). Each has a screen-size label above it:
+  "A · Title" and a status ("Drawing…", or "Done" with "Use this one"). The
+  title keeps its full width: "Use this one" joins only when it fits beside
+  it, then "Done" (both are in the large view too). The board being drawn
+  has an accent outline. A zoom pill in the header (− NN% +, the % fits all
+  designs and announces the zoom) zooms around the centre; wheel or pinch zooms at the pointer, a
+  drag pans, and the focused board takes +/− (zoom), arrows (pan) and 0 (fit
+  all). While a design draws the camera glides to its board
+  (`--v2-duration-long`, emphasized-decelerate); when nothing draws it shows
+  all boards. Once the user pans or zooms it stays put until the next design
+  starts. Under reduced motion the camera jumps. Clicking a board opens it
+  large. Someone already on the board stays there when a new design starts
+  or arrives finished: the camera follows it instead of opening it large.
 
 ## Motion
 

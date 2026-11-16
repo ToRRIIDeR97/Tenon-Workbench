@@ -1,3 +1,4 @@
+import { panelCapRef } from "@/utils/panel-cap"
 import { useDialog } from "@tenon/ui/context/dialog"
 import { pagePanelClass } from "@/components/page"
 import { Icon as IconV2 } from "@tenon/ui/v2/icon"
@@ -34,7 +35,7 @@ export function NewSessionView(props: {
   workspace: NewSessionWorkspaceController
 }) {
   return (
-    <div class="page-panel-cap @container relative flex flex-col min-h-0 h-full flex-1">
+    <div ref={panelCapRef} class="page-panel-cap @container relative flex flex-col min-h-0 h-full flex-1">
       <div data-component="session-new-design" class={`relative flex-1 min-h-0 overflow-hidden ${pagePanelClass}`}>
         <div class="absolute inset-0 flex items-center justify-center px-6 pb-[12vh]">
           {/* Padded inside the width like Home's column, so both composers come out the same width. */}

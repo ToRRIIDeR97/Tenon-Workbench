@@ -180,8 +180,8 @@ rather than standalone routes. The
 routes and shortcuts.
 
 `pages/layout-new.tsx` is the only shell: the titlebar (window chrome, back
-and forward) and `components/second-brain-sidebar.tsx` (navigation rail plus
-collapsible Projects panel, flat on the window background). Pages sit on one square-cornered panel built from
+and forward) and `components/second-brain-sidebar.tsx` (navigation rail card plus
+collapsible Projects panel, two surfaces 8px apart). Pages sit on one square-cornered panel built from
 `components/page.tsx` (`PageFrame`, `PageHeader`, `PageSection`, and
 `PageEmpty` for centred empty states); page titles carry no descriptive subtitle. Shape and motion follow Material 3: radius,
 easing and duration tokens (`--v2-radius-*`, `--v2-ease-*`,
@@ -1981,16 +1981,66 @@ note preview keep `html` blocks as highlighted code.
   "Open in Canvas" and a design over the size cap, so the code stays reachable.
 - An `html canvas` block becomes a compact card in the thread and an artboard
   in the right panel's Canvas tab (`app/src/pages/session/canvas-tab.tsx`,
-  tab ID `canvas` in `helpers.ts`). The tab lists the thread's closed canvas
-  blocks from assistant text, in message order, plus inline designs sent there
-  with "Open in Canvas", as scaled previews; clicking one shows it large.
-  `createDesignList` in `design-canvas.tsx` keeps one object per design ID and
-  the large view is keyed on the ID, so a streamed token never rebuilds an
-  unchanged artboard's frame.
-- While a fence is open the thread shows a placeholder, and the frame is built
-  once, when the fence closes. When a canvas block finishes streaming in the
-  current view, the panel opens on the Canvas tab once per design; loading
-  history never opens it.
+  tab ID `canvas` in `helpers.ts`). The tab lists the thread's canvas blocks
+  from assistant text, in message order, including one still streaming
+  (`collectDesigns(..., { streaming: true })`), then `write` calls to `.html`
+  or `.htm` files (`collectToolDesigns`, live while the call is pending or
+  running), plus inline designs sent there with "Open in Canvas", as
+  artboards on a pan/zoom board (`design-board.tsx`); clicking one shows it
+  large. Designs are told apart by `key`
+  (`<part id>:<fence index>`, or the call ID), which stays the same when a
+  fence closes and its `id` becomes the checksum. `createDesignList` in
+  `design-canvas.tsx` keeps one object per key while it doesn't change, the
+  board iterates keys and the large view is keyed on the key, so a streamed
+  token or a closing fence never rebuilds an artboard or its frame.
+- The board (`app/src/pages/session/design-board.tsx`) places 1280×800
+  artboards on a grid in world space (`boardLayout` in `board-camera.ts`),
+  with the column count that fits them largest in the current viewport
+  (`boardColumns`, recomputed on resize; the camera re-fits and the frames
+  stay), inside one world layer whose CSS transform is the camera
+  (`screen = world · scale + (x, y)`); moving the camera changes only that
+  transform, the dot grid's offset and the screen-space labels, never the
+  frames. A board that is streaming when it mounts draws through
+  `LiveDesignFrame`, others through the finished `DesignFrame`. The camera
+  follows the board being drawn (`boardCamera` fits it), otherwise fits all
+  boards, gliding frame by frame with the `--v2-duration-long` and
+  emphasized-decelerate tokens (`cssEasing`) and jumping under reduced
+  motion; a requestAnimationFrame loop runs only during those glides. Wheel or
+  pinch zooms at the pointer (`zoomAt`, 5%–400%), a drag beyond 4 px pans
+  with pointer capture (and swallows the click that ends it), the pill and
+  the focused board's keys zoom around the centre. Any of those stops the
+  following until the next design starts drawing. When the board is already
+  in view, a newly streaming design doesn't open the large view: the reveal
+  marks its key as revealed and leaves the camera to follow it. The reveal at
+  a fence's close follows the same rule, for a design that arrived already
+  finished. Board labels read their parts' natural widths from a
+  ResizeObserver (and again once web fonts load), never taking an unlaid-out
+  0 as a width. Only designs in
+  a reply still in progress (no `time.completed`, no error) are drawing: an
+  open fence or pending call left in a reply that ended (stopped, out of
+  tokens) is listed as done with its source so far, so its live view swaps to
+  the finished page once and its chip settles. A `write` that was stopped ends
+  in `error` and is done too.
+- A design shown large while it streams draws live in one frame
+  (`app/src/pages/session/live-design-frame.tsx`): the frame loads
+  `liveDesignDocument()` (`session-ui/src/components/design-stream.ts`) once,
+  then gets `partialDesignMarkup(source)` by `postMessage`, at most 8 frames a
+  second (the newest source goes in the next frame), skipping frames with
+  nothing visible. The frame's bootstrap morphs each frame into its body
+  (`morphChildren`), fades new elements in and outlines the element being
+  written. When the design is done the frame's `srcdoc` becomes
+  `designDocument(source)` once, so the page's scripts run only then. Its
+  header has a Drawing chip (then "Drawn just now"), a Preview / Code switch
+  (Code shows the source so far with a caret) and, once done, "Use this one".
+  Designs from history open as a finished page, as before.
+- In the thread, an open fence shows a placeholder card, and the frame is
+  built once, when the fence closes. A canvas design streaming in the current
+  view opens the panel on the Canvas tab, large, at its first frame with
+  visible markup, once per key: a design counts as streaming here only once
+  its source has grown since this view first saw it, so history never opens
+  the panel. When a canvas block finishes streaming, `reveal` opens the panel
+  only if that key hasn't opened it already, so a design the user closed or
+  left for the list stays closed.
 - "Use this one" appends `Use design "<title>"` to the composer prompt
   (`appendPromptText` in `app/src/utils/prompt.ts`).
 - `session-ui/src/context/design.tsx` (`DesignSpaceProvider`) carries the
@@ -2612,9 +2662,6 @@ From the 11 Nov feedback list ([triage](../product/FEEDBACK-2026-11-11.md)):
   minutes says so (`laneQuiet`). With an external harness, a follow-up sent while
   its subagents run is queued (`followupPreference`), because a steer would stop
   them; Ctrl+Enter still steers.
-- **Tasks panel.** `session-tasks-button.tsx` in the thread composer counts
-  running subagents and open terminals and lists them with the workspace's next
-  routines.
 - **Model profiles.** `settings.v3` `modelProfiles` (`utils/model-profile.ts`)
   holds rules per model id. `submit.ts` attaches the active profile as a hidden
   `data:text/plain` attachment (like a skill) on a thread's first message and
@@ -2669,6 +2716,84 @@ product) adds three tools to Review, Session, Canvas, agent and file tabs.
   (`desktop/src/main/file-viewer.ts`); the protocol serves only issued URLs,
   read-only, with range requests. Other platforms fall back to the base64 the
   server read.
+- **Live document.** A file the agent writes or edits types into its Files tab
+  (`app/src/pages/session/live-document.ts`, `live-document-view.tsx`,
+  `file-tabs.tsx`, `file-viewer.tsx`). `liveWrites` reads the thread's `write`
+  and `edit` calls from the session parts, using the healed pending input
+  while a call streams (P1). The session page's opener
+  (`createLiveDocumentOpener`) opens the side panel on that file, through the
+  same `file.tab` / `previewTab` path as file references and the file
+  context's path normalization (a `..` path never opens), once per call ID and
+  only for a call whose input grew while this view watched; history and
+  `.html`/`.htm` writes (Canvas designs) never open it. While the call streams
+  the viewer shows the live text: a write's content, or for an edit the text
+  loaded before it with `oldString` replaced by the `newString` so far, as
+  streaming Markdown with a caret, a shimmer line and a Follow pill (Source
+  shows the raw text). The header chip reads "Tenon is writing", then "Saved
+  just now". When the call finishes, or a finished call arrives from a
+  harness without streamed input, the viewer reloads the file with
+  `file.load(path, { fresh: true })`, which waits out a read already in
+  flight and then reads again, so the result reflects the disk after the
+  call (the watcher may also reload it), and diffs the text from before the
+  call against the reloaded text with `changedBlocks`. The text before a
+  call comes from `shownTexts`, the texts the pane has shown (pruned on every
+  update to those an open or the last finished call can still ask for, the
+  first loaded text standing in for the last finished until a call has, at
+  most 16): the one shown
+  when the call began (when it was first seen streaming, or, for a call first
+  seen running or finished, when the previous call on the file finished), or
+  the first loaded after that if none was loaded then, never one read after a
+  reload replaced it. Rendered elements are matched to those Markdown blocks by
+  their text, in order (the renderer's blocks differ from `markdownBlocks`),
+  get `data-live-flash` and an accent-container fade (1.6 s, none under
+  reduced motion), and the first visible element keeps its offset in the
+  viewport (the occurrence of its text nearest where it was). The renderer
+  shows plain text first and morphs in the parsed HTML later, dropping
+  attributes it didn't set, so each render step during the flash is matched
+  again (each element fades once; the reader is held until they scroll).
+  Rendered elements match blocks exactly first and the match only moves
+  forward (`blockOwners`). Every tracked call on the file counts: when any of
+  them finishes successfully the file reloads once (calls finishing together
+  share it; a failed call doesn't reload), and the flash runs only when the
+  text changed and no other call is streaming. A finished call is history
+  (no live text, chip, reload or flash) unless the view saw it run, its reply
+  is still in progress, or its message is newer than the newest message the
+  view knew when it first saw the thread's messages (`isLiveCall`; server
+  times on both sides, no client clock).
+- **Tracked edits.** The Source view of a file the agent edited in this thread
+  shows each change (`app/src/pages/session/tracked-edits.ts`,
+  `tracked-source.tsx`, `file-tabs.tsx`). The review's base is the text shown
+  when the first unreviewed agent call on the file began (from `shownTexts`,
+  as for the flash), held while changes stay unreviewed; `trackedHunks(base,
+  current)` splits the line diff into runs, `current` being the loaded text
+  or, while an `edit` streams, its preview. Removed lines show struck through,
+  added lines highlighted, with line numbers. When the tool finishes each
+  change gets Keep (marks it reviewed; nothing is written) and Undo, and the
+  header reads "N edits by Tenon" with Undo all and Keep all. Undo applies
+  `revertHunk` to the text last read (all unreviewed changes last first, for
+  Undo all) and sends it with `contentHash` of that text to `PUT
+  /file/content` (`file.write`, `file-write.ts`, a thin fetch with the
+  server's credentials and the folder header; the vendored SDK isn't
+  regenerated for it), then reloads the file. A 409 shows "This file changed
+  since Tenon's edit" with Reload and Override (retry with `currentHash`);
+  Override discards the other change by design. Review state is in memory
+  per thread and file, keyed by each change's first line in the base and its
+  lines (`hunkKeys`), so Keep and Undo act on one change even when another
+  is identical; an app reload forgets it. Known limitation: hunks run from
+  the base to the current text, so a change the user or another tool makes
+  to the file after Tenon's edit, while Tenon's changes are unreviewed, also
+  shows and counts in "N edits by Tenon".
+- **File write route.** `PUT /file/content` (`FilePaths.write`,
+  `httpapi/groups/file.ts`, handler in `handlers/file.ts`) takes `{ path,
+  content, expectedHash }`. Only an existing text file inside the request
+  folder (also after resolving symlinks) is written, and only when the
+  SHA-256 of its trimmed text equals `expectedHash` (else 409 `{ currentHash
+  }`); the file keeps its leading and trailing whitespace (a UTF-8
+  byte-order mark included; CRLF lines pass through) and the write goes
+  through `FileMutation.writeIfUnchanged` (locked compare, synced temp file,
+  rename). 200 answers `{ hash }` of the new trimmed text; a path outside the
+  folder, a folder or a binary file is 400, a missing file 404. See the
+  [threat model](../security/threat-model.md#tracked-edits-the-file-write-route).
 - **Browser tab.** One `WebContentsView` in the `persist:tenon-browser`
   session, laid over the tab (`desktop/src/main/browser.ts`,
   `app/src/pages/session/browser-tab.tsx`). The user can select elements (an

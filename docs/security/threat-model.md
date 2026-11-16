@@ -1224,6 +1224,35 @@ sanitizing, is the control (`session-ui/src/components/design-fence.ts`,
   only from a design frame's own window, with origin `"null"` and a finite
   number, clamps it to 48–720 px and sends nothing back. Canvas frames send
   nothing.
+- Agent-supplied tool paths (a `write` or `edit` call's `filePath`) can open
+  Files tabs (live document, `app/src/pages/session/live-document-view.tsx`).
+  They go through the file context's path normalization and the server's
+  read guard: a path with a `..` segment is rejected client-side, and reads
+  outside the workspace are refused server-side.
+- A canvas design that streams draws in a live frame
+  (`session-ui/src/components/design-stream.ts`,
+  `app/src/pages/session/live-design-frame.tsx`) with the same sandbox and
+  WebRTC guard. Its CSP is `DESIGN_CSP` except `script-src 'nonce-<n>'`, a
+  128-bit nonce from `crypto.getRandomValues`, new for every frame document;
+  only the guard and Tenon's bootstrap carry it, so inline scripts, event
+  handler attributes and `javascript:` URLs in the streamed markup can't run
+  however they are spelled. The parent posts `{ type: "tenon:design-frame",
+  markup }` with target `"*"` (the frame's origin is opaque) and sends nothing
+  else; the bootstrap ignores any message whose `source` isn't `parent` or
+  whose data has another shape. As defence in depth the parent strips
+  `<script>` blocks first (`partialDesignMarkup`), and the bootstrap drops
+  `script`, `iframe`, `frame`, `object`, `embed`, `meta`, `base` and SVG
+  `animate`, `set`, `animateMotion` and `animateTransform` elements, every
+  `on*` attribute and any value that starts with `javascript:` once control
+  characters and whitespace are removed. The frame posts nothing back. When
+  the design is done the frame gets the ordinary `designDocument`, whose
+  scripts then run under the rules above. The frame gets motion values
+  (duration, easing, accent colour) from the app's tokens, which user-imported
+  themes can set: the easing and colour must match plain CSS characters
+  (letters, digits, spaces, `#(),.%/+-`; no quotes, braces, semicolons or
+  angle brackets) or fall back to a default, and every value embedded in the
+  bootstrap is JSON-encoded with `<` escaped as `<`, so a value can't
+  close the script, open a comment or break out of the outline style.
 - The main window keeps `contextIsolation`, `sandbox` and no
   `nodeIntegrationInSubFrames`, so the preload never runs in frames. Electron
   main's `will-frame-navigate` handler drops any subframe navigation other than
@@ -1337,6 +1366,50 @@ message and shows in a toast. It doesn't run outside git.
   it, and its closing tag is escaped inside. It can carry anything the other
   thread contained, so it is subject to the same prompt-injection limits as
   workspace content.
+
+## Tracked edits: the file write route
+
+Undo in the Files tab (tracked agent edits, `app/src/pages/session/tracked-edits.ts`,
+`file-write.ts`) writes a file back through `PUT /file/content` (`file.write`,
+`httpapi/handlers/file.ts`), the only route that lets the renderer change an
+arbitrary workspace file's text.
+
+- **Who can call it.** Any holder of the server credential, like every other
+  instance route: the Authorization middleware applies and
+  `httpapi-route-auth-coverage.test.ts` checks that it answers 401 without
+  one. The folder comes from `x-opencode-directory` (or `directory` /
+  `workspace`), as for reads, and `InstanceContextMiddleware` loads any folder
+  on demand: it is whatever directory the request names that the server
+  process can open, not only folders the user opened.
+- **Containment.** The path is resolved against the request's folder and must
+  stay inside it (`FSUtil.contains`, relative or absolute). The real path is
+  then resolved and checked again against the folder's real path, so a symlink
+  or junction inside the folder can't lead the write outside it; Windows
+  drive letters compare case-insensitively.
+- **Existing text files only.** A missing path answers 404; a folder, or a file
+  with a NUL byte or invalid UTF-8, answers 400. The route never creates,
+  removes or renames a file and writes nothing on any error.
+- **Hash precondition.** The SHA-256 of the file's trimmed text (as the content
+  route returns it) must equal `expectedHash`, else 409 `{ currentHash }`. The
+  write goes through `FileMutation.writeIfUnchanged` under the file's lock,
+  comparing the bytes it hashed, through a synced temp file and a rename (the
+  file's mode is copied), so a change in between is also a 409. The written
+  text keeps the file's leading and trailing whitespace (and a UTF-8 byte-order
+  mark); only the trimmed body
+  comes from the caller.
+- **Override.** The 409 banner's Override retries with `currentHash`, so the
+  hash proves only that the caller read the file, not that the user reviewed
+  the other change.
+- **What a credential holder or compromised renderer could do.** Since the
+  request names the folder, it can read any text file the server process can
+  read (the content route already allows that) and, given that one read for the
+  hash, overwrite the text of any existing text file the user can write, by
+  naming its parent (or any ancestor) as the folder. It can't create, delete or
+  rename files or change binaries through this route. That is no more than the
+  existing session and shell routes already allow the same caller (an agent
+  run or a terminal in any folder). A possible hardening, not done: accept
+  writes only for folders the app has open (a Project, workspace or open
+  thread's folder) rather than any folder the request names.
 
 ## Checks
 
@@ -1454,12 +1527,20 @@ folder stays unapproved. Until a folder is approved:
   in a URL or header. A file that only decodes once its variables expand, such
   as one with a number supplied by `{env:}`, is skipped until approval, so its
   error can't stop the app from asking.
+- Commands whose template has a `` !`line` `` block, in the `command` key or
+  as `.tenon`/`.opencode` `command(s)/*.md` files, are dropped
+  (`ConfigTrust.commandsV1`). That block runs in a shell without asking each
+  time the command is used, and a project command can replace a built-in one
+  such as `/review`. Commands that only send text still load.
+- Skills under the folder's own `.claude` and `.agents` folders (inside the
+  approval root) aren't loaded (`tenon/src/skill/index.ts`). The home copies,
+  `~/.claude/skills` and `~/.agents/skills`, are the user's and always load.
 - Nothing is written into the folder: no `$schema` line, `.gitignore` or
   dependency install.
 
 Other keys, such as `model`, `experimental.policies` (provider access only, and
-user rules override it), markdown agents and commands, and skills under the
-folder's `.claude` and `.agents` still apply. The user's own `~/.tenon` and
+user rules override it) and markdown agents (with the permission limits below)
+still apply. The user's own `~/.tenon` and
 `~/.opencode` are never project folders, even when a folder with no repository
 walks up past them. A linked Git worktree is its own folder, so it needs its own
 approval. When something was withheld, `GET /config/trust` names it and the app
@@ -1478,6 +1559,13 @@ stay, and user config isn't limited.
 The gate protects against a repository, not against an agent. An agent with
 shell access runs as the user and could edit the list itself. An approved
 folder's `references` are still added to the `external_directory` allowlist.
+
+Known gap: once a folder is approved, an npm plugin spec in its config with no
+version (or `*`) installs `latest` (`tenon/src/plugin/shared.ts`), so a later
+publish of that package runs on the next load. Before approval no project
+plugin installs at all. Some built-in language servers (Biome, oxc) start the
+binary in the folder's own `node_modules/.bin` whether or not it is approved
+(`tenon/src/lsp/server.ts`); that is upstream behaviour and isn't gated yet.
 
 ### Windows command lookup
 
