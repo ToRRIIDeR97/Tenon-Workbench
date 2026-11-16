@@ -83,6 +83,8 @@ export function superviseSidecar<T extends SupervisedSidecar>(input: {
     if (stopped) return release()
     input.log("restarting sidecar", { attempt: restarts.length, delay })
     await release()
+    // Stopped while the port was being released: the stop has already run, so nothing would stop this spawn.
+    if (stopped) return
     current = input.spawn()
     watch(current, true)
   }

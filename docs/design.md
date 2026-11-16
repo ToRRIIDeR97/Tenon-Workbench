@@ -83,11 +83,13 @@ Use `[font-weight:N]` when a weight must differ from the role.
   column is clear of it. Use a popover instead for anything that should close when you click
   away.
 - **Thread column:** the timeline's turns, the composer and agent-write cards
-  share one centered column, at most 640px wide. Thread text (replies and the
+  share one centered column, 640px wide by default. Settings → Appearance →
+  Thread width sets it to Narrow (640px), Medium (800px), Wide (960px) or Full
+  (the whole thread panel) through `--tenon-thread-width`. Thread text (replies and the
   user's messages) and the composer's text are 15px on 24px lines, a step above
   the app's 14px base; reply headings are 18/16/15px.
 - **Wide windows:** lists and single columns keep a reading width when the
-  window is stretched (pages 720/1040px, the thread 640px). The calendar's
+  window is stretched (pages 720/1040px, the thread 640px unless Thread width changes it). The calendar's
   Day grid caps at 880px and its Agenda and Tasks lists at 760px, centred;
   Week and Month use the full width because their columns are the content.
 - **Harness logos:** every harness shows its logo at 16px to the left of its

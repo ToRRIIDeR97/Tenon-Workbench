@@ -105,4 +105,16 @@ describe("getSessionContext alias model ids", () => {
     expect(context?.total).toBe(64_000)
     expect(context?.usage).toBeNull()
   })
+
+  test("the message's own provider wins over the provider named in a provider/model id", () => {
+    const message = { ...(assistant(live) as object), modelID: "deepseek/deepseek-v4.1-flash" }
+    const context = getSessionContext(
+      [message as Message],
+      [
+        { id: "opencode-go", models: { "deepseek-v4.1-flash": { limit: { context: 128_000 } } } },
+        { id: "deepseek", models: { "deepseek-v4.1-flash": { limit: { context: 64_000 } } } },
+      ],
+    )
+    expect(context?.limit).toBe(128_000)
+  })
 })

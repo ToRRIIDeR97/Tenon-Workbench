@@ -166,4 +166,34 @@ describe("sidecar supervisor port hold (#164)", () => {
     expect(events.filter((event) => event === "spawn")).toHaveLength(1)
     expect(events.at(-1)).toBe("release")
   })
+
+  test("stopping while the port is being released spawns nothing", async () => {
+    const releasing = Promise.withResolvers<void>()
+    const events: string[] = []
+    const spawned: ReturnType<typeof fakeSidecar>[] = []
+    const supervisor = superviseSidecar({
+      spawn: () => {
+        events.push("spawn")
+        const sidecar = fakeSidecar()
+        spawned.push(sidecar)
+        return sidecar
+      },
+      log: () => undefined,
+      sleep: async () => undefined,
+      hold: async () => async () => {
+        events.push("release")
+        await releasing.promise
+      },
+    })
+    spawned[0].start()
+    await flush()
+    spawned[0].crash()
+    await flush()
+    expect(events).toEqual(["spawn", "release"])
+    const stopping = supervisor.stop()
+    releasing.resolve()
+    await stopping
+    await flush()
+    expect(events.filter((event) => event === "spawn")).toHaveLength(1)
+  })
 })

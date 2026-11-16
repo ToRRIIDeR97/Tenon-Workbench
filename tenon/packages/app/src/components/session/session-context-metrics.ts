@@ -124,20 +124,23 @@ const compactedAfter = (
 const resolveModel = (providers: Provider[], provider: Provider | undefined, modelID: string) => {
   const exact = provider ? provider.models[modelID] : sharedModel(providers, modelID)
   if (exact) return exact
+  const bare = modelID.slice(modelID.lastIndexOf("/") + 1)
+  const sameBare = (scope: Provider[]) =>
+    agreed(
+      scope.flatMap((item) =>
+        Object.entries(item.models).flatMap(([id, model]) =>
+          model && id !== modelID && id.slice(id.lastIndexOf("/") + 1) === bare ? [model] : [],
+        ),
+      ),
+    )
+  // The message's own provider first: another provider listing the same model may run it with another window.
+  if (provider) return sameBare([provider])
   const slash = modelID.indexOf("/")
   if (slash > 0) {
     const prefixed = providers.find((item) => item.id === modelID.slice(0, slash))?.models[modelID.slice(slash + 1)]
     if (prefixed) return prefixed
   }
-  const bare = modelID.slice(modelID.lastIndexOf("/") + 1)
-  const scope = provider ? [provider] : providers
-  return agreed(
-    scope.flatMap((item) =>
-      Object.entries(item.models).flatMap(([id, model]) =>
-        model && id !== modelID && id.slice(id.lastIndexOf("/") + 1) === bare ? [model] : [],
-      ),
-    ),
-  )
+  return sameBare(providers)
 }
 
 /** The one model when every match has the same context window; otherwise unknown. */
