@@ -2,6 +2,7 @@ import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { LoaderV2 } from "@tenon/ui/v2/loader-v2"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
+import { panelCapRef } from "@/utils/panel-cap"
 import { children, Show, type JSX, type ParentProps } from "solid-js"
 
 /**
@@ -25,7 +26,7 @@ export function PageFrame(
       aria-label={props.label}
     >
       {/* The cap sits outside the panel, which clips its own content. */}
-      <div class="page-panel-cap flex min-h-0 flex-1 flex-col">
+      <div ref={panelCapRef} class="page-panel-cap flex min-h-0 flex-1 flex-col">
         <div
           class={`min-h-0 flex-1 ${props.scroll === false ? "flex flex-col overflow-hidden" : "overflow-y-auto"} ${pagePanelClass} ${props.class ?? ""}`}
         >

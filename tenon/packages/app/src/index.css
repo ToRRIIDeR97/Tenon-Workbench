@@ -366,10 +366,13 @@
     position: relative;
   }
 
+  /* On Windows the band stops where the caption buttons begin (--tenon-cap-cut, utils/panel-cap.ts): the
+     buttons sit on the window background and the band's edge turns down beside them. */
   .page-panel-cap::before {
     content: "";
     position: absolute;
-    inset-inline: 0;
+    left: 0;
+    right: var(--tenon-cap-cut, 0px);
     bottom: 100%;
     height: var(--tenon-titlebar-height, 0px);
     background: var(--v2-background-bg-base);

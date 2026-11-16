@@ -70,7 +70,7 @@ const build = (
   if (!message) return undefined
 
   const provider = providers.find((item) => item.id === message.providerID)
-  const model = provider ? provider.models[message.modelID] : sharedModel(providers, message.modelID)
+  const model = resolveModel(providers, provider, message.modelID)
   // A harness's own report wins: it names the window it ran with, and its model id may be an alias.
   const limit = (message as HarnessAssistant).contextWindow || model?.limit.context
   // A harness's reported context in use wins: its token counts add up every model call in the turn.
@@ -114,6 +114,37 @@ const compactedAfter = (
           (part.id.endsWith(":compaction") ? part.id.slice(0, -":compaction".length) : part.messageID) > message.id,
       ),
     )
+}
+
+/**
+ * The model a message ran with. An external harness may name it by an alias: `provider/model`, or the model's id
+ * without the provider prefix the provider list uses (an `opencode-go` id, #310). Exact ids win; an alias is
+ * resolved only when it names one window.
+ */
+const resolveModel = (providers: Provider[], provider: Provider | undefined, modelID: string) => {
+  const exact = provider ? provider.models[modelID] : sharedModel(providers, modelID)
+  if (exact) return exact
+  const slash = modelID.indexOf("/")
+  if (slash > 0) {
+    const prefixed = providers.find((item) => item.id === modelID.slice(0, slash))?.models[modelID.slice(slash + 1)]
+    if (prefixed) return prefixed
+  }
+  const bare = modelID.slice(modelID.lastIndexOf("/") + 1)
+  const scope = provider ? [provider] : providers
+  return agreed(
+    scope.flatMap((item) =>
+      Object.entries(item.models).flatMap(([id, model]) =>
+        model && id !== modelID && id.slice(id.lastIndexOf("/") + 1) === bare ? [model] : [],
+      ),
+    ),
+  )
+}
+
+/** The one model when every match has the same context window; otherwise unknown. */
+const agreed = (matches: Model[]) => {
+  const first = matches[0]
+  if (!first || matches.some((item) => item.limit.context !== first.limit.context)) return undefined
+  return first
 }
 
 /**

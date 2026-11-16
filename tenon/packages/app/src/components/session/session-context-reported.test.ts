@@ -71,3 +71,38 @@ describe("latestSubagentContexts", () => {
     ])
   })
 })
+
+// #310: an alias model id still finds its window through the provider list.
+describe("getSessionContext alias model ids", () => {
+  const live = { harness: "opencode-acp", contextUsed: 64_000 }
+  const providers = [
+    { id: "opencode-go", models: { "deepseek/deepseek-v4.1-flash": { limit: { context: 128_000 } } } },
+    { id: "deepseek", models: { "deepseek-v4.1-flash": { limit: { context: 128_000 } } } },
+  ]
+
+  test("a model id without its provider prefix resolves to the prefixed one", () => {
+    const context = getSessionContext([assistant(live)], providers)
+    expect(context?.limit).toBe(128_000)
+    expect(context?.usage).toBe(50)
+  })
+
+  test("a provider/model id resolves through the named provider", () => {
+    const message = { ...(assistant(live) as object), providerID: "harness", modelID: "deepseek/deepseek-v4.1-flash" }
+    const context = getSessionContext([message as Message], [providers[1]])
+    expect(context?.limit).toBe(128_000)
+  })
+
+  test("aliases that disagree on the window leave it unknown, and the tokens still show", () => {
+    const context = getSessionContext(
+      [{ ...(assistant(live) as object), providerID: "harness" } as Message],
+      [
+        { id: "a", models: { "x/deepseek-v4.1-flash": { limit: { context: 64_000 } } } },
+        { id: "b", models: { "y/deepseek-v4.1-flash": { limit: { context: 128_000 } } } },
+      ],
+    )
+    expect(context?.limit).toBeUndefined()
+    expect(context?.reported).toBe(true)
+    expect(context?.total).toBe(64_000)
+    expect(context?.usage).toBeNull()
+  })
+})

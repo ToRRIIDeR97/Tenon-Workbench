@@ -113,3 +113,57 @@ describe("sidecar supervisor", () => {
     expect(spawned[1].stopped).toBe(true)
   })
 })
+
+describe("sidecar supervisor port hold (#164)", () => {
+  const holding = (pause?: Promise<void>) => {
+    const events: string[] = []
+    const spawned: ReturnType<typeof fakeSidecar>[] = []
+    let now = 0
+    const supervisor = superviseSidecar({
+      spawn: () => {
+        events.push("spawn")
+        const sidecar = fakeSidecar()
+        spawned.push(sidecar)
+        return sidecar
+      },
+      log: () => undefined,
+      sleep: async (ms) => {
+        events.push(`sleep ${ms}`)
+        now += ms
+        await pause
+      },
+      now: () => now,
+      hold: async () => {
+        events.push("hold")
+        return async () => {
+          events.push("release")
+        }
+      },
+    })
+    return { supervisor, spawned, events }
+  }
+
+  test("holds the port through the backoff and releases it just before the respawn", async () => {
+    const { spawned, events } = holding()
+    spawned[0].start()
+    await flush()
+    spawned[0].crash()
+    await flush()
+    expect(events).toEqual(["spawn", "hold", "sleep 1000", "release", "spawn"])
+  })
+
+  test("stopping during the backoff releases the hold and spawns nothing", async () => {
+    const backoff = Promise.withResolvers<void>()
+    const { supervisor, spawned, events } = holding(backoff.promise)
+    spawned[0].start()
+    await flush()
+    spawned[0].crash()
+    await flush()
+    expect(events).toEqual(["spawn", "hold", "sleep 1000"])
+    await supervisor.stop()
+    backoff.resolve()
+    await flush()
+    expect(events.filter((event) => event === "spawn")).toHaveLength(1)
+    expect(events.at(-1)).toBe("release")
+  })
+})

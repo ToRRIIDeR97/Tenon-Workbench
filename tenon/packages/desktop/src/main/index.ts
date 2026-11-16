@@ -199,6 +199,18 @@ function isPortFree(hostname: string, port: number) {
   })
 }
 
+/**
+ * Binds the sidecar's port while the sidecar is down, so another local process can't take it and receive the
+ * renderers' credential (#164). Connections are dropped at once. Resolves to the release.
+ */
+function holdPort(hostname: string, port: number) {
+  return new Promise<() => Promise<void>>((resolve, reject) => {
+    const socket = createServer((connection) => connection.destroy())
+    socket.once("error", reject)
+    socket.listen(port, hostname, () => resolve(() => new Promise<void>((done) => socket.close(() => done()))))
+  })
+}
+
 async function killSidecar() {
   if (!server) return
   const current = server
@@ -561,6 +573,7 @@ const main = Effect.gen(function* () {
           })
         },
         log: (message, meta) => writeLog("utility", message, meta, "warn"),
+        hold: () => holdPort(hostname, port),
       })
 
     let port = fixedPort ?? (yield* Effect.promise(() => freePort(hostname)))

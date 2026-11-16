@@ -3,6 +3,7 @@ import type { Session } from "@opencode-ai/sdk/v2/client"
 import { useNavigate } from "@solidjs/router"
 import {
   createEffect,
+  createMemo,
   createSignal,
   For,
   Match,
@@ -105,6 +106,19 @@ export function SecondBrainSidebar() {
   ])
   // The panel keeps its content while its width collapses, so it never closes as an empty column.
   const panel = createReveal(() => layout.sidebar.opened())
+  // The Projects content mounts once the width has settled, not on the click: building every group and thread
+  // row while the width animates relayouts the page beside it on each frame (#309). It stays mounted while
+  // the panel closes, and fades in when it waited for the slide, like the thread's side panel.
+  const body = createMemo<{ mounted: boolean; waited: boolean }>(
+    (was) => {
+      const phase = panel.phase()
+      if (phase === "closed") return { mounted: false, waited: false }
+      if (phase === "opening") return was.mounted ? was : { mounted: false, waited: true }
+      if (phase === "open") return was.mounted ? was : { mounted: true, waited: was.waited }
+      return was
+    },
+    { mounted: panel.phase() === "open", waited: false },
+  )
   const path = () => ctrl.location.pathname
   // Routine pages open in the page editor under /projects but belong to the Command Centre.
   const fromRoutines = () => new URLSearchParams(ctrl.location.search).get("from") === "routines"
@@ -176,10 +190,11 @@ export function SecondBrainSidebar() {
           "opacity-0 duration-short ease-emphasized-accelerate": !layout.sidebar.opened(),
         }}
       >
-        <Show when={panel.mounted()}>
+        <Show when={body().mounted}>
           <div
             data-sidebar-section="projects"
             class="flex min-h-0 w-[256px] flex-1 flex-col overflow-y-auto px-2 pb-3 pt-1"
+            classList={{ "animate-enter": body().waited }}
           >
             <WorkspaceHeader ctrl={ctrl} />
             <Show

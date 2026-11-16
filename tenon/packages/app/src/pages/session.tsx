@@ -97,6 +97,7 @@ import { createLiveDocumentOpener } from "@/pages/session/live-document-view"
 import { motionDuration, prefersReducedMotion } from "@tenon/ui/v2/motion"
 import { SessionFileReferences, panelSettled, slidePanelOpen } from "@/pages/session/file-reference"
 import { DesignCanvasProvider } from "@/pages/session/design-canvas"
+import { panelCapRef } from "@/utils/panel-cap"
 import { SESSION_SIDE_RAIL_SPACE, SessionSideRail } from "@/pages/session/session-side-rail"
 import { sessionPanelLayout } from "@/pages/session/session-panel-layout"
 import { SessionReviewEmptyChangesV2 } from "@tenon/session-ui/v2/session-review-empty-changes-v2"
@@ -2286,7 +2287,10 @@ export default function Page() {
       <SessionHeader />
       <div ref={panelRow} class="flex-1 min-h-0 flex flex-col md:flex-row gap-2">
         <div
-          ref={sessionPanel}
+          ref={(el) => {
+            sessionPanel = el
+            panelCapRef(el)
+          }}
           classList={{
             "page-panel-cap @container relative shrink-0 flex flex-col min-h-0 h-full flex-1 md:flex-none": true,
             // The whole transition goes during a drag: a bare transition-[width] still eases each frame over 150ms.
@@ -2309,7 +2313,7 @@ export default function Page() {
         <Show when={isDesktop() ? desktopV2PanelLayout().visible || panelClosing() : terminalOpen()}>
           {/* Pulled 7px into the row's 8px gap: the thread and the side panel read as one card, split by the
               hairline their two outlines share. */}
-          <div class="page-panel-cap relative min-w-0 h-full flex flex-1 flex-col md:-ml-[7px]">
+          <div ref={panelCapRef} class="page-panel-cap relative min-w-0 h-full flex flex-1 flex-col md:-ml-[7px]">
             <Show when={desktopSessionResizeOpen()}>
               <div onPointerDown={() => size.start()}>
                 <ResizeHandle

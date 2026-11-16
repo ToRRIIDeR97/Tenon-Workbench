@@ -20,6 +20,16 @@ export interface SoundSettings {
   errors: string
 }
 
+export type ThreadWidth = "narrow" | "medium" | "wide" | "full"
+
+/** The thread column's maximum width for each choice; "full" fills the thread panel. */
+export const threadWidthValue: Record<ThreadWidth, string> = {
+  narrow: "640px",
+  medium: "800px",
+  wide: "960px",
+  full: "100%",
+}
+
 export interface Settings {
   general: {
     autoSave: boolean
@@ -39,6 +49,8 @@ export interface Settings {
   }
   appearance: {
     fontSize: number
+    /** How wide the thread's column (messages and composer) is on a desktop-width window. */
+    threadWidth?: ThreadWidth
     mono: string
     sans: string
     terminal: string
@@ -219,6 +231,7 @@ const defaultSettings: Settings = {
   },
   appearance: {
     fontSize: 14,
+    threadWidth: "narrow",
     mono: "",
     sans: "",
     terminal: "",
@@ -297,6 +310,11 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
       const root = document.documentElement
       root.style.setProperty("--font-family-mono", monoFontFamily(store.appearance?.mono))
       root.style.setProperty("--font-family-sans", sansFontFamily(store.appearance?.sans))
+      const width = store.appearance?.threadWidth
+      root.style.setProperty(
+        "--tenon-thread-width",
+        threadWidthValue[width && width in threadWidthValue ? width : "narrow"],
+      )
     })
 
     return {
@@ -376,6 +394,10 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         fontSize: withFallback(() => store.appearance?.fontSize, defaultSettings.appearance.fontSize),
         setFontSize(value: number) {
           setStore("appearance", "fontSize", value)
+        },
+        threadWidth: withFallback(() => store.appearance?.threadWidth, "narrow" as ThreadWidth),
+        setThreadWidth(value: ThreadWidth) {
+          setStore("appearance", "threadWidth", value)
         },
         font: withFallback(() => store.appearance?.mono, defaultSettings.appearance.mono),
         setFont(value: string) {
