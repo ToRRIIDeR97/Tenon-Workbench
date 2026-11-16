@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520" role="img" aria-labelledby="t d" font-family="Inter, system-ui, sans-serif" font-size="12">
+  <title id="t">Current: how agent output reaches the side panel</title>
+  <desc id="d">Text deltas stream into the thread but canvas designs render only after their fence closes; tool input streams as a raw string that is parsed only when complete; files reload from disk after the tool finishes; no write route exists.</desc>
+  <style>
+    .bg{fill:#ffffff}.n{fill:#f4f5f7;stroke:#c9ccd3}.g{fill:#fff4f2;stroke:#e0a39a}.t{fill:#1b1d22}.m{fill:#5b6070}.a{stroke:#7a7f8c;fill:none;marker-end:url(#h)}.x{stroke:#c0503f;fill:none;stroke-dasharray:4 3}
+    @media (prefers-color-scheme: dark){.bg{fill:#121316}.n{fill:#1d1f24;stroke:#3a3d45}.g{fill:#2a1a18;stroke:#7a3b33}.t{fill:#ececf0}.m{fill:#a0a4b0}.a{stroke:#8d92a0}}
+  </style>
+  <defs><marker id="h" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 8 4 0 8z" fill="#8d92a0"/></marker></defs>
+  <rect class="bg" width="960" height="520"/>
+  <text class="t" x="24" y="32" font-size="15" font-weight="600">Current (b136d877)</text>
+
+  <rect class="n" x="24" y="60" width="200" height="64" rx="10"/>
+  <text class="t" x="36" y="84" font-weight="600">Model stream</text>
+  <text class="m" x="36" y="102">text deltas, tool-input deltas</text>
+  <text class="m" x="36" y="116">core/session/runner/publish-llm-event.ts</text>
+
+  <rect class="n" x="270" y="60" width="200" height="64" rx="10"/>
+  <text class="t" x="282" y="84" font-weight="600">Event bus → SSE</text>
+  <text class="m" x="282" y="102">server/handlers/event.ts</text>
+  <text class="m" x="282" y="116">app server-sdk.tsx: 16 ms coalesce</text>
+
+  <rect class="n" x="516" y="60" width="200" height="64" rx="10"/>
+  <text class="t" x="528" y="84" font-weight="600">Session store</text>
+  <text class="m" x="528" y="102">server-session-v2-reducer.ts</text>
+  <text class="m" x="528" y="116">tool state: streaming raw string</text>
+
+  <rect class="g" x="740" y="60" width="196" height="64" rx="10"/>
+  <text class="t" x="752" y="84" font-weight="600">toolPart()</text>
+  <text class="m" x="752" y="102">utils/session-message.ts:373</text>
+  <text class="m" x="752" y="116">parses only when raw ends in }</text>
+
+  <path class="a" d="M224 92H266"/><path class="a" d="M470 92H512"/><path class="a" d="M716 92H736"/>
+
+  <rect class="g" x="24" y="190" width="290" height="92" rx="10"/>
+  <text class="t" x="36" y="214" font-weight="600">Canvas designs</text>
+  <text class="m" x="36" y="232">design-canvas.tsx → collectDesigns()</text>
+  <text class="m" x="36" y="248">skips a fence until it closes</text>
+  <text class="m" x="36" y="264">reveal() opens the panel at close</text>
+
+  <rect class="g" x="340" y="190" width="290" height="92" rx="10"/>
+  <text class="t" x="352" y="214" font-weight="600">Canvas tab</text>
+  <text class="m" x="352" y="232">canvas-tab.tsx: grid of artboards</text>
+  <text class="m" x="352" y="248">DesignFrame: srcdoc set once</text>
+  <text class="m" x="352" y="264">sandbox="allow-scripts", design CSP</text>
+
+  <rect class="g" x="656" y="190" width="280" height="92" rx="10"/>
+  <text class="t" x="668" y="214" font-weight="600">Thread design window</text>
+  <text class="m" x="668" y="232">html-window.ts: placeholder while</text>
+  <text class="m" x="668" y="248">the fence streams, frame at close</text>
+
+  <path class="a" d="M170 124V186"/><path class="a" d="M314 236H336"/>
+  <text class="m" x="178" y="160">text parts</text>
+
+  <rect class="g" x="24" y="340" width="290" height="92" rx="10"/>
+  <text class="t" x="36" y="364" font-weight="600">Files tab</text>
+  <text class="m" x="36" y="382">file-viewer.tsx: Rendered / Source</text>
+  <text class="m" x="36" y="398">reloads on file.watcher.updated,</text>
+  <text class="m" x="36" y="414">after the write finishes</text>
+
+  <rect class="n" x="340" y="340" width="290" height="92" rx="10"/>
+  <text class="t" x="352" y="364" font-weight="600">Thread tool rows</text>
+  <text class="m" x="352" y="382">message-part.tsx: write/edit cards</text>
+  <text class="m" x="352" y="398">content hidden while pending</text>
+
+  <rect class="g" x="656" y="340" width="280" height="92" rx="10"/>
+  <text class="t" x="668" y="364" font-weight="600">File HTTP API</text>
+  <text class="m" x="668" y="382">groups/file.ts: list, content, find</text>
+  <text class="m" x="668" y="398">read only: no write route</text>
+
+  <path class="x" d="M838 124V336"/><text class="m" x="846" y="236">input stays {} until complete</text>
+  <text class="m" x="24" y="482">Red boxes: where the limitation sits. Paths are under tenon/packages/.</text>
+</svg>

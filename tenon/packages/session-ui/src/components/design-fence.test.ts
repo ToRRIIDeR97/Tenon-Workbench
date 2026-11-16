@@ -168,9 +168,20 @@ describe("collectDesigns", () => {
 
   test("lists closed canvas blocks of assistant text parts in message order", () => {
     expect(collectDesigns(messages, parts)).toEqual([
-      { id: designID("<p>1</p>"), title: "One", source: "<p>1</p>", canvas: true },
-      { id: designID("<p>2</p>"), title: "Two", source: "<p>2</p>", canvas: true },
+      { id: designID("<p>1</p>"), key: "p3:0", title: "One", source: "<p>1</p>", canvas: true },
+      { id: designID("<p>2</p>"), key: "p4:0", title: "Two", source: "<p>2</p>", canvas: true },
     ])
+  })
+
+  test("adds the open canvas block with streaming: true", () => {
+    expect(collectDesigns(messages, parts, [], undefined, { streaming: true }).at(-1)).toEqual({
+      id: "p5:0",
+      key: "p5:0",
+      title: "Streaming",
+      source: "<p>3",
+      canvas: true,
+      streaming: true,
+    })
   })
 
   test("keeps pinned inline designs in place", () => {

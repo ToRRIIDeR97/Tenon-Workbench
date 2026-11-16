@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" role="img" aria-labelledby="t d" font-family="Inter, system-ui, sans-serif" font-size="12">
+  <title id="t">Proposed: live designs and documents in the side panel</title>
+  <desc id="d">Streaming fences and write calls become live designs drawn by a morphing frame; healed tool input drives a live document view; a conflict-checked write route backs per-hunk undo.</desc>
+  <style>
+    .bg{fill:#ffffff}.n{fill:#f4f5f7;stroke:#c9ccd3}.c{fill:#eef1ff;stroke:#3b5cf6}.t{fill:#1b1d22}.m{fill:#5b6070}.k{fill:#3b5cf6;font-weight:600}.a{stroke:#7a7f8c;fill:none;marker-end:url(#h)}.b{stroke:#3b5cf6;fill:none;marker-end:url(#hb)}
+    @media (prefers-color-scheme: dark){.bg{fill:#121316}.n{fill:#1d1f24;stroke:#3a3d45}.c{fill:#1a2040;stroke:#6e8bff}.t{fill:#ececf0}.m{fill:#a0a4b0}.k{fill:#9db0ff}.a{stroke:#8d92a0}.b{stroke:#6e8bff}}
+  </style>
+  <defs>
+    <marker id="h" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 8 4 0 8z" fill="#8d92a0"/></marker>
+    <marker id="hb" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 8 4 0 8z" fill="#3b5cf6"/></marker>
+  </defs>
+  <rect class="bg" width="960" height="560"/>
+  <text class="t" x="24" y="32" font-size="15" font-weight="600">Proposed (blue = new or changed)</text>
+
+  <rect class="n" x="24" y="60" width="200" height="56" rx="10"/><text class="t" x="36" y="84" font-weight="600">Model stream</text><text class="m" x="36" y="102">unchanged</text>
+  <rect class="n" x="270" y="60" width="200" height="56" rx="10"/><text class="t" x="282" y="84" font-weight="600">Event bus → SSE</text><text class="m" x="282" y="102">unchanged</text>
+  <rect class="n" x="516" y="60" width="200" height="56" rx="10"/><text class="t" x="528" y="84" font-weight="600">Session store</text><text class="m" x="528" y="102">unchanged</text>
+  <rect class="c" x="740" y="60" width="196" height="56" rx="10"/><text class="t" x="752" y="84" font-weight="600">toolPart() + healing</text><text class="k" x="752" y="102">partial-json.ts · AC-1, AC-2</text>
+  <path class="a" d="M224 88H266"/><path class="a" d="M470 88H512"/><path class="a" d="M716 88H736"/>
+
+  <rect class="c" x="24" y="170" width="300" height="84" rx="10"/>
+  <text class="t" x="36" y="194" font-weight="600">Live designs</text>
+  <text class="m" x="36" y="212">collectDesigns({streaming}) + collectToolDesigns</text>
+  <text class="m" x="36" y="228">stable key per fence / write call</text>
+  <text class="k" x="36" y="244">P1 · AC-7, AC-8</text>
+
+  <rect class="c" x="350" y="170" width="300" height="84" rx="10"/>
+  <text class="t" x="362" y="194" font-weight="600">LiveDesignFrame</text>
+  <text class="m" x="362" y="212">design-stream.ts: heal markup, gate on visible,</text>
+  <text class="m" x="362" y="228">postMessage frames → morph in sandbox</text>
+  <text class="k" x="362" y="244">P1 · AC-3…AC-6</text>
+
+  <rect class="c" x="676" y="170" width="260" height="84" rx="10"/>
+  <text class="t" x="688" y="194" font-weight="600">A · Canvas follows</text>
+  <text class="m" x="688" y="212">opens at first visible markup,</text>
+  <text class="m" x="688" y="228">Drawing chip, Preview/Code, outline</text>
+  <text class="k" x="688" y="244">P2 · AC-9…AC-11</text>
+
+  <rect class="c" x="676" y="280" width="260" height="84" rx="10"/>
+  <text class="t" x="688" y="304" font-weight="600">B · Board canvas</text>
+  <text class="m" x="688" y="322">pan/zoom board replaces the grid,</text>
+  <text class="m" x="688" y="338">camera follows the drawing board</text>
+  <text class="k" x="688" y="354">P3 · AC-12…AC-14, AC-24</text>
+
+  <path class="b" d="M324 212H346"/><path class="b" d="M650 212H672"/><path class="b" d="M806 254V276"/>
+  <path class="a" d="M110 116V166"/><text class="m" x="118" y="146">text parts</text>
+  <path class="b" d="M838 116V140H230V166"/><text class="m" x="420" y="134">healed write input (.html)</text>
+
+  <rect class="c" x="24" y="300" width="300" height="84" rx="10"/>
+  <text class="t" x="36" y="324" font-weight="600">live-document.ts</text>
+  <text class="m" x="36" y="342">liveWrites(parts), markdownBlocks,</text>
+  <text class="m" x="36" y="358">changedBlocks (flash rule)</text>
+  <text class="k" x="36" y="374">P4 · AC-15…AC-17</text>
+
+  <rect class="c" x="350" y="300" width="300" height="84" rx="10"/>
+  <text class="t" x="362" y="324" font-weight="600">C · Live document (Files tab)</text>
+  <text class="m" x="362" y="342">streams rendered Markdown with a caret,</text>
+  <text class="m" x="362" y="358">read-only, Follow, flash on finish</text>
+  <text class="k" x="362" y="374">P4 · AC-18, AC-19</text>
+  <path class="b" d="M324 342H346"/>
+  <path class="b" d="M900 116V160"/>
+
+  <rect class="c" x="24" y="420" width="300" height="84" rx="10"/>
+  <text class="t" x="36" y="444" font-weight="600">tracked-edits.ts</text>
+  <text class="m" x="36" y="462">trackedHunks, revertHunk, contentHash</text>
+  <text class="k" x="36" y="494">P5 · AC-20…AC-22</text>
+
+  <rect class="c" x="350" y="420" width="300" height="84" rx="10"/>
+  <text class="t" x="362" y="444" font-weight="600">D · Tracked edits (Source view)</text>
+  <text class="m" x="362" y="462">Keep / Undo per change, Keep all</text>
+  <text class="m" x="362" y="478">conflict banner on 409</text>
+  <text class="k" x="362" y="494">P5 · AC-25</text>
+
+  <rect class="c" x="676" y="420" width="260" height="84" rx="10"/>
+  <text class="t" x="688" y="444" font-weight="600">PUT /file/content (new)</text>
+  <text class="m" x="688" y="462">existing file inside the folder,</text>
+  <text class="m" x="688" y="478">expectedHash or 409</text>
+  <text class="k" x="688" y="494">P5 · AC-23 · trust boundary</text>
+  <path class="b" d="M324 462H346"/><path class="b" d="M650 462H672"/>
+  <text class="m" x="24" y="540">Invariant: designs only run in the existing sandbox (allow-scripts, opaque origin, design CSP); scripts run only after the stream ends.</text>
+</svg>
