@@ -185,15 +185,17 @@ export function PromptInputV2(props: PromptInputV2Props) {
       <form
         data-component="prompt-input-v2"
         data-dock-border-underlay={props.borderUnderlay ? "v2" : undefined}
-        class="group/prompt-input relative min-h-[96px] w-full overflow-clip rounded-[28px] bg-v2-background-bg-raised focus-within:[--prompt-input-edge:var(--v2-border-border-focus)]"
+        // Two tones: the form is the tray (base) under the controls row; the header, attachments and prompt sit on
+        // one raised card above it. The tray's 28px clip rounds the card's top; the card has no corners of its own.
+        class="group/prompt-input relative min-h-[96px] w-full overflow-clip rounded-[28px] bg-[var(--prompt-input-tray)] [--prompt-input-tray:var(--v2-background-bg-base)] focus-within:[--prompt-input-edge:var(--v2-border-border-focus)] [[data-color-scheme=light]_&]:[--prompt-input-tray:var(--v2-background-bg-layer-01)]"
         classList={{
-          "shadow-[0_0_0_1px_var(--prompt-input-edge,var(--v2-border-border-strong)),0_8px_24px_-12px_rgb(0_0_0/0.18)]":
+          "shadow-[0_0_0_1px_var(--prompt-input-edge,var(--v2-border-border-base)),0_8px_24px_-12px_rgb(0_0_0/0.18)]":
             !props.borderUnderlay,
           "border border-v2-border-border-focus border-dashed": state.drag === "active",
         }}
         style={{
           "--dock-shell-visual-shadow":
-            "0 0 0 1px var(--prompt-input-edge, var(--v2-border-border-strong)), 0 8px 24px -12px rgb(0 0 0 / 0.18)",
+            "0 0 0 1px var(--prompt-input-edge, var(--v2-border-border-base)), 0 8px 24px -12px rgb(0 0 0 / 0.18)",
         }}
         onSubmit={(event) => {
           event.preventDefault()
@@ -214,89 +216,96 @@ export function PromptInputV2(props: PromptInputV2Props) {
           </div>
         </Presence>
 
-        <Show when={props.headerControl}>
-          <div
-            data-slot="prompt-input-header"
-            class="flex h-10 min-w-0 items-center gap-0.5 border-b border-v2-border-border-muted pl-2.5 pr-2"
-          >
-            {props.headerControl}
-          </div>
-        </Show>
-
-        <Show when={state.mode === "normal"}>
-          <PromptInputV2Attachments
-            attachments={props.controller.attachments()}
-            comments={props.controller.comments()}
-            quotes={props.controller.quotes()}
-            quoteRemoveLabel={props.quoteRemoveLabel}
-            activeCommentID={state.activeContextID}
-            removeLabel={i18n.t("ui.promptInput.removeAttachment")}
-            onAttachmentClick={props.controller.openAttachment}
-            onAttachmentRemove={(attachment) => props.controller.removeAttachment(attachment.id)}
-            onCommentClick={(comment) => props.controller.toggleContext(comment.key)}
-            onCommentRemove={(comment) => props.controller.removeContext(comment.key)}
-            onQuoteRemove={(quote) => props.controller.removeContext(quote.key)}
-          />
-        </Show>
-
-        <div class="relative min-h-[60px]">
-          <div
-            ref={(element) => {
-              editor = element
-              props.controller.setEditor(element)
-              renderPromptInputV2Editor(element, props.controller.parts(), threadLabels())
-              onCleanup(watchComposerLinks(element))
-            }}
-            data-component="prompt-input"
-            role="textbox"
-            aria-multiline="true"
-            aria-label={i18n.t("ui.promptInput.label")}
-            contenteditable={!props.disabled && !props.readOnly}
-            autocapitalize={state.mode === "normal" ? "sentences" : "off"}
-            autocorrect={state.mode === "normal" ? "on" : "off"}
-            spellcheck={state.mode === "normal"}
-            // @ts-expect-error
-            autocomplete="off"
-            class="relative z-10 block min-h-[60px] max-h-[180px] w-full overflow-y-auto whitespace-pre-wrap bg-transparent px-5 pt-4 pb-2 text-[15px] font-[450] leading-6 text-v2-text-text-base focus:outline-none [&_[data-mention=file]]:text-syntax-property [&_[data-mention=agent]]:text-syntax-type [&_[data-mention=skill]]:text-syntax-type [&_[data-mention=reference]]:text-syntax-keyword"
-            classList={{ "font-mono!": state.mode === "shell", "opacity-50": props.disabled }}
-            onInput={(event) => syncEditor(event.currentTarget)}
-            // A thread reference switches between its summary and the full thread on click.
-            onClick={(event) => {
-              const pill = (event.target as HTMLElement).closest<HTMLElement>("[data-mention=thread]")
-              if (!pill?.dataset.url) return
-              const full = !pill.dataset.url.includes("full=1")
-              pill.dataset.url = full ? `${pill.dataset.url.split("?")[0]}?full=1` : pill.dataset.url.split("?")[0]!
-              pill.dataset.modeLabel = full ? threadLabels().full : threadLabels().summary
-              syncEditor(event.currentTarget)
-            }}
-            onKeyDown={(event) => {
-              if (props.controller.onKeyDown(event)) return
-              const intent = promptInputV2KeyIntent(event)
-              if (intent?.type !== "submit") return
-              event.preventDefault()
-              if (event.repeat) return
-              props.controller.submit(intent.options)
-            }}
-            onKeyUp={updateCursor}
-            onPointerUp={updateCursor}
-            onPaste={props.controller.onPaste}
-            onFocus={() => props.controller.dispatch({ type: "focus.editor" })}
-          />
-          <Show when={!props.controller.value()}>
+        {/* Full width with a straight, square bottom edge that rests on the tray. */}
+        <div
+          data-slot="prompt-input-card"
+          class="relative z-[1] bg-v2-background-bg-raised shadow-[0_1px_0_var(--v2-border-border-muted),0_4px_10px_-4px_rgb(0_0_0/0.45)]"
+        >
+          <Show when={props.headerControl}>
             <div
-              data-slot="prompt-placeholder"
-              class="pointer-events-none absolute inset-x-0 top-0 px-5 pt-4 text-[15px] font-[450] leading-6 text-v2-text-text-faint"
-              classList={{ "font-mono!": state.mode === "shell" }}
+              data-slot="prompt-input-header"
+              class="flex h-[42px] min-w-0 items-center gap-0.5 border-b border-v2-border-border-muted pl-2.5 pr-2"
             >
-              {view.placeholder?.() ??
-                (state.mode === "shell"
-                  ? i18n.t("ui.promptInput.placeholder.shell")
-                  : i18n.t("ui.promptInput.placeholder.normal", { slash: "/", at: "@" }))}
+              {props.headerControl}
             </div>
           </Show>
+
+          <Show when={state.mode === "normal"}>
+            <PromptInputV2Attachments
+              attachments={props.controller.attachments()}
+              comments={props.controller.comments()}
+              quotes={props.controller.quotes()}
+              quoteRemoveLabel={props.quoteRemoveLabel}
+              activeCommentID={state.activeContextID}
+              removeLabel={i18n.t("ui.promptInput.removeAttachment")}
+              onAttachmentClick={props.controller.openAttachment}
+              onAttachmentRemove={(attachment) => props.controller.removeAttachment(attachment.id)}
+              onCommentClick={(comment) => props.controller.toggleContext(comment.key)}
+              onCommentRemove={(comment) => props.controller.removeContext(comment.key)}
+              onQuoteRemove={(quote) => props.controller.removeContext(quote.key)}
+            />
+          </Show>
+
+          <div class="relative min-h-[72px]">
+            <div
+              ref={(element) => {
+                editor = element
+                props.controller.setEditor(element)
+                renderPromptInputV2Editor(element, props.controller.parts(), threadLabels())
+                onCleanup(watchComposerLinks(element))
+              }}
+              data-component="prompt-input"
+              role="textbox"
+              aria-multiline="true"
+              aria-label={i18n.t("ui.promptInput.label")}
+              contenteditable={!props.disabled && !props.readOnly}
+              autocapitalize={state.mode === "normal" ? "sentences" : "off"}
+              autocorrect={state.mode === "normal" ? "on" : "off"}
+              spellcheck={state.mode === "normal"}
+              // @ts-expect-error
+              autocomplete="off"
+              class="relative z-10 block min-h-[72px] max-h-[180px] w-full overflow-y-auto whitespace-pre-wrap bg-transparent px-5 pt-4 pb-2 text-[15px] font-[450] leading-6 text-v2-text-text-base focus:outline-none [&_[data-mention=file]]:text-syntax-property [&_[data-mention=agent]]:text-syntax-type [&_[data-mention=skill]]:text-syntax-type [&_[data-mention=reference]]:text-syntax-keyword"
+              classList={{ "font-mono!": state.mode === "shell", "opacity-50": props.disabled }}
+              onInput={(event) => syncEditor(event.currentTarget)}
+              // A thread reference switches between its summary and the full thread on click.
+              onClick={(event) => {
+                const pill = (event.target as HTMLElement).closest<HTMLElement>("[data-mention=thread]")
+                if (!pill?.dataset.url) return
+                const full = !pill.dataset.url.includes("full=1")
+                pill.dataset.url = full ? `${pill.dataset.url.split("?")[0]}?full=1` : pill.dataset.url.split("?")[0]!
+                pill.dataset.modeLabel = full ? threadLabels().full : threadLabels().summary
+                syncEditor(event.currentTarget)
+              }}
+              onKeyDown={(event) => {
+                if (props.controller.onKeyDown(event)) return
+                const intent = promptInputV2KeyIntent(event)
+                if (intent?.type !== "submit") return
+                event.preventDefault()
+                if (event.repeat) return
+                props.controller.submit(intent.options)
+              }}
+              onKeyUp={updateCursor}
+              onPointerUp={updateCursor}
+              onPaste={props.controller.onPaste}
+              onFocus={() => props.controller.dispatch({ type: "focus.editor" })}
+            />
+            <Show when={!props.controller.value()}>
+              <div
+                data-slot="prompt-placeholder"
+                class="pointer-events-none absolute inset-x-0 top-0 px-5 pt-4 text-[13px] leading-6 text-v2-text-text-faint [font-weight:400]"
+                classList={{ "font-mono!": state.mode === "shell" }}
+              >
+                {view.placeholder?.() ??
+                  (state.mode === "shell"
+                    ? i18n.t("ui.promptInput.placeholder.shell")
+                    : i18n.t("ui.promptInput.placeholder.normal", { slash: "/", at: "@" }))}
+              </div>
+            </Show>
+          </div>
         </div>
 
-        <div class="flex h-12 items-center gap-1 pb-1.5 pl-2.5 pr-1.5">
+        {/* The controls row sits on the tray: no fill or border of its own. */}
+        <div class="flex h-[50px] items-center gap-1 pl-2.5 pr-1.5">
           <Show when={state.mode === "shell"}>
             <button
               type="button"

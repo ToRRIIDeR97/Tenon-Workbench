@@ -130,12 +130,23 @@ Use `[font-weight:N]` when a weight must differ from the role.
   reports none, as OpenCode does), agent, turn and how it ended; a card opens
   its usage with Open in Agents and Show in thread. The Environment window's
   Running section becomes "Subagents · N done" with a row and small bar each.
-- **Composer row:** the composer's bottom row ends with the context ring.
-  There is no Tasks button: running subagents show on the thread rail's
-  Agents button, as a count badge.
-- **Composer text (dark):** inside the composer the muted and faint greys are
-  `#f2f2f2` and `#d2d2d2`, and the placeholder is weight 500, for legibility on
-  the dark surface. Light mode keeps the theme greys.
+- **Composer: card on tray** (`session-ui` `prompt-input`, both the thread
+  and the new-thread composer). Two tones in one 28px shape: the composer
+  itself is the tray (`bg-base`; `bg-layer-01` in light, where base and
+  raised are both white), with a 1px `border-base` ring at rest and the focus
+  ring while focused. The where row (42px, hairline under it), attachments
+  and prompt (at least 72px) sit on one raised card (`bg-raised`) that runs
+  the full width with square bottom corners, so no tray shows at its
+  corners; only the tray's own clip rounds its top. A hairline and a short
+  shadow under the card's bottom edge rest it on the tray.
+- **Composer row:** the 50px controls row sits on the tray with no fill or
+  border of its own, its controls ghost as elsewhere, and it ends with the
+  context ring. There is no Tasks button: running subagents show on the
+  thread rail's Agents button, as a count badge.
+- **Composer text:** the placeholder is 13px regular (400) in both themes;
+  typed text stays 15px. In dark mode the composer's muted and faint greys
+  are `#f2f2f2` and `#d2d2d2`, for legibility on the dark surface. Light mode
+  keeps the theme greys.
 - **Instructions (harness sync):** a status row (headline, detail, Sync now),
   then Sync across computers as settings rows, the shared text in a monospace
   textarea, and one folding row per harness (chevron, logo, name, file path,
