@@ -13,6 +13,26 @@ export const Info = SessionTodo.Info
 export type Info = typeof Info.Type
 export const Event = SessionTodo.Event
 
+const statuses = new Set(["pending", "in_progress", "completed", "cancelled"])
+
+/**
+ * The todo list in a harness plan: Claude Code, Codex and ACP agents report their plans as a provider-executed
+ * `todowrite` call (see `AcpHarness.planEvents`), which never runs the tool, so the runner saves it with this.
+ * Unknown statuses read as pending, and steps without a priority get "medium".
+ */
+export const fromPlan = (input: unknown): Info[] | undefined => {
+  if (typeof input !== "object" || input === null || !("todos" in input) || !Array.isArray(input.todos))
+    return undefined
+  return input.todos.flatMap((todo: unknown) => {
+    if (typeof todo !== "object" || todo === null) return []
+    const item = todo as Record<string, unknown>
+    if (typeof item.content !== "string" || !item.content) return []
+    const status = typeof item.status === "string" && statuses.has(item.status) ? item.status : "pending"
+    const priority = typeof item.priority === "string" && item.priority ? item.priority : "medium"
+    return [{ content: item.content, status, priority }]
+  })
+}
+
 export interface Interface {
   readonly update: (input: {
     readonly sessionID: SessionSchema.ID

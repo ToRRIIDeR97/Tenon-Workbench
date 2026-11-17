@@ -41,6 +41,7 @@ import { SessionSchema } from "../schema"
 import { SessionStore } from "../store"
 import { SessionTable } from "../sql"
 import { SessionTitle } from "../title"
+import { SessionTodo } from "../todo"
 import { SessionV1 } from "../../v1/session"
 import { type RunError, Service } from "./index"
 import { SessionRunnerModel } from "./model"
@@ -127,6 +128,7 @@ const layer = Layer.effect(
     const config = yield* Config.Service
     const permissions = yield* PermissionV2.Service
     const snapshots = yield* Snapshot.Service
+    const todo = yield* SessionTodo.Service
     const db = (yield* Database.Service).db
     const catalog = yield* Catalog.Service
     const scope = yield* Scope.Scope
@@ -380,6 +382,11 @@ const layer = Layer.effect(
               }
             }
             yield* publish(event)
+            // A harness plan arrives as a todowrite call the agent ran itself; save it so the thread's task list shows it.
+            if (event.type === "tool-call" && event.providerExecuted && event.name === "todowrite") {
+              const todos = SessionTodo.fromPlan(event.input)
+              if (todos) yield* todo.update({ sessionID: session.id, todos })
+            }
             if (event.type !== "tool-call" || event.providerExecuted) return
             if (!toolMaterialization) {
               yield* withPublication(publisher.failUnsettledTools("Tools are disabled after the maximum agent steps"))
@@ -709,6 +716,7 @@ export const node = makeLocationNode({
     Config.node,
     PermissionV2.node,
     Snapshot.node,
+    SessionTodo.node,
     Database.node,
   ],
 })

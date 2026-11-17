@@ -1218,8 +1218,10 @@ forwards a subagent's updates under the parent session ID, marked with
 Other harness output is mapped onto the built-in views:
 
 - ACP `plan` updates and Codex `turn/plan/updated` become provider-executed
-  `todowrite` calls (`planEvents`; Codex `inProgress` → `in_progress`), so
-  they show as the todo list.
+  `todowrite` calls (`planEvents`; Codex `inProgress` → `in_progress`). The
+  tool never runs for them, so the session runner saves each one through
+  `SessionTodo.update` (`SessionTodo.fromPlan`), which sends `todo.updated` and
+  opens the composer's task list as the built-in tool does.
 - ACP `diff` content is kept as `providerMetadata.acp.diffs`
   (`{ path, oldText, newText }`). In the app, `acp_edit` renders with the
   `edit` view, which gets `filePath` and, for one diff, `filediff`.
