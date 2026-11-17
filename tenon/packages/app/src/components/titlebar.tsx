@@ -1,4 +1,3 @@
-import { setTitlebarControlsLeft } from "@/utils/panel-cap"
 import { createEffect, createMemo, createSignal, on, onCleanup, onMount, Show, untrack } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLocation, useNavigate } from "@solidjs/router"
@@ -151,32 +150,24 @@ export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visibl
     })
   })
 
-  // On a desktop-width window the bar floats over the top of the window with no background, so the page panel
-  // can reach the top edge behind it. Its height is published for the sidebar and the page frames to start
-  // below it (see `titlebar-inset-top` in index.css).
+  // On a desktop-width window the bar floats over the top of the window with no background; it belongs to the
+  // window. Its height is published so the sidebar and the page frames start 8px below it (`titlebar-inset-top`
+  // in index.css).
   let header: HTMLElement | undefined
   createEffect(() => {
     const root = document.documentElement
     const bar = header
     if (mobile() || !bar) {
       root.style.removeProperty("--tenon-titlebar-height")
-      setTitlebarControlsLeft(undefined)
       return
     }
-    // On Windows the bar stops where the caption buttons begin (titlebar-area-width); page panels cut their
-    // title-bar band there so its edge doesn't run between the buttons (utils/panel-cap.ts).
-    const controls = windows()
-    const publish = () => {
-      root.style.setProperty("--tenon-titlebar-height", `${bar.offsetHeight}px`)
-      setTitlebarControlsLeft(controls ? bar.getBoundingClientRect().right : undefined)
-    }
+    const publish = () => root.style.setProperty("--tenon-titlebar-height", `${bar.offsetHeight}px`)
     publish()
     const observer = new ResizeObserver(publish)
     observer.observe(bar)
     onCleanup(() => {
       observer.disconnect()
       root.style.removeProperty("--tenon-titlebar-height")
-      setTitlebarControlsLeft(undefined)
     })
   })
 

@@ -180,8 +180,8 @@ rather than standalone routes. The
 routes and shortcuts.
 
 `pages/layout-new.tsx` is the only shell: the titlebar (window chrome, back
-and forward) and `components/second-brain-sidebar.tsx` (navigation rail card plus
-collapsible Projects panel, two surfaces 8px apart). Pages sit on one square-cornered panel built from
+and forward) and `components/second-brain-sidebar.tsx` (navigation rail plus
+collapsible Projects panel, one 16px card: the left shell). Pages sit on one 16px card built from
 `components/page.tsx` (`PageFrame`, `PageHeader`, `PageSection`, and
 `PageEmpty` for centred empty states); page titles carry no descriptive subtitle. Shape and motion follow Material 3: radius,
 easing and duration tokens (`--v2-radius-*`, `--v2-ease-*`,

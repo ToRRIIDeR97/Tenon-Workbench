@@ -48,9 +48,9 @@ test("AC-1.2 toggling animates the container between rail-only and rail plus pan
   expect(closing.property).toContain("width")
   expect(closing.duration).toContain("0.2s")
   expect(closing.easing).toContain("cubic-bezier(0.3, 0, 0.8, 0.15)")
-  // Rail-only: the 64px rail card and its 8px margin.
-  await expect.poll(() => width(page)).toBeLessThanOrEqual(80)
-  expect(await width(page)).toBeGreaterThanOrEqual(70)
+  // Rail-only: the left shell is the 64px rail strip.
+  await expect.poll(() => width(page)).toBeLessThanOrEqual(72)
+  expect(await width(page)).toBeGreaterThanOrEqual(60)
 
   await page.getByRole("button", { name: "Toggle sidebar" }).click()
   const opening = await sidebar(page).evaluate((element) => {

@@ -97,8 +97,7 @@ import { createLiveDocumentOpener } from "@/pages/session/live-document-view"
 import { motionDuration, prefersReducedMotion } from "@tenon/ui/v2/motion"
 import { SessionFileReferences, panelSettled, slidePanelOpen } from "@/pages/session/file-reference"
 import { DesignCanvasProvider } from "@/pages/session/design-canvas"
-import { panelCapRef } from "@/utils/panel-cap"
-import { SESSION_SIDE_RAIL_SPACE, SessionSideRail } from "@/pages/session/session-side-rail"
+import { SESSION_SIDE_RAIL_WIDTH, SessionSideRail } from "@/pages/session/session-side-rail"
 import { sessionPanelLayout } from "@/pages/session/session-panel-layout"
 import { SessionReviewEmptyChangesV2 } from "@tenon/session-ui/v2/session-review-empty-changes-v2"
 import { SessionReviewEmptyNoGitV2 } from "@tenon/session-ui/v2/session-review-empty-no-git-v2"
@@ -529,9 +528,11 @@ export default function Page() {
     if (path) void file.load(path)
     tabs().setActive(tab)
   }
-  const railSpace = createMemo(() => (desktopRailOpen() ? SESSION_SIDE_RAIL_SPACE : 0))
-  // The observer reports the row width; subtract the flex gap between the
-  // panels and the rail.
+  // The rail joins the side panel in the right shell, so beside an open panel it takes only its own width; alone
+  // it also keeps the 8px gap to the thread.
+  const railSpace = createMemo(() => (desktopRailOpen() ? SESSION_SIDE_RAIL_WIDTH : 0))
+  // The observer reports the row width; subtract the gap between the thread and
+  // the right shell, and the rail inside that shell.
   const sessionPanelAvailable = createMemo(() => {
     const width = panelRowWidth()
     if (width === undefined) return undefined
@@ -574,7 +575,7 @@ export default function Page() {
     const startX = event.clientX
     let width: number | undefined
     const pulledWidth = (x: number) =>
-      Math.min(sidePanelMax(), Math.max(SIDE_PANEL_WIDTH_MIN, startX - x + SESSION_SIDE_RAIL_SPACE))
+      Math.min(sidePanelMax(), Math.max(SIDE_PANEL_WIDTH_MIN, startX - x + SESSION_SIDE_RAIL_WIDTH))
     const move = (next: PointerEvent) => {
       if (width === undefined) {
         if (startX - next.clientX < 12) return
@@ -602,16 +603,18 @@ export default function Page() {
     window.addEventListener("pointercancel", end)
   }
   const sessionPanelWidth = createMemo(() => {
-    if (panelClosing()) return `calc(100% - ${SESSION_SIDE_RAIL_SPACE}px)`
-    if (!desktopSidePanelOpen()) return railSpace() ? `calc(100% - ${railSpace()}px)` : "100%"
+    if (panelClosing()) return `calc(100% - ${SESSION_SIDE_RAIL_WIDTH + 8}px)`
+    if (!desktopSidePanelOpen()) return railSpace() ? `calc(100% - ${railSpace() + 8}px)` : "100%"
     if (desktopSessionResizeOpen()) {
       const available = sessionPanelAvailable()
       if (available === undefined) return `calc(100% - ${sidePanelWidth() + 8 + railSpace()}px)`
       return `${available - sidePanelWidth()}px`
     }
-    return `calc(100% - ${layout.fileTree.width() + railSpace()}px)`
+    return `calc(100% - ${layout.fileTree.width() + 8 + railSpace()}px)`
   })
   const centered = createMemo(() => isDesktop())
+  // The side panel column (review, files, terminal) is showing, on its own or closing.
+  const sideColumn = () => (isDesktop() ? desktopV2PanelLayout().visible || panelClosing() : terminalOpen())
   const desktopV2PanelLayout = createMemo(() =>
     sessionPanelLayout({
       review: desktopV2ReviewOpen(),
@@ -2281,12 +2284,9 @@ export default function Page() {
       <SessionHeader />
       <div ref={panelRow} class="flex-1 min-h-0 flex flex-col md:flex-row gap-2">
         <div
-          ref={(el) => {
-            sessionPanel = el
-            panelCapRef(el)
-          }}
+          ref={sessionPanel}
           classList={{
-            "page-panel-cap @container relative shrink-0 flex flex-col min-h-0 h-full flex-1 md:flex-none": true,
+            "@container relative shrink-0 flex flex-col min-h-0 h-full flex-1 md:flex-none": true,
             // The whole transition goes during a drag: a bare transition-[width] still eases each frame over 150ms.
             "transition-[width] duration-medium ease-emphasized-decelerate motion-reduce:transition-none":
               !size.active() && !ui.reviewSnap,
@@ -2304,127 +2304,139 @@ export default function Page() {
           </Show>
         </div>
 
-        <Show when={isDesktop() ? desktopV2PanelLayout().visible || panelClosing() : terminalOpen()}>
-          {/* Pulled 7px into the row's 8px gap: the thread and the side panel read as one card, split by the
-              hairline their two outlines share. */}
-          <div ref={panelCapRef} class="page-panel-cap relative min-w-0 h-full flex flex-1 flex-col md:-ml-[7px]">
-            <Show when={desktopSessionResizeOpen()}>
-              <div onPointerDown={() => size.start()}>
-                <ResizeHandle
-                  class="!-start-1"
-                  direction="horizontal"
-                  edge="start"
-                  size={sidePanelWidth()}
-                  min={SIDE_PANEL_WIDTH_MIN}
-                  max={sidePanelMax()}
-                  collapseThreshold={SIDE_PANEL_COLLAPSE_THRESHOLD}
-                  onResize={previewSidePanelWidth}
-                  onResizeEnd={commitSidePanelWidth}
-                  onCollapse={() => {
-                    if (desktopV2ReviewOpen()) view().reviewPanel.close()
-                    else view().terminal.close()
-                  }}
-                />
-              </div>
-            </Show>
-            <Show when={isDesktop() && (desktopV2ReviewOpen() || desktopFileTreeOpen() || panelClosing())}>
-              <div class="min-h-0 flex-1">
-                <Suspense>
-                  <SessionSidePanel
-                    canReview={canReview}
-                    diffs={reviewDiffs}
-                    diffsReady={reviewReady}
-                    empty={reviewEmptyText}
-                    hasReview={hasReview}
-                    reviewHasFocusableContent={() => hasReview() || reviewV2State.sidebarOpened()}
-                    reviewCount={reviewCount}
-                    reviewPanel={reviewPanelV2}
-                    reviewSidebarToggle={(disabled) => (
-                      <SessionReviewV2SidebarToggle
-                        opened={reviewV2State.sidebarOpened()}
-                        disabled={disabled}
-                        onToggle={reviewV2State.toggleSidebar}
-                      />
-                    )}
-                    fileBrowserState={reviewV2State}
-                    activeDiff={activeReviewFile()}
-                    focusReviewDiff={focusReviewDiff}
-                    reviewSnap={ui.reviewSnap}
-                    closing={panelClosing()}
-                    size={size}
-                    stacked={desktopV2PanelLayout().stacked}
-                    harnessName={(id) => sessionHarness.instances()?.find((item) => item.id === id)?.name}
+        {/* The right shell: the side panel and the rail in one 16px card with a hairline ring. It is not clipped, so
+            the resize handle can straddle the panel's left edge; the panel column clips itself. */}
+        <Show when={sideColumn() || desktopRailOpen()}>
+          <div
+            data-component="session-right-shell"
+            class="relative flex min-h-0 min-w-0 md:h-full md:rounded-[16px] md:shadow-[0_0_0_1px_var(--v2-border-border-muted)]"
+            classList={{ "flex-1": sideColumn(), "shrink-0": !sideColumn() }}
+          >
+            <Show when={sideColumn()}>
+              <Show when={desktopSessionResizeOpen()}>
+                <div onPointerDown={() => size.start()}>
+                  <ResizeHandle
+                    direction="horizontal"
+                    edge="start"
+                    size={sidePanelWidth()}
+                    min={SIDE_PANEL_WIDTH_MIN}
+                    max={sidePanelMax()}
+                    collapseThreshold={SIDE_PANEL_COLLAPSE_THRESHOLD}
+                    onResize={previewSidePanelWidth}
+                    onResizeEnd={commitSidePanelWidth}
+                    onCollapse={() => {
+                      if (desktopV2ReviewOpen()) view().reviewPanel.close()
+                      else view().terminal.close()
+                    }}
                   />
-                </Suspense>
+                </div>
+              </Show>
+              <div class="relative min-w-0 h-full flex flex-1 flex-col overflow-hidden bg-v2-background-bg-base md:rounded-l-[16px]">
+                <Show when={isDesktop() && (desktopV2ReviewOpen() || desktopFileTreeOpen() || panelClosing())}>
+                  <div class="min-h-0 flex-1">
+                    <Suspense>
+                      <SessionSidePanel
+                        canReview={canReview}
+                        diffs={reviewDiffs}
+                        diffsReady={reviewReady}
+                        empty={reviewEmptyText}
+                        hasReview={hasReview}
+                        reviewHasFocusableContent={() => hasReview() || reviewV2State.sidebarOpened()}
+                        reviewCount={reviewCount}
+                        reviewPanel={reviewPanelV2}
+                        reviewSidebarToggle={(disabled) => (
+                          <SessionReviewV2SidebarToggle
+                            opened={reviewV2State.sidebarOpened()}
+                            disabled={disabled}
+                            onToggle={reviewV2State.toggleSidebar}
+                          />
+                        )}
+                        fileBrowserState={reviewV2State}
+                        activeDiff={activeReviewFile()}
+                        focusReviewDiff={focusReviewDiff}
+                        reviewSnap={ui.reviewSnap}
+                        closing={panelClosing()}
+                        size={size}
+                        stacked={desktopV2PanelLayout().stacked}
+                        harnessName={(id) => sessionHarness.instances()?.find((item) => item.id === id)?.name}
+                      />
+                    </Suspense>
+                  </div>
+                </Show>
+                <Show when={desktopV2PanelLayout().stacked}>
+                  {/* Review and the terminal share the shell, split by a hairline under this strip. */}
+                  <div
+                    class="relative h-2 shrink-0 shadow-[inset_0_-1px_0_var(--v2-border-border-muted)]"
+                    onPointerDown={() => size.start()}
+                  >
+                    <ResizeHandle
+                      class="!relative !inset-auto !h-full !w-full !transform-none"
+                      direction="vertical"
+                      size={layout.terminal.height()}
+                      min={100}
+                      max={typeof window === "undefined" ? 600 : window.innerHeight * 0.6}
+                      collapseThreshold={50}
+                      onResize={(height) => {
+                        size.touch()
+                        layout.terminal.preview(height)
+                      }}
+                      onResizeEnd={(height) => layout.terminal.resize(height)}
+                      onCollapse={() => {
+                        layout.terminal.preview(undefined)
+                        view().terminal.close()
+                      }}
+                    />
+                  </div>
+                </Show>
+                <Show when={terminalOpen()}>
+                  <div
+                    ref={(el) => {
+                      // Stacked under Review, the terminal grows up from the bottom edge (medium + emphasized-
+                      // decelerate) once it is in the DOM; closing snaps, like the side panel.
+                      if (!desktopV2PanelLayout().stacked || prefersReducedMotion()) return
+                      queueMicrotask(() => {
+                        const height = el.getBoundingClientRect().height
+                        if (!el.isConnected || !height) return
+                        el.animate(
+                          [
+                            { height: "0px", overflow: "hidden" },
+                            { height: `${height}px`, overflow: "hidden" },
+                          ],
+                          {
+                            duration: motionDuration("medium"),
+                            easing:
+                              getComputedStyle(el).getPropertyValue("--v2-ease-emphasized-decelerate").trim() || "ease",
+                          },
+                        )
+                      })
+                    }}
+                    classList={{
+                      "min-h-0 shrink-0": desktopV2PanelLayout().stacked,
+                      "min-h-0 flex-1": !desktopV2PanelLayout().stacked,
+                      // Like the side panel's content, the terminal shows once the sliding column has arrived.
+                      "transition-opacity duration-medium ease-emphasized-decelerate motion-reduce:transition-none": true,
+                      "opacity-0": !panelSettled(),
+                    }}
+                  >
+                    <TerminalPanelV2 stacked={desktopV2PanelLayout().stacked} />
+                  </div>
+                </Show>
               </div>
             </Show>
-            <Show when={desktopV2PanelLayout().stacked}>
-              <div class="relative h-2 shrink-0" onPointerDown={() => size.start()}>
-                <ResizeHandle
-                  class="!relative !inset-auto !h-full !w-full !transform-none"
-                  direction="vertical"
-                  size={layout.terminal.height()}
-                  min={100}
-                  max={typeof window === "undefined" ? 600 : window.innerHeight * 0.6}
-                  collapseThreshold={50}
-                  onResize={(height) => {
-                    size.touch()
-                    layout.terminal.preview(height)
-                  }}
-                  onResizeEnd={(height) => layout.terminal.resize(height)}
-                  onCollapse={() => {
-                    layout.terminal.preview(undefined)
-                    view().terminal.close()
-                  }}
-                />
-              </div>
-            </Show>
-            <Show when={terminalOpen()}>
-              <div
-                ref={(el) => {
-                  // Stacked under Review, the terminal grows up from the bottom edge (medium + emphasized-
-                  // decelerate) once it is in the DOM; closing snaps, like the side panel.
-                  if (!desktopV2PanelLayout().stacked || prefersReducedMotion()) return
-                  queueMicrotask(() => {
-                    const height = el.getBoundingClientRect().height
-                    if (!el.isConnected || !height) return
-                    el.animate(
-                      [
-                        { height: "0px", overflow: "hidden" },
-                        { height: `${height}px`, overflow: "hidden" },
-                      ],
-                      {
-                        duration: motionDuration("medium"),
-                        easing:
-                          getComputedStyle(el).getPropertyValue("--v2-ease-emphasized-decelerate").trim() || "ease",
-                      },
-                    )
-                  })
-                }}
-                classList={{
-                  "min-h-0 shrink-0": desktopV2PanelLayout().stacked,
-                  "min-h-0 flex-1": !desktopV2PanelLayout().stacked,
-                  // Like the side panel's content, the terminal shows once the sliding column has arrived.
-                  "transition-opacity duration-medium ease-emphasized-decelerate motion-reduce:transition-none": true,
-                  "opacity-0": !panelSettled(),
-                }}
-              >
-                <TerminalPanelV2 stacked={desktopV2PanelLayout().stacked} />
-              </div>
+            <Show when={desktopRailOpen()}>
+              <SessionSideRail
+                joined={sideColumn()}
+                section={desktopV2ReviewOpen() && !panelClosing() ? tabState.section() : undefined}
+                canReview={canReview()}
+                reviewCount={reviewCount()}
+                hasReview={hasReview()}
+                running={runningSubagents()}
+                canvas={tabState.canvasOpen()}
+                onSelect={selectPanelSection}
+                onDragOut={desktopV2ReviewOpen() || panelClosing() ? undefined : dragOutSidePanel}
+              />
             </Show>
           </div>
-        </Show>
-        <Show when={desktopRailOpen()}>
-          <SessionSideRail
-            section={desktopV2ReviewOpen() && !panelClosing() ? tabState.section() : undefined}
-            canReview={canReview()}
-            reviewCount={reviewCount()}
-            hasReview={hasReview()}
-            running={runningSubagents()}
-            canvas={tabState.canvasOpen()}
-            onSelect={selectPanelSection}
-            onDragOut={desktopV2ReviewOpen() || panelClosing() ? undefined : dragOutSidePanel}
-          />
         </Show>
       </div>
     </SessionRouteFrame>

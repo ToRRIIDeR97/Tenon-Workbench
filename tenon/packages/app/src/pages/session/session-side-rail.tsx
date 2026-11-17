@@ -10,8 +10,8 @@ import { usePlatform } from "@/context/platform"
 import { sectionAttention, setSectionAttention, type PanelSection } from "@/pages/session/helpers"
 import { useSessionLayout } from "@/pages/session/session-layout"
 
-/** Rail width (48px) plus the flex gap before it. */
-export const SESSION_SIDE_RAIL_SPACE = 56
+/** The rail's width. It joins the side panel in one shell, and stands alone 8px from the thread. */
+export const SESSION_SIDE_RAIL_WIDTH = 48
 
 export const sideRailReviewTabID = "session-side-panel-review-tab"
 
@@ -33,6 +33,8 @@ export function SessionSideRail(props: {
   running: number
   /** The thread has designs to lay out. */
   canvas: boolean
+  /** The side panel sits beside the rail in the same shell. */
+  joined?: boolean
   onSelect: (section: PanelSection) => void
   onDragOut?: (event: PointerEvent) => void
 }) {
@@ -118,9 +120,14 @@ export function SessionSideRail(props: {
       aria-orientation="vertical"
       aria-label={language.t("session.panel.reviewAndFiles")}
       data-component="session-side-rail"
-      // A rounded card, like the navigation rail on the other side.
-      class="relative flex h-full w-12 shrink-0 flex-col items-center gap-1.5 rounded-[16px] bg-v2-background-bg-layer-01 py-2 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]"
-      classList={{ "cursor-col-resize": !!props.onDragOut }}
+      // A tinted strip in the right shell, mirroring the navigation rail: the shell's outer corners on its own,
+      // its right corners and a hairline to its left beside the side panel. The shell draws the ring.
+      class="relative flex h-full w-12 shrink-0 flex-col items-center gap-1.5 bg-v2-background-bg-layer-01 py-2"
+      classList={{
+        "cursor-col-resize": !!props.onDragOut,
+        "rounded-[16px]": !props.joined,
+        "rounded-r-[16px] shadow-[inset_1px_0_0_var(--v2-border-border-muted)]": !!props.joined,
+      }}
       onPointerDown={(event) => {
         if (!props.onDragOut) return
         // No text selection or native drag may start from the rail: either takes the pointer away from the drag.

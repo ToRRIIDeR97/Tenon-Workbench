@@ -50,30 +50,37 @@ Use `[font-weight:N]` when a weight must differ from the role.
 
 ## Surfaces and layout
 
-- **Page frame:** every page sits on one square-cornered panel built from
+- **Frame: two shells.** The title bar belongs to the window: it has no
+  background, and nothing runs up behind it or crosses it. Every surface
+  starts 8px below it (`titlebar-inset-top`, `titlebar-inset-margin`), so all
+  top edges line up, with 8px to the window's other edges and between
+  surfaces. Each surface is a 16px card on `bg-base` with a hairline ring
+  (`0 0 0 1px` `border-muted`): the left shell, the page (or thread) and, in
+  a thread, the right shell.
+- **Page:** every page sits on one such card built from
   `components/page.tsx` (`PageFrame`, `PageHeader`, `PageSection`,
-  `PageEmpty`): `bg-base` with a hairline edge, 8px in from the window's right
-  and bottom. On a desktop-width window it reaches the window's top edge: the
-  title bar has no background and floats over the panel's top band
-  (`page-panel-cap`), a hairline separates that band from the page, and page
-  content starts below it (`titlebar-inset-top`).
-- **Sidebar: two surfaces.** The navigation rail is a rounded card: 64px wide,
-  16px corners, `bg-layer-01` with an inset muted hairline, 8px in from the
-  window. Its destinations are 44px icon boxes (12px corners, 20px icons, 6px
+  `PageEmpty`; `pagePanelClass` for pages with their own layout): Home,
+  Projects, Calendar, Command Centre, the new thread and the thread itself.
+- **Left shell:** the navigation rail and the Projects panel are one card
+  that clips them. The rail is a 64px tinted strip (`bg-layer-01`) with a
+  hairline on its right while the panel shows; the Projects panel keeps
+  `bg-base` and has no ring of its own. Closed, the shell is the rail alone.
+  The rail's destinations are 44px icon boxes (12px corners, 20px icons, 6px
   apart): hover is `overlay-hover`, where you are is the accent container, and
-  each has a tooltip with its name. Settings sits at the rail's foot. 8px
-  beside the rail, the Projects panel is a page-style panel (`bg-base`, a
-  hairline edge, square corners); the two never touch. Add project and Scan
-  sit in one bordered button group in the panel's header (10px corners,
-  `bg-layer-01`, a hairline between the 32×30 buttons).
-- **Thread side rail:** the same rail spec on the right: a 48px card (16px
-  corners, `bg-layer-01`, inset hairline) with 36px buttons (10px corners,
-  6px apart; hover `overlay-hover`, the open section the accent container),
-  badges at each button's top right. Context (the usage ring) is the last
-  button in the list, after Canvas. In a thread, the side panel joins the
-  thread as one card, split by a hairline. Rounded corners are otherwise for
-  things inside or above the page (cards, docks, menus, floating windows), not
-  for the page frame.
+  each has a tooltip with its name. Settings sits at the rail's foot. Add
+  project and Scan sit in one bordered button group in the panel's header
+  (10px corners, `bg-layer-01`, a hairline between the 32×30 buttons).
+- **Right shell (thread):** the side panel and the thread's rail are one
+  card, mirroring the left: the panel on `bg-base` with the card's left
+  corners, the 48px rail strip (`bg-layer-01`) against it with the right
+  corners and a hairline on its left. With the side panel closed the rail
+  alone is the card. The rail's buttons are 36px (10px corners, 6px apart;
+  hover `overlay-hover`, the open section the accent container), with badges
+  at each button's top right; Context (the usage ring) is the last button,
+  after Canvas. Review and the terminal stacked in the panel are split by a
+  hairline, and the panel's resize handle sits on its left edge. Rounded
+  corners otherwise are for things inside or above the page (cards, docks,
+  menus, floating windows).
 - **Cards:** page-level cards are 16px radius on `bg-layer-01` with an inset
   muted edge. Use 12px cards inside the sidebar and side panels, and 24px for
   dock cards (the composer and approval dock).
@@ -93,8 +100,9 @@ Use `[font-weight:N]` when a weight must differ from the role.
   thread's text column, the window minimizes to its toggle and returns once the
   column is clear of it. Use a popover instead for anything that should close when you click
   away.
-- **Thread column:** the timeline's turns, the composer and agent-write cards
-  share one centered column, 640px wide by default. Settings → Appearance →
+- **Thread column:** the timeline's turns and agent-write cards share one
+  centered column, 640px wide by default; the composer sits in it at most
+  560px wide. Settings → Appearance →
   Thread width sets it to Narrow (640px), Medium (800px), Wide (960px) or Full
   (the whole thread panel) through `--tenon-thread-width`. Thread text (replies and the
   user's messages) and the composer's text are 15px on 24px lines, a step above
@@ -130,18 +138,21 @@ Use `[font-weight:N]` when a weight must differ from the role.
   reports none, as OpenCode does), agent, turn and how it ended; a card opens
   its usage with Open in Agents and Show in thread. The Environment window's
   Running section becomes "Subagents · N done" with a row and small bar each.
-- **Composer: card on tray** (`session-ui` `prompt-input`, both the thread
-  and the new-thread composer). Two tones in one 28px shape: the composer
-  itself is the tray (`bg-base`; `bg-layer-01` in light, where base and
-  raised are both white), with a 1px `border-base` ring at rest and the focus
-  ring while focused. The where row (42px, hairline under it), attachments
-  and prompt (at least 72px) sit on one raised card (`bg-raised`) that runs
-  the full width with square bottom corners, so no tray shows at its
-  corners; only the tray's own clip rounds its top. A hairline and a short
-  shadow under the card's bottom edge rest it on the tray.
-- **Composer row:** the 50px controls row sits on the tray with no fill or
-  border of its own, its controls ghost as elsewhere, and it ends with the
-  context ring. There is no Tasks button: running subagents show on the
+- **Composer: light tab** (`session-ui` `prompt-input`, both the thread and
+  the new-thread composer). At most 560px wide, centred in its column (the
+  docks that attach to it share that width); empty, it is about 130px tall.
+  The box is one raised surface (`bg-raised`, 28px corners) holding the
+  attachments, the prompt (at least 52px, text 12px from the top) and the
+  controls row, with a 1px `border-base` ring and the soft drop shadow at
+  rest and the focus ring while focus is inside it. The where row (folder ›
+  branch) is a tab above the box: 18px in from the box's sides, 18px top
+  corners and a square bottom, `bg-layer-02` (lighter than the box and the
+  page in dark, a step darker than both in light) with an inset muted
+  hairline. It shows 34px above the box and tucks 12px behind its top edge;
+  the box sits in front with its corners whole. No where row, no tab.
+- **Composer row:** the 44px controls row has no fill or border of its own;
+  its controls ghost as elsewhere at 30px (Send is 30px too), and it ends
+  with the context ring. There is no Tasks button: running subagents show on the
   thread rail's Agents button, as a count badge.
 - **Model pill** (`model-pill.tsx`): leads with the logo of the harness that
   runs the model (the Tenon mark for the built-in loop), never the model

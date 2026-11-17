@@ -182,21 +182,10 @@ export function PromptInputV2(props: PromptInputV2Props) {
           </Show>
         </Presence>
       </Portal>
+      {/* The form has no surface of its own: the where row is a tab above the box, and the box holds the rest. */}
       <form
         data-component="prompt-input-v2"
-        data-dock-border-underlay={props.borderUnderlay ? "v2" : undefined}
-        // Two tones: the form is the tray (base) under the controls row; the header, attachments and prompt sit on
-        // one raised card above it. The tray's 28px clip rounds the card's top; the card has no corners of its own.
-        class="group/prompt-input relative min-h-[96px] w-full overflow-clip rounded-[28px] bg-[var(--prompt-input-tray)] [--prompt-input-tray:var(--v2-background-bg-base)] focus-within:[--prompt-input-edge:var(--v2-border-border-focus)] [[data-color-scheme=light]_&]:[--prompt-input-tray:var(--v2-background-bg-layer-01)]"
-        classList={{
-          "shadow-[0_0_0_1px_var(--prompt-input-edge,var(--v2-border-border-base)),0_8px_24px_-12px_rgb(0_0_0/0.18)]":
-            !props.borderUnderlay,
-          "border border-v2-border-border-focus border-dashed": state.drag === "active",
-        }}
-        style={{
-          "--dock-shell-visual-shadow":
-            "0 0 0 1px var(--prompt-input-edge, var(--v2-border-border-base)), 0 8px 24px -12px rgb(0 0 0 / 0.18)",
-        }}
+        class="group/prompt-input relative flex w-full flex-col"
         onSubmit={(event) => {
           event.preventDefault()
           if (!props.disabled) props.controller.submit()
@@ -206,29 +195,40 @@ export function PromptInputV2(props: PromptInputV2Props) {
         onDragLeave={props.controller.onDragLeave}
         onDrop={props.controller.onDrop}
       >
-        <Presence
-          when={state.drag === "active"}
-          class="pointer-events-none absolute inset-0 z-20"
-          enterClass="animate-enter duration-medium ease-emphasized-decelerate motion-reduce:animate-none"
-        >
-          <div class="grid size-full place-items-center rounded-[28px] bg-v2-background-bg-raised/90 text-v2-text-text-base">
-            {i18n.t("ui.promptInput.dropFiles")}
+        {/* The where row is a lighter tab, 18px in from the box's sides, that tucks 12px behind the box's top edge. */}
+        <Show when={props.headerControl}>
+          <div
+            data-slot="prompt-input-header"
+            class="relative z-0 mx-[18px] -mb-3 flex h-[46px] min-w-0 items-center gap-0.5 rounded-t-[18px] bg-v2-background-bg-layer-02 pb-3 pl-2.5 pr-2 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]"
+          >
+            {props.headerControl}
           </div>
-        </Presence>
+        </Show>
 
-        {/* Full width with a straight, square bottom edge that rests on the tray. */}
+        {/* The box: attachments, prompt and controls on one raised surface, above the tab. */}
         <div
-          data-slot="prompt-input-card"
-          class="relative z-[1] bg-v2-background-bg-raised shadow-[0_1px_0_var(--v2-border-border-muted),0_4px_10px_-4px_rgb(0_0_0/0.45)]"
+          data-slot="prompt-input-box"
+          data-dock-border-underlay={props.borderUnderlay ? "v2" : undefined}
+          class="relative z-[1] overflow-clip rounded-[28px] bg-v2-background-bg-raised focus-within:[--prompt-input-edge:var(--v2-border-border-focus)]"
+          classList={{
+            "shadow-[0_0_0_1px_var(--prompt-input-edge,var(--v2-border-border-base)),0_8px_24px_-12px_rgb(0_0_0/0.18)]":
+              !props.borderUnderlay,
+            "border border-v2-border-border-focus border-dashed": state.drag === "active",
+          }}
+          style={{
+            "--dock-shell-visual-shadow":
+              "0 0 0 1px var(--prompt-input-edge, var(--v2-border-border-base)), 0 8px 24px -12px rgb(0 0 0 / 0.18)",
+          }}
         >
-          <Show when={props.headerControl}>
-            <div
-              data-slot="prompt-input-header"
-              class="flex h-[42px] min-w-0 items-center gap-0.5 border-b border-v2-border-border-muted pl-2.5 pr-2"
-            >
-              {props.headerControl}
+          <Presence
+            when={state.drag === "active"}
+            class="pointer-events-none absolute inset-0 z-20"
+            enterClass="animate-enter duration-medium ease-emphasized-decelerate motion-reduce:animate-none"
+          >
+            <div class="grid size-full place-items-center rounded-[28px] bg-v2-background-bg-raised/90 text-v2-text-text-base">
+              {i18n.t("ui.promptInput.dropFiles")}
             </div>
-          </Show>
+          </Presence>
 
           <Show when={state.mode === "normal"}>
             <PromptInputV2Attachments
@@ -246,7 +246,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
             />
           </Show>
 
-          <div class="relative min-h-[72px]">
+          <div class="relative min-h-[52px]">
             <div
               ref={(element) => {
                 editor = element
@@ -264,7 +264,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
               spellcheck={state.mode === "normal"}
               // @ts-expect-error
               autocomplete="off"
-              class="relative z-10 block min-h-[72px] max-h-[180px] w-full overflow-y-auto whitespace-pre-wrap bg-transparent px-5 pt-4 pb-2 text-[15px] font-[450] leading-6 text-v2-text-text-base focus:outline-none [&_[data-mention=file]]:text-syntax-property [&_[data-mention=agent]]:text-syntax-type [&_[data-mention=skill]]:text-syntax-type [&_[data-mention=reference]]:text-syntax-keyword"
+              class="relative z-10 block min-h-[52px] max-h-[180px] w-full overflow-y-auto whitespace-pre-wrap bg-transparent px-5 pt-3 pb-1 text-[15px] font-[450] leading-6 text-v2-text-text-base focus:outline-none [&_[data-mention=file]]:text-syntax-property [&_[data-mention=agent]]:text-syntax-type [&_[data-mention=skill]]:text-syntax-type [&_[data-mention=reference]]:text-syntax-keyword"
               classList={{ "font-mono!": state.mode === "shell", "opacity-50": props.disabled }}
               onInput={(event) => syncEditor(event.currentTarget)}
               // A thread reference switches between its summary and the full thread on click.
@@ -292,7 +292,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
             <Show when={!props.controller.value()}>
               <div
                 data-slot="prompt-placeholder"
-                class="pointer-events-none absolute inset-x-0 top-0 px-5 pt-4 text-[13px] leading-6 text-v2-text-text-faint [font-weight:400]"
+                class="pointer-events-none absolute inset-x-0 top-0 px-5 pt-3 text-[13px] leading-6 text-v2-text-text-faint [font-weight:400]"
                 classList={{ "font-mono!": state.mode === "shell" }}
               >
                 {view.placeholder?.() ??
@@ -302,97 +302,97 @@ export function PromptInputV2(props: PromptInputV2Props) {
               </div>
             </Show>
           </div>
-        </div>
 
-        {/* The controls row sits on the tray: no fill or border of its own. */}
-        <div class="flex h-[50px] items-center gap-1 pl-2.5 pr-1.5">
-          <Show when={state.mode === "shell"}>
-            <button
-              type="button"
-              data-action="prompt-shell-exit"
-              aria-label={i18n.t("ui.common.close")}
-              class="flex h-7 shrink-0 items-center gap-1 rounded-full bg-v2-background-bg-layer-02 pl-3 pr-2 text-[12px] text-v2-text-text-base [font-weight:500]"
-              onClick={() => props.controller.dispatch({ type: "mode.normal" })}
-            >
-              {i18n.t("ui.promptInput.shell")}
-              <IconV2 name="close" size="small" class="text-v2-icon-icon-muted" />
-            </button>
-          </Show>
-          <div
-            class="flex min-w-0 flex-1 items-center gap-1"
-            data-slot="prompt-input-controls"
-            aria-hidden={state.mode === "shell"}
-            inert={state.mode === "shell" ? true : undefined}
-            style={buttons()}
-          >
-            <PromptInputV2AddMenu
-              disabled={state.mode === "shell"}
-              title={i18n.t("ui.promptInput.add")}
-              keybind={props.attachKeybind ?? ["Mod", "U"]}
-              attachLabel={i18n.t("ui.promptInput.attachments")}
-              attachShortcut={props.attachShortcut ?? "Mod+U"}
-              commandsLabel={i18n.t("ui.promptInput.commands")}
-              contextLabel={i18n.t("ui.promptInput.context")}
-              shellLabel={i18n.t("ui.promptInput.shell")}
-              onAttach={props.controller.attach}
-              onCommands={props.controller.openCommands}
-              onContext={props.controller.openContext}
-              onShell={props.controller.openShell}
-            />
-            {props.runtimeControl}
-            <Show when={(props.agentControlVisible ?? true) && view.agent} keyed>
-              {(control) => (
-                <PromptInputV2ConfiguredSelect
-                  title={i18n.t("ui.promptInput.chooseAgent")}
-                  keybind={["Mod", "."]}
-                  control={control}
-                  icon={<IconV2 name="status-active" />}
-                />
-              )}
-            </Show>
-            <Show when={props.modelControlVisible ?? true}>
-              <Show
-                when={props.modelControl}
-                fallback={
-                  <Show when={view.model} keyed>
-                    {(control) => (
-                      <PromptInputV2ConfiguredSelect
-                        title={i18n.t("ui.promptInput.chooseModel")}
-                        keybind={["Mod", "M"]}
-                        control={control}
-                        model
-                        icon={<IconV2 name="monitor" />}
-                      />
-                    )}
-                  </Show>
-                }
+          {/* No fill or border of its own; its controls are 30px (responsive-controls.css). */}
+          <div data-slot="prompt-input-controls-row" class="flex h-11 items-center gap-1 pb-1 pl-2.5 pr-1.5">
+            <Show when={state.mode === "shell"}>
+              <button
+                type="button"
+                data-action="prompt-shell-exit"
+                aria-label={i18n.t("ui.common.close")}
+                class="flex h-7 shrink-0 items-center gap-1 rounded-full bg-v2-background-bg-layer-02 pl-3 pr-2 text-[12px] text-v2-text-text-base [font-weight:500]"
+                onClick={() => props.controller.dispatch({ type: "mode.normal" })}
               >
-                {props.modelControl}
-              </Show>
+                {i18n.t("ui.promptInput.shell")}
+                <IconV2 name="close" size="small" class="text-v2-icon-icon-muted" />
+              </button>
             </Show>
-            <Show when={(props.variantControlVisible ?? true) && view.variant} keyed>
-              {(control) => (
-                <Show when={control.options().length > 1}>
+            <div
+              class="flex min-w-0 flex-1 items-center gap-1"
+              data-slot="prompt-input-controls"
+              aria-hidden={state.mode === "shell"}
+              inert={state.mode === "shell" ? true : undefined}
+              style={buttons()}
+            >
+              <PromptInputV2AddMenu
+                disabled={state.mode === "shell"}
+                title={i18n.t("ui.promptInput.add")}
+                keybind={props.attachKeybind ?? ["Mod", "U"]}
+                attachLabel={i18n.t("ui.promptInput.attachments")}
+                attachShortcut={props.attachShortcut ?? "Mod+U"}
+                commandsLabel={i18n.t("ui.promptInput.commands")}
+                contextLabel={i18n.t("ui.promptInput.context")}
+                shellLabel={i18n.t("ui.promptInput.shell")}
+                onAttach={props.controller.attach}
+                onCommands={props.controller.openCommands}
+                onContext={props.controller.openContext}
+                onShell={props.controller.openShell}
+              />
+              {props.runtimeControl}
+              <Show when={(props.agentControlVisible ?? true) && view.agent} keyed>
+                {(control) => (
                   <PromptInputV2ConfiguredSelect
-                    title={i18n.t("ui.promptInput.chooseVariant")}
-                    keybind={["Shift", "Mod", "D"]}
+                    title={i18n.t("ui.promptInput.chooseAgent")}
+                    keybind={["Mod", "."]}
                     control={control}
-                    icon={<IconV2 name="outline-sliders" />}
+                    icon={<IconV2 name="status-active" />}
                   />
+                )}
+              </Show>
+              <Show when={props.modelControlVisible ?? true}>
+                <Show
+                  when={props.modelControl}
+                  fallback={
+                    <Show when={view.model} keyed>
+                      {(control) => (
+                        <PromptInputV2ConfiguredSelect
+                          title={i18n.t("ui.promptInput.chooseModel")}
+                          keybind={["Mod", "M"]}
+                          control={control}
+                          model
+                          icon={<IconV2 name="monitor" />}
+                        />
+                      )}
+                    </Show>
+                  }
+                >
+                  {props.modelControl}
                 </Show>
-              )}
-            </Show>
+              </Show>
+              <Show when={(props.variantControlVisible ?? true) && view.variant} keyed>
+                {(control) => (
+                  <Show when={control.options().length > 1}>
+                    <PromptInputV2ConfiguredSelect
+                      title={i18n.t("ui.promptInput.chooseVariant")}
+                      keybind={["Shift", "Mod", "D"]}
+                      control={control}
+                      icon={<IconV2 name="outline-sliders" />}
+                    />
+                  </Show>
+                )}
+              </Show>
+            </div>
+            {props.trailingControl}
+            <PromptInputV2SubmitButton
+              mode={state.mode}
+              stopping={view.submit.stopping()}
+              disabled={!props.controller.canSubmit()}
+              sendLabel={i18n.t("ui.promptInput.send")}
+              stopLabel={i18n.t("ui.promptInput.stop")}
+              onSubmit={() => props.controller.submit()}
+              onStop={props.controller.stop}
+            />
           </div>
-          {props.trailingControl}
-          <PromptInputV2SubmitButton
-            mode={state.mode}
-            stopping={view.submit.stopping()}
-            disabled={!props.controller.canSubmit()}
-            sendLabel={i18n.t("ui.promptInput.send")}
-            stopLabel={i18n.t("ui.promptInput.stop")}
-            onSubmit={() => props.controller.submit()}
-            onStop={props.controller.stop}
-          />
         </div>
       </form>
     </div>
@@ -690,7 +690,7 @@ export function PromptInputV2AddMenu(props: {
           as={IconButtonV2}
           data-action="prompt-attach"
           type="button"
-          class="!size-8"
+          class="!size-[30px]"
           icon={<IconV2 name="plus" />}
           variant="ghost-muted"
           size="large"
@@ -946,7 +946,7 @@ export function PromptInputV2SubmitButton(props: {
         tabIndex={props.mode === "normal" ? undefined : -1}
         icon={props.stopping ? "stop" : props.mode === "shell" ? "arrow-undo-down" : "arrow-up"}
         variant="primary"
-        class="size-8 rounded-full p-[7px] enabled:!bg-v2-text-text-base enabled:[&_[data-slot=icon-svg]]:!text-v2-background-bg-base disabled:!bg-transparent disabled:shadow-[inset_0_0_0_1px_var(--v2-border-border-strong)] disabled:[&_[data-slot=icon-svg]]:!text-v2-icon-icon-muted transition-[border-radius,opacity] duration-short ease-standard enabled:hover:opacity-90 active:rounded-[12px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
+        class="size-[30px] rounded-full p-1.5 enabled:!bg-v2-text-text-base enabled:[&_[data-slot=icon-svg]]:!text-v2-background-bg-base disabled:!bg-transparent disabled:shadow-[inset_0_0_0_1px_var(--v2-border-border-strong)] disabled:[&_[data-slot=icon-svg]]:!text-v2-icon-icon-muted transition-[border-radius,opacity] duration-short ease-standard enabled:hover:opacity-90 active:rounded-[12px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
         aria-label={props.stopping ? props.stopLabel : props.sendLabel}
         onClick={(event) => {
           event.preventDefault()

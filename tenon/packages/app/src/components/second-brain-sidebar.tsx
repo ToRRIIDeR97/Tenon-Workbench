@@ -143,22 +143,23 @@ export function SecondBrainSidebar() {
     <div
       data-component="second-brain-sidebar"
       data-expanded={layout.sidebar.opened() ? "" : undefined}
-      // Two surfaces, and no container surface of its own: the rail card and, 8px beside it, the Projects
-      // panel. The width grows from the rail (72px with its margin) into rail plus panel.
-      // Not overflow-hidden, so the rail's focus rings are never cut; the panel clips itself.
+      // The left shell: the rail strip and the Projects panel in one 16px card with a hairline ring. Its width
+      // grows from the rail (64px) into rail plus panel. The rail's focus rings sit inside its 64px strip.
       classList={{
-        // Starts below the title bar, which floats over the window's top; 8px in on the other sides.
-        "titlebar-inset-margin m-2 flex min-h-0 shrink-0 gap-2 transition-[width] motion-reduce:duration-0": true,
-        "w-[72px] duration-medium ease-emphasized-decelerate md:w-[336px]": layout.sidebar.opened(),
-        "w-[72px] duration-short ease-emphasized-accelerate": !layout.sidebar.opened(),
+        // Starts 8px below the title bar, which belongs to the window; 8px in on the other sides.
+        "titlebar-inset-margin m-2 flex min-h-0 shrink-0 overflow-hidden rounded-[16px] bg-v2-background-bg-base shadow-[0_0_0_1px_var(--v2-border-border-muted)] transition-[width] motion-reduce:duration-0": true,
+        "w-16 duration-medium ease-emphasized-decelerate md:w-[320px]": layout.sidebar.opened(),
+        "w-16 duration-short ease-emphasized-accelerate": !layout.sidebar.opened(),
       }}
       onTransitionEnd={(event) => {
         if (event.target === event.currentTarget && event.propertyName === "width") panel.settle()
       }}
     >
-      {/* The rail is a rounded card; Settings sits at its foot. */}
+      {/* The rail is a tinted strip in the shell, split from the Projects panel by a hairline; Settings sits at its
+          foot. */}
       <nav
-        class="ml-2 flex w-16 shrink-0 flex-col items-center gap-1.5 self-stretch rounded-[16px] bg-v2-background-bg-layer-01 py-2 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]"
+        class="flex w-16 shrink-0 flex-col items-center gap-1.5 self-stretch bg-v2-background-bg-layer-01 py-2"
+        classList={{ "shadow-[inset_-1px_0_0_var(--v2-border-border-muted)]": panel.phase() !== "closed" }}
         aria-label={language.t("secondBrain.sidebar.title")}
       >
         <For each={items()}>
@@ -185,9 +186,8 @@ export function SecondBrainSidebar() {
         inert={layout.sidebar.opened() ? undefined : true}
         classList={{
           // The rail stays at every width; the Projects panel needs the room of a md window.
-          // It fills what the container leaves beside the rail and fades on the container's timing. A page-style
-          // panel: bg-base with a hairline edge, square cornered.
-          "hidden min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-v2-background-bg-base shadow-[0_0_0_1px_var(--v2-border-border-muted)] transition-opacity motion-reduce:duration-0 md:flex": true,
+          // It fills what the shell leaves beside the rail and fades on the shell's timing, on the shell's bg-base.
+          "hidden min-h-0 min-w-0 flex-1 flex-col overflow-hidden transition-opacity motion-reduce:duration-0 md:flex": true,
           "opacity-100 duration-medium ease-emphasized-decelerate": layout.sidebar.opened(),
           "opacity-0 duration-short ease-emphasized-accelerate": !layout.sidebar.opened(),
         }}

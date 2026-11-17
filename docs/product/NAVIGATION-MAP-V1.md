@@ -47,7 +47,7 @@ The sidebar has two columns: a navigation rail that is always shown, at every
 window width, and a Projects panel beside it. Below 768 px the Projects panel
 is hidden and the rail remains.
 
-1. **Rail**, a rounded card 8px apart from the Projects panel: **Home**,
+1. **Rail**, a tinted strip in one card with the Projects panel: **Home**,
    **Projects**, **Calendar**, **Command Centre** and, at its foot, **Settings**
    as icon boxes with a tooltip naming each (the current page gets the accent
    container; Settings opens the Settings dialog). A new thread starts from `mod+n`, a Project's **+**,

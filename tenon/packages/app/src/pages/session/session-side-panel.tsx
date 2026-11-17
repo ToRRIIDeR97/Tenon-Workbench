@@ -53,7 +53,6 @@ import {
 import { setSessionHandoff } from "@/pages/session/handoff"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { panelSettled } from "@/pages/session/file-reference"
-import { pagePanelClass } from "@/components/page"
 import { SessionFileBrowserTab, type SessionFileBrowserState } from "@/pages/session/v2/session-file-browser-tab"
 import { sideRailReviewTabID } from "@/pages/session/session-side-rail"
 import { REVIEW_SIDEBAR_OVERLAY_WIDTH } from "@/pages/session/v2/review-panel-v2-state"
@@ -596,7 +595,8 @@ export function SessionSidePanel(props: {
         aria-label={language.t("session.panel.reviewAndFiles")}
         aria-hidden={!open()}
         inert={!open() || props.closing}
-        class={`relative min-w-0 flex overflow-hidden ${pagePanelClass}`}
+        // The right shell draws the corners and ring around the panel and the rail.
+        class="relative min-w-0 flex overflow-hidden bg-v2-background-bg-base"
         classList={{
           "h-full shrink-0": !props.stacked,
           "h-full min-h-0": props.stacked,
