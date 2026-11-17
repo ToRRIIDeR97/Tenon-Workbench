@@ -1,4 +1,4 @@
-// What the Projects page's preview pane shows for a Project (project-preview.tsx), kept free of UI imports for tests.
+// What the Projects page's detail card shows for a Project (project-detail.tsx), kept free of UI imports for tests.
 import type { ProjectRecord, TimelineItem } from "./client"
 
 const OPEN_TASKS = 5

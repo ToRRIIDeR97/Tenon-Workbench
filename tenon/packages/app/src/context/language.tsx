@@ -45,6 +45,8 @@ type PluralKey =
   | "secondBrain.sidebar.scanResultCount"
   | "secondBrain.turnSteps.laneSteps"
   | "secondBrain.vault.moved"
+  | "secondBrain.projects.detail.pages"
+  | "secondBrain.projects.detail.threads"
   | "secondBrain.workflows.roleCount"
   | "secondBrain.permission.bash"
   | "secondBrain.permission.edit"

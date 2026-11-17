@@ -527,10 +527,12 @@ to it.
   (pages with no known Project), with search (`GET …/vault/pages?search=`, plus Projects whose name or outcome
   matches), New page and New Project. The command palette finds the same Projects and pages for the sidebar's
   workspace: Projects filter in the renderer, and pages are searched on the server behind a 250 ms delay.
-  On a window 1024px or wider the landing is two columns: the list (300px), and a preview of the selected Project
-  (`features/second-brain/project-preview.tsx`, summary in `project-preview-model.ts`) with its next milestone,
-  open tasks (its timeline, read once per selection), recent threads and pages, Start work and Open project. A click
-  previews and a double click opens; narrower, a click opens as before.
+  On a window 1024px or wider the landing is two cards: the list (300px), and the selected Project's detail
+  (`features/second-brain/project-detail.tsx`, summary in `project-preview-model.ts`) with its actions, Start work,
+  status, progress and Open project, its open tasks (its timeline, read once per selection) as the Project page's
+  own task rows (`project-tasks.tsx`: ticking, status, due date, rename and delete save the timeline the same way),
+  the next milestone, blocker, and page and thread counts. A click selects and a double click opens; narrower, a
+  click opens as before.
 - A Project (`features/second-brain/project-view.tsx`) is one page: a header (title, status chip, a "···" menu with
   Pause/Resume, Archive, Save current state and Project settings, and Start work), then two columns at 1100px and
   wider (tasks, and a 300px context rail that stacks under them on narrower windows):

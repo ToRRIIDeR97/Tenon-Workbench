@@ -61,6 +61,8 @@ async function mockVault(page: Page, options: { conflicts?: unknown[]; conflictO
   await page.route("**/second-brain/vault**", async (route) => {
     const request = route.request()
     const url = new URL(request.url())
+    // The glob also matches the app's own modules (vault-pages.ts); only the server's routes are mocked.
+    if (!url.pathname.startsWith("/second-brain/vault")) return route.fallback()
     const json = (body: unknown, status = 200) =>
       route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) })
     if (url.pathname === "/second-brain/vault")
@@ -113,7 +115,9 @@ test("AC-4.1 the landing lists Projects and General pages, with no page tree", a
   await expect(page.locator('[data-project-row="project_01ACME"]')).toContainText("Acme API")
   await expect(page.getByRole("region", { name: "General" }).getByRole("button", { name: /Ideas/ })).toBeVisible()
   await expect(page.getByRole("tree")).toHaveCount(0)
-  await expect(page.getByRole("checkbox")).toHaveCount(0)
+  // The only checkboxes are the selected Project's open tasks, in the detail card.
+  await expect(page.locator(`[data-project-detail="${project.project.id}"]`).getByRole("checkbox")).toHaveCount(2)
+  await expect(page.getByRole("checkbox")).toHaveCount(2)
 })
 
 test("AC-4.2 a Project is one page: tasks beside its context and no tabs; an older tab= link scrolls to its section", async ({
