@@ -46,8 +46,11 @@ export function PageHeader(props: {
   id?: string
   title: string
   crumb?: boolean
-  /** Puts the header in the page's content column, so the title starts on the content's left edge. */
-  column?: "narrow" | "wide"
+  /**
+   * Puts the header in the page's content column, so the title starts on the content's left edge. `split` is the
+   * 1200px column of a list beside a detail (the Projects page).
+   */
+  column?: "narrow" | "wide" | "split"
   back?: { label: string; onClick: () => void }
   actions?: JSX.Element
 }) {
@@ -58,6 +61,7 @@ export function PageHeader(props: {
         "mx-auto w-full sm:px-10": !!props.column,
         "max-w-[720px]": props.column === "narrow",
         "max-w-[1040px]": props.column === "wide",
+        "max-w-[1200px]": props.column === "split",
       }}
     >
       <Show when={props.back}>

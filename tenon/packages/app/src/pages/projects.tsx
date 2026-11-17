@@ -530,7 +530,7 @@ ${path}`
       <div class="flex min-h-0 flex-1 flex-col">
         <PageHeader
           id="projects-title"
-          column={wide() ? "wide" : "narrow"}
+          column={wide() ? "split" : "narrow"}
           title={language.t("secondBrain.projects.title")}
           actions={
             <>
@@ -551,9 +551,9 @@ ${path}`
         {/* Two cards that fill the page and scroll inside themselves: the list, and the selected Project. */}
         <div
           class="mx-auto grid min-h-0 w-full flex-1 grid-rows-[minmax(0,1fr)] gap-3 px-6 pb-6 pt-4 sm:px-10"
-          // The header's column: 1040px beside the detail card, 720px for the list alone.
+          // The header's column: 1200px for the list beside the detail card, 720px for the list alone.
           classList={{
-            "max-w-[1040px] grid-cols-[300px_minmax(0,1fr)]": wide(),
+            "max-w-[1200px] grid-cols-[300px_minmax(0,1fr)]": wide(),
             "max-w-[720px] grid-cols-1": !wide(),
           }}
         >

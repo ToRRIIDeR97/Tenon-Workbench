@@ -14,8 +14,8 @@ import { ProjectStatusChip } from "./project-view"
 
 /**
  * The selected Project on the Projects page, in the detail card beside the list: name and outcome with its
- * actions and Start work, status and progress with Open project, its open tasks as the Project page's own task
- * rows (they check off and edit the same way), and its next milestone, blocker, page and thread counts.
+ * actions and Start work, status and progress with Open project, a row with its next milestone, blocker, page and
+ * thread counts, then its open tasks as the Project page's own task rows (they check off and edit the same way).
  */
 export function ProjectDetail(props: {
   project: ProjectRecord
@@ -71,7 +71,7 @@ export function ProjectDetail(props: {
     <section
       aria-label={language.t("secondBrain.projects.preview.label", { name: props.project.name })}
       data-project-detail={props.project.id}
-      class="@container flex flex-col"
+      class="flex flex-col"
     >
       <div class="flex items-start gap-3">
         <div class="min-w-0 flex-1">
@@ -111,58 +111,55 @@ export function ProjectDetail(props: {
         />
       </div>
 
-      <div class="mt-5 grid grid-cols-1 gap-[18px] @[560px]:grid-cols-[minmax(0,1fr)_220px]">
-        <div class="flex min-w-0 flex-col gap-2">
-          <h3 class="type-caption text-v2-text-text-muted">{language.t("secondBrain.projects.preview.openTasks")}</h3>
-          <div class="flex flex-col divide-y divide-v2-border-border-muted rounded-[16px] bg-v2-background-bg-base py-1 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]">
-            <Show
-              when={summary().open.length > 0}
-              fallback={
-                <p class="px-4 py-2.5 type-meta text-v2-text-text-muted">
-                  {props.loading ? language.t("common.loading") : language.t("secondBrain.projects.detail.nothingOpen")}
-                </p>
-              }
-            >
-              <For each={summary().open}>{(task) => <ProjectTaskRow tasks={tasks} item={task} />}</For>
-            </Show>
-          </div>
-          <RevealShow when={tasks.state.error}>
-            {(error) => (
-              <p role="alert" class="px-1 type-caption text-v2-text-text-critical">
-                {error()}
-              </p>
-            )}
-          </RevealShow>
-        </div>
+      {/* The Project's context in one row over the tasks, so the task list keeps the card's full width. */}
+      <div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <Show when={summary().next}>
+          {(next) => (
+            <p class="min-w-0 type-meta text-v2-text-text-base">
+              {day(next().date)
+                ? language.t("secondBrain.projects.detail.nextMilestoneDue", {
+                    title: next().title,
+                    date: day(next().date) ?? "",
+                  })
+                : language.t("secondBrain.projects.detail.nextMilestone", { title: next().title })}
+            </p>
+          )}
+        </Show>
+        <Show when={props.project.blocker?.trim()}>
+          {(blocker) => (
+            <p class="flex min-w-0 max-w-full items-start gap-1.5 rounded-[10px] bg-v2-background-bg-layer-02 px-2.5 py-1 type-meta text-v2-text-text-base">
+              <Icon name="warning" size="small" class="mt-px shrink-0 text-v2-state-fg-warning" />
+              <span class="min-w-0 break-words">
+                {language.t("secondBrain.projects.blocker")}: {blocker()}
+              </span>
+            </p>
+          )}
+        </Show>
+        <span class="flex-1" />
+        <p class="shrink-0 whitespace-nowrap type-meta text-v2-text-text-muted">{meta()}</p>
+      </div>
 
-        <div class="flex min-w-0 flex-col gap-3">
-          <Show when={summary().next}>
-            {(next) => (
-              <div class="flex flex-col gap-0.5">
-                <h3 class="type-caption text-v2-text-text-muted">{language.t("secondBrain.projects.nextMilestone")}</h3>
-                <p class="break-words type-row-title text-v2-text-text-base">{next().title}</p>
-                <Show when={day(next().date)}>
-                  {(date) => (
-                    <p class="type-meta text-v2-text-text-muted">
-                      {language.t("secondBrain.projects.detail.due", { date: date() })}
-                    </p>
-                  )}
-                </Show>
-              </div>
-            )}
+      <div class="mt-5 flex min-w-0 flex-col gap-2">
+        <h3 class="type-caption text-v2-text-text-muted">{language.t("secondBrain.projects.preview.openTasks")}</h3>
+        <div class="flex flex-col divide-y divide-v2-border-border-muted rounded-[16px] bg-v2-background-bg-base py-1 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]">
+          <Show
+            when={summary().open.length > 0}
+            fallback={
+              <p class="px-4 py-2.5 type-meta text-v2-text-text-muted">
+                {props.loading ? language.t("common.loading") : language.t("secondBrain.projects.detail.nothingOpen")}
+              </p>
+            }
+          >
+            <For each={summary().open}>{(task) => <ProjectTaskRow tasks={tasks} item={task} />}</For>
           </Show>
-          <Show when={props.project.blocker?.trim()}>
-            {(blocker) => (
-              <div class="flex items-start gap-2 rounded-[10px] bg-v2-background-bg-layer-02 px-3 py-2.5 type-meta text-v2-text-text-base">
-                <Icon name="warning" size="small" class="mt-0.5 shrink-0 text-v2-state-fg-warning" />
-                <span class="min-w-0 flex-1 break-words">
-                  {language.t("secondBrain.projects.blocker")}: {blocker()}
-                </span>
-              </div>
-            )}
-          </Show>
-          <p class="type-meta text-v2-text-text-muted">{meta()}</p>
         </div>
+        <RevealShow when={tasks.state.error}>
+          {(error) => (
+            <p role="alert" class="px-1 type-caption text-v2-text-text-critical">
+              {error()}
+            </p>
+          )}
+        </RevealShow>
       </div>
     </section>
   )
