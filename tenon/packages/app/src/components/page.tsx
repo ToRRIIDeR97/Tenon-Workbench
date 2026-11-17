@@ -2,15 +2,13 @@ import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { LoaderV2 } from "@tenon/ui/v2/loader-v2"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
-import { panelCapRef } from "@/utils/panel-cap"
 import { children, Show, type JSX, type ParentProps } from "solid-js"
 
 /**
- * The square-cornered surface every page sits on. The nav rail, the Projects panel and the thread's side rail
- * have no surface of their own: they sit on the window background beside it. Wrap the panel in
- * `page-panel-cap` inside a `titlebar-inset-top` frame so its surface reaches the window's top edge.
+ * The card every page sits on: 16px corners, bg-base and a hairline ring, inside a `titlebar-inset-top` frame so
+ * it starts 8px below the title bar like the left shell beside it.
  */
-export const pagePanelClass = "bg-v2-background-bg-base shadow-[0_0_0_1px_var(--v2-border-border-muted)]"
+export const pagePanelClass = "rounded-[16px] bg-v2-background-bg-base shadow-[0_0_0_1px_var(--v2-border-border-muted)]"
 
 /**
  * Full-height page: one panel that scrolls. `scroll={false}` keeps the panel fixed for pages whose
@@ -25,8 +23,7 @@ export function PageFrame(
       aria-labelledby={props.labelledBy}
       aria-label={props.label}
     >
-      {/* The cap sits outside the panel, which clips its own content. */}
-      <div ref={panelCapRef} class="page-panel-cap flex min-h-0 flex-1 flex-col">
+      <div class="flex min-h-0 flex-1 flex-col">
         <div
           class={`min-h-0 flex-1 ${props.scroll === false ? "flex flex-col overflow-hidden" : "overflow-y-auto"} ${pagePanelClass} ${props.class ?? ""}`}
         >

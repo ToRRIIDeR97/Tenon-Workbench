@@ -50,30 +50,37 @@ Use `[font-weight:N]` when a weight must differ from the role.
 
 ## Surfaces and layout
 
-- **Page frame:** every page sits on one square-cornered panel built from
+- **Frame: two shells.** The title bar belongs to the window: it has no
+  background, and nothing runs up behind it or crosses it. Every surface
+  starts 8px below it (`titlebar-inset-top`, `titlebar-inset-margin`), so all
+  top edges line up, with 8px to the window's other edges and between
+  surfaces. Each surface is a 16px card on `bg-base` with a hairline ring
+  (`0 0 0 1px` `border-muted`): the left shell, the page (or thread) and, in
+  a thread, the right shell.
+- **Page:** every page sits on one such card built from
   `components/page.tsx` (`PageFrame`, `PageHeader`, `PageSection`,
-  `PageEmpty`): `bg-base` with a hairline edge, 8px in from the window's right
-  and bottom. On a desktop-width window it reaches the window's top edge: the
-  title bar has no background and floats over the panel's top band
-  (`page-panel-cap`), a hairline separates that band from the page, and page
-  content starts below it (`titlebar-inset-top`).
-- **Sidebar: two surfaces.** The navigation rail is a rounded card: 64px wide,
-  16px corners, `bg-layer-01` with an inset muted hairline, 8px in from the
-  window. Its destinations are 44px icon boxes (12px corners, 20px icons, 6px
+  `PageEmpty`; `pagePanelClass` for pages with their own layout): Home,
+  Projects, Calendar, Command Centre, the new thread and the thread itself.
+- **Left shell:** the navigation rail and the Projects panel are one card
+  that clips them. The rail is a 64px tinted strip (`bg-layer-01`) with a
+  hairline on its right while the panel shows; the Projects panel keeps
+  `bg-base` and has no ring of its own. Closed, the shell is the rail alone.
+  The rail's destinations are 44px icon boxes (12px corners, 20px icons, 6px
   apart): hover is `overlay-hover`, where you are is the accent container, and
-  each has a tooltip with its name. Settings sits at the rail's foot. 8px
-  beside the rail, the Projects panel is a page-style panel (`bg-base`, a
-  hairline edge, square corners); the two never touch. Add project and Scan
-  sit in one bordered button group in the panel's header (10px corners,
-  `bg-layer-01`, a hairline between the 32×30 buttons).
-- **Thread side rail:** the same rail spec on the right: a 48px card (16px
-  corners, `bg-layer-01`, inset hairline) with 36px buttons (10px corners,
-  6px apart; hover `overlay-hover`, the open section the accent container),
-  badges at each button's top right. Context (the usage ring) is the last
-  button in the list, after Canvas. In a thread, the side panel joins the
-  thread as one card, split by a hairline. Rounded corners are otherwise for
-  things inside or above the page (cards, docks, menus, floating windows), not
-  for the page frame.
+  each has a tooltip with its name. Settings sits at the rail's foot. Add
+  project and Scan sit in one bordered button group in the panel's header
+  (10px corners, `bg-layer-01`, a hairline between the 32×30 buttons).
+- **Right shell (thread):** the side panel and the thread's rail are one
+  card, mirroring the left: the panel on `bg-base` with the card's left
+  corners, the 48px rail strip (`bg-layer-01`) against it with the right
+  corners and a hairline on its left. With the side panel closed the rail
+  alone is the card. The rail's buttons are 36px (10px corners, 6px apart;
+  hover `overlay-hover`, the open section the accent container), with badges
+  at each button's top right; Context (the usage ring) is the last button,
+  after Canvas. Review and the terminal stacked in the panel are split by a
+  hairline, and the panel's resize handle sits on its left edge. Rounded
+  corners otherwise are for things inside or above the page (cards, docks,
+  menus, floating windows).
 - **Cards:** page-level cards are 16px radius on `bg-layer-01` with an inset
   muted edge. Use 12px cards inside the sidebar and side panels, and 24px for
   dock cards (the composer and approval dock).

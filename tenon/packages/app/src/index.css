@@ -350,39 +350,16 @@
 }
 
 /* On a desktop-width window the title bar floats over the top of the window (Titlebar sets
-   --tenon-titlebar-height). The sidebar and each page frame start below it, and a page panel's cap carries
-   the panel's surface up behind the title bar to the window's top edge. Without the variable (a narrow
-   window) the frame keeps its 8px inset and the cap has no height. */
+   --tenon-titlebar-height) and belongs to the window: nothing runs up behind it. The left shell and each page
+   frame start 8px below it, so every surface's top edge lines up. Without the variable (a narrow window) the
+   frame keeps its 8px inset. */
 @media (min-width: 48rem) {
   .titlebar-inset-top {
-    padding-top: var(--tenon-titlebar-height, 0.5rem);
+    padding-top: calc(var(--tenon-titlebar-height, 0px) + 0.5rem);
   }
 
   .titlebar-inset-margin {
-    margin-top: var(--tenon-titlebar-height, 0.5rem);
-  }
-
-  .page-panel-cap {
-    position: relative;
-  }
-
-  /* On Windows the band stops where the caption buttons begin (--tenon-cap-cut, utils/panel-cap.ts): the
-     buttons sit on the window background and the band's edge turns down beside them. */
-  .page-panel-cap::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    right: var(--tenon-cap-cut, 0px);
-    bottom: 100%;
-    height: var(--tenon-titlebar-height, 0px);
-    background: var(--v2-background-bg-base);
-    /* The panel's side edges continue up; the top edge is the window's. A hairline along the bottom
-       separates the title bar band from the page below it. */
-    box-shadow:
-      -1px 0 0 var(--v2-border-border-muted),
-      1px 0 0 var(--v2-border-border-muted),
-      inset 0 -1px 0 var(--v2-border-border-muted);
-    pointer-events: none;
+    margin-top: calc(var(--tenon-titlebar-height, 0px) + 0.5rem);
   }
 }
 

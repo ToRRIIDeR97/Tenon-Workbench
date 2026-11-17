@@ -25,7 +25,6 @@ import { terminalTabLabel } from "@/pages/session/terminal-label"
 import { createSizing, focusTerminalById } from "@/pages/session/helpers"
 import { getTerminalHandoff, setTerminalHandoff } from "@/pages/session/handoff"
 import { useSessionLayout } from "@/pages/session/session-layout"
-import { pagePanelClass } from "@/components/page"
 
 export function TerminalPanelV2(props: { stacked?: boolean } = {}) {
   const layout = useLayout()
@@ -175,7 +174,6 @@ export function TerminalPanelV2(props: { stacked?: boolean } = {}) {
         "w-full": !isDesktop() || stacked(),
         "min-w-0 h-full flex-1": isDesktop() && opened() && !stacked(),
         "w-0 h-full pointer-events-none": isDesktop() && !opened(),
-        [pagePanelClass]: isDesktop(),
         "transition-[height] duration-medium ease-standard will-change-[height] motion-reduce:transition-none":
           !isDesktop() && !size.active(),
       }}
