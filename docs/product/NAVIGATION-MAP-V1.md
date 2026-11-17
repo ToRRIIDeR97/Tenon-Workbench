@@ -233,10 +233,14 @@ folder as a workspace and selects it) and `tenon://new-session?directory=<path>&
   folder…**. The chip and the current Project take the accent container. Picking one starts a draft there
   carrying what's typed; a thread keeps its own folder.
 - **Projects** (Notes and the old Projects page, merged 2026-11-03; one page
-  per Project since the workshop's variant B). With nothing open it lists
-  **Projects** (name, outcome, progress; **All projects** first), **Archived**
-  (folded) and **General** (pages tied to no Project), with search, **New page**
-  and **New Project**. A Project is one page, tasks on the left and context on
+  per Project since the workshop's variant B). With nothing open it shows a
+  list card and, on a wide window, a detail card. The list has search, **All
+  projects**, the **Projects** (name, progress), **Archived** (folded) and
+  **General** (pages tied to no Project); the header has **New page** and **New
+  Project**. Clicking a Project shows it in the detail card (name, outcome,
+  ··· menu, **Start work**, status, progress, **Open project**, its open tasks
+  as working task rows, next milestone, blocker, page and thread counts); a
+  double click, or a click below 1024px, opens it. A Project is one page, tasks on the left and context on
   the right (stacked below 1100px):
   - a header with the title, a status chip, a **···** menu (Pause/Resume,
     Archive with Undo, Save current state, Project settings) and **Start work**;

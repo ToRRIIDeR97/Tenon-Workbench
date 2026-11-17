@@ -3,6 +3,7 @@ import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { RevealShow } from "@tenon/ui/v2/reveal"
+import { ViewSwitch } from "@tenon/ui/v2/view-switch"
 import { debounce } from "@solid-primitives/scheduled"
 import { createMediaQuery } from "@solid-primitives/media"
 import { createEffect, createMemo, createResource, For, on, onCleanup, Show } from "solid-js"
@@ -25,6 +26,7 @@ import {
   writeTimeline,
   writeVaultPage,
   type ProjectRecord,
+  type Timeline,
   type TimelineItem,
   type VaultPageInfo,
 } from "@/features/second-brain/client"
@@ -32,8 +34,8 @@ import { NotesPageView } from "@/features/second-brain/notes-page"
 import { matchProjects, newPagePath } from "@/features/second-brain/notes-timeline"
 import { ProjectCreate, projectWorkPrompt } from "@/features/second-brain/project-details"
 import { ProjectView, sectionFromTab } from "@/features/second-brain/project-view"
-import { ProjectPreview } from "@/features/second-brain/project-preview"
-import { PageEmpty, PageFrame, PageHeader, pageColumnClass, pageRowClass, pageWideColumnClass } from "@/components/page"
+import { ProjectDetail } from "@/features/second-brain/project-detail"
+import { PageEmpty, PageFrame, PageHeader } from "@/components/page"
 import { searchFieldClass } from "@/components/surface-classes"
 import { useBrainProjects } from "@/components/sidebar/sidebar-controller"
 import { useVaultPages, vaultMigration } from "@/features/second-brain/vault-pages"
@@ -43,6 +45,11 @@ import { dismissToast, showToast } from "@/utils/toast"
 import { createUndoQueue } from "@/utils/undo-action"
 
 const NO_PAGES: ReadonlyArray<VaultPageInfo> = []
+// The landing's two cards (the list and the selected Project) and the list's rows.
+const projectCardClass =
+  "min-h-0 overflow-y-auto rounded-[16px] bg-v2-background-bg-layer-01 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]"
+const listRowClass =
+  "relative flex w-full min-w-0 rounded-[10px] px-3 py-2.5 text-left transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover active:bg-v2-overlay-simple-overlay-pressed focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
 
 /**
  * Projects: every Project and page in the Tenon vault. URL contract: `/projects` (the landing: Projects, Archived,
@@ -183,23 +190,30 @@ ${path}`
   const [timeline, timelineActions] = createResource(projectKey, ([target, id]) => readTimeline(client(target), id))
   const [log, logActions] = createResource(projectKey, ([target, id]) => readProjectLog(client(target), id))
 
-  // Saves the Project's items over the revision on screen; a stale save reloads the timeline instead.
-  const saveItems = async (items: ReadonlyArray<TimelineItem>) => {
-    const key = projectKey()
-    const current = settled(timeline)
-    if (!key || !current) return language.t("secondBrain.error.request")
-    const result = await writeTimeline(client(key[0]), key[1], { items, expectedRevision: current.revision }).then(
-      (saved) => ({ saved, error: undefined }),
-      (error: unknown) => ({ saved: undefined, error }),
-    )
-    if (result.saved) {
-      if (projectKey()?.[1] === key[1] && projectKey()?.[0] === key[0]) timelineActions.mutate(result.saved)
-      return ""
+  // Saves a Project's items over the revision on screen; a stale save reloads the timeline instead.
+  const timelineSaver =
+    (
+      currentKey: () => readonly [string, string] | undefined,
+      current: () => Timeline | undefined,
+      actions: { mutate: (value: Timeline) => unknown; refetch: () => unknown },
+    ) =>
+    async (items: ReadonlyArray<TimelineItem>) => {
+      const key = currentKey()
+      const loaded = current()
+      if (!key || !loaded) return language.t("secondBrain.error.request")
+      const result = await writeTimeline(client(key[0]), key[1], { items, expectedRevision: loaded.revision }).then(
+        (saved) => ({ saved, error: undefined }),
+        (error: unknown) => ({ saved: undefined, error }),
+      )
+      if (result.saved) {
+        if (currentKey()?.[1] === key[1] && currentKey()?.[0] === key[0]) actions.mutate(result.saved)
+        return ""
+      }
+      const stale = result.error instanceof SecondBrainRequestError && result.error.status === 409
+      if (stale) void actions.refetch()
+      return language.t(stale ? "secondBrain.vault.timeline.stale" : "secondBrain.error.request")
     }
-    const stale = result.error instanceof SecondBrainRequestError && result.error.status === 409
-    if (stale) void timelineActions.refetch()
-    return language.t(stale ? "secondBrain.vault.timeline.stale" : "secondBrain.error.request")
-  }
+  const saveItems = timelineSaver(projectKey, () => settled(timeline), timelineActions)
 
   const pageHref = (path: string) => `/projects?page=${encodeURIComponent(path)}`
   const openPage = (path: string) => navigate(pageHref(path), { state: { fromNotes: true } })
@@ -225,12 +239,16 @@ ${path}`
     const folder = projectFolder()
     if (folder) void serverSync().project.loadSessions(folder)
   })
-  const recentThreads = (folder: string | undefined) => {
+  // A folder's root threads, newest first.
+  const rootThreads = (folder: string | undefined) => {
     if (!folder) return []
     return serverSync()
       .child(folder, { bootstrap: false })[0]
       .session.filter((session) => !session.parentID && !session.time.archived)
       .sort((left, right) => right.time.updated - left.time.updated)
+  }
+  const recentThreads = (folder: string | undefined) =>
+    rootThreads(folder)
       .slice(0, 6)
       .map((session) => ({
         id: session.id,
@@ -238,10 +256,9 @@ ${path}`
         updated: session.time.updated,
         running: serverSync().session.data.session_working(session.id),
       }))
-  }
   const threads = createMemo(() => recentThreads(projectFolder()))
 
-  // The landing's preview: the selected Project (else the first active one), its timeline and recent threads.
+  // The landing's detail card: the selected Project (else the first active one), its timeline and thread count.
   const wide = createMediaQuery("(min-width: 1024px)")
   const previewed = createMemo(() => {
     if (projectId() || pagePath()) return undefined
@@ -252,7 +269,10 @@ ${path}`
     const record = previewed()
     return directory() && record && wide() ? ([directory(), record.id] as const) : undefined
   }
-  const [previewTimeline] = createResource(previewKey, ([target, id]) => readTimeline(client(target), id))
+  const [previewTimeline, previewTimelineActions] = createResource(previewKey, ([target, id]) =>
+    readTimeline(client(target), id),
+  )
+  const savePreviewItems = timelineSaver(previewKey, () => settled(previewTimeline), previewTimelineActions)
   const previewFolder = () => {
     const record = previewed()
     return record && wide() ? threadDirectory(record) : undefined
@@ -261,7 +281,6 @@ ${path}`
     const folder = previewFolder()
     if (folder) void serverSync().project.loadSessions(folder)
   })
-  const previewThreads = createMemo(() => recentThreads(previewFolder()))
 
   // A new page goes into `owner` (a Project), else the workspace's General pages; it opens right away.
   const createPage = async (owner?: string) => {
@@ -423,41 +442,42 @@ ${path}`
     </RevealShow>
   )
 
-  // On a wide window a click previews the Project beside the list (a double click opens it); narrower, it opens.
+  // On a wide window a click selects the Project for the detail card (a double click opens it); narrower, it opens.
   const projectRow = (record: ProjectRecord) => (
     <li>
       <button
         type="button"
-        class={`${pageRowClass} relative`}
+        class={`${listRowClass} flex-col gap-1.5`}
         data-project-row={record.id}
         aria-current={wide() && previewed()?.id === record.id ? "true" : undefined}
         onClick={() => (wide() ? setState("selected", record.id) : openProject(record.id))}
         onDblClick={() => openProject(record.id)}
       >
-        <span class="min-w-0 flex-1">
-          <span class="block truncate type-row-title text-v2-text-text-base">{record.name}</span>
-          <span class="block truncate type-meta text-v2-text-text-muted">{record.outcome}</span>
+        <span class="flex w-full min-w-0 items-center gap-2">
+          <span class="min-w-0 flex-1 truncate type-row-title text-v2-text-text-base">{record.name}</span>
+          <Show when={record.status === "paused"}>
+            <span class="shrink-0 type-meta text-v2-text-text-muted">
+              {language.t("secondBrain.projects.filter.paused")}
+            </span>
+          </Show>
+          <span class="shrink-0 type-meta tabular-nums text-v2-text-text-muted">{record.progressPercent}%</span>
         </span>
-        <Show when={record.status === "paused"}>
-          <span class="shrink-0 type-meta text-v2-text-text-muted">
-            {language.t("secondBrain.projects.filter.paused")}
-          </span>
-        </Show>
-        <span class="h-1 w-16 shrink-0 overflow-hidden rounded-full bg-v2-background-bg-layer-03" aria-hidden="true">
+        <span class="block h-1 w-full overflow-hidden rounded-full bg-v2-background-bg-layer-03" aria-hidden="true">
           <span
             class="block h-full rounded-full bg-v2-background-bg-accent"
             style={{ width: `${record.progressPercent}%` }}
           />
-        </span>
-        <span class="w-9 shrink-0 text-right type-meta tabular-nums text-v2-text-text-muted">
-          {record.progressPercent}%
         </span>
       </button>
     </li>
   )
   const pageRow = (page: VaultPageInfo) => (
     <li>
-      <button type="button" class={`${pageRowClass} type-row-title`} onClick={() => openPage(page.path)}>
+      <button
+        type="button"
+        class={`${listRowClass} items-center gap-2.5 type-row-title`}
+        onClick={() => openPage(page.path)}
+      >
         <svg
           width="14"
           height="14"
@@ -480,7 +500,7 @@ ${path}`
     </li>
   )
   const sectionTitle = (id: string, text: string) => (
-    <h2 id={id} class="px-3 type-section text-v2-text-text-base">
+    <h2 id={id} class="px-3 pt-1 type-caption text-v2-text-text-muted">
       {text}
     </h2>
   )
@@ -507,7 +527,7 @@ ${path}`
     const active = () => projects().filter((record) => record.status !== "archived")
     const archived = () => projects().filter((record) => record.status === "archived")
     return (
-      <>
+      <div class="flex min-h-0 flex-1 flex-col">
         <PageHeader
           id="projects-title"
           column={wide() ? "wide" : "narrow"}
@@ -528,23 +548,29 @@ ${path}`
             </>
           }
         />
+        {/* Two cards that fill the page and scroll inside themselves: the list, and the selected Project. */}
         <div
-          class={wide() ? `${pageWideColumnClass} !grid grid-cols-[300px_minmax(0,1fr)] items-start` : pageColumnClass}
+          class="mx-auto grid min-h-0 w-full flex-1 grid-rows-[minmax(0,1fr)] gap-3 px-6 pb-6 pt-4 sm:px-10"
+          // The header's column: 1040px beside the detail card, 720px for the list alone.
+          classList={{
+            "max-w-[1040px] grid-cols-[300px_minmax(0,1fr)]": wide(),
+            "max-w-[720px] grid-cols-1": !wide(),
+          }}
         >
-          <div class="flex min-w-0 flex-col gap-6">
+          <div class={`${projectCardClass} flex flex-col gap-2 p-2`}>
             <RevealShow when={state.error}>
               {(error) => (
-                <p role="alert" class="px-1 type-meta text-v2-text-text-critical">
+                <p role="alert" class="px-2 type-meta text-v2-text-text-critical">
                   {error()}
                 </p>
               )}
             </RevealShow>
-            <label class="relative block">
+            <label class="relative block shrink-0">
               <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-v2-icon-icon-muted">
                 <Icon name="magnifying-glass" size="small" />
               </span>
               <input
-                class={searchFieldClass}
+                class={`${searchFieldClass} !rounded-[10px] !bg-v2-background-bg-base`}
                 aria-label={language.t("secondBrain.vault.search")}
                 placeholder={language.t("secondBrain.vault.search")}
                 value={state.search}
@@ -566,7 +592,7 @@ ${path}`
                       </PageEmpty>
                     }
                   >
-                    <ul class="flex flex-col gap-px" aria-label={language.t("secondBrain.vault.results")}>
+                    <ul class="flex flex-col gap-0.5" aria-label={language.t("secondBrain.vault.results")}>
                       <For each={foundProjects()}>{(record) => projectRow(record)}</For>
                       <For each={foundPages()}>{(page) => pageRow(page)}</For>
                     </ul>
@@ -574,35 +600,27 @@ ${path}`
                 </Show>
               }
             >
-              <section aria-labelledby="projects-list-title" class="flex flex-col gap-1">
+              <section aria-labelledby="projects-list-title" class="flex flex-col gap-0.5">
                 {sectionTitle("projects-list-title", language.t("secondBrain.vault.projects"))}
-                <ul ref={(element) => (projectList = element)} class="relative flex flex-col gap-px">
+                {/* Every Project's next milestone, upcoming items and recent pages, across the workspace. */}
+                <button
+                  type="button"
+                  class={`${listRowClass} items-center gap-2.5`}
+                  onClick={() => navigate("/projects/overview")}
+                >
+                  <span class="min-w-0 flex-1 truncate type-row-title text-v2-text-text-base">
+                    {language.t("secondBrain.projects.overview.title")}
+                  </span>
+                  <Icon name="chevron-right" size="small" class="shrink-0 text-v2-icon-icon-muted" />
+                </button>
+                <ul ref={(element) => (projectList = element)} class="relative flex flex-col gap-0.5">
                   {/* The selection slides from row to row instead of jumping. */}
                   <li
                     aria-hidden="true"
                     ref={(element) => (selection = element)}
-                    class="pointer-events-none absolute inset-x-0 top-0 hidden rounded-[8px] bg-v2-background-bg-accent-container transition-[transform,height] duration-medium ease-emphasized-decelerate motion-reduce:transition-none lg:block"
+                    class="pointer-events-none absolute inset-x-0 top-0 hidden rounded-[10px] bg-v2-background-bg-accent-container transition-[transform,height] duration-medium ease-emphasized-decelerate motion-reduce:transition-none lg:block"
                     style={{ opacity: 0 }}
                   />
-                  {/* Every Project's next milestone, upcoming items and recent pages, across the workspace. */}
-                  <li>
-                    <button type="button" class={pageRowClass} onClick={() => navigate("/projects/overview")}>
-                      <span
-                        aria-hidden="true"
-                        class="flex size-8 shrink-0 items-center justify-center rounded-full bg-v2-background-bg-layer-02 text-v2-icon-icon-muted"
-                      >
-                        <Icon name="workspace" size="small" />
-                      </span>
-                      <span class="min-w-0 flex-1">
-                        <span class="block truncate type-row-title text-v2-text-text-base">
-                          {language.t("secondBrain.projects.overview.title")}
-                        </span>
-                        <span class="block truncate type-meta text-v2-text-text-muted">
-                          {language.t("secondBrain.projects.overview.description")}
-                        </span>
-                      </span>
-                    </button>
-                  </li>
                   <For each={active()}>{(record) => projectRow(record)}</For>
                 </ul>
                 <Show when={!brainProjects.loading() && active().length === 0}>
@@ -628,13 +646,13 @@ ${path}`
                     {language.t("secondBrain.projects.filter.archived")} · {archived().length}
                   </button>
                   <Show when={state.archivedOpen}>
-                    <ul class="flex flex-col gap-px" aria-label={language.t("secondBrain.projects.filter.archived")}>
+                    <ul class="flex flex-col gap-0.5" aria-label={language.t("secondBrain.projects.filter.archived")}>
                       <For each={archived()}>{(record) => projectRow(record)}</For>
                     </ul>
                   </Show>
                 </Show>
               </section>
-              <section aria-labelledby="projects-general-title" class="flex flex-col gap-1">
+              <section aria-labelledby="projects-general-title" class="mt-2 flex flex-col gap-0.5">
                 {sectionTitle("projects-general-title", language.t("secondBrain.vault.general"))}
                 <Show
                   when={!vault.error()}
@@ -662,7 +680,7 @@ ${path}`
                       </p>
                     }
                   >
-                    <ul class="flex flex-col gap-px">
+                    <ul class="flex flex-col gap-0.5">
                       <For each={generalPages()}>{(page) => pageRow(page)}</For>
                     </ul>
                   </Show>
@@ -670,35 +688,40 @@ ${path}`
               </section>
             </Show>
           </div>
-          <Show when={wide() && previewed()} keyed>
-            {(record) => (
-              <aside class="sticky top-0 min-w-0 animate-enter border-l border-v2-border-border-muted">
-                <ProjectPreview
-                  project={record}
-                  items={
-                    settled(previewTimeline)?.projectId === record.id ? settled(previewTimeline)?.items : undefined
-                  }
-                  loading={previewTimeline.loading}
-                  threads={previewThreads()}
-                  pages={pagesByProject().get(record.id) ?? NO_PAGES}
-                  threadHref={(id) => sessionHref(server.key, id)}
-                  onOpen={() => openProject(record.id)}
-                  onPage={openPage}
-                  onStartWork={
-                    threadDirectory(record)
-                      ? () =>
-                          void drafts.create(
-                            { server: server.key, directory: threadDirectory(record)!, projectID: record.id },
-                            projectWorkPrompt(record),
-                          )
-                      : undefined
-                  }
-                />
-              </aside>
-            )}
+          <Show when={wide()}>
+            <div class={`${projectCardClass} p-[22px]`}>
+              {/* A new selection fades in over the old one. */}
+              <ViewSwitch key={previewed()?.id} exit={false}>
+                {/* Keyed by id: a refreshed list brings new objects, which must not remount the detail. */}
+                <Show when={previewed()?.id} keyed>
+                  {(id) => (
+                    <ProjectDetail
+                      project={previewed()!}
+                      directory={directory()}
+                      timeline={settled(previewTimeline)}
+                      loading={previewTimeline.loading}
+                      onSaveItems={savePreviewItems}
+                      pages={(pagesByProject().get(id) ?? NO_PAGES).length}
+                      threads={rootThreads(previewFolder()).length}
+                      onOpen={() => openProject(id)}
+                      onArchived={() => setState("selected", "")}
+                      onStartWork={
+                        threadDirectory(previewed()!)
+                          ? () =>
+                              void drafts.create(
+                                { server: server.key, directory: threadDirectory(previewed()!)!, projectID: id },
+                                projectWorkPrompt(previewed()!),
+                              )
+                          : undefined
+                      }
+                    />
+                  )}
+                </Show>
+              </ViewSwitch>
+            </div>
           </Show>
         </div>
-      </>
+      </div>
     )
   }
 

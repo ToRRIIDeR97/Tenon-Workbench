@@ -118,10 +118,22 @@ Use `[font-weight:N]` when a weight must differ from the role.
   other agent (`harness-logo.ts`). The model pill shows the logo of the
   harness that runs the model, not the model's maker, and Home's plan-usage
   rows lead with it too.
-- **Projects page:** on a wide window, a 300px list beside a preview of the
-  selected Project (progress ring, next-milestone card, open tasks, recent
-  threads and pages, Start work and Open project). The selection is an
-  accent-container highlight that slides between rows; the preview rises in.
+- **Projects page: list and detail.** Under the header (title, New page,
+  New Project), two cards 12px apart fill the page and scroll inside
+  themselves, both `bg-layer-01` with 16px corners and an inset muted
+  hairline. The list card (300px, 8px padding) holds the search box (10px
+  corners), All projects, one row per Project (name, its % on the right and a
+  4px bar under it; 10px corners, 2px apart), the folded Archived and the
+  General pages. The selected Project has an accent-container pill that
+  slides between rows (`--v2-duration-medium`, emphasized-decelerate; no
+  slide under reduced motion). The detail card (22px padding) shows the
+  Project's name (20px semibold) and outcome with its ··· menu and Start
+  work; its status chip, "60% · 6 of 10 tasks" and Open project; a 4px bar;
+  then its open tasks as the Project page's own task rows in a `bg-base`
+  card, beside a 220px column with the next milestone and its due date, the
+  blocker callout (10px corners, `bg-layer-02`, warning icon) and "N pages ·
+  N threads · updated …". A new selection fades in (`ViewSwitch`). Below
+  1024px the list card is alone and a row opens its Project.
 - **MCP servers:** built from the standard Settings parts only: an Installed
   section (settings card of rows: name, "Local · command" or "Remote · URL",
   switch), then a Suggested section of rows with an Add button. Adding flies the
