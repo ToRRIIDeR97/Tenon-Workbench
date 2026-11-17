@@ -95,7 +95,8 @@ export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
   }
 
   return (
-    <div class="flex flex-col">
+    // The composer is at most 560px wide, centred in its column; the thread column keeps its own width.
+    <div class="mx-auto flex w-full max-w-[560px] flex-col">
       {props.header}
       <PromptInputV2
         controller={props.controller}

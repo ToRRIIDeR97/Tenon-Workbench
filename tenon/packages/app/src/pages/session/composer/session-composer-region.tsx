@@ -121,7 +121,8 @@ export function SessionComposerRegion(props: {
           "md:max-w-[var(--tenon-thread-width,640px)] md:mx-auto": controller.centered(),
         }}
       >
-        <div ref={swap} class="flex flex-col">
+        {/* The composer and the docks that attach to it share its 560px width. */}
+        <div ref={swap} class="mx-auto flex w-full max-w-[560px] flex-col">
           <Show when={view() === "question" ? question() : undefined} keyed>
             {(request) => (
               <div class={enter()}>

@@ -27,15 +27,18 @@ describe("size tokens", () => {
 })
 
 describe("thread composer", () => {
-  // AC-3: attach, mode and model pills, and send share one 32px row height.
-  test("attach and send are 32px like the pills", () => {
+  // AC-3: attach, mode and model pills, and send share one row height: 30px since the light-tab composer.
+  test("attach and send are 30px like the other controls", () => {
     const prompt = read("session-ui/src/v2/components/prompt-input/index.tsx")
     const attach = prompt.slice(prompt.indexOf('data-action="prompt-attach"'))
-    expect(attach.slice(0, attach.indexOf("/>"))).toMatch(/class="[^"]*!size-8/)
+    expect(attach.slice(0, attach.indexOf("/>"))).toMatch(/class="[^"]*!size-\[30px\]/)
     const send = prompt.slice(prompt.indexOf('data-action="prompt-submit"'))
     const cls = send.slice(send.indexOf('class="'), send.indexOf('"', send.indexOf('class="') + 7))
-    expect(cls).toContain("size-8")
-    expect(cls).not.toContain("size-9")
+    expect(cls).toContain("size-[30px]")
+    expect(cls).not.toContain("size-8")
+    // The pills and icon buttons in the row take the same height from the row's rule.
+    const row = read("session-ui/src/v2/components/prompt-input/responsive-controls.css")
+    expect(row).toMatch(/\[data-slot="prompt-input-controls-row"\] \{\s*& button \{\s*height: 30px/)
   })
 })
 

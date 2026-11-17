@@ -1,3 +1,20 @@
+/* The composer's controls row: every control is 30px tall, and icon buttons 30px square. Unlayered, so it wins
+   over the controls' own height utilities (the model and permission pills, the large icon buttons). */
+[data-slot="prompt-input-controls-row"] {
+  & button {
+    height: 30px;
+  }
+
+  & [data-component="icon-button-v2"][data-size="large"] {
+    width: 30px;
+  }
+
+  & [data-component="prompt-model-pill"],
+  & [data-component="button-v2"][data-size] {
+    height: 30px;
+  }
+}
+
 [data-slot="prompt-input-controls"] {
   container-name: prompt-input-controls;
   container-type: inline-size;
@@ -11,8 +28,8 @@
 @container prompt-input-controls (max-width: 520px) {
   .prompt-input-responsive-select[data-component="button-v2"],
   .prompt-input-responsive-select[data-component="select-v2"] {
-    width: 28px !important;
-    min-width: 28px;
+    width: 30px !important;
+    min-width: 30px;
     padding-inline: 6px !important;
     justify-content: center;
   }

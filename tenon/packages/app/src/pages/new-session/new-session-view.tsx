@@ -40,8 +40,7 @@ export function NewSessionView(props: {
         <div class="absolute inset-0 flex items-center justify-center px-6 pb-[12vh]">
           {/* Padded inside the width like Home's column, so both composers come out the same width. */}
           <div class={`${NEW_SESSION_CONTENT_WIDTH} px-6`}>
-            {/* The editor's height follows the window like the rest of the screen. */}
-            <div class="flex flex-col gap-[clamp(16px,3.2vh,40px)] [&_[data-component=prompt-input]]:min-h-[clamp(60px,9vh,112px)]">
+            <div class="flex flex-col gap-[clamp(16px,3.2vh,40px)]">
               <Greeting />
               <PromptInputV2Composer
                 controller={props.input}
