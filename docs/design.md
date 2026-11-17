@@ -105,8 +105,8 @@ Use `[font-weight:N]` when a weight must differ from the role.
   560px wide. Settings → Appearance →
   Thread width sets it to Narrow (640px), Medium (800px), Wide (960px) or Full
   (the whole thread panel) through `--tenon-thread-width`. Thread text (replies and the
-  user's messages) and the composer's text are 15px on 24px lines, a step above
-  the app's 14px base; reply headings are 18/16/15px.
+  user's messages) is 14px on 23px lines, the app's base size; reply headings
+  are 17/15/14px. The composer's text stays 15px on 24px lines.
 - **Wide windows:** lists and single columns keep a reading width when the
   window is stretched (pages 720/1040px, the thread 640px unless Thread width changes it). The calendar's
   Day grid caps at 880px and its Agenda and Tasks lists at 760px, centred;
