@@ -12,7 +12,7 @@ import { useSettings } from "@/context/settings"
 import { showToast } from "@/utils/toast"
 import { dictationLanguage } from "./dictation-language"
 import { mergeCaption } from "./dictation-caption"
-import { waveBars } from "./dictation-wave"
+import { levelReading, voiceGain, waveBars } from "./dictation-wave"
 
 /** Bars in the composer's voice wave. */
 const WAVE_BARS = 32
@@ -26,8 +26,12 @@ function liveSlot(button: HTMLElement | undefined) {
     button?.closest<HTMLElement>('[data-slot="prompt-input-box"]') ??
     button?.closest<HTMLElement>('[data-component="composer-box"]:not([data-size="compact"])')
   if (!box) return undefined
-  // The wave and Stop take the toolbar's place while recording; the toolbar comes back when it ends.
-  const controls = box.querySelector<HTMLElement>('[data-slot="prompt-input-controls"]') ?? undefined
+  // The wave and Stop take the whole toolbar's place while recording (the thread composer's row also holds the mic
+  // and send, in a fixed-height row the live words wouldn't fit in); the toolbar comes back when it ends.
+  const controls =
+    box.querySelector<HTMLElement>('[data-slot="prompt-input-controls-row"]') ??
+    box.querySelector<HTMLElement>('[data-slot="prompt-input-controls"]') ??
+    undefined
   const slot = document.createElement("div")
   slot.dataset.slot = "dictation-live-slot"
   if (controls && controls.parentElement) {
@@ -97,6 +101,7 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
   onCleanup(() => placed?.remove())
   const drawWave = (canvas: HTMLCanvasElement) => {
     let bars: number[] = []
+    let peak = 0
     let frame = 0
     const draw = () => {
       const context = canvas.getContext("2d")
@@ -106,7 +111,9 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
       if (canvas.width !== width) canvas.width = width
       if (canvas.height !== height) canvas.height = height
       if (context && width > 0) {
-        bars = waveBars(bands, bars, WAVE_BARS, state.level)
+        const gained = voiceGain(bands ?? [levelReading(state.level)], peak)
+        peak = gained.peak
+        bars = bands ? waveBars(gained.values, bars, WAVE_BARS) : waveBars(undefined, bars, WAVE_BARS, gained.values[0])
         context.clearRect(0, 0, width, height)
         context.fillStyle = getComputedStyle(canvas).color
         const gap = 3 * devicePixelRatio
@@ -229,13 +236,28 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
     await finish()
   }
 
+  // Escape throws a recording away (nothing is typed), for when the mic picked up the wrong thing.
+  makeEventListener(
+    window,
+    "keydown",
+    (event) => {
+      if (event.key !== "Escape" || state.phase !== "recording") return
+      event.preventDefault()
+      event.stopPropagation()
+      setState({ phase: "idle", partial: "", level: 0 })
+      void props.dictation.cancel()
+    },
+    { capture: true },
+  )
+
   const label = () =>
     state.phase === "transcribing"
       ? language.t("dictation.transcribing.cancel")
       : language.t("dictation.action.dictate")
   return (
     <>
-      <TooltipV2 placement="top" value={label()}>
+      {/* While the live words show, the toolbar (and this button) is hidden, so its tooltip mustn't stay up. */}
+      <TooltipV2 placement="top" value={label()} inactive={!!slot.element}>
         <IconButtonV2
           ref={(element: HTMLElement) => (button = element)}
           type="button"
@@ -263,7 +285,7 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
               role="status"
               aria-live="polite"
               aria-label={language.t("dictation.live.label")}
-              class="flex flex-col gap-2 px-5 pt-4 text-[15px] leading-6"
+              class="flex flex-col gap-2 pb-2 pl-5 pr-2 pt-1 text-[15px] font-[450] leading-6"
             >
               <p class="min-w-0 [overflow-wrap:anywhere] text-v2-text-text-base" dir="auto">
                 <Show
@@ -280,7 +302,7 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
                   </Index>
                 </Show>
               </p>
-              <div class="flex items-center gap-2 pb-2">
+              <div class="flex h-9 items-center gap-3">
                 <canvas
                   ref={drawWave}
                   aria-hidden="true"
