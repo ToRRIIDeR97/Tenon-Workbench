@@ -97,7 +97,9 @@ describe("card shape", () => {
   // AC-6: the card names itself and uses the 640px, 24px-radius card.
   test("identity, width and radius", () => {
     const source = strip()
-    expect(source).toMatch(/w-\[min\(640px,/)
+    // The width is the strip's inline style, from command-strip-anchor.ts (capped at 640px there).
+    expect(source).toMatch(/style=\{commandStripStyle\(commandStripAnchor\(\)\)\}/)
+    expect(read("app/src/features/command-centre/command-strip-anchor.ts")).toMatch(/Math\.min\(640, /)
     expect(source).toMatch(/rounded-\[24px\] bg-v2-background-bg-floating/)
     expect(source).toMatch(/language\.t\("secondBrain\.commandCentre\.strip\.title"\)/)
   })

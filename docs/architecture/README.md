@@ -733,7 +733,11 @@ assistant that spans workspaces, with its own threads, memory and routines.
   it). The web dev build previews it at `/?surface=widget`.
 - **Command Centre card.** `features/command-centre/command-strip.tsx`
   (`[data-command-strip]`) sits inside `<main>` on every page except
-  `/command`: a 20 px handle while closed; open, a 640 px, 24 px-radius card
+  `/command`: a 20 px handle while closed (on a thread it sits on the
+  composer's top edge, centred on the chat column: the composer region
+  publishes that anchor through `command-strip-anchor.ts` and only the strip's
+  own style changes, never a custom property on `<html>`, which would restyle
+  the whole document on every frame of a column resize); open, a 640 px, 24 px-radius card
   named "Command Centre" with the latest exchange (your last message,
   `lastAskText`, and the reply drawn as Markdown, as the desktop widget draws
   it: capped at about five lines with a fade, "Show more" lets it grow and
@@ -2129,10 +2133,8 @@ On desktop, opening a file the server reads as binary and that isn't media (a
   count instead.
 - Click or "Open in Files" on a file opens the right panel, expands the
   ancestor folders and opens the file as a preview tab. Opening a fully closed
-  side panel slides it in (300 ms, emphasized decelerate) out of the rail at the
-  right edge, while the thread column takes its new width in one step (easing
-  the column re-laid out the whole timeline every frame); closing keeps the
-  column's width until the panel has slid shut, then widens it once. The panel's content mounts and fades in only after the slide, so
+  side panel slides it in (300 ms, emphasized decelerate) while the thread column
+  eases left; the panel's content mounts and fades in only after the slide, so
   building it never competes with the animation (`panelSettled` in
   `app/src/pages/session/file-reference.tsx`, set by the open edge in
   `session.tsx`, read by `session-side-panel.tsx`). Other openings still snap: switching
