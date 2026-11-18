@@ -12,6 +12,7 @@ import { useLanguage } from "@/context/language"
 import { useServer } from "@/context/server"
 import { sessionHref } from "@/utils/session-route"
 import { useCommandCentre } from "./command-centre"
+import { commandStripAnchor, commandStripStyle } from "./command-strip-anchor"
 
 /**
  * The Command Centre card. A handle just above the bottom edge of every page but the Command Centre; Ctrl/Cmd+J
@@ -112,8 +113,9 @@ export function CommandStrip() {
       data-state={state.open ? "open" : "closed"}
       // Only the handle and the open card take the pointer; the rest of the band stays the page's.
       // On a thread the composer owns the page's bottom edge, so the strip sits on top of it, centred on the
-      // chat column (the composer region sets --command-strip-center/-span) rather than the whole window.
-      class="pointer-events-none absolute bottom-[calc(0.5rem+var(--command-strip-lift,0px))] left-[var(--command-strip-center,50%)] z-(--z-command-strip) h-5 w-[min(640px,var(--command-strip-span,calc(100%-32px)))] -translate-x-1/2"
+      // chat column (the composer region publishes its anchor) rather than the whole window.
+      class="pointer-events-none absolute z-(--z-command-strip) h-5 -translate-x-1/2"
+      style={commandStripStyle(commandStripAnchor())}
     >
       <button
         type="button"

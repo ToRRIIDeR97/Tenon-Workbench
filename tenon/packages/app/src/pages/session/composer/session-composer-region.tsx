@@ -11,6 +11,7 @@ import { SessionQuestionDock } from "@/pages/session/composer/session-question-d
 import { SessionFollowupDock } from "@/pages/session/composer/session-followup-dock"
 import { SessionRevertTray } from "@/pages/session/composer/session-revert-dock"
 import { SessionTodoDock } from "@/pages/session/composer/session-todo-dock"
+import { setCommandStripAnchor } from "@/features/command-centre/command-strip-anchor"
 import type { SessionComposerFollowupDock } from "./session-composer-region-controller"
 import type { SessionComposerRegionController } from "./session-composer-region-controller"
 
@@ -82,24 +83,19 @@ export function SessionComposerRegion(props: {
   onMount(() => {
     if (!dock) return
     const element = dock
-    const root = document.documentElement
     // The Command Centre strip handle sits on the composer's top edge, centred on the chat column (not the
-    // window), so it never lands on the side panel or terminal beside the thread.
+    // window), so it never lands on the side panel or terminal beside the thread. This runs every frame while the
+    // column's width eases, so it only touches the strip's own style (see command-strip-anchor.ts).
     createResizeObserver(element, () => {
       const main = element.closest("main")?.getBoundingClientRect()
       const rect = element.getBoundingClientRect()
-      root.style.setProperty("--command-strip-lift", `${Math.round((main?.bottom ?? window.innerHeight) - rect.top)}px`)
-      root.style.setProperty(
-        "--command-strip-center",
-        `${Math.round(rect.left - (main?.left ?? 0) + rect.width / 2)}px`,
-      )
-      root.style.setProperty("--command-strip-span", `${Math.max(0, Math.round(rect.width - 32))}px`)
+      setCommandStripAnchor({
+        lift: Math.round((main?.bottom ?? window.innerHeight) - rect.top),
+        center: Math.round(rect.left - (main?.left ?? 0) + rect.width / 2),
+        span: Math.max(0, Math.round(rect.width - 32)),
+      })
     })
-    onCleanup(() => {
-      root.style.removeProperty("--command-strip-lift")
-      root.style.removeProperty("--command-strip-center")
-      root.style.removeProperty("--command-strip-span")
-    })
+    onCleanup(() => setCommandStripAnchor(undefined))
   })
 
   return (

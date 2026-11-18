@@ -603,11 +603,8 @@ export default function Page() {
     window.addEventListener("pointerup", end)
     window.addEventListener("pointercancel", end)
   }
-  // The thread column takes its new width in one step: easing its width re-laid out the whole timeline on every
-  // frame, which is what made opening the panel lag. While the panel slides shut the column keeps its width, then
-  // widens once.
-  const sessionPanelWidth = createMemo<string>((previous) => {
-    if (panelClosing()) return previous ?? `calc(100% - ${SESSION_SIDE_RAIL_WIDTH + 8}px)`
+  const sessionPanelWidth = createMemo(() => {
+    if (panelClosing()) return `calc(100% - ${SESSION_SIDE_RAIL_WIDTH + 8}px)`
     if (!desktopSidePanelOpen()) return railSpace() ? `calc(100% - ${railSpace() + 8}px)` : "100%"
     if (desktopSessionResizeOpen()) {
       const available = sessionPanelAvailable()
@@ -2296,13 +2293,14 @@ export default function Page() {
   return (
     <SessionRouteFrame>
       <SessionHeader />
-      {/* The right shell sits at the row's end, so while the panel slides its width it grows out of the rail and
-          shrinks back into it; the thread column's width steps instead of easing (see sessionPanelWidth). */}
-      <div ref={panelRow} class="flex-1 min-h-0 flex flex-col md:flex-row md:justify-between gap-2">
+      <div ref={panelRow} class="flex-1 min-h-0 flex flex-col md:flex-row gap-2">
         <div
           ref={sessionPanel}
           classList={{
             "@container relative shrink-0 flex flex-col min-h-0 h-full flex-1 md:flex-none": true,
+            // The whole transition goes during a drag: a bare transition-[width] still eases each frame over 150ms.
+            "transition-[width] duration-medium ease-emphasized-decelerate motion-reduce:transition-none":
+              !size.active() && !ui.reviewSnap,
           }}
           style={{
             width: sessionPanelWidth(),
