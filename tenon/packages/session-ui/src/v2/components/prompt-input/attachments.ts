@@ -2,7 +2,45 @@ import { onMount } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import type { PromptInputV2Attachment, PromptInputV2Prompt } from "./types"
 
-const accepted = [
+// Video, audio and documents are accepted too (#330); the app turns what a model can't read into frames or text.
+const mediaExtensions = new Map([
+  ["mp4", "video/mp4"],
+  ["m4v", "video/x-m4v"],
+  ["mov", "video/quicktime"],
+  ["webm", "video/webm"],
+  ["mkv", "video/x-matroska"],
+  ["avi", "video/x-msvideo"],
+  ["ogv", "video/ogg"],
+  ["mp3", "audio/mpeg"],
+  ["wav", "audio/wav"],
+  ["m4a", "audio/mp4"],
+  ["aac", "audio/aac"],
+  ["flac", "audio/flac"],
+  ["ogg", "audio/ogg"],
+  ["oga", "audio/ogg"],
+  ["opus", "audio/opus"],
+  ["aiff", "audio/aiff"],
+  ["aif", "audio/aiff"],
+  ["wma", "audio/x-ms-wma"],
+  ["docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+  ["pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"],
+  ["xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+  ["doc", "application/msword"],
+  ["ppt", "application/vnd.ms-powerpoint"],
+  ["xls", "application/vnd.ms-excel"],
+  ["odt", "application/vnd.oasis.opendocument.text"],
+  ["odp", "application/vnd.oasis.opendocument.presentation"],
+  ["ods", "application/vnd.oasis.opendocument.spreadsheet"],
+  ["rtf", "application/rtf"],
+  ["epub", "application/epub+zip"],
+])
+const mediaMimes = new Set(mediaExtensions.values())
+
+/** What the composer's file picker offers. */
+export const acceptedAttachments = [
+  "video/*",
+  "audio/*",
+  ...[...mediaExtensions.keys()].map((extension) => `.${extension}`),
   "image/png",
   "image/jpeg",
   "image/gif",
@@ -231,7 +269,7 @@ export function createPromptInputV2Attachments(
         return
       }
       void input
-        .picker({ defaultPath: input.directory(), multiple: true, accept: accepted }, (file) => add(file))
+        .picker({ defaultPath: input.directory(), multiple: true, accept: acceptedAttachments }, (file) => add(file))
         .catch(input.onError)
     },
   }
@@ -262,13 +300,16 @@ const textMimes = new Set([
   "application/yaml",
 ])
 
-async function attachmentMime(file: File) {
+export async function attachmentMime(file: File) {
   const type = file.type.split(";", 1)[0]?.trim().toLowerCase() ?? ""
   if (imageMimes.has(type) || type === "application/pdf") return type
   const index = file.name.lastIndexOf(".")
   const suffix = index === -1 ? "" : file.name.slice(index + 1).toLowerCase()
   const fallback = imageExtensions.get(suffix) ?? (suffix === "pdf" ? "application/pdf" : undefined)
   if ((!type || type === "application/octet-stream") && fallback) return fallback
+  if (type.startsWith("video/") || type.startsWith("audio/") || mediaMimes.has(type)) return type
+  const media = mediaExtensions.get(suffix)
+  if ((!type || type === "application/octet-stream" || type === "application/zip") && media) return media
   if (type.startsWith("text/") || textMimes.has(type) || type.endsWith("+json") || type.endsWith("+xml")) {
     return "text/plain"
   }

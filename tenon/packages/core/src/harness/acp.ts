@@ -287,7 +287,8 @@ export const handshake = (process: Process, settings: Settings, directory: strin
   Effect.scoped(connect(process, settings, directory)).pipe(
     Effect.timeoutOrElse({
       duration: "8 seconds",
-      orElse: () => Effect.fail(new ProtocolError("The ACP agent did not answer initialize within 8 seconds.")),
+      orElse: () =>
+        Effect.fail(new ProtocolError("The ACP agent did not answer initialize within 8 seconds.", { timedOut: true })),
     }),
     Effect.map(({ initialize }) => agentInfo(initialize)),
   )
@@ -376,16 +377,29 @@ export function probe(
       }),
     })),
     Effect.catch((error) =>
-      Effect.succeed({
-        instance: Harness.Instance.make({
-          ...base,
-          status: "unavailable",
-          error: errorMessage(error),
-          models: withConfigured(known ?? [], settings.models),
-        }),
-      }),
+      Effect.succeed({ instance: probeFailure(base, error, withConfigured(known ?? [], settings.models)) }),
     ),
   )
+}
+
+/**
+ * The picker's answer for a failed check. Only a late answer leaves the harness usable: an outdated CLI often starts
+ * slowly (an npx adapter checking for or fetching its update), and the thread's own start has no 8 s limit. A protocol
+ * mismatch or a CLI that doesn't start can't work, so those disable it (#321).
+ */
+export function probeFailure(
+  base: { readonly id: Harness.InstanceID; readonly driver: Harness.DriverKind; readonly name: string },
+  error: unknown,
+  models: ReadonlyArray<Harness.Model>,
+) {
+  const late = error instanceof ProtocolError && error.timedOut === true
+  return Harness.Instance.make({
+    ...base,
+    status: late ? "available" : "unavailable",
+    error: errorMessage(error),
+    ...(late ? { slowStart: true } : {}),
+    models: [...models],
+  })
 }
 
 /**

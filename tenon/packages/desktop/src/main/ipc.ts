@@ -218,8 +218,15 @@ export function registerIpcHandlers(deps: Deps) {
       () => !event.sender.isDestroyed() && event.sender.send("dictation-limit"),
       (text) => !event.sender.isDestroyed() && event.sender.send("dictation-partial", text),
       { language: typeof options?.language === "string" ? options.language : undefined },
+      (values) => !event.sender.isDestroyed() && event.sender.send("dictation-bands", values),
     ),
   )
+  // An attachment's audio (#330): at most 30 minutes of 16 kHz samples, as a Float32Array.
+  trustedHandle("dictation-transcribe", (_event, samples: unknown) => {
+    if (!(samples instanceof Float32Array) || samples.length > 30 * 60 * 16_000)
+      return { error: { code: "bad_request" } }
+    return deps.dictation.transcribe(samples)
+  })
   trustedHandle("dictation-stop", () => deps.dictation.stop())
   trustedHandle("dictation-cancel", () => deps.dictation.cancel())
   trustedHandle("dictation-models", () => deps.dictation.models())

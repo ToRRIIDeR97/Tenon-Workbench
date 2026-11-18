@@ -55,6 +55,8 @@ export const Instance = Schema.Struct({
   version: Schema.String.pipe(optional),
   authenticated: Schema.Boolean.pipe(optional),
   error: Schema.String.pipe(optional),
+  /** It didn't answer its start check in time (often an adapter fetching its update) but stays usable (#321). */
+  slowStart: Schema.Boolean.pipe(optional),
   models: Schema.Array(Model),
 }).annotate({ identifier: "Harness.Instance" })
 export interface Instance extends Schema.Schema.Type<typeof Instance> {}

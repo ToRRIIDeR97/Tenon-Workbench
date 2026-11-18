@@ -603,6 +603,49 @@ selectable agent denies everything.
 Known gaps: interrupting a Run doesn't stop the tasks it delegated. An ACP
 agent without HTTP MCP support gets neither delegation nor `ask_user`.
 
+### Computer use through the Cua Driver
+
+Computer use (#333) lets an agent see the whole desktop and send clicks and
+keys anywhere. Controls:
+
+- Off by default and per Project folder: only folders listed in
+  `computer-use.json` (Tenon config folder, mode `0600`, written through a
+  temporary file) see the driver's tools; the route only changes the request's
+  own location folder.
+- Proxied: agents never get the driver itself. Tenon runs `cua-driver mcp` and
+  forwards each call only after checking the switch (off refuses the next
+  action) and, for anything but a screen read, a grant for that thread (asked
+  once; "Just this once" asks again; a denial runs nothing).
+- Visible and stoppable: every action shows an always-on-top pill naming the
+  harness, over full-screen apps too; Stop kills the driver process at once
+  and clears every grant. The pill is a sandboxed data: page with a CSP that
+  allows no loads; Stop reaches the server over the existing token-guarded
+  loopback bridge (`computer_watch`).
+- The driver is the user's own install (found with `which`); Tenon runs no
+  installer. On macOS its Accessibility and Screen Recording grants are its
+  own (`com.trycua.driver`), not Tenon's.
+- Codex and Claude Code never receive it; they bring their own.
+- Gaps: a thread granted "for this thread" can then act without asking until
+  Stop or the server restarts; screen reads never ask, so an enabled Project's
+  agents can always see the screen; the built-in agent's tool list is read
+  when the folder's services start, so switching on needs a restart there.
+
+### Project GitHub work
+
+`POST /api/github/work` (#331) runs two CLIs in the request's location folder
+(`core/src/github/work.ts`): `git remote get-url origin`, then `gh issue list`
+and `gh pr list` with fixed arguments and `--json` fields. Controls:
+
+- `execFile`, never a shell; the repository is the parsed origin or a Project
+  override that must match a plain `owner/name` pattern (no flags, spaces or
+  separators), otherwise nothing runs.
+- Tenon stores and returns no GitHub token: `gh` uses its own login (macOS
+  keychain, Windows Credential Manager). `GH_PROMPT_DISABLED=1` keeps it from
+  waiting on a prompt; 15 s timeout, 5 MB output cap.
+- Only titles, numbers, URLs, states, labels and author logins reach the
+  renderer; issue bodies are not requested. Errors return their first line.
+- Read-only: Tenon never closes issues or changes PRs.
+
 ### Harness skill catalog
 
 `GET /api/skill/catalog` reads `SKILL.md` frontmatter from fixed folders under
@@ -613,8 +656,8 @@ repository root. The location is the same validated scope the other location
 routes use, and the walk never goes above the first directory holding `.git`.
 Controls:
 
-- Read-only. No shell runs and no harness process starts; the harness list
-  comes from settings.
+- No shell runs and no harness process starts; the harness list comes from
+  settings. The catalog itself only reads.
 - Only skill names, descriptions and absolute paths reach the renderer. Skill
   bodies are read to parse frontmatter and are never returned or logged.
 - Commands an ACP agent reports through `available_commands_update` are kept
@@ -624,12 +667,26 @@ Controls:
   same as Tenon's own skill loading, so a symlinked skill folder can expose
   the frontmatter of files outside these folders.
 
-`POST /api/skill/enabled` is the only write. It accepts a skill name and a
-boolean, refuses names that aren't one of Tenon's loaded skills, and writes
-only `skills.json` in the Tenon config directory (mode `0600`, atomic rename,
-serialized, never overwriting a malformed file). Harness skill folders are
-never written. Switching a skill off only hides it from Tenon's agent; it isn't
-a security control, since the skill file stays readable on disk.
+`POST /api/skill/enabled` is the only write. Without `harness` it accepts a
+skill name and a boolean, refuses names that aren't one of Tenon's loaded
+skills, and writes only `skills.json` in the Tenon config directory (mode
+`0600`, atomic rename, serialized, never overwriting a malformed file).
+
+With `harness` (an external harness ID from settings) it switches that
+harness's skill (#323) by renaming one file: `SKILL.md` to `SKILL.md.disabled`
+or back, in the folder where the catalog found it. Controls:
+
+- The renderer sends a harness ID and a skill name, never a path. The server
+  re-runs the same scan and only renames a file it found there.
+- Only home and project skill folders are writable this way; `/etc/codex/skills`
+  and reported commands are refused.
+- The file is renamed in place, never rewritten, and never renamed over an
+  existing file, so switching back restores it byte for byte.
+- A symlinked skill folder is followed like the scan, so the rename lands in
+  the link's target, which other tools reading that folder also see.
+
+Switching a skill off, Tenon's or a harness's, isn't a security control: the
+file stays readable on disk and a harness may still be told to read it.
 
 Composer skill chips read Tenon's skill bodies through the existing
 `GET /api/skill` (same location scope and auth). A body leaves the renderer
@@ -1207,6 +1264,15 @@ keeps its scripts so designs can animate and respond, so the frame, not
 sanitizing, is the control (`session-ui/src/components/design-fence.ts`,
 `html-window.ts`, `app/src/pages/session/canvas-tab.tsx`):
 
+- Canvas Notes (#326) add a picker script to the large design's document
+  (`designInspectScript`, `session-ui/src/components/design-inspect.ts`). It
+  stays idle until the app posts `{ type: "tenon-design-inspect", on }`, then
+  reports hover boxes, picks (a short CSS path, tag, text, box) and scrolling.
+  The app accepts only messages whose `source` is that frame's window and keeps
+  only bounded plain data (`pickedDesignElement`: strings cut to 200/120
+  characters, finite numbers); the highlight, note and pins are drawn by the
+  app over the frame. A design can fake a pick, which at worst puts wrong text
+  in a note the user still reviews before sending.
 - Frames get `sandbox="allow-scripts"` only (`DESIGN_SANDBOX`), set before the
   document and before the frame joins the page. No `allow-same-origin`, so the
   frame has an opaque origin and can't reach the renderer, its storage or
@@ -1471,7 +1537,11 @@ location and canonical Git worktree.
 - Provider keys never reach the renderer: `/provider` and `/config/providers`
   return `Provider.toRendererInfo` (no `key`, no token or header values), and
   `/config` and `/global/config` responses drop credential fields wherever they
-  appear (`config/redact.ts`).
+  appear (`config/redact.ts`). Settings › MCP servers therefore never edits an
+  existing server's environment or headers: it adds servers (values typed into
+  password fields go straight into the config) and removes them with
+  `DELETE /global/config/mcp/:name` (#334), which deletes only that key from
+  the global config file and takes the same auth as the other `/global` routes.
 - A PTY connect ticket stands in for credentials only after the auth
   middleware has checked, without consuming it, that the ticket exists for that
   PTY and that the Origin is allowed. Routing and instance loading happen after

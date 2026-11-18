@@ -778,6 +778,8 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
     refreshProviders,
     // bootstrap,
     updateConfig: updateConfigMutation.mutateAsync,
+    /** Reads the global config again, after a route other than `updateConfig` rewrote the file. */
+    reloadConfig: () => queryClient.refetchQueries({ queryKey: [serverSDK.scope, "config"] }),
     project: projectApi,
     session,
     homeSessions,

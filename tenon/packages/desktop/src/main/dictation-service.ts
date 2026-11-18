@@ -1,5 +1,7 @@
+import { tmpdir } from "node:os"
+import { wavBytes } from "./wav"
 import { existsSync } from "node:fs"
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdir, readFile, rm, unlink, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { app, net, shell, systemPreferences } from "electron"
 import { createDictation, dictationPermissionHelp, DictationError, type MicrophoneAccess } from "./dictation"
@@ -29,6 +31,7 @@ export function createDictationService() {
   let levelTarget: ((rms: number) => void) | undefined
   let limitTarget: (() => void) | undefined
   let partialTarget: ((text: string) => void) | undefined
+  let bandsTarget: ((values: number[]) => void) | undefined
 
   const modelPath = (id: DictationModelID) => join(folder, modelFile(id))
   const activePath = () => (active && existsSync(modelPath(active)) ? modelPath(active) : undefined)
@@ -39,6 +42,7 @@ export function createDictationService() {
   })
   dictation.onLevel((rms) => levelTarget?.(rms))
   dictation.onPartial((text) => partialTarget?.(text))
+  dictation.onBands((values) => bandsTarget?.(values))
   dictation.onLimit(() => limitTarget?.())
   app.once("will-quit", () => dictation.dispose())
 
@@ -57,11 +61,27 @@ export function createDictationService() {
   }
 
   const service = {
+    /** An attachment's audio as text (#330): 16 kHz mono samples, written to a temporary WAV for the engine. */
+    async transcribe(samples: Float32Array): Promise<{ text?: string; error?: DictationFailure }> {
+      await ready
+      if (!existsSync(engine)) return { error: { code: "engine_unavailable" } }
+      if (!activePath()) return { error: { code: "no_model" } }
+      const file = join(tmpdir(), `tenon-attachment-${process.pid}-${Date.now()}.wav`)
+      await writeFile(file, wavBytes(samples, 16_000))
+      return dictation
+        .transcribeFile(file)
+        .then(
+          (text) => ({ text }),
+          (error: unknown) => ({ error: failure(error) }),
+        )
+        .finally(() => void unlink(file).catch(() => undefined))
+    },
     async start(
       onLevel: (rms: number) => void,
       onLimit: () => void,
       onPartial?: (text: string) => void,
       options: { language?: string } = {},
+      onBands?: (values: number[]) => void,
     ): Promise<{ error?: DictationFailure }> {
       await ready
       if (!existsSync(engine)) return { error: { code: "engine_unavailable" } }
@@ -76,6 +96,7 @@ export function createDictationService() {
       levelTarget = onLevel
       limitTarget = onLimit
       partialTarget = onPartial
+      bandsTarget = onBands
       return dictation.start({ language: dictationLanguageCode(options.language) }).then(
         () => ({}),
         (error: unknown) => ({ error: failure(error) }),
@@ -84,6 +105,7 @@ export function createDictationService() {
     async stop(): Promise<{ text?: string; error?: DictationFailure }> {
       levelTarget = undefined
       partialTarget = undefined
+      bandsTarget = undefined
       return dictation.stop().then(
         (text) => ({ text }),
         (error: unknown) => ({ error: failure(error) }),
@@ -92,6 +114,7 @@ export function createDictationService() {
     cancel() {
       levelTarget = undefined
       partialTarget = undefined
+      bandsTarget = undefined
       dictation.cancel()
     },
     async models(): Promise<DictationModelState> {

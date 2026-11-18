@@ -5,6 +5,7 @@ import { unwrap } from "solid-js/store"
 import { foldTimelineRows, reuseTimelineRows } from "./row-reconciliation"
 import { Timeline, TimelineRow } from "./rows"
 import { same } from "@/utils/same"
+import { observedCompactions } from "./harness-compaction"
 
 export { reuseTimelineRows } from "./row-reconciliation"
 
@@ -43,6 +44,12 @@ export function createTimelineProjection(input: {
     ),
   )
   const activeMessageID = createMemo(() => turns().at(-1)?.user.id)
+  // External harnesses compact on their own; a sharp drop in their context reports marks the turn (#332).
+  const observed = createMemo(() => observedCompactions(input.sessionMessages() as never))
+  // How many messages come before each user message: what a compaction there summarised (#332).
+  const before = createMemo(
+    () => new Map(input.sessionMessages().map((message, index) => [message.id, index] as const)),
+  )
   const isActive = createSelector(activeMessageID)
   const turnByID = createMemo(() => new Map(turns().map((turn, index) => [turn.user.id, { turn, index }] as const)))
   const turnRows = mapArray(
@@ -74,6 +81,8 @@ export function createTimelineProjection(input: {
             input.status().type,
             isActive(userMessageID) ? userMessageID : undefined,
             input.inlineComments(),
+            observed().get(userMessageID),
+            before().get(userMessageID),
           ),
         )
       })

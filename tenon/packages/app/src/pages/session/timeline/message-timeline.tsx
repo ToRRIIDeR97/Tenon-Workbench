@@ -55,9 +55,11 @@ import { requireServerKey, sessionHref } from "@/utils/session-route"
 import { useSDK } from "@/context/sdk"
 import { ServerConnection } from "@/context/server"
 import { useServerSDK } from "@/context/server-sdk"
+import { rememberedHarnesses } from "@/utils/server"
 import { useSync } from "@/context/sync"
 import { sessionTitle } from "@/utils/session-title"
 import { scheduleConnectedMeasure } from "./measure"
+import { TOGGLE_HOLD_MS, resizeAnchoring } from "./resize-anchor"
 import { observeElementOffsetReconnectAware } from "./observe-element-offset"
 import { createTimelineProjection } from "./projection"
 import { MessageComment, SummaryDiff, TimelineRow, TimelineRowMap } from "./rows"
@@ -552,15 +554,19 @@ export function MessageTimeline(props: {
     // whatever `shouldAdjustScrollPositionOnItemSizeChange` says. It only keeps the end while the timeline follows
     // the bottom: someone reading just above it shouldn't be dragged down by each new step, and a card the user
     // toggled grows in place.
-    const holdEnd = props.shouldAnchorBottom() && performance.now() - toggledAt >= 800
+    // One owner per resize: the end anchor and one scroll to the end while following, neither just after a toggle.
+    const { holdEnd, scrollToEnd } = resizeAnchoring({
+      following: props.shouldAnchorBottom(),
+      sinceToggleMs: performance.now() - toggledAt,
+    })
     const anchorTo = virtualizer.options.anchorTo
     if (!holdEnd) virtualizer.options.anchorTo = "start"
     resizeItem(index, size)
     if (!holdEnd) virtualizer.options.anchorTo = anchorTo
-    if (root && props.shouldAnchorBottom()) anchorResizedBottom()
+    if (root && scrollToEnd) anchorResizedBottom()
   }
   virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item) => {
-    if (props.shouldAnchorBottom() || performance.now() - toggledAt < 800) return false
+    if (props.shouldAnchorBottom() || performance.now() - toggledAt < TOGGLE_HOLD_MS) return false
     const first = virtualizer.range?.startIndex
     return first !== undefined && item.index < first
   }
@@ -802,6 +808,20 @@ export function MessageTimeline(props: {
     return message?.role === "user" ? message.time.created : undefined
   }
 
+  // Tenon's compaction summary, opened from its divider (#332): the summary reply's text in that turn.
+  const [summaryOpen, setSummaryOpen] = createStore<Record<string, boolean>>({})
+  const summaryText = (userMessageID: string) => {
+    const summary = (assistantMessagesByParent().get(userMessageID) ?? []).find(
+      (message) => (message as { summary?: boolean }).summary === true,
+    )
+    if (!summary) return undefined
+    const text = getMsgParts(summary.id)
+      .flatMap((part) => (part.type === "text" && typeof part.text === "string" ? [part.text] : []))
+      .join("\n")
+      .trim()
+    return text || undefined
+  }
+
   const turnDurationMs = (userMessageID: string) => {
     const message = messageByID().get(userMessageID)
     if (!message || message.role !== "user") return
@@ -848,7 +868,6 @@ export function MessageTimeline(props: {
           part={part()}
           message={message()}
           showAssistantCopyPartID={assistantCopyPartID(row().userMessageID)}
-          turnDurationMs={turnDurationMs(row().userMessageID)}
           useV2Actions
           defaultOpen={defaultOpen()}
           toolOpen={toolOpen[part().id] ?? defaultOpen()}
@@ -877,7 +896,10 @@ export function MessageTimeline(props: {
           <ContextToolGroup
             parts={groupParts()}
             open={toolOpen[groupOpenKey()] === true}
-            onOpenChange={(value) => setToolOpen(groupOpenKey(), value)}
+            onOpenChange={(value) => {
+              holdBottom()
+              setToolOpen(groupOpenKey(), value)
+            }}
             busy={
               workingTurn(row().userMessageID) && lastAssistantGroupKey().get(row().userMessageID) === row().group.key
             }
@@ -888,7 +910,10 @@ export function MessageTimeline(props: {
           <ToolGroup
             parts={groupParts()}
             open={toolOpen[groupOpenKey()] === true}
-            onOpenChange={(value) => setToolOpen(groupOpenKey(), value)}
+            onOpenChange={(value) => {
+              holdBottom()
+              setToolOpen(groupOpenKey(), value)
+            }}
             onSizeChange={onSizeChange}
           >
             {(item) => <Show when={messageByID().get(item().messageID)}>{(message) => renderPart(item, message)}</Show>}
@@ -1010,10 +1035,50 @@ export function MessageTimeline(props: {
             <div data-slot="session-turn-message-container" class="w-full px-4 md:px-5">
               <div data-slot="session-turn-compaction">
                 <MessageDivider
-                  label={language.t(
-                    turnDividerRow().label === "compaction" ? "ui.messagePart.compaction" : "ui.message.interrupted",
-                  )}
+                  label={(() => {
+                    const row = turnDividerRow()
+                    // Seen, not reported: the harness compacted in its own process, and the figures say how we know.
+                    if (row.label === "harness-compaction" && row.observed)
+                      return language.t("secondBrain.timeline.harnessCompaction", {
+                        harness:
+                          rememberedHarnesses(serverSDK().server.http.url, sdk().directory)?.find(
+                            (item) => item.id === row.observed!.harness,
+                          )?.name ??
+                          HARNESS_NAMES[row.observed.harness] ??
+                          language.t("secondBrain.timeline.theAgent"),
+                        before: compactTokens(row.observed.before),
+                        after: compactTokens(row.observed.after),
+                      })
+                    if (row.label === "compaction" && row.summarised)
+                      return language.t("secondBrain.timeline.tenonCompaction", { count: row.summarised })
+                    return language.t(
+                      row.label === "compaction" ? "ui.messagePart.compaction" : "ui.message.interrupted",
+                    )
+                  })()}
                 />
+                <Show when={turnDividerRow().label === "compaction" && summaryText(turnDividerRow().userMessageID)}>
+                  {(text) => (
+                    <div class="flex flex-col items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        class="type-meta text-v2-text-text-accent hover:underline"
+                        aria-expanded={summaryOpen[turnDividerRow().userMessageID] === true}
+                        onClick={() => setSummaryOpen(turnDividerRow().userMessageID, (open) => !open)}
+                      >
+                        {language.t(
+                          summaryOpen[turnDividerRow().userMessageID]
+                            ? "secondBrain.timeline.hideSummary"
+                            : "secondBrain.timeline.viewSummary",
+                        )}
+                      </button>
+                      <Show when={summaryOpen[turnDividerRow().userMessageID]}>
+                        <div class="w-full whitespace-pre-wrap rounded-[12px] bg-v2-background-bg-layer-01 px-3 py-2 type-body-compact text-v2-text-text-muted">
+                          {text()}
+                        </div>
+                      </Show>
+                    </div>
+                  )}
+                </Show>
               </div>
             </div>
           </TimelineRowFrame>
@@ -1162,7 +1227,7 @@ export function MessageTimeline(props: {
     }
     const asyncFile = () => ["edit", "write", "apply_patch"].includes(tool()?.tool ?? "")
     const [ready, setReady] = createSignal(initialItem.size <= timelineFallbackItemSize || !asyncFile())
-    let contentMeasureFrame: number | undefined
+    let cancelContentMeasure: (() => void) | undefined
 
     onMount(() => virtualizer.measureElement(element))
 
@@ -1177,7 +1242,7 @@ export function MessageTimeline(props: {
     )
 
     onCleanup(() => {
-      if (contentMeasureFrame !== undefined) cancelAnimationFrame(contentMeasureFrame)
+      cancelContentMeasure?.()
     })
 
     return (
@@ -1205,8 +1270,8 @@ export function MessageTimeline(props: {
             row={row()}
             onSizeChange={() => {
               setReady(true)
-              if (contentMeasureFrame !== undefined) cancelAnimationFrame(contentMeasureFrame)
-              contentMeasureFrame = scheduleConnectedMeasure(element, virtualizer.measureElement)
+              cancelContentMeasure?.()
+              cancelContentMeasure = scheduleConnectedMeasure(element, virtualizer.measureElement)
             }}
           />
         </div>
@@ -1390,4 +1455,18 @@ export function MessageTimeline(props: {
       />
     </div>
   )
+}
+
+const HARNESS_NAMES: Record<string, string> = {
+  "claude-code": "Claude Code",
+  codex: "Codex",
+  "opencode-acp": "OpenCode",
+  gemini: "Gemini",
+  antigravity: "Antigravity",
+  "command-code": "Command Code",
+}
+
+/** Tokens as the divider shows them: 182k, 41k, 900. */
+function compactTokens(value: number) {
+  return value >= 1000 ? `${Math.round(value / 1000)}k` : String(value)
 }

@@ -29,6 +29,8 @@ import { normalizeSessionInfo } from "@/utils/session"
 import { Event } from "@tenon/schema/event"
 import { blobDataUrl } from "@/utils/draft-store"
 import { Harness } from "@tenon/schema/harness"
+import { prepareAttachments } from "./attachment-prepare"
+import { DEFAULT_INPUTS, mediaPlan, type ModelInputs } from "./attachment-media"
 
 type PendingPrompt = {
   abort: AbortController
@@ -78,6 +80,8 @@ export type FollowupDraft = {
   delivery?: PromptDelivery
   /** The model profile to attach, when one is due. */
   profile?: { model: string; rules: string }
+  /** What the model reads besides text; unknown models are assumed to read images and PDF (#330). */
+  inputs?: ModelInputs
 }
 
 type FollowupSendInput = {
@@ -89,6 +93,14 @@ type FollowupSendInput = {
   optimisticBusy?: boolean
   before?: () => Promise<boolean> | boolean
   skill?: (name: string) => string | undefined
+}
+
+/** The model's input types from the provider list, when it reports them (#330). */
+export function modelInputs(model: unknown): ModelInputs | undefined {
+  const input = (model as { capabilities?: { input?: Partial<Record<keyof ModelInputs, boolean>> } } | undefined)
+    ?.capabilities?.input
+  if (!input) return undefined
+  return { image: !!input.image, video: !!input.video, audio: !!input.audio, pdf: !!input.pdf }
 }
 
 const draftText = (prompt: Prompt) => prompt.map((part) => ("content" in part ? part.content : "")).join("")
@@ -152,8 +164,15 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
   }
 
   const messageID = input.messageID ?? Identifier.ascending("message")
+  // Video, audio and documents become what the model can read: frame grids, text or a stand-in (#330).
+  // Only when one needs it, so a plain send keeps its timing.
+  const sendable = images.some(
+    (attachment) => mediaPlan(attachment.mime, input.draft.inputs ?? DEFAULT_INPUTS) !== "file",
+  )
+    ? await prepareAttachments(images, input.draft.inputs)
+    : images
   const encodedImages = await Promise.all(
-    images.map(async (attachment) => ({
+    sendable.map(async (attachment) => ({
       ...attachment,
       dataUrl: await blobDataUrl(attachment.blob, attachment.mime),
     })),
@@ -535,6 +554,8 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       harness: !usesHostModel,
       variant,
       profile,
+      // What the built-in agent's model reads besides text; a harness's model is assumed to read images and PDF.
+      inputs: usesHostModel ? modelInputs(currentModel) : undefined,
       delivery: promptDelivery({
         working: !isNewSession && input.working(),
         preference: input.followup?.() ?? "steer",

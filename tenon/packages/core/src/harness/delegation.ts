@@ -7,6 +7,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { Effect, Option, Schema } from "effect"
 import { SessionSchema } from "../session/schema"
 import { HarnessAskUser } from "./ask-user"
+import { HarnessComputerProxy } from "./computer-proxy"
 
 /**
  * The `tenon` MCP server for external harnesses (Claude Code and Gemini over ACP, Codex). Each
@@ -79,7 +80,12 @@ export interface Endpoint {
 export interface Caller {
   readonly sessionID: string
   readonly ask?: HarnessAskUser.Ask
+  /** Set for a harness without its own computer use: its folder and name, for the Cua Driver proxy (#333). */
+  readonly computer?: { readonly directory: string; readonly harness: string }
 }
+
+/** Driver tools on the tenon server carry this prefix, so they can't collide with Tenon's own. */
+const COMPUTER_PREFIX = "computer_"
 
 const state: {
   handler?: Handler
@@ -101,14 +107,18 @@ export function install(handler: Handler) {
  * turn ends. With neither `ask` nor an installed delegation handler (tests, the headless CLI)
  * there is nothing to offer, so the harness gets none.
  */
-export const endpoint = (sessionID: SessionSchema.ID, ask?: HarnessAskUser.Ask) =>
+export const endpoint = (
+  sessionID: SessionSchema.ID,
+  ask?: HarnessAskUser.Ask,
+  computer?: { readonly directory: string; readonly harness: string },
+) =>
   Effect.acquireRelease(
     Effect.promise(async (): Promise<Endpoint | undefined> => {
       if (!state.handler && !ask && !HarnessAppTools.installed()) return undefined
       const listener = await listen().catch(() => undefined)
       if (!listener) return undefined
       const token = randomBytes(32).toString("base64url")
-      state.tokens.set(token, { sessionID, ask })
+      state.tokens.set(token, { sessionID, ask, ...(computer ? { computer } : {}) })
       return { url: listener.url, token }
     }),
     (value) =>
@@ -277,11 +287,27 @@ export async function handleMessage(message: Message, caller: Caller, handler: H
         ...(handler ? TOOLS : []),
         ...(HarnessBrowserTools.available() ? HarnessBrowserTools.TOOLS : []),
         ...(await HarnessAppTools.list(caller)),
+        ...(caller.computer
+          ? (await HarnessComputerProxy.shared.tools(caller.computer)).map((tool) => ({
+              ...tool,
+              name: `${COMPUTER_PREFIX}${tool.name}`,
+            }))
+          : []),
       ],
     })
   if (message.method !== "tools/call") return error(message.id, -32601, "Method not found")
   const name = String(params.name)
   const args = isRecord(params.arguments) ? params.arguments : {}
+  if (caller.computer && name.startsWith(COMPUTER_PREFIX))
+    return reply(
+      message.id,
+      await HarnessComputerProxy.shared.call(
+        name.slice(COMPUTER_PREFIX.length),
+        args,
+        { sessionID: caller.sessionID, ...caller.computer },
+        HarnessComputerProxy.askInDock(caller.ask),
+      ),
+    )
   if (HarnessBrowserTools.isTool(name))
     return reply(
       message.id,

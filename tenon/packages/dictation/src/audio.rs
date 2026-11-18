@@ -17,6 +17,16 @@ const VAD_PADDING_FRAMES: usize = 15;
 /// A level event every few chunks (480-frame chunks are 30 ms) keeps the meter smooth without flooding stdout.
 const LEVEL_EVERY_CHUNKS: u32 = 3;
 
+/// Samples per voice-wave reading: 512 at 16 kHz is 32 ms, about one recorder chunk.
+pub const BAND_WINDOW: usize = 512;
+/// Bars in the composer's voice wave (#328).
+pub const BAND_COUNT: usize = 24;
+/// The bands span the voice: log-spaced from 80 Hz to 6 kHz.
+const BAND_LOW_HZ: f32 = 80.0;
+const BAND_HIGH_HZ: f32 = 6_000.0;
+/// Loudness below this many dB (full scale) draws an empty bar.
+const BAND_FLOOR_DB: f32 = 60.0;
+
 /// The recording so far, shared with the live-transcript thread while the recorder appends to it.
 pub type SharedSamples = Arc<Mutex<Vec<f32>>>;
 
@@ -53,10 +63,21 @@ impl LevelSink {
 impl Sink for LevelSink {
     fn process_chunk(&mut self, chunk: AudioChunk<'_>) {
         let real = &chunk.samples[..chunk.valid_frames * chunk.channels as usize];
-        self.samples
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
-            .extend_from_slice(real);
+        let bands = {
+            let mut samples = self.samples.lock().unwrap_or_else(|p| p.into_inner());
+            samples.extend_from_slice(real);
+            frequency_bands(
+                &samples[samples.len().saturating_sub(BAND_WINDOW)..],
+                BAND_COUNT,
+            )
+        };
+        // Every chunk (30 ms), so the wave moves with the voice; values rounded to keep the line short.
+        let values: Vec<f32> = bands
+            .iter()
+            .map(|value| (value * 100.0).round() / 100.0)
+            .collect();
+        self.events
+            .send(json!({ "type": "bands", "values": values }));
         self.square_sum += real.iter().map(|s| s * s).sum::<f32>();
         self.square_count += real.len();
         self.chunks += 1;
@@ -69,6 +90,72 @@ impl Sink for LevelSink {
         self.events
             .send(json!({ "type": "level", "rms": (rms * 1000.0).round() / 1000.0 }));
     }
+}
+
+/// The loudness of `count` log-spaced frequency bands in the newest `BAND_WINDOW` samples, each 0 (silent or below
+/// the floor) to 1 (full scale). Each band is the loudest frequency bin between its edges, one Hann-windowed Goertzel
+/// filter per bin (about 190 bins over 80 Hz to 6 kHz): no FFT crate needed for 24 bars.
+pub fn frequency_bands(samples: &[f32], count: usize) -> Vec<f32> {
+    let n = samples.len().min(BAND_WINDOW);
+    if n == 0 {
+        return vec![0.0; count];
+    }
+    let size = n as f32;
+    let windowed: Vec<f32> = samples[samples.len() - n..]
+        .iter()
+        .enumerate()
+        .map(|(index, sample)| {
+            sample
+                * (0.5
+                    - 0.5
+                        * (2.0 * std::f32::consts::PI * index as f32 / (size - 1.0).max(1.0)).cos())
+        })
+        .collect();
+    let bin = 16_000.0 / size;
+    let ratio = BAND_HIGH_HZ / BAND_LOW_HZ;
+    (0..count)
+        .map(|band| {
+            let low = BAND_LOW_HZ * ratio.powf(band as f32 / count as f32);
+            let high = BAND_LOW_HZ * ratio.powf((band + 1) as f32 / count as f32);
+            let mut peak = 0.0f32;
+            let mut frequency = low;
+            // At least the band's middle, then every bin up to its upper edge.
+            loop {
+                peak = peak.max(goertzel(&windowed, frequency.min(high)));
+                frequency += bin;
+                if frequency > high {
+                    break;
+                }
+            }
+            if band_is_narrow(low, high, bin) {
+                peak = peak.max(goertzel(&windowed, (low + high) / 2.0));
+            }
+            // A full-scale sine of amplitude A gives about A * n / 4 through a Hann window.
+            let magnitude = peak / (size / 4.0);
+            if magnitude <= 0.0 {
+                return 0.0;
+            }
+            ((20.0 * magnitude.log10() + BAND_FLOOR_DB) / BAND_FLOOR_DB).clamp(0.0, 1.0)
+        })
+        .collect()
+}
+
+fn band_is_narrow(low: f32, high: f32, bin: f32) -> bool {
+    high - low < bin
+}
+
+/// The magnitude of one frequency in an already windowed block.
+fn goertzel(windowed: &[f32], frequency: f32) -> f32 {
+    let coefficient = 2.0 * (2.0 * std::f32::consts::PI * frequency / 16_000.0).cos();
+    let (mut previous, mut before) = (0.0f32, 0.0f32);
+    for sample in windowed {
+        let current = sample + coefficient * previous - before;
+        before = previous;
+        previous = current;
+    }
+    (previous * previous + before * before - coefficient * previous * before)
+        .max(0.0)
+        .sqrt()
 }
 
 /// The span of `samples` that holds speech, padded; empty when earshot hears no speech.
@@ -138,6 +225,50 @@ mod tests {
     #[test]
     fn silence_has_no_speech() {
         assert!(trim_to_speech(&vec![0.0; 16_000]).is_empty());
+    }
+
+    // #328: the voice wave's bars are the microphone's frequency bands.
+    fn sine(freq: f32, amplitude: f32) -> Vec<f32> {
+        (0..BAND_WINDOW)
+            .map(|n| amplitude * (2.0 * std::f32::consts::PI * freq * n as f32 / 16_000.0).sin())
+            .collect()
+    }
+
+    #[test]
+    fn bands_are_quiet_for_silence() {
+        let bands = frequency_bands(&vec![0.0; BAND_WINDOW], BAND_COUNT);
+        assert_eq!(bands.len(), BAND_COUNT);
+        assert!(bands.iter().all(|value| *value == 0.0));
+    }
+
+    #[test]
+    fn a_tone_lights_the_band_it_falls_in() {
+        let low = frequency_bands(&sine(200.0, 0.5), BAND_COUNT);
+        let high = frequency_bands(&sine(3_000.0, 0.5), BAND_COUNT);
+        let peak = |bands: &[f32]| {
+            bands.iter().enumerate().fold(
+                0,
+                |best, (index, value)| if *value > bands[best] { index } else { best },
+            )
+        };
+        assert!(peak(&low) < BAND_COUNT / 3, "200 Hz peaks low: {:?}", low);
+        assert!(
+            peak(&high) > BAND_COUNT * 2 / 3,
+            "3 kHz peaks high: {:?}",
+            high
+        );
+        assert!(low
+            .iter()
+            .chain(high.iter())
+            .all(|value| (0.0..=1.0).contains(value)));
+    }
+
+    #[test]
+    fn a_louder_voice_draws_taller_bars() {
+        let quiet = frequency_bands(&sine(500.0, 0.02), BAND_COUNT);
+        let loud = frequency_bands(&sine(500.0, 0.5), BAND_COUNT);
+        let max = |bands: &[f32]| bands.iter().cloned().fold(0.0, f32::max);
+        assert!(max(&loud) > max(&quiet));
     }
 
     #[test]

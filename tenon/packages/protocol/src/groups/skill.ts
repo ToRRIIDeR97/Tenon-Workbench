@@ -42,14 +42,14 @@ export const SkillGroup = HttpApiGroup.make("server.skill")
           identifier: "v2.skill.catalog",
           summary: "List skills by harness",
           description:
-            "Tenon skills, then the skills each external harness can use, read-only. Names, descriptions and paths only.",
+            "Tenon skills, then the skills each external harness can use. Names, descriptions, paths and on/off state only.",
         }),
       ),
   )
   .add(
     HttpApiEndpoint.post("skill.setEnabled", "/api/skill/enabled", {
       query: LocationQuery,
-      payload: Schema.Struct({ name: Schema.String, enabled: Schema.Boolean }),
+      payload: Schema.Struct({ name: Schema.String, enabled: Schema.Boolean, harness: Schema.optional(Schema.String) }),
       success: Location.response(Schema.Struct({ name: Schema.String, enabled: Schema.Boolean })),
       error: [SkillNotFoundError, SkillToggleWriteError],
     })
@@ -57,9 +57,9 @@ export const SkillGroup = HttpApiGroup.make("server.skill")
       .annotateMerge(
         OpenApi.annotations({
           identifier: "v2.skill.setEnabled",
-          summary: "Switch a Tenon skill on or off",
+          summary: "Switch a skill on or off",
           description:
-            "Saves the choice in skills.json in the Tenon config directory. Harness skills can't be switched.",
+            "A Tenon skill: saves the choice in skills.json in the Tenon config directory. With harness, that harness's skill: renames its SKILL.md to SKILL.md.disabled and back, in a home or project skill folder only.",
         }),
       ),
   )

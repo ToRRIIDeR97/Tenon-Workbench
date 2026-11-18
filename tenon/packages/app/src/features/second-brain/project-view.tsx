@@ -9,6 +9,8 @@ import type { LogEntry, ProjectRecord, Timeline, TimelineItem, VaultPageInfo } f
 import { milestoneGroups, timelineCounts, timelineLayout } from "./notes-timeline"
 import { DateChip, KindSwitch } from "./project-controls"
 import { createProjectTasks, ProjectTaskRow } from "./project-tasks"
+import { ProjectGithubTasks, ProjectRepository } from "./project-github-tasks"
+import { ProjectComputerUse } from "./project-computer-use"
 import { ProjectActionsMenu, useProjectCard } from "./project-details"
 import {
   LogCard,
@@ -113,6 +115,12 @@ export function ProjectView(props: {
     ),
   )
   const outcome = () => props.project.outcome.trim()
+  // The Project's folder: absolute for a linked folder, else relative to the workspace.
+  const projectFolder = () => {
+    const path = props.project.location?.path
+    if (!path) return undefined
+    return /^([a-zA-Z]:)?[\\/]/.test(path) ? path : `${props.directory.replace(/[\\/]+$/, "")}/${path}`
+  }
 
   const tasks = createProjectTasks({ items, onSaveItems: (next) => props.onSaveItems(next) })
   // New items join the end of the list, so a task lands under the last milestone.
@@ -239,6 +247,8 @@ export function ProjectView(props: {
                   </div>
                 )}
               </For>
+              {/* The linked repository's issues are tasks too (#331). */}
+              <ProjectGithubTasks projectId={props.project.id} folder={projectFolder()} show={state.show} />
             </div>
           ))}
           <RevealShow when={tasks.state.error}>
@@ -272,6 +282,9 @@ export function ProjectView(props: {
           />
           <ThreadsCard threads={props.threads} threadHref={props.threadHref} onNewThread={props.onNewThread} />
           <LogCard log={props.log} />
+          {/* The Project's settings: where its GitHub tasks come from, and computer use. */}
+          <ProjectRepository folder={projectFolder()} />
+          <ProjectComputerUse folder={projectFolder()} />
         </aside>
       </div>
     </div>

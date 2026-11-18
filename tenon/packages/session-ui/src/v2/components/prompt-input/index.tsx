@@ -54,6 +54,8 @@ export type PromptInputV2Props = {
   headerControl?: JSX.Element
   /** Accessible label of a quote chip's remove button. */
   quoteRemoveLabel?: string
+  /** How an attachment will reach the model (#330), shown on its card in place of the file type. */
+  attachmentNote?: (attachment: PromptInputV2Attachment) => string | undefined
   /** Trailing toolbar slot next to the submit button (e.g. the prompt stash menu). */
   trailingControl?: JSX.Element
   modelControl?: JSX.Element
@@ -236,6 +238,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
               comments={props.controller.comments()}
               quotes={props.controller.quotes()}
               quoteRemoveLabel={props.quoteRemoveLabel}
+              attachmentNote={props.attachmentNote}
               activeCommentID={state.activeContextID}
               removeLabel={i18n.t("ui.promptInput.removeAttachment")}
               onAttachmentClick={props.controller.openAttachment}
@@ -526,6 +529,8 @@ export function PromptInputV2Attachments(props: {
   comments?: PromptInputV2Comment[]
   quotes?: PromptInputV2Quote[]
   quoteRemoveLabel?: string
+  /** How an attachment will reach the model (#330), shown on its card in place of the file type. */
+  attachmentNote?: (attachment: PromptInputV2Attachment) => string | undefined
   activeCommentID?: string
   removeLabel: string
   onAttachmentClick?: (attachment: PromptInputV2Attachment) => void
@@ -620,9 +625,27 @@ export function PromptInputV2Attachments(props: {
                   <Show
                     when={attachment.mime.startsWith("image/")}
                     fallback={
-                      <AttachmentCardV2 title={attachment.filename}>
-                        {typeLabel(attachment.filename, attachment.mime, i18n.t("ui.common.file"))}
-                      </AttachmentCardV2>
+                      <Show
+                        when={attachment.mime.startsWith("video/") && props.onAttachmentClick}
+                        fallback={
+                          <AttachmentCardV2 title={attachment.filename}>
+                            {props.attachmentNote?.(attachment) ??
+                              typeLabel(attachment.filename, attachment.mime, i18n.t("ui.common.file"))}
+                          </AttachmentCardV2>
+                        }
+                      >
+                        <button
+                          type="button"
+                          class="block rounded-[12px] text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus"
+                          aria-label={attachment.filename}
+                          onClick={() => props.onAttachmentClick?.(attachment)}
+                        >
+                          <AttachmentCardV2 title={attachment.filename}>
+                            {props.attachmentNote?.(attachment) ??
+                              typeLabel(attachment.filename, attachment.mime, i18n.t("ui.common.file"))}
+                          </AttachmentCardV2>
+                        </button>
+                      </Show>
                     }
                   >
                     <button

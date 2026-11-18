@@ -99,6 +99,7 @@ export const dict: Record<string, string> = {
   "ui.messagePart.context.search.other": "{{count}} searches",
   "ui.messagePart.context.list.one": "{{count}} list",
   "ui.messagePart.context.list.other": "{{count}} lists",
+  "secondBrain.messagePart.computerStopped": "You stopped computer use",
   "secondBrain.messagePart.tools.title.one": "Ran {{count}} tool",
   "secondBrain.messagePart.tools.title.other": "Ran {{count}} tools",
   "secondBrain.messagePart.tools.command.one": "{{count}} command",

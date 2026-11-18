@@ -1,4 +1,5 @@
 import { checksum } from "@tenon/core/util/encode"
+import { designInspectScript } from "./design-inspect"
 
 /**
  * Agent-authored designs: ```html fenced blocks in chat.
@@ -100,7 +101,14 @@ export function designTooLarge(source: string) {
  * With `nonce`, scripts may run only when they carry that nonce (Tenon's own, never the page's inline
  * scripts, handlers or javascript: URLs); the guard and autosize scripts get it.
  */
-export function designDocument(source: string, options: { autosize?: boolean; nonce?: string } = {}) {
+/**
+ * A design's page for its sandboxed frame. `inspect` adds the element picker the canvas uses for notes (#326); it
+ * stays idle until the app switches inspect on.
+ */
+export function designDocument(
+  source: string,
+  options: { autosize?: boolean; nonce?: string; inspect?: boolean } = {},
+) {
   const csp = options.nonce
     ? DESIGN_CSP.replace("script-src 'unsafe-inline'", `script-src 'nonce-${options.nonce}'`)
     : DESIGN_CSP
@@ -113,6 +121,7 @@ export function designDocument(source: string, options: { autosize?: boolean; no
     '<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">',
     frameScrollbar,
     options.autosize ? autosizeScript.replace("<script>", script) : "",
+    options.inspect ? designInspectScript.replace("<script>", script) : "",
     source,
   ].join("")
 }

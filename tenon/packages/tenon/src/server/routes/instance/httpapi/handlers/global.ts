@@ -4,6 +4,7 @@ import { GlobalBus, type GlobalEvent as GlobalBusEvent } from "@/bus/global"
 import { EffectBridge } from "@/effect/bridge"
 import { EventV2 } from "@tenon/core/event"
 import { Installation } from "@/installation"
+import { McpAuth } from "@/mcp/auth"
 import { disposeAllInstancesAndEmitGlobalDisposed } from "@/server/global-lifecycle"
 import { InstallationVersion } from "@tenon/core/installation/version"
 import { Cause, Effect, Queue, Schema } from "effect"
@@ -89,6 +90,7 @@ function eventResponse(options: { skipSync: boolean }) {
 export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handlers) =>
   Effect.gen(function* () {
     const config = yield* Config.Service
+    const mcpAuth = yield* McpAuth.Service
     const installation = yield* Installation.Service
     const bridge = yield* EffectBridge.make()
 
@@ -108,6 +110,34 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
       const result = yield* config.updateGlobal(ctx.payload)
       if (result.changed) bridge.fork(disposeAllInstancesAndEmitGlobalDisposed({ swallowErrors: true }))
       return redactSecrets(result.info)
+    })
+
+    const configMcpRemove = Effect.fn("GlobalHttpApi.configMcpRemove")(function* (ctx: { params: { name: string } }) {
+      const result = yield* config.removeGlobalMcp(ctx.params.name)
+      // A removed server's sign-in goes with it, so a new server with the same name starts signed out.
+      if (result.changed) yield* mcpAuth.remove(ctx.params.name)
+      if (result.changed) bridge.fork(disposeAllInstancesAndEmitGlobalDisposed({ swallowErrors: true }))
+      return result
+    })
+
+    const configMcpEdit = Effect.fn("GlobalHttpApi.configMcpEdit")(function* (ctx: {
+      params: { name: string }
+      payload: { rename?: string; clear?: ReadonlyArray<string> }
+    }) {
+      const result = yield* config.editGlobalMcp(ctx.params.name, ctx.payload)
+      // A sign-in is stored by server name; a renamed server keeps its own.
+      const rename = ctx.payload.rename?.trim()
+      if (result.changed && rename && rename !== ctx.params.name) {
+        const stored = yield* mcpAuth.get(ctx.params.name)
+        if (stored) yield* mcpAuth.set(rename, stored, stored.serverUrl)
+        yield* mcpAuth.remove(ctx.params.name)
+      }
+      if (result.changed) bridge.fork(disposeAllInstancesAndEmitGlobalDisposed({ swallowErrors: true }))
+      return result
+    })
+
+    const configMcpNames = Effect.fn("GlobalHttpApi.configMcpNames")(function* (ctx: { params: { name: string } }) {
+      return yield* config.globalMcpSecretNames(ctx.params.name)
     })
 
     const dispose = Effect.fn("GlobalHttpApi.dispose")(function* () {
@@ -171,6 +201,9 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
       .handleRaw("event", event)
       .handle("configGet", configGet)
       .handle("configUpdate", configUpdate)
+      .handle("configMcpRemove", configMcpRemove)
+      .handle("configMcpEdit", configMcpEdit)
+      .handle("configMcpNames", configMcpNames)
       .handle("dispose", dispose)
       .handleRaw("upgrade", upgradeRaw)
   }),

@@ -66,6 +66,9 @@ export const GlobalPaths = {
   health: "/global/health",
   event: "/global/event",
   config: "/global/config",
+  configMcp: "/global/config/mcp/:name",
+  configMcpEdit: "/global/config/mcp/:name/edit",
+  configMcpNames: "/global/config/mcp/:name/names",
   dispose: "/global/dispose",
   upgrade: "/global/upgrade",
 } as const
@@ -109,6 +112,46 @@ export const GlobalApi = HttpApi.make("global").add(
           identifier: "global.config.update",
           summary: "Update global configuration",
           description: "Update global Tenon configuration settings and preferences.",
+        }),
+      ),
+      HttpApiEndpoint.delete("configMcpRemove", GlobalPaths.configMcp, {
+        params: { name: Schema.String },
+        success: described(Schema.Struct({ changed: Schema.Boolean }), "Whether a server was removed"),
+      }).annotateMerge(
+        OpenApi.annotations({
+          identifier: "global.config.mcp.remove",
+          summary: "Remove an MCP server",
+          description: "Delete one MCP server from the global Tenon configuration file, keeping the rest of the file.",
+        }),
+      ),
+      HttpApiEndpoint.post("configMcpEdit", GlobalPaths.configMcpEdit, {
+        params: { name: Schema.String },
+        payload: Schema.Struct({
+          rename: Schema.optional(Schema.String),
+          clear: Schema.optional(Schema.Array(Schema.String)),
+        }),
+        success: described(
+          Schema.Struct({ changed: Schema.Boolean, error: Schema.optional(Schema.String) }),
+          "Whether the server changed",
+        ),
+      }).annotateMerge(
+        OpenApi.annotations({
+          identifier: "global.config.mcp.edit",
+          summary: "Rename an MCP server or clear its fields",
+          description: "Renames a server or removes some of its fields in the global config file, keeping its secrets.",
+        }),
+      ),
+      HttpApiEndpoint.get("configMcpNames", GlobalPaths.configMcpNames, {
+        params: { name: Schema.String },
+        success: described(
+          Schema.Struct({ environment: Schema.Array(Schema.String), headers: Schema.Array(Schema.String) }),
+          "Environment variable and header names",
+        ),
+      }).annotateMerge(
+        OpenApi.annotations({
+          identifier: "global.config.mcp.names",
+          summary: "List an MCP server's secret names",
+          description: "The names of a server's environment variables and headers, never their values.",
         }),
       ),
       HttpApiEndpoint.post("dispose", GlobalPaths.dispose, {

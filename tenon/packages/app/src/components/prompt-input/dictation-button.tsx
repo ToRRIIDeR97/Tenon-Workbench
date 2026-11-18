@@ -1,8 +1,9 @@
 import { useParams } from "@solidjs/router"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
+import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { createStore } from "solid-js/store"
-import { onCleanup, Show } from "solid-js"
+import { Index, onCleanup, Show, createEffect } from "solid-js"
 import { Portal } from "solid-js/web"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import type { DictationFailure, DictationPlatform } from "@/context/platform"
@@ -10,6 +11,37 @@ import { useLanguage } from "@/context/language"
 import { useSettings } from "@/context/settings"
 import { showToast } from "@/utils/toast"
 import { dictationLanguage } from "./dictation-language"
+import { mergeCaption } from "./dictation-caption"
+import { waveBars } from "./dictation-wave"
+
+/** Bars in the composer's voice wave. */
+const WAVE_BARS = 32
+
+/**
+ * Where the live words and the wave go: the top of the composer's box (#328, variant A), so they read as the
+ * composer's own text. The compact composer has no room and keeps the floating caption.
+ */
+function liveSlot(button: HTMLElement | undefined) {
+  const box =
+    button?.closest<HTMLElement>('[data-slot="prompt-input-box"]') ??
+    button?.closest<HTMLElement>('[data-component="composer-box"]:not([data-size="compact"])')
+  if (!box) return undefined
+  // The wave and Stop take the toolbar's place while recording; the toolbar comes back when it ends.
+  const controls = box.querySelector<HTMLElement>('[data-slot="prompt-input-controls"]') ?? undefined
+  const slot = document.createElement("div")
+  slot.dataset.slot = "dictation-live-slot"
+  if (controls && controls.parentElement) {
+    controls.parentElement.insertBefore(slot, controls)
+    controls.style.display = "none"
+  } else box.append(slot)
+  return {
+    element: slot,
+    remove() {
+      slot.remove()
+      if (controls) controls.style.display = ""
+    },
+  }
+}
 
 // Toasts have a fixed height, so a long transcript would push Copy out of reach. Copy takes all of it.
 const TRANSCRIPT_PREVIEW = 300
@@ -42,10 +74,61 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
   makeEventListener(window, "resize", follow)
   makeEventListener(window, "scroll", follow, { capture: true, passive: true })
   const offLevel = props.dictation.onLevel((rms) => setState("level", Math.min(1, rms * 4)))
+  // The wave's bars follow the microphone's frequency bands; an older engine without them falls back to the level.
+  let bands: number[] | undefined
+  const offBands = props.dictation.onBands?.((values) => {
+    if (state.phase === "recording") bands = values
+  })
+  const [slot, setSlot] = createStore({ element: undefined as HTMLElement | undefined })
+  let placed: ReturnType<typeof liveSlot>
+  createEffect(() => {
+    const live = state.phase === "recording" || state.phase === "transcribing"
+    if (live && !slot.element) {
+      placed = liveSlot(button)
+      setSlot("element", placed?.element)
+    }
+    if (!live && slot.element) {
+      placed?.remove()
+      placed = undefined
+      setSlot("element", undefined)
+      bands = undefined
+    }
+  })
+  onCleanup(() => placed?.remove())
+  const drawWave = (canvas: HTMLCanvasElement) => {
+    let bars: number[] = []
+    let frame = 0
+    const draw = () => {
+      const context = canvas.getContext("2d")
+      // The backing store is resized only when the canvas's size changes, not every frame.
+      const width = Math.round(canvas.clientWidth * devicePixelRatio)
+      const height = Math.round(canvas.clientHeight * devicePixelRatio)
+      if (canvas.width !== width) canvas.width = width
+      if (canvas.height !== height) canvas.height = height
+      if (context && width > 0) {
+        bars = waveBars(bands, bars, WAVE_BARS, state.level)
+        context.clearRect(0, 0, width, height)
+        context.fillStyle = getComputedStyle(canvas).color
+        const gap = 3 * devicePixelRatio
+        const bar = (width - gap * (WAVE_BARS - 1)) / WAVE_BARS
+        bars.forEach((value, index) => {
+          const tall = Math.max(2 * devicePixelRatio, value * height)
+          context.globalAlpha = 0.35 + value * 0.65
+          context.beginPath()
+          context.roundRect(index * (bar + gap), (height - tall) / 2, bar, tall, bar / 2)
+          context.fill()
+        })
+      }
+      frame = requestAnimationFrame(draw)
+    }
+    frame = requestAnimationFrame(draw)
+    onCleanup(() => cancelAnimationFrame(frame))
+  }
   const offPartial = props.dictation.onPartial?.((text) => {
     if (state.phase !== "recording") return
     place()
-    setState("partial", text)
+    // The engine re-reads only its last 28 s; merging keeps the earlier words on screen (#328).
+    setState("partial", (shown) => mergeCaption(shown, text))
   })
   const offLimit = props.dictation.onLimit(() => {
     if (state.phase !== "recording") return
@@ -58,6 +141,7 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
   onCleanup(() => {
     disposed = true
     offLevel()
+    offBands?.()
     offPartial?.()
     offLimit()
     if (state.phase === "recording") void finish()
@@ -169,7 +253,55 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
       </TooltipV2>
       {/* The live caption: the words heard so far float above the mic while you speak, newest at the end. It sits
           outside the composer (a portal), so the composer's clipping and layout don't move. */}
-      <Show when={(state.phase === "recording" || state.phase === "transcribing") && state.anchor}>
+      {/* Inside the composer: the words so far, newest fading in, over a wave that moves with the voice. */}
+      <Show when={slot.element}>
+        {(element) => (
+          <Portal mount={element()}>
+            <div
+              data-component="dictation-live"
+              data-phase={state.phase}
+              role="status"
+              aria-live="polite"
+              aria-label={language.t("dictation.live.label")}
+              class="flex flex-col gap-2 px-5 pt-4 text-[15px] leading-6"
+            >
+              <p class="min-w-0 [overflow-wrap:anywhere] text-v2-text-text-base" dir="auto">
+                <Show
+                  when={state.partial}
+                  fallback={<span class="text-v2-text-text-muted">{language.t("dictation.live.listening")}</span>}
+                >
+                  <Index each={state.partial.split(" ")}>
+                    {(word, index) => (
+                      <span class="animate-enter">
+                        {index > 0 ? " " : ""}
+                        {word()}
+                      </span>
+                    )}
+                  </Index>
+                </Show>
+              </p>
+              <div class="flex items-center gap-2 pb-2">
+                <canvas
+                  ref={drawWave}
+                  aria-hidden="true"
+                  class="h-7 min-w-0 flex-1 text-v2-icon-icon-accent"
+                  classList={{ "opacity-40": state.phase === "transcribing" }}
+                />
+                <ButtonV2
+                  size="normal"
+                  variant="contrast"
+                  data-action="dictation-stop"
+                  disabled={state.phase !== "recording"}
+                  onClick={() => void finish()}
+                >
+                  {language.t(state.phase === "transcribing" ? "dictation.live.finishing" : "dictation.live.stop")}
+                </ButtonV2>
+              </div>
+            </div>
+          </Portal>
+        )}
+      </Show>
+      <Show when={!slot.element && (state.phase === "recording" || state.phase === "transcribing") && state.anchor}>
         {(anchor) => (
           <Portal>
             <div

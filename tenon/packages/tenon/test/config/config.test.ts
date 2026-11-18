@@ -383,6 +383,96 @@ it.effect("updates global config and omits empty shell key in json", () =>
   ),
 )
 
+// #334: Settings › MCP servers can remove a server; a config patch can't delete a key.
+it.effect("AC-9 removes one MCP server from a json global config and keeps the rest", () =>
+  withGlobalConfig(
+    {
+      config: {
+        model: "test/model",
+        mcp: {
+          github: { type: "remote", url: "https://api.githubcopilot.com/mcp/" },
+          postgres: { type: "local", command: ["uvx", "mcp-server-postgres"], environment: { PGPASSWORD: "x" } },
+        },
+      },
+    },
+    ({ dir }) =>
+      Effect.gen(function* () {
+        const result = yield* Config.use.removeGlobalMcp("postgres")
+        expect(result.changed).toBe(true)
+        const written = (yield* FSUtil.use.readJson(path.join(dir, "opencode.json"))) as {
+          model?: string
+          mcp?: Record<string, unknown>
+        }
+        expect(Object.keys(written.mcp ?? {})).toEqual(["github"])
+        expect(written.model).toBe("test/model")
+        expect((yield* Config.use.removeGlobalMcp("postgres")).changed).toBe(false)
+      }),
+  ),
+)
+
+it.effect("AC-9 removes one MCP server from a jsonc global config and keeps its comments", () =>
+  Effect.gen(function* () {
+    const dir = yield* tmpdirScoped()
+    const file = path.join(dir, "opencode.jsonc")
+    yield* FSUtil.use.writeFileString(
+      file,
+      `{\n  // my servers\n  "mcp": {\n    "github": { "type": "remote", "url": "https://api.githubcopilot.com/mcp/" },\n    "linear": { "type": "remote", "url": "https://mcp.linear.app/mcp" }\n  }\n}\n`,
+    )
+    return yield* withGlobalConfigDir(
+      dir,
+      Effect.gen(function* () {
+        yield* Config.use.removeGlobalMcp("linear")
+        const written = yield* FSUtil.use.readFileString(file)
+        expect(written).toContain("// my servers")
+        expect(written).not.toContain("linear")
+        const parsed = ConfigParse.schema(ConfigV1.Info, ConfigParse.jsonc(written, file), file)
+        expect(Object.keys(parsed.mcp ?? {})).toEqual(["github"])
+      }),
+    )
+  }),
+)
+
+it.effect("AC-9 renames an MCP server and clears its folder in place, keeping secrets and comments", () =>
+  Effect.gen(function* () {
+    const dir = yield* tmpdirScoped()
+    const file = path.join(dir, "opencode.jsonc")
+    yield* FSUtil.use.writeFileString(
+      file,
+      `{\n  // my servers\n  "mcp": {\n    "github": { "type": "remote", "url": "https://api.githubcopilot.com/mcp/", "headers": { "Authorization": "Bearer secret" } },\n    // the app database\n    "postgres": { "type": "local", "command": ["uvx", "mcp-server-postgres"], "cwd": "/work", "timeout": 30000, "environment": { "PGPASSWORD": "hunter2" } }\n  }\n}\n`,
+    )
+    return yield* withGlobalConfigDir(
+      dir,
+      Effect.gen(function* () {
+        expect(yield* Config.use.globalMcpSecretNames("postgres")).toEqual({ environment: ["PGPASSWORD"], headers: [] })
+        expect(yield* Config.use.globalMcpSecretNames("github")).toEqual({
+          environment: [],
+          headers: ["Authorization"],
+        })
+
+        expect((yield* Config.use.editGlobalMcp("postgres", { clear: ["cwd", "command"] })).changed).toBe(true)
+        expect((yield* Config.use.editGlobalMcp("postgres", { rename: "github" })).error).toContain("already")
+        expect((yield* Config.use.editGlobalMcp("postgres", { rename: "pg" })).changed).toBe(true)
+        expect((yield* Config.use.editGlobalMcp("github", { rename: "gh" })).changed).toBe(true)
+
+        const written = yield* FSUtil.use.readFileString(file)
+        expect(written).toContain("// my servers")
+        // The renamed entry keeps its own comment, right above it.
+        expect(written).toMatch(/\/\/ the app database\n\s*"pg":/)
+        const parsed = ConfigParse.jsonc(written, file) as { mcp: Record<string, Record<string, unknown>> }
+        expect(Object.keys(parsed.mcp).sort()).toEqual(["gh", "pg"])
+        expect(parsed.mcp.pg).toEqual({
+          type: "local",
+          command: ["uvx", "mcp-server-postgres"],
+          timeout: 30000,
+          environment: { PGPASSWORD: "hunter2" },
+        })
+        expect(parsed.mcp.gh?.headers).toEqual({ Authorization: "Bearer secret" })
+        expect((yield* Config.use.editGlobalMcp("missing", { rename: "x" })).changed).toBe(false)
+      }),
+    )
+  }),
+)
+
 it.effect("updates global config and omits empty shell key in jsonc", () =>
   withGlobalConfig({ config: { shell: "bash", model: "test/model" }, name: "opencode.jsonc" }, ({ dir }) =>
     Effect.gen(function* () {

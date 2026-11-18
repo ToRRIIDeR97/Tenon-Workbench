@@ -1,17 +1,19 @@
 import type { Harness } from "@tenon/schema/harness"
 import { createEffect, createMemo } from "solid-js"
 import { createStore } from "solid-js/store"
-import { harnessSettingsChanged } from "@/components/prompt-input/harness-controller"
+import { harnessUpgrades } from "@/components/harness-upgrades"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
 import { useServerSDK } from "@/context/server-sdk"
 import { useServerSync } from "@/context/server-sync"
 import { Persist, persisted } from "@/utils/persist"
-import { listHarnessUpdates, upgradeHarness } from "@/utils/server"
 import { dismissToast, showToast } from "@/utils/toast"
 
-/** Checks harness CLIs once per server connection and offers each available update in a toast. */
+/**
+ * Checks harness CLIs once per server connection and offers each available update in a toast. Upgrades go through
+ * the shared registry, so a toast and Settings never upgrade the same CLI twice.
+ */
 export function HarnessUpdateNotifier() {
   const language = useLanguage()
   const layout = useLayout()
@@ -59,21 +61,22 @@ export function HarnessUpdateNotifier() {
     if (!dir) return
     dismissToast(toast)
     showToast({ title: language.t("harness.settings.updating"), description: update.name })
-    return upgradeHarness(server(), dir, update.id).then(
-      (result) => {
-        harnessSettingsChanged()
-        showToast({
-          variant: "success",
-          icon: "circle-check",
-          title: language.t("harness.settings.updated", { name: result.name, version: result.version ?? "" }),
-        })
-      },
-      (error: unknown) =>
-        showToast({
-          title: language.t("common.requestFailed"),
-          description: error instanceof Error ? error.message : String(error),
-        }),
-    )
+    return harnessUpgrades(server(), dir)
+      .start(update.id)
+      .then(
+        (result) => {
+          showToast({
+            variant: "success",
+            icon: "circle-check",
+            title: language.t("harness.settings.updated", { name: result.name, version: result.version ?? "" }),
+          })
+        },
+        (error: unknown) =>
+          showToast({
+            title: language.t("common.requestFailed"),
+            description: error instanceof Error ? error.message : String(error),
+          }),
+      )
   }
 
   let checked = false
@@ -81,7 +84,8 @@ export function HarnessUpdateNotifier() {
     const dir = directory()
     if (checked || !dir || !ready()) return
     checked = true
-    void listHarnessUpdates(server(), dir)
+    void harnessUpgrades(server(), dir)
+      .check()
       .then((updates) => {
         const groups = new Map<string, Harness.UpdateStatus[]>()
         for (const update of updates) {

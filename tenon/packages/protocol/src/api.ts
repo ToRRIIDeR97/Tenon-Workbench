@@ -9,6 +9,8 @@ import { makePermissionGroup } from "./groups/permission"
 import { FileSystemGroup } from "./groups/fs"
 import { CommandGroup } from "./groups/command"
 import { SkillGroup } from "./groups/skill"
+import { GithubGroup } from "./groups/github"
+import { ComputerUseGroup } from "./groups/computer-use"
 import { EventGroup, makeEventGroup } from "./groups/event"
 import type { Definition } from "@tenon/schema/event"
 import { AgentGroup } from "./groups/agent"
@@ -50,6 +52,8 @@ const makeApiFromGroup = <
     .add(FileSystemGroup.middleware(locationMiddleware))
     .add(CommandGroup.middleware(locationMiddleware))
     .add(SkillGroup.middleware(locationMiddleware))
+    .add(GithubGroup.middleware(locationMiddleware))
+    .add(ComputerUseGroup.middleware(locationMiddleware))
     .add(eventGroup)
     .add(PtyGroup.middleware(locationMiddleware))
     .add(makeQuestionGroup(locationMiddleware, sessionLocationMiddleware))

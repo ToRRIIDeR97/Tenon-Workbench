@@ -17,7 +17,11 @@ export namespace TimelineRow {
   }> {}
   export class TurnDivider extends Data.TaggedClass("TurnDivider")<{
     userMessageID: string
-    label: "compaction" | "interrupted"
+    label: "compaction" | "interrupted" | "harness-compaction"
+    /** For an observed harness compaction (#332): whose, and the context in use before and after. */
+    observed?: { harness: string; before: number; after: number }
+    /** For Tenon's own compaction: how many messages came before it (the ones it summarised). */
+    summarised?: number
   }> {}
   export class AssistantPart extends Data.TaggedClass("AssistantPart")<{
     userMessageID: string

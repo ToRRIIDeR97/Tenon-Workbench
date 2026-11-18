@@ -3,8 +3,10 @@ export interface CatalogSkill {
   readonly description?: string
   readonly location?: string
   readonly scope: "global" | "project"
-  /** Tenon skills only: false when switched off. */
+  /** False when switched off (a harness skill: its SKILL.md renamed to SKILL.md.disabled). */
   readonly enabled?: boolean
+  /** Harness skills: true when Tenon may switch it (a home or project folder, not a system one). */
+  readonly editable?: boolean
 }
 
 export type SkillSource = "filesystem" | "reported" | "none"
@@ -31,7 +33,7 @@ export interface SkillSection {
 /** Settings → Skills sections: Tenon first, then each harness in catalog order, skills sorted by name. */
 export function skillSections(catalog: SkillCatalog): SkillSection[] {
   return [
-    { id: "tenon", title: "Tenon", editable: true, source: "filesystem", skills: sorted(catalog.tenon) },
+    { id: TENON_SECTION, title: "Tenon", editable: true, source: "filesystem", skills: sorted(catalog.tenon) },
     ...catalog.harnesses.map((harness) => ({
       id: harness.id,
       title: harness.name,
@@ -45,6 +47,32 @@ export function skillSections(catalog: SkillCatalog): SkillSection[] {
 function sorted(skills: ReadonlyArray<CatalogSkill>) {
   return skills.toSorted((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }))
 }
+
+/** True when the row gets a switch: every Tenon skill, and a harness skill in a folder Tenon may rename in (#323). */
+export function switchable(section: SkillSection, skill: CatalogSkill) {
+  return section.editable || skill.editable === true
+}
+
+/**
+ * For a skill, the other sections that read the very same SKILL.md (OpenCode also reads the Claude Code folder), so
+ * the row can say that switching it changes those harnesses too.
+ */
+export function sharedWith(sections: ReadonlyArray<SkillSection>) {
+  return (sectionId: string, skill: CatalogSkill) =>
+    skill.location
+      ? sections
+          .filter(
+            (section) => section.id !== sectionId && section.skills.some((item) => item.location === skill.location),
+          )
+          .map((section) => section.title)
+      : []
+}
+
+/** The Tenon section's ID; every other section is a harness. */
+export const TENON_SECTION = "tenon"
+
+/** A row's key for saved and busy state: harnesses list skills of the same name. */
+export const skillKey = (sectionId: string, name: string) => `${sectionId}\0${name}`
 
 /**
  * A Tenon skill without a file location ships inside the app. Harness sections can list location-less

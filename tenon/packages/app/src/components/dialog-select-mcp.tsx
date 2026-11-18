@@ -4,6 +4,8 @@ import { List } from "@tenon/ui/list"
 import { Tag } from "@tenon/ui/v2/badge-v2"
 import { Dialog, DialogBody, DialogHeader, DialogTitle } from "@tenon/ui/v2/dialog-v2"
 import { Switch } from "@tenon/ui/v2/switch-v2"
+import { ButtonV2 } from "@tenon/ui/v2/button-v2"
+import { useDialog } from "@tenon/ui/context/dialog"
 import { useLanguage } from "@/context/language"
 import { useMcpToggle } from "@/context/mcp"
 import { listV2Class, statusDotClass } from "./surface-classes"
@@ -27,6 +29,12 @@ export const DialogSelectMcp: Component = () => {
   )
 
   const toggle = useMcpToggle()
+  const dialog = useDialog()
+  // Settings › MCP servers is the one place to add, sign in, retry and remove; this list is its shortcut (#334).
+  const manage = async () => {
+    const { DialogSettings } = await import("@/components/settings-v2/dialog-settings-v2")
+    void dialog.show(() => <DialogSettings defaultValue="mcp" />)
+  }
 
   const enabledCount = createMemo(() => items().filter((i) => i.status === "connected").length)
   const totalCount = createMemo(() => items().length)
@@ -40,6 +48,9 @@ export const DialogSelectMcp: Component = () => {
             {language.t("dialog.mcp.description", { enabled: enabledCount(), total: totalCount() })}
           </Tag>
         </div>
+        <ButtonV2 size="normal" variant="neutral" onClick={() => void manage()}>
+          {language.t("secondBrain.mcp.manage")}
+        </ButtonV2>
       </DialogHeader>
       <DialogBody class="min-h-0">
         <List

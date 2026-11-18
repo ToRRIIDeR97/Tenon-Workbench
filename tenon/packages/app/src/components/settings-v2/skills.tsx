@@ -32,7 +32,11 @@ import {
   alsoIn,
   filterSections,
   isBuiltInSkill,
+  sharedWith,
+  skillKey,
   skillSections,
+  switchable,
+  TENON_SECTION,
 } from "./skills-sections"
 import { HarnessSyncSkills } from "./harness-sync-skills"
 import "./settings-v2.css"
@@ -70,12 +74,19 @@ export const SettingsSkillsV2: Component<{ directory: Accessor<string | undefine
     setSaved({})
     void refetch()
   }
-  const toggle = (name: string, enabled: boolean) => {
+  const shared = createMemo(() => sharedWith(catalog.latest ?? []))
+  const toggle = (section: SkillSection, name: string, enabled: boolean) => {
     const dir = directory()
-    if (!dir || busy().has(name)) return
-    setBusy((current) => new Set([...current, name]))
-    void setSkillEnabled(server(), dir, name, enabled)
-      .then((result) => setSaved((current) => ({ ...current, [result.name]: result.enabled })))
+    const key = skillKey(section.id, name)
+    if (!dir || busy().has(key)) return
+    setBusy((current) => new Set([...current, key]))
+    const harness = section.id === TENON_SECTION ? undefined : section.id
+    void setSkillEnabled(server(), dir, name, enabled, harness)
+      .then((result) => {
+        setSaved((current) => ({ ...current, [key]: result.enabled }))
+        // A renamed SKILL.md moves its path, and a shared file changes other harnesses' rows too.
+        if (harness) void refetch()
+      })
       .catch((error: unknown) =>
         showToast({
           variant: "error",
@@ -83,7 +94,7 @@ export const SettingsSkillsV2: Component<{ directory: Accessor<string | undefine
           description: error instanceof Error ? error.message : String(error),
         }),
       )
-      .finally(() => setBusy((current) => new Set([...current].filter((item) => item !== name))))
+      .finally(() => setBusy((current) => new Set([...current].filter((item) => item !== key))))
   }
 
   return (
@@ -168,8 +179,9 @@ export const SettingsSkillsV2: Component<{ directory: Accessor<string | undefine
                         section={section}
                         busy={busy()}
                         saved={saved()}
-                        onToggle={toggle}
+                        onToggle={(name, enabled) => toggle(section, name, enabled)}
                         alsoIn={(name) => others()(section.title, name)}
+                        shared={(skill) => shared()(section.id, skill)}
                       />
                     )}
                   </For>
@@ -189,6 +201,7 @@ const SkillSectionView: Component<{
   saved: Readonly<Record<string, boolean>>
   onToggle: (name: string, enabled: boolean) => void
   alsoIn: (name: string) => string[]
+  shared: (skill: CatalogSkill) => string[]
 }> = (props) => {
   const language = useLanguage()
   const empty = () => {
@@ -201,7 +214,7 @@ const SkillSectionView: Component<{
     <section class="settings-v2-section" data-component="skill-section" data-section={props.section.id}>
       <div class="flex min-w-0 items-center gap-2 pr-2">
         <h3 class="settings-v2-section-title">{props.section.title}</h3>
-        <Show when={!props.section.editable}>
+        <Show when={!props.section.skills.some((skill) => switchable(props.section, skill))}>
           <span class="flex shrink-0 items-center gap-1 type-meta text-v2-text-text-muted">
             <LockIcon />
             {language.t("secondBrain.skills.readOnly")}
@@ -219,10 +232,16 @@ const SkillSectionView: Component<{
             {(skill) => (
               <SkillRow
                 skill={skill}
-                enabled={props.section.editable ? (props.saved[skill.name] ?? skill.enabled) : undefined}
+                enabled={
+                  switchable(props.section, skill)
+                    ? (props.saved[skillKey(props.section.id, skill.name)] ?? skill.enabled)
+                    : undefined
+                }
+                harness={!props.section.editable}
+                shared={props.shared(skill)}
                 openable={props.section.editable}
                 alsoIn={props.alsoIn(skill.name)}
-                busy={props.busy.has(skill.name)}
+                busy={props.busy.has(skillKey(props.section.id, skill.name))}
                 onToggle={(enabled) => props.onToggle(skill.name, enabled)}
               />
             )}
@@ -235,8 +254,12 @@ const SkillSectionView: Component<{
 
 const SkillRow: Component<{
   skill: CatalogSkill
-  /** Tenon skills only. */
+  /** Set when the row has a switch. */
   enabled: boolean | undefined
+  /** A harness's skill: switching renames its SKILL.md. */
+  harness: boolean
+  /** Other harnesses that read this same SKILL.md. */
+  shared: string[]
   openable: boolean
   /** Other sections that list the same skill. */
   alsoIn: string[]
@@ -276,9 +299,19 @@ const SkillRow: Component<{
         <span data-slot="settings-v2-row-title" class="truncate">
           {props.skill.name}
         </span>
-        <Show when={props.skill.description}>
+        <Show when={props.skill.description && !(props.harness && props.enabled === false)}>
           <span data-slot="settings-v2-row-description" class="line-clamp-2">
             {props.skill.description}
+          </span>
+        </Show>
+        {/* What the switch changes for a harness (#323): its SKILL.md is renamed, and a shared file changes the
+            other harnesses that read it too. */}
+        <Show when={props.harness && props.enabled === false}>
+          <span data-slot="settings-v2-row-description">{language.t("secondBrain.skills.harnessOff")}</span>
+        </Show>
+        <Show when={props.harness && props.enabled !== undefined && props.shared.length > 0}>
+          <span data-slot="settings-v2-row-description">
+            {language.t("secondBrain.skills.sharedWith", { names: props.shared.join(", ") })}
           </span>
         </Show>
         <Show when={props.skill.location}>
@@ -295,6 +328,14 @@ const SkillRow: Component<{
           )}
         </Show>
       </div>
+      {/* A harness skill Tenon can't switch says why, per row (#323). */}
+      <Show when={props.harness && props.enabled === undefined}>
+        <span class="shrink-0 rounded-full bg-v2-background-bg-layer-02 px-2 text-[11px] leading-5 text-v2-text-text-muted">
+          {language.t(
+            props.skill.location ? "secondBrain.skills.readOnlySystem" : "secondBrain.skills.readOnlyReported",
+          )}
+        </span>
+      </Show>
       <Show when={props.alsoIn.length > 0}>
         <span class="shrink-0 rounded-full bg-v2-background-bg-layer-02 px-2 text-[11px] leading-5 text-v2-text-text-muted">
           {language.t("secondBrain.skills.alsoIn", { names: props.alsoIn.join(", ") })}
@@ -328,7 +369,7 @@ const SkillRow: Component<{
           </div>
         )}
       </Show>
-      <Show when={props.openable && props.enabled !== undefined}>
+      <Show when={props.enabled !== undefined}>
         <ToggleSwitch
           size="small"
           checked={props.enabled !== false}

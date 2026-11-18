@@ -139,6 +139,12 @@ import type {
   SkillsCatalogOutput,
   SkillsSetEnabledInput,
   SkillsSetEnabledOutput,
+  GithubWorkInput,
+  GithubWorkOutput,
+  ComputerUseGetInput,
+  ComputerUseGetOutput,
+  ComputerUseSetInput,
+  ComputerUseSetOutput,
   EventsSubscribeOutput,
   PtysListInput,
   PtysListOutput,
@@ -1193,9 +1199,51 @@ export function make(options: ClientOptions) {
             method: "POST",
             path: `/api/skill/enabled`,
             query: { location: input["location"] },
-            body: { name: input["name"], enabled: input["enabled"] },
+            body: { name: input["name"], enabled: input["enabled"], harness: input["harness"] },
             successStatus: 200,
             declaredStatuses: [404, 500, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+    },
+    github: {
+      work: (input?: GithubWorkInput, requestOptions?: RequestOptions) =>
+        request<GithubWorkOutput>(
+          {
+            method: "POST",
+            path: `/api/github/work`,
+            query: { location: input?.["location"] },
+            body: { repo: input?.["repo"], save: input?.["save"], refresh: input?.["refresh"] },
+            successStatus: 200,
+            declaredStatuses: [401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+    },
+    computerUse: {
+      get: (input?: ComputerUseGetInput, requestOptions?: RequestOptions) =>
+        request<ComputerUseGetOutput>(
+          {
+            method: "GET",
+            path: `/api/computer-use`,
+            query: { location: input?.["location"] },
+            successStatus: 200,
+            declaredStatuses: [401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      set: (input: ComputerUseSetInput, requestOptions?: RequestOptions) =>
+        request<ComputerUseSetOutput>(
+          {
+            method: "POST",
+            path: `/api/computer-use`,
+            query: { location: input["location"] },
+            body: { enabled: input["enabled"] },
+            successStatus: 200,
+            declaredStatuses: [401, 400],
             empty: false,
           },
           requestOptions,

@@ -168,6 +168,8 @@ export interface Interface {
   readonly clients: () => Effect.Effect<Record<string, MCPClient>>
   readonly instructions: () => Effect.Effect<ServerInstructions[]>
   readonly tools: () => Effect.Effect<Record<string, McpTool>>
+  /** Each connected server's tool names, for Settings › MCP servers (#334). */
+  readonly toolNames: () => Effect.Effect<Record<string, string[]>>
   readonly prompts: () => Effect.Effect<Record<string, PromptInfo & { client: string }>>
   readonly resources: (clientName?: string) => Effect.Effect<Record<string, ResourceInfo & { client: string }>>
   readonly resourceTemplates: (
@@ -695,6 +697,15 @@ const layer = Layer.effect(
       return result
     })
 
+    const toolNames = Effect.fn("MCP.toolNames")(function* () {
+      const s = yield* InstanceState.get(state)
+      return Object.fromEntries(
+        Object.keys(s.clients)
+          .filter((name) => s.status[name]?.status === "connected")
+          .map((name) => [name, (s.defs[name] ?? []).map((def) => def.name)] as const),
+      )
+    })
+
     function collectFromConnected<T extends { name: string }>(
       s: State,
       listFn: (c: Client, timeout?: number) => Promise<T[]>,
@@ -994,6 +1005,7 @@ const layer = Layer.effect(
       authenticate,
       finishAuth,
       removeAuth,
+      toolNames,
       supportsOAuth,
       hasStoredTokens,
       getAuthStatus,
