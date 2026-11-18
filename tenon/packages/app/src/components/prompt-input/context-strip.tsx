@@ -58,7 +58,13 @@ export function createComposerContext() {
   // Each subagent's own context, beside the main agent's: a `task` child reads its last step once loaded.
   const agents = createMemo(() =>
     latestSubagentContexts(messages(), parts, (id) => {
-      const child = getSessionContext(sync().data.message[id] ?? [], [...providers.all().values()])
+      // With its parts, so a report from before the child's compaction isn't shown as its context now.
+      const child = getSessionContext(
+        sync().data.message[id] ?? [],
+        [...providers.all().values()],
+        undefined,
+        (messageID) => sync().data.part[messageID],
+      )
       return child?.reported ? { used: child.total, size: child.limit } : undefined
     }),
   )

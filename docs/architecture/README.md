@@ -53,17 +53,33 @@ platform exposes `dictation` (desktop); the web build has no mic.
   on Handy's stack: `handy-recorder` captures the microphone as 16 kHz mono,
   `earshot` trims silence (all-silence returns empty text instead of running
   the model), and `transcribe-cpp` runs the GGUF Whisper or Parakeet model. It
-  opens the microphone on `start` and closes it on `stop` or `cancel`.
-- **Protocol.** JSON lines on stdio. Requests: `load` (`model` path), `start`,
+  opens the microphone on `start` and closes it on `stop` or `cancel`. While
+  recording, a preview thread re-transcribes the last 28 s every 1.2 s, when the
+  model is free, and sends the text as `partial`; the final run covers the whole
+  recording, and stopping cancels a preview run in flight (`CancelToken`) so the
+  final run isn't held up by it. Runs pass the spoken `language` when the model lists it
+  (`src/language.rs`): Whisper guessing the language per clip sometimes answered
+  in another language.
+- **Protocol.** JSON lines on stdio. Requests: `load` (`model` path), `start`
+  (optional `language`, an ISO 639 code; missing or `auto` detects),
   `stop`, `cancel`, `transcribe_file` (`path`, a PCM WAV file), each with an
   `id`. Events: `ready` (at launch and after a load), `level` (`rms`, about every
-  90 ms while recording), `final` (`id`, `text`), and `error` (`id` when it
+  90 ms while recording), `partial` (`text`, the recording so far, while
+  recording), `final` (`id`, `text`), and `error` (`id` when it
   answers a request, `code`, `message`). Malformed lines and unknown types get
   `bad_request`; the engine keeps running. Stdout carries only events; native
   logs go to stderr, which the supervisor drains without logging.
 - **Supervisor.** `desktop/src/main/dictation.ts` (`createDictation`) spawns the
   engine on the first `start`, loads the active model, and maps events to
-  `start()`, `stop(): Promise<string>`, `cancel()`, `status()` and `onLevel`. If
+  `start({ language })`, `stop(): Promise<string>`, `cancel()`, `status()`,
+  `onLevel` and `onPartial` (only while recording). The mic shows the partial
+  text in a caption above it; the spoken language comes from Settings ›
+  Dictation (`dictation-language.ts`: by default English for an English app and
+  detection for any other, so a speaker whose app language differs isn't
+  translated; or the app's language, detection, or a chosen language). Every run
+  transcribes (`Task::Transcribe`, no target language). The service accepts only a
+  2–3 letter code from the renderer, and refuses a start with `transcribing`
+  while the last recording is still being written out. If
   the engine exits mid-recording, `stop()` rejects with `engine_exited` and the
   next `start()` respawns it; after 5 crashes in 10 minutes it reports
   `engine_unavailable`. A recording stops itself after 30 minutes and tells the
@@ -342,7 +358,12 @@ Project that is not open, updates every list without a reload, and revisiting
 Home does not re-read the session table. The index is fetched again
 only on a reconnect, `global.disposed` or `session.next.moved`. A directory
 list contributes only threads that run in that directory, because events
-reach only their own directory's list. The global event stream reconnects with
+reach only their own directory's list. While the window is hidden (minimized or
+behind others), the stream's yields and its 16 ms flushes run as message-channel
+tasks (`utils/unthrottled-task.ts`) instead of timers, which the browser
+throttles to about once a minute in a page hidden for a while; otherwise events
+piled up and landed in one burst when the window came back. A window that loads
+hidden starts the stream without waiting for an animation frame. The global event stream reconnects with
 exponential backoff and jitter (up to 20 s, reset by any event after
 `server.connected`, cut short when the stream is stopped). On
 every `server.connected` after the first, and on `global.disposed`,
@@ -993,21 +1014,35 @@ usable, and the boundary resets when the route changes. Notes, Projects, Home,
 the Command Centre and the instructions dialog show request failures inline with
 **Retry** instead of throwing.
 
-Home's composer starts a Run in one step. It uses the new-thread layout: the
-greeting carousel, the window-scaled width, a top row with the workspace folder
-and its branch picker, and the drill-in model pill (`PromptModelPill`), so an
-external harness offers its model, effort and service tier there too. The
-built-in agent's model comes from the folder's providers, which Home doesn't
-load, so its Model step says it is picked once the thread opens; the default model comes from `defaultModel`
-(`components/prompt-input/harness-controller.ts`). `startSession` in
-`pages/brain-home.tsx` creates a draft with the prompt, the chosen harness, its
-model selection (`harnessModel`) and `send: true`, then opens it. The harness
-query suspends while it loads, so the controls sit in their own `Suspense`
-boundary and the rest of Home stays on screen. `context/drafts.tsx` keeps that request in memory
-only, so a reload never sends twice. Once the draft's prompt and harness list
-have loaded, `new-session-draft-controller.ts` submits through the normal
-composer path. If the chosen harness is no longer available, the prompt stays
-in the composer instead (`canSendOnOpen`).
+Home's composer is the thread composer. `pages/home/home-composer.tsx` wraps
+the workspace folder in the draft page's providers (`ModelsProvider`,
+`SDKProvider`, `DirectoryDataProvider` with a server key so the route stays `/`,
+`FileProvider`, `PromptProvider`, `CommentsProvider`) and renders
+`PromptInputV2Composer` with `createNewSessionDraftController`, so Home has the
+same attachments, skills, history, `@` and `/`, and model pill as a new thread.
+It works on the folder's new-thread prompt and starts on Settings › Harnesses'
+choice; sending creates the thread and opens it. Its top row picks the
+workspace or a Project; picking one opens a draft there with the text and
+harness. Drafts started elsewhere with `send: true` (the Command Centre) still
+send once the draft's prompt and harness list have loaded
+(`new-session-draft-controller.ts`, `canSendOnOpen`); `context/drafts.tsx` keeps
+that request in memory only, so a reload never sends twice.
+
+Harness lists never suspend a page. `createPromptHarnessController` (threads,
+drafts, Home) works from the last list it persisted (`harness.instances.v1`)
+while it checks, retries a failed check every 3 s and then every 15 s until it
+answers (`harness-memory.ts`), and fills an available agent that hasn't listed
+its models yet with the models it listed last time, so switching to it is
+instant; an agent that still lists none a minute later loses them
+(`createRememberedModelWindow`). Composers and pages opening at once share one
+check, and one from the last 30 s is reused when a page opens again
+(`listHarnessesRemembered` with `reuse`); retries, focus and Settings changes
+always ask. Picking a harness starts it on the model last used with it
+(`harness.models.v1`). In a thread, `createHarnessSwitchQueue`
+(`harness-switch.ts`) shows the pick at once and sends picks in order; a
+message sent meanwhile waits for the switch instead of being refused. The
+Command Centre's `createComposerHarness` reads the remembered list while its
+query is pending instead of suspending.
 
 The new-thread (draft) screen (`pages/new-session/new-session-view.tsx`) scales
 with the window: the view is an inline-size container, the content is
@@ -1222,8 +1257,10 @@ Other harness output is mapped onto the built-in views:
 - ACP `plan` updates and Codex `turn/plan/updated` become provider-executed
   `todowrite` calls (`planEvents`; Codex `inProgress` → `in_progress`). The
   tool never runs for them, so the session runner saves each one through
-  `SessionTodo.update` (`SessionTodo.fromPlan`), which sends `todo.updated` and
-  opens the composer's task list as the built-in tool does.
+  `SessionTodo.update` (`SessionTodo.planFromToolCall`), which sends `todo.updated` and
+  opens the composer's task list as the built-in tool does. OpenCode over ACP
+  sends its `todowrite` as a `tool_call` of kind `other` (`acp_other`) with the
+  tool's name as the input's `title`; that call is read as a plan too.
 - ACP `diff` content is kept as `providerMetadata.acp.diffs`
   (`{ path, oldText, newText }`). In the app, `acp_edit` renders with the
   `edit` view, which gets `filePath` and, for one diff, `filediff`.
@@ -1389,7 +1426,11 @@ the window. Both drivers also send the context in use as it changes: each ACP
 LLM event, which the runner publishes as `session.next.step.usage` (not
 durable) on the open step's assistant message. Core's message updater and the
 renderer's v2 reducer set `contextUsed` and `contextWindow` from it, so the
-context ring moves during the turn; `Step.Ended` settles the final values. A
+context ring moves during the turn; `Step.Ended` settles the final values.
+OpenCode 2.2 sends its `usage_update` only when a turn ends, so while a turn
+runs the meter (`session-context-metrics.ts`) shows the same harness's last
+report; a figure larger than the window is a token total, not context in use,
+and is never shown as Used. A
 setup read that finds a harness newly signed in closes its open
 runtimes (`newlySignedIn`). Windows npm shims (`.cmd`, `.ps1`) resolve to
 `<npm folder>/node_modules/<package>` for update checks.
@@ -2088,8 +2129,10 @@ On desktop, opening a file the server reads as binary and that isn't media (a
   count instead.
 - Click or "Open in Files" on a file opens the right panel, expands the
   ancestor folders and opens the file as a preview tab. Opening a fully closed
-  side panel slides it in (300 ms, emphasized decelerate) while the thread column
-  eases left; the panel's content mounts and fades in only after the slide, so
+  side panel slides it in (300 ms, emphasized decelerate) out of the rail at the
+  right edge, while the thread column takes its new width in one step (easing
+  the column re-laid out the whole timeline every frame); closing keeps the
+  column's width until the panel has slid shut, then widens it once. The panel's content mounts and fades in only after the slide, so
   building it never competes with the animation (`panelSettled` in
   `app/src/pages/session/file-reference.tsx`, set by the open edge in
   `session.tsx`, read by `session-side-panel.tsx`). Other openings still snap: switching
@@ -2553,10 +2596,12 @@ name. The `task` card in the timeline still navigates to the child session.
 
 ### Thread titles
 
-After the first step of a run, the core runner
+As soon as a run promotes the first user message, the core runner
 (`core/src/session/runner/llm.ts`, `generateTitle`) titles a top-level session
-that still has its default title and exactly one user message. It runs in the
-background and never delays the turn. The prompt is the hidden `title` agent's.
+that still has its default title and exactly one user message, beside the turn
+rather than after it. If the drain started without promoting (a resume), the
+title starts when the turn ends instead. It runs in the background and never
+delays the turn. The prompt is the hidden `title` agent's.
 
 The title agent is the harness chosen under Settings → Harnesses → Thread
 titles, else the thread's own harness. The choice is stored as `titleAgent` in

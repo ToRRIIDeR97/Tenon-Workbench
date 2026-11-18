@@ -35,6 +35,11 @@ export function connectorRows(
 }
 
 /** Subagents still working in the thread's latest groups. */
+/** The subagents still at work (running, or started and waiting): what the Environment window lists. */
+export function liveSubagents<T extends { status: string }>(rows: readonly T[]) {
+  return rows.filter((row) => row.status === "running" || row.status === "pending")
+}
+
 export function runningSubagents(groups: ReadonlyArray<SubagentGroup>) {
   return groups
     .flatMap((group) => group.items)

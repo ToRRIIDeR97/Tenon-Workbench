@@ -3,6 +3,7 @@ import { createStore } from "solid-js/store"
 import type { Prompt, PromptStore } from "@/context/prompt"
 import type { ModelSelection } from "@/context/local"
 import { Harness } from "@tenon/schema/harness"
+import { checksum, hash, sampledChecksum } from "@tenon/core/util/encode"
 
 let createPromptSubmit: typeof import("./submit").createPromptSubmit
 
@@ -156,7 +157,12 @@ beforeAll(async () => {
     toaster: {},
   }))
 
+  // Keeps the module's other exports (`checksum` and friends): modules this test loads import them, and without
+  // them the file only loaded when another test had imported the real module first.
   mock.module("@tenon/core/util/encode", () => ({
+    checksum,
+    hash,
+    sampledChecksum,
     base64Decode: (value: string) => value,
     base64Encode: (value: string) => value,
   }))
@@ -367,7 +373,10 @@ describe("prompt submit worktree selection", () => {
     expect(sentPrompts).toHaveLength(1)
   })
 
+  // harness-ux-batch-2 AC-2: a send during a switch now waits for it instead of being refused.
   test("waits for an in-flight Harness switch before submitting", async () => {
+    let release = () => {}
+    const switching = new Promise<void>((resolve) => (release = resolve))
     const submit = createPromptSubmit({
       prompt,
       info: () => undefined,
@@ -383,13 +392,45 @@ describe("prompt submit worktree selection", () => {
       resetHistoryNavigation: () => undefined,
       setMode: () => undefined,
       setPopover: () => undefined,
-      harnessChanging: () => true,
+      harnessSettled: () => switching,
     })
 
-    await submit.handleSubmit({ preventDefault: () => undefined } as unknown as Event)
+    const sending = submit.handleSubmit({ preventDefault: () => undefined } as unknown as Event)
+    await new Promise((resolve) => setTimeout(resolve, 0))
 
     expect(createdSessions).toHaveLength(0)
     expect(sentShell).toHaveLength(0)
+    release()
+    await sending
+  })
+
+  // Added after the panel review: a send waiting on a switch that failed stays in the composer.
+  test("keeps the prompt when the Harness switch it waited for failed", async () => {
+    const submit = (settled: boolean) =>
+      createPromptSubmit({
+        prompt,
+        info: () => undefined,
+        imageAttachments: () => [],
+        commentCount: () => 0,
+        autoAccept: () => false,
+        mode: () => "shell",
+        working: () => false,
+        editor: () => undefined,
+        queueScroll: () => undefined,
+        promptLength: (value) => value.reduce((sum, part) => sum + ("content" in part ? part.content.length : 0), 0),
+        addToHistory: () => undefined,
+        resetHistoryNavigation: () => undefined,
+        setMode: () => undefined,
+        setPopover: () => undefined,
+        harnessSettled: () => Promise.resolve(settled),
+      })
+
+    await submit(false).handleSubmit({ preventDefault: () => undefined } as unknown as Event)
+    expect(createdSessions).toHaveLength(0)
+    expect(sentShell).toHaveLength(0)
+
+    await submit(true).handleSubmit({ preventDefault: () => undefined } as unknown as Event)
+    expect(createdSessions.length + sentShell.length).toBeGreaterThan(0)
   })
 
   test("reads the latest worktree accessor value per submit", async () => {

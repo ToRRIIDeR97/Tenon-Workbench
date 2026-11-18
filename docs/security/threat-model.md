@@ -1102,8 +1102,13 @@ the Electron main process (see [architecture](../architecture/README.md#local-di
 - **Engine process.** Main resolves the binary itself (packaged
   `resources/dictation/`, the cargo output in development, or
   `TENON_DICTATION_ENGINE` from the environment). The renderer can only call
-  `dictation-*` IPC handlers with no arguments or a model ID checked against a
-  fixed list; it can't name a binary, a model path or a URL. The engine runs as
+  `dictation-*` IPC handlers with no arguments, a model ID checked against a
+  fixed list, or (for `dictation-start`) a spoken-language code that main keeps
+  only if it is 2–3 ASCII letters (`dictationLanguageCode`); it can't name a
+  binary, a model path or a URL. Live `partial` transcripts go only to the
+  window that started the recording, and only while it records; a second
+  window's `dictation-start` during a recording is refused before it can take
+  over that recording's events. The engine runs as
   the user without a shell and reads only the model file main passes it.
 - **Model downloads.** Whisper Small, Whisper Turbo and Parakeet V3 come from
   pinned Hugging Face revisions (`dictation-models.ts`, the same GGUF files

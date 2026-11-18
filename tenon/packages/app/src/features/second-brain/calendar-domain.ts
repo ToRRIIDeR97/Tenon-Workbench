@@ -193,6 +193,21 @@ export function weekRange(cursor: Date) {
   return { start: localDateKey(start), end: localDateKey(shiftDate(start, 6)) }
 }
 
+/**
+ * The dates a list view covers: the cursor's day, its week, or for the agenda today onward (days that have passed
+ * are the calendar's, not the agenda's).
+ */
+export function scheduleBounds(
+  view: CalendarView,
+  cursor: string,
+  week: { start: string; end: string },
+  today: string,
+) {
+  if (view === "today") return { start: cursor, end: cursor }
+  if (view === "week") return week
+  return { start: today, end: "9999-12-31" }
+}
+
 /** The view named in `?view=`; anything else opens Today. */
 export function calendarView(value?: string): CalendarView {
   if (

@@ -39,10 +39,13 @@ export type DictationModelState = {
 export type DictationDownloadProgress = { id: DictationModelID; received: number; total: number }
 /** Local dictation through the bundled tenon-dictation engine (desktop). */
 export type DictationPlatform = {
-  start(): Promise<{ error?: DictationFailure }>
+  /** `language` is the spoken language's ISO 639 code; without it the model detects the language per clip. */
+  start(options?: { language?: string }): Promise<{ error?: DictationFailure }>
   stop(): Promise<{ text?: string; error?: DictationFailure }>
   cancel(): Promise<void>
   onLevel(cb: (rms: number) => void): () => void
+  /** The transcript of the recording so far, about once a second while it records; each replaces the last. */
+  onPartial?(cb: (text: string) => void): () => void
   /** The recording reached its length limit; the engine has stopped listening and `stop()` collects the text. */
   onLimit(cb: () => void): () => void
   models(): Promise<DictationModelState>

@@ -1,13 +1,13 @@
 import { useQuery } from "@tanstack/solid-query"
 import { Harness } from "@tenon/schema/harness"
-import { createEffect, Show, Suspense } from "solid-js"
+import { createEffect, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { FolderModelPill } from "@/components/prompt-input/folder-model-pill"
 import type { PromptInputHarnessController } from "@/components/prompt-input/harness-controls"
 import { MODEL_RETRIES, MODEL_RETRY_MS, defaultModel } from "@/components/prompt-input/harness-controller"
+import { harnessRetryDelay, withRememberedModels } from "@/components/prompt-input/harness-memory"
 import { PromptModelPill } from "@/components/prompt-input/model-pill"
 import { rememberingHarness } from "@/components/prompt-input/harness-choice"
-import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
 import type { PromptModel } from "@/context/prompt"
 import { useServer } from "@/context/server"
@@ -56,9 +56,9 @@ export function createComposerHarness(input: {
     placeholderData: () => rememberedHarnesses(serverSDK().server.http.url, input.directory()),
     staleTime: 30_000,
     refetchOnMount: true,
-    // A check that fails before anything is remembered (the server still starting) is retried soon.
-    retry: MODEL_RETRIES,
-    retryDelay: MODEL_RETRY_MS,
+    // A check that fails (the server still starting) is retried until it answers: soon, then every 15 s.
+    retry: true,
+    retryDelay: (failures) => harnessRetryDelay(failures),
     // The selected agent can answer before its models are listed; ask again until they arrive, as threads do.
     refetchInterval: (current) => {
       const selected = current.state.data?.find((item) => item.id === state.harnessInstanceID)
@@ -68,9 +68,11 @@ export function createComposerHarness(input: {
     },
   }))
   // Models hidden in Settings never reach the picker or the default-model choice, as in the thread composer.
-  // Reading `data` suspends, so callers outside the pill's Suspense boundary check `isPending` first.
+  // Reading `data` while the first check is pending would suspend the page, so the remembered list stands in;
+  // an agent that has not listed its models yet keeps the ones it listed last time.
+  const remembered = () => rememberedHarnesses(serverSDK().server.http.url, input.directory())
   const instances = () =>
-    query.data?.map((item) =>
+    withRememberedModels(query.isPending ? remembered() : query.data, remembered())?.map((item) =>
       withVisibleModels(item, settings.harnesses.hiddenModels(item.id), settings.harnesses.hiddenProviders(item.id)),
     )
   // Fall back to an available harness, and keep the model valid for the selected one.
@@ -92,8 +94,8 @@ export function createComposerHarness(input: {
 
   const controller: PromptInputHarnessController = {
     instances,
-    // Only the first load blocks the picker; a stale list stays usable while it refreshes.
-    loading: () => query.isPending,
+    // Only a first load with nothing remembered blocks the picker; a stale list stays usable while it refreshes.
+    loading: () => query.isPending && !remembered(),
     // Opening the picker refetches once stale; the app's queries don't refetch on window focus.
     revalidate: () => void (query.isStale && query.refetch()),
     current: () => state.harnessInstanceID,
@@ -129,33 +131,24 @@ export function createComposerHarness(input: {
 
 /** The model pill for a `createComposerHarness` composer, for its `controls` slot. */
 export function ComposerModelPill(props: { harness: ComposerHarness }) {
-  const language = useLanguage()
   const settings = useSettings()
   // A pick here is the next new thread's starting harness and model, as in a thread's composer.
   const controller = rememberingHarness(props.harness.controller, settings.harnesses.setLastUsed)
   return (
-    // The harness query suspends while it loads; this boundary keeps the rest of the page on screen.
-    <Suspense
-      fallback={
-        <span class="flex h-8 items-center px-3 type-control text-v2-text-text-muted">
-          {language.t("harness.checking")}
-        </span>
-      }
+    // Nothing here suspends: before the first check answers, the pill shows the remembered list.
+    <Show
+      when={props.harness.directory()}
+      keyed
+      fallback={<PromptModelPill harness={controller} builtIn={props.harness.builtIn()} />}
     >
-      <Show
-        when={props.harness.directory()}
-        keyed
-        fallback={<PromptModelPill harness={controller} builtIn={props.harness.builtIn()} />}
-      >
-        {(folder) => (
-          <FolderModelPill
-            directory={folder}
-            harness={controller}
-            builtIn={props.harness.builtIn()}
-            onModel={props.harness.setBuiltInModel}
-          />
-        )}
-      </Show>
-    </Suspense>
+      {(folder) => (
+        <FolderModelPill
+          directory={folder}
+          harness={controller}
+          builtIn={props.harness.builtIn()}
+          onModel={props.harness.setBuiltInModel}
+        />
+      )}
+    </Show>
   )
 }

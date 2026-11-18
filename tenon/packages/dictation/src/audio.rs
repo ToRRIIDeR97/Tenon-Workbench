@@ -1,6 +1,8 @@
 //! Audio helpers: the recording sink (levels + collected samples), WAV input and earshot VAD
 //! trimming. Approach follows Handy's audio toolkit (https://github.com/cjpais/Handy, MIT).
 
+use std::sync::{Arc, Mutex};
+
 use handy_recorder::{AudioChunk, Sink};
 use serde_json::json;
 
@@ -15,10 +17,13 @@ const VAD_PADDING_FRAMES: usize = 15;
 /// A level event every few chunks (480-frame chunks are 30 ms) keeps the meter smooth without flooding stdout.
 const LEVEL_EVERY_CHUNKS: u32 = 3;
 
+/// The recording so far, shared with the live-transcript thread while the recorder appends to it.
+pub type SharedSamples = Arc<Mutex<Vec<f32>>>;
+
 /// Collects the 16 kHz mono recording and reports its loudness while it runs.
 pub struct LevelSink {
     events: Events,
-    samples: Vec<f32>,
+    samples: SharedSamples,
     square_sum: f32,
     square_count: usize,
     chunks: u32,
@@ -28,22 +33,30 @@ impl LevelSink {
     pub fn new(events: Events) -> Self {
         Self {
             events,
-            samples: Vec::new(),
+            samples: Arc::new(Mutex::new(Vec::new())),
             square_sum: 0.0,
             square_count: 0,
             chunks: 0,
         }
     }
 
+    /// A handle to the samples recorded so far, for reading while recording.
+    pub fn shared(&self) -> SharedSamples {
+        self.samples.clone()
+    }
+
     pub fn into_samples(self) -> Vec<f32> {
-        self.samples
+        std::mem::take(&mut *self.samples.lock().unwrap_or_else(|p| p.into_inner()))
     }
 }
 
 impl Sink for LevelSink {
     fn process_chunk(&mut self, chunk: AudioChunk<'_>) {
         let real = &chunk.samples[..chunk.valid_frames * chunk.channels as usize];
-        self.samples.extend_from_slice(real);
+        self.samples
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .extend_from_slice(real);
         self.square_sum += real.iter().map(|s| s * s).sum::<f32>();
         self.square_count += real.len();
         self.chunks += 1;

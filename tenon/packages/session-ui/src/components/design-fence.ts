@@ -111,10 +111,25 @@ export function designDocument(source: string, options: { autosize?: boolean; no
     '<meta http-equiv="x-dns-prefetch-control" content="off">',
     webrtcGuardScript.replace("<script>", script),
     '<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">',
+    frameScrollbar,
     options.autosize ? autosizeScript.replace("<script>", script) : "",
     source,
   ].join("")
 }
+
+/**
+ * The app's overlay pill scrollbar (`ui/src/styles/base.css`) for the frame, which can't read the app's styles: a
+ * 4px pill in a 12px gutter, no track or arrows, brighter on hover. A neutral grey reads on light and dark designs.
+ * It comes before the design's own styles, so a design that styles its scrollbar still wins.
+ */
+const frameScrollbar =
+  "<style>::-webkit-scrollbar{width:12px;height:12px;background:transparent}" +
+  "::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent}" +
+  "::-webkit-scrollbar-button{display:none;width:0;height:0}" +
+  "::-webkit-scrollbar-thumb{min-height:32px;min-width:32px;border:4px solid transparent;border-radius:9999px;" +
+  "background-color:rgb(128 128 128/.35);background-clip:padding-box}" +
+  ":hover::-webkit-scrollbar-thumb,::-webkit-scrollbar-thumb:hover,::-webkit-scrollbar-thumb:active{" +
+  "background-color:rgb(128 128 128/.6)}</style>"
 
 /**
  * Removes the WebRTC constructors from the frame's window for good, so the page can't open a peer

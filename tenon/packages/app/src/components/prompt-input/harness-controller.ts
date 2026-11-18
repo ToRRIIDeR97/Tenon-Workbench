@@ -9,6 +9,13 @@ import { Persist, persisted } from "@/utils/persist"
 import { ServerConnection } from "@/context/server"
 import { listHarnessesRemembered, recentHarnessKey, rememberedHarnesses } from "@/utils/server"
 import type { PromptInputHarnessController } from "./harness-controls"
+import {
+  createRememberedModelWindow,
+  harnessModelFor,
+  harnessRetryDelay,
+  REMEMBERED_MODELS_MS,
+  withRememberedModels,
+} from "./harness-memory"
 
 type HarnessSelection = {
   current: () => Harness.InstanceID
@@ -78,6 +85,11 @@ export function createPromptHarnessController(selection: HarnessSelection) {
     Persist.global("harness.instances.v1"),
     createStore<Record<string, ReadonlyArray<Harness.Instance>>>({}),
   )
+  // The model last used with each harness, so picking a harness again starts on it rather than its default.
+  const [lastModels, setLastModels] = persisted(
+    Persist.global("harness.models.v1"),
+    createStore<Record<string, Harness.ModelSelection>>({}),
+  )
   // A folder without its own list uses the server's list from another folder: availability is the same.
   const storedList = () => {
     const own = stored[persistedHarnessKey(serverSDK().server, sdk().directory)]
@@ -86,13 +98,27 @@ export function createPromptHarnessController(selection: HarnessSelection) {
     const key = Object.keys(stored).find((item) => item.startsWith(prefix))
     return key ? stored[key] : undefined
   }
+  const modelWindow = createRememberedModelWindow()
+  // The model last used with a harness, unless that harness has listed no models for over a minute: then it really
+  // has none, and restoring an old one would select a model it no longer offers.
+  const rememberedModel = (id: Harness.InstanceID) => (modelWindow.fill(id) ? lastModels[id] : undefined)
   // A list another composer or Home already loaded shows at once; this composer still checks.
   const remembered = rememberedHarnesses(server().server.url, sdk().directory) ?? storedList()
   const [loaded, { refetch }] = createResource(
     () => ({ directory: sdk().directory, version: settingsVersion() }),
-    ({ directory }) =>
-      listHarnessesRemembered(server(), directory, (list) =>
-        setStored(persistedHarnessKey(serverSDK().server, directory), list),
+    // A first load joins a check already running for the folder and reuses one from the last 30 s, so opening a
+    // page again doesn't probe every harness CLI; a refetch (retry, focus, Settings change) always asks.
+    ({ directory }, info) =>
+      listHarnessesRemembered(
+        server(),
+        directory,
+        (list) =>
+          // An agent that answered before listing its models keeps the models it listed last time.
+          setStored(
+            persistedHarnessKey(serverSDK().server, directory),
+            withRememberedModels(list, storedList(), modelWindow.fill) ?? list,
+          ),
+        { reuse: !info.refetching },
       ),
     // Only a present `initialValue` counts as resolved, so the key is left out when nothing is remembered.
     (remembered ? { initialValue: remembered } : {}) as { initialValue: ReadonlyArray<Harness.Instance> },
@@ -103,21 +129,38 @@ export function createPromptHarnessController(selection: HarnessSelection) {
   // can arrive after the resource started. Models hidden in Settings never reach the picker or the
   // default-model choice.
   const list = () => (loaded.state === "ready" || loaded.state === "refreshing" ? loaded.latest : storedList())
-  // A failed first check (the server still starting) is retried soon instead of on the next focus.
+  // A failed check (the server still starting) is retried soon, then every 15 s, until one answers: the picker
+  // must never wait for the page to be reopened.
   const [failures, setFailures] = createSignal(0)
   createEffect(() => {
-    if (loaded.state !== "errored" || failures() >= MODEL_RETRIES) return
+    if (loaded.state !== "errored") return
     const timer = setTimeout(() => {
       setFailures((count) => count + 1)
       void refetch()
-    }, MODEL_RETRY_MS)
+    }, harnessRetryDelay(failures()))
     onCleanup(() => clearTimeout(timer))
   })
-  const instances = createMemo(() =>
-    list()?.map((item) =>
-      withVisibleModels(item, settings.harnesses.hiddenModels(item.id), settings.harnesses.hiddenProviders(item.id)),
-    ),
+  createEffect(() => {
+    if (loaded.state === "ready") setFailures(0)
+  })
+  // An agent still starting (or still listing) shows the models it listed last time, so switching to it is
+  // instant; its own list replaces them when it arrives. One that still lists none a minute on really has none, and
+  // the picker says so (the tick re-reads the list once that minute is up).
+  const [expired, setExpired] = createSignal(0)
+  createEffect(
+    on(list, () => {
+      const timer = setTimeout(() => setExpired((value) => value + 1), REMEMBERED_MODELS_MS + 100)
+      onCleanup(() => clearTimeout(timer))
+    }),
   )
+  const instances = createMemo(() => {
+    expired()
+    const current = list()
+    modelWindow.observe(current)
+    return withRememberedModels(current, storedList(), modelWindow.fill)?.map((item) =>
+      withVisibleModels(item, settings.harnesses.hiddenModels(item.id), settings.harnesses.hiddenProviders(item.id)),
+    )
+  })
   // Stale-while-revalidate: the list refreshes when the window regains focus or the picker opens,
   // instead of behind a button. The server reuses recent checks, so most of these are cheap.
   let checked = Date.now()
@@ -132,8 +175,10 @@ export function createPromptHarnessController(selection: HarnessSelection) {
   // An ACP agent answers before its models are listed (the server reads them in the background),
   // so a harness that is up but has no models yet is asked again a few times.
   const [retry, setRetry] = createStore({ count: 0 })
+  // The agent's own answer, before remembered models fill it in: only that says whether its models are in.
+  const reported = () => list()?.find((item) => item.id === selection.current())
   const waitingForModels = () => {
-    const current = instance()
+    const current = reported()
     return (
       !!current &&
       current.driver !== Harness.OpenCodeDriver &&
@@ -144,7 +189,7 @@ export function createPromptHarnessController(selection: HarnessSelection) {
   // A newly selected harness gets its own full set of model retries.
   createEffect(on(selection.current, () => setRetry("count", 0), { defer: true }))
   createEffect(() => {
-    const current = instance()
+    const current = reported()
     if (!current || current.driver === Harness.OpenCodeDriver || current.status !== "available") return
     if (current.models.length > 0) {
       setRetry("count", 0)
@@ -172,7 +217,7 @@ export function createPromptHarnessController(selection: HarnessSelection) {
           : available.find((item) => item.status === "available")
     if (!selected) return
     if (selected.id !== selection.current()) {
-      selection.set(selected.id, defaultModel(selected))
+      selection.set(selected.id, harnessModelFor(selected, rememberedModel(selected.id)))
       return
     }
     const next = reconcileHarnessModel({
@@ -196,10 +241,17 @@ export function createPromptHarnessController(selection: HarnessSelection) {
     current: selection.current,
     select(instanceID: Harness.InstanceID) {
       const next = instances()?.find((item) => item.id === instanceID)
-      // No refetch here: listing probes every harness CLI once the server's cache expires.
-      selection.set(instanceID, next ? defaultModel(next) : undefined)
+      // No refetch here: listing probes every harness CLI once the server's cache expires. The harness starts on
+      // the model last used with it, so a switch back carries on where it left off.
+      selection.set(instanceID, next ? harnessModelFor(next, rememberedModel(instanceID)) : rememberedModel(instanceID))
     },
-    model: selection.model,
+    model: {
+      current: selection.model.current,
+      set(model) {
+        if (model) setLastModels(selection.current(), { ...model })
+        selection.model.set(model)
+      },
+    },
   } satisfies PromptInputHarnessController & {
     instance: () => Harness.Instance | undefined
     driver: () => Harness.DriverKind | undefined

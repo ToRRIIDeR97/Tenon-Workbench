@@ -1,6 +1,5 @@
 import { useNavigate } from "@solidjs/router"
 import { Meter } from "@/components/meter"
-import { Icon } from "@tenon/ui/v2/icon"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { KeybindV2 } from "@tenon/ui/v2/keybind-v2"
 import { Reveal, RevealShow } from "@tenon/ui/v2/reveal"
@@ -11,9 +10,7 @@ import { useLanguage } from "@/context/language"
 import { createFreshItems } from "@/utils/fresh-items"
 import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
-import { useServer } from "@/context/server"
 import { useServerSDK } from "@/context/server-sdk"
-import { useDrafts } from "@/context/drafts"
 import { useCommand } from "@/context/command"
 import { useDialog } from "@tenon/ui/context/dialog"
 import { PageEmpty, PageFrame, PageSection, pageRowClass } from "@/components/page"
@@ -22,22 +19,15 @@ import { createCalendarResource } from "@/features/second-brain/calendar-cache"
 import { TaskCheck } from "@/features/second-brain/calendar-peek"
 import { createTaskActions } from "@/features/second-brain/task-actions"
 import { type CalendarEvent, type PlannerTask } from "@/features/second-brain/client"
-import { useBrainProjects, useProjectThreads } from "@/components/sidebar/sidebar-controller"
+import { useBrainProjects } from "@/components/sidebar/sidebar-controller"
 import { createHomeController } from "@/pages/home/home-controller"
+import { HomeComposer } from "@/pages/home/home-composer"
 import { createHomeSessionsController } from "@/pages/home/home-sessions-controller"
 import { agentRunStatus, needsYou } from "@/pages/activity-runs"
-import { Harness } from "@tenon/schema/harness"
-import { harnessAssistantDirectory, listHarnessSetup, listHarnessUsage } from "@/utils/server"
+import { harnessAssistantDirectory, listHarnessSetup, listHarnessUsage, rememberedHarnesses } from "@/utils/server"
 import { fullestWindow } from "@/components/harness-usage"
 import { HarnessIcon } from "@/components/harness-icon"
-import { ComposerBox } from "@/components/prompt-input/composer-box"
-import { createComposerController } from "@/components/prompt-input/composer-controller"
-import { ComposerModelPill, createComposerHarness } from "@/components/prompt-input/composer-harness"
-import { PromptBranchPicker } from "@/components/prompt-workspace-selector"
-import { PromptProjectSelector, createPromptProjectController } from "@/components/prompt-project-selector"
-import { Greeting } from "@/pages/new-session/greeting"
 import { NEW_SESSION_CONTENT_WIDTH } from "@/pages/session/new-session-layout"
-import { useServerSync } from "@/context/server-sync"
 import { useSettings } from "@/context/settings"
 import { settled } from "@/utils/resource"
 import { sessionTitle } from "@/utils/session-title"
@@ -54,10 +44,7 @@ export default function BrainHomePage() {
   const layout = useLayout()
   const navigate = useNavigate()
   const platform = usePlatform()
-  const server = useServer()
   const serverSDK = useServerSDK()
-  const serverSync = useServerSync()
-  const drafts = useDrafts()
   const command = useCommand()
   const tenonHome = createHomeController()
   const tenonSessions = createHomeSessionsController(tenonHome)
@@ -69,60 +56,30 @@ export default function BrainHomePage() {
 
   // The sidebar workspace switcher owns this choice; the page only follows it.
   const directory = () => layout.home.workspace() ?? ""
-  // Home starts on the harness chosen in Settings › Harnesses.
-  const harness = createComposerHarness({
-    scope: "home",
-    directory,
-    initial: () => {
-      const choice = settings.harnesses.newThreadChoice()
-      return choice && { harnessID: choice.harnessID, model: choice.model as Harness.ModelSelection | undefined }
-    },
-  })
 
   // Usage left per harness, for the Home card. The server caches each harness's answer for a minute.
   const [usageTick, setUsageTick] = createSignal(0)
   const usageTimer = setInterval(() => setUsageTick((value) => value + 1), 60_000)
   onCleanup(() => clearInterval(usageTimer))
+  // A failed check keeps the last answer (or none): reading an errored resource would throw and take Home down.
+  // It starts empty, so reading it never suspends Home while the server asks every harness for its usage (slow on a
+  // first start).
+  let lastUsage: Awaited<ReturnType<typeof listHarnessUsage>> = []
   const [usage] = createResource(
     () => (directory() ? { directory: directory(), tick: usageTick() } : undefined),
-    (input) => listHarnessUsage({ server: serverSDK().server.http, fetch: platform.fetch }, input.directory),
+    (input) =>
+      listHarnessUsage({ server: serverSDK().server.http, fetch: platform.fetch }, input.directory).then(
+        (reports) => (lastUsage = reports),
+        () => lastUsage,
+      ),
+    { initialValue: [] },
   )
   const usageReports = createMemo(() =>
     (usage.latest ?? []).filter((report) => report.status === "available" && report.windows.length > 0),
   )
-  const projectThreadsQuery = useProjectThreads()
-  const projectThreads = createMemo(() =>
-    (Array.isArray(projectThreadsQuery.data) ? projectThreadsQuery.data : [])
-      .filter((entry) => entry.project.status === "active")
-      .toSorted((a, b) => a.project.name.localeCompare(b.project.name)),
-  )
-  // The composer's project picker (the workshop's switcher): the workspace's General and its Projects, recent first.
-  // Picking one starts a draft there that carries what you've typed.
-  const projectPicker = createPromptProjectController({
-    controls: () => ({
-      available: [
-        { worktree: directory(), name: language.t("secondBrain.sidebar.workspaceThreads") },
-        ...projectThreads().map((entry) => ({
-          worktree: entry.threadDirectory,
-          name: entry.project.name,
-          id: entry.project.id,
-          lastActive: entry.lastActivityAt,
-        })),
-      ],
-      directory: directory(),
-      select: (worktree, _server, projectID) =>
-        void drafts.create(
-          { server: server.key, directory: worktree, projectID },
-          composer.value(),
-          harness.builtInModel(),
-          harness.harnessID(),
-          { harnessModel: harness.harnessModel() },
-        ),
-      add: () => navigate("/projects"),
-    }),
-    onDone: () => {},
-  })
-  const harnessName = (id: string) => harness.controller.instances()?.find((item) => item.id === id)?.name ?? id
+  // The usage card names each harness from the last harness list the server gave for this workspace.
+  const harnessName = (id: string) =>
+    rememberedHarnesses(serverSDK().server.http.url, directory())?.find((item) => item.id === id)?.name ?? id
 
   // First run: offer the built-in agent setup once, unless every built-in agent is already installed and signed in.
   // It runs in the server's non-project assistant folder, so a new user needs no workspace for it.
@@ -146,7 +103,6 @@ export default function BrainHomePage() {
   const calendar = createCalendarResource(() => directory() || undefined, client)
   // A window left open overnight moves to the new day when it next takes focus.
   const [today, setToday] = createSignal(localDateKey(new Date()))
-  const [composing, setComposing] = createSignal(false)
   makeEventListener(window, "focus", () => setToday(localDateKey(new Date())))
   const [google, googleActions] = createResource(async () => platform.googleCalendar?.status())
   const tasks = createTaskActions({
@@ -202,23 +158,6 @@ export default function BrainHomePage() {
       .slice(0, RESUME_LIMIT)
   })
 
-  const composer = createComposerController({
-    persist: "home",
-    // The draft page sends the prompt as soon as its composer is ready.
-    send: async (prompt) => {
-      await drafts.create(
-        { server: server.key, directory: directory() },
-        prompt,
-        harness.builtInModel(),
-        harness.harnessID(),
-        { send: true, harnessModel: harness.harnessModel() },
-      )
-      return true
-    },
-    disabled: () => !directory(),
-    blocked: harness.waiting,
-  })
-
   return (
     <PageFrame labelledBy="brain-home-title">
       <h1 id="brain-home-title" class="sr-only">
@@ -256,37 +195,10 @@ export default function BrainHomePage() {
         <div class="@container">
           <div
             class={`mx-auto flex ${NEW_SESSION_CONTENT_WIDTH} flex-col gap-[clamp(24px,4vh,48px)] px-6 pb-12 pt-[12vh]`}
-            onFocusIn={() => setComposing(true)}
-            onFocusOut={() => setComposing(false)}
           >
-            {/* The headline's verb keeps rolling, except while the user is writing in the composer. */}
-            <Greeting swap={{ paused: () => composing() || !!composer.value().trim() }} />
-            <ComposerBox
-              size="large"
-              controller={composer}
-              label={language.t("secondBrain.home.ask")}
-              placeholder={language.t("secondBrain.home.askPlaceholder")}
-              sendLabel={language.t("secondBrain.home.start")}
-              expandLabel={language.t("ui.promptInput.add")}
-              onExpand={(text) =>
-                void drafts.create(
-                  { server: server.key, directory: directory() },
-                  text,
-                  harness.builtInModel(),
-                  harness.harnessID(),
-                  { harnessModel: harness.harnessModel() },
-                )
-              }
-              header={
-                <div class="flex h-10 min-w-0 items-center gap-0.5 border-b border-v2-border-border-muted pl-2.5 pr-2">
-                  {/* The workspace, or a Project: picking one opens a new thread there with what you've typed. */}
-                  <PromptProjectSelector controller={projectPicker} placement="bottom-start" />
-                  <Icon name="chevron-down" size="small" class="shrink-0 -rotate-90 text-v2-icon-icon-muted" />
-                  <PromptBranchPicker directory={directory()} branch={serverSync().child(directory())[0].vcs?.branch} />
-                </div>
-              }
-              controls={<ComposerModelPill harness={harness} />}
-            />
+            {/* The greeting, then the thread composer itself: its top row says where the thread runs and its one
+                pill picks the harness, model, reasoning and speed. */}
+            <HomeComposer directory={directory()} />
 
             <RevealShow when={!!(projects.failed() || calendar.error())}>
               {() => (

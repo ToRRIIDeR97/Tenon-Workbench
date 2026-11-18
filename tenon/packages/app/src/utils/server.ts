@@ -161,23 +161,45 @@ export function rememberedHarnesses(url: string, directory: string) {
   return recentHarnesses.get(recentHarnessKey(url, directory)) ?? latestHarnesses.get(url)
 }
 
+// Each check can start every harness CLI on the server, so composers opening at once share one check, and a list
+// checked within the last 30 s is reused when a page opens again (a forced check, `reuse: false`, always asks).
+const HARNESS_REUSE_MS = 30_000
+const harnessChecks = new Map<string, Promise<ReadonlyArray<HarnessSchema.Instance> | undefined>>()
+const harnessCheckedAt = new Map<string, number>()
+
 /**
  * Lists the harnesses for a folder and remembers the answer, also through `keep` (which persists it).
- * A failed check returns the fallback list and keeps nothing.
+ * A failed check returns the fallback list and keeps nothing. With `reuse`, a check already running for the folder
+ * is joined and one made in the last 30 s is answered from memory.
  */
 export async function listHarnessesRemembered(
   input: Parameters<typeof listHarnessesForServer>[0],
   directory: string,
   keep?: (list: ReadonlyArray<HarnessSchema.Instance>) => void,
+  options: { reuse?: boolean } = {},
 ) {
-  const list = await listHarnessesForServer(input, directory).catch(() => undefined)
+  const key = recentHarnessKey(input.server.url, directory)
+  const fresh = recentHarnesses.get(key)
+  if (options.reuse && fresh && Date.now() - (harnessCheckedAt.get(key) ?? 0) < HARNESS_REUSE_MS) {
+    keep?.(fresh)
+    return fresh
+  }
+  const running = options.reuse ? harnessChecks.get(key) : undefined
+  const check =
+    running ??
+    listHarnessesForServer(input, directory)
+      .catch(() => undefined)
+      .finally(() => harnessChecks.delete(key))
+  if (!running) harnessChecks.set(key, check)
+  const list = await check
   // A failed check keeps the last answer instead of marking every harness unavailable.
   if (!list) {
     const last = rememberedHarnesses(input.server.url, directory)
     if (last) return last
     throw new Error("Harness availability check failed.")
   }
-  recentHarnesses.set(recentHarnessKey(input.server.url, directory), list)
+  recentHarnesses.set(key, list)
+  harnessCheckedAt.set(key, Date.now())
   latestHarnesses.set(input.server.url, list)
   keep?.(list)
   return list

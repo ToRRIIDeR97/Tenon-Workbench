@@ -31,8 +31,6 @@ export function SessionSideRail(props: {
   hasReview: boolean
   /** Subagents running in this thread. */
   running: number
-  /** The thread has designs to lay out. */
-  canvas: boolean
   /** The side panel sits beside the rail in the same shell. */
   joined?: boolean
   onSelect: (section: PanelSection) => void
@@ -195,13 +193,12 @@ export function SessionSideRail(props: {
           badge: attentionDot("device"),
         })}
       </Show>
-      <Show when={props.canvas || props.section === "canvas"}>
-        {item({
-          section: "canvas",
-          label: language.t("secondBrain.canvas.title"),
-          icon: <Icon name="photo" />,
-        })}
-      </Show>
+      {/* Always on the rail, so the canvas is one click away before the agent draws; it opens on its empty state. */}
+      {item({
+        section: "canvas",
+        label: language.t("secondBrain.canvas.title"),
+        icon: <Icon name="photo" />,
+      })}
       {item({
         section: "details",
         label: language.t("secondBrain.sessionTab.title"),

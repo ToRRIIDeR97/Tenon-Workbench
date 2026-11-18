@@ -195,13 +195,18 @@ const api: ElectronAPI = {
     ipcRenderer.invoke("record-startup-milestone", name, sinceNavigation),
   setNativeTranslations: (bundle) => ipcRenderer.invoke("set-native-translations", bundle),
   dictation: {
-    start: () => ipcRenderer.invoke("dictation-start"),
+    start: (options) => ipcRenderer.invoke("dictation-start", options),
     stop: () => ipcRenderer.invoke("dictation-stop"),
     cancel: () => ipcRenderer.invoke("dictation-cancel"),
     onLevel: (cb) => {
       const handler = (_: unknown, rms: number) => cb(rms)
       ipcRenderer.on("dictation-level", handler)
       return () => ipcRenderer.removeListener("dictation-level", handler)
+    },
+    onPartial: (cb) => {
+      const handler = (_: unknown, text: string) => cb(text)
+      ipcRenderer.on("dictation-partial", handler)
+      return () => ipcRenderer.removeListener("dictation-partial", handler)
     },
     onLimit: (cb) => {
       const handler = () => cb()

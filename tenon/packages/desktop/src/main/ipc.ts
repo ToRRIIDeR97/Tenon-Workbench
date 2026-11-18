@@ -211,10 +211,13 @@ export function registerIpcHandlers(deps: Deps) {
     deps.googleCalendar.disconnect(typeof input?.accountId === "string" ? { accountId: input.accountId } : undefined),
   )
   // Dictation: the renderer starts and stops recordings and manages model files by id only.
-  trustedHandle("dictation-start", (event) =>
+  // The spoken language is a code the service validates; the live transcript goes back to the same window.
+  trustedHandle("dictation-start", (event, options: { language?: unknown } | undefined) =>
     deps.dictation.start(
       (rms) => !event.sender.isDestroyed() && event.sender.send("dictation-level", rms),
       () => !event.sender.isDestroyed() && event.sender.send("dictation-limit"),
+      (text) => !event.sender.isDestroyed() && event.sender.send("dictation-partial", text),
+      { language: typeof options?.language === "string" ? options.language : undefined },
     ),
   )
   trustedHandle("dictation-stop", () => deps.dictation.stop())

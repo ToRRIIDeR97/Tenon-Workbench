@@ -63,6 +63,10 @@ export interface Settings {
   sounds: SoundSettings
   calendar?: CalendarSyncSettings
   commandCentre?: Partial<CommandCentreSettings>
+  dictation?: {
+    /** The spoken language: "app" follows the app's language, "auto" lets the model detect it, else an ISO 639 code. */
+    language?: string
+  }
   harnesses?: {
     /** Model IDs left out of each harness's picker, by harness instance ID. New models show by default. */
     hiddenModels?: Record<string, string[]>
@@ -508,6 +512,12 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
             ...value,
             hiddenProviders: { ...value?.hiddenProviders, [instanceID]: next },
           }))
+        },
+      },
+      dictation: {
+        language: () => store.dictation?.language,
+        setLanguage(value: string) {
+          setStore("dictation", (current) => ({ ...current, language: value }))
         },
       },
       sounds: {

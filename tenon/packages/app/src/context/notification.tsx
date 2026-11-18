@@ -10,7 +10,8 @@ import { useSettings } from "@/context/settings"
 import { base64Encode } from "@tenon/core/util/encode"
 import { getFilename } from "@tenon/core/util/path"
 import { EventSessionError } from "@opencode-ai/sdk/v2"
-import type { PermissionRequest } from "@opencode-ai/sdk/v2/client"
+import type { Message, Part, PermissionRequest } from "@opencode-ai/sdk/v2/client"
+import { replyAsks } from "@/features/second-brain/thread-finish"
 import { Persist, persisted } from "@/utils/persist"
 import { playSoundById } from "@/utils/sound"
 import { useGlobal } from "./global"
@@ -345,8 +346,16 @@ function createServerNotificationState(input: {
     return sessionID === activeSession
   }
 
+  // A thread that hasn't been opened since launch has no messages in memory: load its last few (`messageLimit: 4`
+  // is the page size `session.sync` loads for a thread it doesn't hold yet) to read the reply, for at most 2 s.
+  const threadAsks = (sessionID: string) =>
+    replyAsks({
+      read: () => lastReplyText(serverSync().session.data, sessionID),
+      load: () => serverSync().session.sync(sessionID, { messageLimit: 4 }),
+    })
+
   const handleTurnComplete = (directory: string, sessionID: string | undefined, time: number) => {
-    void lookup(directory, sessionID).then((session) => {
+    void lookup(directory, sessionID).then(async (session) => {
       if (meta.disposed) return
       if (!session) return
       if (session.parentID) return
@@ -355,12 +364,16 @@ function createServerNotificationState(input: {
         void playSoundById(settings.sounds.agent())
       }
 
+      // Whether the agent ended by asking something, so the sidebar can say the thread waits on a reply.
+      const asks = sessionID ? await threadAsks(sessionID) : false
+      if (meta.disposed) return
       append({
         directory,
         time,
         viewed: viewedInCurrentSession(directory, sessionID),
         type: "turn-complete",
         session: sessionID,
+        metadata: { asks },
       })
 
       if (settings.notifications.agent() && sessionID) {
@@ -510,4 +523,19 @@ function createServerNotificationState(input: {
       },
     },
   }
+}
+
+/** The visible text of a session's newest assistant reply, from what the synced store has loaded. */
+function lastReplyText(
+  data: {
+    message: Record<string, ReadonlyArray<Message> | undefined>
+    part: Record<string, ReadonlyArray<Part> | undefined>
+  },
+  sessionID: string,
+) {
+  const reply = (data.message[sessionID] ?? []).findLast((message) => message.role === "assistant")
+  if (!reply) return ""
+  return (data.part[reply.id] ?? [])
+    .flatMap((part) => (part.type === "text" && !part.synthetic ? [part.text] : []))
+    .join("\n\n")
 }

@@ -77,7 +77,8 @@ Use `[font-weight:N]` when a weight must differ from the role.
   alone is the card. The rail's buttons are 36px (10px corners, 6px apart;
   hover `overlay-hover`, the open section the accent container), with badges
   at each button's top right; Context (the usage ring) is the last button,
-  after Canvas. Review and the terminal stacked in the panel are split by a
+  after Canvas, which is always there (it opens on the canvas's empty state
+  before the agent has drawn). Review and the terminal stacked in the panel are split by a
   hairline, and the panel's resize handle sits on its left edge. Rounded
   corners otherwise are for things inside or above the page (cards, docks,
   menus, floating windows).
@@ -151,7 +152,10 @@ Use `[font-weight:N]` when a weight must differ from the role.
   (used of its window, or "≈N estimated" from its transcript when the agent
   reports none, as OpenCode does), agent, turn and how it ended; a card opens
   its usage with Open in Agents and Show in thread. The Environment window's
-  Running section becomes "Subagents · N done" with a row and small bar each.
+  Running section becomes "Subagents · N running · M done" listing only the
+  subagents still at work (breathing dot, small bar, chevron; "None running
+  now" when all have finished), then **All subagents**. A row or that link
+  opens the side panel's Agents tab and closes the window.
 - **Composer: light tab** (`session-ui` `prompt-input`, both the thread and
   the new-thread composer). At most 560px wide, centred in its column (the
   docks that attach to it share that width); empty, it is about 130px tall.
@@ -220,8 +224,18 @@ Use `[font-weight:N]` when a weight must differ from the role.
   icon buttons are circular.
 - **View switches and filters:** segmented look (`SegmentedControlV2`,
   `TabsV2` pill variant). Underlined tabs are for the sidebar's Group by only.
-- **Progress and usage:** `Meter`. Spinner: `LoaderV2`. Running dot:
-  `.running-pulse`.
+- **Progress and usage:** `Meter`. Spinner: `LoaderV2` (loading, not a running
+  agent). Running: the blue dot that breathes in and out, `.running-pulse`
+  (2 s ease-in-out, scale 0.8–1 and a soft halo). Under reduced motion it is a
+  steady blue dot; its label still says Running.
+  It marks a running thread in the sidebar, Home and the Command Centre, the
+  thread's Working row and each running step or subagent.
+- **Finished threads** (sidebar, until opened): a muted check for Done, the
+  accent reply icon for Needs your reply (the agent's last paragraph asks a
+  question), and a critical warning for Failed.
+- **Free-text answers in a choice card** (the question dock's "Other"): no ring
+  on the text box itself; while it has focus the option's edge becomes a 1.5px
+  line in the focus colour, and the caret does the rest.
 - **Agent task list** (the dock on the composer, `session-todo-dock.tsx`):
   a "Tasks" title with "N of M" and a chevron; each step has a 16px mark, a
   filled check for done (text dimmed), `LoaderV2` in accent for the step in
@@ -250,7 +264,9 @@ Use `[font-weight:N]` when a weight must differ from the role.
   opens the panel. The page draws in place, element by element: new elements
   fade in over `--v2-duration-medium` with the emphasized-decelerate easing
   (none under reduced motion) and a soft accent outline marks the element
-  being written. The header shows the title, a "Drawing" chip with the
+  being written. The frame scrolls with the app's overlay pill scrollbar
+  (`design-fence.ts` adds it ahead of the design's own styles, in neutral grey
+  since the frame can't read the theme). The header shows the title, a "Drawing" chip with the
   running dot (it settles to "Drawn just now") and a Preview / Code segmented
   switch; Code shows the source so far with an accent caret, kept scrolled to
   the end. "Use this one" appears once the design is done.

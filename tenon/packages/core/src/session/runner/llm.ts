@@ -267,6 +267,9 @@ const layer = Layer.effect(
         concurrency: "unbounded",
       }).pipe(Effect.map(SystemContext.combine))
 
+    // Each running drain's title starter, so a turn can start the title as soon as it promotes the first message.
+    const titleOnPromotion = new Map<SessionSchema.ID, Effect.Effect<void>>()
+
     const runTurnAttempt = Effect.fn("SessionRunner.runTurn")(function* (
       sessionID: SessionSchema.ID,
       promotion: SessionInput.Delivery | undefined,
@@ -292,6 +295,9 @@ const layer = Layer.effect(
           if (promoted === 0) return { needsContinuation: false, step: currentStep }
         }
         if (promoted > 0) currentStep = 1
+        // The first message is in the transcript now, so the title can start beside the turn.
+        const title = promoted > 0 ? titleOnPromotion.get(session.id) : undefined
+        if (title) yield* title
       }
       const system =
         initialized ?? (yield* SessionContextEpoch.prepare(db, events, loadSystemContext(agent), session.id))
@@ -382,9 +388,10 @@ const layer = Layer.effect(
               }
             }
             yield* publish(event)
-            // A harness plan arrives as a todowrite call the agent ran itself; save it so the thread's task list shows it.
-            if (event.type === "tool-call" && event.providerExecuted && event.name === "todowrite") {
-              const todos = SessionTodo.fromPlan(event.input)
+            // A harness plan arrives as a todowrite call the agent ran itself (OpenCode's is `acp_other` titled
+            // todowrite); save it so the thread's task list shows it.
+            if (event.type === "tool-call" && event.providerExecuted) {
+              const todos = SessionTodo.planFromToolCall(event.name, event.input)
               if (todos) yield* todo.update({ sessionID: session.id, todos })
             }
             if (event.type !== "tool-call" || event.providerExecuted) return
@@ -635,21 +642,31 @@ const layer = Layer.effect(
           Effect.asVoid,
         )
       })
-      while (shouldRun) {
-        let needsContinuation = true
-        let step = 1
-        while (needsContinuation) {
-          // Title once the first turn ends however it ends: a stopped or failed first turn would otherwise
-          // leave the thread on its default title, since only the first user message is eligible.
-          const result = yield* runTurn(input.sessionID, promotion, step).pipe(Effect.ensuring(startTitle))
-          needsContinuation = result.needsContinuation
-          step = result.step + 1
-          promotion = "steer"
-          if (!needsContinuation) needsContinuation = yield* SessionInput.hasPending(db, input.sessionID, "steer")
+      // The title starts as soon as a turn promotes the first message (runTurnAttempt), beside the turn.
+      titleOnPromotion.set(input.sessionID, startTitle)
+      yield* Effect.gen(function* () {
+        while (shouldRun) {
+          let needsContinuation = true
+          let step = 1
+          while (needsContinuation) {
+            // Also once the turn ends however it ends, for a drain whose first message was promoted earlier:
+            // only the first user message is eligible, so a missed title would stay the default.
+            const result = yield* runTurn(input.sessionID, promotion, step).pipe(Effect.ensuring(startTitle))
+            needsContinuation = result.needsContinuation
+            step = result.step + 1
+            promotion = "steer"
+            if (!needsContinuation) needsContinuation = yield* SessionInput.hasPending(db, input.sessionID, "steer")
+          }
+          shouldRun = yield* SessionInput.hasPending(db, input.sessionID, "queue")
+          promotion = shouldRun ? "queue" : undefined
         }
-        shouldRun = yield* SessionInput.hasPending(db, input.sessionID, "queue")
-        promotion = shouldRun ? "queue" : undefined
-      }
+      }).pipe(
+        Effect.ensuring(
+          Effect.sync(() => {
+            if (titleOnPromotion.get(input.sessionID) === startTitle) titleOnPromotion.delete(input.sessionID)
+          }),
+        ),
+      )
     })
 
     return Service.of({
