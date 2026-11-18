@@ -43,6 +43,7 @@ import { useServer } from "@/context/server"
 import { usePlatform } from "@/context/platform"
 import { showToast } from "@/utils/toast"
 import type { CardSummary, ThreadState } from "@/features/second-brain/sidebar-grouping"
+import type { FinishMark } from "@/features/second-brain/thread-finish"
 import { projectForDirectory, type ThreadNode } from "@/features/second-brain/sidebar-threads"
 import { createFreshItems } from "@/utils/fresh-items"
 import { sessionPinnedAt } from "@/utils/session"
@@ -585,10 +586,52 @@ function ThreadStatusMark(props: { state: ThreadState }) {
       <Match when={props.state === "running"}>
         <span
           data-sidebar-status="running"
-          class="size-2 shrink-0 rounded-full bg-v2-icon-icon-accent"
+          class="size-2 shrink-0 rounded-full bg-v2-icon-icon-accent running-pulse"
           role="img"
           aria-label={language.t("secondBrain.sidebar.running")}
         />
+      </Match>
+    </Switch>
+  )
+}
+
+/** How a thread's last turn ended while it was not on screen; shown until the thread is opened. */
+function ThreadFinishMark(props: { mark: FinishMark | undefined }) {
+  const language = useLanguage()
+  return (
+    <Switch>
+      <Match when={props.mark === "reply"}>
+        <span
+          data-sidebar-status="reply"
+          class="flex shrink-0 items-center text-v2-icon-icon-accent"
+          role="img"
+          aria-label={language.t("secondBrain.sidebar.finish.reply")}
+          title={language.t("secondBrain.sidebar.finish.reply")}
+        >
+          <Icon name="reply" size="small" />
+        </span>
+      </Match>
+      <Match when={props.mark === "done"}>
+        <span
+          data-sidebar-status="done"
+          class="flex shrink-0 items-center text-v2-icon-icon-muted"
+          role="img"
+          aria-label={language.t("secondBrain.sidebar.finish.done")}
+          title={language.t("secondBrain.sidebar.finish.done")}
+        >
+          <Icon name="check" size="small" />
+        </span>
+      </Match>
+      <Match when={props.mark === "failed"}>
+        <span
+          data-sidebar-status="failed"
+          class="flex shrink-0 items-center text-v2-text-text-critical"
+          role="img"
+          aria-label={language.t("secondBrain.sidebar.finish.failed")}
+          title={language.t("secondBrain.sidebar.finish.failed")}
+        >
+          <Icon name="warning" size="small" />
+        </span>
       </Match>
     </Switch>
   )
@@ -1073,6 +1116,9 @@ function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; 
                 </span>
               </Show>
               <ThreadStatusMark state={props.ctrl.subtreeState(props.node)} />
+              <Show when={props.ctrl.subtreeState(props.node) === "idle" && !active()}>
+                <ThreadFinishMark mark={props.ctrl.finishOf(session())} />
+              </Show>
             </button>
           }
         >

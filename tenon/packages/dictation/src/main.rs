@@ -5,21 +5,33 @@
 //! `transcribe-cpp` for GGUF Whisper/Parakeet models. Stdout carries only protocol events;
 //! diagnostics go to stderr.
 //!
-//! Requests: {"id","type":"load","model"} {"id","type":"start"} {"id","type":"stop"}
+//! Requests: {"id","type":"load","model"} {"id","type":"start","language"?} {"id","type":"stop"}
 //!           {"id","type":"cancel"} {"id","type":"transcribe_file","path"}
-//! Events:   {"type":"ready"} {"type":"level","rms"} {"type":"final","id","text"}
-//!           {"type":"error","id"?,"code","message"}
+//! Events:   {"type":"ready"} {"type":"level","rms"} {"type":"partial","text"}
+//!           {"type":"final","id","text"} {"type":"error","id"?,"code","message"}
+//!
+//! `language` is the spoken language's code (`en`, `zh`...); missing or `auto` lets the model detect it.
+//! While recording, `partial` carries the transcript of the audio so far; `final` replaces it.
 
 mod audio;
+mod language;
 
 use std::io::{BufRead, Write};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use handy_recorder::{ErrorKind, Recorder, RecorderConfig};
 use serde_json::{json, Value};
-use transcribe_cpp::{Model, RunOptions, Session};
+use transcribe_cpp::{CancelToken, Model, RunOptions, Session};
 
-use audio::LevelSink;
+use audio::{LevelSink, SharedSamples};
+
+/// How often the live transcript is refreshed while recording.
+const PREVIEW_EVERY: Duration = Duration::from_millis(1200);
+/// A live transcript waits for this much audio (0.8 s) before its first run.
+const PREVIEW_MIN_SAMPLES: usize = 12_800;
+/// The live transcript covers at most the last 28 s, so each refresh stays quick; the final run covers all.
+const PREVIEW_MAX_SAMPLES: usize = 28 * 16_000;
 
 #[derive(Clone)]
 pub struct Events(Arc<Mutex<std::io::Stdout>>);
@@ -49,6 +61,12 @@ struct Engine {
     events: Events,
     session: SharedSession,
     recorder: Option<Recorder<LevelSink>>,
+    /// The loaded model's language codes (empty for a language-agnostic model).
+    languages: Arc<Vec<String>>,
+    /// The spoken language the current recording was started with.
+    language: Option<String>,
+    /// Cancels the live-transcript thread of the current recording, and any preview run in flight.
+    preview: Option<CancelToken>,
 }
 
 fn main() {
@@ -57,6 +75,9 @@ fn main() {
         events: events.clone(),
         session: Arc::new(Mutex::new(None)),
         recorder: None,
+        languages: Arc::new(Vec::new()),
+        language: None,
+        preview: None,
     };
     events.send(json!({ "type": "ready" }));
 
@@ -87,7 +108,13 @@ impl Engine {
                     .events
                     .error(id, "bad_request", "load needs a model path"),
             },
-            Some("start") => self.start(id),
+            Some("start") => self.start(
+                id,
+                request
+                    .get("language")
+                    .and_then(Value::as_str)
+                    .map(str::to_owned),
+            ),
             Some("stop") => self.stop(id),
             Some("cancel") => self.cancel(),
             Some("transcribe_file") => match request.get("path").and_then(Value::as_str) {
@@ -105,10 +132,17 @@ impl Engine {
     }
 
     fn load(&mut self, id: Option<&str>, path: &str) {
-        let loaded = Model::load(path).and_then(|model| model.session());
+        let loaded = Model::load(path).and_then(|model| {
+            let languages = model
+                .capabilities()
+                .map(|caps| caps.languages)
+                .unwrap_or_default();
+            model.session().map(|session| (session, languages))
+        });
         match loaded {
-            Ok(session) => {
+            Ok((session, languages)) => {
                 *self.session.lock().unwrap_or_else(|p| p.into_inner()) = Some(session);
+                self.languages = Arc::new(languages);
                 self.events.send(json!({ "type": "ready" }));
             }
             Err(error) => self.events.error(id, "load_failed", error.to_string()),
@@ -119,12 +153,13 @@ impl Engine {
         self.session.lock().map(|s| s.is_some()).unwrap_or(false)
     }
 
-    fn start(&mut self, id: Option<&str>) {
+    fn start(&mut self, id: Option<&str>, language: Option<String>) {
         if self.recorder.is_some() {
             return self
                 .events
                 .error(id, "already_recording", "Already recording");
         }
+        self.language = language;
         if !self.has_model() {
             return self
                 .events
@@ -142,7 +177,9 @@ impl Engine {
                     .error(id, microphone_code(error.kind()), error.to_string())
             }
         };
-        if let Err(error) = recorder.start(LevelSink::new(self.events.clone())) {
+        let sink = LevelSink::new(self.events.clone());
+        let samples = sink.shared();
+        if let Err(error) = recorder.start(sink) {
             return self.events.error(
                 id,
                 microphone_code(error.error.kind()),
@@ -150,9 +187,72 @@ impl Engine {
             );
         }
         self.recorder = Some(recorder);
+        self.preview = Some(self.start_preview(samples));
+    }
+
+    fn run_options(&self) -> RunOptions {
+        language::run_options(self.language.as_deref(), &self.languages)
+    }
+
+    fn stop_preview(&mut self) {
+        if let Some(token) = self.preview.take() {
+            token.cancel();
+        }
+    }
+
+    /// Re-transcribes the recording so far every `PREVIEW_EVERY` and sends it as a `partial` event, so the words
+    /// appear while the user speaks. A run only starts when the model is free, so the final run is never held up
+    /// by a preview: stop cancels a preview run in flight, and a preview that ends after stop sends nothing.
+    fn start_preview(&self, samples: SharedSamples) -> CancelToken {
+        let stopped = CancelToken::new();
+        let token = stopped.clone();
+        let events = self.events.clone();
+        let session = self.session.clone();
+        let options = self.run_options();
+        std::thread::spawn(move || {
+            let mut last = String::new();
+            loop {
+                std::thread::sleep(PREVIEW_EVERY);
+                if token.is_cancelled() {
+                    return;
+                }
+                let clip = {
+                    let all = samples.lock().unwrap_or_else(|p| p.into_inner());
+                    all[all.len().saturating_sub(PREVIEW_MAX_SAMPLES)..].to_vec()
+                };
+                if clip.len() < PREVIEW_MIN_SAMPLES {
+                    continue;
+                }
+                let speech = audio::trim_to_speech(&clip);
+                if speech.is_empty() {
+                    continue;
+                }
+                let Ok(mut guard) = session.try_lock() else {
+                    continue;
+                };
+                let Some(model) = guard.as_mut() else { return };
+                // The final run must not inherit the token: it is installed only for this preview run.
+                model.set_cancel_token(&token);
+                let result = model.run(speech, &options);
+                model.clear_cancel_token();
+                drop(guard);
+                if token.is_cancelled() {
+                    return;
+                }
+                let Ok(result) = result else { continue };
+                let text = result.text.trim().to_owned();
+                if text.is_empty() || text == last {
+                    continue;
+                }
+                events.send(json!({ "type": "partial", "text": text }));
+                last = text;
+            }
+        });
+        stopped
     }
 
     fn stop(&mut self, id: Option<&str>) {
+        self.stop_preview();
         let Some(recorder) = self.recorder.take() else {
             return self.events.error(id, "not_recording", "Not recording");
         };
@@ -171,6 +271,7 @@ impl Engine {
     }
 
     fn cancel(&mut self) {
+        self.stop_preview();
         if let Some(recorder) = self.recorder.take() {
             let _ = recorder.stop();
         }
@@ -192,6 +293,7 @@ impl Engine {
     fn transcribe(&self, id: Option<&str>, samples: Vec<f32>) {
         let events = self.events.clone();
         let session = self.session.clone();
+        let options = self.run_options();
         let id = id.map(str::to_owned);
         std::thread::spawn(move || {
             let speech = audio::trim_to_speech(&samples);
@@ -203,7 +305,7 @@ impl Engine {
             let Some(session) = guard.as_mut() else {
                 return events.error(id.as_deref(), "no_model", "No speech model is loaded");
             };
-            match session.run(speech, &RunOptions::default()) {
+            match session.run(speech, &options) {
                 Ok(result) => {
                     events.send(json!({ "type": "final", "id": id, "text": result.text.trim() }))
                 }

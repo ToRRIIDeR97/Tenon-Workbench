@@ -72,11 +72,20 @@ const build = (
   const provider = providers.find((item) => item.id === message.providerID)
   const model = resolveModel(providers, provider, message.modelID)
   // A harness's own report wins: it names the window it ran with, and its model id may be an alias.
-  const limit = (message as HarnessAssistant).contextWindow || model?.limit.context
+  const window = (item: AssistantMessage) => (item as HarnessAssistant).contextWindow || model?.limit.context
+  // An external harness may report its context only when a turn ends (OpenCode does), and a figure above the
+  // window is a token total, not context in use. Either way the newest real report from the same harness stands
+  // in, rather than the turn's summed tokens.
+  const own = contextReport(message, window(message))
+  const earlier = own ? undefined : lastReport(messages, message, window)
+  // A report from before a compaction describes the context that compaction replaced.
+  const previous = earlier && !compactedAfter(messages, earlier, parts) ? earlier : undefined
+  const limit = (own ? window(message) : previous?.contextWindow) || window(message)
   // A harness's reported context in use wins: its token counts add up every model call in the turn.
-  const live = (message as HarnessAssistant).contextUsed
+  const live = own ?? previous?.contextUsed
   const total = live || tokenTotal(message)
-  const reported = !!live || harnessID(message) === Harness.OpenCode
+  const reported =
+    !!live || (harnessID(message) === Harness.OpenCode && !(limit && total > limit) && !overWindow(message, limit))
 
   return {
     message,
@@ -91,6 +100,38 @@ const build = (
     compacted: compactedAfter(messages, message, parts),
     reported,
   }
+}
+
+/** A message's reported context in use, when it has one that fits its window. */
+const contextReport = (message: AssistantMessage, window: number | undefined) => {
+  const used = (message as HarnessAssistant).contextUsed
+  if (!used || used <= 0) return undefined
+  return window && used > window ? undefined : used
+}
+
+/** True when the message reported a context in use larger than its window: a token total, not a context figure. */
+const overWindow = (message: AssistantMessage, window: number | undefined) => {
+  const used = (message as HarnessAssistant).contextUsed
+  return !!used && !!window && used > window
+}
+
+/** The newest message before `message` from the same external harness with a context report that fits. */
+const lastReport = (
+  messages: Message[],
+  message: AssistantMessage,
+  window: (item: AssistantMessage) => number | undefined,
+) => {
+  const harness = harnessID(message)
+  if (harness === Harness.OpenCode) return undefined
+  return messages
+    .slice(0, messages.indexOf(message))
+    .findLast(
+      (item): item is HarnessAssistant =>
+        item.role === "assistant" &&
+        !item.summary &&
+        harnessID(item) === harness &&
+        contextReport(item, window(item)) !== undefined,
+    )
 }
 
 /**

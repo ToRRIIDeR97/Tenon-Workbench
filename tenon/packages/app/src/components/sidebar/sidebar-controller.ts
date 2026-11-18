@@ -16,6 +16,8 @@ import {
 } from "@/context/global-sync/home-session-index"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
+import { useNotification } from "@/context/notification"
+import { finishMark } from "@/features/second-brain/thread-finish"
 import { usePlatform } from "@/context/platform"
 import { useServer } from "@/context/server"
 import { useServerSDK } from "@/context/server-sdk"
@@ -375,6 +377,19 @@ export function createSidebarController() {
     )
   })
   const grouping = () => parseGrouping(state.grouping)
+  // How a thread's last turn ended while you were elsewhere: done, waiting on your reply, or failed. Opening the
+  // thread marks it seen.
+  const notification = useNotification()
+  const finishOf = (session: Pick<Session, "id">) => {
+    // The newest unseen ending decides: a failed turn followed by one that finished shows the finish.
+    const unseen = notification.session.unseen(session.id)
+    const last = unseen.at(-1)
+    return finishMark({
+      unseen: unseen.length,
+      error: last?.type === "error",
+      asks: last?.type === "turn-complete" && (last.metadata as { asks?: boolean } | undefined)?.asks === true,
+    })
+  }
   const stateOf = (session: Pick<Session, "id">) => {
     const data = serverSync().session.data
     return threadState(data.session_status[session.id], needsYou(data, session.id))
@@ -982,6 +997,7 @@ export function createSidebarController() {
     setGrouping: (value: ThreadGrouping) => setState("grouping", value),
     needsYou: waitingCount,
     stateOf,
+    finishOf,
     subtreeState: (node: ThreadNode<Session>) => nodeState(node, stateOf, linked),
     projectThreads,
     /** Child thread to parent thread, from the session index: covers subagents the synced store has not loaded. */

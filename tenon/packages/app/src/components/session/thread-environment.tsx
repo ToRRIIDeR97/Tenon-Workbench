@@ -9,7 +9,13 @@ import { For, Show, createEffect, createMemo, onCleanup, type JSX } from "solid-
 import { Portal } from "solid-js/web"
 import { createStore } from "solid-js/store"
 import { createComposerContext } from "@/components/prompt-input/context-strip"
-import { changeTotals, connectorRows, runningSubagents, shortFolder } from "@/components/prompt-input/environment-model"
+import {
+  changeTotals,
+  connectorRows,
+  liveSubagents,
+  runningSubagents,
+  shortFolder,
+} from "@/components/prompt-input/environment-model"
 import { contextBreakdown, type ContextPartKey } from "@/components/session/context-breakdown-model"
 import { createSessionContextFormatter } from "@/components/session/session-context-format"
 import { useThreadSubagents } from "@/components/session/subagent-tab"
@@ -168,7 +174,7 @@ function EnvironmentSections(props: { harness?: ThreadHarness; onClose: () => vo
       <ContextSection context={context} harness={props.harness} />
       <ConnectorsSection harness={props.harness} />
       <ChangesSection />
-      <RunningSection groups={subagents()} />
+      <RunningSection groups={subagents()} onClose={props.onClose} />
     </div>
   )
 }
@@ -452,13 +458,13 @@ function ChangesSection() {
   )
 }
 
-/** What the thread has running now: its subagents and the open terminals. */
 /**
- * Running: every subagent in the thread with its own context (a small bar and its share of its window), finished
- * ones included, then the terminals. A subagent opens in the side panel's Agents tab. With no subagents it is the
- * plain counts.
+ * What the thread has running now: the subagents still at work, each with its own context (a small bar and its share
+ * of its window), then the terminals. The title counts running and finished ones; finished ones are listed in the
+ * side panel's Agents tab, which "All subagents" and each row open (closing this window). With no subagents it is
+ * the plain counts.
  */
-function RunningSection(props: { groups: Parameters<typeof runningSubagents>[0] }) {
+function RunningSection(props: { groups: Parameters<typeof runningSubagents>[0]; onClose: () => void }) {
   const language = useLanguage()
   const terminal = useTerminal()
   const sync = useSync()
@@ -478,6 +484,12 @@ function RunningSection(props: { groups: Parameters<typeof runningSubagents>[0] 
   )
   const running = () => runningSubagents(props.groups)
   const done = () => rows().filter((row) => row.status === "completed").length
+  const live = createMemo(() => liveSubagents(rows()))
+  // Opens the Agents tab (on one subagent, or its list) and gets this window out of the way.
+  const open = (row: { sessionID: string; id?: string }) => {
+    data.openSubagent?.({ sessionID: row.sessionID, partID: row.id })
+    props.onClose()
+  }
   const compact = (value: number) =>
     new Intl.NumberFormat(language.intl(), { notation: "compact", maximumFractionDigits: 1 }).format(value)
   const terminals = (
@@ -538,30 +550,22 @@ function RunningSection(props: { groups: Parameters<typeof runningSubagents>[0] 
         last
       >
         <div class="flex flex-col gap-0.5">
-          <For each={rows()}>
+          <Show when={live().length === 0}>
+            <div class="py-1 text-v2-text-text-muted">{language.t("secondBrain.environment.noneRunning")}</div>
+          </Show>
+          <For each={live()}>
             {(row) => (
               <button
                 type="button"
                 disabled={!data.openSubagent}
                 aria-label={language.t("secondBrain.environment.openSubagent", { agent: row.title })}
-                class="-mx-2 flex min-w-0 items-center gap-2 rounded-[10px] px-2 py-1 text-left transition-colors duration-short ease-standard enabled:hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus"
-                onClick={() => data.openSubagent?.({ sessionID: row.sessionID, partID: row.id })}
+                class="group/row -mx-2 flex min-w-0 items-center gap-2 rounded-[10px] px-2 py-1 text-left transition-colors duration-short ease-standard enabled:hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus"
+                onClick={() => open(row)}
               >
-                <Show
-                  when={row.status === "completed"}
-                  fallback={
-                    <span
-                      aria-hidden="true"
-                      classList={{
-                        "size-1.5 mx-1 shrink-0 rounded-full": true,
-                        "bg-v2-icon-icon-accent running-pulse": row.status === "running" || row.status === "pending",
-                        "bg-v2-text-text-critical": row.status === "error",
-                      }}
-                    />
-                  }
-                >
-                  <Icon name="check" size="small" class="shrink-0 text-v2-icon-icon-muted" />
-                </Show>
+                <span
+                  aria-hidden="true"
+                  class="mx-1 size-1.5 shrink-0 rounded-full bg-v2-icon-icon-accent running-pulse"
+                />
                 <span class="min-w-0 flex-1 truncate">{row.title}</span>
                 <span
                   class="h-1 w-14 shrink-0 overflow-hidden rounded-full bg-v2-background-bg-layer-03"
@@ -581,9 +585,23 @@ function RunningSection(props: { groups: Parameters<typeof runningSubagents>[0] 
                         ? `≈${compact(row.estimate)}`
                         : "—"}
                 </span>
+                <Icon name="chevron-right" size="small" class="shrink-0 text-v2-icon-icon-muted" />
               </button>
             )}
           </For>
+          {/* Finished subagents live in the Agents tab; this opens its list. */}
+          <Show when={data.openSubagent && rows()[0]}>
+            {(first) => (
+              <button
+                type="button"
+                class="-mx-2 flex min-w-0 items-center gap-2 rounded-[10px] px-2 py-1 text-left text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus"
+                onClick={() => open({ sessionID: first().sessionID })}
+              >
+                <span class="min-w-0 flex-1 truncate">{language.t("secondBrain.environment.openAgents")}</span>
+                <Icon name="chevron-right" size="small" class="shrink-0 text-v2-icon-icon-muted" />
+              </button>
+            )}
+          </Show>
           <div class="pt-1">{terminals}</div>
         </div>
       </Section>

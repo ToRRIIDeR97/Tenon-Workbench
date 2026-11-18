@@ -33,6 +33,17 @@ export const fromPlan = (input: unknown): Info[] | undefined => {
   })
 }
 
+/**
+ * The plan in a provider-executed tool call, if it is one. OpenCode over ACP sends its `todowrite` as a tool call of
+ * kind `other` (named `acp_other` here) and keeps the tool's name in the input's `title`.
+ */
+export const planFromToolCall = (name: string, input: unknown): Info[] | undefined => {
+  if (name === "todowrite") return fromPlan(input)
+  if (typeof input !== "object" || input === null || !("title" in input) || input.title !== "todowrite")
+    return undefined
+  return fromPlan(input)
+}
+
 export interface Interface {
   readonly update: (input: {
     readonly sessionID: SessionSchema.ID

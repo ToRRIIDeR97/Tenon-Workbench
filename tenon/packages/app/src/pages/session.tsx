@@ -117,6 +117,7 @@ import { formatServerError, isLocalSessionNotFoundError, isSessionNotFoundError 
 import { requireServerKey, sessionHref } from "@/utils/session-route"
 import { revertRestoresFiles, type HarnessSession } from "@/utils/session"
 import { switchHarnessForServer } from "@/utils/server"
+import { createHarnessSwitchQueue } from "@/components/prompt-input/harness-switch"
 import { Harness } from "@tenon/schema/harness"
 import { createSessionOwnership } from "./session/session-ownership"
 import { createSessionLineage } from "./session/session-lineage"
@@ -602,8 +603,11 @@ export default function Page() {
     window.addEventListener("pointerup", end)
     window.addEventListener("pointercancel", end)
   }
-  const sessionPanelWidth = createMemo(() => {
-    if (panelClosing()) return `calc(100% - ${SESSION_SIDE_RAIL_WIDTH + 8}px)`
+  // The thread column takes its new width in one step: easing its width re-laid out the whole timeline on every
+  // frame, which is what made opening the panel lag. While the panel slides shut the column keeps its width, then
+  // widens once.
+  const sessionPanelWidth = createMemo<string>((previous) => {
+    if (panelClosing()) return previous ?? `calc(100% - ${SESSION_SIDE_RAIL_WIDTH + 8}px)`
     if (!desktopSidePanelOpen()) return railSpace() ? `calc(100% - ${railSpace() + 8}px)` : "100%"
     if (desktopSessionResizeOpen()) {
       const available = sessionPanelAvailable()
@@ -645,48 +649,59 @@ export default function Page() {
   }
 
   const info = createMemo(() => (params.id ? (sync().session.get(params.id) as HarnessSession | undefined) : undefined))
-  const [switchingHarness, setSwitchingHarness] = createSignal(false)
+  // A harness or model pick shows at once and the pill stays usable; the server is told in the background, picks
+  // in order, and a message sent meanwhile waits for the switch (submit awaits `settled`) instead of being refused.
+  type HarnessPick = { sessionID: string; instanceID: Harness.InstanceID; model?: Harness.ModelSelection }
+  const [pendingHarness, setPendingHarness] = createSignal<HarnessPick>()
+  const harnessSwitch = createHarnessSwitchQueue<HarnessPick>({
+    onPending: setPendingHarness,
+    onError: (error) =>
+      showToast({
+        variant: "error",
+        title: language.t("common.requestFailed"),
+        description: formatServerError(error, language.t),
+      }),
+    send: async (pick) => {
+      const current = sync().session.get(pick.sessionID) as HarnessSession | undefined
+      if (!current) return
+      const sameModel =
+        current.harnessModel?.id === pick.model?.id &&
+        current.harnessModel?.reasoningEffort === pick.model?.reasoningEffort &&
+        current.harnessModel?.serviceTier === pick.model?.serviceTier
+      const currentInstanceID = current.harnessInstanceID ?? Harness.OpenCode
+      if (currentInstanceID === pick.instanceID && sameModel) return
+      await switchHarnessForServer({ server: serverSDK().server.http, fetch: platform.fetch }, pick.sessionID, {
+        instanceID: pick.instanceID,
+        model: pick.model,
+      })
+      const next: HarnessSession = {
+        ...current,
+        harnessInstanceID: pick.instanceID,
+        harnessModel: pick.model,
+        harnessRevision: (current.harnessRevision ?? 0) + (currentInstanceID === pick.instanceID ? 0 : 1),
+      }
+      sync().session.remember(next)
+    },
+  })
+  // Only this thread's pick: a switch still sending for a thread you left doesn't show here.
+  const pick = () => {
+    const value = pendingHarness()
+    return value && value.sessionID === params.id ? value : undefined
+  }
   const switchHarness = (instanceID: Harness.InstanceID, harnessModel?: Harness.ModelSelection) => {
     const sessionID = params.id
-    const current = info()
-    if (!sessionID || !current || switchingHarness()) return
-    const sameModel =
-      current.harnessModel?.id === harnessModel?.id &&
-      current.harnessModel?.reasoningEffort === harnessModel?.reasoningEffort &&
-      current.harnessModel?.serviceTier === harnessModel?.serviceTier
-    const currentInstanceID = current.harnessInstanceID ?? Harness.OpenCode
-    if (currentInstanceID === instanceID && sameModel) return
-    setSwitchingHarness(true)
-    void switchHarnessForServer({ server: serverSDK().server.http, fetch: platform.fetch }, sessionID, {
-      instanceID,
-      model: harnessModel,
-    })
-      .then(() => {
-        const next: HarnessSession = {
-          ...current,
-          harnessInstanceID: instanceID,
-          harnessModel,
-          harnessRevision: (current.harnessRevision ?? 0) + (currentInstanceID === instanceID ? 0 : 1),
-        }
-        sync().session.remember(next)
-      })
-      .catch((error: unknown) =>
-        showToast({
-          variant: "error",
-          title: language.t("common.requestFailed"),
-          description: formatServerError(error, language.t),
-        }),
-      )
-      .finally(() => setSwitchingHarness(false))
+    if (!sessionID || !info()) return
+    harnessSwitch.switch({ sessionID, instanceID, model: harnessModel })
   }
+  const currentHarness = () => pick()?.instanceID ?? info()?.harnessInstanceID ?? Harness.OpenCode
   const sessionHarness = createPromptHarnessController({
-    current: () => info()?.harnessInstanceID ?? Harness.OpenCode,
+    current: currentHarness,
     set: switchHarness,
     model: {
-      current: () => info()?.harnessModel,
-      set: (model) => switchHarness(info()?.harnessInstanceID ?? Harness.OpenCode, model),
+      current: () => (pick() ? pick()!.model : info()?.harnessModel),
+      set: (model) => switchHarness(currentHarness(), model),
     },
-    disabled: () => switchingHarness() || (params.id ? sync().data.session_working(params.id) : false),
+    disabled: () => (params.id ? sync().data.session_working(params.id) : false),
     fallbackUnavailable: false,
   })
   const isChildSession = createMemo(() => !!info()?.parentID)
@@ -2251,9 +2266,8 @@ export default function Page() {
             get harnessDriver() {
               return sessionHarness.driver()
             },
-            get harnessChanging() {
-              return switchingHarness()
-            },
+            // Only this thread's switch in flight is waited for; otherwise the send starts in the same tick.
+            harnessSettled: () => (pick() === undefined ? undefined : harnessSwitch.settled()),
           })
           return (
             <>
@@ -2282,14 +2296,13 @@ export default function Page() {
   return (
     <SessionRouteFrame>
       <SessionHeader />
-      <div ref={panelRow} class="flex-1 min-h-0 flex flex-col md:flex-row gap-2">
+      {/* The right shell sits at the row's end, so while the panel slides its width it grows out of the rail and
+          shrinks back into it; the thread column's width steps instead of easing (see sessionPanelWidth). */}
+      <div ref={panelRow} class="flex-1 min-h-0 flex flex-col md:flex-row md:justify-between gap-2">
         <div
           ref={sessionPanel}
           classList={{
             "@container relative shrink-0 flex flex-col min-h-0 h-full flex-1 md:flex-none": true,
-            // The whole transition goes during a drag: a bare transition-[width] still eases each frame over 150ms.
-            "transition-[width] duration-medium ease-emphasized-decelerate motion-reduce:transition-none":
-              !size.active() && !ui.reviewSnap,
           }}
           style={{
             width: sessionPanelWidth(),
@@ -2431,7 +2444,6 @@ export default function Page() {
                 reviewCount={reviewCount()}
                 hasReview={hasReview()}
                 running={runningSubagents()}
-                canvas={tabState.canvasOpen()}
                 onSelect={selectPanelSection}
                 onDragOut={desktopV2ReviewOpen() || panelClosing() ? undefined : dragOutSidePanel}
               />

@@ -27,6 +27,7 @@ import { useGlobal } from "./global"
 import { ServerScope } from "@/utils/server-scope"
 import { detectServerCapabilities, type ServerProtocol } from "@/utils/server-protocol"
 import { createCompatibleApi, type CompatibleApi } from "@/utils/server-compat"
+import { soon } from "@/utils/unthrottled-task"
 
 const isAbortError = (error: unknown) =>
   error !== null && typeof error === "object" && "name" in error && error.name === "AbortError"
@@ -330,12 +331,14 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
 
   let queue: Queued[] = []
   let buffer: Queued[] = []
-  let timer: ReturnType<typeof setTimeout> | undefined
+  // The pending flush. `soon` keeps it running while the window is hidden, so live events are applied as they
+  // arrive instead of piling up behind throttled timers and landing all at once when the window comes back.
+  let cancelFlush: (() => void) | undefined
   let last = 0
 
   const flush = () => {
-    if (timer) clearTimeout(timer)
-    timer = undefined
+    cancelFlush?.()
+    cancelFlush = undefined
 
     if (queue.length === 0) return
 
@@ -354,13 +357,12 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
   }
 
   const schedule = () => {
-    if (timer) return
+    if (cancelFlush) return
     const elapsed = Date.now() - last
-    timer = setTimeout(flush, Math.max(0, FLUSH_FRAME_MS - elapsed))
+    cancelFlush = soon(flush, Math.max(0, FLUSH_FRAME_MS - elapsed))
   }
 
   let streamErrorLogged = false
-  const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
   const backoff = createInterruptibleWait()
   let attempt: AbortController | undefined
   let run: Promise<void> | undefined
@@ -408,7 +410,8 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
 
             if (Date.now() - yielded < STREAM_YIELD_MS) continue
             yielded = Date.now()
-            await wait(0)
+            // Yield to the page; a hidden page's timers are throttled, so this uses `soon` too.
+            await new Promise<void>((resolve) => soon(resolve))
           }
         } catch (error) {
           if (!isStreamClosed(error, attempt?.signal) && !streamErrorLogged) {

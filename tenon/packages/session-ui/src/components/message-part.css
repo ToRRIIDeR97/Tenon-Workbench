@@ -1103,15 +1103,22 @@
       color: var(--v2-text-text-faint);
     }
 
+    /* No ring of its own: the option card around it is the field (below), and the caret shows where you type. */
     &:focus-visible {
-      outline: 2px solid var(--v2-border-border-focus);
-      outline-offset: 2px;
-      border-radius: var(--v2-radius-sm);
+      outline: none;
     }
 
     &:disabled {
       opacity: 0.6;
     }
+  }
+
+  /* While you write your own answer, the option's edge firms to a soft accent hairline instead of a second box
+     appearing around the text inside an already highlighted card. */
+  /* Full focus colour, so keyboard users see it on the tinted (picked) card too: one edge, not a box inside a box. */
+  [data-slot="question-option"][data-custom="true"]:focus-within {
+    box-shadow: inset 0 0 0 1.5px var(--v2-border-border-focus);
+    transition: box-shadow var(--v2-duration-short) var(--v2-ease-standard);
   }
 
   [data-slot="question-footer"] {

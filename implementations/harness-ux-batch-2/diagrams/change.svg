@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">
+  <style>
+    .box { fill: #f6f7f9; stroke: #9aa3ad; }
+    .new { fill: #e8f1ff; stroke: #2f6fde; }
+    .gone { fill: #fbeaea; stroke: #c24141; stroke-dasharray: 4 3; }
+    .h { font-weight: 600; font-size: 13px; }
+    .t { fill: #1f2328; }
+    .m { fill: #57606a; font-size: 11px; }
+    line, path { stroke: #57606a; fill: none; marker-end: url(#a); }
+  </style>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#57606a" stroke="none"/></marker></defs>
+
+  <text x="20" y="24" class="h t">Current</text>
+  <text x="500" y="24" class="h t">Proposed</text>
+
+  <!-- Current: composers -->
+  <rect x="20" y="40" width="200" height="54" rx="8" class="gone"/>
+  <text x="30" y="60" class="t">Home: ComposerBox</text>
+  <text x="30" y="78" class="m">Suspense "Checking harnesses…"</text>
+  <rect x="240" y="40" width="200" height="54" rx="8" class="box"/>
+  <text x="250" y="60" class="t">Draft / thread:</text>
+  <text x="250" y="78" class="m">PromptInputV2Composer</text>
+  <rect x="20" y="120" width="420" height="54" rx="8" class="box"/>
+  <text x="30" y="140" class="t">Harness list: useQuery (Home) | createPromptHarnessController (thread)</text>
+  <text x="30" y="158" class="m">switch: wait for POST, pill disabled, send refused; new harness shows no models</text>
+  <line x1="120" y1="94" x2="120" y2="118"/><line x1="340" y1="94" x2="340" y2="118"/>
+
+  <!-- Proposed: composers -->
+  <rect x="500" y="40" width="200" height="54" rx="8" class="new"/>
+  <text x="510" y="60" class="t">Home: HomeComposer</text>
+  <text x="510" y="78" class="m">PromptInputV2Composer</text>
+  <rect x="720" y="40" width="220" height="54" rx="8" class="box"/>
+  <text x="730" y="60" class="t">Draft / thread:</text>
+  <text x="730" y="78" class="m">PromptInputV2Composer</text>
+  <rect x="500" y="120" width="440" height="54" rx="8" class="new"/>
+  <text x="510" y="140" class="t">createPromptHarnessController everywhere (no Suspense, retries forever)</text>
+  <text x="510" y="158" class="m">remembered models + last model per harness; switch queue: optimistic, send waits</text>
+  <line x1="600" y1="94" x2="600" y2="118"/><line x1="830" y1="94" x2="830" y2="118"/>
+
+  <!-- Current: runner -->
+  <rect x="20" y="210" width="420" height="72" rx="8" class="box"/>
+  <text x="30" y="230" class="t">SessionRunner.run</text>
+  <text x="30" y="248" class="m">promote prompt → turn → (ensuring) title</text>
+  <text x="30" y="266" class="m">plan saved only when tool name = "todowrite" (OpenCode sends acp_other)</text>
+
+  <rect x="500" y="210" width="440" height="72" rx="8" class="new"/>
+  <text x="510" y="230" class="t">SessionRunner.run</text>
+  <text x="510" y="248" class="m">promote prompt → title forks now → turn (ensuring stays as fallback)</text>
+  <text x="510" y="266" class="m">planFromToolCall: todowrite or input.title = "todowrite"</text>
+
+  <!-- Current: status and context -->
+  <rect x="20" y="310" width="420" height="72" rx="8" class="box"/>
+  <text x="30" y="330" class="t">Status</text>
+  <text x="30" y="348" class="m">Working row: spinner. Sidebar: static dot, nothing after finish</text>
+  <text x="30" y="366" class="m">Context Used during an OpenCode turn: "Not reported"</text>
+
+  <rect x="500" y="310" width="440" height="72" rx="8" class="new"/>
+  <text x="510" y="330" class="t">Status</text>
+  <text x="510" y="348" class="m">Breathing blue dot everywhere; sidebar Done / Needs your reply / Failed</text>
+  <text x="510" y="366" class="m">Used = last reported context of the same harness until the turn reports</text>
+
+  <!-- Dictation -->
+  <rect x="20" y="410" width="420" height="120" rx="8" class="box"/>
+  <text x="30" y="430" class="t">Dictation</text>
+  <text x="30" y="450" class="m">app mic → desktop createDictation → tenon-dictation (stdio)</text>
+  <text x="30" y="468" class="m">start / stop → one "final" event after stop</text>
+  <text x="30" y="486" class="m">RunOptions.language = None (auto-detect per clip)</text>
+
+  <rect x="500" y="410" width="440" height="120" rx="8" class="new"/>
+  <text x="510" y="430" class="t">Dictation</text>
+  <text x="510" y="450" class="m">start {language} → engine preview thread re-runs the clip ~every 1.2 s</text>
+  <text x="510" y="468" class="m">"partial" events → desktop onPartial → preload → mic shows live text</text>
+  <text x="510" y="486" class="m">language: Settings (default = app language), dropped if the model lacks it</text>
+  <text x="510" y="504" class="m">"final" still inserts the full transcript at the caret</text>
+</svg>

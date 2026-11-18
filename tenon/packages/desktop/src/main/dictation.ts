@@ -29,6 +29,7 @@ export class DictationError extends Error {
 type EngineEvent =
   | { type: "ready" }
   | { type: "level"; rms: number }
+  | { type: "partial"; text: string }
   | { type: "final"; id: string; text: string }
   | { type: "error"; id?: string; code: string; message: string }
 
@@ -68,6 +69,7 @@ export function createDictation(input: {
   idleTimeout?: number
 }) {
   const levels = new Set<(rms: number) => void>()
+  const partials = new Set<(text: string) => void>()
   const limits = new Set<() => void>()
   const failures = new Set<(error: DictationError) => void>()
   const pending = new Map<string, Pending>()
@@ -113,6 +115,11 @@ export function createDictation(input: {
     }
     if (event.type === "level") {
       if (status === "recording" && typeof event.rms === "number") levels.forEach((listener) => listener(event.rms))
+      return
+    }
+    // The live transcript of the recording so far; one that arrives after stop is dropped (the final follows).
+    if (event.type === "partial") {
+      if (status === "recording" && typeof event.text === "string") partials.forEach((listener) => listener(event.text))
       return
     }
     if (event.type === "final") {
@@ -270,7 +277,8 @@ export function createDictation(input: {
     })
 
   return {
-    async start() {
+    /** `language` is the spoken language's code; without it the engine's model detects the language. */
+    async start(options: { language?: string } = {}) {
       if (status !== "idle") throw new DictationError("already_recording", "Dictation is already running")
       status = "starting"
       recordingError = undefined
@@ -284,7 +292,7 @@ export function createDictation(input: {
       startID = id()
       status = "recording"
       recordingStarted = Date.now()
-      send(current, { id: startID, type: "start" })
+      send(current, { id: startID, type: "start", ...(options.language ? { language: options.language } : {}) })
       limitTimer = setTimeout(() => {
         if (status !== "recording" || recordingError) return
         const transcript = transcribe(current)
@@ -346,6 +354,11 @@ export function createDictation(input: {
     onLevel(listener: (rms: number) => void) {
       levels.add(listener)
       return () => void levels.delete(listener)
+    },
+    /** The transcript of the recording so far, while it records; each replaces the last. */
+    onPartial(listener: (text: string) => void) {
+      partials.add(listener)
+      return () => void partials.delete(listener)
     },
     /** Fires when a recording reaches its length limit and stops itself; stop() then collects the transcript. */
     onLimit(listener: () => void) {

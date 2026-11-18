@@ -9,7 +9,8 @@ import { TextInputV2 } from "@tenon/ui/v2/text-input-v2"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { ViewSwitch } from "@tenon/ui/v2/view-switch"
 import { createMediaQuery } from "@solid-primitives/media"
-import { createEffect, createMemo, createResource, For, on, Show } from "solid-js"
+import { createEffect, createMemo, createResource, createSignal, For, on, Show } from "solid-js"
+import { makeEventListener } from "@solid-primitives/event-listener"
 import { useBrainProjects } from "@/components/sidebar/sidebar-controller"
 import { settled } from "@/utils/resource"
 import { createCalendarResource } from "@/features/second-brain/calendar-cache"
@@ -31,6 +32,7 @@ import {
   localDateKey,
   monthGrid,
   providerEvent,
+  scheduleBounds,
   shiftDate,
   shiftMonth,
   taskFilter,
@@ -201,6 +203,9 @@ export default function CalendarPage() {
     new Intl.DateTimeFormat(language.locale(), { month: "long", year: "numeric" }).format(state.cursor),
   )
   const range = createMemo(() => weekRange(state.cursor))
+  // The agenda starts today; a window left open overnight moves on when it next takes focus.
+  const [today, setToday] = createSignal(localDateKey(new Date()))
+  makeEventListener(window, "focus", () => setToday(localDateKey(new Date())))
   const viewTitle = createMemo(() => {
     if (state.view === "today") {
       return new Intl.DateTimeFormat(language.locale(), { weekday: "long", month: "long", day: "numeric" }).format(
@@ -280,13 +285,9 @@ export default function CalendarPage() {
   }
 
   const schedule = createMemo<ScheduleItem[]>(() => {
-    const today = localDateKey(state.cursor)
-    const bounds =
-      state.view === "today"
-        ? { start: today, end: today }
-        : state.view === "week"
-          ? range()
-          : { start: "", end: "9999-12-31" }
+    const bounds = scheduleBounds(state.view, localDateKey(state.cursor), range(), today())
+    // Open tasks that are overdue stay in view: on their own day in Day view, under today in the agenda.
+    const overdueToStart = state.view === "today" || state.view === "agenda"
     const projectMatch = (projectId?: string) => !state.projectFilter || projectId === state.projectFilter
     const providerEvents = (snapshot()?.events ?? [])
       .filter(
@@ -306,13 +307,16 @@ export default function CalendarPage() {
         if (task.completedAt || !projectMatch(task.projectId)) return false
         const date = task.scheduledDate ?? task.dueDate
         if (!date) return false
-        if (state.view === "today") return date <= bounds.end
+        if (overdueToStart) return date <= bounds.end
         return date >= bounds.start && date <= bounds.end
       })
       .map(
         (task): ScheduleItem => ({
           kind: "task",
-          date: task.scheduledDate ?? task.dueDate!,
+          date:
+            state.view === "agenda" && (task.scheduledDate ?? task.dueDate!) < bounds.start
+              ? bounds.start
+              : (task.scheduledDate ?? task.dueDate!),
           title: task.title,
           ...(task.projectId ? { projectId: task.projectId } : {}),
           task,

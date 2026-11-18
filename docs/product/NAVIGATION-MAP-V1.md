@@ -225,8 +225,8 @@ folder as a workspace and selects it) and `tenon://new-session?directory=<path>&
 - **Home** is a dashboard: start a thread, today's events and tasks (tick a task
   in place, as on Calendar), active Projects, resume and running threads. With no Projects, **Create Project**
   opens the Projects page's create form (`/projects?new=1`). Sending from Home's composer opens
-  the new thread and sends the message in one step. Home's box stays usable while its data loads, so it is a plain
-  text box: its **+**, or typing `/` or `@`, moves the text to the full composer on a draft.
+  the new thread and sends the message in one step. Home's composer is the thread composer (attachments, skills,
+  `/` and `@`, the model pill), and its harness list never holds it on "Checking harnesses…".
 - **Project picker** (the folder chip in every composer: Home, drafts and threads; the Feedback
   workshop's switcher): a search field, then **Recent** (up to three Projects with the latest thread
   activity) and **Workspace** (General and the rest), each with its folder's branch, and **Add a project

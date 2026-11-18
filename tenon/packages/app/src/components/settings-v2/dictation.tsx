@@ -1,8 +1,11 @@
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
-import { For, Show, createResource, onCleanup } from "solid-js"
+import { SelectV2 } from "@tenon/ui/v2/select-v2"
+import { For, Show, createMemo, createResource, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
+import { DICTATION_LANGUAGES, dictationLanguage } from "@/components/prompt-input/dictation-language"
 import { useLanguage } from "@/context/language"
 import { usePlatform, type DictationModelID } from "@/context/platform"
+import { useSettings } from "@/context/settings"
 import { SettingsListV2 } from "./parts/list"
 import { SettingsRowV2 } from "./parts/row"
 import "./settings-v2.css"
@@ -12,6 +15,28 @@ const HANDY_URL = "https://github.com/cjpais/Handy"
 export function SettingsDictationV2() {
   const language = useLanguage()
   const platform = usePlatform()
+  const settings = useSettings()
+  // The default first, naming what it resolves to (English for an English app, else detection), then the app's
+  // language, detection, and each language by its own name in the app's.
+  const languageOptions = createMemo(() => {
+    const names = new Intl.DisplayNames([language.intl()], { type: "language" })
+    const app = dictationLanguage("app", language.intl())
+    const resolved = dictationLanguage(undefined, language.intl())
+    return [
+      {
+        value: "",
+        label: language.t("dictation.settings.language.default", {
+          choice: resolved ? (names.of(resolved) ?? resolved) : language.t("dictation.settings.language.detectShort"),
+        }),
+      },
+      {
+        value: "app",
+        label: language.t("dictation.settings.language.app", { language: (app && names.of(app)) || "" }),
+      },
+      { value: "auto", label: language.t("dictation.settings.language.auto") },
+      ...DICTATION_LANGUAGES.map((code) => ({ value: code, label: names.of(code) ?? code })),
+    ]
+  })
   const [state, { refetch }] = createResource(() => platform.dictation?.models())
   const [view, setView] = createStore({
     progress: {} as Partial<Record<DictationModelID, number>>,
@@ -51,6 +76,29 @@ export function SettingsDictationV2() {
           when={platform.dictation}
           fallback={<div class="settings-v2-provider-empty">{language.t("dictation.settings.desktopOnly")}</div>}
         >
+          <div class="settings-v2-section">
+            <SettingsListV2>
+              <SettingsRowV2
+                title={language.t("dictation.settings.language")}
+                description={language.t("dictation.settings.language.description")}
+              >
+                <SelectV2
+                  appearance="inline"
+                  data-action="dictation-language"
+                  options={languageOptions()}
+                  current={
+                    languageOptions().find((option) => option.value === (settings.dictation.language() ?? "")) ??
+                    languageOptions()[0]
+                  }
+                  placement="bottom-end"
+                  gutter={6}
+                  value={(option) => option.value}
+                  label={(option) => option.label}
+                  onSelect={(option) => option && settings.dictation.setLanguage(option.value)}
+                />
+              </SettingsRowV2>
+            </SettingsListV2>
+          </div>
           <div class="settings-v2-section">
             <h4 class="settings-v2-section-title">{language.t("dictation.settings.models")}</h4>
             <p class="type-meta text-v2-text-text-muted">{language.t("dictation.settings.description")}</p>

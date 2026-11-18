@@ -253,7 +253,8 @@ type PromptSubmitInput = {
   newSessionHarness?: Accessor<Harness.InstanceID | undefined>
   newSessionHarnessModel?: Accessor<Harness.ModelSelection | undefined>
   harnessDriver?: Accessor<Harness.DriverKind | undefined>
-  harnessChanging?: Accessor<boolean | undefined>
+  /** A harness switch in flight; the send goes once it has reached the server. */
+  harnessSettled?: () => Promise<unknown> | undefined
   onNewSessionWorktreeReset?: () => void
   followup?: Accessor<PromptDelivery>
   onAbort?: () => void
@@ -339,15 +340,22 @@ export function createPromptSubmit(input: PromptSubmitInput) {
     })
   }
 
+  let awaitingSwitch = false
   const handleSubmit = async (event: Event, options: PromptSubmitOptions = {}) => {
     event.preventDefault()
 
-    if (input.harnessChanging?.()) {
-      showToast({
-        title: language.t("harness.label"),
-        description: language.t("harness.switching"),
+    // A harness picked a moment ago is still being switched on the server: send once it has, so the message
+    // runs on the harness the pill shows. Without a switch in flight the send starts in this same tick. A second
+    // Enter while waiting is ignored, and if the switch fails the prompt stays in the composer (the switch shows
+    // its own error) instead of going to the old harness.
+    const switching = input.harnessSettled?.()
+    if (switching) {
+      if (awaitingSwitch) return
+      awaitingSwitch = true
+      const switched = await switching.finally(() => {
+        awaitingSwitch = false
       })
-      return
+      if (switched === false) return
     }
 
     const target = prompt.capture()

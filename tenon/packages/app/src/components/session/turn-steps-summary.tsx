@@ -2,7 +2,6 @@ import { For, Index, Show, createEffect, createMemo, createSignal, lazy, on, onC
 import { createStore } from "solid-js/store"
 import type { Part, ReasoningPart, ToolPart } from "@opencode-ai/sdk/v2"
 import { Icon } from "@tenon/ui/v2/icon"
-import { LoaderV2 } from "@tenon/ui/v2/loader-v2"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { ScrollView } from "@tenon/ui/scroll-view"
 import { TextShimmer } from "@tenon/ui/text-shimmer"
@@ -170,12 +169,23 @@ function keepInPlace(element: Element) {
   suppress()
   const start = element.getBoundingClientRect().top
   const until = performance.now() + 700
-  const step = () => {
+  const correct = () => {
     if (!element.isConnected) return
     suppress()
     const drift = element.getBoundingClientRect().top - start
     if (Math.abs(drift) >= 1) scroller.scrollTop += drift
-    if (performance.now() < until) return requestAnimationFrame(step)
+  }
+  // Resize callbacks run after layout and before paint, so a correction made there lands in the frame the card grew
+  // in. Corrected only from requestAnimationFrame it landed a frame late, and near the end of the thread, where the
+  // scroll position is clamped, the card visibly jittered.
+  const observer = new ResizeObserver(correct)
+  const card = element.closest('[data-slot="turn-steps"]')
+  if (card) observer.observe(card)
+  if (scroller.firstElementChild) observer.observe(scroller.firstElementChild)
+  const step = () => {
+    correct()
+    if (element.isConnected && performance.now() < until) return requestAnimationFrame(step)
+    observer.disconnect()
     scroller.style.overflowAnchor = anchoring
   }
   requestAnimationFrame(step)
@@ -449,7 +459,9 @@ export function TurnStepsSummary(props: {
                   </span>
                 </Show>
                 <Show when={isRunning(tool())}>
-                  <LoaderV2 width={12} height={12} class="shrink-0 text-v2-icon-icon-accent" />
+                  <span class="flex size-3 shrink-0 items-center justify-center" data-slot="turn-steps-step-running">
+                    <span class="size-1.5 rounded-full bg-v2-icon-icon-accent running-pulse" />
+                  </span>
                 </Show>
                 <Show when={diffs().length > 0}>
                   <DiffChanges changes={diffs()} class="shrink-0 text-[12px]" />
@@ -582,7 +594,9 @@ export function TurnStepsSummary(props: {
           </span>
           <span class="flex-1" />
           <Show when={run().some(isRunning)}>
-            <LoaderV2 width={12} height={12} class="shrink-0 text-v2-icon-icon-accent" />
+            <span class="flex size-3 shrink-0 items-center justify-center" data-slot="turn-steps-step-running">
+              <span class="size-1.5 rounded-full bg-v2-icon-icon-accent running-pulse" />
+            </span>
           </Show>
           <Show when={diffs().length > 0}>
             <DiffChanges changes={diffs()} class="shrink-0 text-[12px]" />
@@ -643,7 +657,10 @@ export function TurnStepsSummary(props: {
           when={props.working}
           fallback={<Icon name="check" size="small" class="shrink-0 text-v2-text-text-muted" />}
         >
-          <LoaderV2 width={14} height={14} class="text-v2-icon-icon-accent" />
+          {/* The same breathing dot as a running thread in the sidebar, centred in the check's 14px slot. */}
+          <span class="flex size-3.5 shrink-0 items-center justify-center" data-slot="turn-steps-running">
+            <span class="size-2 rounded-full bg-v2-icon-icon-accent running-pulse" />
+          </span>
         </Show>
         <span data-slot="turn-steps-title" class="shrink-0 [font-weight:500] tabular-nums">
           <TextShimmer text={title()} active={props.working} />

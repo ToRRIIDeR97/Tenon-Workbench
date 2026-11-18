@@ -61,6 +61,18 @@ export function subagentLanes(parts: readonly Part[], childSteps?: (part: ToolPa
   return parts.filter(isSubagentPart).map((part) => subagentLane(part, childSteps))
 }
 
+/**
+ * `next`, or `previous` when it describes the same step. Every progress report from any subagent rebuilds every
+ * lane's steps as new objects; keeping the old one for an unchanged step stops the other lanes from re-rendering
+ * (and replaying their entry motion) when only one lane moved.
+ */
+export function steadyStep(previous: LaneStep | undefined, next: LaneStep | undefined) {
+  if (!next) return undefined
+  if (previous && previous.tool === next.tool && previous.status === next.status && previous.title === next.title)
+    return previous
+  return next
+}
+
 export function laneSteps(value: unknown): LaneStep[] {
   if (!Array.isArray(value)) return []
   return value.flatMap((item) =>
@@ -127,6 +139,8 @@ export function SubagentLane(props: {
   const time = () => props.formatDuration(laneElapsed(props.lane.part, props.now))
   const status = () => (props.lane.failed ? "error" : props.lane.running ? "running" : "done")
   const error = () => (props.lane.part.state.status === "error" ? props.lane.part.state.error : undefined)
+  // This lane's step, as the same object until it really changes: the line below remounts only for its own lane.
+  const current = createMemo<LaneStep | undefined>((previous) => steadyStep(previous, props.lane.current))
   const [lastChange, setLastChange] = createSignal(props.now)
   createEffect(
     on(
@@ -209,7 +223,7 @@ export function SubagentLane(props: {
           </div>
         }
       >
-        <Show when={props.lane.current} keyed fallback={<div class="h-4" />}>
+        <Show when={current()} keyed fallback={<div class="h-4" />}>
           {(step) => {
             const current = toolStep(step.tool, { title: step.title })
             return (

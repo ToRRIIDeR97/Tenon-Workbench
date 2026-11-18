@@ -336,7 +336,7 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
     newSessionHarness: () => props.newSessionHarness,
     newSessionHarnessModel: () => props.newSessionHarnessModel,
     harnessDriver: () => props.harnessDriver,
-    harnessChanging: () => props.harnessChanging,
+    harnessSettled: () => props.harnessSettled?.(),
     onNewSessionWorktreeReset: props.onNewSessionWorktreeReset,
     followup: () =>
       followupPreference({

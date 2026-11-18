@@ -28,6 +28,7 @@ export function createDictationService() {
   let active: DictationModelID | undefined
   let levelTarget: ((rms: number) => void) | undefined
   let limitTarget: (() => void) | undefined
+  let partialTarget: ((text: string) => void) | undefined
 
   const modelPath = (id: DictationModelID) => join(folder, modelFile(id))
   const activePath = () => (active && existsSync(modelPath(active)) ? modelPath(active) : undefined)
@@ -37,6 +38,7 @@ export function createDictationService() {
     model: activePath,
   })
   dictation.onLevel((rms) => levelTarget?.(rms))
+  dictation.onPartial((text) => partialTarget?.(text))
   dictation.onLimit(() => limitTarget?.())
   app.once("will-quit", () => dictation.dispose())
 
@@ -55,22 +57,33 @@ export function createDictationService() {
   }
 
   const service = {
-    async start(onLevel: (rms: number) => void, onLimit: () => void): Promise<{ error?: DictationFailure }> {
+    async start(
+      onLevel: (rms: number) => void,
+      onLimit: () => void,
+      onPartial?: (text: string) => void,
+      options: { language?: string } = {},
+    ): Promise<{ error?: DictationFailure }> {
       await ready
       if (!existsSync(engine)) return { error: { code: "engine_unavailable" } }
       if (!activePath()) return { error: { code: "no_model" } }
       const access = await microphoneAccess()
       const help = dictationPermissionHelp(process.platform, access)
       if (help) return { error: { code: "permission_denied", help } }
+      // A second window starting while one records must not take over that recording's level, limit and
+      // live transcript: refuse it before pointing them anywhere.
+      if (dictation.status() === "transcribing") return { error: { code: "transcribing" } }
+      if (dictation.status() !== "idle") return { error: { code: "already_recording" } }
       levelTarget = onLevel
       limitTarget = onLimit
-      return dictation.start().then(
+      partialTarget = onPartial
+      return dictation.start({ language: dictationLanguageCode(options.language) }).then(
         () => ({}),
         (error: unknown) => ({ error: failure(error) }),
       )
     },
     async stop(): Promise<{ text?: string; error?: DictationFailure }> {
       levelTarget = undefined
+      partialTarget = undefined
       return dictation.stop().then(
         (text) => ({ text }),
         (error: unknown) => ({ error: failure(error) }),
@@ -78,6 +91,7 @@ export function createDictationService() {
     },
     cancel() {
       levelTarget = undefined
+      partialTarget = undefined
       dictation.cancel()
     },
     async models(): Promise<DictationModelState> {
@@ -174,6 +188,13 @@ function engineCommand() {
 
 function modelFile(id: DictationModelID) {
   return DICTATION_MODELS.find((model) => model.id === id)!.file
+}
+
+/** The renderer's spoken-language choice as an ISO 639 code for the engine; anything else means "detect". */
+export function dictationLanguageCode(value: unknown) {
+  if (typeof value !== "string") return undefined
+  const code = value.trim().toLowerCase()
+  return /^[a-z]{2,3}$/.test(code) ? code : undefined
 }
 
 function isModelID(value: unknown): value is DictationModelID {

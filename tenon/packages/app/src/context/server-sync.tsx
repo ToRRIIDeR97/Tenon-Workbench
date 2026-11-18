@@ -721,7 +721,9 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
   })
 
   onMount(() => {
-    if (typeof requestAnimationFrame === "function") {
+    // A hidden window (loaded or reloaded while minimized) runs no animation frames, so waiting for one would leave
+    // it without live events until it is shown.
+    if (typeof requestAnimationFrame === "function" && !document.hidden) {
       eventFrame = requestAnimationFrame(() => {
         eventFrame = undefined
         eventTimer = setTimeout(() => {

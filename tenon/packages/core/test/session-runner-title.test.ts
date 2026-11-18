@@ -374,7 +374,9 @@ describe("session runner titles", () => {
     }),
   )
 
-  it.effect("titles a session whose first turn is stopped", () =>
+  // AC-8 (implementations/harness-ux-batch-2): the title starts once the first message is taken, not when the
+  // turn ends. This test used to assert no title request while the turn ran; the user asked for the opposite.
+  it.effect("titles a session while its first turn is still running, and stopping it keeps one title", () =>
     Effect.gen(function* () {
       yield* setup()
       turnHangs = true
@@ -382,7 +384,8 @@ describe("session runner titles", () => {
       yield* session.prompt({ sessionID, prompt: Prompt.make({ text: "Users land on /login" }), resume: false })
       const fiber = yield* session.resume(sessionID).pipe(Effect.exit, Effect.forkChild)
       yield* settle
-      expect(titleRequests).toHaveLength(0)
+      expect(titleRequests).toHaveLength(1)
+      expect(yield* storedTitle).toBe("Fix login redirect")
 
       yield* session.interrupt(sessionID)
       yield* Fiber.join(fiber)
@@ -390,6 +393,22 @@ describe("session runner titles", () => {
 
       expect(titleRequests).toHaveLength(1)
       expect(yield* storedTitle).toBe("Fix login redirect")
+    }),
+  )
+
+  it.effect("titles a harness session while its first turn is still running", () =>
+    Effect.gen(function* () {
+      yield* setup({ harness: true })
+      turnHangs = true
+      const session = yield* SessionV2.Service
+      yield* session.prompt({ sessionID, prompt: Prompt.make({ text: "Explore the harness code" }), resume: false })
+      const fiber = yield* session.resume(sessionID).pipe(Effect.exit, Effect.forkChild)
+      yield* settle
+      expect(harnessTitles).toHaveLength(1)
+      expect(yield* storedTitle).toBe("Fix login redirect")
+
+      yield* session.interrupt(sessionID)
+      yield* Fiber.join(fiber)
     }),
   )
 

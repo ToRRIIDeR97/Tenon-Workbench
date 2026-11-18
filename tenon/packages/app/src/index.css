@@ -281,11 +281,11 @@
   }
 }
 
-/* Running-thread indicator: a soft ring that expands and fades (Material 3 standard easing).
-   The ring is a pseudo-element animated with transform and opacity so it runs on the compositor
-   instead of repainting a box-shadow every frame. */
+/* Running indicator: the blue dot breathes in and out, with a soft halo that swells as it breathes in.
+   Both animate transform and opacity only, so they run on the compositor. */
 .running-pulse {
   position: relative;
+  animation: running-breathe 2s ease-in-out infinite;
 }
 
 .running-pulse::after {
@@ -296,22 +296,36 @@
   background: var(--v2-icon-icon-accent);
   opacity: 0;
   pointer-events: none;
-  animation: running-pulse 1.6s var(--v2-ease-standard) infinite;
+  animation: running-breathe-halo 2s ease-in-out infinite;
 }
 
-@keyframes running-pulse {
-  0% {
-    transform: scale(1);
-    opacity: 0.45;
-  }
+@keyframes running-breathe {
+  0%,
   100% {
-    /* An 8px dot plus a 6px ring on each side. */
-    transform: scale(2.5);
+    transform: scale(0.8);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes running-breathe-halo {
+  0%,
+  100% {
+    transform: scale(1);
     opacity: 0;
+  }
+  50% {
+    /* An 8px dot plus a 4px halo on each side; the dot is at full opacity here, so this is the halo's peak. */
+    transform: scale(2);
+    opacity: 0.35;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .running-pulse,
   .running-pulse::after {
     animation: none;
   }
