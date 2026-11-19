@@ -1805,6 +1805,21 @@ several threads share a folder.
   (`HarnessAppTools.Tool.permission`); Codex and ACP agents apply their own MCP
   tool policy, as for every app tool.
 
+### Thread documents
+
+The side panel's Documents section (`pages/session/documents-tab.tsx`, rail
+button after Files) lists the documents the thread's agent wrote, edited or
+linked, newest first with any being written on top. `threadDocuments`
+(`pages/session/documents.ts`) reads the thread's synced messages: `write` and
+`edit` calls (`liveWrites`), Markdown links to local files (`localLinkTarget`)
+and paths cited in inline code (`parseFileReference`). Only files the panel's
+viewer renders count (`viewerKind`: Markdown, CSV, JSON, PDF, video,
+spreadsheets, Word), and each path must resolve inside the thread's folder or
+be a plain absolute path outside it, as for file links. A row opens through the
+same `onFileReference` as a file link in the thread: a Files tab inside the
+folder, the read-only viewer or default app outside it. Nothing new is stored
+or read from disk to build the list.
+
 ### Harness model lists
 
 The picker shows the models each harness reports, not a list saved when the

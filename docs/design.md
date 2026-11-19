@@ -76,9 +76,13 @@ Use `[font-weight:N]` when a weight must differ from the role.
   corners and a hairline on its left. With the side panel closed the rail
   alone is the card. The rail's buttons are 36px (10px corners, 6px apart;
   hover `overlay-hover`, the open section the accent container), with badges
-  at each button's top right; Context (the usage ring) is the last button,
+  at each button's top right; Documents (the thread's written and linked
+  documents, each opening in the Files viewer) follows Files; Context (the
+  usage ring) is the last section,
   after Canvas, which is always there (it opens on the canvas's empty state
-  before the agent has drawn). Review and the terminal stacked in the panel are split by a
+  before the agent has drawn). The Terminal button sits apart at the rail's
+  foot, outside the section tabs (it toggles the panel below the thread, as
+  the header button and Ctrl+` do), in the accent container while open. Review and the terminal stacked in the panel are split by a
   hairline, and the panel's resize handle sits on its left edge. Rounded
   corners otherwise are for things inside or above the page (cards, docks,
   menus, floating windows).

@@ -63,14 +63,18 @@ export const CANVAS_TAB = "canvas"
 /** Right-panel tabs for the Workbench browser and the device emulator. */
 export const BROWSER_TAB = "browser"
 export const DEVICE_TAB = "device"
-const toolTabs = new Set([BROWSER_TAB, DEVICE_TAB])
+/** Right-panel tab listing the documents the thread's agent wrote or linked. */
+export const DOCUMENTS_TAB = "documents"
+// Sections that are one fixed tab, never kept in the file strip.
+const toolTabs = new Set([BROWSER_TAB, DEVICE_TAB, DOCUMENTS_TAB])
 
 /** The side panel's fixed sections. The rail switches between them; only Files holds tabs. */
-export type PanelSection = "changes" | "files" | "agents" | "browser" | "device" | "canvas" | "details"
+export type PanelSection = "changes" | "files" | "documents" | "agents" | "browser" | "device" | "canvas" | "details"
 
 /** The tab ID each section shows. Files has none of its own: it shows the active file tab. */
 export const SECTION_TAB = {
   changes: "review",
+  documents: DOCUMENTS_TAB,
   agents: AGENTS_TAB,
   browser: BROWSER_TAB,
   device: DEVICE_TAB,
@@ -80,6 +84,7 @@ export const SECTION_TAB = {
 
 const tabSections: Record<string, PanelSection> = {
   review: "changes",
+  [DOCUMENTS_TAB]: "documents",
   [AGENTS_TAB]: "agents",
   [BROWSER_TAB]: "browser",
   [DEVICE_TAB]: "device",

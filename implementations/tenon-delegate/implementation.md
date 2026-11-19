@@ -236,6 +236,9 @@ rate-limit use. Facts (Nov 2026, sources in the review notes):
 
 ### P9. Terminal button in the right rail
 
+**Built (2026-11-20).** Placed at the rail's foot instead of before Context: the rail's sections are an
+ARIA tablist and Context is one of them, so a toggle between Canvas and Context would sit inside it.
+
 - A separate plain button below the rail's tab list (the rail is `role="tablist"`; a toggle isn't a
   tab), placed before Context.
 - Same command as the header: `command.trigger("terminal.toggle")`, label
