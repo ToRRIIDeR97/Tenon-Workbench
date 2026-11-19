@@ -1456,7 +1456,29 @@ thread folder's history. When an ACP session is reopened with
 (`replayedCost`), so the next turn records only its own cost.
 
 Each harness runtime has a turn gate: approvals asked during a turn are
-withdrawn and denied when the turn ends (`turnGate`). Codex's
+withdrawn and denied when the turn ends (`turnGate`). Between turns a request
+is denied at once, except while OpenCode subagents sent to the background are
+still out (`Session.backgroundWorking`): their requests go to the dock and wait,
+since a denial makes OpenCode cancel the subagent.
+
+OpenCode answers `session/prompt` as soon as it has sent subagents to the
+background, then takes up each result in a turn of its own on the parent, which
+it never sends over ACP. So an ACP turn with background subagents out (its own,
+or ones an earlier turn left) stays open after the prompt is answered
+(`followBackground` in `acp.ts`): every 3 seconds it reads the parent's newest
+messages with `opencode api GET /api/session/:id/message`
+(`openCodeMessageLookup`), turns each new completed reply into the ACP updates
+OpenCode would have sent live (`openCodeMessageUpdates`: reasoning, text,
+finished tool calls, and a subagent's `<subagent …>` notice as a short note)
+and parses them like any other. It ends once every child has reported and the
+agent is idle (`followProgress`), 30 seconds after the last report with nothing
+new, at the one-hour background limit, or when the agent process exits. A new
+message ends the wait without `session/cancel`, which would stop the subagents
+too; the next turn picks up the ones still out. Stop cancels the session,
+subagents included. A subagent counts as out until its notice is seen or the
+hour passes (`state.background`), not until another turn ends. The harness
+environment passes `XDG_STATE_HOME`, where OpenCode records its managed
+service, so `opencode api` reaches the same OpenCode as the agent. Codex's
 `item/tool/requestUserInput` goes through the same asker as `ask_user`, so the
 end of a turn withdraws it too. A refused ACP model
 switch ends the turn with an error naming the model; that turn, like a prompt
