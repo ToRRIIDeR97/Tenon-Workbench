@@ -58,12 +58,20 @@ export function attentionCards<S extends SidebarSession>(
   stateOf: (session: S) => ThreadState,
   linked?: LinkedStates<S>,
 ): ThreadCard<S>[] {
-  const inState = (state: ThreadState) => roots.filter((node) => nodeState(node, stateOf, linked) === state)
+  const needs: ThreadNode<S>[] = []
+  const running: ThreadNode<S>[] = []
+  const other: ThreadNode<S>[] = []
+  for (const node of roots) {
+    const state = nodeState(node, stateOf, linked)
+    if (state === "approval") needs.push(node)
+    else if (state === "running") running.push(node)
+    else other.push(node)
+  }
   return nonEmptyCards(
     [
-      ["attention:needs", inState("approval")],
-      ["attention:running", inState("running")],
-      ["attention:other", inState("idle")],
+      ["attention:needs", needs],
+      ["attention:running", running],
+      ["attention:other", other],
     ],
     stateOf,
     linked,

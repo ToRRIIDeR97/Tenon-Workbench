@@ -1,9 +1,21 @@
 // What the embedded browser may load. Kept apart from browser.ts, which needs Electron at runtime.
 
-// Chromium resolves a trailing dot the same, and an IPv4-mapped address dials 127.0.0.1.
+// Chromium resolves a trailing dot the same, and any 127.0.0.0/8, unspecified or IPv4-mapped loopback
+// address can reach a loopback listener.
+const loopbackIPv4 = /^127(?:\.\d{1,3}){3}$/
+const loopbackMappedIPv6 = /^\[::ffff:7f[0-9a-f]{2}:[0-9a-f]{1,4}\]$/
+
 export function isLocal(url: URL) {
-  const host = url.hostname.replace(/\.$/, "")
-  return ["localhost", "127.0.0.1", "[::1]", "[::ffff:7f00:1]", "0.0.0.0"].includes(host) || host.endsWith(".localhost")
+  const host = url.hostname.replace(/\.$/, "").toLowerCase()
+  return (
+    host === "localhost" ||
+    host === "[::1]" ||
+    host === "[::]" ||
+    host === "0.0.0.0" ||
+    host.endsWith(".localhost") ||
+    loopbackIPv4.test(host) ||
+    loopbackMappedIPv6.test(host)
+  )
 }
 
 /** Whether a request reaches a blocked origin. Every loopback name for a blocked port is the same server. */

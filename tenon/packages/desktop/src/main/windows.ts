@@ -678,12 +678,6 @@ function wireSession(session: Electron.Session) {
     return isTrustedRendererUrl(details.requestingUrl) || isTrustedRendererUrl(requestingOrigin)
   })
 
-  session.webRequest.onBeforeSendHeaders((details, callback) => {
-    const { requestHeaders } = details
-    upsertKeyValue(requestHeaders, "Access-Control-Allow-Origin", ["*"])
-    callback({ requestHeaders })
-  })
-
   session.webRequest.onHeadersReceived((details, callback) => {
     const { responseHeaders = {} } = details
     addRendererHeaders(details.url, responseHeaders)

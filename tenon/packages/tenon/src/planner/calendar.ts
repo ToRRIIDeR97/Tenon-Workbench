@@ -116,17 +116,15 @@ export function decode(source: string | undefined): Snapshot {
   const events = Array.isArray(input.events)
     ? input.events.map((event) => migrateEvent(event, input.version === 2))
     : []
-  const snapshot = {
-    version: 2 as const,
+  const snapshot: Snapshot = {
+    version: 2,
     revision: typeof input.revision === "string" ? input.revision : "",
     events,
     tasks: Array.isArray(input.tasks) ? input.tasks.map(migrateTask) : [],
   }
-  const decoded = Schema.decodeUnknownOption(Snapshot)(snapshot)
-  if (Option.isNone(decoded)) throw new InvalidError({ reason: "invalid_document" })
-  validate(decoded.value.events)
-  validateTasks(decoded.value.tasks)
-  return decoded.value
+  validate(snapshot.events)
+  validateTasks(snapshot.tasks)
+  return snapshot
 }
 
 export function encode(events: ReadonlyArray<Event>, tasks: ReadonlyArray<Task> = []): Snapshot & { source: string } {

@@ -311,7 +311,7 @@ export const listPages = Effect.fn("KnowledgeVault.listPages")(function* (
   filter: { project?: string; search?: string } = {},
 ) {
   const fs = yield* FSUtil.Service
-  const projects = yield* projectFolders(vault)
+  const byFolder = projectFolderIndex(yield* projectFolders(vault))
   const files = yield* fs.glob("**/*.md", { cwd: vault.directory, absolute: false, include: "file", dot: false })
   const query = filter.search?.trim().toLowerCase() ?? ""
   const pages = yield* Effect.forEach(
@@ -319,11 +319,11 @@ export const listPages = Effect.fn("KnowledgeVault.listPages")(function* (
       .map((file) => file.replaceAll("\\", "/"))
       .filter(
         (file) =>
-          isListedPage(file, projects) &&
-          (filter.project === undefined || projectOf(file, projects) === filter.project),
+          isListedPage(file, byFolder) &&
+          (filter.project === undefined || projectOfFolder(file, byFolder) === filter.project),
       ),
     (file) =>
-      listedPage(vault, file, projects, query !== "").pipe(
+      listedPage(vault, file, byFolder, query !== "").pipe(
         Effect.map((page) => (!query || page.text?.includes(query) ? page.info : undefined)),
         Effect.catch((error) =>
           Effect.logWarning("Skipping unreadable vault page", { path: file, error: error._tag }).pipe(
@@ -349,15 +349,16 @@ export const folderPages = Effect.fn("KnowledgeVault.folderPages")(function* (va
   const folders = entries.filter((entry) => entry.type === "directory" && sameName(entry.name, name))
   if (folders.length === 0) return [] as Page[]
   const projects = yield* projectFolders(vault)
+  const byFolder = projectFolderIndex(projects)
   const files = yield* Effect.forEach(folders, (folder) =>
     fs
       .glob("**/*.md", { cwd: path.join(vault.directory, folder.name), absolute: false, include: "file", dot: false })
       .pipe(Effect.map((found) => found.map((file) => `${folder.name}/${file.replaceAll("\\", "/")}`))),
   )
   const pages = yield* Effect.forEach(
-    files.flat().filter((file) => isListedPage(file, projects)),
+    files.flat().filter((file) => isListedPage(file, byFolder)),
     (file) =>
-      readPageFile(vault, file, projects).pipe(
+      readPageFile(vault, file, projects, byFolder).pipe(
         Effect.map((page): Page => ({ info: page.info, body: page.body, revision: page.revision })),
         Effect.catch((error) =>
           Effect.logWarning("Skipping unreadable vault page", { path: file, error: error._tag }).pipe(
@@ -408,9 +409,10 @@ export const writePage = Effect.fn("KnowledgeVault.writePage")(function* (
   const project = write.projectId === undefined ? undefined : yield* ensureProjectFolder(vault, write.projectId)
   const inside = project === undefined ? relative : yield* pagePath(insideFolder(relative, project))
   const projects = yield* projectFolders(vault)
+  const byFolder = projectFolderIndex(projects)
   const full = write.create ? newPagePath(inside, projects) : inside
   if (full === undefined) return yield* new InvalidError({ reason: "invalid_path" })
-  if (!isWritablePage(full, projects)) return yield* new InvalidError({ reason: "reserved_path" })
+  if (!isWritablePageFolder(full, byFolder)) return yield* new InvalidError({ reason: "reserved_path" })
   if (Buffer.byteLength(write.body, "utf8") > maxBytes) return yield* new InvalidError({ reason: "too_large" })
   const properties = write.properties === undefined ? undefined : validProperties(write.properties)
   if (properties === null) return yield* new InvalidError({ reason: "invalid_properties" })
@@ -437,10 +439,10 @@ export const writePage = Effect.fn("KnowledgeVault.writePage")(function* (
         Effect.catchTag("FileMutation.TargetExistsError", () => Effect.fail(new ConflictError({ reason: "exists" }))),
       )
     forgetPage(target.canonical)
-    return decode(full, source, projects)
+    return decode(full, source, byFolder)
   }
 
-  const current = yield* readPageFile(vault, full, projects)
+  const current = yield* readPageFile(vault, full, projects, byFolder)
   if (write.expectedRevision !== undefined && write.expectedRevision !== current.revision)
     return yield* new ConflictError({ reason: "stale" })
   // Each save moves `updated_at` forward, so version names (keyed by it) stay in save order.
@@ -459,7 +461,7 @@ export const writePage = Effect.fn("KnowledgeVault.writePage")(function* (
     .writeIfUnchanged({ target, content: source, expected: current.bytes })
     .pipe(Effect.catchTag("FileMutation.StaleContentError", () => Effect.fail(new ConflictError({ reason: "stale" }))))
   forgetPage(target.canonical)
-  return decode(full, source, projects)
+  return decode(full, source, byFolder)
 })
 
 /**
@@ -989,22 +991,35 @@ export function newPagePath(value: string, projects: ReadonlyMap<string, string>
   return folder === undefined ? normal : insideFolder(normal, folder)
 }
 
+/** Folded top-level folder name → project id, built once per listing so per-file checks stay O(1). */
+function projectFolderIndex(projects: ReadonlyMap<string, string>): ReadonlyMap<string, string> {
+  const index = new Map<string, string>()
+  for (const [id, folder] of projects) {
+    const key = foldName(folder)
+    if (!index.has(key)) index.set(key, id)
+  }
+  return index
+}
+
 /** Listed pages skip machine logs and sync conflict copies (shown by `conflicts`). */
-function isListedPage(file: string, projects: ReadonlyMap<string, string>) {
-  return isPagePath(file) && isWritablePage(file, projects) && !isConflictCopy(path.posix.basename(file))
+function isListedPage(file: string, byFolder: ReadonlyMap<string, string>) {
+  return isPagePath(file) && isWritablePageFolder(file, byFolder) && !isConflictCopy(path.posix.basename(file))
+}
+
+function isWritablePageFolder(file: string, byFolder: ReadonlyMap<string, string>) {
+  const segments = file.split("/")
+  return !(segments.length > 2 && byFolder.has(foldName(segments[0])) && segments[1].toLowerCase() === "log")
 }
 
 function isWritablePage(file: string, projects: ReadonlyMap<string, string>) {
-  const segments = file.split("/")
-  const folders = new Set([...projects.values()].map(foldName))
-  return !(segments.length > 2 && folders.has(foldName(segments[0])) && segments[1].toLowerCase() === "log")
+  return isWritablePageFolder(file, projectFolderIndex(projects))
 }
 
 /** The Project whose top-level folder holds the page, matched as `isWritablePage` matches it. */
-function projectOf(relative: string, projects: ReadonlyMap<string, string>) {
-  if (!relative.includes("/")) return null
-  const top = foldName(relative.split("/")[0])
-  return [...projects].find(([, folder]) => foldName(folder) === top)?.[0] ?? null
+function projectOfFolder(relative: string, byFolder: ReadonlyMap<string, string>) {
+  const slash = relative.indexOf("/")
+  if (slash === -1) return null
+  return byFolder.get(foldName(relative.slice(0, slash))) ?? null
 }
 
 type PageFile = Page & { data: Record<string, unknown>; bom: boolean }
@@ -1013,12 +1028,13 @@ const readPageFile = Effect.fnUntraced(function* (
   vault: Vault,
   relative: string,
   projects: ReadonlyMap<string, string>,
+  byFolder: ReadonlyMap<string, string> = projectFolderIndex(projects),
 ) {
   const target = yield* resolveInside(vault, relative)
   const bytes = yield* readSmall(target.canonical, maxBytes)
   if (bytes === undefined) return yield* new NotFoundError({ path: relative })
   const page = yield* Effect.try({
-    try: () => decode(relative, utf8.decode(bytes), projects),
+    try: () => decode(relative, utf8.decode(bytes), byFolder),
     catch: () => new InvalidError({ reason: "invalid_page" }),
   })
   return { ...page, bytes }
@@ -1047,12 +1063,14 @@ function forgetPage(canonical: string) {
 const listedPage = Effect.fnUntraced(function* (
   vault: Vault,
   relative: string,
-  projects: ReadonlyMap<string, string>,
+  byFolder: ReadonlyMap<string, string>,
   search: boolean,
 ) {
   const fs = yield* FSUtil.Service
   const target = yield* resolveInside(vault, relative)
-  const stat = yield* fs.stat(target.canonical).pipe(Effect.orElseSucceed(() => undefined))
+  const stat = yield* fs
+    .stat(target.canonical)
+    .pipe(Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed(undefined)))
   const mtime = stat === undefined ? 0 : Option.match(stat.mtime, { onNone: () => 0, onSome: (date) => date.getTime() })
   const size = Number(stat?.size ?? 0)
   const cached = pageCache.get(target.canonical)
@@ -1065,15 +1083,26 @@ const listedPage = Effect.fnUntraced(function* (
     cached.size === size &&
     (!search || cached.text !== undefined)
       ? cached
-      : yield* readPageFile(vault, relative, projects).pipe(
-          Effect.map((page) => ({
+      : yield* Effect.gen(function* () {
+          if (stat === undefined) return yield* new NotFoundError({ path: relative })
+          if (stat.type !== "File") return yield* new InvalidError({ reason: "not_a_file" })
+          if (size > maxBytes) return yield* new InvalidError({ reason: "too_large" })
+          const bytes = yield* fs
+            .readFile(target.canonical)
+            .pipe(Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed(undefined)))
+          if (bytes === undefined) return yield* new NotFoundError({ path: relative })
+          const page = yield* Effect.try({
+            try: () => decode(relative, utf8.decode(bytes), byFolder),
+            catch: () => new InvalidError({ reason: "invalid_page" }),
+          })
+          return {
             relative,
             mtime,
             size,
             info: page.info,
             text: search ? [page.info.title, page.info.path, page.body].join("\n").toLowerCase() : undefined,
-          })),
-        )
+          }
+        })
   forgetPage(target.canonical)
   pageCache.set(target.canonical, entry)
   pageTextSize += entry.text?.length ?? 0
@@ -1081,10 +1110,10 @@ const listedPage = Effect.fnUntraced(function* (
     if (key === target.canonical || (pageCache.size <= pageCacheLimit && pageTextSize <= pageTextLimit)) break
     forgetPage(key)
   }
-  return { info: { ...entry.info, projectId: projectOf(relative, projects) }, text: entry.text }
+  return { info: { ...entry.info, projectId: projectOfFolder(relative, byFolder) }, text: entry.text }
 })
 
-function decode(relative: string, raw: string, projects: ReadonlyMap<string, string>): PageFile {
+function decode(relative: string, raw: string, byFolder: ReadonlyMap<string, string>): PageFile {
   const bom = raw.startsWith("﻿")
   // Untrusted Markdown: never evaluates `---js` front matter and caps its size.
   const parsed = Frontmatter.parse(bom ? raw.slice(1) : raw)
@@ -1098,7 +1127,7 @@ function decode(relative: string, raw: string, projects: ReadonlyMap<string, str
       title: [...(title || titleFromBody(parsed.content) || path.posix.basename(relative, ".md"))]
         .slice(0, titleLimit)
         .join(""),
-      projectId: projectOf(relative, projects),
+      projectId: projectOfFolder(relative, byFolder),
       properties: Object.fromEntries(
         Object.entries(data)
           .filter(([key]) => !reservedKeys.has(key))

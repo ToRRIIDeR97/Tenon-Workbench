@@ -47,19 +47,30 @@ export function buildThreadTree<S extends SidebarSession>(sessions: readonly S[]
   return roots.sort((a, b) => compareRoots(a.session, b.session))
 }
 
+const directoryPrefix = (key: string) => (key.endsWith("/") ? key : `${key}/`)
+
+const matchesDirectory = (outer: string, prefix: string, inner: string) => inner === outer || inner.startsWith(prefix)
+
 /** Whether `directory` is `parent` or inside it. */
 export function isWithinDirectory(parent: string, directory: string) {
   const outer = pathKey(parent)
-  const inner = pathKey(directory)
-  return inner === outer || inner.startsWith(outer.endsWith("/") ? outer : `${outer}/`)
+  return matchesDirectory(outer, directoryPrefix(outer), pathKey(directory))
 }
 
 /** The Project whose thread directory holds `directory`; the deepest one wins for nested folders. */
 export function projectForDirectory<P extends SidebarProject>(projects: readonly P[], directory: string | undefined) {
   if (!directory) return
-  return projects
-    .filter((project) => isWithinDirectory(project.threadDirectory, directory))
-    .sort((a, b) => pathKey(b.threadDirectory).length - pathKey(a.threadDirectory).length)[0]
+  const inner = pathKey(directory)
+  let best: P | undefined
+  let bestLength = -1
+  for (const project of projects) {
+    const outer = pathKey(project.threadDirectory)
+    if (outer.length > bestLength && matchesDirectory(outer, directoryPrefix(outer), inner)) {
+      best = project
+      bestLength = outer.length
+    }
+  }
+  return best
 }
 
 /**
@@ -74,16 +85,26 @@ export function groupSidebarThreads<P extends SidebarProject, S extends SidebarS
 }): SidebarGroups<P, S> {
   const byProject = new Map<string, S[]>()
   const workspace: S[] = []
+  // Deepest project folder first so the first match for each session wins without re-sorting.
+  const rankedProjects = input.projects
+    .map((project) => {
+      const key = pathKey(project.threadDirectory)
+      return { project, key, prefix: directoryPrefix(key) }
+    })
+    .sort((a, b) => b.key.length - a.key.length)
+  const workspaceKey = input.workspaceDirectory ? pathKey(input.workspaceDirectory) : undefined
+  const workspacePrefix = workspaceKey ? directoryPrefix(workspaceKey) : undefined
   for (const session of input.sessions) {
     if (session.time.archived) continue
-    const project = projectForDirectory(input.projects, session.directory)
-    if (project) {
-      const list = byProject.get(project.id)
+    const inner = pathKey(session.directory)
+    const matched = rankedProjects.find((item) => matchesDirectory(item.key, item.prefix, inner))?.project
+    if (matched) {
+      const list = byProject.get(matched.id)
       if (list) list.push(session)
-      else byProject.set(project.id, [session])
+      else byProject.set(matched.id, [session])
       continue
     }
-    if (input.workspaceDirectory && isWithinDirectory(input.workspaceDirectory, session.directory))
+    if (workspaceKey && workspacePrefix && matchesDirectory(workspaceKey, workspacePrefix, inner))
       workspace.push(session)
   }
   return {
