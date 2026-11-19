@@ -73,6 +73,11 @@ export interface Session {
   readonly models: ReadonlyArray<Harness.Model>
   /** True once the agent process has exited; the runtime must then be replaced. */
   readonly closed: Effect.Effect<boolean>
+  /**
+   * Subagents an earlier turn sent to work in the background may still be running. OpenCode keeps them going after
+   * the turn that launched them has ended, so their requests arrive between turns.
+   */
+  readonly backgroundWorking: () => boolean
   readonly turn: (input: {
     readonly text: string
     readonly media?: ReadonlyArray<Media>
@@ -433,6 +438,7 @@ export const open = Effect.fn("AcpHarness.open")(function* (
 ) {
   const scope = yield* Effect.scope
   const usageLookup = openCodeUsageLookup(process, input.settings, input.directory)
+  const messageLookup = openCodeMessageLookup(process, input.settings, input.directory)
   const items = yield* Queue.unbounded<Item>()
   const { client, initialize } = yield* connect(process, input.settings, input.directory, {
     handleRequest: (request) => handleRequest(request, input.approve, input.ask),
@@ -614,20 +620,84 @@ export const open = Effect.fn("AcpHarness.open")(function* (
             Effect.ensuring(Deferred.succeed(settled, undefined)),
             Effect.forkIn(scope),
           )
+        // Set while the turn waits on background subagents (see `followBackground`); `reported` holds the ones
+        // whose notice it saw.
+        const follow = { active: false, leave: yield* Deferred.make<void>(), reported: new Set<string>() }
+        const followBackground = (exit: Exit.Exit<unknown, ProtocolError>) =>
+          Stream.unwrap(
+            Effect.gen(function* () {
+              // This turn's background subagents and any an earlier turn left still out: a turn that ends before
+              // they report (a new message ended its wait) hands them to the next one.
+              const now = Date.now()
+              const out = [
+                ...[...parser.tools.values()].flatMap((tool) => (tool.background ? [tool.background] : [])),
+                ...[...state.background].flatMap(([child, started]) =>
+                  now - started < BACKGROUND_LIMIT ? [child] : [],
+                ),
+              ]
+              const stopReason = Exit.isSuccess(exit) && isRecord(exit.value) ? exit.value.stopReason : undefined
+              if (!messageLookup || out.length === 0 || stopReason !== "end_turn") return Stream.empty
+              const first = yield* messageLookup(session.sessionId)
+              if (!first) return Stream.empty
+              follow.active = true
+              const pending = new Set(out)
+              const seen = new Set(first.map((message) => String(message.id)))
+              followProgress(first, new Set(seen), pending)
+              const started = Date.now()
+              const step = (settled: number | undefined) =>
+                Effect.gen(function* () {
+                  yield* Effect.sleep(FOLLOW_INTERVAL)
+                  const read = yield* messageLookup(session.sessionId)
+                  const progress = read ? followProgress(read, seen, pending) : { fresh: [], idle: false }
+                  const events = progress.fresh.flatMap((message) =>
+                    openCodeMessageUpdates(message).flatMap((update) =>
+                      parseAcpNotification(
+                        { method: "session/update", params: { sessionId: session.sessionId, update } },
+                        session.sessionId,
+                        parser,
+                      ),
+                    ),
+                  )
+                  const now = Date.now()
+                  const quiet = pending.size === 0 ? (progress.fresh.length > 0 ? now : (settled ?? now)) : undefined
+                  // Done once every child has reported and the agent is idle, or a while after the last report with
+                  // nothing new; the background limit ends the wait however it stands.
+                  const over =
+                    progress.idle ||
+                    (quiet !== undefined && now - quiet >= FOLLOW_SETTLE) ||
+                    now - started >= BACKGROUND_LIMIT ||
+                    (yield* client.closed)
+                  return [events, over ? Option.none() : Option.some(quiet)] as const
+                })
+              return Stream.paginate<number | undefined, LLMEvent>(undefined, step).pipe(
+                Stream.interruptWhen(Deferred.await(follow.leave)),
+                Stream.ensuring(
+                  Effect.sync(() => {
+                    follow.active = false
+                    for (const child of out) if (!pending.has(child)) follow.reported.add(child)
+                  }),
+                ),
+              )
+            }),
+          )
         const body = (heard: Effect.Effect<void>) =>
           Stream.fromQueue(items).pipe(
             Stream.tap(() => heard),
             Stream.takeUntil((item) => item.type === "done"),
-            Stream.mapEffect((item) =>
-              withSubagentUsage(
-                item.type === "done"
-                  ? finishAcpTurn(item.exit, parser)
-                  : parseAcpNotification(item.notification, session.sessionId, parser),
-                parser,
-                usageLookup,
-              ),
-            ),
-            Stream.flatMap((events) => Stream.fromIterable(events)),
+            Stream.flatMap((item) => {
+              const events = (list: ReadonlyArray<LLMEvent>) =>
+                Stream.fromEffect(withSubagentUsage(list, parser, usageLookup)).pipe(
+                  Stream.flatMap((each) => Stream.fromIterable(each)),
+                )
+              if (item.type !== "done")
+                return events(parseAcpNotification(item.notification, session.sessionId, parser))
+              // OpenCode answers the prompt as soon as it has sent its subagents to the background, then takes up
+              // their results in turns of its own that it never sends over ACP. The turn stays open and shows those.
+              return Stream.concat(
+                followBackground(item.exit),
+                Stream.suspend(() => events(finishAcpTurn(item.exit, parser))),
+              )
+            }),
           )
         const watch = turnInput.watch
         const stoppable = stopOnSteer(
@@ -636,23 +706,31 @@ export const open = Effect.fn("AcpHarness.open")(function* (
                 body,
                 () =>
                   watch.waiting() ||
+                  follow.active ||
                   [...parser.tools.values()].some((tool) => !tool.done) ||
                   backgroundWorking(state.background, Date.now()),
                 llmError(`${watch.name} stopped responding for ${SILENCE_LIMIT_MINUTES} minutes.`),
               )
             : body(Effect.void),
           turnInput.steer,
-          client.notify("session/cancel", { sessionId: session.sessionId }),
+          Effect.suspend(() =>
+            follow.active
+              ? Deferred.succeed(follow.leave, undefined)
+              : client.notify("session/cancel", { sessionId: session.sessionId }),
+          ),
         )
         return Stream.concat(Stream.make(LLMEvent.stepStart({ index: 0 })), stoppable).pipe(
           Stream.ensuring(
             Effect.suspend(() => {
               if (parser.sessionCost !== undefined) state.sessionCost = parser.sessionCost
-              // A turn the agent answered means it took up whatever its background subagents left it; the ones this
-              // turn sent off are the ones still out.
-              if (parser.finished) state.background.clear()
+              // A background subagent stays out until its notice is seen or the background limit passes; another
+              // turn ending says nothing about it, and forgetting it would refuse its requests (see turnGate).
               for (const tool of parser.tools.values())
-                if (tool.background) state.background.set(tool.background, Date.now())
+                if (tool.background && !state.background.has(tool.background))
+                  state.background.set(tool.background, Date.now())
+              for (const child of follow.reported) state.background.delete(child)
+              for (const [child, started] of state.background)
+                if (Date.now() - started >= BACKGROUND_LIMIT) state.background.delete(child)
               return parser.finished
                 ? Effect.void
                 : client.notify("session/cancel", { sessionId: session.sessionId }).pipe(Effect.ignore)
@@ -667,6 +745,7 @@ export const open = Effect.fn("AcpHarness.open")(function* (
     resumed: loaded !== undefined,
     mcpAttached: params.mcpServers.some((server) => "type" in server),
     closed: client.closed,
+    backgroundWorking: () => backgroundWorking(state.background, Date.now()),
     agent: agentInfo(initialize),
     capabilities: agentCapabilities(initialize),
     models: selector.models,
@@ -1384,6 +1463,156 @@ export function openCodeSessionUsage(text: string): AcpUsage | undefined {
     cost: cost && cost > 0 ? cost : undefined,
   }
   return Object.fromEntries(Object.entries(fields).filter((entry) => entry[1] !== undefined))
+}
+
+/** How long a turn waits between reads of the agent's own turns while its background subagents work. */
+export const FOLLOW_INTERVAL = "3 seconds"
+/** After the last background subagent reports, how long a turn waits for the agent to take its result up. */
+export const FOLLOW_SETTLE = 30_000
+
+/**
+ * Reads a session's newest messages (newest first) from OpenCode's own server, as `openCodeUsageLookup` reads
+ * usage: OpenCode runs the turns that take up a background subagent's result itself and sends none of them over
+ * ACP, so this is the only way to see them.
+ */
+export function openCodeMessageLookup(
+  process: Partial<Pick<AppProcess.Interface, "run">>,
+  settings: Settings,
+  directory: string,
+): ((sessionID: string) => Effect.Effect<ReadonlyArray<Record<string, unknown>> | undefined>) | undefined {
+  const at = settings.args.lastIndexOf("acp")
+  const run = process.run
+  if (at < 0 || !run) return undefined
+  return (sessionID) =>
+    run(
+      ChildProcess.make(
+        settings.command,
+        [...settings.args.slice(0, at), "api", "GET", `/api/session/${sessionID}/message?limit=50`],
+        { cwd: directory, env: harnessEnvironment(settings.env), extendEnv: false, stdin: "ignore" },
+      ),
+      { timeout: "15 seconds", maxOutputBytes: 4_000_000 },
+    ).pipe(
+      Effect.map((result) => openCodeMessages(result.stdout.toString())),
+      Effect.catch(() => Effect.succeed(undefined)),
+    )
+}
+
+/** The messages in a `GET /api/session/:id/message` answer, newest first; undefined when it isn't one. */
+export function openCodeMessages(text: string): ReadonlyArray<Record<string, unknown>> | undefined {
+  const parsed: unknown = (() => {
+    try {
+      return JSON.parse(text)
+    } catch {
+      return undefined
+    }
+  })()
+  const data = isRecord(parsed) && Array.isArray(parsed.data) ? parsed.data.filter(isRecord) : undefined
+  return data?.filter((message) => typeof message.id === "string")
+}
+
+/**
+ * Where a turn that waits on background subagents stands after one read: the messages it hasn't shown yet, oldest
+ * first; the children still out (a `<subagent …>` notice anywhere in the read settles one); and whether the agent
+ * is idle with none out. `seen` and `pending` are updated in place.
+ */
+export function followProgress(
+  messages: ReadonlyArray<Record<string, unknown>>,
+  seen: Set<string>,
+  pending: Set<string>,
+) {
+  for (const message of messages) {
+    const child =
+      isRecord(message.metadata) && message.metadata.source === "subagent"
+        ? string(message.metadata.childID)
+        : undefined
+    if (child) pending.delete(child)
+  }
+  // A reply still streaming is read again once it completes; marking it seen now would lose the rest of it.
+  const fresh = messages.filter((message) => !seen.has(String(message.id)) && !streaming(message)).reverse()
+  for (const message of fresh) seen.add(String(message.id))
+  return { fresh, idle: pending.size === 0 && messages[0]?.type === "idle" }
+}
+
+function streaming(message: Record<string, unknown>) {
+  return message.type === "assistant" && !(isRecord(message.time) && typeof message.time.completed === "number")
+}
+
+// OpenCode's own tool names, as the ACP kinds it reports them with live.
+const openCodeKinds: Record<string, string> = {
+  shell: "execute",
+  bash: "execute",
+  read: "read",
+  edit: "edit",
+  write: "edit",
+  patch: "edit",
+  apply_patch: "edit",
+  multiedit: "edit",
+  grep: "search",
+  glob: "search",
+  list: "search",
+  webfetch: "fetch",
+  websearch: "fetch",
+  subagent: "think",
+  task: "think",
+}
+
+/**
+ * One OpenCode message as the `session/update` payloads its ACP adapter sends live, so a turn the agent ran on its
+ * own reads like any other: an assistant's reasoning, text and finished tool calls, and the notice a background
+ * subagent leaves when it ends (shown as text). User, system and idle markers are not part of a reply.
+ */
+export function openCodeMessageUpdates(message: Record<string, unknown>): ReadonlyArray<Record<string, unknown>> {
+  const messageId = String(message.id)
+  if (message.type === "synthetic") {
+    const text = string(message.description)
+    const state = isRecord(message.metadata) ? string(message.metadata.state) : undefined
+    return text && state
+      ? [{ sessionUpdate: "agent_thought_chunk", messageId, content: { type: "text", text: `${text}: ${state}` } }]
+      : []
+  }
+  if (message.type !== "assistant" || !Array.isArray(message.content)) return []
+  return message.content.filter(isRecord).flatMap((part): Record<string, unknown>[] => {
+    if (part.type === "text" || part.type === "reasoning") {
+      const text = string(part.text)
+      if (!text) return []
+      return [
+        {
+          sessionUpdate: part.type === "text" ? "agent_message_chunk" : "agent_thought_chunk",
+          messageId,
+          content: { type: "text", text },
+        },
+      ]
+    }
+    if (part.type !== "tool" || !isRecord(part.state)) return []
+    const id = string(part.id)
+    const name = string(part.name) ?? "tool"
+    const status = string(part.state.status)
+    if (!id || (status !== "completed" && status !== "error")) return []
+    const output = Array.isArray(part.state.content)
+      ? part.state.content
+          .filter(isRecord)
+          .flatMap((item) => (item.type === "text" && typeof item.text === "string" ? [item.text] : []))
+          .join("\n")
+      : ""
+    const error = isRecord(part.state.error) ? string(part.state.error.message) : undefined
+    return [
+      {
+        sessionUpdate: "tool_call",
+        toolCallId: id,
+        name,
+        title: name,
+        kind: openCodeKinds[name] ?? "other",
+        rawInput: isRecord(part.state.input) ? part.state.input : {},
+        status: status === "completed" ? "completed" : "failed",
+        content: [
+          {
+            type: "content",
+            content: { type: "text", text: (status === "completed" ? output : error) || "Completed" },
+          },
+        ],
+      },
+    ]
+  })
 }
 
 /** Adds an OpenCode subagent's token use to its result, read from OpenCode's server as the result goes out. */

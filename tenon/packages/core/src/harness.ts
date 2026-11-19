@@ -588,6 +588,8 @@ const layer = Layer.effect(
     ) {
       const runtimeScope = yield* Scope.make()
       const gate = turnGate()
+      // Read by the approval handler, which is handed to the session before the session exists.
+      let background = () => false
       const blocked = new Map<string, Blocked>()
       const revision = input.revision ?? 0
       const continuation = yield* readContinuation(database.db, input.sessionID, instance.id, revision)
@@ -648,12 +650,14 @@ const layer = Layer.effect(
                 ),
               ),
               false,
+              () => background(),
             )
             .pipe(Effect.provideService(Location.Service, location)),
       }).pipe(
         Effect.provideService(Scope.Scope, runtimeScope),
         Effect.onError(() => Scope.close(runtimeScope, Exit.void).pipe(Effect.ignore)),
       )
+      background = session.backgroundWorking
       if (session.sessionId !== continuation?.nativeID) {
         yield* events.publish(SessionEvent.HarnessContinuationSet, {
           sessionID: input.sessionID,
@@ -2464,20 +2468,32 @@ export type TurnGate = ReturnType<typeof turnGate>
  * One harness runtime's current turn. An approval asked during the turn runs through `guard`; when the turn ends
  * (Stop included) before it is answered, the wait is interrupted, which withdraws the prompt from the dock, and the
  * agent gets `fallback`, a denial, instead of an answer to a request it has already abandoned.
+ *
+ * A request that arrives between turns gets `fallback` at once, unless `between` says work the agent sent to the
+ * background is still running: OpenCode keeps background subagents going after the turn that launched them, and
+ * refusing their requests unseen cancels them. Such a request is asked like any other and waits for
+ * its answer; a later turn's end doesn't withdraw it, since it never belonged to that turn.
  */
 export function turnGate() {
   let ended = Deferred.makeUnsafe<void>()
+  let active = false
   let open = 0
   return {
     pending: () => open > 0,
     begin: () => {
       ended = Deferred.makeUnsafe<void>()
+      active = true
     },
-    end: Effect.suspend(() => Deferred.succeed(ended, undefined)).pipe(Effect.asVoid),
-    guard: <A, E, R>(effect: Effect.Effect<A, E, R>, fallback: A) =>
+    end: Effect.suspend(() => {
+      active = false
+      return Deferred.succeed(ended, undefined)
+    }).pipe(Effect.asVoid),
+    guard: <A, E, R>(effect: Effect.Effect<A, E, R>, fallback: A, between?: () => boolean) =>
       Effect.suspend(() => {
         open += 1
-        return Effect.raceFirst(effect, Deferred.await(ended).pipe(Effect.as(fallback))).pipe(
+        const raced =
+          !active && between?.() ? effect : Effect.raceFirst(effect, Deferred.await(ended).pipe(Effect.as(fallback)))
+        return raced.pipe(
           Effect.ensuring(
             Effect.sync(() => {
               open -= 1

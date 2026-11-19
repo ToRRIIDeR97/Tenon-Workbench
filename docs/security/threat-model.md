@@ -401,7 +401,18 @@ allows `/usr/bin/security` (it does for entries Claude Code writes).
   (`turnGate` in `core/src/harness.ts`). When the turn ends first, the wait is
   interrupted, `PermissionV2.assert` publishes a `reject` reply so the dock
   drops the prompt, and the agent gets a denial. A late click can no longer
-  approve a request the agent abandoned.
+  approve a request the agent abandoned. A request that arrives between turns
+  is denied at once, unless subagents an earlier ACP turn sent to the
+  background may still be running (`Session.backgroundWorking`, at most an
+  hour after launch): OpenCode keeps those going after the turn ends, so their
+  requests are asked in the dock like any other, under the thread's permission
+  mode, and wait for an answer instead of being refused unseen.
+- **Following background subagents.** While they are out, the ACP turn reads
+  the parent session's messages through the local `opencode api` CLI (the same
+  route as the subagent usage read, run with the harness allowlist), never over
+  the network. What it reads is the agent's own output and is rendered as
+  untrusted model output, like the live ACP stream; it gives the agent no new
+  ability, and the wait ends at the one-hour background limit.
 - **Leftover processes.** Harnesses run in their own process group. Each one's
   PID, command and owning server PID are written to
   `<state>/harness-pids/<pid>.json` and removed when it closes
