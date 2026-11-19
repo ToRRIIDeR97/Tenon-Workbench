@@ -21,7 +21,8 @@ const badgeClass =
 /**
  * The side panel's section switcher, shown whether the panel is open or closed. A section's button opens the
  * panel on it; the open section's button closes the panel. While the panel is closed, dragging the rail to the
- * left pulls it out (`onDragOut`).
+ * left pulls it out (`onDragOut`). At its foot, outside the sections (it toggles the panel below the thread, not a
+ * section), the Terminal button does what the header's terminal button and its shortcut do.
  */
 export function SessionSideRail(props: {
   /** The section the open panel shows; undefined while the panel is closed. */
@@ -39,7 +40,7 @@ export function SessionSideRail(props: {
   const command = useCommand()
   const language = useLanguage()
   const platform = usePlatform()
-  const { sessionKey } = useSessionLayout()
+  const { sessionKey, view } = useSessionLayout()
 
   // An agent using the browser or a device marks that section instead of taking the panel away from the user.
   onMount(() => {
@@ -114,13 +115,10 @@ export function SessionSideRail(props: {
 
   return (
     <div
-      role="tablist"
-      aria-orientation="vertical"
-      aria-label={language.t("session.panel.reviewAndFiles")}
       data-component="session-side-rail"
       // A tinted strip in the right shell, mirroring the navigation rail: the shell's outer corners on its own,
       // its right corners and a hairline to its left beside the side panel. The shell draws the ring.
-      class="relative flex h-full w-12 shrink-0 flex-col items-center gap-1.5 bg-v2-background-bg-layer-01 py-2"
+      class="relative flex h-full w-12 shrink-0 flex-col items-center bg-v2-background-bg-layer-01 py-2"
       classList={{
         "cursor-col-resize": !!props.onDragOut,
         "rounded-[16px]": !props.joined,
@@ -133,78 +131,121 @@ export function SessionSideRail(props: {
         props.onDragOut(event)
       }}
     >
-      <Show when={props.canReview}>
-        {item({
-          section: "changes",
-          id: sideRailReviewTabID,
-          controls: "session-side-panel-review-tabpanel",
-          label: props.hasReview
-            ? language.t("session.review.filesChanged", { count: props.reviewCount })
-            : language.t("secondBrain.environment.changes"),
-          tooltip: (
-            <>
-              {language.t("secondBrain.environment.changes")}
-              <Show when={command.keybindParts("review.toggle").length > 0}>
-                <KeybindV2 keys={command.keybindParts("review.toggle")} variant="neutral" />
+      <div
+        role="tablist"
+        aria-orientation="vertical"
+        aria-label={language.t("session.panel.reviewAndFiles")}
+        class="flex flex-col items-center gap-1.5"
+      >
+        <Show when={props.canReview}>
+          {item({
+            section: "changes",
+            id: sideRailReviewTabID,
+            controls: "session-side-panel-review-tabpanel",
+            label: props.hasReview
+              ? language.t("session.review.filesChanged", { count: props.reviewCount })
+              : language.t("secondBrain.environment.changes"),
+            tooltip: (
+              <>
+                {language.t("secondBrain.environment.changes")}
+                <Show when={command.keybindParts("review.toggle").length > 0}>
+                  <KeybindV2 keys={command.keybindParts("review.toggle")} variant="neutral" />
+                </Show>
+              </>
+            ),
+            icon: <Icon name="review" />,
+            badge: (
+              <Show when={props.hasReview}>
+                <span class={`${badgeClass} bg-v2-icon-icon-accent text-v2-background-bg-base`}>
+                  {props.reviewCount}
+                </span>
               </Show>
-            </>
-          ),
-          icon: <Icon name="review" />,
+            ),
+          })}
+        </Show>
+        {item({
+          section: "files",
+          label: language.t("secondBrain.sidebar.files"),
+          icon: <Icon name="filetree" />,
+        })}
+        {item({
+          section: "documents",
+          label: language.t("secondBrain.documents.title"),
+          icon: <Icon name="document" />,
+        })}
+        {item({
+          section: "agents",
+          label: language.t("secondBrain.agents.title"),
+          icon: <Icon name="activity" />,
           badge: (
-            <Show when={props.hasReview}>
-              <span class={`${badgeClass} bg-v2-icon-icon-accent text-v2-background-bg-base`}>{props.reviewCount}</span>
+            <Show when={props.running > 0}>
+              <span
+                aria-label={language.t("secondBrain.agents.runningBadge", { count: props.running })}
+                class={`${badgeClass} bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container`}
+              >
+                {props.running.toLocaleString(language.intl())}
+              </span>
             </Show>
           ),
         })}
-      </Show>
-      {item({
-        section: "files",
-        label: language.t("secondBrain.sidebar.files"),
-        icon: <Icon name="filetree" />,
-      })}
-      {item({
-        section: "agents",
-        label: language.t("secondBrain.agents.title"),
-        icon: <Icon name="activity" />,
-        badge: (
-          <Show when={props.running > 0}>
-            <span
-              aria-label={language.t("secondBrain.agents.runningBadge", { count: props.running })}
-              class={`${badgeClass} bg-v2-background-bg-accent-container text-v2-text-text-on-accent-container`}
-            >
-              {props.running.toLocaleString(language.intl())}
-            </span>
-          </Show>
-        ),
-      })}
-      <Show when={platform.browser}>
+        <Show when={platform.browser}>
+          {item({
+            section: "browser",
+            label: language.t("secondBrain.browser.title"),
+            icon: <Icon name="link" />,
+            badge: attentionDot("browser"),
+          })}
+        </Show>
+        <Show when={platform.device}>
+          {item({
+            section: "device",
+            label: language.t("secondBrain.device.title"),
+            icon: <Icon name="monitor" />,
+            badge: attentionDot("device"),
+          })}
+        </Show>
+        {/* Always on the rail, so the canvas is one click away before the agent draws; it opens on its empty state. */}
         {item({
-          section: "browser",
-          label: language.t("secondBrain.browser.title"),
-          icon: <Icon name="link" />,
-          badge: attentionDot("browser"),
+          section: "canvas",
+          label: language.t("secondBrain.canvas.title"),
+          icon: <Icon name="photo" />,
         })}
-      </Show>
-      <Show when={platform.device}>
         {item({
-          section: "device",
-          label: language.t("secondBrain.device.title"),
-          icon: <Icon name="monitor" />,
-          badge: attentionDot("device"),
+          section: "details",
+          label: language.t("secondBrain.sessionTab.title"),
+          icon: <SessionContextUsage variant="indicator" placement="left" />,
+          plain: true,
         })}
-      </Show>
-      {/* Always on the rail, so the canvas is one click away before the agent draws; it opens on its empty state. */}
-      {item({
-        section: "canvas",
-        label: language.t("secondBrain.canvas.title"),
-        icon: <Icon name="photo" />,
-      })}
-      {item({
-        section: "details",
-        label: language.t("secondBrain.sessionTab.title"),
-        icon: <SessionContextUsage variant="indicator" placement="left" />,
-        plain: true,
-      })}
+      </div>
+      <TooltipV2
+        class="mt-auto"
+        placement="left"
+        value={
+          <>
+            {language.t("command.terminal.toggle")}
+            <Show when={command.keybindParts("terminal.toggle").length > 0}>
+              <KeybindV2 keys={command.keybindParts("terminal.toggle")} variant="neutral" />
+            </Show>
+          </>
+        }
+      >
+        <IconButtonV2
+          type="button"
+          variant="ghost-muted"
+          size="large"
+          data-action="side-rail-terminal"
+          icon={<Icon name="terminal" />}
+          aria-label={language.t("command.terminal.toggle")}
+          aria-expanded={view().terminal.opened()}
+          aria-controls="terminal-panel"
+          class="!size-9 !rounded-[10px]"
+          classList={{
+            "!bg-v2-background-bg-accent-container !text-v2-text-text-on-accent-container": view().terminal.opened(),
+          }}
+          onPointerDown={(event: PointerEvent) => event.stopPropagation()}
+          onClick={() => command.trigger("terminal.toggle")}
+        />
+      </TooltipV2>
     </div>
   )
 }

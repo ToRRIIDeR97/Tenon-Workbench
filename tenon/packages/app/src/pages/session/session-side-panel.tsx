@@ -40,6 +40,7 @@ import {
   CANVAS_TAB,
   BROWSER_TAB,
   DEVICE_TAB,
+  DOCUMENTS_TAB,
   SESSION_OPEN_FILE_TAB,
   AGENTS_TAB,
   createOpenSessionFileTab,
@@ -58,6 +59,7 @@ import { sideRailReviewTabID } from "@/pages/session/session-side-rail"
 import { REVIEW_SIDEBAR_OVERLAY_WIDTH } from "@/pages/session/v2/review-panel-v2-state"
 import { SessionCanvasTab } from "@/pages/session/canvas-tab"
 import { SessionBrowserTab } from "@/pages/session/browser-tab"
+import { SessionDocumentsTab } from "@/pages/session/documents-tab"
 import { SessionDeviceTab } from "@/pages/session/device-tab"
 
 type ReviewDiff = FileDiffInfo | SnapshotFileDiff | VcsFileDiff
@@ -229,6 +231,7 @@ export function SessionSidePanel(props: {
       return props.hasReview()
         ? language.t("session.review.filesChanged", { count: props.reviewCount() })
         : language.t("secondBrain.environment.changes")
+    if (value === "documents") return language.t("secondBrain.documents.title")
     if (value === "agents") return language.t("secondBrain.agents.title")
     if (value === "browser") return language.t("secondBrain.browser.title")
     if (value === "device") return language.t("secondBrain.device.title")
@@ -360,6 +363,7 @@ export function SessionSidePanel(props: {
       active !== CANVAS_TAB &&
       active !== BROWSER_TAB &&
       active !== DEVICE_TAB &&
+      active !== DOCUMENTS_TAB &&
       active !== "empty" &&
       active !== AGENTS_TAB
     )
@@ -431,6 +435,16 @@ export function SessionSidePanel(props: {
       <TabsV2.Content value={DEVICE_TAB} class="flex min-h-0 flex-col !overflow-hidden contain-strict">
         <div class="relative flex-1 min-h-0 overflow-hidden pt-2">
           <SessionDeviceTab />
+        </div>
+      </TabsV2.Content>
+    </Show>
+  )
+
+  const documentsContent = () => (
+    <Show when={activeTab() === DOCUMENTS_TAB}>
+      <TabsV2.Content value={DOCUMENTS_TAB} class="flex min-h-0 flex-col !overflow-hidden contain-strict">
+        <div class="relative flex-1 min-h-0 overflow-hidden">
+          <SessionDocumentsTab />
         </div>
       </TabsV2.Content>
     </Show>
@@ -730,6 +744,7 @@ export function SessionSidePanel(props: {
                           {selectToOpen()}
                           {contextContent()}
                           {canvasContent()}
+                          {documentsContent()}
                           {browserContent()}
                           {deviceContent()}
                           {agentContent()}
