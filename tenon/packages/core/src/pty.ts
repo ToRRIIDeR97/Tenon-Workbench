@@ -98,10 +98,15 @@ export class SpawnError extends Schema.TaggedError<SpawnError>()("Pty.SpawnError
   message: Schema.String,
 }) {}
 
+/** What `create` takes inside the server: the route's input, plus the thread an agent's terminal belongs to. */
+export type CreateOptions = CreateInput & { readonly sessionID?: string }
+
 export interface Interface {
   readonly list: () => Effect.Effect<Info[]>
   readonly get: (id: PtyID) => Effect.Effect<Info, NotFoundError>
-  readonly create: (input: CreateInput) => Effect.Effect<Info, SpawnError>
+  readonly create: (input: CreateOptions) => Effect.Effect<Info, SpawnError>
+  /** The output the terminal still retains (all of it while running, a short tail once it exited). */
+  readonly output: (id: PtyID) => Effect.Effect<{ info: Info; output: string }, NotFoundError>
   readonly update: (id: PtyID, input: UpdateInput) => Effect.Effect<Info, NotFoundError>
   readonly remove: (id: PtyID) => Effect.Effect<void, NotFoundError>
   readonly write: (id: PtyID, data: string) => Effect.Effect<void, NotFoundError>
@@ -183,7 +188,12 @@ const layer = Layer.effect(
       return (yield* requireSession(id)).info
     })
 
-    const create = Effect.fn("Pty.create")(function* (input: CreateInput) {
+    const output = Effect.fn("Pty.output")(function* (id: PtyID) {
+      const session = yield* requireSession(id)
+      return { info: session.info, output: session.buffer }
+    })
+
+    const create = Effect.fn("Pty.create")(function* (input: CreateOptions) {
       const id = PtyID.ascending()
       const command = input.command || Shell.preferred(Config.latest(yield* config.entries(), "shell"))
       const args = Shell.login(command) ? [...(input.args ?? []), "-l"] : [...(input.args ?? [])]
@@ -227,6 +237,7 @@ const layer = Layer.effect(
             cwd,
             status: "running",
             pid: proc.pid,
+            ...(input.sessionID ? { sessionID: input.sessionID } : {}),
           }
           const session: Active = {
             info,
@@ -350,7 +361,7 @@ const layer = Layer.effect(
       }
     })
 
-    return Service.of({ list, get, create, update, remove, write, attach })
+    return Service.of({ list, get, create, output, update, remove, write, attach })
   }),
 )
 

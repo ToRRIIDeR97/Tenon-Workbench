@@ -44,10 +44,11 @@ export const layer = Layer.effectDiscard(
               toModelOutput: ({ output }) => [{ type: "text", text: output.output }],
               execute: (input, context) =>
                 Effect.gen(function* () {
+                  const asked = tool.permission && input[tool.permission.field]
                   if (!tool.annotations?.readOnlyHint)
                     yield* permission.assert({
-                      action: WRITE_PERMISSION,
-                      resources: [tool.name],
+                      action: tool.permission?.action ?? WRITE_PERMISSION,
+                      resources: [typeof asked === "string" ? asked : tool.name],
                       save: ["*"],
                       metadata: { tool: tool.name, ...input },
                       sessionID: context.sessionID,

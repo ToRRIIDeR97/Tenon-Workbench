@@ -490,6 +490,7 @@ function ChangesSection() {
 function RunningSection(props: { groups: Parameters<typeof runningSubagents>[0]; onClose: () => void }) {
   const language = useLanguage()
   const terminal = useTerminal()
+  const { view } = useSessionLayout()
   const sync = useSync()
   const data = useData()
   const rows = createMemo(() =>
@@ -515,23 +516,56 @@ function RunningSection(props: { groups: Parameters<typeof runningSubagents>[0];
   }
   const compact = (value: number) =>
     new Intl.NumberFormat(language.intl(), { notation: "compact", maximumFractionDigits: 1 }).format(value)
-  const terminals = (
-    <div class="flex items-center gap-2">
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 14 14"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.3"
-        class="shrink-0 text-v2-icon-icon-muted"
-        aria-hidden="true"
+  // Opens the terminal panel on one terminal (or the active one) and gets this window out of the way.
+  const openTerminal = (id?: string) => {
+    if (id) terminal.open(id)
+    view().terminal.open()
+    terminal.requestFocus(id ?? terminal.active())
+    props.onClose()
+  }
+  // A function, not one shared element: the two branches below each render their own copy.
+  const terminals = () => (
+    <div class="flex flex-col gap-0.5">
+      <button
+        type="button"
+        data-action="environment-open-terminal"
+        aria-label={language.t("secondBrain.environment.openTerminals")}
+        class="-mx-2 flex min-w-0 items-center gap-2 rounded-[10px] px-2 py-1 text-left transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus"
+        onClick={() => openTerminal()}
       >
-        <rect x="1.5" y="2.5" width="11" height="9" rx="1.5" />
-        <path d="M4 6l2 1.5L4 9" />
-      </svg>
-      <span class="min-w-0 flex-1 truncate">{language.t("secondBrain.environment.terminals")}</span>
-      <span class="text-v2-text-text-muted">{terminal.all().length}</span>
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.3"
+          class="shrink-0 text-v2-icon-icon-muted"
+          aria-hidden="true"
+        >
+          <rect x="1.5" y="2.5" width="11" height="9" rx="1.5" />
+          <path d="M4 6l2 1.5L4 9" />
+        </svg>
+        <span class="min-w-0 flex-1 truncate">{language.t("secondBrain.environment.terminals")}</span>
+        <span class="text-v2-text-text-muted tabular-nums">{terminal.all().length}</span>
+        <Icon name="chevron-right" size="small" class="shrink-0 text-v2-icon-icon-muted" />
+      </button>
+      <For each={terminal.all()}>
+        {(pty) => (
+          <button
+            type="button"
+            data-action="environment-terminal"
+            aria-label={language.t("secondBrain.environment.openTerminal", { name: pty.title })}
+            class="-mx-2 flex min-w-0 items-center gap-2 rounded-[10px] py-1 pl-7 pr-2 text-left text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus"
+            onClick={() => openTerminal(pty.id)}
+          >
+            <span class="min-w-0 flex-1 truncate">{pty.title}</span>
+            <Show when={pty.id === terminal.active()}>
+              <span class="shrink-0 type-meta">{language.t("secondBrain.environment.terminalActive")}</span>
+            </Show>
+          </button>
+        )}
+      </For>
     </div>
   )
   return (
@@ -557,7 +591,7 @@ function RunningSection(props: { groups: Parameters<typeof runningSubagents>[0];
               <span class="min-w-0 flex-1 truncate">{language.t("secondBrain.environment.subagents")}</span>
               <span class="text-v2-text-text-muted">0</span>
             </div>
-            {terminals}
+            {terminals()}
           </div>
         </Section>
       }
@@ -625,7 +659,7 @@ function RunningSection(props: { groups: Parameters<typeof runningSubagents>[0];
               </button>
             )}
           </Show>
-          <div class="pt-1">{terminals}</div>
+          <div class="pt-1">{terminals()}</div>
         </div>
       </Section>
     </Show>

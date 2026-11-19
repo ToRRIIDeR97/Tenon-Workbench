@@ -458,6 +458,16 @@ export default function Page() {
   const desktopReviewOpen = createMemo(() => isDesktop() && !commandThread() && view().reviewPanel.opened())
   const desktopV2ReviewOpen = createMemo(() => desktopReviewOpen() && !!params.id)
   const terminalOpen = createMemo(() => !commandThread() && view().terminal.opened())
+  // A terminal the agent starts for this thread (a dev server, a watch build) shows in the panel, without taking focus.
+  createEffect(
+    on(
+      () => terminal.agentStarted()?.at,
+      (at) => {
+        if (at) view().terminal.open()
+      },
+      { defer: true },
+    ),
+  )
   const desktopTerminalOpen = createMemo(() => isDesktop() && terminalOpen())
   const desktopFileTreeOpen = createMemo(
     () =>
