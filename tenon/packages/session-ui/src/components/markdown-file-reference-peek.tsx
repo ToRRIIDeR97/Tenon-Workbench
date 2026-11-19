@@ -7,6 +7,7 @@ import type { FileReferenceActions } from "../context/file-reference"
 import {
   fileReferenceRangeLabel,
   localLinkTarget,
+  outsideFileReferencePath,
   parseFileReference,
   resolveFileReferencePath,
   settleFileReference,
@@ -15,6 +16,9 @@ import {
 
 export type FileReferenceLabels = {
   open: string
+  /** For a path outside the thread's folder, which opens in a viewer of its own rather than Files. */
+  openOutside: string
+  missingOutside: string
   copy: string
   copied: string
   loading: string
@@ -29,6 +33,8 @@ export type FileReferenceLabels = {
 export function fileReferenceLabels(i18n: UiI18n): FileReferenceLabels {
   return {
     open: i18n.t("secondBrain.fileReference.open"),
+    openOutside: i18n.t("secondBrain.fileReference.openOutside"),
+    missingOutside: i18n.t("secondBrain.fileReference.missingOutside"),
     copy: i18n.t("secondBrain.fileReference.copyPath"),
     copied: i18n.t("ui.message.copied"),
     loading: i18n.t("secondBrain.fileReference.loading"),
@@ -51,6 +57,7 @@ const chipAttributes = [
   "data-file-reference-start",
   "data-file-reference-end",
   "data-file-reference-kind",
+  "data-file-reference-outside",
   "role",
   "tabindex",
 ]
@@ -72,27 +79,41 @@ export function markFileReferences(root: Element, directory: string | undefined,
   // A Markdown link to a local file (`[report](report.docx)`, `[x](file:///…/x.md)`) is a chip on the link itself.
   root.querySelectorAll<HTMLAnchorElement>("a[href]").forEach((link) => {
     const target = directory ? localLinkTarget(link.getAttribute("href") ?? "") : undefined
-    const path = target && resolveFileReferencePath(target, directory!)
+    const inside = target && resolveFileReferencePath(target, directory!)
+    const outside = target && !inside ? outsideFileReferencePath(target, directory!) : undefined
+    const path = inside || outside
     if (!path) {
       if (!link.hasAttribute("data-file-reference")) return
       chipAttributes.forEach((name) => link.removeAttribute(name))
       return
     }
     link.dataset.fileReference = path
+    if (outside) link.dataset.fileReferenceOutside = "true"
+    else link.removeAttribute("data-file-reference-outside")
     link.removeAttribute("data-file-reference-kind")
-    if (/[/\\]$/.test(target)) link.dataset.fileReferenceKind = "folder"
+    if (target && /[/\\]$/.test(target)) link.dataset.fileReferenceKind = "folder"
   })
   root.querySelectorAll<HTMLElement>(":not(pre) > code").forEach((code) => {
     const parsed = directory && !code.closest("a") ? parseFileReference(code.textContent ?? "") : undefined
-    const path = parsed && resolveFileReferencePath(parsed.path, directory!)
+    const inside = parsed && resolveFileReferencePath(parsed.path, directory!)
+    // A path outside the thread folder can't be listed, so only a named file or a trailing-slash folder counts.
+    const outside =
+      parsed && !inside && parsed.kind !== "either" ? outsideFileReferencePath(parsed.path, directory!) : undefined
+    const path = inside || outside
     const reference =
-      parsed && path ? settleFileReference(parsed, listedEntry(root, directory!, path, lookup)) : undefined
+      !parsed || !path
+        ? undefined
+        : outside
+          ? parsed
+          : settleFileReference(parsed, listedEntry(root, directory!, path, lookup))
     if (!reference || !path) {
       if (!code.hasAttribute("data-file-reference")) return
       chipAttributes.forEach((name) => code.removeAttribute(name))
       return
     }
     code.dataset.fileReference = path
+    if (outside) code.dataset.fileReferenceOutside = "true"
+    else code.removeAttribute("data-file-reference-outside")
     code.setAttribute("role", "button")
     code.tabIndex = 0
     if (reference.kind === "folder") code.dataset.fileReferenceKind = "folder"
@@ -128,7 +149,8 @@ function chipReference(chip: HTMLElement): FileReference {
   const start = Number(chip.dataset.fileReferenceStart) || undefined
   const end = Number(chip.dataset.fileReferenceEnd) || start
   const kind = chip.dataset.fileReferenceKind === "folder" ? "folder" : undefined
-  return { path: chip.dataset.fileReference!, start, end, kind }
+  const outside = chip.dataset.fileReferenceOutside === "true" || undefined
+  return { path: chip.dataset.fileReference!, start, end, kind, outside }
 }
 
 /** Delegated hover peek and open handling for the chips under `root`. Returns its cleanup. */
@@ -460,7 +482,11 @@ function FileReferencePeek(props: {
                   </Match>
                   <Match when={true}>
                     <div data-slot="file-reference-peek-status" data-missing="">
-                      {current().kind === "folder" ? props.labels().folderMissing : props.labels().missing}
+                      {current().outside
+                        ? props.labels().missingOutside
+                        : current().kind === "folder"
+                          ? props.labels().folderMissing
+                          : props.labels().missing}
                     </div>
                   </Match>
                 </Switch>
@@ -468,8 +494,13 @@ function FileReferencePeek(props: {
             </div>
             <div data-slot="file-reference-peek-actions">
               <Show when={result()?.status !== "missing"}>
-                <ButtonV2 size="small" variant="ghost" icon="filetree" onClick={() => props.onOpen(current())}>
-                  {props.labels().open}
+                <ButtonV2
+                  size="small"
+                  variant="ghost"
+                  icon={current().outside ? "outline-square-arrow" : "filetree"}
+                  onClick={() => props.onOpen(current())}
+                >
+                  {current().outside ? props.labels().openOutside : props.labels().open}
                 </ButtonV2>
               </Show>
               <ButtonV2 size="small" variant="ghost" icon={copied() ? "check" : "outline-copy"} onClick={copy}>

@@ -54,6 +54,7 @@ import { HarnessAskUser } from "./harness/ask-user"
 import { HarnessCatalogCache } from "./harness/catalog-cache"
 import { HarnessDelegation } from "./harness/delegation"
 import { HarnessForwardedMcp } from "./harness/forwarded-mcp"
+import { HarnessComputerUse } from "./harness/computer-use"
 import { HarnessRegistry } from "./harness/registry"
 import { HarnessSetup } from "./harness/setup"
 import { HarnessPids } from "./harness/pids"
@@ -598,8 +599,14 @@ const layer = Layer.effect(
       // Tenon sets the MCP call timeout of the built-in agents (OpenCode's launch config; Claude Code's default is
       // hours). Another agent's client may give up after 60 s, so its `ask_user` returns "still open" sooner.
       const longWait = instance.id === Harness.OpenCodeAcp || instance.id === Harness.ClaudeCode
-      const delegation = yield* HarnessDelegation.endpoint(input.sessionID, (prompts, waitSeconds) =>
-        asker.ask(prompts, longWait ? waitSeconds : Math.min(waitSeconds, HarnessAskUser.SHORT_WAIT_SECONDS)),
+      const delegation = yield* HarnessDelegation.endpoint(
+        input.sessionID,
+        (prompts, waitSeconds) =>
+          asker.ask(prompts, longWait ? waitSeconds : Math.min(waitSeconds, HarnessAskUser.SHORT_WAIT_SECONDS)),
+        // Computer use goes through Tenon's Cua Driver proxy (#333); Claude Code has its own.
+        HarnessComputerUse.serverFor(instance.id, true, "proxy")
+          ? { directory: input.directory, harness: instance.name }
+          : undefined,
       ).pipe(Effect.provideService(Scope.Scope, runtimeScope))
       const session = yield* AcpHarness.open(process, {
         settings,

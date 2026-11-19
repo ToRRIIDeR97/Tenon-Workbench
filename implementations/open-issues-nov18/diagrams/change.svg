@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" font-family="Inter, system-ui, sans-serif" font-size="12">
+  <style>
+    .box{fill:#f6f7f9;stroke:#c9ced6;rx:10}
+    .new{fill:#eef1fe;stroke:#3b5cf6}
+    .h{font-weight:600;font-size:13px;fill:#1b1d22}
+    .t{fill:#3d424b}
+    .a{stroke:#6b7280;stroke-width:1.4;fill:none;marker-end:url(#m)}
+    .an{stroke:#3b5cf6;stroke-width:1.6;fill:none;marker-end:url(#mb)}
+  </style>
+  <defs>
+    <marker id="m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="#6b7280"/></marker>
+    <marker id="mb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="#3b5cf6"/></marker>
+  </defs>
+  <text x="20" y="28" class="h">Current</text>
+  <text x="500" y="28" class="h">Proposed (blue = new or changed)</text>
+
+  <!-- P1/P2 current -->
+  <rect x="20" y="44" width="200" height="54" class="box"/><text x="32" y="64" class="h">Settings › Harnesses</text><text x="32" y="82" class="t">one busy string for the page</text>
+  <rect x="240" y="44" width="200" height="54" class="box"/><text x="252" y="64" class="h">Update toast</text><text x="252" y="82" class="t">own upgradeHarness call</text>
+  <rect x="130" y="118" width="200" height="40" class="box"/><text x="142" y="143" class="t">POST /upgrade/:id (server)</text>
+  <path d="M120 98 L190 118" class="a"/><path d="M340 98 L270 118" class="a"/>
+  <rect x="20" y="172" width="420" height="34" class="box"/><text x="32" y="194" class="t">Model pill: unavailable harness = disabled row, error in a tooltip</text>
+
+  <!-- P1/P2 proposed -->
+  <rect x="500" y="44" width="130" height="54" class="box"/><text x="512" y="64" class="h">Settings</text><text x="512" y="82" class="t">locks per harness</text>
+  <rect x="645" y="44" width="130" height="54" class="box"/><text x="657" y="64" class="h">Update toast</text>
+  <rect x="790" y="44" width="150" height="54" class="box new"/><text x="802" y="64" class="h">Model pill row</text><text x="802" y="82" class="t">error + Update</text>
+  <rect x="600" y="118" width="250" height="40" class="box new"/><text x="612" y="136" class="h">harness-upgrades registry</text><text x="612" y="151" class="t">one run per id · shared check · statuses</text>
+  <path d="M565 98 L650 118" class="an"/><path d="M710 98 L720 118" class="an"/><path d="M865 98 L800 118" class="an"/>
+  <rect x="600" y="172" width="250" height="34" class="box"/><text x="612" y="194" class="t">POST /upgrade/:id → refresh(id) re-probes</text>
+  <path d="M725 158 L725 172" class="an"/>
+
+  <!-- P3 -->
+  <rect x="20" y="226" width="420" height="44" class="box"/><text x="32" y="244" class="h">Assistant rows</text><text x="32" y="261" class="t">every row: turnDurationMs (user → last completion)</text>
+  <rect x="500" y="226" width="440" height="44" class="box new"/><text x="512" y="244" class="h">Assistant rows</text><text x="512" y="261" class="t">messageDurationMs(own message); total only on the steps card</text>
+
+  <!-- P4 -->
+  <rect x="20" y="284" width="420" height="58" class="box"/><text x="32" y="302" class="h">Tool card toggle at the bottom</text><text x="32" y="319" class="t">clip frame → rAF measure → end anchor + scrollToEnd</text><text x="32" y="334" class="t">(two or three corrections)</text>
+  <rect x="500" y="284" width="440" height="58" class="box new"/><text x="512" y="302" class="h">Tool card toggle</text><text x="512" y="319" class="t">holdBottom() → microtask measure → resizeAnchoring():</text><text x="512" y="334" class="t">one owner, no re-anchor within 800 ms of a toggle</text>
+
+  <!-- P5 -->
+  <rect x="20" y="356" width="420" height="72" class="box"/><text x="32" y="374" class="h">Browser tab</text><text x="32" y="391" class="t">native view shown whenever it has bounds (white)</text><text x="32" y="406" class="t">loadURL errors swallowed; no fail/crash events</text><text x="32" y="421" class="t">browser-state: url, title, loading, history</text>
+  <rect x="500" y="356" width="215" height="72" class="box new"/><text x="512" y="374" class="h">main: browser-failure</text><text x="512" y="391" class="t">did-fail-load, crash,</text><text x="512" y="406" class="t">certificate-error → error</text><text x="512" y="421" class="t">in browser-state</text>
+  <rect x="725" y="356" width="215" height="72" class="box new"/><text x="737" y="374" class="h">tab: browserStage()</text><text x="737" y="391" class="t">empty · loading · error · page</text><text x="737" y="406" class="t">view shown only for page;</text><text x="737" y="421" class="t">error has address + Retry</text>
+  <path d="M715 392 L725 392" class="an"/>
+
+  <!-- P6 -->
+  <rect x="20" y="442" width="420" height="58" class="box"/><text x="32" y="460" class="h">Dictation caption</text><text x="32" y="477" class="t">engine: last 28 s every 1.2 s → partial</text><text x="32" y="492" class="t">button: caption = partial (older words vanish)</text>
+  <rect x="500" y="442" width="440" height="58" class="box new"/><text x="512" y="460" class="h">Dictation caption</text><text x="512" y="477" class="t">caption = mergeCaption(caption, partial): line up the overlap,</text><text x="512" y="492" class="t">keep the words that left the window; caption only grows</text>
+  <text x="20" y="535" class="t">Engine, server routes and the final transcript are unchanged.</text>
+</svg>

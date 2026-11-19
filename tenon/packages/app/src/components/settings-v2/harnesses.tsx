@@ -19,6 +19,7 @@ import { useServerSDK } from "@/context/server-sdk"
 import { useServerSync } from "@/context/server-sync"
 import { modelProvider, useSettings, withVisibleModels } from "@/context/settings"
 import { harnessSettingsChanged } from "@/components/prompt-input/harness-controller"
+import { createActionLocks, harnessUpgrades } from "@/components/harness-upgrades"
 import { HarnessUsageWindows, cachedUsage, fullestWindow, rememberUsage } from "@/components/harness-usage"
 import {
   addHarness,
@@ -33,7 +34,6 @@ import {
   removeHarness,
   setHarnessEnabled,
   setTitleAgent,
-  upgradeHarness,
   verifyHarness,
 } from "@/utils/server"
 import { type CheckStatus, checklistPassed, harnessChecklist } from "./harness-checklist"
@@ -94,9 +94,12 @@ export const SettingsHarnessesV2: Component<{
   )
   const [state, setState] = createStore({
     selected: undefined as string | undefined,
-    busy: undefined as string | undefined,
     confirming: undefined as string | undefined,
   })
+  // One action per harness at a time; different harnesses (separate CLIs) update side by side (#320).
+  const locks = createActionLocks()
+  const upgrades = () => harnessUpgrades(server(), directory()!)
+  const busy = (id: string) => locks.busy(id) || (!!directory() && upgrades().running(id))
 
   const builtIn = createMemo(() => (entries.latest ?? []).filter((entry) => entry.source !== "registry"))
   const registered = createMemo(() => (entries.latest ?? []).filter((entry) => entry.source === "registry"))
@@ -114,12 +117,12 @@ export const SettingsHarnessesV2: Component<{
     })
 
   const run = (id: string, action: () => Promise<unknown>) => {
-    const dir = directory()
-    if (!dir || state.busy) return
-    setState("busy", id)
-    void action()
-      .then(changed, failed)
-      .finally(() => setState({ busy: undefined, confirming: undefined }))
+    if (!directory()) return
+    locks.run(id, () =>
+      action()
+        .then(changed, failed)
+        .finally(() => state.confirming === id && setState("confirming", undefined)),
+    )
   }
 
   const openAdd = () => {
@@ -172,7 +175,8 @@ export const SettingsHarnessesV2: Component<{
 
   const upgrade = (entry: Harness.SettingsEntry) =>
     run(entry.id, async () => {
-      const result = await upgradeHarness(server(), directory()!, entry.id)
+      // Shared with the update toast, so the two never upgrade the same CLI at once.
+      const result = await upgrades().start(entry.id)
       setUpdates((current) => current?.map((item) => (item.id === result.id ? result : item)))
       setInstances(await refreshHarnesses(server(), directory()!, entry.id))
       showToast({
@@ -234,7 +238,7 @@ export const SettingsHarnessesV2: Component<{
               current={titleOptions().find((option) => option.value === (titleAgent.latest ?? "")) ?? titleOptions()[0]}
               placement="bottom-end"
               gutter={6}
-              disabled={!directory() || state.busy !== undefined}
+              disabled={!directory() || locks.busy("title-agent")}
               value={(option) => option.value}
               label={(option) => option.label}
               onSelect={(option) => option && chooseTitleAgent(option.value)}
@@ -331,7 +335,7 @@ export const SettingsHarnessesV2: Component<{
                 update={update(entry.id)}
                 usage={usageReport(entry.id)}
                 usageNow={usage.latest?.now ?? Date.now()}
-                busy={state.busy === entry.id}
+                busy={busy(entry.id)}
                 confirming={state.confirming === entry.id}
                 onToggle={(checked) =>
                   run(entry.id, () => setHarnessEnabled(server(), directory()!, entry.id, checked))

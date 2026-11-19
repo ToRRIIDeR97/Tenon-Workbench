@@ -1,4 +1,4 @@
-import { Show, createEffect, createMemo, on, untrack } from "solid-js"
+import { For, Show, createEffect, createMemo, on, untrack } from "solid-js"
 import { createStore } from "solid-js/store"
 import { designTooLarge, type CanvasDesign, type Design } from "@tenon/session-ui/design-fence"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
@@ -7,7 +7,17 @@ import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { SegmentedControlItemV2, SegmentedControlV2 } from "@tenon/ui/v2/segmented-control-v2"
 import { ViewSwitch } from "@tenon/ui/v2/view-switch"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
+import {
+  designInspectHover,
+  designInspectScroll,
+  pickedDesignElement,
+  type PickedDesignElement,
+  type Rect,
+} from "@tenon/session-ui/design-inspect"
 import { useLanguage } from "@/context/language"
+import { usePrompt } from "@/context/prompt"
+import { submitComposer } from "@/components/prompt-input/reply-bridge"
+import { canvasNotesStore, notePosition, type CanvasNote } from "@/pages/session/canvas-notes"
 import { useDesignCanvas } from "@/pages/session/design-canvas"
 import { DesignBoard } from "@/pages/session/design-board"
 import { DesignFrame, LiveDesignFrame } from "@/pages/session/live-design-frame"
@@ -58,7 +68,9 @@ export function SessionCanvasTab() {
         }
       >
         {(key) => (
-          <Show when={byKey().get(key)}>{(design) => <LargeDesign design={design()} title={title(design())} />}</Show>
+          <Show when={byKey().get(key)}>
+            {(design) => <LargeDesign design={design()} designKey={key} title={title(design())} />}
+          </Show>
         )}
       </Show>
     </ViewSwitch>
@@ -69,9 +81,65 @@ export function SessionCanvasTab() {
  * One design shown large. A design that is streaming when it opens draws live, with a Drawing chip and
  * a Preview / Code switch; one from history shows as a finished page, as before.
  */
-function LargeDesign(props: { design: CanvasDesign; title: string }) {
+function LargeDesign(props: { design: CanvasDesign; designKey: string; title: string }) {
   const canvas = useDesignCanvas()
   const language = useLanguage()
+  const prompt = usePrompt()
+  // Notes (#326): click an element, write a note, pin it; send the pins together. They stay, marked sent, as a record.
+  const [inspect, setInspect] = createStore({
+    on: false,
+    hover: undefined as Rect | undefined,
+    picked: undefined as PickedDesignElement | undefined,
+    draft: "",
+    scroll: { x: 0, y: 0 },
+    /** The picked element stays marked while its note is written. */
+    chosen: undefined as Rect | undefined,
+  })
+  let overlay: HTMLDivElement | undefined
+  const notes = () => canvasNotesStore.list(props.designKey)
+  const pending = () => canvasNotesStore.pending(props.designKey)
+  const onInspect = (data: unknown) => {
+    const picked = pickedDesignElement(data)
+    if (picked) return setInspect({ picked, draft: "", hover: undefined, chosen: picked.rect })
+    const hover = designInspectHover(data)
+    if (hover !== undefined) return setInspect("hover", hover ?? undefined)
+    const scroll = designInspectScroll(data)
+    if (scroll) setInspect("scroll", scroll)
+  }
+  const addNote = () => {
+    const id = inspect.picked ? canvasNotesStore.add(props.designKey, inspect.picked, inspect.draft) : undefined
+    setInspect({ picked: undefined, draft: "", chosen: undefined })
+    return id
+  }
+  // `only` puts just one note in the composer (Send now); the tray sends every pending one in one message.
+  const sendNotes = (only?: string) => {
+    const sending = canvasNotesStore.send(props.designKey, only)
+    if (sending.length === 0) return
+    const text = [
+      language.t("secondBrain.canvas.notes.intro", { title: props.title }),
+      ...sending.map((note: CanvasNote) =>
+        note.text
+          ? language.t("secondBrain.canvas.notes.line", {
+              number: note.number,
+              selector: note.selector,
+              text: note.text,
+              note: note.note,
+            })
+          : language.t("secondBrain.canvas.notes.lineNoText", {
+              number: note.number,
+              selector: note.selector,
+              note: note.note,
+            }),
+      ),
+    ].join("\n")
+    const parts = [...prompt.current()]
+    const end = parts.reduce((total, part) => total + ("content" in part ? part.content.length : 0), 0)
+    parts.push({ type: "text", content: `\n${text}\n`, start: end, end: end + text.length + 2 })
+    prompt.set(parts, end + text.length + 2)
+    setInspect({ on: false, hover: undefined })
+    // With no thread composer mounted the notes stay in the draft to send by hand.
+    if (only === undefined) submitComposer()
+  }
   const live = untrack(() => !!props.design.streaming)
   const [view, setView] = createStore<{ mode: "preview" | "code" }>({ mode: "preview" })
   const large = createMemo(() => designTooLarge(props.design.source))
@@ -119,6 +187,19 @@ function LargeDesign(props: { design: CanvasDesign; title: string }) {
           </Show>
         </div>
         <div class="ml-auto flex shrink-0 items-center gap-2">
+          <ButtonV2
+            size="small"
+            variant={inspect.on ? "tonal" : "neutral"}
+            class="shrink-0"
+            aria-pressed={inspect.on}
+            disabled={!!props.design.streaming || view.mode === "code"}
+            data-action="canvas-notes"
+            onClick={() => setInspect({ on: !inspect.on, hover: undefined, picked: undefined })}
+          >
+            {pending().length > 0
+              ? language.t("secondBrain.canvas.notes.toggleCount", { count: pending().length })
+              : language.t("secondBrain.canvas.notes.toggle")}
+          </ButtonV2>
           <Show when={live}>
             <SegmentedControlV2
               aria-label={language.t("secondBrain.canvas.viewMode")}
@@ -149,18 +230,162 @@ function LargeDesign(props: { design: CanvasDesign; title: string }) {
       <div class="relative min-h-0 flex-1 px-3 pb-3">
         {/* Both views stay mounted, so switching never rebuilds the frame. */}
         <div
-          class="size-full overflow-hidden rounded-[12px] border border-v2-border-border-muted bg-[#fff]"
+          class="relative size-full overflow-hidden rounded-[12px] border border-v2-border-border-muted bg-[#fff]"
           classList={{ hidden: view.mode === "code" }}
         >
           <Show
             when={live}
-            fallback={<DesignFrame design={props.design} title={props.title} class="block size-full border-0" />}
+            fallback={
+              <DesignFrame
+                design={props.design}
+                title={props.title}
+                class="block size-full border-0"
+                inspect={inspect.on}
+                onInspect={onInspect}
+              />
+            }
           >
             <Show when={!large()} fallback={tooLarge}>
-              <LiveDesignFrame design={props.design} title={props.title} class="block size-full border-0" />
+              <LiveDesignFrame
+                design={props.design}
+                title={props.title}
+                class="block size-full border-0"
+                inspect={inspect.on}
+                onInspect={onInspect}
+              />
             </Show>
           </Show>
+          {/* Drawn by the app over the frame, never by the design: the highlight, the pins and the note. */}
+          <div ref={overlay} class="pointer-events-none absolute inset-0" data-slot="canvas-notes-overlay">
+            <Show when={inspect.on && (inspect.chosen ?? inspect.hover)}>
+              {(rect) => (
+                <div
+                  class="absolute rounded-[6px] shadow-[0_0_0_2px_var(--v2-border-border-focus)]"
+                  style={{
+                    left: `${rect().x}px`,
+                    top: `${rect().y}px`,
+                    width: `${rect().width}px`,
+                    height: `${rect().height}px`,
+                  }}
+                />
+              )}
+            </Show>
+            <For each={notes()}>
+              {(note) => {
+                const at = () => notePosition(note, inspect.scroll)
+                return (
+                  <span
+                    class="absolute flex size-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-[10px] tabular-nums animate-enter"
+                    classList={{
+                      "bg-v2-background-bg-accent text-v2-text-text-on-accent": !note.sent,
+                      "bg-v2-background-bg-layer-02 text-v2-text-text-muted": note.sent,
+                    }}
+                    style={{ left: `${at().x}px`, top: `${at().y}px` }}
+                  >
+                    {note.number}
+                  </span>
+                )
+              }}
+            </For>
+            <Show when={inspect.picked}>
+              {(picked) => (
+                <form
+                  class="pointer-events-auto absolute flex w-[240px] max-w-[calc(100%-16px)] flex-col gap-2 rounded-[16px] bg-v2-background-bg-floating p-2.5 shadow-[0_0_0_1px_var(--v2-border-border-muted),var(--v2-elevation-raised)] animate-enter"
+                  style={{
+                    // Kept inside the frame: near its right edge the note opens to the element's left.
+                    left: `${Math.max(8, Math.min(picked().rect.x - inspect.scroll.x, (overlay?.clientWidth ?? 9999) - 248))}px`,
+                    top: `${Math.max(8, picked().rect.y - inspect.scroll.y + picked().rect.height + 6)}px`,
+                  }}
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    addNote()
+                  }}
+                >
+                  <span class="truncate font-mono text-[11px] text-v2-text-text-muted">
+                    {picked().selector}
+                    {picked().text ? ` · "${picked().text.slice(0, 40)}"` : ""}
+                  </span>
+                  <textarea
+                    ref={(el) => queueMicrotask(() => el.focus())}
+                    rows={2}
+                    class="w-full resize-none rounded-[10px] bg-v2-background-bg-base px-2.5 py-1.5 text-[13px] text-v2-text-text-base shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)] outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)]"
+                    value={inspect.draft}
+                    placeholder={language.t("secondBrain.canvas.notes.placeholder")}
+                    aria-label={language.t("secondBrain.canvas.notes.placeholder")}
+                    onInput={(event) => setInspect("draft", event.currentTarget.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") setInspect({ picked: undefined, draft: "", chosen: undefined })
+                      if (event.key === "Enter" && !event.shiftKey) {
+                        event.preventDefault()
+                        addNote()
+                      }
+                    }}
+                  />
+                  <div class="flex items-center gap-1.5">
+                    <ButtonV2 type="submit" size="small" variant="contrast" disabled={!inspect.draft.trim()}>
+                      {language.t("secondBrain.canvas.notes.add")}
+                    </ButtonV2>
+                    <ButtonV2
+                      type="button"
+                      size="small"
+                      variant="ghost"
+                      disabled={!inspect.draft.trim()}
+                      onClick={() => {
+                        const id = addNote()
+                        if (id) sendNotes(id)
+                      }}
+                    >
+                      {language.t("secondBrain.canvas.notes.sendNow")}
+                    </ButtonV2>
+                  </div>
+                </form>
+              )}
+            </Show>
+          </div>
         </div>
+        <Show when={notes().length > 0 && view.mode === "preview"}>
+          <div
+            data-slot="canvas-notes-tray"
+            data-motion="rise"
+            class="mt-2 flex animate-enter flex-col rounded-[12px] bg-v2-background-bg-layer-01 py-1"
+          >
+            <For each={notes()}>
+              {(note) => (
+                <div class="flex min-h-9 items-center gap-2 px-3 text-[12px]">
+                  <span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-v2-background-bg-layer-02 text-[10px] tabular-nums">
+                    {note.number}
+                  </span>
+                  <span class="min-w-0 flex-1 truncate" classList={{ "text-v2-text-text-muted": note.sent }}>
+                    <span class="font-mono text-[11px] text-v2-text-text-muted">{note.selector}</span> · {note.note}
+                  </span>
+                  <Show
+                    when={!note.sent}
+                    fallback={
+                      <span class="shrink-0 text-v2-text-text-muted">
+                        {language.t("secondBrain.canvas.notes.sent")}
+                      </span>
+                    }
+                  >
+                    <IconButtonV2
+                      variant="ghost-muted"
+                      size="small"
+                      icon={<Icon name="close" size="small" />}
+                      aria-label={language.t("secondBrain.canvas.notes.remove", { number: note.number })}
+                      onClick={() => canvasNotesStore.remove(props.designKey, note.id)}
+                    />
+                  </Show>
+                </div>
+              )}
+            </For>
+            <Show when={pending().length > 0}>
+              <div class="flex justify-end px-2 pt-1">
+                <ButtonV2 size="small" variant="contrast" data-action="canvas-notes-send" onClick={() => sendNotes()}>
+                  {language.plural("secondBrain.canvas.notes.send", pending().length, { count: pending().length })}
+                </ButtonV2>
+              </div>
+            </Show>
+          </div>
+        </Show>
         <Show when={live}>
           <pre
             ref={code}

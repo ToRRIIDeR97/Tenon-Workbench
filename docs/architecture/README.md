@@ -64,16 +64,21 @@ platform exposes `dictation` (desktop); the web build has no mic.
   (optional `language`, an ISO 639 code; missing or `auto` detects),
   `stop`, `cancel`, `transcribe_file` (`path`, a PCM WAV file), each with an
   `id`. Events: `ready` (at launch and after a load), `level` (`rms`, about every
-  90 ms while recording), `partial` (`text`, the recording so far, while
-  recording), `final` (`id`, `text`), and `error` (`id` when it
+  90 ms while recording), `bands` (`values`, 24 frequency bands from 80 Hz to
+  6 kHz, 0 to 1, every 30 ms chunk, for the composer's voice wave; one
+  Hann-windowed Goertzel filter per bin in `audio.rs`), `partial` (`text`, the
+  recording so far, while recording), `final` (`id`, `text`), and `error` (`id` when it
   answers a request, `code`, `message`). Malformed lines and unknown types get
   `bad_request`; the engine keeps running. Stdout carries only events; native
   logs go to stderr, which the supervisor drains without logging.
 - **Supervisor.** `desktop/src/main/dictation.ts` (`createDictation`) spawns the
   engine on the first `start`, loads the active model, and maps events to
   `start({ language })`, `stop(): Promise<string>`, `cancel()`, `status()`,
-  `onLevel` and `onPartial` (only while recording). The mic shows the partial
-  text in a caption above it; the spoken language comes from Settings ›
+  `onLevel`, `onBands` and `onPartial` (only while recording; IPC
+  `dictation-level`, `dictation-bands`, `dictation-partial`). While recording,
+  the composer shows the live words (merged with `mergeCaption`, so the caption
+  only grows) and a 32-bar wave at the top of its own box (#328); the compact
+  composer keeps a floating caption above the mic; the spoken language comes from Settings ›
   Dictation (`dictation-language.ts`: by default English for an English app and
   detection for any other, so a speaker whose app language differs isn't
   translated; or the app's language, detection, or a chosen language). Every run
@@ -399,6 +404,19 @@ assume the session or draft databases can be reconstructed from those files.
 
 ### Projects and thread directories
 
+A Project's Tasks also list its repository's GitHub issues (#331,
+`app/src/features/second-brain/project-github-tasks.tsx`): every open issue is
+a task with the pull request that closes it (merged, checks failing, changes
+requested, in review, draft), and under All the issues closed in the last two
+weeks show as done. `POST /api/github/work` (location = the Project folder;
+`core/src/github/work.ts`) reads `git remote get-url origin` (or a repository
+the Project names, kept in the `project-github.v1` global key) and runs
+`gh issue list` and `gh pr list --json ...` with the user's own `gh` login,
+cached a minute per folder. Rows open on GitHub; without `gh`, signed out, or
+without a GitHub origin, the block says so. `gh` is found on PATH and the
+Windows install folders (`which`).
+
+
 A workspace's Projects are the subfolders of its `projects` folder (matched in
 any letter case, skipping hidden folders and legacy `project_<id>` card
 folders) and the absolute folders listed in `.tenon/workspace.json`. Each has a
@@ -701,7 +719,25 @@ assistant that spans workspaces, with its own threads, memory and routines.
   one with the harness and model from Settings › Command Centre. The list
   refreshes when the page opens and, debounced, on `session.created/updated/deleted`
   events for that folder, so archives, deletes and routine runs show up.
-- **Mission control.** The page also shows a board of every Project's threads
+- **Mission control is the thread view.** With a Command Centre thread to
+  open, `/command`'s Mission control view navigates to the newest one, and that
+  thread page (`pages/session.tsx`, which knows a Command Centre thread by
+  `isCommandThread`) carries the Command Centre's chrome from
+  `features/command-centre/command-thread-chrome.tsx`: the title row reads
+  "Command Centre" with a menu of its threads and New thread (`centre.create()`,
+  an empty thread opened straight away); the header has the page's views
+  (`CommandViews`: Mission control, Waiting on you, Workflows, Routines), where
+  Waiting on you and Workflows go to `/command?view=waiting|workflows`; and the
+  board sits beside the thread as a 380 px Mission panel (`CommandMissionPanel`,
+  shown on desktop, toggled and kept in `command.mission-panel`). The rail keeps
+  its Command Centre entry lit on those threads. Before the first thread the
+  page still shows the agent's composer beside the board. Each turn's writes,
+  including the Command Centre's own actions (`project`, `thread`, `steer`,
+  `stop` `agent.write` events from `project_setup`, `thread_start`,
+  `thread_message` and `thread_stop`, which have no undo), show as one
+  Done-for-you list under the reply (`AgentWritesDone`), with Open going to
+  the Project or thread.
+- **The board.** The Mission panel and `/command` show a board of every Project's threads
   (`features/command-centre/mission-board-view.tsx`; the sort and grouping are the
   pure `mission-board.ts`). It adds no request and no polling: it reads the sidebar
   controller's thread groups (`useSidebarController().groups()`, built from the
@@ -738,7 +774,13 @@ assistant that spans workspaces, with its own threads, memory and routines.
   publishes that anchor through `command-strip-anchor.ts` and only the strip's
   own style changes, never a custom property on `<html>`, which would restyle
   the whole document on every frame of a column resize); open, a 640 px, 24 px-radius card
-  named "Command Centre" with the latest exchange (your last message,
+  named "Command Centre" that briefs first: the counts (running, needs you,
+  done today, from the board's `boardByState` via `command-briefing.ts`); the
+  oldest request waiting on you (`createWaitingQueue`), a permission answered
+  in place with Deny or Allow once (`api.permission.reply` through the thread's
+  folder), a question opened in its thread, "+N more" going to Waiting on you;
+  the two newest running threads with their checklist step and progress
+  (`todo` items; "+N more running" after them); then the latest exchange (your last message,
   `lastAskText`, and the reply drawn as Markdown, as the desktop widget draws
   it: capped at about five lines with a fade, "Show more" lets it grow and
   scroll inside the card; `lastReplyText` keeps the reply's line breaks for
@@ -747,7 +789,7 @@ assistant that spans workspaces, with its own threads, memory and routines.
   (`centre.send(text, latest.id)`); New thread makes the next send start one.
   The card and the page share the persisted draft (`composer.command`). When the
   shown thread waits on an approval or a question (`needsYou`), the card offers
-  "Review in thread"; it never answers approvals itself. Ctrl+J / Cmd+J
+  "Review in thread". Ctrl+J / Cmd+J
   (`commandCentre.strip.toggle`, `mod+j`) or a click opens it; Esc closes it. Height moves over 300 ms
   emphasized-decelerate when opening and 200 ms emphasized-accelerate when
   closing, with no motion under reduced motion. When the latest reply made
@@ -786,10 +828,14 @@ assistant that spans workspaces, with its own threads, memory and routines.
   `tor-feature-map-verification` and `tor-workflow`, then creates the Project
   card (a folder outside the workspace is also linked) and an empty vault
   timeline. A setup that fails before the card is written removes a folder it
-  created; after that the folder stays with its Project. Command Centre
-  sessions call it as the `project_setup` app tool.
+  created; after that the folder stays with its Project. Every thread can
+  call it as the `project_setup` app tool (`workspace` defaults to the
+  thread's own), then `thread_start` to open a root thread in that Project
+  (or `general`) on the caller's harness and model, with a first message
+  delivered the way `thread_message` sends one.
 - **Tools.** `AgentAppTools.list({ sessionID })` (synchronous) gives a
-  Command Centre thread the app tools plus `memory_search`, `project_setup`,
+  Command Centre thread the app tools (which include `project_setup` and
+  `thread_start`) plus `memory_search`,
   the thread tools (below) and, when `TENON_MAIL_URL` and `TENON_MAIL_TOKEN` are set, `mail_search`,
   `mail_read` and `mail_draft` (`tenon/src/agents/mail-tools.ts`, which posts
   JSON to the desktop's `/search`, `/thread` and `/draft` with the bearer
@@ -1278,6 +1324,12 @@ Other harness output is mapped onto the built-in views:
   (`codexInputItems`); an ACP agent gets local files as `resource_link` and,
   when it advertises `promptCapabilities.image`, pasted images as `image`
   blocks (`acpPromptBlocks`). Other attachments stay a text mention.
+- A folder dropped onto the composer from the file manager becomes an `@name`
+  directory mention (`application/x-directory`) carrying the path the desktop
+  shell reports for it (`sortDrop`, `folderMention` in
+  `session-ui/.../prompt-input/attachments.ts`); the built-in loop reads it as
+  a listing, as for any directory mention. A browser, which has no path for a
+  dropped folder, shows the unsupported-file toast.
 The child's updates are attached to the subagent call (`acp_subagent`) that
 started it:
 
@@ -1817,7 +1869,13 @@ Codex and ACP harnesses. The renderer's `HarnessUpdateNotifier` (mounted in the
 app shell) checks once per server connection. It shows a toast for each
 available update with Update and Later. Later hides that version until a newer
 one comes out (`harness-updates` global key). Settings → Harnesses shows the
-version, an update badge, and an Update button.
+version, an update badge, and an Update button. The toast, Settings and the
+harness pickers share one registry (`app/src/components/harness-upgrades.ts`):
+upgrades of different harnesses run at once, a second start of the same one
+joins the first, and Settings locks its actions per harness. While a listed
+harness is unavailable, the pickers ask for update statuses again (at most once
+a minute), and the composer's model pill offers Update in that harness's row,
+or shows the first line of its error (`harness-update-choice.ts`).
 
 `POST /api/harness/upgrade/:id` runs the detected installer's update with a
 5-minute timeout (`updateCommand`): `npm install --global --prefix <prefix>
@@ -1947,8 +2005,20 @@ scoped) returns `{ tenon, harnesses }`, assembled by `HarnessSkills.catalog`
     this server process.
 
 Only names, descriptions and paths leave the server, never skill content.
-Harness sections are read-only. Each Tenon row has a switch, plus Open file on
-a local desktop server, otherwise Copy path.
+Each Tenon row has a switch, plus Open file on a local desktop server,
+otherwise Copy path. A harness skill in a home or project skill folder has a
+switch too (#323); one in `/etc/codex/skills`, or a command an ACP agent only
+reported, stays read-only. Every harness loads a skill by the exact file name
+`SKILL.md`, so switching one off renames that file to `SKILL.md.disabled` in
+place and switching it on renames it back; the catalog lists both names, with
+`enabled` and `editable`. The row says so, and when another harness reads the
+same file (OpenCode also reads `~/.claude/skills`) it says the switch changes
+both. Threads already open keep the skill until their harness restarts.
+
+A harness skill's switch sends `{ name, enabled, harness }` to the same
+route. `HarnessSkills.switchSkill` scans that harness's folders again, finds the
+skill by name (the renderer never sends a path), and renames it; it never
+renames over an existing file.
 
 Switching a Tenon skill off calls `POST /api/skill/enabled` (`{ name,
 enabled }`), which `HarnessSkills.setEnabled` checks against `SkillV2.all()`
@@ -2718,10 +2788,20 @@ From the 11 Nov feedback list ([triage](../product/FEEDBACK-2026-11-11.md)):
   `data:text/plain` attachment (like a skill) on a thread's first message and
   when the model changes. Settings › Model profiles adds, imports a `profile.md`,
   edits and switches them; "Build with an agent" only opens a draft.
-- **Settings.** Built-in harness (Providers and Models), MCP servers (the global
-  config's `mcp` entries: an Installed list of settings rows with switches, Suggested
-  common servers as rows added in one click (`mcpSuggestions`), and Custom server for a local
-  command or remote URL;
+- **Settings.** Built-in harness (Providers and Models), MCP servers (the one
+  place for MCP, #334: the global config's `mcp` entries as one list; each row
+  shows the live status for the open workspace (`serverSync().child(dir, { mcp:
+  true })`), the fix in the row (Sign in for `needs_auth`, Retry for a failed
+  server, both through `serverSync().mcp.toggle`, where the server opens the
+  OAuth page in the system browser), which harnesses receive it (`mcpReach`:
+  a name that isn't a bare key never leaves Tenon, an HTTP server reaches an ACP
+  agent only if that agent supports HTTP), and a switch; a row opens in place to
+  show what it runs and Remove (`DELETE /global/config/mcp/:name`,
+  `Config.removeGlobalMcp`, which keeps a jsonc file's comments). Suggested
+  common servers are rows added in one click (`mcpSuggestions`), and Custom
+  server is a typed form (`mcpEntryFromForm`): a command with each argument
+  kept whole, environment variables, folder and timeout; a URL with headers;
+  or a pasted JSON entry. The MCP dialog links here (Manage in Settings);
   `core/src/harness/forwarded-mcp.ts` passes the enabled ones to Codex as `-c`
   overrides and to ACP agents in `session/new`, so every harness sees them),
   Skills search and per-harness filters, a VS Code theme import
@@ -2850,11 +2930,39 @@ product) adds three tools to Review, Session, Canvas, agent and file tabs.
   `app/src/pages/session/browser-tab.tsx`). The user can select elements (an
   isolated-world picker returns selector, text, HTML and key styles), annotate a
   screenshot (draw, capture a region, add notes) and send it to the composer.
-  The view hides while annotating or while a dialog is open.
+  The view hides while annotating or while a dialog is open, and until a page
+  has committed: a fresh tab, a first load, and a failed one show the tab's own
+  state instead of a blank view. Main reports a failed main-frame load
+  (`did-fail-load`, except `ERR_ABORTED`), a crashed page process and a
+  rejected certificate as `error` in `browser-state`
+  (`desktop/src/main/browser-failure.ts`); the tab shows it with the address
+  and Retry (`browserStage` in `app/src/pages/session/browser-stage.ts`).
 - **Device tab.** Android emulators and devices through the SDK's `adb` and
   `emulator` on macOS and Windows; the iOS Simulator through `simctl` on macOS
   (`idb` for taps). The screen is polled as PNG frames; a click is a tap
   (`desktop/src/main/device.ts`, `app/src/pages/session/device-tab.tsx`).
+
+Computer use (#333) is per Project and off by default. A Project page's
+Computer use card switches it for the Project folder (`GET`/`POST
+/api/computer-use`, saved in `computer-use.json` in Tenon's config folder,
+`core/src/harness/computer-use.ts`). Tenon runs the Cua Driver (trycua, MIT)
+itself, `cua-driver mcp` as a child of the server, and proxies its tools
+(`core/src/harness/computer-proxy.ts`): ACP agents get them on the `tenon` MCP
+server as `computer_*`, and the built-in agent gets them in-process
+(`core/src/tool/computer-tools.ts`, registered when the folder's services start
+with computer use on). Every call checks the switch first, so switching off
+refuses the next action. Reading the screen (read-only tools, or names like
+`screenshot`, `list_*`, `get_*`) never asks; the first click or keystroke in a
+thread asks once (ask_user for ACP agents: Allow for this thread, Just this
+once, Don't allow; a `computer_use` permission card for the built-in agent).
+Each action shows a pill on screen ("Gemini is using your computer", Stop) from
+the desktop bridge (`computer_indicator`, `desktop/src/main/computer-indicator.ts`);
+the server holds `computer_watch` open while active, and Stop shuts the driver
+down at once and forgets every thread's grant. Codex and Claude Code keep their
+own computer use and never get it. The card shows the driver's install command when
+`cua-driver` isn't on PATH, and on macOS asks for `cua-driver permissions
+grant` when Accessibility or Screen Recording is missing (`cua-driver
+permissions status`); Windows needs no grant.
 
 Agents always have the browser and device tools (`browser_*`, `device_*`). They
 are listed by the `tenon` MCP server when the desktop has started its bridge

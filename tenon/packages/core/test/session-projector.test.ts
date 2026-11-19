@@ -711,8 +711,25 @@ describe("SessionProjector", () => {
       ).toMatchObject({
         agent: "build",
         model,
-        time_updated: DateTime.toEpochMillis(created),
       })
+      // A switch is a setting, not conversation: it leaves the thread's place in the lists alone. A prompt moves it.
+      const updated = () =>
+        db
+          .select({ time: SessionTable.time_updated })
+          .from(SessionTable)
+          .where(eq(SessionTable.id, sessionID))
+          .get()
+          .pipe(Effect.orDie)
+      expect((yield* updated())?.time).not.toBe(DateTime.toEpochMillis(created))
+      const prompted = DateTime.makeUnsafe(DateTime.toEpochMillis(created) + 60_000)
+      yield* events.publish(SessionEvent.Prompted, {
+        sessionID,
+        messageID: SessionMessage.ID.make("msg_touch"),
+        timestamp: prompted,
+        prompt: Prompt.make({ text: "later" }),
+        delivery: "steer",
+      })
+      expect((yield* updated())?.time).toBe(DateTime.toEpochMillis(prompted))
     }),
   )
 
@@ -839,6 +856,15 @@ describe("SessionProjector", () => {
         contextWindow: 200000,
         time: { completed: DateTime.makeUnsafe(1) },
       })
+      // The finished reply is the thread's latest conversation.
+      expect(
+        (yield* db
+          .select({ time: SessionTable.time_updated })
+          .from(SessionTable)
+          .where(eq(SessionTable.id, sessionID))
+          .get()
+          .pipe(Effect.orDie))?.time,
+      ).toBe(1)
     }),
   )
 

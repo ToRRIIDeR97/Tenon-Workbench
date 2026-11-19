@@ -40,6 +40,8 @@ import { DialogArchivedThreads } from "@/components/sidebar/dialog-archived-thre
 import { DialogInstructions } from "@/components/sidebar/dialog-instructions"
 import { DialogAddProject, DialogRemoveProject } from "@/components/sidebar/dialog-project-folder"
 import { useServer } from "@/context/server"
+import { useCommandCentre } from "@/features/command-centre/command-centre"
+import { sessionFromPath } from "@/features/agent-writes/store"
 import { usePlatform } from "@/context/platform"
 import { showToast } from "@/utils/toast"
 import type { CardSummary, ThreadState } from "@/features/second-brain/sidebar-grouping"
@@ -123,9 +125,15 @@ export function SecondBrainSidebar() {
   const path = () => ctrl.location.pathname
   // Routine pages open in the page editor under /projects but belong to the Command Centre.
   const fromRoutines = () => new URLSearchParams(ctrl.location.search).get("from") === "routines"
+  // A Command Centre thread is the Command Centre's Mission control, so the rail keeps its entry lit there.
+  const centre = useCommandCentre()
+  const inCommandThread = () => {
+    const id = sessionFromPath(path())
+    return !!id && centre.threads().some((thread) => thread.id === id)
+  }
   const railActive = (id: string, href: string) => {
     if (id === "projects") return path().startsWith("/projects") && !fromRoutines()
-    if (id === "command") return path() === href || path() === "/routines" || fromRoutines()
+    if (id === "command") return path() === href || path() === "/routines" || fromRoutines() || inCommandThread()
     return path() === href
   }
   const items = () => [

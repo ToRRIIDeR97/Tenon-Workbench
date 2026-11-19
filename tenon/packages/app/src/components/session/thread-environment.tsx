@@ -364,48 +364,71 @@ function ContextSection(props: { context: ReturnType<typeof createComposerContex
 /**
  * The MCP servers the thread's agent can use: the user's from Settings, on or off, and for Codex and the ACP agents
  * Tenon's own server. Whether an external agent connected each one isn't reported, so only on and off are shown.
- * The title opens the MCP settings.
+ * Collapsed by default to "N on", so the window stays short; the choice is remembered. Open, the list ends with a
+ * link to the MCP settings.
  */
 function ConnectorsSection(props: { harness?: ThreadHarness }) {
   const language = useLanguage()
   const serverSync = useServerSync()
   const dialog = useDialog()
+  const [prefs, setPrefs] = persisted(Persist.global("thread.environment.connectors"), createStore({ open: false }))
   const rows = createMemo(() =>
     connectorRows(serverSync().data.config.mcp as Parameters<typeof connectorRows>[0], isExternal(props.harness)),
   )
   return (
     <section class="flex flex-col gap-2 px-[18px] py-3.5">
-      <SectionLink
-        title={language.t("secondBrain.environment.connectors")}
-        label={language.t("secondBrain.environment.manage")}
-        onClick={() => void dialog.show(() => <DialogSettings defaultValue="mcp" />)}
+      <button
+        type="button"
+        data-action="environment-connectors-toggle"
+        aria-expanded={prefs.open}
+        class="-mx-2 flex items-center gap-2 rounded-[8px] px-2 py-0.5 text-left outline-none transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover focus-visible:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)] motion-reduce:transition-none"
+        onClick={() => setPrefs("open", !prefs.open)}
       >
+        <span class="flex-1 text-[13px] leading-[18px] [font-weight:600]">
+          {language.t("secondBrain.environment.connectors")}
+        </span>
         <span class="text-v2-text-text-muted">
           {language.t("secondBrain.environment.connectorsOn", { count: rows().filter((row) => row.on).length })}
         </span>
-      </SectionLink>
-      <Show
-        when={rows().length > 0}
-        fallback={<p class="m-0 text-v2-text-text-muted">{language.t("secondBrain.environment.noConnectors")}</p>}
-      >
+        <Icon
+          name="chevron-down"
+          size="small"
+          class="shrink-0 text-v2-icon-icon-muted transition-transform duration-short ease-standard motion-reduce:transition-none"
+          classList={{ "rotate-180": prefs.open }}
+        />
+      </button>
+      <Show when={prefs.open}>
         <div class="flex flex-col gap-1.5">
-          <For each={rows()}>
-            {(row) => (
-              <div class="flex items-center gap-2">
-                <span
-                  class="size-1.5 shrink-0 rounded-full"
-                  classList={{ "bg-v2-state-fg-success": row.on, "bg-v2-border-border-strong": !row.on }}
-                  aria-hidden="true"
-                />
-                <span class="min-w-0 flex-1 truncate">
-                  {row.builtIn ? language.t("secondBrain.environment.tenonTools") : row.name}
-                </span>
-                <span class="text-v2-text-text-muted">
-                  {language.t(row.on ? "secondBrain.environment.on" : "secondBrain.environment.off")}
-                </span>
-              </div>
-            )}
-          </For>
+          <Show
+            when={rows().length > 0}
+            fallback={<p class="m-0 text-v2-text-text-muted">{language.t("secondBrain.environment.noConnectors")}</p>}
+          >
+            <For each={rows()}>
+              {(row) => (
+                <div class="flex items-center gap-2">
+                  <span
+                    class="size-1.5 shrink-0 rounded-full"
+                    classList={{ "bg-v2-state-fg-success": row.on, "bg-v2-border-border-strong": !row.on }}
+                    aria-hidden="true"
+                  />
+                  <span class="min-w-0 flex-1 truncate">
+                    {row.builtIn ? language.t("secondBrain.environment.tenonTools") : row.name}
+                  </span>
+                  <span class="text-v2-text-text-muted">
+                    {language.t(row.on ? "secondBrain.environment.on" : "secondBrain.environment.off")}
+                  </span>
+                </div>
+              )}
+            </For>
+          </Show>
+          <button
+            type="button"
+            class="-mx-2 flex min-w-0 items-center gap-2 rounded-[10px] px-2 py-1 text-left text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus"
+            onClick={() => void dialog.show(() => <DialogSettings defaultValue="mcp" />)}
+          >
+            <span class="min-w-0 flex-1 truncate">{language.t("secondBrain.environment.manage")}</span>
+            <Icon name="chevron-right" size="small" class="shrink-0 text-v2-icon-icon-muted" />
+          </button>
         </div>
       </Show>
     </section>

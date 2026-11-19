@@ -148,34 +148,12 @@ export function SessionComposerRegion(props: {
           </Show>
 
           <Show when={view() === "composer"}>
-            {/* Flex so the docks' negative margins add up instead of collapsing into each other. */}
+            {/* The checklist rides in the composer's own tray (`SessionTodoTray`), so nothing stacks above it. */}
             <div class={`flex flex-col ${enter()}`}>
-              <Show when={controller.dock()}>
-                <div
-                  classList={{
-                    "overflow-hidden": true,
-                    "pointer-events-none": controller.dockProgress() < 0.98,
-                  }}
-                  style={{
-                    "max-height": `${controller.dockHeight() * controller.dockProgress()}px`,
-                  }}
-                >
-                  <div ref={controller.setDockBodyRef}>
-                    <SessionTodoDock
-                      todos={controller.state.todos()}
-                      collapsed={controller.todo.collapsed()}
-                      onToggle={controller.todo.onToggle}
-                      collapseLabel={language.t("session.todo.collapse")}
-                      expandLabel={language.t("session.todo.expand")}
-                      dockProgress={controller.dockProgress()}
-                    />
-                  </div>
-                </div>
-              </Show>
               <Show
                 when={controller.promptReady()}
                 fallback={
-                  <div style={{ "margin-top": `${-36 * controller.dockProgress()}px` }}>
+                  <div>
                     {/* The live composer carries the rollback rows in its own tray; the placeholder stands in for it. */}
                     <SessionRevertTray dock={controller.revert} />
                     <div class="w-full min-h-32 md:min-h-40 rounded-[28px] bg-v2-background-bg-layer-01 px-5 py-4 text-v2-text-text-muted whitespace-pre-wrap pointer-events-none">
@@ -191,7 +169,6 @@ export function SessionComposerRegion(props: {
                     "relative z-(--z-composer)": true,
                     "animate-enter": handedOff,
                   }}
-                  style={{ "margin-top": `${-36 * controller.dockProgress()}px` }}
                 >
                   <Reveal open={!!controller.followup()?.items.length}>
                     <Show when={followup()}>
@@ -224,5 +201,34 @@ export function SessionComposerRegion(props: {
         </div>
       </div>
     </div>
+  )
+}
+
+/**
+ * The running agent's checklist for the top of the composer's tray (`boxHeaderTop`). It unfolds from the tray's
+ * where row as the run starts and folds back when it ends; while folding it clips from the top, so the step row
+ * is the last thing to go.
+ */
+export function SessionTodoTray(props: { controller: SessionComposerRegionController }) {
+  const language = useLanguage()
+  return (
+    <Show when={props.controller.dock()}>
+      <div
+        class="flex flex-col justify-end overflow-hidden"
+        classList={{ "pointer-events-none": props.controller.dockProgress() < 0.98 }}
+        style={{ "max-height": `${props.controller.dockHeight() * props.controller.dockProgress()}px` }}
+      >
+        <div ref={props.controller.setDockBodyRef} class="shrink-0">
+          <SessionTodoDock
+            todos={props.controller.state.todos()}
+            collapsed={props.controller.todo.collapsed()}
+            onToggle={props.controller.todo.onToggle}
+            collapseLabel={language.t("session.todo.collapse")}
+            expandLabel={language.t("session.todo.expand")}
+            dockProgress={props.controller.dockProgress()}
+          />
+        </div>
+      </div>
+    </Show>
   )
 }

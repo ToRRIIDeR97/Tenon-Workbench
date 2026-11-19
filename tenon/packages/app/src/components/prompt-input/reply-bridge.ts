@@ -21,8 +21,11 @@ export function replySubmission(reply: PromptReply): { prompt: Prompt; context: 
   }
 }
 
-/** How the thread composer takes a reply: `send` posts it now, `add` keeps it as a chip to send with the draft. */
-type ReplySender = { send: (reply: PromptReply) => void; add: (reply: PromptReply) => void }
+/**
+ * How the thread composer takes a reply: `send` posts it now, `add` keeps it as a chip to send with the draft, and
+ * `submit` sends whatever the composer holds, as its Send button would.
+ */
+type ReplySender = { send: (reply: PromptReply) => void; add: (reply: PromptReply) => void; submit: () => void }
 
 const senders: ReplySender[] = []
 
@@ -44,6 +47,14 @@ export function sendReply(reply: PromptReply) {
   const sender = senders.at(-1)
   if (!sender) return false
   sender.send(reply)
+  return true
+}
+
+/** Sends the most recently mounted thread composer's draft. False when no composer is mounted. */
+export function submitComposer() {
+  const sender = senders.at(-1)
+  if (!sender) return false
+  sender.submit()
   return true
 }
 

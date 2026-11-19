@@ -264,6 +264,35 @@ describe("ACP harness", () => {
     expect(AcpHarness.openCodeUsageLookup({}, settings, "/w")).toBeUndefined()
   })
 
+  test("a subagent OpenCode sends to work in the background keeps later turns from counting as silent", () => {
+    // OpenCode 2.2.5's answer for `background: true`; the next prompt waits until the subagent finishes.
+    const text =
+      "The subagent is working in the background (sessionID: ses_bg1). You will be notified automatically when it finishes."
+    expect(AcpHarness.backgroundChild(text)).toBe("ses_bg1")
+    expect(AcpHarness.backgroundChild('<subagent sessionID="ses_child" state="completed">poem</subagent>')).toBe(
+      undefined,
+    )
+    const state = AcpHarness.acpState()
+    ;[
+      update({ sessionUpdate: "tool_call", toolCallId: "bg", name: "subagent", kind: "think", status: "pending" }),
+      update({
+        sessionUpdate: "tool_call_update",
+        toolCallId: "bg",
+        status: "completed",
+        rawInput: { agent: "general", description: "Build", prompt: "Build it", background: true },
+        content: [{ type: "content", content: { type: "text", text } }],
+      }),
+    ].flatMap((n) => AcpHarness.parseAcpNotification(n, "s1", state))
+    expect(state.tools.get("bg")?.background).toBe("ses_bg1")
+    // Its usage isn't read yet: the subagent hasn't finished.
+    expect(state.tools.get("bg")?.childSession).toBeUndefined()
+
+    const launched = new Map([["ses_bg1", 1_000]])
+    expect(AcpHarness.backgroundWorking(launched, 1_000 + 30 * 60_000)).toBe(true)
+    expect(AcpHarness.backgroundWorking(launched, 1_000 + AcpHarness.BACKGROUND_LIMIT)).toBe(false)
+    expect(AcpHarness.backgroundWorking(new Map(), 1_000)).toBe(false)
+  })
+
   test("keeps parallel subagent transcripts separate, including a child that starts with a chunk", () => {
     const state = AcpHarness.acpState()
     const childOf = (id: string, title: string) => ({

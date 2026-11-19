@@ -29,9 +29,19 @@ export class DictationError extends Error {
 type EngineEvent =
   | { type: "ready" }
   | { type: "level"; rms: number }
+  | { type: "bands"; values: unknown }
   | { type: "partial"; text: string }
   | { type: "final"; id: string; text: string }
   | { type: "error"; id?: string; code: string; message: string }
+
+/** The voice wave's bands from an engine event (#328): at most 64 numbers, each clamped to 0–1; else undefined. */
+export function dictationBands(event: unknown) {
+  if (typeof event !== "object" || event === null) return undefined
+  const record = event as { type?: unknown; values?: unknown }
+  if (record.type !== "bands" || !Array.isArray(record.values) || record.values.length > 64) return undefined
+  if (!record.values.every((value) => typeof value === "number" && Number.isFinite(value))) return undefined
+  return (record.values as number[]).map((value) => Math.min(1, Math.max(0, value)))
+}
 
 type Engine = {
   child: ChildProcessWithoutNullStreams
@@ -70,6 +80,7 @@ export function createDictation(input: {
 }) {
   const levels = new Set<(rms: number) => void>()
   const partials = new Set<(text: string) => void>()
+  const bandListeners = new Set<(values: number[]) => void>()
   const limits = new Set<() => void>()
   const failures = new Set<(error: DictationError) => void>()
   const pending = new Map<string, Pending>()
@@ -115,6 +126,11 @@ export function createDictation(input: {
     }
     if (event.type === "level") {
       if (status === "recording" && typeof event.rms === "number") levels.forEach((listener) => listener(event.rms))
+      return
+    }
+    if (event.type === "bands") {
+      const values = dictationBands(event)
+      if (status === "recording" && values) bandListeners.forEach((listener) => listener(values))
       return
     }
     // The live transcript of the recording so far; one that arrives after stop is dropped (the final follows).
@@ -256,6 +272,27 @@ export function createDictation(input: {
     })
   }
 
+  /** Transcribes a 16 kHz PCM WAV file (an attachment's audio, #330) when no recording is running. */
+  const transcribeFile = async (path: string, language?: string) => {
+    if (status !== "idle")
+      throw new DictationError(status === "transcribing" ? "transcribing" : "already_recording", "Dictation is busy")
+    const current = await ensureEngine()
+    status = "transcribing"
+    const request = id()
+    const timer = setTimeout(
+      () => abandon(current, new DictationError("transcribe_timeout", "The transcription took too long"), true),
+      5 * 60_000,
+    )
+    return new Promise<string>((resolve, reject) => {
+      pending.set(request, { resolve, reject })
+      send(current, { id: request, type: "transcribe_file", path, ...(language ? { language } : {}) })
+    }).finally(() => {
+      clearTimeout(timer)
+      if (status === "transcribing") status = "idle"
+      armIdle()
+    })
+  }
+
   // `ready` answers a load; an error carrying the request id rejects it. No answer in time rejects it too.
   const load = (current: Engine, model: string) =>
     new Promise<void>((resolve, reject) => {
@@ -351,9 +388,15 @@ export function createDictation(input: {
         .finally(armIdle)
     },
     status: () => status,
+    transcribeFile,
     onLevel(listener: (rms: number) => void) {
       levels.add(listener)
       return () => void levels.delete(listener)
+    },
+    /** The microphone's frequency bands (0–1 each), about 33 times a second while it records. */
+    onBands(listener: (values: number[]) => void) {
+      bandListeners.add(listener)
+      return () => void bandListeners.delete(listener)
     },
     /** The transcript of the recording so far, while it records; each replaces the last. */
     onPartial(listener: (text: string) => void) {

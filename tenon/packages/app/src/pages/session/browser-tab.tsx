@@ -2,14 +2,15 @@ import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
-import { For, Show, createSignal, onCleanup, onMount } from "solid-js"
+import { For, Match, Show, Switch, createSignal, onCleanup, onMount } from "solid-js"
 import { createStore, produce } from "solid-js/store"
 import { useLanguage } from "@/context/language"
-import { usePlatform } from "@/context/platform"
+import { type BrowserFailure, usePlatform } from "@/context/platform"
 import { usePrompt } from "@/context/prompt"
 import type { ImageAttachmentPart } from "@/context/prompt-state"
 import { createBlobReference } from "@/utils/draft-store"
 import { uuid } from "@/utils/uuid"
+import { browserStage } from "./browser-stage"
 
 type Picked = NonNullable<Awaited<ReturnType<NonNullable<ReturnType<typeof usePlatform>["browser"]>["pick"]>>>
 type Point = { x: number; y: number }
@@ -25,7 +26,16 @@ export function SessionBrowserTab() {
   const platform = usePlatform()
   const prompt = usePrompt()
   const browser = platform.browser
-  const [page, setPage] = createStore({ url: "", title: "", loading: false, canGoBack: false, canGoForward: false })
+  const [page, setPage] = createStore({
+    url: "",
+    title: "",
+    loading: false,
+    canGoBack: false,
+    canGoForward: false,
+    error: undefined as BrowserFailure | undefined,
+    committed: false as boolean | undefined,
+  })
+  const stage = () => browserStage(page)
   const [address, setAddress] = createSignal("")
   const [annotate, setAnnotate] = createStore({
     active: false,
@@ -37,22 +47,24 @@ export function SessionBrowserTab() {
   })
   const [picked, setPicked] = createStore<Picked[]>([])
   const [activity, setActivity] = createStore<string[]>([])
-  let stage: HTMLDivElement | undefined
+  let stageEl: HTMLDivElement | undefined
   let canvas: HTMLCanvasElement | undefined
 
   // The native view sits above the DOM, so it hides while annotating or while a dialog is open.
   const [covered, setCovered] = createSignal(false)
   const place = () => {
-    if (!browser || !stage) return
-    const rect = stage.getBoundingClientRect()
-    const hidden = annotate.active || covered() || rect.width < 2 || rect.height < 2
+    if (!browser || !stageEl) return
+    const rect = stageEl.getBoundingClientRect()
+    // Until a page commits (or after one failed) the native view would paint a blank white panel over the
+    // tab's own empty, loading or error state (#325).
+    const hidden = annotate.active || covered() || stage() !== "page" || rect.width < 2 || rect.height < 2
     void browser.show(hidden ? undefined : { x: rect.left, y: rect.top, width: rect.width, height: rect.height })
   }
 
   onMount(() => {
-    if (!browser || !stage) return
+    if (!browser || !stageEl) return
     const resize = new ResizeObserver(place)
-    resize.observe(stage)
+    resize.observe(stageEl)
     const dialogs = new MutationObserver(() => {
       setCovered(!!document.querySelector('[role="dialog"], [data-component="dialog-stack"] [data-expanded]'))
       place()
@@ -60,8 +72,11 @@ export function SessionBrowserTab() {
     dialogs.observe(document.body, { childList: true, subtree: true })
     window.addEventListener("resize", place)
     const offState = browser.onState((state) => {
-      setPage(state)
-      if (document.activeElement?.id !== "browser-address") setAddress(state.url)
+      const shown = stage()
+      // An absent error means none: a merge would otherwise keep the last one.
+      setPage({ ...state, error: state.error, committed: state.committed })
+      if (document.activeElement?.id !== "browser-address") setAddress(state.error?.url || state.url)
+      if (stage() !== shown) place()
     })
     const offAgent = browser.onAgent((event) =>
       setActivity(produce((list) => void list.push(`${new Date().toLocaleTimeString()}  ${event.tool}`))),
@@ -306,12 +321,37 @@ export function SessionBrowserTab() {
         </div>
         {/* Fixed white: pages without their own background expect a white canvas, in either theme. */}
         <div
-          ref={stage}
+          ref={stageEl}
           class="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-v2-border-border-base bg-[#fff]"
         >
-          <Show when={!page.url && !annotate.active}>
-            <div class="absolute inset-0 flex items-center justify-center bg-v2-background-bg-base p-6 text-center text-[13px] text-v2-text-text-muted">
-              {language.t("secondBrain.browser.empty")}
+          <Show when={stage() !== "page" && !annotate.active}>
+            <div
+              data-browser-stage={stage()}
+              class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-v2-background-bg-base p-6 text-center text-[13px] text-v2-text-text-muted"
+            >
+              <Switch>
+                <Match when={stage() === "loading"}>{language.t("secondBrain.browser.loading")}</Match>
+                <Match when={page.error}>
+                  {(error) => (
+                    <>
+                      <span class="type-control text-v2-text-text-base">
+                        {language.t(`secondBrain.browser.error.${error().kind}`)}
+                      </span>
+                      <span class="max-w-full break-all">{error().url}</span>
+                      <span class="font-mono text-11-regular">{error().description}</span>
+                      <ButtonV2
+                        size="small"
+                        variant="neutral"
+                        data-action="browser-retry"
+                        onClick={() => void browser?.navigate(error().url)}
+                      >
+                        {language.t("secondBrain.browser.retry")}
+                      </ButtonV2>
+                    </>
+                  )}
+                </Match>
+                <Match when={true}>{language.t("secondBrain.browser.empty")}</Match>
+              </Switch>
             </div>
           </Show>
           <Show when={annotate.active}>

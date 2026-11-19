@@ -52,8 +52,12 @@ export type PromptInputV2Props = {
   runtimeControl?: JSX.Element
   /** A row inside the top of the box, above the text, for where the prompt runs (folder, worktree). */
   headerControl?: JSX.Element
+  /** A section of the same tray above the where row, such as the running agent's checklist. */
+  headerTop?: JSX.Element
   /** Accessible label of a quote chip's remove button. */
   quoteRemoveLabel?: string
+  /** How an attachment will reach the model (#330), shown on its card in place of the file type. */
+  attachmentNote?: (attachment: PromptInputV2Attachment) => string | undefined
   /** Trailing toolbar slot next to the submit button (e.g. the prompt stash menu). */
   trailingControl?: JSX.Element
   modelControl?: JSX.Element
@@ -195,13 +199,19 @@ export function PromptInputV2(props: PromptInputV2Props) {
         onDragLeave={props.controller.onDragLeave}
         onDrop={props.controller.onDrop}
       >
-        {/* The where row is a lighter tab, 18px in from the box's sides, that tucks 12px behind the box's top edge. */}
-        <Show when={props.headerControl}>
+        {/* The tray is a lighter tab, 18px in from the box's sides, that tucks 12px behind the box's top edge. It
+          holds the where row and, above it, anything that belongs to the thread's state (its checklist). */}
+        <Show when={props.headerControl || props.headerTop}>
           <div
             data-slot="prompt-input-header"
-            class="relative z-0 mx-[18px] -mb-3 flex h-[46px] min-w-0 items-center gap-0.5 rounded-t-[18px] bg-v2-background-bg-layer-02 pb-3 pl-2.5 pr-2 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]"
+            class="relative z-0 mx-[18px] -mb-3 flex min-w-0 flex-col rounded-t-[18px] bg-v2-background-bg-layer-02 pb-3 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]"
           >
-            {props.headerControl}
+            {props.headerTop}
+            <Show when={props.headerControl}>
+              <div data-slot="prompt-input-header-where" class="flex h-[34px] min-w-0 items-center gap-0.5 pl-2.5 pr-2">
+                {props.headerControl}
+              </div>
+            </Show>
           </div>
         </Show>
 
@@ -236,6 +246,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
               comments={props.controller.comments()}
               quotes={props.controller.quotes()}
               quoteRemoveLabel={props.quoteRemoveLabel}
+              attachmentNote={props.attachmentNote}
               activeCommentID={state.activeContextID}
               removeLabel={i18n.t("ui.promptInput.removeAttachment")}
               onAttachmentClick={props.controller.openAttachment}
@@ -526,6 +537,8 @@ export function PromptInputV2Attachments(props: {
   comments?: PromptInputV2Comment[]
   quotes?: PromptInputV2Quote[]
   quoteRemoveLabel?: string
+  /** How an attachment will reach the model (#330), shown on its card in place of the file type. */
+  attachmentNote?: (attachment: PromptInputV2Attachment) => string | undefined
   activeCommentID?: string
   removeLabel: string
   onAttachmentClick?: (attachment: PromptInputV2Attachment) => void
@@ -620,9 +633,27 @@ export function PromptInputV2Attachments(props: {
                   <Show
                     when={attachment.mime.startsWith("image/")}
                     fallback={
-                      <AttachmentCardV2 title={attachment.filename}>
-                        {typeLabel(attachment.filename, attachment.mime, i18n.t("ui.common.file"))}
-                      </AttachmentCardV2>
+                      <Show
+                        when={attachment.mime.startsWith("video/") && props.onAttachmentClick}
+                        fallback={
+                          <AttachmentCardV2 title={attachment.filename}>
+                            {props.attachmentNote?.(attachment) ??
+                              typeLabel(attachment.filename, attachment.mime, i18n.t("ui.common.file"))}
+                          </AttachmentCardV2>
+                        }
+                      >
+                        <button
+                          type="button"
+                          class="block rounded-[12px] text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus"
+                          aria-label={attachment.filename}
+                          onClick={() => props.onAttachmentClick?.(attachment)}
+                        >
+                          <AttachmentCardV2 title={attachment.filename}>
+                            {props.attachmentNote?.(attachment) ??
+                              typeLabel(attachment.filename, attachment.mime, i18n.t("ui.common.file"))}
+                          </AttachmentCardV2>
+                        </button>
+                      </Show>
                     }
                   >
                     <button

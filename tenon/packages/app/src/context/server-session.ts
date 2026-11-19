@@ -1547,16 +1547,23 @@ export function createServerSession(
     async todo(sessionID: string, request?: { force?: boolean }) {
       touch(sessionID)
       if (data.todo[sessionID] !== undefined && !request?.force) return
-      if ((await options?.protocol) === "v2") {
-        setData("todo", sessionID, [])
-        return
-      }
+      // A v2 server keeps harness checklists too (saved from their plan calls) and still serves the route; one
+      // without it leaves the list empty, as before, rather than retrying.
+      const v2 = (await options?.protocol) === "v2"
       return runInflight(inflightTodo, sessionID, () => {
         const active = generation(sessionID)
-        return (options?.retry ?? retry)(() => client.session.todo({ sessionID })).then((result) => {
-          if (generations.get(sessionID) !== active) return
-          setData("todo", sessionID, reconcile(result.data ?? [], { key: "id" }))
-        })
+        const load = () => client.session.todo({ sessionID })
+        return (v2 ? load() : (options?.retry ?? retry)(load)).then(
+          (result) => {
+            if (generations.get(sessionID) !== active) return
+            setData("todo", sessionID, reconcile(result.data ?? [], { key: "id" }))
+          },
+          (error: unknown) => {
+            if (!v2) throw error
+            if (generations.get(sessionID) === active && data.todo[sessionID] === undefined)
+              setData("todo", sessionID, [])
+          },
+        )
       })
     },
     history: {

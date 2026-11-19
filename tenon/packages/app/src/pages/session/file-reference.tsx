@@ -1,5 +1,6 @@
 import { createEffect, createSignal, on, onCleanup, type ParentProps } from "solid-js"
 import { createMediaQuery } from "@solid-primitives/media"
+import { useDialog } from "@tenon/ui/context/dialog"
 import { motionDuration, prefersReducedMotion } from "@tenon/ui/v2/motion"
 import {
   FileReferenceProvider,
@@ -14,8 +15,10 @@ import { useFile } from "@/context/file"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
 import { useSDK } from "@/context/sdk"
+import { useServerSDK } from "@/context/server-sdk"
 import { SESSION_OPEN_FILE_TAB } from "@/context/layout-tabs"
 import { useSessionLayout } from "@/pages/session/session-layout"
+import { OutsideFileDialog, outsideFileURL, useOutsideFileReader } from "@/pages/session/outside-file"
 import { showToast } from "@/utils/toast"
 
 export type FileReveal = { directory: string; path: string; start?: number; end?: number; folder?: boolean }
@@ -45,7 +48,8 @@ export function slidePanelOpen() {
 /**
  * Supplies file-reference actions to assistant replies: the hover peek reads lines through the same
  * file API the Files tab uses, and opening reveals the file or folder in the right panel. Every path is
- * checked against the thread's folder again here, so a reference never reads outside it.
+ * checked against the thread's folder again here. A reference the agent made to a file outside that folder
+ * (an absolute path, already normalized) is read through its own folder and opens in a viewer of its own.
  */
 export function SessionFileReferences(props: ParentProps) {
   const file = useFile()
@@ -54,6 +58,11 @@ export function SessionFileReferences(props: ParentProps) {
   const platform = usePlatform()
   const { tabs, view } = useSessionLayout()
   const isDesktop = createMediaQuery("(min-width: 768px)")
+  const dialog = useDialog()
+  const readOutside = useOutsideFileReader()
+  const serverSDK = useServerSDK()
+  const listOutside = async (path: string) =>
+    (await serverSDK().createClient({ directory: path, throwOnError: true }).file.list({ path: "" })).data ?? []
 
   const locate = async (reference: FileReference) => {
     const path = resolveFileReferencePath(reference.path, sdk().directory)
@@ -112,6 +121,7 @@ export function SessionFileReferences(props: ParentProps) {
   }
 
   const readFileRange = async (reference: FileReference, limit: number): Promise<FileReferencePreview> => {
+    if (reference.outside) return readOutsideRange(reference, limit)
     const found = await locate(reference)
     if (!found) return { status: "missing", path: reference.path }
     const path = found.path
@@ -121,6 +131,30 @@ export function SessionFileReferences(props: ParentProps) {
     const start = reference.start ?? 1
     const last = reference.start ? Math.min(reference.end ?? start, start + limit - 1) : limit
     return { status: "found", path, start, lines: content.content.split(/\r?\n/).slice(start - 1, last) }
+  }
+
+  const readOutsideRange = async (reference: FileReference, limit: number): Promise<FileReferencePreview> => {
+    const path = reference.path
+    // An outside folder is listed through itself, for the peek's item count; opening it goes to the file manager.
+    if (reference.kind === "folder") {
+      const entries = await listOutside(path).catch(() => undefined)
+      return entries ? { status: "folder", path, count: entries.length } : { status: "missing", path }
+    }
+    const text = await readOutside(path).catch(() => null)
+    if (text === null) return { status: "missing", path }
+    if (text === undefined) return { status: "binary", path }
+    const start = reference.start ?? 1
+    const last = reference.start ? Math.min(reference.end ?? start, start + limit - 1) : limit
+    return { status: "found", path, start, lines: text.split(/\r?\n/).slice(start - 1, last) }
+  }
+
+  // A text file opens in a read-only viewer; a folder, media or a binary file goes to its default app on desktop.
+  const openOutside = async (reference: FileReference) => {
+    const external = () => platform.openLocalFile?.(outsideFileURL(reference.path))
+    if (reference.kind === "folder" || mediaKindFromPath(reference.path)) return external()
+    const text = await readOutside(reference.path).catch(() => null)
+    if (text === undefined && platform.openLocalFile) return external()
+    dialog.show(() => <OutsideFileDialog reference={reference} />)
   }
 
   // A file the viewer can't show (a .docx, .xlsx, .zip …) opens in its default app on desktop instead of the
@@ -137,6 +171,7 @@ export function SessionFileReferences(props: ParentProps) {
   }
 
   const onFileReference = (reference: FileReference) => {
+    if (reference.outside) return void openOutside(reference)
     const directory = sdk().directory
     void locate(reference).then(async (found) => {
       if (sdk().directory !== directory) return

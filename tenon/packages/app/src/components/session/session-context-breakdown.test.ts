@@ -58,4 +58,42 @@ describe("estimateSessionContextBreakdown", () => {
     expect(total).toBeLessThanOrEqual(10)
     expect(output.every((segment) => segment.width <= 100)).toBeTrue()
   })
+
+  test("counts only what is still in the window: after the last compaction, and only the newest turn's reasoning", () => {
+    const messages = [user("u0"), assistant("a0"), user("u1"), assistant("a1"), user("u2"), assistant("a2")]
+    const parts = {
+      u0: [{ type: "text", text: "x".repeat(4000) }] as unknown as Part[],
+      a0: [{ type: "text", text: "x".repeat(4000) }] as unknown as Part[],
+      u1: [{ type: "compaction" }] as unknown as Part[],
+      a1: [
+        { type: "text", text: "s".repeat(40) },
+        { type: "reasoning", text: "r".repeat(400) },
+      ] as unknown as Part[],
+      u2: [{ type: "text", text: "q".repeat(40) }] as unknown as Part[],
+      a2: [{ type: "reasoning", text: "t".repeat(40) }] as unknown as Part[],
+    }
+    const map = Object.fromEntries(
+      estimateSessionContextBreakdown({ messages, parts, input: 1000 }).map((segment) => [segment.key, segment.tokens]),
+    )
+    // Before the compaction: gone. The older turn's reasoning: dropped. The summary, the prompt and the newest
+    // reasoning: counted.
+    expect(map.user).toBe(10)
+    expect(map.assistant).toBe(20)
+  })
+
+  test("a tool's arguments count at their written size", () => {
+    const content = "c".repeat(4000)
+    const parts = {
+      a1: [
+        { type: "tool", state: { status: "completed", input: { path: "a.ts", content }, output: "ok" } },
+      ] as unknown as Part[],
+    }
+    const map = Object.fromEntries(
+      estimateSessionContextBreakdown({ messages: [assistant("a1")], parts, input: 5000 }).map((segment) => [
+        segment.key,
+        segment.tokens,
+      ]),
+    )
+    expect(map.tool).toBeGreaterThan(1000)
+  })
 })

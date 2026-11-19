@@ -106,7 +106,7 @@ export function ComposerBox(props: {
         }}
       />
       <Show when={size() !== "compact"} fallback={actions}>
-        <div class="flex min-w-0 items-center gap-1 pb-2 pl-2.5 pr-2">
+        <div data-slot="prompt-input-controls" class="flex min-w-0 items-center gap-1 pb-2 pl-2.5 pr-2">
           <Show when={props.onExpand}>
             {(expand) => (
               <TooltipV2 placement="top" value={props.expandLabel}>

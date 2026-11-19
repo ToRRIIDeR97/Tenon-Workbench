@@ -8,6 +8,8 @@ import { useSettings, withVisibleModels } from "@/context/settings"
 import { Persist, persisted } from "@/utils/persist"
 import { ServerConnection } from "@/context/server"
 import { listHarnessesRemembered, recentHarnessKey, rememberedHarnesses } from "@/utils/server"
+import { harnessUpgrades } from "@/components/harness-upgrades"
+import { shouldCheckHarnessUpdates } from "./harness-update-choice"
 import type { PromptInputHarnessController } from "./harness-controls"
 import {
   createRememberedModelWindow,
@@ -70,6 +72,9 @@ export const harnessSettingsVersion = () => settingsVersion()
  * Where a server's persisted harness list is stored for a folder. The desktop sidecar gets a new port on
  * every launch, so this uses the connection's stable key (as drafts do), not its URL.
  */
+// The last update check any harness picker asked for, so several open composers check once (#321).
+let lastUpdateCheck: number | undefined
+
 export const persistedHarnessKey = (server: ServerConnection.Any, directory: string) =>
   recentHarnessKey(ServerConnection.key(server), directory)
 
@@ -172,6 +177,17 @@ export function createPromptHarnessController(selection: HarnessSelection) {
   window.addEventListener("focus", revalidate)
   onCleanup(() => window.removeEventListener("focus", revalidate))
   const instance = createMemo(() => instances()?.find((item) => item.id === selection.current()))
+  // A harness that fails its check may just be behind: ask for update statuses then (at most once a minute), not
+  // only once per connection, so the picker can offer the update beside the failure.
+  const upgrades = () => harnessUpgrades(server(), sdk().directory)
+  createEffect(() => {
+    const now = Date.now()
+    if (!shouldCheckHarnessUpdates(instances(), lastUpdateCheck, now)) return
+    lastUpdateCheck = now
+    void upgrades()
+      .check()
+      .catch(() => undefined)
+  })
   // An ACP agent answers before its models are listed (the server reads them in the background),
   // so a harness that is up but has no models yet is asked again a few times.
   const [retry, setRetry] = createStore({ count: 0 })
@@ -238,6 +254,12 @@ export function createPromptHarnessController(selection: HarnessSelection) {
     checking: () => loaded.loading || (waitingForModels() && retry.count < MODEL_RETRIES),
     disabled: selection.disabled,
     revalidate,
+    update: {
+      status: (id: string) => upgrades().status(id),
+      running: (id: string) => upgrades().running(id),
+      // The server closes the harness's runtimes and forgets its probe; the registry then lists harnesses again.
+      run: (id: string) => upgrades().start(id),
+    },
     current: selection.current,
     select(instanceID: Harness.InstanceID) {
       const next = instances()?.find((item) => item.id === instanceID)

@@ -60,7 +60,8 @@ import { Routines } from "./routines"
  */
 
 export type Result = { readonly isError: boolean; readonly value: unknown }
-export type Kind = "note" | "tasks" | "calendar" | "timeline" | "email"
+// project, thread, steer and stop are the Command Centre's own actions: shown in the thread, with no undo.
+export type Kind = "note" | "tasks" | "calendar" | "timeline" | "email" | "project" | "thread" | "steer" | "stop"
 export type UndoResult = "undone" | "already_undone" | "stale" | "missing"
 
 const SEARCH_LIMIT = 50
@@ -117,7 +118,7 @@ export const TOOLS: ReadonlyArray<HarnessAppTools.Tool> = [
   {
     name: "notes_write",
     description:
-      "Create or replace a Tenon note page. Pass expectedRevision from notes_read to avoid overwriting someone else's change; create: true only creates a new page. The user sees the write and can undo it.",
+      "Create or replace a Tenon note page. Use it whenever the user wants notes, docs, a plan, spec or write-up kept for a Project or the workspace. Pass expectedRevision from notes_read to avoid overwriting someone else's change; create: true only creates a new page. The user sees the write and can undo it.",
     inputSchema: {
       type: "object",
       properties: {
@@ -136,13 +137,13 @@ export const TOOLS: ReadonlyArray<HarnessAppTools.Tool> = [
     name: "timeline_get",
     annotations: readOnly,
     description:
-      "Read a Project's timeline: items (task or milestone, todo/doing/done, start/end dates), revision and progress.",
+      "Read a Project's timeline, which is its roadmap and task list: items (task or milestone, todo/doing/done, start/end dates), revision and progress. Read it before changing the roadmap, features, issues or tasks.",
     inputSchema: { type: "object", properties: { projectId: projectIdField }, additionalProperties: false },
   },
   {
     name: "timeline_update",
     description:
-      "Replace a Project's timeline items, for example to mark a task done. Read it first with timeline_get and pass its revision as expectedRevision.",
+      "Replace a Project's timeline items: the Project page's roadmap (milestones) and tasks (features, issues, bugs, to-dos). Use it to add, rename, reschedule or complete them. Read it first with timeline_get and pass its revision as expectedRevision.",
     inputSchema: {
       type: "object",
       properties: {
@@ -254,6 +255,44 @@ export const TOOLS: ReadonlyArray<HarnessAppTools.Tool> = [
       additionalProperties: false,
     },
   },
+  {
+    name: "project_setup",
+    description:
+      "Create a new Project in the workspace when the user asks for a new project or project folder: create its folder (default <workspace>/projects/<name>; an existing non-empty folder is refused), run git init, write AGENTS.md, docs/system.md and docs/security.md, and add the Project card and an empty timeline. Follow with thread_start to begin work there.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspace: {
+          type: "string",
+          description: "Absolute folder of the workspace the Project belongs to; omit for this thread's workspace.",
+        },
+        name: { type: "string" },
+        folder: { type: "string", description: "Absolute folder for the Project's code; optional." },
+        outcome: { type: "string", description: "One sentence on what the Project delivers; optional." },
+      },
+      required: ["name"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "thread_start",
+    description:
+      "Start a new thread in a Project of this workspace (or its General group) with a first message, on this thread's harness and model. It runs on its own; the user sees it in the sidebar. Returns its thread id at once.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        projectId: {
+          type: "string",
+          description:
+            "The Project (project_…, from project_setup); general for the workspace's General group; omit for this thread's Project.",
+        },
+        prompt: { type: "string", description: "The new thread's first message: the whole task, self-contained." },
+        title: { type: "string" },
+      },
+      required: ["prompt"],
+      additionalProperties: false,
+    },
+  },
 ]
 
 const workspaceField = {
@@ -287,22 +326,6 @@ export const COMMAND_TOOLS: ReadonlyArray<HarnessAppTools.Tool> = [
       type: "object",
       properties: { query: { type: "string" } },
       required: ["query"],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: "project_setup",
-    description:
-      "Set up a new Project: create its folder (default <workspace>/projects/<name>; an existing non-empty folder is refused), run git init, write AGENTS.md, docs/system.md and docs/security.md, and add the Project card and an empty timeline to the workspace.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        workspace: { type: "string", description: "Absolute folder of the workspace the Project belongs to." },
-        name: { type: "string" },
-        folder: { type: "string", description: "Absolute folder for the Project's code; optional." },
-        outcome: { type: "string", description: "One sentence on what the Project delivers; optional." },
-      },
-      required: ["workspace", "name"],
       additionalProperties: false,
     },
   },
@@ -360,7 +383,6 @@ export const COMMAND_TOOLS: ReadonlyArray<HarnessAppTools.Tool> = [
 
 const commandArgs = {
   memory_search: Schema.Struct({ query: Schema.String }),
-  project_setup: CommandSetup.Input,
   threads_overview: Schema.Struct({
     projectId: Schema.optional(Schema.String),
     limit: Schema.optional(Schema.Number),
@@ -411,6 +433,12 @@ const Args = {
     ),
   }),
   threads_list: Schema.Struct({ limit: Schema.optional(Schema.Number) }),
+  project_setup: Schema.Struct({ ...CommandSetup.Input.fields, workspace: Schema.optional(Schema.String) }),
+  thread_start: Schema.Struct({
+    projectId: Schema.optional(Schema.String),
+    prompt: Schema.String,
+    title: Schema.optional(Schema.String),
+  }),
 }
 
 export class ToolError extends Schema.TaggedError<ToolError>()("AgentAppTools.ToolError", {
@@ -607,7 +635,94 @@ const execute = Effect.fnUntraced(function* (
   if (name === "calendar_list") return yield* calendarList(scope, yield* parse(Args.calendar_list))
   if (name === "calendar_apply") return yield* calendarApply(scope, yield* parse(Args.calendar_apply))
   if (name === "tasks_create") return yield* tasksCreate(scope, yield* parse(Args.tasks_create))
+  if (name === "project_setup") return yield* projectSetup(scope, yield* parse(Args.project_setup))
+  if (name === "thread_start") return yield* threadStart(scope, yield* parse(Args.thread_start))
   return yield* threadsList(scope, yield* parse(Args.threads_list))
+})
+
+/** A new Project in `workspace` (default: the calling thread's workspace), with its folder, git and docs. */
+const projectSetup = Effect.fnUntraced(function* (scope: Scope, args: typeof Args.project_setup.Type) {
+  const workspace = args.workspace?.trim() || scope.workspace
+  if (!path.isAbsolute(workspace) || !(yield* Effect.promise(() => isDirectory(workspace))))
+    return yield* new ToolError({ message: "project_setup needs the absolute folder of an existing workspace." })
+  const result = yield* CommandSetup.run({ ...args, workspace }).pipe(
+    Effect.catchTag("CommandSetup.SetupError", (error) =>
+      Effect.fail(
+        new ToolError({
+          message:
+            error.reason === "folder_not_empty"
+              ? "That folder already has files; pick an empty or new folder."
+              : `project_setup failed: ${error.reason}`,
+        }),
+      ),
+    ),
+  )
+  announce(
+    scope,
+    "project",
+    result.project.name,
+    { name: result.project.name, folder: result.folder },
+    {
+      projectId: result.project.id,
+    },
+  )
+  return { projectId: result.project.id, name: result.project.name, folder: result.folder, files: result.files }
+})
+
+/**
+ * A new root thread in one of the workspace's thread folders, on the caller's harness and model, given `prompt` as
+ * its first message the way the thread's own composer would send it (not waited for: a turn can run for minutes).
+ */
+const threadStart = Effect.fnUntraced(function* (scope: Scope, args: typeof Args.thread_start.Type) {
+  const text = args.prompt.trim()
+  if (!text) return yield* new ToolError({ message: "thread_start needs a prompt." })
+  const requested = args.projectId?.trim()
+  const folders = yield* threadFolders(scope.workspace)
+  const folder =
+    requested === "general"
+      ? folders.find((item) => !item.project)
+      : folders.find((item) => item.project?.id === (requested || scope.project?.id))
+  if (!folder)
+    return yield* new ToolError({
+      message: requested
+        ? `No Project ${requested} in this workspace; project_setup returns the id of a new one.`
+        : 'This thread has no Project; pass projectId, or "general".',
+    })
+  if (yield* CommandMemory.isCommandDirectoryResolved(folder.directory))
+    return yield* new ToolError({ message: "thread_start can't start a Command Centre thread." })
+  const modern = yield* SessionV2.Service
+  const sessions = yield* Session.Service
+  const caller = yield* modern.get(scope.session.id).pipe(Effect.orElseSucceed(() => undefined))
+  const created = yield* modern.create({
+    ...(args.title?.trim() ? { title: args.title.trim() } : {}),
+    ...(caller
+      ? {
+          harnessInstanceID: caller.harnessInstanceID,
+          ...(caller.harnessModel ? { harnessModel: caller.harnessModel } : {}),
+          ...(caller.agent ? { agent: caller.agent } : {}),
+          ...(caller.model ? { model: caller.model } : {}),
+        }
+      : {}),
+    location: { directory: AbsolutePath.make(folder.directory) },
+  })
+  const session = yield* sessions.get(SessionID.make(created.id))
+  yield* deliver(session, text, "queue")
+  const project = folder.project?.name ?? "General"
+  announce(
+    scope,
+    "thread",
+    project,
+    { title: created.title, project, prompt: text.slice(0, 400) },
+    {
+      session: created.id,
+    },
+  )
+  return {
+    threadId: created.id,
+    title: created.title,
+    project: folder.project?.name ?? "General",
+    folder: folder.directory,
+  }
 })
 
 const notesSearch = Effect.fnUntraced(function* (scope: Scope, args: typeof Args.notes_search.Type) {
@@ -855,24 +970,6 @@ const commandTool = Effect.fnUntraced(function* (
   if (name === "memory_search") {
     const args = yield* decode(name, commandArgs.memory_search, input)
     return { hits: yield* CommandMemory.search(args.query) }
-  }
-  if (name === "project_setup") {
-    const args = yield* decode(name, commandArgs.project_setup, input)
-    if (!path.isAbsolute(args.workspace) || !(yield* Effect.promise(() => isDirectory(args.workspace))))
-      return yield* new ToolError({ message: "project_setup needs the absolute folder of an existing workspace." })
-    const result = yield* CommandSetup.run(args).pipe(
-      Effect.catchTag("CommandSetup.SetupError", (error) =>
-        Effect.fail(
-          new ToolError({
-            message:
-              error.reason === "folder_not_empty"
-                ? "That folder already has files; pick an empty or new folder."
-                : `project_setup failed: ${error.reason}`,
-          }),
-        ),
-      ),
-    )
-    return { projectId: result.project.id, name: result.project.name, folder: result.folder, files: result.files }
   }
   if (name === "threads_overview") {
     const args = yield* decode(name, commandArgs.threads_overview, input)
@@ -1166,6 +1263,7 @@ const threadMessage = Effect.fnUntraced(function* (scope: Scope, args: typeof co
   const target = yield* projectThread(scope, "thread_message", args.threadId)
   yield* deliver(target.session, text)
   yield* logAction(scope, "message", target, text)
+  announce(scope, "steer", target.session.title, { text: text.slice(0, 400) }, { session: target.session.id })
   return { sent: true, threadId: target.session.id, title: target.session.title }
 })
 
@@ -1174,12 +1272,16 @@ const threadMessage = Effect.fnUntraced(function* (scope: Scope, args: typeof co
  * through the Session service, a built-in one through the prompt loop in the thread's folder (not waited
  * for: a turn can run for minutes).
  */
-const deliver = Effect.fnUntraced(function* (session: Session.Info, text: string) {
+const deliver = Effect.fnUntraced(function* (
+  session: Session.Info,
+  text: string,
+  delivery: "steer" | "queue" = "steer",
+) {
   const harness = session.metadata?.harnessInstanceID
   if (typeof harness === "string" && harness !== Harness.OpenCode) {
     const modern = yield* SessionV2.Service
     return yield* modern
-      .prompt({ sessionID: session.id, prompt: { text }, delivery: "steer" })
+      .prompt({ sessionID: session.id, prompt: { text }, delivery })
       .pipe(Effect.mapError(() => new ToolError({ message: "The thread could not take the message." })))
   }
   const store = yield* InstanceStore.Service
@@ -1210,6 +1312,7 @@ const threadStop = Effect.fnUntraced(function* (scope: Scope, args: typeof comma
   yield* store.provide({ directory: target.session.directory }, prompts.cancel(target.session.id))
   yield* modern.interrupt(target.session.id)
   yield* logAction(scope, "stop", target)
+  announce(scope, "stop", target.session.title, {}, { session: target.session.id })
   return { stopped: true, threadId: target.session.id, title: target.session.title }
 })
 
@@ -1237,6 +1340,17 @@ const logAction = (scope: Scope, kind: "message" | "stop", target: ThreadTarget,
  * failure, defect or interruption before `done` publishes a failed `done` and never leaves the
  * preview open.
  */
+/** A write that is finished as soon as it starts, for actions with nothing to undo. */
+function announce(
+  scope: Pick<Scope, "session" | "origin">,
+  kind: Kind,
+  target: string,
+  preview: unknown,
+  open: { projectId?: string; session?: string },
+) {
+  begin(scope, kind, target, preview).done(preview, undefined, open)
+}
+
 function begin(scope: Pick<Scope, "session" | "origin">, kind: Kind, target: string, preview: unknown) {
   const id = `write_${ulid()}`
   const status = { closed: false }
@@ -1253,7 +1367,7 @@ function begin(scope: Pick<Scope, "session" | "origin">, kind: Kind, target: str
     done: (
       finalPreview: unknown,
       revert: Effect.Effect<unknown, unknown, Requirements> | undefined,
-      open: { page?: string; projectId?: string },
+      open: { page?: string; projectId?: string; session?: string },
     ) => {
       status.closed = true
       if (!revert) {

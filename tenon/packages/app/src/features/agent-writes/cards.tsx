@@ -4,10 +4,12 @@ import { Presence } from "@tenon/ui/v2/presence"
 import { Reveal } from "@tenon/ui/v2/reveal"
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { useLanguage } from "@/context/language"
+import { useServer } from "@/context/server"
 import { AgentWritePreview } from "./preview"
 import {
   type AgentWrite,
   type AgentWrites,
+  COMMAND_KINDS,
   openHref,
   PILL_HIDE_MS,
   pillWrite,
@@ -33,6 +35,63 @@ export function AgentWritesInline(props: { writes: ReadonlyArray<AgentWrite>; ce
         }}
       >
         <For each={props.writes}>{(write) => <AgentWriteCard write={write} store={writes!} />}</For>
+      </div>
+    </Show>
+  )
+}
+
+/**
+ * A Command Centre turn's writes as one "Done for you" list under the reply: one row per action (a note saved, a
+ * Project created, a thread started, steered or stopped), each with Open and, where it can, Undo.
+ */
+export function AgentWritesDone(props: { writes: ReadonlyArray<AgentWrite>; centered?: boolean }) {
+  const writes = useAgentWrites()
+  const language = useLanguage()
+  return (
+    <Show when={writes && props.writes.length > 0}>
+      <div
+        data-slot="agent-writes-done"
+        classList={{
+          "flex w-full min-w-0 max-w-full flex-col px-4 pb-4 md:px-5": true,
+          "md:mx-auto md:max-w-[var(--tenon-thread-width,640px)]": props.centered,
+        }}
+      >
+        <section
+          aria-label={language.plural("secondBrain.agentWrites.doneForYou", props.writes.length, {
+            count: props.writes.length.toLocaleString(language.intl()),
+          })}
+          class="animate-enter flex flex-col rounded-[16px] bg-v2-background-bg-layer-01 py-1 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]"
+        >
+          <h3 class="m-0 px-3 pb-1 pt-2 type-caption text-v2-text-text-muted">
+            {language.plural("secondBrain.agentWrites.doneForYou", props.writes.length, {
+              count: props.writes.length.toLocaleString(language.intl()),
+            })}
+          </h3>
+          <ul class="m-0 flex list-none flex-col p-0">
+            <For each={props.writes}>
+              {(write) => {
+                seenWhenSaved(() => write, writes!)
+                const writing = () => write.phase === "started" && !write.failed
+                return (
+                  <li
+                    data-agent-write
+                    data-variant="done"
+                    data-kind={write.kind}
+                    class="flex min-h-10 items-center gap-2 px-3"
+                  >
+                    <StatusDot active={writing()} />
+                    <span class="min-w-0 flex-1 truncate text-[13px] text-v2-text-text-base">
+                      <Headline write={write} />
+                    </span>
+                    <Show when={!writing()}>
+                      <Actions write={write} store={writes!} />
+                    </Show>
+                  </li>
+                )
+              }}
+            </For>
+          </ul>
+        </section>
       </div>
     </Show>
   )
@@ -161,13 +220,21 @@ function Headline(props: { write: AgentWrite }) {
   const language = useLanguage()
   const kind = () => language.t(`secondBrain.agentWrites.kind.${props.write.kind}`)
   const target = () => props.write.target
+  // The Command Centre's own actions read as what it did, not as something saved.
+  const action = () =>
+    COMMAND_KINDS.includes(props.write.kind) && !props.write.failed
+      ? language.t(`secondBrain.agentWrites.action.${props.write.kind as "project" | "thread" | "steer" | "stop"}`, {
+          target: target(),
+        })
+      : undefined
   return (
     <>
-      {props.write.failed
-        ? language.t("secondBrain.agentWrites.failed", { kind: kind() })
-        : props.write.phase === "started"
-          ? language.t("secondBrain.agentWrites.writing", { kind: kind(), target: target() })
-          : language.t("secondBrain.agentWrites.savedTo", { kind: kind(), target: target() })}
+      {action() ??
+        (props.write.failed
+          ? language.t("secondBrain.agentWrites.failed", { kind: kind() })
+          : props.write.phase === "started"
+            ? language.t("secondBrain.agentWrites.writing", { kind: kind(), target: target() })
+            : language.t("secondBrain.agentWrites.savedTo", { kind: kind(), target: target() }))}
     </>
   )
 }
@@ -175,7 +242,8 @@ function Headline(props: { write: AgentWrite }) {
 function Actions(props: { write: AgentWrite; store: AgentWrites; children?: JSX.Element }) {
   const language = useLanguage()
   const navigate = useNavigate()
-  const href = () => openHref(props.write)
+  const server = useServer()
+  const href = () => openHref(props.write, server.key)
   // A failed undo keeps Undo so it can be retried; its status shows beside it.
   const undoable = () => ["idle", "pending", "failed"].includes(props.write.undoState)
   return (

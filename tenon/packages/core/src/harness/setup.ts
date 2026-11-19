@@ -177,17 +177,24 @@ export function keyEnvironment(item: Recipe | undefined, stored: Keys[string] | 
  *   without asking; Codex runs with on-request approvals.
  * - its MCP calls wait as long as Tenon's `tenon` tools hold them (`ask_user`, `task_result`), like Codex's
  *   `tool_timeout_sec`. OpenCode's default gives up after 60 s, while the user is still reading the question.
+ * - it has its `todowrite` tool, which OpenCode 2.2 keeps behind `experimental.todo` (off by default): without
+ *   it the agent can't keep a checklist, so the thread's Tasks dock and the Ctrl+J card have no steps to show.
  * A value the user set in their global OpenCode config wins, so that part is left out.
  * `userConfig` is that file's text (JSON or JSONC), or undefined when there is none.
  */
 export function openCodeLaunchEnv(userConfig: string | undefined): Record<string, string> {
   const parsed: unknown = userConfig === undefined ? undefined : parse(userConfig, [], { allowTrailingComma: true })
   const user = isRecord(parsed) ? parsed : {}
+  const experimental = isRecord(user.experimental) ? user.experimental : {}
+  const extra = {
+    ...(experimental.mcp_timeout === undefined
+      ? { mcp_timeout: (HarnessDelegation.MAX_WAIT_SECONDS + 60) * 1_000 }
+      : {}),
+    ...(experimental.todo === undefined ? { todo: true } : {}),
+  }
   const config = {
     ...(user.permission === undefined ? { permission: { edit: "ask", bash: "ask" } } : {}),
-    ...(isRecord(user.experimental) && user.experimental.mcp_timeout !== undefined
-      ? {}
-      : { experimental: { mcp_timeout: (HarnessDelegation.MAX_WAIT_SECONDS + 60) * 1_000 } }),
+    ...(Object.keys(extra).length > 0 ? { experimental: extra } : {}),
   }
   if (Object.keys(config).length === 0) return {}
   return { OPENCODE_CONFIG_CONTENT: JSON.stringify(config) }

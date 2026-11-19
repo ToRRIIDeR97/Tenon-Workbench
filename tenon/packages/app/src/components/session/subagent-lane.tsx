@@ -129,6 +129,8 @@ export function SubagentLane(props: {
   /** Formatted duration, e.g. "1m 4s"; the caller owns the duration copy. */
   formatDuration: (ms: number | undefined) => string | undefined
   tokens?: number
+  /** The model and reasoning level, e.g. `sonnet · high` (`subagentModelLabel`). */
+  model?: string
   onOpen?: () => void
   tabIndex?: number
 }) {
@@ -161,6 +163,17 @@ export function SubagentLane(props: {
               class="shrink-0 rounded-full bg-v2-background-bg-base px-1.5 text-[11px] leading-4 text-v2-text-text-muted"
             >
               {tag()}
+            </span>
+          )}
+        </Show>
+        <Show when={props.model}>
+          {(model) => (
+            <span
+              data-slot="subagent-lane-model"
+              class="min-w-0 truncate font-mono text-[11px] leading-4 text-v2-text-text-muted"
+              title={model()}
+            >
+              {model()}
             </span>
           )}
         </Show>

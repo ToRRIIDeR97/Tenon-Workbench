@@ -154,7 +154,23 @@ export type ElectronAPI = {
 }
 
 export type BrowserBounds = { x: number; y: number; width: number; height: number }
-export type BrowserState = { url: string; title: string; loading: boolean; canGoBack: boolean; canGoForward: boolean }
+export type BrowserFailure = {
+  kind: "load" | "crashed" | "certificate"
+  code: number | string
+  description: string
+  url: string
+}
+export type BrowserState = {
+  url: string
+  title: string
+  loading: boolean
+  canGoBack: boolean
+  canGoForward: boolean
+  /** A page has committed in the view (false while the first navigation is still pending). */
+  committed?: boolean
+  /** Why the last navigation has no page (failed load, crashed page, rejected certificate). */
+  error?: BrowserFailure
+}
 export type PickedElement = {
   selector: string
   tag: string

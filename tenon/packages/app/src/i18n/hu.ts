@@ -100,6 +100,8 @@ const desktop = [
   "If you leave now, the edits you haven't saved will be lost.",
   "Leave",
   "Stay",
+  "{{harness}} használja a számítógépét",
+  "Leállítás",
 ]
 
 export const dict = {

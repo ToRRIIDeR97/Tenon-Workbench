@@ -4,6 +4,7 @@ import { makeLocationNode } from "../effect/app-node"
 import { Layer } from "effect"
 import { BashTool } from "./bash"
 import { AppToolsTool } from "./app-tools"
+import { ComputerToolsTool } from "./computer-tools"
 import { DelegateTool } from "./delegate"
 import { ApplyPatchTool } from "./apply-patch"
 import { EditTool } from "./edit"
@@ -38,6 +39,7 @@ export const node = makeLocationNode({
     ApplyPatchTool.node,
     BashTool.node,
     AppToolsTool.node,
+    ComputerToolsTool.node,
     DelegateTool.node,
     EditTool.node,
     GlobTool.node,

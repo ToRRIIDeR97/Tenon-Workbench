@@ -11,7 +11,7 @@ export const SkillHandler = HttpApiBuilder.group(Api, "server.skill", (handlers)
     .handle("skill.list", () => response(SkillV2.Service.use((skill) => skill.list())))
     .handle("skill.catalog", () => response(HarnessSkills.catalog()))
     .handle("skill.setEnabled", (ctx) =>
-      response(HarnessSkills.setEnabled(ctx.payload.name, ctx.payload.enabled)).pipe(
+      response(HarnessSkills.setEnabled(ctx.payload.name, ctx.payload.enabled, ctx.payload.harness)).pipe(
         Effect.mapError((error) =>
           error._tag === "HarnessSkills.UnknownSkill"
             ? new SkillNotFoundError({ reason: "not-found", message: error.message })

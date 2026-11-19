@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import {
   fileCitations,
   localLinkTarget,
+  outsideFileReferencePath,
   listedEntryPath,
   fileReferenceRangeLabel,
   parseFileReference,
@@ -120,6 +121,29 @@ describe("resolveFileReferencePath", () => {
     expect(resolveFileReferencePath("c:core\\a.ts", "C:\\repo")).toBeUndefined()
     expect(resolveFileReferencePath("D:x.ts", "/repo")).toBeUndefined()
     expect(resolveFileReferencePath("a.ts", "")).toBeUndefined()
+  })
+})
+
+describe("outsideFileReferencePath", () => {
+  test("keeps an absolute path outside the folder, normalized", () => {
+    expect(outsideFileReferencePath("D:\\notes\\plan.md", "C:\\repo")).toBe("D:/notes/plan.md")
+    expect(outsideFileReferencePath("C:\\other\\.\\a.ts", "C:\\repo")).toBe("C:/other/a.ts")
+    expect(outsideFileReferencePath("C:/Users/me/Downloads/", "C:\\repo")).toBe("C:/Users/me/Downloads")
+    expect(outsideFileReferencePath("/etc//hosts", "/repo")).toBe("/etc/hosts")
+  })
+
+  test("leaves inside, relative, escaping and other-platform paths alone", () => {
+    expect(outsideFileReferencePath("C:\\repo\\a.ts", "C:\\repo")).toBeUndefined()
+    expect(outsideFileReferencePath("/repo/a.ts", "/repo")).toBeUndefined()
+    expect(outsideFileReferencePath("a.ts", "/repo")).toBeUndefined()
+    expect(outsideFileReferencePath("~/.bashrc", "/repo")).toBeUndefined()
+    expect(outsideFileReferencePath("/other/../repo/a.ts", "/repo")).toBeUndefined()
+    expect(outsideFileReferencePath("D:x.ts", "C:\\repo")).toBeUndefined()
+    // A route such as /api/fs/find in a Windows thread is not a file, nor is a drive path in a POSIX one.
+    expect(outsideFileReferencePath("/api/fs/find.json", "C:\\repo")).toBeUndefined()
+    expect(outsideFileReferencePath("C:/x/a.ts", "/repo")).toBeUndefined()
+    expect(outsideFileReferencePath("C:/", "C:\\repo")).toBeUndefined()
+    expect(outsideFileReferencePath("/x.ts", "/repo")).toBeUndefined()
   })
 })
 

@@ -152,6 +152,21 @@ export function createHomeSessionIndexCache(queryClient: QueryClient, server: st
       }
       queryClient.setQueryData<HomeSessionEvents>(eventsKey, { sequence: next.sequence, entries: [] })
     },
+    /**
+     * A prompt or a finished reply is the thread's latest conversation: its last update moves forward, so it
+     * rises in the lists without refetching the index (the server stores the same time).
+     */
+    touch(sessionID: string, time: number) {
+      const index = queryClient.getQueryData<HomeSessionIndex>(indexKey)
+      const session = homeSessionIndexSessions(index, queryClient.getQueryData<HomeSessionEvents>(eventsKey)).find(
+        (item) => item.id === sessionID,
+      )
+      if (!session || time <= (session.time.updated ?? session.time.created)) return
+      this.apply({
+        type: "session.updated",
+        properties: { sessionID, info: { ...session, time: { ...session.time, updated: time } } },
+      })
+    },
     refresh(event: Event["type"]) {
       const result = homeSessionIndexRefresh(event, connected)
       connected = result.connected

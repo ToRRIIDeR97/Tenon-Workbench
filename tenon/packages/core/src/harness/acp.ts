@@ -106,6 +106,23 @@ export const SILENCE_LIMIT_MINUTES = 10
 const SILENCE_LIMIT = SILENCE_LIMIT_MINUTES * 60_000
 
 /**
+ * How long subagents an agent sent to work in the background keep its later turns from counting as silent. OpenCode
+ * holds the next prompt until they finish and forwards none of their work meanwhile, so a turn can be quiet far
+ * longer than the silence limit while they build; replacing the runtime then would stop them.
+ */
+export const BACKGROUND_LIMIT = 60 * 60_000
+
+/** Child sessions an OpenCode subagent result says are still working in the background. */
+export function backgroundChild(output: string) {
+  return /working in the background \(sessionID: ([^)\s]+)\)/.exec(output)?.[1]
+}
+
+/** Whether a subagent launched in the background (child session → launch time) may still be working. */
+export function backgroundWorking(children: ReadonlyMap<string, number>, now: number) {
+  return [...children.values()].some((started) => now - started < BACKGROUND_LIMIT)
+}
+
+/**
  * A liveness check for a harness turn, which otherwise has no deadline: an agent that is alive but silent, say on a
  * stalled provider connection, would keep the thread running until the user presses Stop. `build` calls `heard` for
  * each message from the agent; `busy` is true while a tool or a question to the user legitimately takes long, and
@@ -287,7 +304,8 @@ export const handshake = (process: Process, settings: Settings, directory: strin
   Effect.scoped(connect(process, settings, directory)).pipe(
     Effect.timeoutOrElse({
       duration: "8 seconds",
-      orElse: () => Effect.fail(new ProtocolError("The ACP agent did not answer initialize within 8 seconds.")),
+      orElse: () =>
+        Effect.fail(new ProtocolError("The ACP agent did not answer initialize within 8 seconds.", { timedOut: true })),
     }),
     Effect.map(({ initialize }) => agentInfo(initialize)),
   )
@@ -376,16 +394,29 @@ export function probe(
       }),
     })),
     Effect.catch((error) =>
-      Effect.succeed({
-        instance: Harness.Instance.make({
-          ...base,
-          status: "unavailable",
-          error: errorMessage(error),
-          models: withConfigured(known ?? [], settings.models),
-        }),
-      }),
+      Effect.succeed({ instance: probeFailure(base, error, withConfigured(known ?? [], settings.models)) }),
     ),
   )
+}
+
+/**
+ * The picker's answer for a failed check. Only a late answer leaves the harness usable: an outdated CLI often starts
+ * slowly (an npx adapter checking for or fetching its update), and the thread's own start has no 8 s limit. A protocol
+ * mismatch or a CLI that doesn't start can't work, so those disable it (#321).
+ */
+export function probeFailure(
+  base: { readonly id: Harness.InstanceID; readonly driver: Harness.DriverKind; readonly name: string },
+  error: unknown,
+  models: ReadonlyArray<Harness.Model>,
+) {
+  const late = error instanceof ProtocolError && error.timedOut === true
+  return Harness.Instance.make({
+    ...base,
+    status: late ? "available" : "unavailable",
+    error: errorMessage(error),
+    ...(late ? { slowStart: true } : {}),
+    models: [...models],
+  })
 }
 
 /**
@@ -458,10 +489,13 @@ export const open = Effect.fn("AcpHarness.open")(function* (
     sessionCost?: number
     /** Finishes when the last session/prompt has been answered, which a stopped turn doesn't wait for. */
     prompt?: Deferred.Deferred<void>
+    /** Subagents sent to work in the background in an earlier turn: child session → launch time. */
+    readonly background: Map<string, number>
   } = {
     currentModel: selector.current,
     effort: selector.effort,
     sessionCost: baseline,
+    background: new Map(),
   }
   // set_config_option answers with every option, and a model switch can change or drop the levels.
   const readEffort = (response: unknown) =>
@@ -600,7 +634,10 @@ export const open = Effect.fn("AcpHarness.open")(function* (
           watch
             ? failOnSilence(
                 body,
-                () => watch.waiting() || [...parser.tools.values()].some((tool) => !tool.done),
+                () =>
+                  watch.waiting() ||
+                  [...parser.tools.values()].some((tool) => !tool.done) ||
+                  backgroundWorking(state.background, Date.now()),
                 llmError(`${watch.name} stopped responding for ${SILENCE_LIMIT_MINUTES} minutes.`),
               )
             : body(Effect.void),
@@ -611,6 +648,11 @@ export const open = Effect.fn("AcpHarness.open")(function* (
           Stream.ensuring(
             Effect.suspend(() => {
               if (parser.sessionCost !== undefined) state.sessionCost = parser.sessionCost
+              // A turn the agent answered means it took up whatever its background subagents left it; the ones this
+              // turn sent off are the ones still out.
+              if (parser.finished) state.background.clear()
+              for (const tool of parser.tools.values())
+                if (tool.background) state.background.set(tool.background, Date.now())
               return parser.finished
                 ? Effect.void
                 : client.notify("session/cancel", { sessionId: session.sessionId }).pipe(Effect.ignore)
@@ -688,6 +730,8 @@ export interface AcpTool {
   held?: { readonly failed: boolean; readonly update: Record<string, unknown> }
   /** An OpenCode subagent's own session, where its token use can be read once it ends (`openCodeUsageLookup`). */
   childSession?: string
+  /** The child session of an OpenCode subagent its result says is still working in the background. */
+  background?: string
 }
 
 export interface AcpStep {
@@ -825,8 +869,10 @@ export function parseAcpNotification(
     if (tool.done || !terminal) return [...closed, ...start]
     tool.done = true
     // OpenCode names the subagent's session in its result even when it forwarded none of its updates.
-    if (tool.name === "acp_subagent")
+    if (tool.name === "acp_subagent") {
       tool.childSession ??= /<subagent sessionID="([^"]+)"/.exec(toolOutput(update))?.[1]
+      tool.background = backgroundChild(toolOutput(update))
+    }
     if (tool.name === "acp_subagent" && !tool.usage && isClaudeCodeUpdate(update)) {
       tool.held = { failed: status === "failed", update }
       return [...closed, ...start]
