@@ -239,11 +239,17 @@ Use `[font-weight:N]` when a weight must differ from the role.
 - **Free-text answers in a choice card** (the question dock's "Other"): no ring
   on the text box itself; while it has focus the option's edge becomes a 1.5px
   line in the focus colour, and the caret does the rest.
-- **Agent task list** (the dock on the composer, `session-todo-dock.tsx`):
-  a "Tasks" title with "N of M" and a chevron; each step has a 16px mark, a
-  filled check for done (text dimmed), `LoaderV2` in accent for the step in
-  progress (weight 500), and a dashed circle for steps to come. Collapsed, the
-  title row shows the current step. Status is carried by the mark's shape.
+- **Agent task list** (`session-todo-dock.tsx`, `SessionTodoTray`): part of
+  the composer's tray, the layer-02 tab inset 18px that holds the folder and
+  branch, never a card of its own. While an agent runs, the tray grows a 36px
+  row above the where row: the run's mark (`LoaderV2` in accent, a check when
+  done), the step in progress (weight 500), "N of M" and a chevron that points
+  up while collapsed; a 2px accent line on the row's bottom edge fills as steps
+  finish. Expanding unfolds the steps above the row inside the same tray; each
+  step has a 16px mark, a filled check for done (text dimmed), `LoaderV2` for
+  the step in progress (weight 500) and a dashed circle for steps to come.
+  Status is carried by the mark's shape. The section opens and closes with the
+  run (300 ms spring), clipped from the top so the row leads.
 - **Reply to a passage** (`selection-reply.tsx`): the selection pill grows
   into a 400px floating card (radius 20px, floating elevation, ~74px tall):
   the pill's own "↩ Reply" label, one faint truncated line of the passage and

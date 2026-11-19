@@ -75,6 +75,7 @@ import {
   createSessionComposerController,
   createSessionComposerRegionController,
   SessionComposerRegion,
+  SessionTodoTray,
   SessionRevertTray,
 } from "@/pages/session/composer"
 import {
@@ -2297,6 +2298,7 @@ export default function Page() {
                     borderUnderlay
                     header={<SessionRevertTray dock={controller.revert} />}
                     boxHeader={commandThread() ? undefined : <ComposerWhereRow />}
+                    boxHeaderTop={<SessionTodoTray controller={controller} />}
                     trailing={<ComposerContextRing context={composerContext} harness={sessionHarness} />}
                   />
                 }

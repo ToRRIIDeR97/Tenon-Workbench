@@ -1,4 +1,4 @@
-export { SessionComposerRegion } from "./session-composer-region"
+export { SessionComposerRegion, SessionTodoTray } from "./session-composer-region"
 export { SessionRevertTray } from "./session-revert-dock"
 export { createPromptInputController, createPromptProjectControls } from "./session-composer-controls"
 export { createSessionComposerController } from "./session-composer-state"

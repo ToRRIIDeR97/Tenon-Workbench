@@ -52,6 +52,8 @@ export type PromptInputV2Props = {
   runtimeControl?: JSX.Element
   /** A row inside the top of the box, above the text, for where the prompt runs (folder, worktree). */
   headerControl?: JSX.Element
+  /** A section of the same tray above the where row, such as the running agent's checklist. */
+  headerTop?: JSX.Element
   /** Accessible label of a quote chip's remove button. */
   quoteRemoveLabel?: string
   /** How an attachment will reach the model (#330), shown on its card in place of the file type. */
@@ -197,13 +199,19 @@ export function PromptInputV2(props: PromptInputV2Props) {
         onDragLeave={props.controller.onDragLeave}
         onDrop={props.controller.onDrop}
       >
-        {/* The where row is a lighter tab, 18px in from the box's sides, that tucks 12px behind the box's top edge. */}
-        <Show when={props.headerControl}>
+        {/* The tray is a lighter tab, 18px in from the box's sides, that tucks 12px behind the box's top edge. It
+          holds the where row and, above it, anything that belongs to the thread's state (its checklist). */}
+        <Show when={props.headerControl || props.headerTop}>
           <div
             data-slot="prompt-input-header"
-            class="relative z-0 mx-[18px] -mb-3 flex h-[46px] min-w-0 items-center gap-0.5 rounded-t-[18px] bg-v2-background-bg-layer-02 pb-3 pl-2.5 pr-2 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]"
+            class="relative z-0 mx-[18px] -mb-3 flex min-w-0 flex-col rounded-t-[18px] bg-v2-background-bg-layer-02 pb-3 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]"
           >
-            {props.headerControl}
+            {props.headerTop}
+            <Show when={props.headerControl}>
+              <div data-slot="prompt-input-header-where" class="flex h-[34px] min-w-0 items-center gap-0.5 pl-2.5 pr-2">
+                {props.headerControl}
+              </div>
+            </Show>
           </div>
         </Show>
 

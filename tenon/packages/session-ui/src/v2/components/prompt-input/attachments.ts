@@ -2,6 +2,9 @@ import { onMount } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import type { PromptInputV2Attachment, PromptInputV2Prompt } from "./types"
 
+/** A dropped folder goes out as a directory mention; the server lists it for the agent. */
+const FOLDER_MIME = "application/x-directory"
+
 // Video, audio and documents are accepted too (#330); the app turns what a model can't read into frames or text.
 const mediaExtensions = new Map([
   ["mp4", "video/mp4"],
@@ -117,6 +120,37 @@ export type PromptInputV2AttachmentConfig = {
   readClipboardImage?: () => Promise<File | null>
   getPathForFile?: (file: File) => string
   store?: (file: File) => Promise<{ id: string; url: string }>
+}
+
+/**
+ * A drop's folders and files. A folder dragged from the file manager arrives as an empty, typeless File; only its
+ * entry says it is a directory, and only while the drop event runs, so this is read before anything awaits.
+ */
+export function sortDrop(transfer: DataTransfer | null | undefined) {
+  const items = Array.from(transfer?.items ?? []).flatMap((item) => {
+    if (item.kind !== "file") return []
+    const file = item.getAsFile()
+    return file ? [{ file, folder: !!item.webkitGetAsEntry?.()?.isDirectory }] : []
+  })
+  if (items.length === 0) return { folders: [], files: Array.from(transfer?.files ?? []) }
+  return {
+    folders: items.filter((item) => item.folder).map((item) => item.file),
+    files: items.filter((item) => !item.folder).map((item) => item.file),
+  }
+}
+
+/** A dropped folder as a directory mention (`@name`) carrying its full path, or undefined without a path. */
+export function folderMention(file: File, path: string | undefined) {
+  if (!path) return
+  return {
+    type: "file" as const,
+    path,
+    content: `@${file.name}`,
+    start: 0,
+    end: 0,
+    mime: FOLDER_MIME,
+    filename: file.name,
+  }
 }
 
 export function createPromptInputV2Attachments(
@@ -242,8 +276,16 @@ export function createPromptInputV2Attachments(
       input.addPart({ type: "file", path, content: `@${path}`, start: 0, end: 0 })
       return
     }
-    const files = event.dataTransfer?.files
-    if (files) await addAttachments(Array.from(files))
+    const drop = sortDrop(event.dataTransfer)
+    drop.folders.forEach((file) => {
+      // The desktop shell knows a dropped folder's path; a browser doesn't, and then it can't be referenced.
+      const part = folderMention(file, input.getPathForFile?.(file))
+      if (!part) return input.warn()
+      input.focusEditor()
+      input.addPart(part)
+    })
+    const files = drop.files
+    if (files.length) await addAttachments(files)
   }
 
   onMount(() => {

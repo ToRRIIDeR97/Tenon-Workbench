@@ -66,6 +66,8 @@ export type PromptInputV2ComposerProps = {
   header?: JSX.Element
   /** A row inside the box above the text, such as the new thread's folder and worktree. */
   boxHeader?: JSX.Element
+  /** A section of the same tray above the box header, such as the thread's checklist. */
+  boxHeaderTop?: JSX.Element
 }
 
 export type PromptInputV2ControllerProps = Omit<PromptInputProps, "class" | "submission">
@@ -119,6 +121,7 @@ export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
       <PromptInputV2
         controller={props.controller}
         headerControl={props.boxHeader}
+        headerTop={props.boxHeaderTop}
         quoteRemoveLabel={language.t("secondBrain.quote.remove")}
         attachmentNote={(attachment) => {
           // How it will reach the selected model: the built-in agent's model reports its inputs; a harness's model

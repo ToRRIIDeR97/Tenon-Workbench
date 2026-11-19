@@ -226,6 +226,8 @@ export const dict: Record<string, string> = {
   "secondBrain.message.svg.download": "Download",
   "secondBrain.message.svg.drawing": "Drawing diagram…",
   "secondBrain.fileReference.open": "Open in Files",
+  "secondBrain.fileReference.openOutside": "Open",
+  "secondBrain.fileReference.missingOutside": "File not found",
   "secondBrain.fileReference.copyPath": "Copy path",
   "secondBrain.fileReference.loading": "Loading preview…",
   "secondBrain.fileReference.missing": "File not found in this thread's folder",

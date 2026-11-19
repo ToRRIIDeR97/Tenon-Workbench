@@ -139,7 +139,7 @@ export function createSessionComposerRegionController(input: {
     promptReady: () => input.prompt.ready() || promptReady(),
     dock: () => (store.ready && input.state.dock()) || value() > 0.001,
     dockProgress: value,
-    dockHeight: () => Math.max(78, store.height),
+    dockHeight: () => Math.max(36, store.height),
     setDockBodyRef: (el: HTMLDivElement) => setStore("body", el),
   }
 }

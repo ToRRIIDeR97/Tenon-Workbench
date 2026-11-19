@@ -1375,9 +1375,26 @@ those link targets, the sanitizer's URI allowlist adds `file:` to DOMPurify's
 default list. Inline `style` attributes keep only colour and font properties
 (`restrictStyle` in `markdown-media.ts`), which highlighted code needs; layout,
 positioning and `url()` values are dropped, so raw HTML can't place itself over
-the app shell. A `file:` link that isn't a chip (outside the thread folder)
-opens nothing: the desktop window refuses to navigate to it
-(`openExternalURL` accepts only `http`, `https` and `mailto`).
+the app shell. A `file:` link that isn't a chip opens nothing: the desktop
+window refuses to navigate to it (`openExternalURL` accepts only `http`,
+`https` and `mailto`).
+
+An agent that worked outside the thread folder cites files there by absolute
+path; those become chips too, marked `outside`
+(`outsideFileReferencePath`). The path must be absolute in the thread folder's
+own platform form (a drive path in a Windows folder, `/…` in a POSIX one), and
+the same `..`, `~`, control-character and drive-relative rules apply; it is
+normalized to forward slashes. An inline-code outside reference must name a
+file (an extension or known file name) or end in a slash, since there is no
+listing to settle an extensionless path. Nothing is read until the user hovers
+or clicks the chip. The app then reads the file through the server's normal
+file read with the file's parent as the location and its bare name as the
+relative path (`app/src/pages/session/outside-file.tsx`), so the server's
+containment check still applies to that folder; it is read-only, shown in a
+viewer dialog (the cited lines marked), and never written. A cited outside
+folder is listed only for the peek's item count. Opening a folder, media file
+or binary file sends it to its default app on desktop through
+`openLocalFileURL` under the rules below.
 
 On desktop, a referenced file that the server reads as binary and that isn't
 an image or other media type opens in its default app instead of the panel

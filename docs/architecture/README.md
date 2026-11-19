@@ -1324,6 +1324,12 @@ Other harness output is mapped onto the built-in views:
   (`codexInputItems`); an ACP agent gets local files as `resource_link` and,
   when it advertises `promptCapabilities.image`, pasted images as `image`
   blocks (`acpPromptBlocks`). Other attachments stay a text mention.
+- A folder dropped onto the composer from the file manager becomes an `@name`
+  directory mention (`application/x-directory`) carrying the path the desktop
+  shell reports for it (`sortDrop`, `folderMention` in
+  `session-ui/.../prompt-input/attachments.ts`); the built-in loop reads it as
+  a listing, as for any directory mention. A browser, which has no path for a
+  dropped folder, shows the unsupported-file toast.
 The child's updates are attached to the subagent call (`acp_subagent`) that
 started it:
 
