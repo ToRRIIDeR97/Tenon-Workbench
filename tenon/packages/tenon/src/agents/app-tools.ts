@@ -35,6 +35,7 @@ import { CommandMemory } from "./command-memory"
 import { CommandSetup } from "./command-setup"
 import { MailTools } from "./mail-tools"
 import { Routines } from "./routines"
+import { AgentTerminalTools } from "./terminal-tools"
 
 /**
  * Tenon app tools for agents: notes in the vault, a Project's timeline and log, the workspace
@@ -477,6 +478,9 @@ GlobalBus.on("event", (event) => {
   if (CommandMemory.isCommandDirectory(directory)) commandSessions.add(sessionID)
 })
 
+/** What every thread outside the Command Centre gets: the app tools and its own terminals. */
+const THREAD_TOOLS = [...TOOLS, ...AgentTerminalTools.TOOLS]
+
 /** Every tool any thread can get, for the in-process loop's registration. Calls still check `list`. */
 export const catalog = () => [
   ...TOOLS.map(withWorkspace),
@@ -488,7 +492,8 @@ export const catalog = () => [
  * The in-process loop's tools for one folder: the Command Centre's folder gets the full catalog, every
  * other folder only the app tools (it can never run a Command Centre thread).
  */
-export const catalogFor = (directory: string) => (CommandMemory.isCommandDirectory(directory) ? catalog() : TOOLS)
+export const catalogFor = (directory: string) =>
+  CommandMemory.isCommandDirectory(directory) ? catalog() : THREAD_TOOLS
 
 /**
  * The tools `sessionID` may use. Every thread gets the app tools; a Command Centre thread also gets
@@ -496,7 +501,7 @@ export const catalogFor = (directory: string) => (CommandMemory.isCommandDirecto
  * a thread the process hasn't seen yet counts as not a Command Centre thread until `known` looks it up.
  */
 export const list = (caller: { sessionID: string }): ReadonlyArray<HarnessAppTools.Tool> =>
-  commandSessions.has(caller.sessionID) ? catalog() : TOOLS
+  commandSessions.has(caller.sessionID) ? catalog() : THREAD_TOOLS
 
 /** Whether the thread runs in the Command Centre's folder, read from the session table. */
 const isCommandSession = (sessionID: string) =>
@@ -568,7 +573,7 @@ export const layer = Layer.effectDiscard(
         state.context = context
         void CommandMemory.resolveFolders()
         const uninstall = HarnessAppTools.install({
-          catalog: catalog(),
+          catalog: [...catalog(), ...AgentTerminalTools.TOOLS],
           catalogFor,
           list: (caller) => Effect.runPromise(known(caller)),
           call: (name, args, caller) =>
@@ -609,6 +614,13 @@ const execute = Effect.fnUntraced(function* (
     ...(caller.callID ? { callID: caller.callID } : {}),
   }
   const command = yield* isCommandSession(sessionID)
+  // The Command Centre reads untrusted mail, so it starts no programs: terminals belong to Project threads.
+  if (AgentTerminalTools.isTerminalTool(name)) {
+    if (command) return yield* new ToolError({ message: `${name} isn't available in the Command Centre.` })
+    return yield* AgentTerminalTools.call(name, input, sessionID).pipe(
+      Effect.mapError((error) => new ToolError({ message: error.message })),
+    )
+  }
   const commandOnly = COMMAND_TOOLS.some((tool) => tool.name === name) || MailTools.isMailTool(name)
   if (!TOOLS.some((tool) => tool.name === name) && !commandOnly)
     return yield* new ToolError({ message: `Unknown tool: ${name}` })

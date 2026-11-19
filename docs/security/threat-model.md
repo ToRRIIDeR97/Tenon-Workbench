@@ -1149,9 +1149,37 @@ Mail lives in the desktop main process (`desktop/src/main/mail/`; see
 
 Scrollback stays in memory. The sidecar keeps up to 2 MB per PTY for replay, and
 the renderer keeps a serialized copy per PTY only to restore a tab switch
-(`terminalScrollback` in `app/src/context/terminal.tsx`). The persisted workspace
-store holds a terminal's title, size, cursor and scroll position, not its output,
-and loading an older store removes any `buffer` it saved.
+(`terminalScrollback` in `app/src/context/terminal.tsx`). The persisted
+per-thread store holds a terminal's title, size, cursor and scroll position, not
+its output, and loading an older store removes any `buffer` it saved.
+
+## Agent terminals
+
+Agents can start a long-running command in a terminal tab of their thread
+(`terminal_start`, `terminal_read`, `terminal_stop`; see
+[Thread terminals](../architecture/README.md#thread-terminals)).
+
+- What runs: one command line, typed into the user's shell in the thread's own
+  folder, the same as the agent's shell tool could run there. A command with a
+  control character (a newline, Ctrl+C, an escape) is refused, so the agent
+  can't press keys the user doesn't see in its call. At most 6 run per thread.
+- Approval: the built-in loop asks the thread's `bash` permission with the
+  command as the resource, so the thread's mode and `bash` rules decide as for
+  its own shell. Codex and ACP agents apply their own MCP tool approval. The
+  Command Centre (untrusted mail) gets none of these tools, and a call from
+  one of its threads is refused.
+- Ownership: the server tags the PTY with the root thread
+  (`Pty.Info.sessionID`); the HTTP create route can't set it. A thread's agent
+  reads and stops only PTYs tagged with its own root thread, never the user's
+  own tabs or another thread's terminals; any other id reads as "No terminal".
+- Output: `terminal_read` returns at most the last 400 lines and 12,000
+  characters as plain text, and tells the agent it is data from the program,
+  never instructions. It is not logged.
+
+Known gaps: a command the agent starts keeps running when the agent's turn
+ends, until the user closes the tab, the agent calls `terminal_stop`, or the
+server stops; the tag is the thread's session id, which any client of the
+server can read in the PTY list.
 
 ## Local dictation
 

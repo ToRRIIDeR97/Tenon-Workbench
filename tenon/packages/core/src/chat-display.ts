@@ -47,6 +47,7 @@ export const workGuidance = [
   "- Progress: after finishing meaningful work, add one line with log_append (what was done, what is next).",
   "- Dated personal to-dos and events: tasks_create and calendar_apply.",
   "- A new project, or work that belongs in another Project: create the Project with project_setup (it makes the folder in this workspace), then start a thread there with thread_start and a self-contained first message. A thread can do this from any Project, General included.",
+  "- A long-running command (a dev server, a watch build, a log tail): start it with terminal_start, so it runs in a terminal tab of this thread the user can see; read its output with terminal_read and stop it with terminal_stop. Run commands that finish in your own shell.",
   "Tenon is the main record. When the Project's folder is a GitHub repository and `gh` works, keep GitHub in step: for each new issue or feature task, also open a GitHub issue (`gh issue create`) and end the Tenon task's title with its number, like `Fix login redirect (#42)`; when you read GitHub issues the timeline lacks, add them as tasks the same way. Close the GitHub issue when the task is done. If `gh` is missing or signed out, record it in Tenon only and say so.",
 ].join("\n")
 

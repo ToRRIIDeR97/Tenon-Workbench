@@ -4009,6 +4009,7 @@ export type PtysListOutput = {
     readonly status: "running" | "exited"
     readonly pid: number
     readonly exitCode?: number
+    readonly sessionID?: string
   }>
 }
 
@@ -4068,6 +4069,7 @@ export type PtysCreateOutput = {
     readonly status: "running" | "exited"
     readonly pid: number
     readonly exitCode?: number
+    readonly sessionID?: string
   }
 }
 
@@ -4093,6 +4095,7 @@ export type PtysGetOutput = {
     readonly status: "running" | "exited"
     readonly pid: number
     readonly exitCode?: number
+    readonly sessionID?: string
   }
 }
 
@@ -4123,6 +4126,7 @@ export type PtysUpdateOutput = {
     readonly status: "running" | "exited"
     readonly pid: number
     readonly exitCode?: number
+    readonly sessionID?: string
   }
 }
 

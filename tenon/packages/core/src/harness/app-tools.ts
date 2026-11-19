@@ -16,6 +16,11 @@ export interface Tool {
   readonly inputSchema: Record<string, unknown>
   /** MCP tool annotations; `readOnlyHint: true` marks a tool that changes nothing. */
   readonly annotations?: { readonly readOnlyHint?: boolean }
+  /**
+   * The permission the in-process loop asks instead of `tenon_write`, on the input `field` that names what it acts
+   * on (`terminal_start` asks `bash` for its command). External harnesses apply their own tool approval either way.
+   */
+  readonly permission?: { readonly action: string; readonly field: string }
 }
 
 export interface Caller {

@@ -1770,6 +1770,41 @@ global event stream for `agent.write` and keeps the last 50 writes.
   (`/notes?page=`), the Project log (`/notes?project=…&tab=log`), the Project
   (`/notes?project=`) or the item's day (`/calendar?date=YYYY-MM-DD`). Neutral v2 tokens throughout; the accent is only the active dot.
 
+### Thread terminals
+
+Each thread has its own terminal tabs and its own panel toggle, also when
+several threads share a folder.
+
+- The renderer keys a thread's tabs by folder and session
+  (`getThreadTerminalCacheKey` in `app/src/context/terminal.tsx`) and persists
+  them per session (`Persist.serverSession(…, "terminal")`); a page with no
+  thread yet uses the folder's key. Whether the panel is open is per thread
+  too (`terminalOpened` in the layout's session view); its height stays
+  global. Tabs a folder's threads shared before this aren't carried over.
+- Opening the panel on a thread with no terminals starts one. Closing the
+  last tab closes the panel and starts nothing (before, the panel started a
+  replacement at once, so the Environment window's count never dropped).
+- A tab goes away when its PTY exits (`pty.exited`) or is removed anywhere
+  (`pty.deleted`), such as by another window or `terminal_stop`.
+- Agents start long-running commands in the thread's terminals with three app
+  tools in every thread outside the Command Centre
+  (`tenon/src/agents/terminal-tools.ts`): `terminal_start { command, title? }`
+  opens the user's shell in the thread's folder and types the one command
+  line into it, `terminal_read { terminalId?, lines? }` lists the thread's
+  agent terminals or returns one's last lines as plain text (escape sequences
+  dropped, at most 400 lines and 12,000 characters), and `terminal_stop`
+  removes it. A subagent's terminal belongs to its root thread. The PTY
+  carries that thread in `Pty.Info.sessionID`, which only the server sets
+  (`Pty.CreateOptions`; the HTTP create route drops it), and `Pty.output`
+  returns its retained buffer. At most 6 run per thread.
+- The renderer adds a thread's agent terminals to its tabs: on `pty.created`
+  while the thread is open (the panel opens without taking focus), and from
+  the PTY list when the thread loads (`agentTerminalTab`). The user's own tabs
+  carry no thread, so an agent never sees or reaches them.
+- The built-in loop asks the thread's `bash` permission for the command
+  (`HarnessAppTools.Tool.permission`); Codex and ACP agents apply their own MCP
+  tool policy, as for every app tool.
+
 ### Harness model lists
 
 The picker shows the models each harness reports, not a list saved when the
