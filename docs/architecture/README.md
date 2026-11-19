@@ -719,7 +719,25 @@ assistant that spans workspaces, with its own threads, memory and routines.
   one with the harness and model from Settings › Command Centre. The list
   refreshes when the page opens and, debounced, on `session.created/updated/deleted`
   events for that folder, so archives, deletes and routine runs show up.
-- **Mission control.** The page also shows a board of every Project's threads
+- **Mission control is the thread view.** With a Command Centre thread to
+  open, `/command`'s Mission control view navigates to the newest one, and that
+  thread page (`pages/session.tsx`, which knows a Command Centre thread by
+  `isCommandThread`) carries the Command Centre's chrome from
+  `features/command-centre/command-thread-chrome.tsx`: the title row reads
+  "Command Centre" with a menu of its threads and New thread (`centre.create()`,
+  an empty thread opened straight away); the header has the page's views
+  (`CommandViews`: Mission control, Waiting on you, Workflows, Routines), where
+  Waiting on you and Workflows go to `/command?view=waiting|workflows`; and the
+  board sits beside the thread as a 380 px Mission panel (`CommandMissionPanel`,
+  shown on desktop, toggled and kept in `command.mission-panel`). The rail keeps
+  its Command Centre entry lit on those threads. Before the first thread the
+  page still shows the agent's composer beside the board. Each turn's writes,
+  including the Command Centre's own actions (`project`, `thread`, `steer`,
+  `stop` `agent.write` events from `project_setup`, `thread_start`,
+  `thread_message` and `thread_stop`, which have no undo), show as one
+  Done-for-you list under the reply (`AgentWritesDone`), with Open going to
+  the Project or thread.
+- **The board.** The Mission panel and `/command` show a board of every Project's threads
   (`features/command-centre/mission-board-view.tsx`; the sort and grouping are the
   pure `mission-board.ts`). It adds no request and no polling: it reads the sidebar
   controller's thread groups (`useSidebarController().groups()`, built from the
@@ -756,7 +774,13 @@ assistant that spans workspaces, with its own threads, memory and routines.
   publishes that anchor through `command-strip-anchor.ts` and only the strip's
   own style changes, never a custom property on `<html>`, which would restyle
   the whole document on every frame of a column resize); open, a 640 px, 24 px-radius card
-  named "Command Centre" with the latest exchange (your last message,
+  named "Command Centre" that briefs first: the counts (running, needs you,
+  done today, from the board's `boardByState` via `command-briefing.ts`); the
+  oldest request waiting on you (`createWaitingQueue`), a permission answered
+  in place with Deny or Allow once (`api.permission.reply` through the thread's
+  folder), a question opened in its thread, "+N more" going to Waiting on you;
+  the two newest running threads with their checklist step and progress
+  (`todo` items; "+N more running" after them); then the latest exchange (your last message,
   `lastAskText`, and the reply drawn as Markdown, as the desktop widget draws
   it: capped at about five lines with a fade, "Show more" lets it grow and
   scroll inside the card; `lastReplyText` keeps the reply's line breaks for
@@ -765,7 +789,7 @@ assistant that spans workspaces, with its own threads, memory and routines.
   (`centre.send(text, latest.id)`); New thread makes the next send start one.
   The card and the page share the persisted draft (`composer.command`). When the
   shown thread waits on an approval or a question (`needsYou`), the card offers
-  "Review in thread"; it never answers approvals itself. Ctrl+J / Cmd+J
+  "Review in thread". Ctrl+J / Cmd+J
   (`commandCentre.strip.toggle`, `mod+j`) or a click opens it; Esc closes it. Height moves over 300 ms
   emphasized-decelerate when opening and 200 ms emphasized-accelerate when
   closing, with no motion under reduced motion. When the latest reply made
@@ -804,10 +828,14 @@ assistant that spans workspaces, with its own threads, memory and routines.
   `tor-feature-map-verification` and `tor-workflow`, then creates the Project
   card (a folder outside the workspace is also linked) and an empty vault
   timeline. A setup that fails before the card is written removes a folder it
-  created; after that the folder stays with its Project. Command Centre
-  sessions call it as the `project_setup` app tool.
+  created; after that the folder stays with its Project. Every thread can
+  call it as the `project_setup` app tool (`workspace` defaults to the
+  thread's own), then `thread_start` to open a root thread in that Project
+  (or `general`) on the caller's harness and model, with a first message
+  delivered the way `thread_message` sends one.
 - **Tools.** `AgentAppTools.list({ sessionID })` (synchronous) gives a
-  Command Centre thread the app tools plus `memory_search`, `project_setup`,
+  Command Centre thread the app tools (which include `project_setup` and
+  `thread_start`) plus `memory_search`,
   the thread tools (below) and, when `TENON_MAIL_URL` and `TENON_MAIL_TOKEN` are set, `mail_search`,
   `mail_read` and `mail_draft` (`tenon/src/agents/mail-tools.ts`, which posts
   JSON to the desktop's `/search`, `/thread` and `/draft` with the bearer

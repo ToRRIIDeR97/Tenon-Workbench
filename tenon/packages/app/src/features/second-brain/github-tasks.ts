@@ -46,10 +46,22 @@ export type GithubTaskRow = {
 
 const RECENT_MS = 14 * 24 * 60 * 60 * 1000
 
-export function githubTaskRows(work: GithubWorkOk, show: "open" | "all", now = Date.now()): GithubTaskRow[] {
-  const shown = work.issues.filter(
-    (issue) =>
-      issue.state === "open" || (show === "all" && !!issue.closedAt && now - Date.parse(issue.closedAt) <= RECENT_MS),
+/** Issue numbers a Tenon task already mirrors: its title ends with `(#N)`, the way agents record a GitHub issue. */
+export function linkedIssueNumbers(titles: ReadonlyArray<string>) {
+  return new Set(titles.flatMap((title) => [...title.matchAll(/\(#(\d+)\)\s*$/g)].map((match) => Number(match[1]))))
+}
+
+/** `linked` issues are left out: their Tenon task already shows them. */
+export function githubTaskRows(
+  work: GithubWorkOk,
+  show: "open" | "all",
+  now = Date.now(),
+  linked: ReadonlySet<number> = new Set(),
+): GithubTaskRow[] {
+  const shown = work.issues.filter((issue) =>
+    linked.has(issue.number)
+      ? false
+      : issue.state === "open" || (show === "all" && !!issue.closedAt && now - Date.parse(issue.closedAt) <= RECENT_MS),
   )
   // Open first, newest change first; done issues after them.
   return shown

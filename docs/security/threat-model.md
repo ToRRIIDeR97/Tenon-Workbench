@@ -945,13 +945,21 @@ apply unchanged: loopback only, a bearer token per runtime bound to its Run,
   Workspace threads are not limited to one Project. Command Centre threads
   (directory `<vault root>/.command-centre`) may write in any workspace with
   Project cards, named by `workspace` or found from `projectId`, and also get
-  `memory_search`, `project_setup` and the draft-only mail tools (see
+  `memory_search` and the draft-only mail tools (see
   [Command Centre memory and routines](#command-centre-memory-and-routines)
   and [Email accounts](#email-accounts)). A call checks the thread's folder
   in the session table once and caches the answer for the process (a
   session's folder never changes), so other threads can't reach them; the
   in-process loop registers those tools only in the `.command-centre`
   folder.
+- Any thread may call `project_setup` (a new folder under its own workspace
+  by default, refused when the folder already has files) and `thread_start`.
+  `thread_start` reaches only the root thread folders of the caller's
+  workspace (its Projects and General), never a Command Centre folder, and
+  the new thread runs on the caller's own harness and model with that
+  harness's normal permissions: it gains nothing the caller lacked. Both are
+  writes, so the in-process loop asks `tenon_write` and an external harness
+  applies its own tool approval.
 - Tool arguments and page text are data. Arguments are decoded against a
   schema per tool and passed to the same vault and calendar validation as the
   HTTP routes; page bodies are stored verbatim and never interpreted. Content a

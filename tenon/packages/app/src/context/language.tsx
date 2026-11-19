@@ -43,6 +43,7 @@ type PluralKey =
   | "secondBrain.modelProfiles.ruleCount"
   | "secondBrain.sessionTab.subagentsMissing"
   | "secondBrain.sidebar.cardRunning"
+  | "secondBrain.agentWrites.doneForYou"
   | "secondBrain.turnSteps.failed"
   | "secondBrain.turnSteps.declined"
   | "secondBrain.sidebar.scanResultCount"

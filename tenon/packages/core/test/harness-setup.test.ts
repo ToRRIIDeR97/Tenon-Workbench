@@ -64,9 +64,24 @@ describe("harness setup", () => {
   test("OpenCode launch config asks before edits and waits out Tenon's MCP calls", () => {
     const content = (userConfig?: string) =>
       JSON.parse(HarnessSetup.openCodeLaunchEnv(userConfig).OPENCODE_CONFIG_CONTENT ?? "null")
-    expect(content()).toEqual({ permission: { edit: "ask", bash: "ask" }, experimental: { mcp_timeout: 660_000 } })
-    expect(content('{ "permission": "allow", // mine\n }')).toEqual({ experimental: { mcp_timeout: 660_000 } })
-    expect(content('{ "experimental": { "mcp_timeout": 5000 } }')).toEqual({ permission: { edit: "ask", bash: "ask" } })
-    expect(HarnessSetup.openCodeLaunchEnv('{ "permission": {}, "experimental": { "mcp_timeout": 1 } }')).toEqual({})
+    expect(content()).toEqual({
+      permission: { edit: "ask", bash: "ask" },
+      experimental: { mcp_timeout: 660_000, todo: true },
+    })
+    expect(content('{ "permission": "allow", // mine\n }')).toEqual({
+      experimental: { mcp_timeout: 660_000, todo: true },
+    })
+    expect(content('{ "experimental": { "mcp_timeout": 5000 } }')).toEqual({
+      permission: { edit: "ask", bash: "ask" },
+      experimental: { todo: true },
+    })
+    // OpenCode keeps todowrite behind experimental.todo; a value the user set wins.
+    expect(content('{ "experimental": { "todo": false } }')).toEqual({
+      permission: { edit: "ask", bash: "ask" },
+      experimental: { mcp_timeout: 660_000 },
+    })
+    expect(
+      HarnessSetup.openCodeLaunchEnv('{ "permission": {}, "experimental": { "mcp_timeout": 1, "todo": false } }'),
+    ).toEqual({})
   })
 })

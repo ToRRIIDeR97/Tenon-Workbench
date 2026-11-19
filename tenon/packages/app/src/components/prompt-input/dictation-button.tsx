@@ -15,7 +15,7 @@ import { mergeCaption } from "./dictation-caption"
 import { levelReading, voiceGain, waveBars } from "./dictation-wave"
 
 /** Bars in the composer's voice wave. */
-const WAVE_BARS = 32
+const WAVE_BARS = 14
 
 /**
  * Where the live words and the wave go: the top of the composer's box (#328, variant A), so they read as the
@@ -26,8 +26,8 @@ function liveSlot(button: HTMLElement | undefined) {
     button?.closest<HTMLElement>('[data-slot="prompt-input-box"]') ??
     button?.closest<HTMLElement>('[data-component="composer-box"]:not([data-size="compact"])')
   if (!box) return undefined
-  // The wave and Stop take the whole toolbar's place while recording (the thread composer's row also holds the mic
-  // and send, in a fixed-height row the live words wouldn't fit in); the toolbar comes back when it ends.
+  // The live row takes the toolbar's place while recording, at the toolbar's own height, so the composer keeps its
+  // size; the toolbar comes back when it ends.
   const controls =
     box.querySelector<HTMLElement>('[data-slot="prompt-input-controls-row"]') ??
     box.querySelector<HTMLElement>('[data-slot="prompt-input-controls"]') ??
@@ -35,6 +35,7 @@ function liveSlot(button: HTMLElement | undefined) {
   const slot = document.createElement("div")
   slot.dataset.slot = "dictation-live-slot"
   if (controls && controls.parentElement) {
+    if (controls.offsetHeight > 0) slot.style.height = `${controls.offsetHeight}px`
     controls.parentElement.insertBefore(slot, controls)
     controls.style.display = "none"
   } else box.append(slot)
@@ -116,7 +117,7 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
         bars = bands ? waveBars(gained.values, bars, WAVE_BARS) : waveBars(undefined, bars, WAVE_BARS, gained.values[0])
         context.clearRect(0, 0, width, height)
         context.fillStyle = getComputedStyle(canvas).color
-        const gap = 3 * devicePixelRatio
+        const gap = 2 * devicePixelRatio
         const bar = (width - gap * (WAVE_BARS - 1)) / WAVE_BARS
         bars.forEach((value, index) => {
           const tall = Math.max(2 * devicePixelRatio, value * height)
@@ -273,9 +274,8 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
           icon={<MicIcon level={state.phase === "recording" ? state.level : undefined} />}
         />
       </TooltipV2>
-      {/* The live caption: the words heard so far float above the mic while you speak, newest at the end. It sits
-          outside the composer (a portal), so the composer's clipping and layout don't move. */}
-      {/* Inside the composer: the words so far, newest fading in, over a wave that moves with the voice. */}
+      {/* Inside the composer, in one row the toolbar's height: a small wave that moves with the voice, the words so
+          far (italic and lighter, as they're still being transcribed; the newest stay in view) and Stop. */}
       <Show when={slot.element}>
         {(element) => (
           <Portal mount={element()}>
@@ -285,40 +285,41 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
               role="status"
               aria-live="polite"
               aria-label={language.t("dictation.live.label")}
-              class="flex flex-col gap-2 pb-2 pl-5 pr-2 pt-1 text-[15px] font-[450] leading-6"
+              class="flex h-full items-center gap-3 pl-4 pr-2"
             >
-              <p class="min-w-0 [overflow-wrap:anywhere] text-v2-text-text-base" dir="auto">
-                <Show
-                  when={state.partial}
-                  fallback={<span class="text-v2-text-text-muted">{language.t("dictation.live.listening")}</span>}
-                >
-                  <Index each={state.partial.split(" ")}>
-                    {(word, index) => (
-                      <span class="animate-enter">
-                        {index > 0 ? " " : ""}
-                        {word()}
-                      </span>
-                    )}
-                  </Index>
-                </Show>
+              <canvas
+                ref={drawWave}
+                aria-hidden="true"
+                class="h-4 w-14 shrink-0 text-v2-icon-icon-accent"
+                classList={{ "opacity-40": state.phase === "transcribing" }}
+              />
+              {/* Right-to-left only for overflow: a long transcript clips at its start, the newest words stay. */}
+              <p
+                data-slot="dictation-live-words"
+                class="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left text-[14px] font-normal italic leading-5 text-v2-text-text-muted [direction:rtl]"
+              >
+                <bdi>
+                  <Show when={state.partial} fallback={language.t("dictation.live.listening")}>
+                    <Index each={state.partial.split(" ")}>
+                      {(word, index) => (
+                        <span class="animate-enter">
+                          {index > 0 ? " " : ""}
+                          {word()}
+                        </span>
+                      )}
+                    </Index>
+                  </Show>
+                </bdi>
               </p>
-              <div class="flex h-9 items-center gap-3">
-                <canvas
-                  ref={drawWave}
-                  aria-hidden="true"
-                  class="h-7 min-w-0 flex-1 text-v2-icon-icon-accent"
-                  classList={{ "opacity-40": state.phase === "transcribing" }}
-                />
-                <ButtonV2
-                  size="normal"
-                  variant="contrast"
-                  data-action="dictation-stop"
-                  disabled={state.phase !== "recording"}
-                  onClick={() => void finish()}
-                >
-                  {language.t(state.phase === "transcribing" ? "dictation.live.finishing" : "dictation.live.stop")}
-                </ButtonV2>
-              </div>
+              <ButtonV2
+                size="small"
+                variant="contrast"
+                data-action="dictation-stop"
+                disabled={state.phase !== "recording"}
+                onClick={() => void finish()}
+              >
+                {language.t(state.phase === "transcribing" ? "dictation.live.finishing" : "dictation.live.stop")}
+              </ButtonV2>
             </div>
           </Portal>
         )}
@@ -340,11 +341,8 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
                 aria-hidden="true"
               />
               {/* The tail of the transcript: three lines, older words scrolling off the top. */}
-              <span class="line-clamp-3 min-w-0 [overflow-wrap:anywhere] text-v2-text-text-base" dir="auto">
-                <Show
-                  when={state.partial}
-                  fallback={<span class="text-v2-text-text-muted">{language.t("dictation.live.listening")}</span>}
-                >
+              <span class="line-clamp-3 min-w-0 italic text-v2-text-text-muted [overflow-wrap:anywhere]" dir="auto">
+                <Show when={state.partial} fallback={language.t("dictation.live.listening")}>
                   {captionTail(state.partial)}
                 </Show>
               </span>

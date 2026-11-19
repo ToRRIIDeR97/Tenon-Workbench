@@ -3,6 +3,7 @@ import { createStore, produce } from "solid-js/store"
 import { usePlatform } from "@/context/platform"
 import { useServerSDK } from "@/context/server-sdk"
 import { SecondBrainRequestError, undoAgentWrite } from "@/features/second-brain/client"
+import { sessionHref } from "@/utils/session-route"
 
 /**
  * Agent writes from the server's `agent.write` events (tenon/src/agents/app-tools.ts): one entry per
@@ -10,7 +11,10 @@ import { SecondBrainRequestError, undoAgentWrite } from "@/features/second-brain
  * page shows the top pill.
  */
 
-export const KINDS = ["note", "tasks", "calendar", "timeline", "email"] as const
+// project, thread, steer and stop are the Command Centre's own actions (new Project, started, steered or stopped a
+// thread): they show in its Done-for-you list and never undo.
+export const KINDS = ["note", "tasks", "calendar", "timeline", "email", "project", "thread", "steer", "stop"] as const
+export const COMMAND_KINDS: ReadonlyArray<Kind> = ["project", "thread", "steer", "stop"]
 export type Kind = (typeof KINDS)[number]
 export type UndoState = "idle" | "pending" | "undone" | "changed" | "failed"
 
@@ -35,7 +39,7 @@ export type AgentWrite = {
   target: string
   preview: unknown
   undo?: string
-  open?: { page?: string; projectId?: string }
+  open?: { page?: string; projectId?: string; session?: string }
   failed: boolean
   /** When the write started (or first arrived). */
   at: number
@@ -70,6 +74,7 @@ export function parseAgentWrite(directory: string, event: { type?: unknown; prop
           open: {
             ...(typeof open.page === "string" ? { page: open.page } : {}),
             ...(typeof open.projectId === "string" ? { projectId: open.projectId } : {}),
+            ...(typeof open.session === "string" ? { session: open.session } : {}),
           },
         }
       : {}),
@@ -77,8 +82,15 @@ export function parseAgentWrite(directory: string, event: { type?: unknown; prop
   } satisfies Omit<AgentWrite, "at" | "doneAt" | "undoState" | "hidden">
 }
 
-/** Where Open goes for a write, or undefined when it has no page to open (email drafts). */
-export function openHref(write: Pick<AgentWrite, "kind" | "open" | "preview">) {
+/**
+ * Where Open goes for a write, or undefined when it has no page to open (email drafts). A thread the Command Centre
+ * started, steered or stopped opens on `serverKey`'s server.
+ */
+export function openHref(
+  write: Pick<AgentWrite, "kind" | "open" | "preview">,
+  serverKey?: Parameters<typeof sessionHref>[0],
+) {
+  if (write.open?.session) return serverKey ? sessionHref(serverKey, write.open.session) : undefined
   if (write.kind === "note" && write.open?.page) return `/projects?page=${encodeURIComponent(write.open.page)}`
   // A note with a Project and no page is a log entry (log_append).
   if (write.kind === "note" && write.open?.projectId)
@@ -97,6 +109,21 @@ export function openHref(write: Pick<AgentWrite, "kind" | "open" | "preview">) {
   }
   if (write.kind === "note") return "/projects"
   return undefined
+}
+
+/**
+ * The user message whose turn made `write`: the parent of the assistant message that wrote it, else, since an
+ * external harness doesn't say which message wrote, the latest user message sent before the write arrived.
+ * `users` is oldest first.
+ */
+export function writeTurn(
+  write: Pick<AgentWrite, "messageID" | "at">,
+  assistantParent: (messageID: string) => string | undefined,
+  users: ReadonlyArray<{ id: string; time: { created: number } }>,
+) {
+  const parent = write.messageID ? assistantParent(write.messageID) : undefined
+  if (parent) return parent
+  return users.findLast((user) => user.time.created <= write.at)?.id
 }
 
 /** The session a thread page shows (`/server/:key/session/:id`, legacy `/:dir/session/:id`). */

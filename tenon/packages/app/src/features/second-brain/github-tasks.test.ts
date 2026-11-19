@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
-import { githubTaskRows, type GithubWorkOk } from "./github-tasks"
+import { githubTaskRows, linkedIssueNumbers, type GithubWorkOk } from "./github-tasks"
 
 // #331 (variant A): the repository's open issues are tasks; PRs hang under the issue they close.
 const now = Date.parse("2026-11-19T00:00:00Z")
@@ -65,6 +65,12 @@ describe("AC-20 GitHub issues as tasks", () => {
       [84, false, "checks-failing"],
       [86, true, "merged"],
     ])
+  })
+
+  test("an issue a Tenon task mirrors with (#N) is left out of the GitHub rows", () => {
+    const linked = linkedIssueNumbers(["Fix login redirect (#84)", "Plan v2", "Mentions #85 midway"])
+    expect([...linked]).toEqual([84])
+    expect(githubTaskRows(work, "open", now, linked).map((row) => row.number)).toEqual([85])
   })
 
   test("a PR in review with passing checks reads as in review; a draft as draft", () => {

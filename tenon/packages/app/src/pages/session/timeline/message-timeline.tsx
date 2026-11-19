@@ -68,8 +68,9 @@ import { filterVirtualIndexes } from "./virtual-items"
 import { TurnStepsSummary, hasVisibleSteps, turnDuration } from "@/components/session/turn-steps-summary"
 import { useData } from "@tenon/session-ui/context"
 import { readPartText } from "@tenon/session-ui/message-part-text"
-import { AgentWritesInline } from "@/features/agent-writes/cards"
-import { type AgentWrite, useAgentWrites } from "@/features/agent-writes/store"
+import { AgentWritesDone, AgentWritesInline } from "@/features/agent-writes/cards"
+import { isCommandThread } from "@/features/command-centre/command-centre"
+import { type AgentWrite, useAgentWrites, writeTurn } from "@/features/agent-writes/store"
 
 const emptyMessages: MessageType[] = []
 const emptyParts: PartType[] = []
@@ -259,6 +260,8 @@ export function MessageTimeline(props: {
   setContentRef: (el: HTMLDivElement) => void
   /** Extra controls in the thread header, before the "…" menu (the Environment button). */
   headerActions?: JSX.Element
+  /** Shown in place of the thread's title (the Command Centre's title and thread switcher). */
+  headerTitle?: JSX.Element
   userMessages: UserMessage[]
   anchor: (id: string) => string
   setRevealMessage?: (fn: (id: string) => void) => void
@@ -269,6 +272,8 @@ export function MessageTimeline(props: {
 
   const navigate = useNavigate()
   const sdk = useSDK()
+  // A Command Centre thread lists its turn's actions as one Done-for-you list instead of a card per write.
+  const commandThread = createMemo(() => isCommandThread(sdk().directory))
   const serverSDK = useServerSDK()
   const sync = useSync()
   const settings = useSettings()
@@ -371,7 +376,8 @@ export function MessageTimeline(props: {
   const timelineRows = projection.rows
 
   // Agent writes (W5) by turn: a write's assistant message answers the user message whose turn shows it.
-  // Writes without a known turn (external harnesses, or a turn not loaded) go after the last turn.
+  // An external harness names no message, so its writes go to the turn that was running when they arrived.
+  // Writes without a loaded turn go after the last turn.
   const agentWrites = useAgentWrites()
   const writesByTurn = createMemo(() => {
     const id = sessionID()
@@ -379,8 +385,14 @@ export function MessageTimeline(props: {
     const loose: AgentWrite[] = []
     if (!id || !agentWrites) return { turns, loose }
     for (const write of agentWrites.forSession(id)) {
-      const message = write.messageID ? messageByID().get(write.messageID) : undefined
-      const turn = message?.role === "assistant" ? message.parentID : undefined
+      const turn = writeTurn(
+        write,
+        (messageID) => {
+          const message = messageByID().get(messageID)
+          return message?.role === "assistant" ? message.parentID : undefined
+        },
+        props.userMessages,
+      )
       if (!turn || !messageLastRowIndex().has(turn)) {
         loose.push(write)
         continue
@@ -952,7 +964,11 @@ export function MessageTimeline(props: {
           {input.children}
         </div>
         {/* The turn's agent writes, after its last row; the virtual row's measurement observer picks up their growth. */}
-        <Show when={rowWrites(input.row())}>{(writes) => <AgentWritesInline writes={writes()} />}</Show>
+        <Show when={rowWrites(input.row())}>
+          {(writes) =>
+            commandThread() ? <AgentWritesDone writes={writes()} /> : <AgentWritesInline writes={writes()} />
+          }
+        </Show>
       </div>
     )
   }
@@ -1338,7 +1354,8 @@ export function MessageTimeline(props: {
                 }}
               >
                 <div class="flex items-center min-w-0 flex-1 w-full">
-                  <Show when={parentID()}>
+                  {props.headerTitle}
+                  <Show when={!props.headerTitle && parentID()}>
                     <button
                       type="button"
                       data-slot="session-title-parent"
@@ -1355,7 +1372,7 @@ export function MessageTimeline(props: {
                       /
                     </span>
                   </Show>
-                  <Show when={childTitle() || title.editing}>
+                  <Show when={!props.headerTitle && (childTitle() || title.editing)}>
                     <Show
                       when={title.editing}
                       fallback={
@@ -1444,7 +1461,12 @@ export function MessageTimeline(props: {
           </Show>
         </div>
         {/* Writes (W5) this thread's agent made without a known turn, after the last turn. */}
-        <AgentWritesInline writes={writesByTurn().loose} centered={props.centered} />
+        <Show
+          when={commandThread()}
+          fallback={<AgentWritesInline writes={writesByTurn().loose} centered={props.centered} />}
+        >
+          <AgentWritesDone writes={writesByTurn().loose} centered={props.centered} />
+        </Show>
       </ScrollView>
       <SelectionReply
         root={listRoot}

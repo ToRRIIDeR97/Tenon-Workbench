@@ -24,6 +24,7 @@ import { useSDK } from "@/context/sdk"
 import { useServerSDK } from "@/context/server-sdk"
 import { useSync } from "@/context/sync"
 import { useProviders } from "@/hooks/use-providers"
+import { AGENTS_TAB } from "@/pages/session/helpers"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { listHarnessUsage } from "@/utils/server"
 import { cachedUsage, rememberUsage } from "@/components/harness-usage"
@@ -197,6 +198,13 @@ function ContextMenu(props: {
   const turn = createMemo(() => getTurnUsage(props.messages))
   const limit = () => props.context.limit || undefined
   const percent = (value: number) => `${Math.round(value)}%`
+  // Only the subagents still working: finished ones are in the Subagents tab, which the link opens.
+  const running = createMemo(() => props.agents.filter((agent) => agent.running))
+  const openAgents = () => {
+    props.onView()
+    view().reviewPanel.open(view().reviewPanel.opened() ? "other" : "context-button")
+    tabs().setActive(AGENTS_TAB)
+  }
 
   return (
     <div
@@ -261,9 +269,9 @@ function ContextMenu(props: {
         </Show>
       </Group>
 
-      <Show when={props.agents.length > 0}>
+      <Show when={running().length > 0}>
         <Group title={language.t("secondBrain.contextMenu.subagentContext")}>
-          <For each={props.agents}>
+          <For each={running()}>
             {(agent) => (
               <Row label={agent.name ?? language.t("secondBrain.agentTab.agentFallback")}>
                 <Show
@@ -291,6 +299,15 @@ function ContextMenu(props: {
               </Row>
             )}
           </For>
+          <button
+            type="button"
+            data-action="context-menu-open-agents"
+            class="-mx-3 flex min-h-8 items-center gap-1 px-3 text-left text-[12px] text-v2-text-text-accent outline-none transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover focus-visible:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)] motion-reduce:transition-none"
+            onClick={openAgents}
+          >
+            {language.t("secondBrain.contextMenu.openAgents")}
+            <Icon name="chevron-down" size="small" class="ml-auto shrink-0 -rotate-90 text-v2-icon-icon-muted" />
+          </button>
         </Group>
       </Show>
 

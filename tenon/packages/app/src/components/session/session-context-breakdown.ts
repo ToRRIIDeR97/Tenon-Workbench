@@ -20,12 +20,14 @@ const charsFromUserPart = (part: Part) => {
   return 0
 }
 
-const charsFromAssistantPart = (part: Part) => {
+/** `latest`: the part is in the newest turn, the only one whose reasoning models keep in context. */
+const charsFromAssistantPart = (part: Part, latest: boolean) => {
   if (part.type === "text") return { assistant: part.text.length, tool: 0 }
-  if (part.type === "reasoning") return { assistant: part.text.length, tool: 0 }
+  if (part.type === "reasoning") return { assistant: latest ? part.text.length : 0, tool: 0 }
   if (part.type !== "tool") return { assistant: 0, tool: 0 }
 
-  const input = Object.keys(part.state.input).length * 16
+  // The arguments go back to the model as written, so a file write or edit counts its whole content.
+  const input = JSON.stringify(part.state.input ?? {}).length
   if (part.state.status === "pending") return { assistant: 0, tool: input + part.state.raw.length }
   if (part.state.status === "completed") return { assistant: 0, tool: input + part.state.output.length }
   if (part.state.status === "error") return { assistant: 0, tool: input + part.state.error.length }
@@ -75,8 +77,15 @@ export function estimateSessionContextBreakdown(args: {
 }) {
   if (!args.input) return []
 
-  const counts = args.messages.reduce(
-    (acc, msg) => {
+  // A compaction replaces everything before it with its summary: only the messages from the last one on are in
+  // the context window.
+  const compacted = args.messages.findLastIndex(
+    (msg) => msg.role === "user" && (args.parts[msg.id] ?? []).some((part) => part.type === "compaction"),
+  )
+  const inContext = compacted === -1 ? args.messages : args.messages.slice(compacted)
+  const latestTurn = inContext.findLastIndex((msg) => msg.role === "user")
+  const counts = inContext.reduce(
+    (acc, msg, at) => {
       const parts = args.parts[msg.id] ?? []
       if (msg.role === "user") {
         const user = parts.reduce((sum, part) => sum + charsFromUserPart(part), 0)
@@ -86,7 +95,7 @@ export function estimateSessionContextBreakdown(args: {
       if (msg.role !== "assistant") return acc
       const assistant = parts.reduce(
         (sum, part) => {
-          const next = charsFromAssistantPart(part)
+          const next = charsFromAssistantPart(part, at > latestTurn)
           return {
             assistant: sum.assistant + next.assistant,
             tool: sum.tool + next.tool,

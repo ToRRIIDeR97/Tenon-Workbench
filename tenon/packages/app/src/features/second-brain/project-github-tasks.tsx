@@ -17,7 +17,13 @@ import { githubTaskRows, type GithubTaskRow, type GithubWork } from "./github-ta
 // The Repository row and the task list read the same choice: a save in one makes the other read again.
 const [repoSaves, setRepoSaves] = createStore<Record<string, number>>({})
 
-export function ProjectGithubTasks(props: { projectId: string; folder: string | undefined; show: "open" | "all" }) {
+export function ProjectGithubTasks(props: {
+  projectId: string
+  folder: string | undefined
+  show: "open" | "all"
+  /** Issue numbers a Tenon task already mirrors (`… (#N)`), left out here. */
+  linked?: ReadonlySet<number>
+}) {
   const language = useLanguage()
   const platform = usePlatform()
   const serverSDK = useServerSDK()
@@ -42,7 +48,7 @@ export function ProjectGithubTasks(props: { projectId: string; folder: string | 
   )
   const rows = createMemo(() => {
     const value = work.latest
-    return value?.status === "ok" ? githubTaskRows(value, props.show) : []
+    return value?.status === "ok" ? githubTaskRows(value, props.show, Date.now(), props.linked) : []
   })
   const refetch = () => setRequest({ options: { refresh: true }, version: request.version + 1 })
   const openCount = () => {

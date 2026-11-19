@@ -45,4 +45,12 @@ describe("AC-16 the voice wave", () => {
     expect(source).toContain("onBands")
     expect(source).toContain("waveBars(")
   })
+
+  test("the live row keeps the composer's size and shows the words in progress italic and lighter", () => {
+    const source = readFileSync(join(import.meta.dir, "dictation-button.tsx"), "utf8")
+    expect(source).toContain("slot.style.height = `${controls.offsetHeight}px`")
+    const words = source.slice(source.indexOf('data-slot="dictation-live-words"'))
+    expect(words.slice(0, 300)).toContain("italic")
+    expect(words.slice(0, 300)).toContain("text-v2-text-text-muted")
+  })
 })

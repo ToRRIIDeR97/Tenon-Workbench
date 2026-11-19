@@ -1,7 +1,5 @@
 import { useNavigate, useSearchParams } from "@solidjs/router"
-import { ButtonV2 } from "@tenon/ui/v2/button-v2"
-import { SegmentedControlItemV2, SegmentedControlV2 } from "@tenon/ui/v2/segmented-control-v2"
-import { createEffect, Match, onMount, Show, Switch } from "solid-js"
+import { createEffect, Match, on, onMount, Show, Switch } from "solid-js"
 import { createStore } from "solid-js/store"
 import { PageFrame, PageHeader } from "@/components/page"
 import { useSidebarController } from "@/components/sidebar/sidebar-controller"
@@ -10,19 +8,22 @@ import { useServer } from "@/context/server"
 import { AgentHands, createWaitingQueue } from "@/features/command-centre/agent-hands-view"
 import { AgentPanel } from "@/features/command-centre/agent-panel"
 import { useCommandCentre } from "@/features/command-centre/command-centre"
+import { CommandViews, type CommandView } from "@/features/command-centre/command-thread-chrome"
 import { createMissionThreads, MissionBoard } from "@/features/command-centre/mission-board-view"
 import { Workflows } from "@/features/command-centre/workflows-view"
 import { sessionHref } from "@/utils/session-route"
 
 /**
  * The Command Centre. The header switches between three views and links to Routines:
- * - Mission control: the agent (its newest thread's exchange, a composer, and its own threads and memory) beside
- *   the board of every Project's threads.
+ * - Mission control: the newest Command Centre thread in the thread view, with the board of every Project's
+ *   threads beside it. Before the first thread there is none to open, so the page shows the agent's composer
+ *   beside the board.
  * - Waiting on you: the queue of approvals and questions, the Projects' permission modes, and beside them what the
  *   agent did on the user's behalf today.
  * - Workflows: the saved workflows and runs beside the selected workflow's editor or run.
  * A Command Centre thread opens in the thread view, like a Project thread but without review, files or terminal.
- * `/command?thread=<session id>` (older links, the strip's "Open full") opens that thread.
+ * `/command?thread=<session id>` (older links, the strip's "Open full") opens that thread; `?view=waiting` or
+ * `?view=workflows` (with `&run=<id>`) opens those views, which is how a Command Centre thread's header gets here.
  */
 export default function CommandCentrePage() {
   const language = useLanguage()
@@ -32,12 +33,31 @@ export default function CommandCentrePage() {
   const ctrl = useSidebarController()
   // The provider outlives this page, so catch up on what changed while it was closed.
   onMount(() => void centre.refetch())
-  const [search] = useSearchParams<{ thread?: string }>()
+  const [search, setSearch] = useSearchParams<{ thread?: string; view?: string; run?: string }>()
+  const initial = (): CommandView => (search.view === "waiting" || search.view === "workflows" ? search.view : "board")
   const [state, setState] = createStore({
-    view: "board" as "board" | "waiting" | "workflows",
+    view: initial(),
     // The workflow run shown in the Workflows view, and the Project the board is asked to show.
-    run: undefined as string | undefined,
+    run: search.run as string | undefined,
     project: undefined as string | undefined,
+  })
+  // The view lives in the URL too, so a thread's header can link to it and Back returns to it.
+  createEffect(
+    on(
+      () => search.view,
+      () => setState("view", initial()),
+      { defer: true },
+    ),
+  )
+  const show = (view: CommandView) => {
+    setState({ view, project: undefined })
+    setSearch({ view: view === "board" ? undefined : view, run: undefined }, { replace: true })
+  }
+  // Mission control is the newest thread in the thread view; a board focused on one Project stays here.
+  createEffect(() => {
+    if (state.view !== "board" || state.project || search.thread) return
+    const latest = centre.latest()
+    if (latest) navigate(sessionHref(server.key, latest.id), { replace: true })
   })
   const open = (sessionID: string) => navigate(sessionHref(server.key, sessionID))
   const board = createMissionThreads(ctrl)
@@ -53,32 +73,7 @@ export default function CommandCentrePage() {
         title={language.t("secondBrain.commandCentre.title")}
         actions={
           <>
-            <SegmentedControlV2
-              aria-label={language.t("secondBrain.commandCentre.hands.view")}
-              value={state.view}
-              onChange={(value) =>
-                setState({
-                  view: value === "waiting" || value === "workflows" ? value : "board",
-                  project: undefined,
-                })
-              }
-            >
-              <SegmentedControlItemV2 value="board" data-action="command-view">
-                {language.t("secondBrain.commandCentre.board.title")}
-              </SegmentedControlItemV2>
-              <SegmentedControlItemV2 value="waiting" data-action="command-view">
-                {language.t("secondBrain.commandCentre.hands.waiting")}
-                <Show when={queue().length > 0}>
-                  <span class="ml-1.5 tabular-nums">{queue().length}</span>
-                </Show>
-              </SegmentedControlItemV2>
-              <SegmentedControlItemV2 value="workflows" data-action="command-view">
-                {language.t("secondBrain.workflows.title")}
-              </SegmentedControlItemV2>
-            </SegmentedControlV2>
-            <ButtonV2 variant="ghost" icon="refresh" onClick={() => navigate("/routines")}>
-              {language.t("secondBrain.routines.title")}
-            </ButtonV2>
+            <CommandViews value={state.view} waiting={queue().length} onChange={show} />
           </>
         }
       />
@@ -87,11 +82,14 @@ export default function CommandCentrePage() {
           <Match when={state.view === "workflows"}>
             <Workflows
               ctrl={ctrl}
-              started={() => setState("view", "board")}
+              started={() => show("board")}
               run={state.run}
               selectRun={(run) => setState("run", run)}
               open={open}
-              showProject={(project) => setState({ view: "board", project })}
+              showProject={(project) => {
+                setState({ view: "board", project })
+                setSearch({ view: undefined, run: undefined }, { replace: true })
+              }}
             />
           </Match>
           <Match when={state.view === "waiting"}>

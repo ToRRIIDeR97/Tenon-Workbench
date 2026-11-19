@@ -1,16 +1,18 @@
 import { BrowserWindow, screen } from "electron"
 import { nativeT } from "./native-translations"
-import { indicatorPage, notifyStop } from "./computer-indicator-page"
+import { glowPage, indicatorPage, notifyStop } from "./computer-indicator-page"
 
 export { watch } from "./computer-indicator-page"
 
 // The on-screen sign that an agent is using the computer (#333): a small always-on-top pill at the bottom of the
 // display under the cursor with Stop, shown while Cua Driver actions run and gone a few quiet seconds after the last. Stop reaches the
-// server through `computer_watch`, which the server holds open while computer use is active.
+// server through `computer_watch`, which the server holds open while computer use is active. A Tenon-blue glow frames
+// the same display meanwhile; it lets every click through, so it never gets in the agent's or the user's way.
 
 const QUIET_MS = 5_000
 const state = {
   window: undefined as BrowserWindow | undefined,
+  glow: undefined as BrowserWindow | undefined,
   timer: undefined as ReturnType<typeof setTimeout> | undefined,
   harness: "",
 }
@@ -44,9 +46,33 @@ function ensure() {
   return window
 }
 
+function ensureGlow() {
+  if (state.glow && !state.glow.isDestroyed()) return state.glow
+  const glow = new BrowserWindow({
+    frame: false,
+    transparent: true,
+    resizable: false,
+    movable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    focusable: false,
+    hasShadow: false,
+    show: false,
+    webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, javascript: false },
+  })
+  glow.setIgnoreMouseEvents(true)
+  glow.setAlwaysOnTop(true, "screen-saver")
+  glow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  glow.webContents.on("will-navigate", (event) => event.preventDefault())
+  void glow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(glowPage())}`)
+  state.glow = glow
+  return glow
+}
+
 function hide() {
   clearTimeout(state.timer)
   if (state.window && !state.window.isDestroyed()) state.window.hide()
+  if (state.glow && !state.glow.isDestroyed()) state.glow.hide()
 }
 
 /**
@@ -67,7 +93,12 @@ export function indicate(args: Record<string, unknown>, dark: boolean) {
   const window = ensure()
   if (!window.isVisible() || state.harness !== harness) {
     state.harness = harness
-    const area = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea
+    const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
+    const area = display.workArea
+    // The glow goes up first, so the pill (and its Stop) stays above it.
+    const glow = ensureGlow()
+    glow.setBounds(display.bounds)
+    glow.showInactive()
     window.setBounds({
       x: Math.round(area.x + area.width / 2 - 160),
       y: area.y + area.height - 64,

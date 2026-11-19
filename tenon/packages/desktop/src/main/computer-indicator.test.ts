@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { indicatorPage, notifyStop, watch } from "./computer-indicator-page"
+import { GLOW_COLOR, glowPage, indicatorPage, notifyStop, watch } from "./computer-indicator-page"
 
 // #333: the pill that shows while an agent uses the computer, and the Stop it reports.
 describe("AC-24 the computer use pill", () => {
@@ -21,5 +21,20 @@ describe("AC-24 the computer use pill", () => {
     const waiting = watch(new AbortController().signal)
     notifyStop()
     expect(JSON.parse((await waiting).text)).toEqual({ stop: true })
+  })
+})
+
+describe("the glow around the screen", () => {
+  test("is Tenon blue by default, runs no scripts, and lets clicks through", () => {
+    const page = glowPage()
+    expect(GLOW_COLOR).toBe("#3b5cf6")
+    expect(page).toContain(`${GLOW_COLOR}cc`)
+    expect(page).toContain("pointer-events:none")
+    expect(page).not.toContain("script-src")
+  })
+
+  test("takes another colour, and ignores one that isn't a colour", () => {
+    expect(glowPage({ color: "#ff8800" })).toContain("#ff8800cc")
+    expect(glowPage({ color: "red;}</style><script>" })).toContain(`${GLOW_COLOR}cc`)
   })
 })

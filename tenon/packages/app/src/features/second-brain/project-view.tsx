@@ -9,6 +9,7 @@ import type { LogEntry, ProjectRecord, Timeline, TimelineItem, VaultPageInfo } f
 import { milestoneGroups, timelineCounts, timelineLayout } from "./notes-timeline"
 import { DateChip, KindSwitch } from "./project-controls"
 import { createProjectTasks, ProjectTaskRow } from "./project-tasks"
+import { linkedIssueNumbers } from "./github-tasks"
 import { ProjectGithubTasks, ProjectRepository } from "./project-github-tasks"
 import { ProjectComputerUse } from "./project-computer-use"
 import { ProjectActionsMenu, useProjectCard } from "./project-details"
@@ -248,7 +249,12 @@ export function ProjectView(props: {
                 )}
               </For>
               {/* The linked repository's issues are tasks too (#331). */}
-              <ProjectGithubTasks projectId={props.project.id} folder={projectFolder()} show={state.show} />
+              <ProjectGithubTasks
+                projectId={props.project.id}
+                folder={projectFolder()}
+                show={state.show}
+                linked={linkedIssueNumbers(items().map((item) => item.title))}
+              />
             </div>
           ))}
           <RevealShow when={tasks.state.error}>

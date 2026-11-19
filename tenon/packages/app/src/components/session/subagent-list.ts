@@ -7,6 +7,40 @@ export interface ThreadSubagent {
   readonly part: ToolPart
   /** The harness instance that ran the assistant message holding the part. */
   readonly harness?: string
+  /** The model and reasoning level of the assistant message that started it; a subagent inherits them by default. */
+  readonly parent?: SubagentModel
+}
+
+export interface SubagentModel {
+  readonly id: string
+  readonly reasoning?: string
+}
+
+const text = (value: unknown) => (typeof value === "string" && value.trim() ? value.trim() : undefined)
+
+/**
+ * The model a subagent runs on and its reasoning level, for its row: the model its call asked for (Claude Code's
+ * Agent `model`, Codex's spawn), else its own child session's latest reply, else the parent's, which it inherits.
+ */
+export function subagentModel(
+  item: ThreadSubagent,
+  child?: { readonly modelID?: string; readonly variant?: string },
+): SubagentModel | undefined {
+  const input = item.part.state.input as Record<string, unknown> | undefined
+  const reasoning = text(input?.reasoning_effort) ?? text(input?.reasoningEffort) ?? text(input?.effort)
+  const asked = text(input?.model)
+  if (asked)
+    return { id: asked, reasoning: reasoning ?? (asked === item.parent?.id ? item.parent.reasoning : undefined) }
+  const own = text(child?.modelID)
+  if (own) return { id: own, reasoning: reasoning ?? text(child?.variant) }
+  return item.parent ? { id: item.parent.id, reasoning: reasoning ?? item.parent.reasoning } : undefined
+}
+
+/** `deepseek-v4.1-flash · max`: the model without its provider prefix, then the reasoning level. */
+export function subagentModelLabel(model: SubagentModel | undefined) {
+  if (!model) return undefined
+  const id = model.id.split("/").at(-1) || model.id
+  return model.reasoning ? `${id} · ${model.reasoning}` : id
 }
 
 export interface SubagentGroup {
@@ -47,8 +81,12 @@ export function threadSubagents(
     const group = byUser.get(message.parentID) ?? groups.at(-1)
     if (!group) continue
     const harness = (message as Message & { harnessInstanceID?: string }).harnessInstanceID
+    const parent =
+      message.role === "assistant" && message.modelID
+        ? { id: message.modelID, reasoning: text(message.variant) }
+        : undefined
     for (const part of parts(message.id) ?? []) {
-      if (isSubagentPart(part)) group.items.push({ part, harness })
+      if (isSubagentPart(part)) group.items.push({ part, harness, parent })
     }
   }
   return groups.filter((group) => group.items.length > 0).reverse()

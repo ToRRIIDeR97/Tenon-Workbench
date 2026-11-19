@@ -24,6 +24,23 @@ button{-webkit-app-region:no-drag;border:0;border-radius:9999px;height:32px;padd
 </style></head><body><div class="pill"><i class="dot"></i><span>${escape(input.label)}</span><button onclick="document.title='stop'">${escape(input.stop)}</button></div></body></html>`
 }
 
+/** Tenon blue (`--v2-blue-600`, the app's accent): the default colour of the glow around the screen. */
+export const GLOW_COLOR = "#3b5cf6"
+
+/**
+ * The glow around the edges of the screen while an agent uses the computer, like the frame other agents draw when
+ * they take control. Plain markup with no scripts; the window that shows it lets every click through.
+ */
+export function glowPage(input: { color?: string } = {}) {
+  const color = /^#[0-9a-f]{6}$/i.test(input.color ?? "") ? input.color! : GLOW_COLOR
+  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><style>
+html,body{margin:0;height:100%;background:transparent;overflow:hidden}
+.glow{position:fixed;inset:0;pointer-events:none;box-shadow:inset 0 0 0 2px ${color}cc,inset 0 0 24px 6px ${color}99,inset 0 0 64px 12px ${color}40;animation:g 2.4s ease-in-out infinite}
+@keyframes g{50%{opacity:.6}}
+@media (prefers-reduced-motion:reduce){.glow{animation:none}}
+</style></head><body><div class="glow"></div></body></html>`
+}
+
 /** `computer_watch`: answers `{"stop":true}` when Stop is pressed, `{"stop":false}` after a minute. */
 export function watch(signal: AbortSignal) {
   return new Promise<{ text: string }>((resolve) => {

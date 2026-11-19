@@ -155,7 +155,10 @@ Use `[font-weight:N]` when a weight must differ from the role.
   Running section becomes "Subagents · N running · M done" listing only the
   subagents still at work (breathing dot, small bar, chevron; "None running
   now" when all have finished), then **All subagents**. A row or that link
-  opens the side panel's Agents tab and closes the window.
+  opens the side panel's Agents tab and closes the window. Its Connectors
+  section starts collapsed to "Connectors · N on" with a chevron; open, it
+  lists each server on or off and ends with Manage MCP servers. The choice is
+  remembered.
 - **Composer: light tab** (`session-ui` `prompt-input`, both the thread and
   the new-thread composer). At most 560px wide, centred in its column (the
   docks that attach to it share that width); empty, it is about 130px tall.
@@ -253,6 +256,26 @@ Use `[font-weight:N]` when a weight must differ from the role.
   click outside closes it only while empty. A sent reply puts each passage and
   its answer in an inset box (layer-02 on the layer-01 bubble; layer-03 on
   layer-02 in light) inside the user's bubble.
+- **Dictation** (`dictation-button.tsx`): while recording, one row takes the
+  composer toolbar's place at the toolbar's height, so the composer never
+  grows: a small accent wave (14 bars, 56×16px) that follows the voice, the
+  words heard so far in italic `text-muted` (they're still being transcribed;
+  a long transcript clips at its start so the newest words stay in view), and
+  a small contrast Stop. Escape throws the recording away. The final
+  transcript goes in at the caret as ordinary text.
+- **Computer use on screen** (`computer-indicator.ts`): while an agent acts on
+  the desktop, a Tenon-blue (`--v2-blue-600`, `#3b5cf6`) glow frames the
+  display (a 2px edge with a soft inner glow that breathes; steady under
+  reduced motion) and lets every click through; the Stop pill sits above it
+  at the bottom of the screen. Both go a few quiet seconds after the last
+  action.
+- **Command Centre** (`command-thread-chrome.tsx`): its conversation is the
+  ordinary thread view, never a second chat UI. The Command Centre's extras
+  sit around it: the page's title, thread menu and views in the thread's
+  header, the Mission board as a side panel, and each turn's actions as one
+  Done-for-you list under the reply. The Ctrl+J card briefs before it
+  converses: counts, then what needs you (answered in place), then what's
+  running with its checklist step, then the latest exchange and composer.
 - **Links in the composer** (`link-highlight.ts`): accent text, underlined,
   drawn with the CSS Highlight API so the editor's text is untouched. A plain
   click edits; Ctrl/⌘-click opens the link.

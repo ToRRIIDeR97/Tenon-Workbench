@@ -17,6 +17,7 @@ import { InstanceStore } from "../../src/project/instance-store"
 import { Project } from "../../src/project/project"
 import { HttpApiApp } from "../../src/server/routes/instance/httpapi/server"
 import { AgentAppTools } from "../../src/agents/app-tools"
+import { GlobalBus, type GlobalEvent } from "@/bus/global"
 import { Session } from "@/session/session"
 import { resetDatabase } from "../fixture/db"
 import { disposeAllInstances, provideInstanceEffect, TestInstance, tmpdirScoped } from "../fixture/fixture"
@@ -167,6 +168,34 @@ describe("AgentAppTools undo", () => {
       const missing = yield* call(workspaceThread.id, "timeline_get", {})
       expect(missing.isError).toBe(true)
     }),
+  )
+
+  it.instance(
+    "let a Project thread create a Project, and check thread_start's target",
+    () =>
+      Effect.gen(function* () {
+        const { thread, call } = yield* setup
+        // The Command Centre's Done-for-you list shows the new Project as one of the thread's writes.
+        const kinds: string[] = []
+        const listen = (event: GlobalEvent) => {
+          if (event.payload?.type === "agent.write" && event.payload.properties?.phase === "done")
+            kinds.push(String(event.payload.properties.kind))
+        }
+        GlobalBus.on("event", listen)
+        const made = yield* call(thread.id, "project_setup", { name: "Beta" })
+        GlobalBus.off("event", listen)
+        expect(made.isError).toBe(false)
+        const beta = made.value as { projectId: string; folder: string }
+        expect(beta.folder).toContain("Beta")
+        expect(kinds).toEqual(["project"])
+        // Starting the thread itself runs its first turn detached, which the test instance can't close under.
+        const unknown = yield* call(thread.id, "thread_start", { projectId: "project_01NOPE", prompt: "x" })
+        expect(unknown.isError).toBe(true)
+        const general = yield* call(thread.id, "thread_start", { projectId: "general", prompt: "  " })
+        expect(String(general.value)).toContain("needs a prompt")
+      }),
+    // project_setup runs git init.
+    30_000,
   )
 
   it.instance("refuse a workspace thread's write into Routines/", () =>
