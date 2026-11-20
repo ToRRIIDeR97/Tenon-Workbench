@@ -24,6 +24,8 @@ interface Running {
   readonly done: Promise<{ readonly error?: string }>
   cancelled: boolean
   finished: boolean
+  /** Calls waiting on the result right now; one that gets it means the delegating thread needs no notice. */
+  waiting: number
 }
 
 /**
@@ -100,6 +102,18 @@ export const layer = Layer.effectDiscard(
         } satisfies HarnessDelegation.TaskResult
       })
 
+    // A delegating thread that ended its turn while a task ran would otherwise sit idle with the work half done: queue
+    // it a notice, which waits for a running turn to end and wakes an idle thread.
+    const notify = (parentID: SessionSchema.ID, child: SessionSchema.Info, agent: string, error?: string) =>
+      Effect.gen(function* () {
+        const result = yield* finalReply(child, agent, error)
+        yield* sessions.prompt({
+          sessionID: parentID,
+          prompt: { text: finishedNotice(child.title, result) },
+          delivery: "queue",
+        })
+      })
+
     const settle = (child: SessionSchema.Info, waitSeconds: number) =>
       Effect.gen(function* () {
         const agent = child.harnessInstanceID
@@ -113,8 +127,12 @@ export const layer = Layer.effectDiscard(
         const outcome = yield* Effect.promise(() => {
           const waited = Promise.withResolvers<undefined>()
           const timer = setTimeout(() => waited.resolve(undefined), waitSeconds * 1_000)
+          entry.waiting += 1
           // Cleared either way, so a finished task leaves no timer running for up to MAX_WAIT_SECONDS.
-          return Promise.race([entry.done, waited.promise]).finally(() => clearTimeout(timer))
+          return Promise.race([entry.done, waited.promise]).finally(() => {
+            clearTimeout(timer)
+            entry.waiting -= 1
+          })
         })
         if (!outcome) return { taskID: child.id, agent, status: "running" } satisfies HarnessDelegation.TaskResult
         return yield* finalReply(child, agent, outcome.error)
@@ -205,17 +223,27 @@ export const layer = Layer.effectDiscard(
                 prompt: { text: framedTask(from?.name ?? "another agent", input.task) },
                 resume: false,
               })
-              const done = run(sessions.resume(child.id)).then(
+              const done: Promise<{ readonly error?: string }> = run(sessions.resume(child.id)).then(
                 () => ({}),
                 (cause) => ({ error: cause instanceof Error ? cause.message : String(cause) }),
               )
-              const entry: Running = { parentID: sessionID, agent: target.id, done, cancelled: false, finished: false }
+              const entry: Running = {
+                parentID: sessionID,
+                agent: target.id,
+                done,
+                cancelled: false,
+                finished: false,
+                waiting: 0,
+              }
               running.set(child.id, entry)
-              void done.then(() => {
+              void done.then((outcome) => {
                 entry.finished = true
                 // Kept a while so a late read still reports cancellation and errors; after that a read
                 // falls back to what the child recorded, as after a restart.
                 setTimeout(() => running.delete(child.id), FINISHED_RETENTION_MS).unref?.()
+                // Runs before a waiting call's own `done` handler, so `waiting` still counts it here.
+                if (entry.cancelled || entry.waiting > 0) return
+                void run(notify(session.id, child, target.id, outcome.error)).catch(() => undefined)
               })
               return child
             }).pipe(Effect.ensuring(release))
@@ -264,6 +292,13 @@ function framedTask(from: string, task: string) {
     "so finish with a complete report of what you did, what you found and anything left undone.",
     "",
     task,
+  ].join("\n")
+}
+
+function finishedNotice(title: string, result: HarnessDelegation.TaskResult) {
+  return [
+    `[Tenon] Your delegated task "${title}" (task_id ${result.taskID}) has ${result.status === "completed" ? "finished" : "failed"}.`,
+    "Read its report with task_result, then carry on with the plan: start the next step yourself, and ask the user only for a decision that is theirs to make.",
   ].join("\n")
 }
 

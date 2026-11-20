@@ -1607,7 +1607,13 @@ Tools: `list_agents` (harness instances with models and reasoning efforts,
 the caller's own marked `current`), `delegate_task` (`agent`, `task`, optional
 `model`, `reasoning_effort`, `title`, `project_id`, `wait_seconds` up to 600, default 300),
 `task_result` and `cancel_task`. A task still running when `delegate_task`
-returns is collected with `task_result`. A delegated agent may delegate once
+returns is collected with `task_result`. When a task finishes and no
+`delegate_task` or `task_result` call is waiting on it (and the caller didn't
+cancel it), the handler queues the caller a `[Tenon]` notice naming the task
+and its outcome (`delivery: "queue"`, `delegation-tasks.ts` `notify`). The notice waits for a running
+turn to end and wakes an idle caller, so a lead that ended its turn while its
+workers ran carries on when they finish. Tasks started before a server restart
+send no notice. A delegated agent may delegate once
 more (depth 2); a Run may have four tasks running at once; only the Run that
 started a task can read or stop it. Child Runs nest under the caller in the
 sidebar, and their approvals reach the caller's composer through the existing
