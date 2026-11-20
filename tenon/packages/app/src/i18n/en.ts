@@ -1144,6 +1144,8 @@ export const dict = {
   "secondBrain.commandCentre.hub.agentsCount.one": "{{count}} agent running",
   "secondBrain.commandCentre.hub.agentsCount.other": "{{count}} agents running",
   "secondBrain.commandCentre.hub.status.idle": "Nothing is running right now",
+  "secondBrain.commandCentre.hub.tasksCount.one": "{{count}} task running outside a Project",
+  "secondBrain.commandCentre.hub.tasksCount.other": "{{count}} tasks running outside a Project",
   "secondBrain.commandCentre.hub.openThread": "Open thread",
   "secondBrain.commandCentre.hub.needsYou": "Needs you",
   "secondBrain.commandCentre.hub.allow": "Allow",

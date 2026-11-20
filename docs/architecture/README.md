@@ -1613,7 +1613,12 @@ cancel it), the handler queues the caller a `[Tenon]` notice naming the task
 and its outcome (`delivery: "queue"`, `delegation-tasks.ts` `notify`). The notice waits for a running
 turn to end and wakes an idle caller, so a lead that ended its turn while its
 workers ran carries on when they finish. Tasks started before a server restart
-send no notice. A delegated agent may delegate once
+send no notice. A Command Centre thread finds `project_id` values in
+`threads_overview`'s `projects`, which lists every Project in the workspace,
+including ones with no threads. A task delegated without a Project runs in the
+Command Centre folder; the hub's band counts the running ones ("N tasks running
+outside a Project", `useCommandCentre().tasks`), and the Command Centre's
+own thread list leaves them out. A delegated agent may delegate once
 more (depth 2); a Run may have four tasks running at once; only the Run that
 started a task can read or stop it. Child Runs nest under the caller in the
 sidebar, and their approvals reach the caller's composer through the existing

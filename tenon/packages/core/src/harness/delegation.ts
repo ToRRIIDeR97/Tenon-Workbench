@@ -214,7 +214,8 @@ export const TOOLS = [
         title: { type: "string", description: "Short title for the child thread." },
         project_id: {
           type: "string",
-          description: "Project ID (from the app tools' Project list) to run the agent in that Project's folder.",
+          description:
+            "Project ID (from threads_overview's projects) to run the agent in that Project's folder, where the user sees it.",
         },
         wait_seconds: {
           type: "integer",

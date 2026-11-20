@@ -281,7 +281,9 @@ Use `[font-weight:N]` when a weight must differ from the role.
   action.
 - **Command Centre hub** (`hub-view.tsx`): `/command` is a hub first and a
   chat second, so work can run on its own. A band (16px card) names the
-  Command Centre's harness and model and what is running; Needs you rows
+  Command Centre's harness and model and what is running (agents in Projects,
+  then "N tasks running outside a Project" for tasks it delegated without
+  one); Needs you rows
   (layer-02, warning icon) answer permissions in place; then a card per
   Project (16px, layer-01, inset hairline; three columns from 1180px, two from
   760px): name (15px semibold) and outcome, the state on the right (warning

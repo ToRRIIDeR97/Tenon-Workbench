@@ -217,13 +217,11 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
       return (
         results
           .flatMap((result) => result?.data ?? [])
-          // The server's list keeps archived sessions, and the tasks a thread delegated (the session API has no
-          // parent filter): those can't be prompted, so the latest thread must never be one.
+          // The server's list keeps archived sessions. It also keeps the tasks a thread delegated (the session API
+          // has no parent filter); `list` and `tasks` split them.
           .filter(
             (session) =>
-              folders.some((item) => sameDirectory(session.location?.directory, item)) &&
-              !session.time.archived &&
-              !session.parentID,
+              folders.some((item) => sameDirectory(session.location?.directory, item)) && !session.time.archived,
           )
           .map(
             (session): CommandThread => ({
@@ -251,8 +249,10 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
       onCleanup(unsubscribe)
     })
     // The synced session info carries the title the server sets after the first reply and the latest activity.
+    // Delegated tasks can't be prompted, so the latest thread must never be one.
     const list = createMemo(() =>
       (settled(threads) ?? [])
+        .filter((thread) => !thread.session.parentID)
         .map((thread) => {
           const info = serverSync().session.get(thread.id)
           return {
@@ -369,6 +369,8 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
         writes(latest()?.id).findLast((write) => write.phase === "done" && !!write.undo && !write.failed),
       undo: (id: string) => agentWrites?.undo(id),
       threads: list,
+      /** Tasks Command Centre threads delegated without a Project, which run in the Command Centre folder. */
+      tasks: createMemo(() => (settled(threads) ?? []).filter((thread) => !!thread.session.parentID)),
       loading: () => threads.loading || vault.loading,
       latest,
       messages,

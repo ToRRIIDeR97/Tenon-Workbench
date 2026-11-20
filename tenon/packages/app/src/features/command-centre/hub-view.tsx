@@ -231,6 +231,10 @@ export function CommandHub(props: {
   const totals = createMemo(() => ({
     projects: cards().filter((item) => item.working + item.needs > 0).length,
     agents: cards().reduce((sum, item) => sum + item.working, 0),
+    // Tasks delegated without a Project run in the Command Centre folder, so no card counts them.
+    tasks: centre
+      .tasks()
+      .filter((task) => agentRunStatus(serverSync().session.data.session_status[task.id], 0) === "running").length,
   }))
 
   const Dot = () => (
@@ -313,22 +317,36 @@ export function CommandHub(props: {
         <span class="mx-1 h-7 w-px bg-v2-border-border-muted" aria-hidden="true" />
         <div class="flex min-w-0 flex-1 items-center gap-2 type-body text-v2-text-text-base">
           <Show
-            when={totals().agents > 0}
+            when={totals().agents + totals().tasks > 0}
             fallback={
               <span class="text-v2-text-text-muted">{language.t("secondBrain.commandCentre.hub.status.idle")}</span>
             }
           >
             <Dot />
-            <span class="truncate">
-              {language.t("secondBrain.commandCentre.hub.status.running", {
-                projects: language.plural("secondBrain.commandCentre.hub.projectsCount", totals().projects, {
-                  count: totals().projects,
-                }),
-                agents: language.plural("secondBrain.commandCentre.hub.agentsCount", totals().agents, {
-                  count: totals().agents,
-                }),
-              })}
-            </span>
+            <Show when={totals().agents > 0}>
+              <span class="truncate">
+                {language.t("secondBrain.commandCentre.hub.status.running", {
+                  projects: language.plural("secondBrain.commandCentre.hub.projectsCount", totals().projects, {
+                    count: totals().projects,
+                  }),
+                  agents: language.plural("secondBrain.commandCentre.hub.agentsCount", totals().agents, {
+                    count: totals().agents,
+                  }),
+                })}
+              </span>
+            </Show>
+            <Show when={totals().agents > 0 && totals().tasks > 0}>
+              <span class="text-v2-text-text-muted" aria-hidden="true">
+                ·
+              </span>
+            </Show>
+            <Show when={totals().tasks > 0}>
+              <span class="truncate">
+                {language.plural("secondBrain.commandCentre.hub.tasksCount", totals().tasks, {
+                  count: totals().tasks,
+                })}
+              </span>
+            </Show>
           </Show>
         </div>
         <Show when={lead()}>
