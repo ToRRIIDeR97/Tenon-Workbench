@@ -130,10 +130,10 @@
 <text class="lbl" x="340.0" y="447" text-anchor="middle">tools/call delegate_task(agent, task, model)</text>
 <rect class="lblbg" x="437.4" y="467.0" width="165.3" height="13" rx="2"/>
 <text class="lbl" x="520.0" y="477" text-anchor="middle">delegate(caller Run, input)</text>
-<rect class="lblbg" x="653.0" y="497.0" width="247.9" height="13" rx="2"/>
-<text class="lbl" x="656" y="507" text-anchor="start">depth &lt; 2 · running &lt; 4 · agent available</text>
-<rect class="lblbg" x="576.0" y="531.0" width="247.9" height="13" rx="2"/>
-<text class="lbl" x="700.0" y="541" text-anchor="middle">create(parentID = caller, harness, model)</text>
+<rect class="lblbg" x="653.0" y="497.0" width="360.0" height="13" rx="2"/>
+<text class="lbl" x="656" y="507" text-anchor="start">depth &lt; 2 (parent or origin) · running &lt; 4 · agent available</text>
+<rect class="lblbg" x="499.4" y="531.0" width="401.3" height="13" rx="2"/>
+<text class="lbl" x="700.0" y="541" text-anchor="middle">create(harness, model; parentID = caller | Project folder + origin)</text>
 <rect class="lblbg" x="573.1" y="561.0" width="253.8" height="13" rx="2"/>
 <text class="lbl" x="700.0" y="571" text-anchor="middle">prompt(framed task, resume false) · resume</text>
 <rect class="lblbg" x="793.5" y="591.0" width="183.0" height="13" rx="2"/>

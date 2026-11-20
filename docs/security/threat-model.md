@@ -563,6 +563,21 @@ Agents can start work in another harness through the delegation endpoint
 - A delegated task runs as a normal child Run on the target harness with that
   harness's usual approval flow. Delegation grants no permission the target
   wouldn't ask for anyway. Its approvals reach the delegating Run's composer.
+- With `project_id` the task runs as a root Run in that Project's thread
+  folder instead, linked back by `metadata.origin`. The folder comes only from
+  the server's own Project lookup for the caller's workspace
+  (`tenon/src/agents/app-tools.ts` `projectFolder`), never from the agent: an
+  unknown id fails, and the Command Centre's own folder is refused. The task
+  then works with that Project's folder, instructions and folder trust rather
+  than reaching it by absolute paths from the Command Centre's folder. Its
+  approvals ask in its own thread and show in the Command Centre's Needs you,
+  not in the delegating Run's composer. Only the delegating Run reads or stops
+  it, and the depth and running limits count it as they count a child. An
+  unattended routine refuses its prompts as it does a child's, so it can't
+  wait forever on one. The in-process loop's `delegate` approval names the
+  Project (`project:<id>`) beside the agent. `thread_start` stamps the same
+  `origin` with `handOff`: that thread is the user's, so it counts toward no
+  delegation limit and the starter can't read or stop it as a task.
 - The built-in loop asks permission `delegate` before starting or stopping a
   task. Codex and ACP agents apply their own MCP tool policy to the call.
 - Codex asks before each MCP tool call (`mcpServer/elicitation/request`). Tenon answers it
@@ -1632,6 +1647,17 @@ location and canonical Git worktree.
   them on the server and Ask showed nothing. A user config rule that allows an
   action still wins, and a client with no renderer (the bare server) must answer
   these requests itself.
+- **MCP calls in the in-process loop.** The legacy loop that runs Command
+  Centre routines and threads (`tenon/src/session/prompt.ts`) loads the
+  servers from Settings › MCP servers. Each call asks action `mcp` for its
+  server (`MCP.permission` in `tenon/src/mcp/index.ts`), the shape Codex MCP
+  approvals use, and that loop's agents (`tenon/src/agent/agent.ts`) default
+  `mcp` to ask. Before, the call asked under the tool's own name and the
+  wildcard allow approved it, so a routine reading untrusted mail could run any
+  MCP tool unasked; an unattended routine now refuses the call. "Always" saves
+  the server name literally. Allow a trusted server with
+  `"permission": { "mcp": { "<server>": "allow" } }`; a rule naming the tool
+  (`github_*`) still hides the tool when it denies, but no longer skips the ask.
 - **Model profiles.** Profile rules are the user's own text, added to prompts as
   a hidden attachment. They are trusted like a typed message; an imported
   `profile.md` is read only as text.

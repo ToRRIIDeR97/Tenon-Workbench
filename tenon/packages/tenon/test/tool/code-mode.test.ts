@@ -28,12 +28,14 @@ function mcpTool(
   handler: (args: Record<string, unknown>) => unknown,
   inputSchema: Record<string, unknown> = { type: "object", properties: {} },
   outputSchema?: Record<string, unknown>,
+  server = "fixture",
 ): MCP.McpTool {
   return {
     def: { name, description: name, inputSchema, ...(outputSchema ? { outputSchema } : {}) } as MCPToolDef,
     client: {
       callTool: async (params: { arguments?: Record<string, unknown> }) => handler(params.arguments ?? {}),
     } as unknown as MCP.McpTool["client"],
+    server,
   }
 }
 
@@ -203,6 +205,7 @@ describe("code mode execute", () => {
           inputSchema: { type: "object", properties: { value: { type: "string" }, count: { type: "number" } } },
         } as MCPToolDef,
         client: { callTool: async () => ({ content: [] }) } as unknown as MCP.McpTool["client"],
+        server: "alpha",
       }
     }
     tools["zeta_only_tool"] = mcpTool("only_tool", () => "", {
@@ -380,17 +383,24 @@ describe("code mode execute", () => {
     expect(output.output).toBe("caught: server exploded")
   })
 
-  test("asks permission before each child tool call", async () => {
+  test("asks permission `mcp` for each child tool call's server", async () => {
     const asked: unknown[] = []
     const permissionCtx: Tool.Context = { ...ctx, ask: (req) => Effect.sync(() => void asked.push(req)) }
     const ok = () => ({ content: [{ type: "text", text: "ok" }] })
-    const tool = await build({ a_tool: mcpTool("a", ok), b_tool: mcpTool("b", ok) })
+    const tool = await build({
+      a_tool: mcpTool("tool", ok, undefined, undefined, "a"),
+      b_tool: mcpTool("tool", ok, undefined, undefined, "b*"),
+    })
 
     await Effect.runPromise(
       tool.execute({ code: "await tools.a.tool({}); await tools.b.tool({}); return 'done'" }, permissionCtx),
     )
 
-    expect(asked.map((req: any) => req.permission)).toEqual(["a_tool", "b_tool"])
+    expect(asked).toEqual([
+      { permission: "mcp", patterns: ["a"], always: ["a"], metadata: { server: "a", tool: "tool" } },
+      // "Always" saves the server name literally, so a `*` in it can't widen the approval.
+      { permission: "mcp", patterns: ["b*"], always: ["b[*]"], metadata: { server: "b*", tool: "tool" } },
+    ])
   })
 
   test("a denied permission fails the child call with a catchable message, not the whole execute", async () => {
@@ -737,7 +747,7 @@ describe("code mode permission visibility", () => {
     )
     const out = await Effect.runPromise(tool.execute({ code: "return await tools.github.list_issues({})" }, askCtx))
     expect(out.output).toBe("ok")
-    expect(asked).toEqual(["github_list_issues"])
+    expect(asked).toEqual(["mcp"])
   })
 
   test("Permission.visibleTools hides only hard denies, matching Permission.disabled", () => {

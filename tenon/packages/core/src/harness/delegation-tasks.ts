@@ -3,9 +3,12 @@ export * as HarnessDelegationTasks from "./delegation-tasks"
 import { Effect, Layer, Option, Schema } from "effect"
 import { Harness } from "@tenon/schema/harness"
 import { HarnessRuntime } from "../harness"
+import { Location } from "../location"
 import { LocationServiceMap } from "../location-service-map"
+import { AbsolutePath } from "../schema"
 import { SessionV2 } from "../session"
 import { SessionSchema } from "../session/schema"
+import { HarnessAppTools } from "./app-tools"
 import { HarnessDelegation } from "./delegation"
 
 /** A delegated agent may delegate once more; deeper chains are refused. */
@@ -25,7 +28,9 @@ interface Running {
 
 /**
  * Runs delegated tasks as child Runs of the delegating Run, so they show under it in the
- * sidebar and their approvals reach its composer. Installed for the server's lifetime.
+ * sidebar and their approvals reach its composer. A task given a Project instead runs as a root
+ * thread in that Project's folder, linked back by `origin`: it lists with the Project's threads and
+ * asks for approvals in its own thread. Installed for the server's lifetime.
  */
 export const layer = Layer.effectDiscard(
   Effect.gen(function* () {
@@ -43,14 +48,23 @@ export const layer = Layer.effectDiscard(
         return yield* runtime.list()
       }).pipe(Effect.provide(locations.get(session.location)))
 
-    const depth = (session: SessionSchema.Info): Effect.Effect<number> =>
-      session.parentID
-        ? sessions.get(session.parentID).pipe(
-            Effect.flatMap((parent) => depth(parent)),
+    // A task placed in a Project has no parent; its origin counts as one, so placing can't dodge the limit. A thread
+    // handed off with `thread_start` is the user's, not a task, so its origin doesn't count.
+    const starter = (session: SessionSchema.Info) =>
+      session.parentID ?? (session.origin?.handOff ? undefined : session.origin?.sessionID)
+    // `seen` ends a cycle a hand-edited row could make; the links themselves only ever point at older threads.
+    const depth = (session: SessionSchema.Info, seen = new Set<string>()): Effect.Effect<number> => {
+      const from = starter(session)
+      if (seen.has(session.id)) return Effect.succeed(MAX_DEPTH)
+      seen.add(session.id)
+      return from
+        ? sessions.get(SessionSchema.ID.make(from)).pipe(
+            Effect.flatMap((parent) => depth(parent, seen)),
             Effect.map((value) => value + 1),
             Effect.catch(() => Effect.succeed(1)),
           )
         : Effect.succeed(0)
+    }
 
     const caller = (sessionID: string) =>
       Effect.gen(function* () {
@@ -64,7 +78,7 @@ export const layer = Layer.effectDiscard(
       Effect.gen(function* () {
         const id = decodeID(taskID)
         const child = id ? yield* sessions.get(id).pipe(Effect.option) : Option.none()
-        if (Option.isNone(child) || child.value.parentID !== sessionID)
+        if (Option.isNone(child) || starter(child.value) !== sessionID)
           return yield* Effect.fail(new Error(`No delegated task ${taskID} belongs to this thread.`))
         return child.value
       })
@@ -162,8 +176,16 @@ export const layer = Layer.effectDiscard(
                   ),
                 )
               const from = instances.find((instance) => instance.id === session.harnessInstanceID)
+              const project = input.projectId ? yield* projectFolder(session, input.projectId) : undefined
               const child = yield* sessions.create({
-                parentID: session.id,
+                ...(project
+                  ? {
+                      origin: {
+                        sessionID: session.id,
+                        commandCentre: HarnessAppTools.isCommandCentre(session.location.directory),
+                      },
+                    }
+                  : { parentID: session.id }),
                 title: input.title?.slice(0, 120) ?? `${target.name}: ${input.task.split("\n")[0].slice(0, 80)}`,
                 harnessInstanceID: target.id,
                 ...(input.model
@@ -174,7 +196,9 @@ export const layer = Layer.effectDiscard(
                       },
                     }
                   : {}),
-                location: session.location,
+                location: project
+                  ? Location.Ref.make({ directory: AbsolutePath.make(project.directory) })
+                  : session.location,
               })
               yield* sessions.prompt({
                 sessionID: child.id,
@@ -223,6 +247,16 @@ export const layer = Layer.effectDiscard(
     )
   }),
 )
+
+function projectFolder(session: SessionSchema.Info, projectId: string) {
+  return Effect.promise(() => HarnessAppTools.projectFolder({ sessionID: session.id }, projectId)).pipe(
+    Effect.flatMap((folder) =>
+      folder
+        ? Effect.succeed(folder)
+        : Effect.fail(new Error(`No Project ${projectId} is open to this thread; check the Project's id.`)),
+    ),
+  )
+}
 
 function framedTask(from: string, task: string) {
   return [

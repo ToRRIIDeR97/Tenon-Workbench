@@ -719,25 +719,42 @@ assistant that spans workspaces, with its own threads, memory and routines.
   one with the harness and model from Settings › Command Centre. The list
   refreshes when the page opens and, debounced, on `session.created/updated/deleted`
   events for that folder, so archives, deletes and routine runs show up.
-- **Mission control is the thread view.** With a Command Centre thread to
-  open, `/command`'s Mission control view navigates to the newest one, and that
-  thread page (`pages/session.tsx`, which knows a Command Centre thread by
-  `isCommandThread`) carries the Command Centre's chrome from
+- **The hub.** `/command` opens on the hub (`features/command-centre/hub-view.tsx`
+  `CommandHub`, its data worked out in the pure `hub-model.ts`), not on a thread.
+  A band names the Command Centre's harness and model (the newest Command
+  Centre thread's) and what is running; Needs you lists the waiting queue
+  (`createWaitingQueue`) with Allow and Deny for permissions; then a card per
+  Project (`hubCards`: outcome, next milestone and progress from
+  `useBrainProjects`, the harnesses working in it with the Command Centre's first
+  when it started one of its threads, and the newest running thread as the
+  card's last line). A card opens `?project=<id>` (`projectCrew`): the Command
+  Centre thread that last started work there, with its checklist as the plan,
+  then an agent card per thread that needs you, runs, or changed in the last day
+  (harness logo and model label, thread title, the checklist step "n of m" from
+  `serverSync().session.todo`), and the day's Command Centre actions on those
+  threads. An agent opens a panel with its plan, latest reply, Open thread and
+  Stop. Chat is the composer docked at the foot: focusing it opens a sheet with
+  the latest exchange, and sending goes to the newest Command Centre thread
+  (`centre.send`), prefixed with the open Project. Cards and agents are listed by
+  id so a live update rewrites them in place. It reads only the sidebar's
+  groups, the synced run state and checklists: no polling.
+- **Command Centre threads.** A Command Centre thread opened from the hub, the
+  strip or the sidebar is the thread page (`pages/session.tsx`, which knows a Command Centre thread by
+  `isCommandThread`), with the Command Centre's chrome from
   `features/command-centre/command-thread-chrome.tsx`: the title row reads
   "Command Centre" with a menu of its threads and New thread (`centre.create()`,
   an empty thread opened straight away); the header has the page's views
-  (`CommandViews`: Mission control, Waiting on you, Workflows, Routines), where
+  (`CommandViews`: Hub, Waiting on you, Workflows, Routines), where
   Waiting on you and Workflows go to `/command?view=waiting|workflows`; and the
   board sits beside the thread as a 380 px Mission panel (`CommandMissionPanel`,
   shown on desktop, toggled and kept in `command.mission-panel`). The rail keeps
-  its Command Centre entry lit on those threads. Before the first thread the
-  page still shows the agent's composer beside the board. Each turn's writes,
+  its Command Centre entry lit on those threads. Each turn's writes,
   including the Command Centre's own actions (`project`, `thread`, `steer`,
   `stop` `agent.write` events from `project_setup`, `thread_start`,
   `thread_message` and `thread_stop`, which have no undo), show as one
   Done-for-you list under the reply (`AgentWritesDone`), with Open going to
   the Project or thread.
-- **The board.** The Mission panel and `/command` show a board of every Project's threads
+- **The board.** The Mission panel shows a board of every Project's threads
   (`features/command-centre/mission-board-view.tsx`; the sort and grouping are the
   pure `mission-board.ts`). It adds no request and no polling: it reads the sidebar
   controller's thread groups (`useSidebarController().groups()`, built from the
@@ -1571,16 +1588,32 @@ options considered are in [ADR-011](../adr/ADR-011-cross-harness-delegation.md).
   harnessModel, location })` in the caller's location, then `prompt` with the
   task text and `resume`. The task ID is the child's session ID, and the
   result is the child's last assistant reply (capped at 100,000 characters).
+- With `project_id`, the task runs in that Project instead: the app-tools
+  provider resolves the Project's thread folder (`HarnessAppTools.projectFolder`,
+  answered by `tenon/src/agents/app-tools.ts` `projectFolder` from the caller's
+  workspace; never the Command Centre folder), and the task is created as a
+  root Run there with `metadata.origin = { sessionID: caller, commandCentre }`
+  (`commandCentre` when the caller's folder is `.command-centre`). An unknown
+  Project fails the call and creates nothing. Ownership and the depth limit
+  follow `origin` as they follow the parent link (a visited set ends a cycle),
+  and an unattended routine's prompt refusal follows it too
+  (`command-threads.ts` `refusePrompts`). `thread_start` stamps the same
+  `origin` with `handOff: true`, which counts toward neither. `Session.Info.origin` exposes it; the renderer reads it from
+  that field or the legacy `metadata.origin` (`hub-model.ts` `sessionOrigin`),
+  and the home session index keeps it, with the harness, in the legacy
+  summary's `metadata`.
 
 Tools: `list_agents` (harness instances with models and reasoning efforts,
 the caller's own marked `current`), `delegate_task` (`agent`, `task`, optional
-`model`, `reasoning_effort`, `title`, `wait_seconds` up to 600, default 300),
+`model`, `reasoning_effort`, `title`, `project_id`, `wait_seconds` up to 600, default 300),
 `task_result` and `cancel_task`. A task still running when `delegate_task`
 returns is collected with `task_result`. A delegated agent may delegate once
 more (depth 2); a Run may have four tasks running at once; only the Run that
 started a task can read or stop it. Child Runs nest under the caller in the
 sidebar, and their approvals reach the caller's composer through the existing
-session request tree.
+session request tree. A Project-placed task lists with the Project's threads
+(with the Command Centre mark when the Command Centre started it) and asks
+for approvals in its own thread, which the Command Centre's Needs you lists.
 
 ### Questions from harnesses
 
@@ -2820,7 +2853,9 @@ From the 11 Nov feedback list ([triage](../product/FEEDBACK-2026-11-11.md)):
   `edit`/`delete`/`move` → `edit`, other tools → `acp_tool`). The modes can only
   answer requests the server raises, so the built-in agents' rules
   (`core/src/plugin/agent.ts`) ask for `bash`, `edit`, `webfetch`, `websearch`,
-  `mcp` and `acp_tool` in every folder; config rules can still allow them. Codex
+  `mcp` and `acp_tool` in every folder; config rules can still allow them. The
+  legacy in-process loop's agents (`tenon/src/agent/agent.ts`) ask `mcp` too,
+  and its MCP tool calls raise `mcp` for the server (`MCP.permission`). Codex
   runs sandboxed commands without asking anyone, so Ask covers its escalations
   and MCP calls, not every command.
 - **Thread environment.** `components/session/thread-environment.tsx` is an

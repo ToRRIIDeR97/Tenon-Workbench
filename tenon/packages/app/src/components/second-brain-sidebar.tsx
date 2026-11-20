@@ -49,6 +49,7 @@ import type { FinishMark } from "@/features/second-brain/thread-finish"
 import { projectForDirectory, type ThreadNode } from "@/features/second-brain/sidebar-threads"
 import { createFreshItems } from "@/utils/fresh-items"
 import { sessionPinnedAt } from "@/utils/session"
+import { sessionOrigin } from "@/features/command-centre/hub-model"
 import { sessionHref } from "@/utils/session-route"
 import { sessionTitle } from "@/utils/session-title"
 
@@ -1122,6 +1123,19 @@ function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; 
                 >
                   <Icon name="pin" size="small" />
                 </span>
+              </Show>
+              {/* A thread the Command Centre started (a delegated task or thread_start) carries its rail icon. */}
+              <Show when={sessionOrigin(session())?.commandCentre}>
+                <TooltipV2 placement="right" value={language.t("secondBrain.sidebar.startedByCommandCentre")}>
+                  <span
+                    data-sidebar-command-centre
+                    class="flex shrink-0 items-center text-v2-icon-icon-muted"
+                    role="img"
+                    aria-label={language.t("secondBrain.sidebar.startedByCommandCentre")}
+                  >
+                    <Icon name="console" size="small" />
+                  </span>
+                </TooltipV2>
               </Show>
               <ThreadStatusMark state={props.ctrl.subtreeState(props.node)} />
               <Show when={props.ctrl.subtreeState(props.node) === "idle" && !active()}>

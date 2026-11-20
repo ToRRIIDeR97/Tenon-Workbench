@@ -239,7 +239,23 @@ function toLegacySummary(session: SessionV2Info): Session {
     model: session.model,
     version: "",
     time: session.time,
-    // V2 exposes the pin as `time.pinned`; the legacy shape keeps it in `metadata.pinned`.
-    metadata: session.time.pinned === undefined ? undefined : { pinned: session.time.pinned },
+    // The legacy shape keeps in `metadata` what V2 has as fields: the pin, the harness and the thread's origin.
+    // The sidebar merges this summary over the folder lists, so anything left out here is lost to it.
+    metadata: legacyMetadata(session),
   }
+}
+
+function legacyMetadata(session: SessionV2Info) {
+  const extra = session as SessionV2Info & {
+    harnessInstanceID?: string
+    harnessModel?: unknown
+    origin?: { sessionID: string; commandCentre: boolean }
+  }
+  const metadata = {
+    ...(session.time.pinned === undefined ? {} : { pinned: session.time.pinned }),
+    ...(extra.harnessInstanceID === undefined ? {} : { harnessInstanceID: extra.harnessInstanceID }),
+    ...(extra.harnessModel === undefined ? {} : { harnessModel: extra.harnessModel }),
+    ...(extra.origin === undefined ? {} : { origin: extra.origin }),
+  }
+  return Object.keys(metadata).length > 0 ? metadata : undefined
 }

@@ -87,6 +87,8 @@ type CreateInput = {
   agent?: AgentV2.ID
   model?: ModelV2.Ref
   location: Location.Ref
+  /** The thread that started this one without being its parent (a delegated task placed in a Project). */
+  origin?: SessionSchema.Origin
 }
 
 type CompactInput = {
@@ -264,6 +266,9 @@ const layer = Layer.effect(
             harnessInstanceID: input.harnessInstanceID ?? Harness.OpenCode,
             ...(input.harnessModel ? { harnessModel: input.harnessModel } : {}),
             harnessRevision: 0,
+            ...(input.origin
+              ? { origin: { sessionID: input.origin.sessionID, commandCentre: input.origin.commandCentre } }
+              : {}),
           },
           agent: input.agent,
           model: input.model

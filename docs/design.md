@@ -279,13 +279,41 @@ Use `[font-weight:N]` when a weight must differ from the role.
   reduced motion) and lets every click through; the Stop pill sits above it
   at the bottom of the screen. Both go a few quiet seconds after the last
   action.
-- **Command Centre** (`command-thread-chrome.tsx`): its conversation is the
-  ordinary thread view, never a second chat UI. The Command Centre's extras
-  sit around it: the page's title, thread menu and views in the thread's
-  header, the Mission board as a side panel, and each turn's actions as one
+- **Command Centre hub** (`hub-view.tsx`): `/command` is a hub first and a
+  chat second, so work can run on its own. A band (16px card) names the
+  Command Centre's harness and model and what is running; Needs you rows
+  (layer-02, warning icon) answer permissions in place; then a card per
+  Project (16px, layer-01, inset hairline; three columns from 1180px, two from
+  760px): name (15px semibold) and outcome, the state on the right (warning
+  chip for Needs you, the running dot for Running, muted text otherwise), the
+  next milestone with % and a 4px bar, a stack of 24px harness-logo tiles
+  (who is working; the Command Centre's first) with "N working · N needs
+  you", and a hairline-topped last line: the newest running thread's logo,
+  title and time. Cards enter with a 40ms stagger. A card opens the Project
+  (Back in the page header): the Command Centre's card leads (its logo and
+  model, its thread title, "Now:" its current step, its checklist as the
+  plan), then a card per agent: the harness logo on a 28px tile, the model as
+  the name and the harness under it, the thread title (two lines), the step
+  "text · n of m" with the running dot (or warning, or a muted check and
+  "Finished · time"), a 2px progress line, and the Command Centre's rail icon
+  when it started that thread. The milestone and Activity sit in a 380px
+  column on the right. An agent opens a 24px floating panel over that column
+  (plan, latest reply, Open thread, Stop); Esc or Close dismisses it. Harness
+  and model tell agents apart, never colour. Chat is the composer docked at
+  the foot (the light composer's raised pill, 560px): focusing it opens a 24px
+  floating sheet above it with the latest exchange and Open thread. Views
+  fade through (`ViewSwitch`); panels and the sheet use `Presence`.
+- **Command Centre threads** (`command-thread-chrome.tsx`): a Command Centre
+  thread is the ordinary thread view, never a second chat UI. Its extras sit
+  around it: the page's title, thread menu and views in the thread's header,
+  the Mission board as a side panel, and each turn's actions as one
   Done-for-you list under the reply. The Ctrl+J card briefs before it
   converses: counts, then what needs you (answered in place), then what's
   running with its checklist step, then the latest exchange and composer.
+- **Started by Command Centre:** a thread the Command Centre started (a task
+  it delegated into a Project, or `thread_start`) shows the Command Centre's
+  rail icon (`console`, muted, small) in its sidebar row before the status
+  mark, with the tooltip and label "Started by Command Centre".
 - **Links in the composer** (`link-highlight.ts`): accent text, underlined,
   drawn with the CSS Highlight API so the editor's text is untouched. A plain
   click edits; Ctrl/⌘-click opens the link.
