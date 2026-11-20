@@ -2820,7 +2820,9 @@ From the 11 Nov feedback list ([triage](../product/FEEDBACK-2026-11-11.md)):
   `edit`/`delete`/`move` → `edit`, other tools → `acp_tool`). The modes can only
   answer requests the server raises, so the built-in agents' rules
   (`core/src/plugin/agent.ts`) ask for `bash`, `edit`, `webfetch`, `websearch`,
-  `mcp` and `acp_tool` in every folder; config rules can still allow them. Codex
+  `mcp` and `acp_tool` in every folder; config rules can still allow them. The
+  legacy in-process loop's agents (`tenon/src/agent/agent.ts`) ask `mcp` too,
+  and its MCP tool calls raise `mcp` for the server (`MCP.permission`). Codex
   runs sandboxed commands without asking anyone, so Ask covers its escalations
   and MCP calls, not every command.
 - **Thread environment.** `components/session/thread-environment.tsx` is an

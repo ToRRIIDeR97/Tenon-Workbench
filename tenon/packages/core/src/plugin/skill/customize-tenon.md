@@ -412,9 +412,13 @@ everything" and is rarely what the user wants.
 
 Known permission keys: `read, edit, glob, grep, list, bash, task,
 external_directory, todowrite, question, webfetch, websearch, lsp, doom_loop,
-skill`. Some of these (`todowrite,
+skill, mcp`. Some of these (`todowrite,
 question, webfetch, websearch, doom_loop`) only accept a flat
 action, not a per-pattern object.
+
+`mcp` patterns are MCP server names. Every MCP tool call asks by default; to
+trust one server, write `"mcp": { "github": "allow" }`. A key naming the tool
+itself (`"github_*": "deny"`) hides those tools from the agent.
 
 `external_directory` patterns are filesystem paths (use `~/`, absolute paths,
 or globs like `~/projects/**`).

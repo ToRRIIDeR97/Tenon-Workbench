@@ -59,6 +59,29 @@ it.instance("returns default native agents when no config", () =>
   }),
 )
 
+it.instance("built-in agents ask before an MCP tool call, per server", () =>
+  Effect.gen(function* () {
+    const build = yield* load((svc) => svc.get("build"))
+    const general = yield* load((svc) => svc.get("general"))
+    const plan = yield* load((svc) => svc.get("plan"))
+    for (const agent of [build, general, plan])
+      expect(Permission.evaluate("mcp", "github", agent!.permission).action).toBe("ask")
+    // Other actions keep the wildcard allow.
+    expect(evalPerm(build, "todowrite")).toBe("allow")
+  }),
+)
+
+it.instance(
+  "a config rule allows one MCP server without asking",
+  () =>
+    Effect.gen(function* () {
+      const build = yield* load((svc) => svc.get("build"))
+      expect(Permission.evaluate("mcp", "github", build!.permission).action).toBe("allow")
+      expect(Permission.evaluate("mcp", "linear", build!.permission).action).toBe("ask")
+    }),
+  { config: { permission: { mcp: { github: "allow" } } } },
+)
+
 it.instance("build agent has correct default properties", () =>
   Effect.gen(function* () {
     const build = yield* load((svc) => svc.get("build"))

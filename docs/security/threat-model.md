@@ -1632,6 +1632,17 @@ location and canonical Git worktree.
   them on the server and Ask showed nothing. A user config rule that allows an
   action still wins, and a client with no renderer (the bare server) must answer
   these requests itself.
+- **MCP calls in the in-process loop.** The legacy loop that runs Command
+  Centre routines and threads (`tenon/src/session/prompt.ts`) loads the
+  servers from Settings › MCP servers. Each call asks action `mcp` for its
+  server (`MCP.permission` in `tenon/src/mcp/index.ts`), the shape Codex MCP
+  approvals use, and that loop's agents (`tenon/src/agent/agent.ts`) default
+  `mcp` to ask. Before, the call asked under the tool's own name and the
+  wildcard allow approved it, so a routine reading untrusted mail could run any
+  MCP tool unasked; an unattended routine now refuses the call. "Always" saves
+  the server name literally. Allow a trusted server with
+  `"permission": { "mcp": { "<server>": "allow" } }`; a rule naming the tool
+  (`github_*`) still hides the tool when it denies, but no longer skips the ask.
 - **Model profiles.** Profile rules are the user's own text, added to prompts as
   a hidden attachment. They are trusted like a typed message; an imported
   `profile.md` is read only as text.

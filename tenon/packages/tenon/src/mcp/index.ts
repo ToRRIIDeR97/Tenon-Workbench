@@ -18,6 +18,7 @@ import {
 import { Config } from "@/config/config"
 import { ConfigMCPV1 } from "@tenon/core/v1/config/mcp"
 import { NamedError } from "@tenon/core/util/error"
+import { Wildcard } from "@tenon/core/util/wildcard"
 import { InstallationVersion } from "@tenon/core/installation/version"
 import { withTimeout } from "@/util/timeout"
 import { FSUtil } from "@tenon/core/fs-util"
@@ -160,7 +161,22 @@ export interface McpTool {
   /** Shared cached definition; consumers must copy rather than mutate it. */
   readonly def: MCPToolDef
   readonly client: MCPClient
+  /** The configured server name, unsanitized; tool calls ask permission `mcp` for it. */
+  readonly server: string
   readonly timeout?: number
+}
+
+/**
+ * The approval a call to `tool` asks for: action `mcp` for its server, like a Codex MCP call, so one rule such as
+ * `mcp: { github: "allow" }` covers a server and "always" saves the server, never a widening pattern.
+ */
+export function permission(tool: McpTool) {
+  return {
+    permission: "mcp",
+    patterns: [tool.server],
+    always: [Wildcard.literal(tool.server)],
+    metadata: { server: tool.server, tool: tool.def.name },
+  }
 }
 
 export interface Interface {
@@ -691,7 +707,7 @@ const layer = Layer.effect(
         }
         const timeout = requestTimeout(s, clientName, mcpConfig, defaultTimeout)
         for (const def of listed) {
-          result[McpCatalog.toolName(clientName, def.name)] = { def, client, timeout }
+          result[McpCatalog.toolName(clientName, def.name)] = { def, client, server: clientName, timeout }
         }
       }
       return result
