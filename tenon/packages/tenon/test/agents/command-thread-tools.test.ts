@@ -164,6 +164,23 @@ describe("Command Centre thread tools", () => {
     }),
   )
 
+  it.instance("threads_overview lists every Project's id, threads or not, for delegate_task's project_id", () =>
+    Effect.gen(function* () {
+      const { project, headers, call } = yield* setup
+      const empty = yield* request("/second-brain/projects", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ name: "Beta", outcome: "y" }),
+      }).pipe(Effect.flatMap(json<{ id: string }>))
+      const overview = (yield* call("threads_overview", {})).value as Overview & {
+        projects: { id: string; name: string; folder: string }[]
+      }
+      expect(overview.projects.map((item) => item.id).toSorted()).toEqual([project.id, empty.id].toSorted())
+      expect(overview.projects.find((item) => item.id === empty.id)).toMatchObject({ name: "Beta" })
+      expect(overview.threads.some((thread) => thread.projectId === empty.id)).toBe(false)
+    }),
+  )
+
   it.instance("thread_read returns a thread's latest messages as text", () =>
     Effect.gen(function* () {
       const { alpha, call } = yield* setup

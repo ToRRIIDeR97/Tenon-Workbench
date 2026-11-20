@@ -45,6 +45,7 @@ type PluralKey =
   | "secondBrain.sidebar.cardRunning"
   | "secondBrain.commandCentre.hub.projectsCount"
   | "secondBrain.commandCentre.hub.agentsCount"
+  | "secondBrain.commandCentre.hub.tasksCount"
   | "secondBrain.commandCentre.hub.working"
   | "secondBrain.commandCentre.hub.needsCount"
   | "secondBrain.agentWrites.doneForYou"
