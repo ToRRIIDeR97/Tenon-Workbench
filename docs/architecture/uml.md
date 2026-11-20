@@ -256,7 +256,9 @@ With `project_id` the task is created as a root Run in the Project's thread
 folder, linked back by `origin`, instead of as a child of the caller (the
 `create` message's alternative). A task that outlives the call (not drawn)
 queues the caller a notice when it finishes unless a `task_result` call is
-waiting on it, which wakes an idle caller. The same endpoint serves `ask_user` (not
+waiting on it, which wakes an idle caller, and checks in with it every 12
+minutes while it runs (`task_result` then shows its progress, and
+`message_task` steers it). The same endpoint serves `ask_user` (not
 drawn): the call
 becomes a `QuestionV2` request in the caller's session, answered in the
 question dock; see [Questions from harnesses](README.md#questions-from-harnesses). See [Cross-harness delegation](README.md#cross-harness-delegation).

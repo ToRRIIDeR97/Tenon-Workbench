@@ -603,6 +603,13 @@ Agents can start work in another harness through the delegation endpoint
   asked for. A cancelled task sends none. Each notice is one turn; the
   four-task limit bounds how many can arrive at once. Stopping the caller
   doesn't withdraw a notice already queued.
+- While a task runs, its caller gets a check-in every 12 minutes, at most one
+  queued per task, so four tasks cost at most about 20 caller turns an hour.
+  The check-in text is Tenon's own; the task's checklist and latest note reach
+  the caller only through `task_result`, as tool output, and are untrusted
+  model output like the final reply.
+- `message_task` lets only the Run that started a task steer it, and only
+  while the task is running in this server process.
 
 The endpoint also serves `ask_user` and is now attached to every Codex and
 ACP runtime, not only when delegation is on. With delegation off it lists

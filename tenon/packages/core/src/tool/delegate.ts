@@ -11,7 +11,7 @@ import { Tools } from "./tools"
 
 const wait = Schema.optional(Schema.Number.annotate({ description: "Seconds to wait for the result." }))
 
-// The in-process loop gets the same four tools that external harnesses reach over MCP.
+// The in-process loop gets the same tools that external harnesses reach over MCP.
 const inputs = {
   list_agents: Schema.Struct({}),
   delegate_task: Schema.Struct({
@@ -27,6 +27,10 @@ const inputs = {
   }),
   task_result: Schema.Struct({ task_id: Schema.String, wait_seconds: wait }),
   cancel_task: Schema.Struct({ task_id: Schema.String }),
+  message_task: Schema.Struct({
+    task_id: Schema.String,
+    text: Schema.String.annotate({ description: "What the agent should change or know." }),
+  }),
 }
 
 const Output = Schema.Struct({ output: Schema.String })

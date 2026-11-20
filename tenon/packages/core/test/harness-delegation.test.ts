@@ -14,6 +14,7 @@ const handler: HarnessDelegation.Handler = {
   },
   result: async (_sessionID, taskID) => ({ taskID, agent: "codex", status: "running" }),
   cancel: async () => Promise.reject(new Error("No delegated task ses_x belongs to this thread.")),
+  message: async (_sessionID, taskID) => ({ taskID, sent: true }),
 }
 
 const parent = { sessionID: "ses_parent" }
@@ -64,7 +65,7 @@ describe("harness delegation MCP protocol", () => {
       parent,
       handler,
     )
-    expect(toolNames(tools)).toEqual(["list_agents", "delegate_task", "task_result", "cancel_task"])
+    expect(toolNames(tools)).toEqual(["list_agents", "delegate_task", "task_result", "cancel_task", "message_task"])
   })
 
   test("ignores notifications and rejects unknown methods", async () => {
@@ -117,6 +118,7 @@ describe("harness delegation MCP protocol", () => {
       "delegate_task",
       "task_result",
       "cancel_task",
+      "message_task",
     ])
     expect(await list(asking({ type: "open" }))).toEqual(["ask_user"])
     const disabled = await HarnessDelegation.handleMessage(

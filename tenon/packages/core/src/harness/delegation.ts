@@ -63,6 +63,14 @@ export interface TaskResult {
   readonly status: "running" | "completed" | "failed" | "cancelled"
   readonly output?: string
   readonly error?: string
+  /** Where a running task is: its checklist, its latest note and how long it has run. */
+  readonly progress?: TaskProgress
+}
+
+export interface TaskProgress {
+  readonly runningMinutes: number
+  readonly todos?: ReadonlyArray<{ readonly content: string; readonly status: string }>
+  readonly latest?: string
 }
 
 /** Task operations, called with the ID of the Run whose harness made the call. */
@@ -71,6 +79,8 @@ export interface Handler {
   readonly delegate: (sessionID: string, input: DelegateInput) => Promise<TaskResult>
   readonly result: (sessionID: string, taskID: string, waitSeconds: number) => Promise<TaskResult>
   readonly cancel: (sessionID: string, taskID: string) => Promise<TaskResult>
+  /** Steers a running task with `text`, which it reads at its next safe point. */
+  readonly message: (sessionID: string, taskID: string, text: string) => Promise<{ taskID: string; sent: true }>
 }
 
 export interface Endpoint {
@@ -230,7 +240,8 @@ export const TOOLS = [
   },
   {
     name: "task_result",
-    description: "Get the result of a delegated task, waiting up to wait_seconds while it is still running.",
+    description:
+      "Get the result of a delegated task, waiting up to wait_seconds while it is still running. A task still running reports its progress: its checklist, its latest note and how many minutes it has run.",
     inputSchema: {
       type: "object",
       properties: {
@@ -248,6 +259,20 @@ export const TOOLS = [
       type: "object",
       properties: { task_id: { type: "string" } },
       required: ["task_id"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "message_task",
+    description:
+      "Steer a delegated task that is still running: the agent reads text at its next safe point and carries on with it. Use it when a check-in shows the task going off track.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        task_id: { type: "string" },
+        text: { type: "string", description: "What the agent should change or know." },
+      },
+      required: ["task_id", "text"],
       additionalProperties: false,
     },
   },
@@ -391,6 +416,11 @@ function callTool(name: string, args: Record<string, unknown>, sessionID: string
   if (!taskID) return Promise.reject(new Error(`${name} needs a task_id.`))
   if (name === "task_result") return handler.result(sessionID, taskID, wait)
   if (name === "cancel_task") return handler.cancel(sessionID, taskID)
+  if (name === "message_task") {
+    const message = text(args.text)
+    if (!message) return Promise.reject(new Error("message_task needs text."))
+    return handler.message(sessionID, taskID, message)
+  }
   return Promise.reject(new Error(`Unknown tool: ${name}`))
 }
 
