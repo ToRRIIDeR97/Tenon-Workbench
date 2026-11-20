@@ -679,6 +679,27 @@ describe("SessionV2.prompt", () => {
     }),
   )
 
+  it.effect("wakes an idle session whose next queued input is accepted, and leaves the rest waiting", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const session = yield* SessionV2.Service
+      wakeCalls.length = 0
+      yield* queue("[Tenon] Your delegated task was interrupted because Tenon closed.")
+
+      expect(yield* session.wakeQueued((input) => input.prompt.text.startsWith("[Tenon] "))).toBe(1)
+      expect(wakeCalls).toEqual([sessionID])
+      // Waking drains the inbox later; nothing is promoted here.
+      expect(yield* session.queued(sessionID)).toHaveLength(1)
+
+      wakeCalls.length = 0
+      expect(yield* session.wakeQueued((input) => input.prompt.text.startsWith("Something else"))).toBe(0)
+      activeSessions.add(sessionID)
+      expect(yield* session.wakeQueued(() => true)).toBe(0)
+      activeSessions.delete(sessionID)
+      expect(wakeCalls).toEqual([])
+    }),
+  )
+
   it.effect("steers a queued input to the next steer point and wakes the session", () =>
     Effect.gen(function* () {
       yield* setup

@@ -13,8 +13,10 @@ import { SessionTodo } from "@tenon/core/session/todo"
 
 const parent = { id: "ses_lead", location: { directory: "/work" }, harnessInstanceID: "claude-code" }
 
-function fixture(options: { checkInMs?: number } = {}) {
+function fixture(options: { checkInMs?: number; waiting?: ReadonlyArray<string> } = {}) {
   const finish = new Map<string, () => void>()
+  const fail = new Map<string, (error: Error) => void>()
+  const woken: string[] = []
   const prompts: Array<{ sessionID: string; text: string; delivery?: string; resume?: boolean }> = []
   let created = 0
   const sessions = Layer.succeed(SessionV2.Service, {
@@ -31,7 +33,14 @@ function fixture(options: { checkInMs?: number } = {}) {
           resume: input.resume,
         })
       }),
-    resume: (id: string) => Effect.promise(() => new Promise<void>((resolve) => finish.set(id, resolve))),
+    resume: (id: string) =>
+      Effect.promise(
+        () =>
+          new Promise<void>((resolve, reject) => {
+            finish.set(id, resolve)
+            fail.set(id, reject)
+          }),
+      ),
     interrupt: (id: string) => Effect.sync(() => finish.get(id)?.()),
     messages: () =>
       Effect.succeed([{ type: "assistant", content: [{ type: "text", text: "Built the rifle." }], error: undefined }]),
@@ -43,6 +52,12 @@ function fixture(options: { checkInMs?: number } = {}) {
           .filter((prompt) => prompt.sessionID === id && prompt.delivery === "queue")
           .map((prompt) => ({ prompt: { text: prompt.text } })),
       ),
+    // Each entry is the next queued input of an idle thread left from the last run.
+    wakeQueued: (accept: (input: { prompt: { text: string } }) => boolean) =>
+      Effect.sync(() => {
+        woken.push(...(options.waiting ?? []).filter((text) => accept({ prompt: { text } })))
+        return woken.length
+      }),
   } as unknown as SessionV2.Interface)
   const runtime = Layer.succeed(HarnessRuntime.Service, {
     list: () => Effect.succeed([{ id: "codex", name: "Codex", status: "available", models: [] }]),
@@ -58,12 +73,14 @@ function fixture(options: { checkInMs?: number } = {}) {
   const locations = Layer.succeed(LocationServiceMap.Service, {
     get: () => Layer.mergeAll(runtime, todos),
   } as unknown as LocationServiceMap.Service["Service"])
-  const tasks =
-    options.checkInMs === undefined
-      ? HarnessDelegationTasks.layer
-      : HarnessDelegationTasks.layerWith({ checkInMs: options.checkInMs })
+  const tasks = HarnessDelegationTasks.layerWith({
+    checkInMs: options.checkInMs ?? HarnessDelegationTasks.CHECK_IN_MS,
+    wakeDelayMs: 0,
+  })
   return {
     finish,
+    fail,
+    woken,
     prompts,
     notices: () => prompts.filter((prompt) => prompt.sessionID === parent.id),
     checkIns: () => prompts.filter((prompt) => prompt.sessionID === parent.id && prompt.text.includes("Check-in")),
@@ -240,6 +257,79 @@ test("message_task steers a running task and refuses a finished one", async () =
           ),
         )
         expect(late).toContain("not running")
+      }),
+    ),
+  )
+})
+
+test("a task the shutdown interrupts tells the delegating thread to start it again", async () => {
+  const world = fixture()
+  await Effect.runPromise(
+    Effect.scoped(
+      Effect.gen(function* () {
+        yield* Layer.build(world.layer)
+        yield* start()
+      }),
+    ),
+  )
+  // The scope above is closed, as at shutdown; only then does the session runner interrupt the task.
+  world.fail.get("ses_task1")?.(new Error("Provider turn interrupted"))
+  await Effect.runPromise(tick())
+  const notices = world.notices()
+  expect(notices).toHaveLength(1)
+  expect(notices[0]!.text).toContain("interrupted because Tenon closed")
+  expect(notices[0]!.text).toContain("start it again")
+  expect(notices[0]!.text).not.toContain("failed")
+})
+
+test("a task someone stopped while Tenon runs is not to be started again", async () => {
+  const world = fixture()
+  await Effect.runPromise(
+    Effect.scoped(
+      Effect.gen(function* () {
+        yield* Layer.build(world.layer)
+        yield* start()
+        world.fail.get("ses_task1")?.(new Error("Provider turn interrupted"))
+        yield* tick()
+        const notices = world.notices()
+        expect(notices).toHaveLength(1)
+        expect(notices[0]!.text).toContain("was stopped before it finished")
+        expect(notices[0]!.text).toContain("unless the user asks")
+      }),
+    ),
+  )
+})
+
+test("a task that fails on its own is still reported as failed", async () => {
+  const world = fixture()
+  await Effect.runPromise(
+    Effect.scoped(
+      Effect.gen(function* () {
+        yield* Layer.build(world.layer)
+        yield* start()
+        world.fail.get("ses_task1")?.(new Error("Rate limited"))
+        yield* tick()
+        expect(world.notices()[0]!.text).toContain("has failed")
+      }),
+    ),
+  )
+})
+
+test("at startup, threads left waiting on a Tenon notice are woken; a message the user queued is not", async () => {
+  const world = fixture({
+    waiting: [
+      '[Tenon] Your delegated task "Guns A" (task_id ses_old) was interrupted because Tenon closed.',
+      "Also check the arms",
+    ],
+  })
+  await Effect.runPromise(
+    Effect.scoped(
+      Effect.gen(function* () {
+        yield* Layer.build(world.layer)
+        yield* tick()
+        expect(world.woken).toEqual([
+          '[Tenon] Your delegated task "Guns A" (task_id ses_old) was interrupted because Tenon closed.',
+        ])
       }),
     ),
   )

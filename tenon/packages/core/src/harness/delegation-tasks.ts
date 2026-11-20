@@ -40,7 +40,7 @@ interface Running {
  * thread in that Project's folder, linked back by `origin`: it lists with the Project's threads and
  * asks for approvals in its own thread. Installed for the server's lifetime.
  */
-export const layerWith = (options: { readonly checkInMs: number }) =>
+export const layerWith = (options: { readonly checkInMs: number; readonly wakeDelayMs: number }) =>
   Layer.effectDiscard(
     Effect.gen(function* () {
       const sessions = yield* SessionV2.Service
@@ -51,6 +51,9 @@ export const layerWith = (options: { readonly checkInMs: number }) =>
       // Tasks a thread is starting but hasn't registered yet; counted against the limit so a batch of
       // calls can't all pass the check before any of them registers.
       const starting = new Map<string, number>()
+      // Set when the server starts to shut down. This layer is released before the session runner, so tasks the
+      // shutdown interrupts finish after it is set and their notices say so.
+      let closing = false
 
       const harnesses = (session: SessionSchema.Info) =>
         Effect.gen(function* () {
@@ -114,12 +117,18 @@ export const layerWith = (options: { readonly checkInMs: number }) =>
 
       // A delegating thread that ended its turn while a task ran would otherwise sit idle with the work half done: queue
       // it a notice, which waits for a running turn to end and wakes an idle thread.
-      const notify = (parentID: SessionSchema.ID, child: SessionSchema.Info, agent: string, error?: string) =>
+      const notify = (
+        parentID: SessionSchema.ID,
+        child: SessionSchema.Info,
+        agent: string,
+        error: string | undefined,
+        closed: boolean,
+      ) =>
         Effect.gen(function* () {
           const result = yield* finalReply(child, agent, error)
           yield* sessions.prompt({
             sessionID: parentID,
-            prompt: { text: finishedNotice(child.title, result) },
+            prompt: { text: finishedNotice(child.title, result, closed) },
             delivery: "queue",
           })
         })
@@ -309,7 +318,7 @@ export const layerWith = (options: { readonly checkInMs: number }) =>
                   setTimeout(() => running.delete(child.id), FINISHED_RETENTION_MS).unref?.()
                   // Runs before a waiting call's own `done` handler, so `waiting` still counts it here.
                   if (entry.cancelled || entry.waiting > 0) return
-                  void run(notify(session.id, child, target.id, outcome.error)).catch(() => undefined)
+                  void run(notify(session.id, child, target.id, outcome.error, closing)).catch(() => undefined)
                 })
                 return child
               }).pipe(Effect.ensuring(release))
@@ -351,10 +360,19 @@ export const layerWith = (options: { readonly checkInMs: number }) =>
           ),
       }
 
+      // Notices queued as the last run shut down (tasks it interrupted) wait for a thread that is now idle, and
+      // nothing else would wake it. Only Tenon's own notices start a turn here; a message the user queued waits for them.
+      yield* Effect.sleep(options.wakeDelayMs).pipe(
+        Effect.andThen(() => sessions.wakeQueued((input) => input.prompt.text.startsWith(NOTICE_PREFIX))),
+        Effect.catchCause((cause) => Effect.logWarning("Could not deliver waiting task notices", { cause })),
+        Effect.forkScoped,
+      )
+
       yield* Effect.acquireRelease(
         Effect.sync(() => HarnessDelegation.install(handler)),
         (uninstall) =>
           Effect.sync(() => {
+            closing = true
             uninstall()
             for (const timer of timers) clearInterval(timer)
             timers.clear()
@@ -363,7 +381,8 @@ export const layerWith = (options: { readonly checkInMs: number }) =>
     }),
   )
 
-export const layer = layerWith({ checkInMs: CHECK_IN_MS })
+// Just after launch the server's harnesses are still starting; a woken thread waits for them anyway.
+export const layer = layerWith({ checkInMs: CHECK_IN_MS, wakeDelayMs: 5_000 })
 
 function projectFolder(session: SessionSchema.Info, projectId: string) {
   return Effect.promise(() => HarnessAppTools.projectFolder({ sessionID: session.id }, projectId)).pipe(
@@ -384,9 +403,22 @@ function framedTask(from: string, task: string) {
   ].join("\n")
 }
 
-function finishedNotice(title: string, result: HarnessDelegation.TaskResult) {
+const NOTICE_PREFIX = "[Tenon] "
+
+function finishedNotice(title: string, result: HarnessDelegation.TaskResult, closed: boolean) {
+  const task = `${NOTICE_PREFIX}Your delegated task "${title}" (task_id ${result.taskID})`
+  if (result.status === "failed" && closed)
+    return [
+      `${task} was interrupted because Tenon closed.`,
+      "Read what it did with task_result, then start it again with the same brief and a note to pick up from its files, unless the plan has moved on.",
+    ].join("\n")
+  if (result.status === "failed" && /interrupted/i.test(result.error ?? ""))
+    return [
+      `${task} was stopped before it finished.`,
+      "Read what it did with task_result. Someone stopped it, so don't start it again unless the user asks.",
+    ].join("\n")
   return [
-    `[Tenon] Your delegated task "${title}" (task_id ${result.taskID}) has ${result.status === "completed" ? "finished" : "failed"}.`,
+    `${task} has ${result.status === "completed" ? "finished" : "failed"}.`,
     "Read its report with task_result, then carry on with the plan: start the next step yourself, and ask the user only for a decision that is theirs to make.",
   ].join("\n")
 }
@@ -395,7 +427,7 @@ const checkInMarker = (taskID: string) => `Check-in on task_id ${taskID}`
 
 function checkInNotice(title: string, taskID: string, minutes: number) {
   return [
-    `[Tenon] ${checkInMarker(taskID)}: your delegated task "${title}" has been running for ${minutes} minutes.`,
+    `${NOTICE_PREFIX}${checkInMarker(taskID)}: your delegated task "${title}" has been running for ${minutes} minutes.`,
     "Call task_result with wait_seconds 0 to see its checklist and latest note. If it is off track, steer it with message_task (or stop it with cancel_task); if it is fine, end your turn. You will hear again when it finishes.",
   ].join("\n")
 }

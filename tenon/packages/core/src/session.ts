@@ -178,6 +178,11 @@ export interface Interface {
     resume?: boolean
   }) => Effect.Effect<SessionInput.Admitted, NotFoundError | PromptConflictError>
   readonly queued: (sessionID: SessionSchema.ID) => Effect.Effect<SessionInput.Admitted[], NotFoundError>
+  /**
+   * Wakes each idle session whose next queued input passes `accept`, for inputs left waiting when the last server
+   * run stopped. Only drains the inbox; it never retries provider work. Returns how many it woke.
+   */
+  readonly wakeQueued: (accept: (input: SessionInput.Admitted) => boolean) => Effect.Effect<number>
   readonly withdrawQueued: (input: {
     sessionID: SessionSchema.ID
     messageID: SessionMessage.ID
@@ -504,6 +509,19 @@ const layer = Layer.effect(
       queued: Effect.fn("V2Session.queued")(function* (sessionID) {
         yield* result.get(sessionID)
         return yield* SessionInput.listQueued(db, sessionID)
+      }),
+      wakeQueued: Effect.fn("V2Session.wakeQueued")(function* (accept) {
+        const active = yield* execution.active
+        const woken = yield* Effect.forEach(yield* SessionInput.queuedSessions(db), (sessionID) =>
+          Effect.gen(function* () {
+            if (active.has(sessionID)) return false
+            const [next] = yield* SessionInput.listQueued(db, sessionID)
+            if (!next || !accept(next)) return false
+            yield* execution.wake(sessionID)
+            return true
+          }),
+        )
+        return woken.filter(Boolean).length
       }),
       withdrawQueued: Effect.fn("V2Session.withdrawQueued")(function* (input) {
         yield* result.get(input.sessionID)

@@ -188,6 +188,17 @@ export const hasPending = Effect.fn("SessionInput.hasPending")(function* (
   return row !== undefined
 })
 
+/** Sessions with queued inputs still waiting, for a server that starts with work left from its last run. */
+export const queuedSessions = Effect.fn("SessionInput.queuedSessions")(function* (db: DatabaseService) {
+  const rows = yield* db
+    .selectDistinct({ sessionID: SessionInputTable.session_id })
+    .from(SessionInputTable)
+    .where(and(isNull(SessionInputTable.promoted_seq), eq(SessionInputTable.delivery, "queue")))
+    .all()
+    .pipe(Effect.orDie)
+  return rows.map((row) => row.sessionID)
+})
+
 // Queued inputs wait for the session to go idle; clients show them outside the transcript until promotion.
 export const listQueued = Effect.fn("SessionInput.listQueued")(function* (
   db: DatabaseService,

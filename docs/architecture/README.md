@@ -418,8 +418,10 @@ Windows install folders (`which`).
 
 
 A workspace's Projects are the subfolders of its `projects` folder (matched in
-any letter case, skipping hidden folders and legacy `project_<id>` card
-folders) and the absolute folders listed in `.tenon/workspace.json`. Each has a
+any letter case, skipping hidden folders, legacy `project_<id>` card
+folders, linked git worktrees (a `.git` file rather than a folder) and folders
+holding only such worktrees, which are another Project's working copies) and
+the absolute folders listed in `.tenon/workspace.json`. Each has a
 Project card whose `location.path` names the folder (workspace-relative, or
 absolute for a linked folder). `BrainProject.threadDirectory` resolves a
 Project's directory: that folder; otherwise the worktree of the Tenon project
@@ -1588,7 +1590,7 @@ options considered are in [ADR-011](../adr/ADR-011-cross-harness-delegation.md).
   harnessModel, location })` in the caller's location, then `prompt` with the
   task text and `resume`. The task ID is the child's session ID, and the
   result is the child's last assistant reply (capped at 100,000 characters).
-- With `project_id`, the task runs in that Project instead: the app-tools
+- With `delegate_to_project` (`project_id`), the task runs in that Project instead: the app-tools
   provider resolves the Project's thread folder (`HarnessAppTools.projectFolder`,
   answered by `tenon/src/agents/app-tools.ts` `projectFolder` from the caller's
   workspace; never the Command Centre folder), and the task is created as a
@@ -1605,8 +1607,14 @@ options considered are in [ADR-011](../adr/ADR-011-cross-harness-delegation.md).
 
 Tools: `list_agents` (harness instances with models and reasoning efforts,
 the caller's own marked `current`), `delegate_task` (`agent`, `task`, optional
-`model`, `reasoning_effort`, `title`, `project_id`, `wait_seconds` up to 600, default 300),
-`task_result`, `cancel_task` and `message_task` (`task_id`, `text`). A task still running when `delegate_task`
+`model`, `reasoning_effort`, `title`, `wait_seconds` up to 600, default 300),
+`delegate_to_project` (the same plus a required `project_id`),
+`task_result`, `cancel_task` and `message_task` (`task_id`, `text`). Project
+placement is its own tool because Claude Code keeps the first copy of each
+tool's schema for the life of a session: a long-running lead never saw a
+`project_id` added to `delegate_task` later, while a new tool reaches it. The
+handler still accepts `project_id` on `delegate_task` from sessions that saw
+that schema. A task still running when `delegate_task`
 returns is collected with `task_result`; while it runs, `task_result` returns
 `progress` (minutes running, the task's checklist from `SessionTodo` and its
 latest note). `message_task` steers a running task (`delivery: "steer"`) and
@@ -1619,8 +1627,18 @@ and when the handler is uninstalled. When a task finishes and no
 cancel it), the handler queues the caller a `[Tenon]` notice naming the task
 and its outcome (`delivery: "queue"`, `delegation-tasks.ts` `notify`). The notice waits for a running
 turn to end and wakes an idle caller, so a lead that ended its turn while its
-workers ran carries on when they finish. Tasks started before a server restart
-send no notice. A Command Centre thread finds `project_id` values in
+workers ran carries on when they finish. The notice says the task finished,
+failed, was stopped (an interruption while the server runs: the caller is told
+not to restart it unless the user asks), or was interrupted because Tenon
+closed. The handler's release sets `closing` before the session runner
+interrupts the tasks (the runner is built beneath it, so it is released after),
+and those notices tell the caller to start the task again from its files. On
+start, after `wakeDelayMs` (5 seconds), the handler calls
+`SessionV2.wakeQueued` for threads whose next queued input is a `[Tenon]`
+notice: an advisory `SessionExecution.wake` that only drains the inbox, so the
+lead hears about the interrupted tasks without anyone prompting it. A message
+the user queued is left for the user. Tasks still running at shutdown are not
+resumed. A Command Centre thread finds `project_id` values in
 `threads_overview`'s `projects`, which lists every Project in the workspace,
 including ones with no threads. A task delegated without a Project runs in the
 Command Centre folder; the hub's band counts the running ones ("N tasks running

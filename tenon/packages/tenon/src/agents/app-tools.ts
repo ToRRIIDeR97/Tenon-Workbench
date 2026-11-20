@@ -335,7 +335,7 @@ export const COMMAND_TOOLS: ReadonlyArray<HarnessAppTools.Tool> = [
       name: "threads_overview",
       annotations: readOnly,
       description:
-        "List the workspace's Projects (id, name and folder, including Projects with no threads yet) and the root threads of every Project (and its General group), newest first, with title, Project, updated time and state: needs_you (waiting on the user), running or idle. Use a Project's id as delegate_task's project_id.",
+        "List the workspace's Projects (id, name and folder, including Projects with no threads yet) and the root threads of every Project (and its General group), newest first, with title, Project, updated time and state: needs_you (waiting on the user), running or idle. Use a Project's id as delegate_to_project's project_id.",
       inputSchema: {
         type: "object",
         properties: {
@@ -528,7 +528,7 @@ const known = (caller: { sessionID: string }) =>
   })
 
 /**
- * The folder Project `projectId`'s threads run in, as the caller's workspace sees it, for `delegate_task`'s
+ * The folder Project `projectId`'s threads run in, as the caller's workspace sees it, for `delegate_to_project`'s
  * `project_id`. Undefined for an unknown Project, and for the Command Centre's own folder.
  */
 export const projectFolder = (caller: { sessionID: string }, projectId: string) =>
@@ -1212,7 +1212,7 @@ const threadsOverview = Effect.fnUntraced(function* (scope: Scope, args: typeof 
   const stateOf = yield* threadStates(folders)
   return {
     workspace: scope.workspace,
-    // Every Project, threads or not: the only place a Command Centre thread finds the id `delegate_task` places by.
+    // Every Project, threads or not: the only place a Command Centre thread finds the id `delegate_to_project` places by.
     projects: folders
       .flatMap((folder) => (folder.project ? [{ ...folder.project, folder: folder.directory }] : []))
       .filter((project, index, all) => all.findIndex((item) => item.id === project.id) === index)
