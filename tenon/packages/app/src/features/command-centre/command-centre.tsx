@@ -217,10 +217,13 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
       return (
         results
           .flatMap((result) => result?.data ?? [])
-          // The server's list keeps archived sessions.
+          // The server's list keeps archived sessions, and the tasks a thread delegated (the session API has no
+          // parent filter): those can't be prompted, so the latest thread must never be one.
           .filter(
             (session) =>
-              folders.some((item) => sameDirectory(session.location?.directory, item)) && !session.time.archived,
+              folders.some((item) => sameDirectory(session.location?.directory, item)) &&
+              !session.time.archived &&
+              !session.parentID,
           )
           .map(
             (session): CommandThread => ({

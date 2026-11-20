@@ -596,6 +596,13 @@ Agents can start work in another harness through the delegation endpoint
 - The delegated agent receives only the task text the caller wrote, framed as
   a delegated task. The reply returns to the caller as tool output: it is
   untrusted model output and may carry text from workspace files.
+- A task that finishes with no call waiting on it queues the caller a notice,
+  which starts a new turn in an idle caller. The notice carries only the task's
+  ID, its title (the caller's own) and whether it finished or failed, never the
+  reply, so a worker's output still reaches the caller only as tool output it
+  asked for. A cancelled task sends none. Each notice is one turn; the
+  four-task limit bounds how many can arrive at once. Stopping the caller
+  doesn't withdraw a notice already queued.
 
 The endpoint also serves `ask_user` and is now attached to every Codex and
 ACP runtime, not only when delegation is on. With delegation off it lists
