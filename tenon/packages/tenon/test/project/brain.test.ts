@@ -551,6 +551,33 @@ describe("BrainProject project folders", () => {
     expect(readdirSync(path.join(root, "Projects", "Alpha"))).toEqual([])
   })
 
+  test("scan skips git worktrees of a Project and folders that only hold worktrees", async () => {
+    await using tmp = await tmpdir()
+    const root = path.join(tmp.path, "Brain")
+    const data = path.join(tmp.path, "data")
+    const projects = path.join(root, "projects")
+    mkdirSync(path.join(projects, "Game", ".git"), { recursive: true })
+    const worktree = (folder: string) => {
+      mkdirSync(folder, { recursive: true })
+      writeFileSync(path.join(folder, ".git"), `gitdir: ${path.join(projects, "Game", ".git", "worktrees", "x")}\n`)
+    }
+    // What agents made next to the Project: a folder of worktrees, and one worktree on its own.
+    worktree(path.join(projects, "game-worktrees", "netcode"))
+    worktree(path.join(projects, "game-worktrees", "terrain"))
+    worktree(path.join(projects, "game-hotfix"))
+    // A folder of plain files is still a Project, and so is one mixing a worktree with a real folder.
+    mkdirSync(path.join(projects, "game-art", "arms"), { recursive: true })
+    worktree(path.join(projects, "Mixed", "copy"))
+    mkdirSync(path.join(projects, "Mixed", "docs"), { recursive: true })
+
+    expect(await run(root, data, BrainProject.scan())).toEqual({ folders: 3, created: 3, missing: [] })
+    expect((await run(root, data, BrainProject.list())).map((project) => project.name).toSorted()).toEqual([
+      "Game",
+      "Mixed",
+      "game-art",
+    ])
+  })
+
   test("link adds an outside folder, indexes it for AGENTS.md lookup, and unlink archives its card", async () => {
     await using tmp = await tmpdir()
     const root = path.join(tmp.path, "Brain")

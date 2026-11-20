@@ -202,6 +202,21 @@ export const ASK_USER_TOOL = {
   },
 } as const
 
+/** What both delegate tools take. */
+const TASK_PROPERTIES = {
+  agent: { type: "string", description: "Agent ID from list_agents." },
+  task: { type: "string", description: "Complete instructions for the delegated agent." },
+  model: { type: "string", description: "Model ID from list_agents. Omit for the agent's default." },
+  reasoning_effort: { type: "string", description: "One of the model's reasoning efforts." },
+  title: { type: "string", description: "Short title for the child thread." },
+  wait_seconds: {
+    type: "integer",
+    minimum: 0,
+    maximum: MAX_WAIT_SECONDS,
+    description: `How long to wait for the result (default ${DEFAULT_WAIT_SECONDS}).`,
+  },
+} as const
+
 /** The delegation tools, offered only while a delegation handler is installed. */
 export const TOOLS = [
   {
@@ -213,28 +228,25 @@ export const TOOLS = [
   {
     name: "delegate_task",
     description:
-      "Hand a self-contained task to an agent in another harness, for example a model that is better at computer use or a different coding style. The agent runs as a child thread in the same folder, with its own tools and approvals, and does not see this conversation: describe the goal, the relevant files and what to report back. For work in a Project, pass project_id: the agent then runs in that Project's folder, listed with its threads, and you still read and stop it here. Waits up to wait_seconds for the result; if the task is still running, returns its task_id for task_result.",
+      "Hand a self-contained task to an agent in another harness, for example a model that is better at computer use or a different coding style. The agent runs as a child thread in the same folder, with its own tools and approvals, and does not see this conversation: describe the goal, the relevant files and what to report back. For work in a Project, use delegate_to_project instead. Waits up to wait_seconds for the result; if the task is still running, returns its task_id for task_result.",
+    inputSchema: {
+      type: "object",
+      properties: TASK_PROPERTIES,
+      required: ["agent", "task"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "delegate_to_project",
+    description:
+      "Like delegate_task, but the agent runs in a Project's folder as one of that Project's threads, where the user sees it. You still read, steer and stop it here with task_result, message_task and cancel_task. Get the Project's id from threads_overview's projects.",
     inputSchema: {
       type: "object",
       properties: {
-        agent: { type: "string", description: "Agent ID from list_agents." },
-        task: { type: "string", description: "Complete instructions for the delegated agent." },
-        model: { type: "string", description: "Model ID from list_agents. Omit for the agent's default." },
-        reasoning_effort: { type: "string", description: "One of the model's reasoning efforts." },
-        title: { type: "string", description: "Short title for the child thread." },
-        project_id: {
-          type: "string",
-          description:
-            "Project ID (from threads_overview's projects) to run the agent in that Project's folder, where the user sees it.",
-        },
-        wait_seconds: {
-          type: "integer",
-          minimum: 0,
-          maximum: MAX_WAIT_SECONDS,
-          description: `How long to wait for the result (default ${DEFAULT_WAIT_SECONDS}).`,
-        },
+        project_id: { type: "string", description: "Project ID from threads_overview's projects." },
+        ...TASK_PROPERTIES,
       },
-      required: ["agent", "task"],
+      required: ["project_id", "agent", "task"],
       additionalProperties: false,
     },
   },
@@ -398,17 +410,22 @@ async function askUser(args: Record<string, unknown>, caller: Caller) {
 function callTool(name: string, args: Record<string, unknown>, sessionID: string, handler: Handler): Promise<unknown> {
   const wait = waitSeconds(args.wait_seconds)
   if (name === "list_agents") return handler.listAgents(sessionID)
-  if (name === "delegate_task") {
+  if (name === "delegate_task" || name === "delegate_to_project") {
     const agent = text(args.agent)
     const task = text(args.task)
-    if (!agent || !task) return Promise.reject(new Error("delegate_task needs an agent and a task."))
+    if (!agent || !task) return Promise.reject(new Error(`${name} needs an agent and a task.`))
+    // delegate_task took project_id before delegate_to_project existed, and a harness that keeps a session's first
+    // copy of each tool (Claude Code) may still send it there.
+    const projectId = text(args.project_id)
+    if (name === "delegate_to_project" && !projectId)
+      return Promise.reject(new Error("delegate_to_project needs a project_id from threads_overview's projects."))
     return handler.delegate(sessionID, {
       agent,
       task,
       model: text(args.model),
       reasoningEffort: text(args.reasoning_effort),
       title: text(args.title),
-      projectId: text(args.project_id),
+      projectId,
       waitSeconds: wait,
     })
   }

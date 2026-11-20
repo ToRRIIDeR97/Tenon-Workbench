@@ -523,21 +523,36 @@ const writeManifest = Effect.fn("BrainProject.writeManifest")(function* (manifes
   yield* files.write({ target, content: JSON.stringify(manifest, null, 2) + "\n" })
 })
 
-/** Subfolders of every `projects` folder (any case) directly under the root, as relative paths. */
+/**
+ * Subfolders of every `projects` folder (any case) directly under the root, as relative paths. A git worktree of
+ * another Project, or a folder holding only such worktrees, is that Project's working copy, not a Project.
+ */
 const projectFolders = Effect.fn("BrainProject.projectFolders")(function* (root: string) {
   const fs = yield* FSUtil.Service
   const entries = yield* fs.readDirectoryEntries(root).pipe(Effect.orElseSucceed(() => []))
   const parents = entries.filter((entry) => entry.type === "directory" && entry.name.toLowerCase() === "projects")
+  const list = (folder: string) => fs.readDirectoryEntries(folder).pipe(Effect.orElseSucceed(() => []))
+  // A linked git worktree has a `.git` file pointing at the main repository; a repository's own `.git` is a folder.
+  const isWorktree = (items: ReadonlyArray<FSUtil.DirEntry>) =>
+    items.some((item) => item.name === ".git" && item.type === "file")
+  const isWorkingCopy = Effect.fnUntraced(function* (folder: string) {
+    const items = yield* list(folder)
+    if (isWorktree(items)) return true
+    const folders = items.filter((item) => item.type === "directory" && !item.name.startsWith("."))
+    if (folders.length === 0) return false
+    const nested = yield* Effect.forEach(folders, (item) =>
+      list(path.join(folder, item.name)).pipe(Effect.map(isWorktree)),
+    )
+    return nested.every(Boolean)
+  })
   const children = yield* Effect.forEach(parents, (parent) =>
-    fs.readDirectoryEntries(path.join(root, parent.name)).pipe(
-      Effect.orElseSucceed(() => []),
-      Effect.map((items) =>
-        items
-          // Legacy `project_<id>` card folders and hidden folders are not projects.
-          .filter((item) => item.type === "directory" && !item.name.startsWith(".") && !idPattern.test(item.name))
-          .map((item) => `${parent.name}/${item.name}`),
-      ),
-    ),
+    Effect.gen(function* () {
+      const items = (yield* list(path.join(root, parent.name)))
+        // Legacy `project_<id>` card folders and hidden folders are not projects.
+        .filter((item) => item.type === "directory" && !item.name.startsWith(".") && !idPattern.test(item.name))
+      const copies = yield* Effect.forEach(items, (item) => isWorkingCopy(path.join(root, parent.name, item.name)))
+      return items.filter((_, index) => !copies[index]).map((item) => `${parent.name}/${item.name}`)
+    }),
   )
   return children.flat().sort((a, b) => a.localeCompare(b))
 })

@@ -563,7 +563,7 @@ Agents can start work in another harness through the delegation endpoint
 - A delegated task runs as a normal child Run on the target harness with that
   harness's usual approval flow. Delegation grants no permission the target
   wouldn't ask for anyway. Its approvals reach the delegating Run's composer.
-- With `project_id` the task runs as a root Run in that Project's thread
+- With `delegate_to_project` (`project_id`) the task runs as a root Run in that Project's thread
   folder instead, linked back by `metadata.origin`. The folder comes only from
   the server's own Project lookup for the caller's workspace
   (`tenon/src/agents/app-tools.ts` `projectFolder`), never from the agent: an
@@ -610,6 +610,12 @@ Agents can start work in another harness through the delegation endpoint
   model output like the final reply.
 - `message_task` lets only the Run that started a task steer it, and only
   while the task is running in this server process.
+- On start, Tenon wakes a thread whose next queued input is one of its own
+  `[Tenon]` notices (tasks interrupted when it last closed). The match is on
+  queued input text, which a user could also type; that only starts the turn the
+  user's own message would start. Waking drains the inbox; it never retries a
+  provider turn. A notice for a task stopped while Tenon ran tells the caller
+  not to restart it unless the user asks.
 
 The endpoint also serves `ask_user` and is now attached to every Codex and
 ACP runtime, not only when delegation is on. With delegation off it lists

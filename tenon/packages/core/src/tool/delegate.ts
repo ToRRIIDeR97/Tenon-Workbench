@@ -11,19 +11,22 @@ import { Tools } from "./tools"
 
 const wait = Schema.optional(Schema.Number.annotate({ description: "Seconds to wait for the result." }))
 
+const task = {
+  agent: Schema.String.annotate({ description: "Agent ID from list_agents." }),
+  task: Schema.String.annotate({ description: "Complete instructions for the delegated agent." }),
+  model: Schema.optional(Schema.String.annotate({ description: "Model ID from list_agents." })),
+  reasoning_effort: Schema.optional(Schema.String),
+  title: Schema.optional(Schema.String),
+  wait_seconds: wait,
+}
+
 // The in-process loop gets the same tools that external harnesses reach over MCP.
 const inputs = {
   list_agents: Schema.Struct({}),
-  delegate_task: Schema.Struct({
-    agent: Schema.String.annotate({ description: "Agent ID from list_agents." }),
-    task: Schema.String.annotate({ description: "Complete instructions for the delegated agent." }),
-    model: Schema.optional(Schema.String.annotate({ description: "Model ID from list_agents." })),
-    reasoning_effort: Schema.optional(Schema.String),
-    title: Schema.optional(Schema.String),
-    project_id: Schema.optional(
-      Schema.String.annotate({ description: "Project ID to run the agent in that Project's folder." }),
-    ),
-    wait_seconds: wait,
+  delegate_task: Schema.Struct(task),
+  delegate_to_project: Schema.Struct({
+    project_id: Schema.String.annotate({ description: "Project ID from threads_overview's projects." }),
+    ...task,
   }),
   task_result: Schema.Struct({ task_id: Schema.String, wait_seconds: wait }),
   cancel_task: Schema.Struct({ task_id: Schema.String }),

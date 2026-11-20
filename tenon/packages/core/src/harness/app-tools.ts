@@ -41,7 +41,7 @@ export interface Provider {
   readonly list: (caller: Caller) => ReadonlyArray<Tool> | Promise<ReadonlyArray<Tool>>
   /** Resolves with the tool's JSON result; a rejection becomes an `isError` result carrying its message. */
   readonly call: (name: string, args: Record<string, unknown>, caller: Caller) => Promise<unknown>
-  /** The folder a Project's threads run in, for `delegate_task`'s `project_id`; undefined for an unknown Project. */
+  /** The folder a Project's threads run in, for `delegate_to_project`'s `project_id`; undefined for an unknown Project. */
   readonly projectFolder?: (caller: Caller, projectId: string) => Promise<ProjectFolder | undefined>
 }
 

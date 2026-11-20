@@ -164,7 +164,7 @@ describe("Command Centre thread tools", () => {
     }),
   )
 
-  it.instance("threads_overview lists every Project's id, threads or not, for delegate_task's project_id", () =>
+  it.instance("threads_overview lists every Project's id, threads or not, for delegate_to_project's project_id", () =>
     Effect.gen(function* () {
       const { project, headers, call } = yield* setup
       const empty = yield* request("/second-brain/projects", {

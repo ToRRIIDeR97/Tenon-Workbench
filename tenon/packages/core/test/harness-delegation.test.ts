@@ -65,7 +65,14 @@ describe("harness delegation MCP protocol", () => {
       parent,
       handler,
     )
-    expect(toolNames(tools)).toEqual(["list_agents", "delegate_task", "task_result", "cancel_task", "message_task"])
+    expect(toolNames(tools)).toEqual([
+      "list_agents",
+      "delegate_task",
+      "delegate_to_project",
+      "task_result",
+      "cancel_task",
+      "message_task",
+    ])
   })
 
   test("ignores notifications and rejects unknown methods", async () => {
@@ -100,6 +107,22 @@ describe("harness delegation MCP protocol", () => {
     })
   })
 
+  test("delegate_to_project needs a Project; delegate_task still passes one from an older copy of its schema", async () => {
+    calls.length = 0
+    expect(await call("delegate_to_project", { agent: "codex", task: "Build" })).toMatchObject({
+      result: {
+        isError: true,
+        content: [{ text: "delegate_to_project needs a project_id from threads_overview's projects." }],
+      },
+    })
+    await call("delegate_to_project", { project_id: "project_alpha", agent: "codex", task: "Build" })
+    await call("delegate_task", { project_id: "project_alpha", agent: "codex", task: "Build" })
+    expect(calls.map((entry) => (entry.input as { projectId?: string }).projectId)).toEqual([
+      "project_alpha",
+      "project_alpha",
+    ])
+  })
+
   test("reports missing arguments and handler failures as tool errors", async () => {
     expect(await call("delegate_task", { agent: "codex" })).toMatchObject({
       result: { isError: true, content: [{ text: "delegate_task needs an agent and a task." }] },
@@ -116,6 +139,7 @@ describe("harness delegation MCP protocol", () => {
       "ask_user",
       "list_agents",
       "delegate_task",
+      "delegate_to_project",
       "task_result",
       "cancel_task",
       "message_task",
