@@ -47,7 +47,7 @@ export function CommandViews(props: {
         onChange={(value) => value && props.onChange(value === "waiting" || value === "workflows" ? value : "board")}
       >
         <SegmentedControlItemV2 value="board" data-action="command-view">
-          {language.t("secondBrain.commandCentre.board.title")}
+          {language.t("secondBrain.commandCentre.hub.title")}
         </SegmentedControlItemV2>
         <SegmentedControlItemV2 value="waiting" data-action="command-view">
           {language.t("secondBrain.commandCentre.hands.waiting")}

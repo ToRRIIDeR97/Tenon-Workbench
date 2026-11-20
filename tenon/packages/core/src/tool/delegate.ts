@@ -20,6 +20,9 @@ const inputs = {
     model: Schema.optional(Schema.String.annotate({ description: "Model ID from list_agents." })),
     reasoning_effort: Schema.optional(Schema.String),
     title: Schema.optional(Schema.String),
+    project_id: Schema.optional(
+      Schema.String.annotate({ description: "Project ID to run the agent in that Project's folder." }),
+    ),
     wait_seconds: wait,
   }),
   task_result: Schema.Struct({ task_id: Schema.String, wait_seconds: wait }),
@@ -49,7 +52,11 @@ const layer = Layer.effectDiscard(
                   if (tool.name !== "list_agents" && tool.name !== "task_result")
                     yield* permission.assert({
                       action: "delegate",
-                      resources: ["agent" in input ? input.agent : "*"],
+                      // A task placed in a Project names it, so the approval says where the work will run.
+                      resources: [
+                        "agent" in input ? input.agent : "*",
+                        ...("project_id" in input && input.project_id ? [`project:${input.project_id}`] : []),
+                      ],
                       save: ["*"],
                       metadata: { tool: tool.name, ...input },
                       sessionID: context.sessionID,

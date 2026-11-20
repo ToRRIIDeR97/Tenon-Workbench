@@ -563,6 +563,21 @@ Agents can start work in another harness through the delegation endpoint
 - A delegated task runs as a normal child Run on the target harness with that
   harness's usual approval flow. Delegation grants no permission the target
   wouldn't ask for anyway. Its approvals reach the delegating Run's composer.
+- With `project_id` the task runs as a root Run in that Project's thread
+  folder instead, linked back by `metadata.origin`. The folder comes only from
+  the server's own Project lookup for the caller's workspace
+  (`tenon/src/agents/app-tools.ts` `projectFolder`), never from the agent: an
+  unknown id fails, and the Command Centre's own folder is refused. The task
+  then works with that Project's folder, instructions and folder trust rather
+  than reaching it by absolute paths from the Command Centre's folder. Its
+  approvals ask in its own thread and show in the Command Centre's Needs you,
+  not in the delegating Run's composer. Only the delegating Run reads or stops
+  it, and the depth and running limits count it as they count a child. An
+  unattended routine refuses its prompts as it does a child's, so it can't
+  wait forever on one. The in-process loop's `delegate` approval names the
+  Project (`project:<id>`) beside the agent. `thread_start` stamps the same
+  `origin` with `handOff`: that thread is the user's, so it counts toward no
+  delegation limit and the starter can't read or stop it as a task.
 - The built-in loop asks permission `delegate` before starting or stopping a
   task. Codex and ACP agents apply their own MCP tool policy to the call.
 - Codex asks before each MCP tool call (`mcpServer/elicitation/request`). Tenon answers it

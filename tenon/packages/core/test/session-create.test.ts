@@ -52,6 +52,19 @@ const location = Location.Ref.make({ directory: AbsolutePath.make("/project") })
 const id = SessionV2.ID.create()
 
 describe("SessionV2.create", () => {
+  it.effect("keeps the origin of a thread another one started, through create and read", () =>
+    Effect.gen(function* () {
+      const session = yield* SessionV2.Service
+      const plain = yield* session.create({ location })
+      const placed = yield* session.create({
+        location,
+        origin: { sessionID: plain.id, commandCentre: true },
+      })
+      expect((yield* session.get(placed.id)).origin).toEqual({ sessionID: plain.id, commandCentre: true })
+      expect((yield* session.get(plain.id)).origin).toBeUndefined()
+    }),
+  )
+
   it.effect("creates a fresh projected session when the ID is omitted", () =>
     Effect.gen(function* () {
       const session = yield* SessionV2.Service

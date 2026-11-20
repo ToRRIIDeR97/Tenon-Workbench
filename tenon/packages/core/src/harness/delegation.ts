@@ -52,6 +52,8 @@ export interface DelegateInput {
   readonly model?: string
   readonly reasoningEffort?: string
   readonly title?: string
+  /** Runs the task as a root thread in this Project's folder, linked back to the caller, instead of as its child. */
+  readonly projectId?: string
   readonly waitSeconds: number
 }
 
@@ -201,7 +203,7 @@ export const TOOLS = [
   {
     name: "delegate_task",
     description:
-      "Hand a self-contained task to an agent in another harness, for example a model that is better at computer use or a different coding style. The agent runs as a child thread in the same folder, with its own tools and approvals, and does not see this conversation: describe the goal, the relevant files and what to report back. Waits up to wait_seconds for the result; if the task is still running, returns its task_id for task_result.",
+      "Hand a self-contained task to an agent in another harness, for example a model that is better at computer use or a different coding style. The agent runs as a child thread in the same folder, with its own tools and approvals, and does not see this conversation: describe the goal, the relevant files and what to report back. For work in a Project, pass project_id: the agent then runs in that Project's folder, listed with its threads, and you still read and stop it here. Waits up to wait_seconds for the result; if the task is still running, returns its task_id for task_result.",
     inputSchema: {
       type: "object",
       properties: {
@@ -210,6 +212,10 @@ export const TOOLS = [
         model: { type: "string", description: "Model ID from list_agents. Omit for the agent's default." },
         reasoning_effort: { type: "string", description: "One of the model's reasoning efforts." },
         title: { type: "string", description: "Short title for the child thread." },
+        project_id: {
+          type: "string",
+          description: "Project ID (from the app tools' Project list) to run the agent in that Project's folder.",
+        },
         wait_seconds: {
           type: "integer",
           minimum: 0,
@@ -376,6 +382,7 @@ function callTool(name: string, args: Record<string, unknown>, sessionID: string
       model: text(args.model),
       reasoningEffort: text(args.reasoning_effort),
       title: text(args.title),
+      projectId: text(args.project_id),
       waitSeconds: wait,
     })
   }

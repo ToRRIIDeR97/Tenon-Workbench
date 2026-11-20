@@ -41,6 +41,13 @@ export interface Provider {
   readonly list: (caller: Caller) => ReadonlyArray<Tool> | Promise<ReadonlyArray<Tool>>
   /** Resolves with the tool's JSON result; a rejection becomes an `isError` result carrying its message. */
   readonly call: (name: string, args: Record<string, unknown>, caller: Caller) => Promise<unknown>
+  /** The folder a Project's threads run in, for `delegate_task`'s `project_id`; undefined for an unknown Project. */
+  readonly projectFolder?: (caller: Caller, projectId: string) => Promise<ProjectFolder | undefined>
+}
+
+export interface ProjectFolder {
+  readonly directory: string
+  readonly name: string
 }
 
 const state: { provider?: Provider } = {}
@@ -70,6 +77,22 @@ export async function list(caller: Caller): Promise<ReadonlyArray<Tool>> {
     .then(() => provider.list(caller))
     .catch(() => [])
 }
+
+/** The Project's thread folder as the caller's workspace sees it; undefined when nothing can resolve it. */
+export async function projectFolder(caller: Caller, projectId: string): Promise<ProjectFolder | undefined> {
+  const resolve = state.provider?.projectFolder
+  if (!resolve) return undefined
+  return Promise.resolve()
+    .then(() => resolve(caller, projectId))
+    .catch(() => undefined)
+}
+
+/** Whether `directory` is a Command Centre folder, in either separator style and with or without a trailing one. */
+export const isCommandCentre = (directory: string) =>
+  directory
+    .split(/[\\/]+/)
+    .filter(Boolean)
+    .at(-1) === COMMAND_CENTRE_FOLDER
 
 /** Runs `name` when it is one of the caller's tools; undefined when it is not an app tool. */
 export async function call(name: string, args: Record<string, unknown>, caller: Caller) {

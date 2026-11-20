@@ -29,6 +29,7 @@ export function normalizeSessionInfo(input: SessionInfo | Session): HarnessSessi
     harnessInstanceID?: string
     harnessModel?: Harness.ModelSelection
     harnessRevision?: number
+    origin?: { sessionID: string; commandCentre: boolean }
   }
   return {
     id: input.id,
@@ -50,7 +51,14 @@ export function normalizeSessionInfo(input: SessionInfo | Session): HarnessSessi
     harnessRevision: current.harnessRevision,
     version: "",
     time: input.time,
-    metadata: current.time.pinned === undefined ? undefined : { pinned: current.time.pinned },
+    // The legacy shape keeps both in `metadata`; `origin` marks a thread another one started (the Command Centre).
+    metadata:
+      current.time.pinned === undefined && current.origin === undefined
+        ? undefined
+        : {
+            ...(current.time.pinned === undefined ? {} : { pinned: current.time.pinned }),
+            ...(current.origin === undefined ? {} : { origin: current.origin }),
+          },
     revert: input.revert && {
       messageID: input.revert.messageID,
       partID: input.revert.partID,

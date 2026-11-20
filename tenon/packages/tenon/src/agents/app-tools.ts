@@ -527,6 +527,27 @@ const known = (caller: { sessionID: string }) =>
     )
   })
 
+/**
+ * The folder Project `projectId`'s threads run in, as the caller's workspace sees it, for `delegate_task`'s
+ * `project_id`. Undefined for an unknown Project, and for the Command Centre's own folder.
+ */
+export const projectFolder = (caller: { sessionID: string }, projectId: string) =>
+  Effect.suspend((): Effect.Effect<HarnessAppTools.ProjectFolder | undefined> => {
+    const context = state.context
+    if (!context) return Effect.succeed(undefined)
+    return Effect.gen(function* () {
+      const scope = (yield* isCommandSession(caller.sessionID))
+        ? yield* commandScope(caller.sessionID, { projectId })
+        : yield* scopeOf(caller.sessionID)
+      const folder = (yield* threadFolders(scope.workspace)).find((item) => item.project?.id === projectId)
+      if (!folder?.project || (yield* CommandMemory.isCommandDirectoryResolved(folder.directory))) return undefined
+      return { directory: folder.directory, name: folder.project.name }
+    }).pipe(
+      Effect.orElseSucceed(() => undefined),
+      Effect.provideContext(context),
+    )
+  })
+
 /** Runs one app tool for the thread `sessionID`; failures are `{ isError: true, value: <message> }`. */
 export const call = (name: string, args: Record<string, unknown>, caller: HarnessAppTools.Caller) =>
   Effect.suspend((): Effect.Effect<Result> => {
@@ -576,6 +597,7 @@ export const layer = Layer.effectDiscard(
           catalog: [...catalog(), ...AgentTerminalTools.TOOLS],
           catalogFor,
           list: (caller) => Effect.runPromise(known(caller)),
+          projectFolder: (caller, projectId) => Effect.runPromise(projectFolder(caller, projectId)),
           call: (name, args, caller) =>
             Effect.runPromise(call(name, args, caller)).then((result) =>
               result.isError ? Promise.reject(new Error(String(result.value))) : result.value,
@@ -716,6 +738,9 @@ const threadStart = Effect.fnUntraced(function* (scope: Scope, args: typeof Args
         }
       : {}),
     location: { directory: AbsolutePath.make(folder.directory) },
+    // The calling thread started this one (the Command Centre's threads show its mark) and handed it off: it isn't a
+    // delegated task, so it counts toward no delegation limit.
+    origin: { sessionID: scope.session.id, commandCentre: scope.command === true, handOff: true },
   })
   const session = yield* sessions.get(SessionID.make(created.id))
   yield* deliver(session, text, "queue")
