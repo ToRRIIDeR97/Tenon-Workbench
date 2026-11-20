@@ -1606,8 +1606,15 @@ options considered are in [ADR-011](../adr/ADR-011-cross-harness-delegation.md).
 Tools: `list_agents` (harness instances with models and reasoning efforts,
 the caller's own marked `current`), `delegate_task` (`agent`, `task`, optional
 `model`, `reasoning_effort`, `title`, `project_id`, `wait_seconds` up to 600, default 300),
-`task_result` and `cancel_task`. A task still running when `delegate_task`
-returns is collected with `task_result`. When a task finishes and no
+`task_result`, `cancel_task` and `message_task` (`task_id`, `text`). A task still running when `delegate_task`
+returns is collected with `task_result`; while it runs, `task_result` returns
+`progress` (minutes running, the task's checklist from `SessionTodo` and its
+latest note). `message_task` steers a running task (`delivery: "steer"`) and
+refuses one that has finished, since prompting it would start an untracked run.
+Every `CHECK_IN_MS` (12 minutes) a running task queues its caller a
+`[Tenon] Check-in on task_id …` notice, unless a call is waiting on the task or
+an earlier check-in for it is still queued. Timers stop when the task finishes
+and when the handler is uninstalled. When a task finishes and no
 `delegate_task` or `task_result` call is waiting on it (and the caller didn't
 cancel it), the handler queues the caller a `[Tenon]` notice naming the task
 and its outcome (`delivery: "queue"`, `delegation-tasks.ts` `notify`). The notice waits for a running

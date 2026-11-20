@@ -1,6 +1,6 @@
 export * as HarnessDelegationTasks from "./delegation-tasks"
 
-import { Effect, Layer, Option, Schema } from "effect"
+import { DateTime, Effect, Layer, Option, Schema } from "effect"
 import { Harness } from "@tenon/schema/harness"
 import { HarnessRuntime } from "../harness"
 import { Location } from "../location"
@@ -8,6 +8,7 @@ import { LocationServiceMap } from "../location-service-map"
 import { AbsolutePath } from "../schema"
 import { SessionV2 } from "../session"
 import { SessionSchema } from "../session/schema"
+import { SessionTodo } from "../session/todo"
 import { HarnessAppTools } from "./app-tools"
 import { HarnessDelegation } from "./delegation"
 
@@ -15,12 +16,17 @@ import { HarnessDelegation } from "./delegation"
 export const MAX_DEPTH = 2
 /** Delegated tasks one Run may have running at once. */
 export const MAX_RUNNING = 4
+/** How often a running task checks in with the thread that delegated it. */
+export const CHECK_IN_MS = 12 * 60_000
 const FINISHED_RETENTION_MS = 10 * 60_000
 const OUTPUT_LIMIT = 100_000
+const LATEST_LIMIT = 1_500
 
 interface Running {
   readonly parentID: string
   readonly agent: string
+  readonly title: string
+  readonly started: number
   readonly done: Promise<{ readonly error?: string }>
   cancelled: boolean
   finished: boolean
@@ -34,247 +40,330 @@ interface Running {
  * thread in that Project's folder, linked back by `origin`: it lists with the Project's threads and
  * asks for approvals in its own thread. Installed for the server's lifetime.
  */
-export const layer = Layer.effectDiscard(
-  Effect.gen(function* () {
-    const sessions = yield* SessionV2.Service
-    const locations = yield* LocationServiceMap.Service
-    const run = Effect.runPromiseWith(yield* Effect.context())
-    const running = new Map<string, Running>()
-    // Tasks a thread is starting but hasn't registered yet; counted against the limit so a batch of
-    // calls can't all pass the check before any of them registers.
-    const starting = new Map<string, number>()
+export const layerWith = (options: { readonly checkInMs: number }) =>
+  Layer.effectDiscard(
+    Effect.gen(function* () {
+      const sessions = yield* SessionV2.Service
+      const locations = yield* LocationServiceMap.Service
+      const run = Effect.runPromiseWith(yield* Effect.context())
+      const running = new Map<string, Running>()
+      const timers = new Set<ReturnType<typeof setInterval>>()
+      // Tasks a thread is starting but hasn't registered yet; counted against the limit so a batch of
+      // calls can't all pass the check before any of them registers.
+      const starting = new Map<string, number>()
 
-    const harnesses = (session: SessionSchema.Info) =>
-      Effect.gen(function* () {
-        const runtime = yield* HarnessRuntime.Service
-        return yield* runtime.list()
-      }).pipe(Effect.provide(locations.get(session.location)))
+      const harnesses = (session: SessionSchema.Info) =>
+        Effect.gen(function* () {
+          const runtime = yield* HarnessRuntime.Service
+          return yield* runtime.list()
+        }).pipe(Effect.provide(locations.get(session.location)))
 
-    // A task placed in a Project has no parent; its origin counts as one, so placing can't dodge the limit. A thread
-    // handed off with `thread_start` is the user's, not a task, so its origin doesn't count.
-    const starter = (session: SessionSchema.Info) =>
-      session.parentID ?? (session.origin?.handOff ? undefined : session.origin?.sessionID)
-    // `seen` ends a cycle a hand-edited row could make; the links themselves only ever point at older threads.
-    const depth = (session: SessionSchema.Info, seen = new Set<string>()): Effect.Effect<number> => {
-      const from = starter(session)
-      if (seen.has(session.id)) return Effect.succeed(MAX_DEPTH)
-      seen.add(session.id)
-      return from
-        ? sessions.get(SessionSchema.ID.make(from)).pipe(
-            Effect.flatMap((parent) => depth(parent, seen)),
-            Effect.map((value) => value + 1),
-            Effect.catch(() => Effect.succeed(1)),
-          )
-        : Effect.succeed(0)
-    }
+      // A task placed in a Project has no parent; its origin counts as one, so placing can't dodge the limit. A thread
+      // handed off with `thread_start` is the user's, not a task, so its origin doesn't count.
+      const starter = (session: SessionSchema.Info) =>
+        session.parentID ?? (session.origin?.handOff ? undefined : session.origin?.sessionID)
+      // `seen` ends a cycle a hand-edited row could make; the links themselves only ever point at older threads.
+      const depth = (session: SessionSchema.Info, seen = new Set<string>()): Effect.Effect<number> => {
+        const from = starter(session)
+        if (seen.has(session.id)) return Effect.succeed(MAX_DEPTH)
+        seen.add(session.id)
+        return from
+          ? sessions.get(SessionSchema.ID.make(from)).pipe(
+              Effect.flatMap((parent) => depth(parent, seen)),
+              Effect.map((value) => value + 1),
+              Effect.catch(() => Effect.succeed(1)),
+            )
+          : Effect.succeed(0)
+      }
 
-    const caller = (sessionID: string) =>
-      Effect.gen(function* () {
-        const id = decodeID(sessionID)
-        if (!id) return yield* Effect.fail(new Error("The delegating thread no longer exists."))
-        return yield* sessions.get(id).pipe(Effect.mapError(() => new Error("The delegating thread no longer exists.")))
-      })
-
-    // Only the Run that started a task may read or stop it.
-    const owned = (sessionID: string, taskID: string) =>
-      Effect.gen(function* () {
-        const id = decodeID(taskID)
-        const child = id ? yield* sessions.get(id).pipe(Effect.option) : Option.none()
-        if (Option.isNone(child) || starter(child.value) !== sessionID)
-          return yield* Effect.fail(new Error(`No delegated task ${taskID} belongs to this thread.`))
-        return child.value
-      })
-
-    const finalReply = (child: SessionSchema.Info, agent: string, error?: string) =>
-      Effect.gen(function* () {
-        const messages = yield* sessions.messages({ sessionID: child.id, order: "desc", limit: 20 })
-        const reply = messages.find((message) => message.type === "assistant")
-        const output = reply?.type === "assistant" ? replyText(reply.content) : undefined
-        const failure = error ?? (reply?.type === "assistant" && reply.error ? errorText(reply.error) : undefined)
-        const entry = running.get(child.id)
-        const status = entry?.cancelled ? "cancelled" : failure || !output ? "failed" : "completed"
-        return {
-          taskID: child.id,
-          agent,
-          status,
-          ...(output ? { output } : {}),
-          ...(status === "failed" ? { error: failure ?? "The delegated agent ended without a reply." } : {}),
-        } satisfies HarnessDelegation.TaskResult
-      })
-
-    // A delegating thread that ended its turn while a task ran would otherwise sit idle with the work half done: queue
-    // it a notice, which waits for a running turn to end and wakes an idle thread.
-    const notify = (parentID: SessionSchema.ID, child: SessionSchema.Info, agent: string, error?: string) =>
-      Effect.gen(function* () {
-        const result = yield* finalReply(child, agent, error)
-        yield* sessions.prompt({
-          sessionID: parentID,
-          prompt: { text: finishedNotice(child.title, result) },
-          delivery: "queue",
+      const caller = (sessionID: string) =>
+        Effect.gen(function* () {
+          const id = decodeID(sessionID)
+          if (!id) return yield* Effect.fail(new Error("The delegating thread no longer exists."))
+          return yield* sessions
+            .get(id)
+            .pipe(Effect.mapError(() => new Error("The delegating thread no longer exists.")))
         })
-      })
 
-    const settle = (child: SessionSchema.Info, waitSeconds: number) =>
-      Effect.gen(function* () {
-        const agent = child.harnessInstanceID
-        const entry = running.get(child.id)
-        if (!entry) {
-          // Started before a restart: report what the child recorded, unless it is still running.
-          if ((yield* sessions.active).has(child.id))
-            return { taskID: child.id, agent, status: "running" } satisfies HarnessDelegation.TaskResult
-          return yield* finalReply(child, agent)
-        }
-        const outcome = yield* Effect.promise(() => {
-          const waited = Promise.withResolvers<undefined>()
-          const timer = setTimeout(() => waited.resolve(undefined), waitSeconds * 1_000)
-          entry.waiting += 1
-          // Cleared either way, so a finished task leaves no timer running for up to MAX_WAIT_SECONDS.
-          return Promise.race([entry.done, waited.promise]).finally(() => {
-            clearTimeout(timer)
-            entry.waiting -= 1
+      // Only the Run that started a task may read or stop it.
+      const owned = (sessionID: string, taskID: string) =>
+        Effect.gen(function* () {
+          const id = decodeID(taskID)
+          const child = id ? yield* sessions.get(id).pipe(Effect.option) : Option.none()
+          if (Option.isNone(child) || starter(child.value) !== sessionID)
+            return yield* Effect.fail(new Error(`No delegated task ${taskID} belongs to this thread.`))
+          return child.value
+        })
+
+      const finalReply = (child: SessionSchema.Info, agent: string, error?: string) =>
+        Effect.gen(function* () {
+          const messages = yield* sessions.messages({ sessionID: child.id, order: "desc", limit: 20 })
+          const reply = messages.find((message) => message.type === "assistant")
+          const output = reply?.type === "assistant" ? replyText(reply.content) : undefined
+          const failure = error ?? (reply?.type === "assistant" && reply.error ? errorText(reply.error) : undefined)
+          const entry = running.get(child.id)
+          const status = entry?.cancelled ? "cancelled" : failure || !output ? "failed" : "completed"
+          return {
+            taskID: child.id,
+            agent,
+            status,
+            ...(output ? { output } : {}),
+            ...(status === "failed" ? { error: failure ?? "The delegated agent ended without a reply." } : {}),
+          } satisfies HarnessDelegation.TaskResult
+        })
+
+      // A delegating thread that ended its turn while a task ran would otherwise sit idle with the work half done: queue
+      // it a notice, which waits for a running turn to end and wakes an idle thread.
+      const notify = (parentID: SessionSchema.ID, child: SessionSchema.Info, agent: string, error?: string) =>
+        Effect.gen(function* () {
+          const result = yield* finalReply(child, agent, error)
+          yield* sessions.prompt({
+            sessionID: parentID,
+            prompt: { text: finishedNotice(child.title, result) },
+            delivery: "queue",
           })
         })
-        if (!outcome) return { taskID: child.id, agent, status: "running" } satisfies HarnessDelegation.TaskResult
-        return yield* finalReply(child, agent, outcome.error)
-      })
 
-    const handler: HarnessDelegation.Handler = {
-      listAgents: (sessionID) =>
-        run(
-          Effect.gen(function* () {
-            const session = yield* caller(sessionID)
-            const instances = yield* harnesses(session)
-            return instances.map((instance) => ({
-              id: instance.id,
-              name: instance.id === Harness.OpenCode ? "Default agent" : instance.name,
-              status: instance.status,
-              current: instance.id === session.harnessInstanceID,
-              models: instance.models.map((model) => ({
-                id: model.id,
-                name: model.name,
-                isDefault: model.isDefault,
-                reasoningEfforts: model.reasoningEfforts,
-              })),
-            }))
-          }),
-        ),
-      delegate: (sessionID, input) =>
-        run(
-          Effect.gen(function* () {
-            const session = yield* caller(sessionID)
-            if ((yield* depth(session)) >= MAX_DEPTH)
-              return yield* Effect.fail(new Error("Delegated agents cannot delegate further from this thread."))
-            const active =
-              [...running.values()].filter((entry) => entry.parentID === sessionID && !entry.finished).length +
-              (starting.get(sessionID) ?? 0)
-            if (active >= MAX_RUNNING)
-              return yield* Effect.fail(
-                new Error(`This thread already has ${MAX_RUNNING} delegated tasks running; wait for one first.`),
-              )
-            // Reserved in the same step as the check, before anything yields.
-            starting.set(sessionID, (starting.get(sessionID) ?? 0) + 1)
-            const release = Effect.sync(() => {
-              const left = (starting.get(sessionID) ?? 1) - 1
-              if (left > 0) starting.set(sessionID, left)
-              else starting.delete(sessionID)
+      // A running task's checklist and latest note, so the delegating thread can tell whether it is on track. Each part
+      // is left out when it can't be read.
+      const stillRunning = (child: SessionSchema.Info, agent: string, started: number) =>
+        Effect.gen(function* () {
+          const todos = yield* Effect.gen(function* () {
+            const store = yield* SessionTodo.Service
+            return yield* store.get(child.id)
+          }).pipe(
+            Effect.provide(locations.get(child.location)),
+            Effect.catchCause(() => Effect.succeed([] as ReadonlyArray<SessionTodo.Info>)),
+          )
+          const messages = yield* sessions
+            .messages({ sessionID: child.id, order: "desc", limit: 20 })
+            .pipe(Effect.catchCause(() => Effect.succeed([])))
+          const reply = messages.find((message) => message.type === "assistant")
+          const latest = reply?.type === "assistant" ? lastText(reply.content) : undefined
+          return {
+            taskID: child.id,
+            agent,
+            status: "running",
+            progress: {
+              runningMinutes: Math.max(0, Math.floor((Date.now() - started) / 60_000)),
+              ...(todos.length > 0
+                ? { todos: todos.map((todo) => ({ content: todo.content, status: todo.status })) }
+                : {}),
+              ...(latest ? { latest } : {}),
+            },
+          } satisfies HarnessDelegation.TaskResult
+        })
+
+      // While a task runs, the delegating thread hears from it on an interval so it can check the work and steer it.
+      // A check-in still waiting for the thread (a long turn) isn't joined by another for the same task.
+      const checkIn = (parentID: SessionSchema.ID, child: SessionSchema.Info, entry: Running) =>
+        Effect.gen(function* () {
+          if (entry.finished || entry.cancelled || entry.waiting > 0) return
+          const pending = yield* sessions.queued(parentID)
+          if (pending.some((input) => input.prompt.text.includes(checkInMarker(child.id)))) return
+          yield* sessions.prompt({
+            sessionID: parentID,
+            prompt: { text: checkInNotice(entry.title, child.id, Math.floor((Date.now() - entry.started) / 60_000)) },
+            delivery: "queue",
+          })
+        })
+
+      const settle = (child: SessionSchema.Info, waitSeconds: number) =>
+        Effect.gen(function* () {
+          const agent = child.harnessInstanceID
+          const entry = running.get(child.id)
+          if (!entry) {
+            // Started before a restart: report what the child recorded, unless it is still running.
+            if ((yield* sessions.active).has(child.id))
+              return yield* stillRunning(child, agent, DateTime.toEpochMillis(child.time.created))
+            return yield* finalReply(child, agent)
+          }
+          const outcome = yield* Effect.promise(() => {
+            const waited = Promise.withResolvers<undefined>()
+            const timer = setTimeout(() => waited.resolve(undefined), waitSeconds * 1_000)
+            entry.waiting += 1
+            // Cleared either way, so a finished task leaves no timer running for up to MAX_WAIT_SECONDS.
+            return Promise.race([entry.done, waited.promise]).finally(() => {
+              clearTimeout(timer)
+              entry.waiting -= 1
             })
-            const child = yield* Effect.gen(function* () {
+          })
+          if (!outcome) return yield* stillRunning(child, agent, entry.started)
+          return yield* finalReply(child, agent, outcome.error)
+        })
+
+      const handler: HarnessDelegation.Handler = {
+        listAgents: (sessionID) =>
+          run(
+            Effect.gen(function* () {
+              const session = yield* caller(sessionID)
               const instances = yield* harnesses(session)
-              const target = instances.find((instance) => instance.id === input.agent)
-              if (!target) return yield* Effect.fail(new Error(`Unknown agent ${input.agent}; call list_agents.`))
-              if (target.status !== "available")
-                return yield* Effect.fail(new Error(`${target.name} is not available: ${target.error ?? "not ready"}.`))
-              const model = input.model ? target.models.find((item) => item.id === input.model) : undefined
-              if (input.model && target.models.length > 0 && !model)
-                return yield* Effect.fail(new Error(`${target.name} has no model ${input.model}; call list_agents.`))
-              if (input.reasoningEffort && model && !model.reasoningEfforts.includes(input.reasoningEffort))
+              return instances.map((instance) => ({
+                id: instance.id,
+                name: instance.id === Harness.OpenCode ? "Default agent" : instance.name,
+                status: instance.status,
+                current: instance.id === session.harnessInstanceID,
+                models: instance.models.map((model) => ({
+                  id: model.id,
+                  name: model.name,
+                  isDefault: model.isDefault,
+                  reasoningEfforts: model.reasoningEfforts,
+                })),
+              }))
+            }),
+          ),
+        delegate: (sessionID, input) =>
+          run(
+            Effect.gen(function* () {
+              const session = yield* caller(sessionID)
+              if ((yield* depth(session)) >= MAX_DEPTH)
+                return yield* Effect.fail(new Error("Delegated agents cannot delegate further from this thread."))
+              const active =
+                [...running.values()].filter((entry) => entry.parentID === sessionID && !entry.finished).length +
+                (starting.get(sessionID) ?? 0)
+              if (active >= MAX_RUNNING)
                 return yield* Effect.fail(
-                  new Error(
-                    `${model.name} supports reasoning efforts: ${model.reasoningEfforts.join(", ") || "none"}.`,
-                  ),
+                  new Error(`This thread already has ${MAX_RUNNING} delegated tasks running; wait for one first.`),
                 )
-              const from = instances.find((instance) => instance.id === session.harnessInstanceID)
-              const project = input.projectId ? yield* projectFolder(session, input.projectId) : undefined
-              const child = yield* sessions.create({
-                ...(project
-                  ? {
-                      origin: {
-                        sessionID: session.id,
-                        commandCentre: HarnessAppTools.isCommandCentre(session.location.directory),
-                      },
-                    }
-                  : { parentID: session.id }),
-                title: input.title?.slice(0, 120) ?? `${target.name}: ${input.task.split("\n")[0].slice(0, 80)}`,
-                harnessInstanceID: target.id,
-                ...(input.model
-                  ? {
-                      harnessModel: {
-                        id: input.model,
-                        ...(input.reasoningEffort ? { reasoningEffort: input.reasoningEffort } : {}),
-                      },
-                    }
-                  : {}),
-                location: project
-                  ? Location.Ref.make({ directory: AbsolutePath.make(project.directory) })
-                  : session.location,
+              // Reserved in the same step as the check, before anything yields.
+              starting.set(sessionID, (starting.get(sessionID) ?? 0) + 1)
+              const release = Effect.sync(() => {
+                const left = (starting.get(sessionID) ?? 1) - 1
+                if (left > 0) starting.set(sessionID, left)
+                else starting.delete(sessionID)
               })
+              const child = yield* Effect.gen(function* () {
+                const instances = yield* harnesses(session)
+                const target = instances.find((instance) => instance.id === input.agent)
+                if (!target) return yield* Effect.fail(new Error(`Unknown agent ${input.agent}; call list_agents.`))
+                if (target.status !== "available")
+                  return yield* Effect.fail(
+                    new Error(`${target.name} is not available: ${target.error ?? "not ready"}.`),
+                  )
+                const model = input.model ? target.models.find((item) => item.id === input.model) : undefined
+                if (input.model && target.models.length > 0 && !model)
+                  return yield* Effect.fail(new Error(`${target.name} has no model ${input.model}; call list_agents.`))
+                if (input.reasoningEffort && model && !model.reasoningEfforts.includes(input.reasoningEffort))
+                  return yield* Effect.fail(
+                    new Error(
+                      `${model.name} supports reasoning efforts: ${model.reasoningEfforts.join(", ") || "none"}.`,
+                    ),
+                  )
+                const from = instances.find((instance) => instance.id === session.harnessInstanceID)
+                const project = input.projectId ? yield* projectFolder(session, input.projectId) : undefined
+                const child = yield* sessions.create({
+                  ...(project
+                    ? {
+                        origin: {
+                          sessionID: session.id,
+                          commandCentre: HarnessAppTools.isCommandCentre(session.location.directory),
+                        },
+                      }
+                    : { parentID: session.id }),
+                  title: input.title?.slice(0, 120) ?? `${target.name}: ${input.task.split("\n")[0].slice(0, 80)}`,
+                  harnessInstanceID: target.id,
+                  ...(input.model
+                    ? {
+                        harnessModel: {
+                          id: input.model,
+                          ...(input.reasoningEffort ? { reasoningEffort: input.reasoningEffort } : {}),
+                        },
+                      }
+                    : {}),
+                  location: project
+                    ? Location.Ref.make({ directory: AbsolutePath.make(project.directory) })
+                    : session.location,
+                })
+                yield* sessions.prompt({
+                  sessionID: child.id,
+                  prompt: { text: framedTask(from?.name ?? "another agent", input.task) },
+                  resume: false,
+                })
+                const done: Promise<{ readonly error?: string }> = run(sessions.resume(child.id)).then(
+                  () => ({}),
+                  (cause) => ({ error: cause instanceof Error ? cause.message : String(cause) }),
+                )
+                const entry: Running = {
+                  parentID: sessionID,
+                  agent: target.id,
+                  title: child.title,
+                  started: Date.now(),
+                  done,
+                  cancelled: false,
+                  finished: false,
+                  waiting: 0,
+                }
+                running.set(child.id, entry)
+                const timer = setInterval(
+                  () => void run(checkIn(session.id, child, entry)).catch(() => undefined),
+                  options.checkInMs,
+                )
+                timer.unref?.()
+                timers.add(timer)
+                void done.then((outcome) => {
+                  clearInterval(timer)
+                  timers.delete(timer)
+                  entry.finished = true
+                  // Kept a while so a late read still reports cancellation and errors; after that a read
+                  // falls back to what the child recorded, as after a restart.
+                  setTimeout(() => running.delete(child.id), FINISHED_RETENTION_MS).unref?.()
+                  // Runs before a waiting call's own `done` handler, so `waiting` still counts it here.
+                  if (entry.cancelled || entry.waiting > 0) return
+                  void run(notify(session.id, child, target.id, outcome.error)).catch(() => undefined)
+                })
+                return child
+              }).pipe(Effect.ensuring(release))
+              return yield* settle(child, input.waitSeconds)
+            }),
+          ),
+        result: (sessionID, taskID, waitSeconds) =>
+          run(
+            Effect.gen(function* () {
+              const child = yield* owned(sessionID, taskID)
+              return yield* settle(child, waitSeconds)
+            }),
+          ),
+        cancel: (sessionID, taskID) =>
+          run(
+            Effect.gen(function* () {
+              const child = yield* owned(sessionID, taskID)
+              const entry = running.get(child.id)
+              if (entry) entry.cancelled = true
+              yield* sessions.interrupt(child.id)
+              return yield* settle(child, 10)
+            }),
+          ),
+        message: (sessionID, taskID, text) =>
+          run(
+            Effect.gen(function* () {
+              const child = yield* owned(sessionID, taskID)
+              const entry = running.get(child.id)
+              // Prompting a finished task would start it again, out of reach of the limit and the notices.
+              if (!entry || entry.finished)
+                return yield* Effect.fail(new Error(`Task ${taskID} is not running; start a new task instead.`))
               yield* sessions.prompt({
                 sessionID: child.id,
-                prompt: { text: framedTask(from?.name ?? "another agent", input.task) },
-                resume: false,
+                prompt: { text: `Message from the agent that delegated this task:\n\n${text}` },
+                delivery: "steer",
               })
-              const done: Promise<{ readonly error?: string }> = run(sessions.resume(child.id)).then(
-                () => ({}),
-                (cause) => ({ error: cause instanceof Error ? cause.message : String(cause) }),
-              )
-              const entry: Running = {
-                parentID: sessionID,
-                agent: target.id,
-                done,
-                cancelled: false,
-                finished: false,
-                waiting: 0,
-              }
-              running.set(child.id, entry)
-              void done.then((outcome) => {
-                entry.finished = true
-                // Kept a while so a late read still reports cancellation and errors; after that a read
-                // falls back to what the child recorded, as after a restart.
-                setTimeout(() => running.delete(child.id), FINISHED_RETENTION_MS).unref?.()
-                // Runs before a waiting call's own `done` handler, so `waiting` still counts it here.
-                if (entry.cancelled || entry.waiting > 0) return
-                void run(notify(session.id, child, target.id, outcome.error)).catch(() => undefined)
-              })
-              return child
-            }).pipe(Effect.ensuring(release))
-            return yield* settle(child, input.waitSeconds)
-          }),
-        ),
-      result: (sessionID, taskID, waitSeconds) =>
-        run(
-          Effect.gen(function* () {
-            const child = yield* owned(sessionID, taskID)
-            return yield* settle(child, waitSeconds)
-          }),
-        ),
-      cancel: (sessionID, taskID) =>
-        run(
-          Effect.gen(function* () {
-            const child = yield* owned(sessionID, taskID)
-            const entry = running.get(child.id)
-            if (entry) entry.cancelled = true
-            yield* sessions.interrupt(child.id)
-            return yield* settle(child, 10)
-          }),
-        ),
-    }
+              return { taskID: child.id, sent: true as const }
+            }),
+          ),
+      }
 
-    yield* Effect.acquireRelease(
-      Effect.sync(() => HarnessDelegation.install(handler)),
-      (uninstall) => Effect.sync(uninstall),
-    )
-  }),
-)
+      yield* Effect.acquireRelease(
+        Effect.sync(() => HarnessDelegation.install(handler)),
+        (uninstall) =>
+          Effect.sync(() => {
+            uninstall()
+            for (const timer of timers) clearInterval(timer)
+            timers.clear()
+          }),
+      )
+    }),
+  )
+
+export const layer = layerWith({ checkInMs: CHECK_IN_MS })
 
 function projectFolder(session: SessionSchema.Info, projectId: string) {
   return Effect.promise(() => HarnessAppTools.projectFolder({ sessionID: session.id }, projectId)).pipe(
@@ -300,6 +389,22 @@ function finishedNotice(title: string, result: HarnessDelegation.TaskResult) {
     `[Tenon] Your delegated task "${title}" (task_id ${result.taskID}) has ${result.status === "completed" ? "finished" : "failed"}.`,
     "Read its report with task_result, then carry on with the plan: start the next step yourself, and ask the user only for a decision that is theirs to make.",
   ].join("\n")
+}
+
+const checkInMarker = (taskID: string) => `Check-in on task_id ${taskID}`
+
+function checkInNotice(title: string, taskID: string, minutes: number) {
+  return [
+    `[Tenon] ${checkInMarker(taskID)}: your delegated task "${title}" has been running for ${minutes} minutes.`,
+    "Call task_result with wait_seconds 0 to see its checklist and latest note. If it is off track, steer it with message_task (or stop it with cancel_task); if it is fine, end your turn. You will hear again when it finishes.",
+  ].join("\n")
+}
+
+// The last thing the agent said, kept short: a check-in needs where it is, not its whole reply.
+function lastText(content: ReadonlyArray<{ readonly type: string; readonly text?: string }>) {
+  const text = content.flatMap((part) => (part.type === "text" && part.text?.trim() ? [part.text.trim()] : [])).at(-1)
+  if (!text) return undefined
+  return text.length <= LATEST_LIMIT ? text : `${text.slice(0, LATEST_LIMIT)}…`
 }
 
 function replyText(content: ReadonlyArray<{ readonly type: string; readonly text?: string }>) {
