@@ -1607,7 +1607,9 @@ options considered are in [ADR-011](../adr/ADR-011-cross-harness-delegation.md).
   code style, safety, git and check rules) and `resume`. The task ID is the child's session ID, and the
   result is the child's last assistant reply (capped at 100,000 characters).
 - `project_lead` (`project_id`, `goal`, Command Centre threads only) gives a goal to the
-  Project's lead: one root thread in the Project's folder with `metadata.origin = { sessionID,
+  Project's lead. `project_id` (here and in `delegate_to_project`) is a Project id from
+  `threads_overview`, or the Project's exact name (any case) when no Project in another workspace
+  shares it (`AgentAppTools.projectFolder`). The lead is one root thread in the Project's folder with `metadata.origin = { sessionID,
   commandCentre: true, lead: true }`. The first goal creates it (on the given agent and model, else the
   caller's) with `leadBrief`; later goals go to the same lead as `nextGoal`, steered in when it is
   working, and its notices move to the Command Centre thread that gave the latest goal. Any Command
@@ -1709,7 +1711,11 @@ answer that delegation is turned off.
   `tool_timeout_sec=660`, and the OpenCode harness gets
   `experimental.mcp_timeout: 660000` in its `OPENCODE_CONFIG_CONTENT` launch
   config (`HarnessSetup.openCodeLaunchEnv`) unless the user's global OpenCode
-  config sets one; its default is 60 s. An ACP agent the user added waits at
+  config sets one; its default is 60 s. Claude Code gets `MCP_TOOL_TIMEOUT` and
+  `CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT` of 660000 in its launch environment
+  (`HarnessSetup.claudeCodeLaunchEnv`) unless Tenon's own environment sets them:
+  without them it ends a call to an HTTP server after 60 s, and a silent one
+  sooner (a `project_lead` waiting on a busy lead failed at 30 s). An ACP agent the user added waits at
   most 50 s, below the MCP SDK's 60 s default. If the user hasn't answered, it
   returns a "still open" text; calling again with the
   same questions in the same turn keeps waiting without asking twice, and an
