@@ -20,7 +20,18 @@ const held: Record<string, string> = {
   "@solid-primitives/storage": "4.3.x",
   "ghostty-web": "git dependency",
   prettier: "a minor release reformats the repository",
+  // Added during P5 (implementation.md, "Test changes after the freeze"):
+  "@tanstack/solid-virtual": "pins the patched @tanstack/virtual-core",
+  "@effect/opentelemetry": "moves with the patched effect",
+  "@effect/platform-node": "moves with the patched effect",
+  "@effect/sql-sqlite-bun": "moves with the patched effect",
+  "drizzle-orm": "rc.5-ab785fc is a commit build, not a release",
+  "drizzle-kit": "rc.5-ab785fc is a commit build, not a release",
+  "@clack/prompts": "alpha to stable is a major in all but name",
+  "@pierre/diffs": "1.6 pairs with the diff 9 major",
+  "@tsconfig/bun": "1.0.12 adds types: [bun], which the root package doesn't install",
 }
+const heldPrefixes = ["@lydell/node-pty"]
 const caps: Record<string, string> = { "@tanstack/solid-query": "<5.100.0", "@solid-primitives/storage": "<4.4.0" }
 
 type Want = { name: string; version: string; where: string }
@@ -41,7 +52,11 @@ for (const dir of readdirSync(path.join(tenon, "packages"))) {
 
 const pinned = wants.filter((want) => semver.valid(want.version))
 const names = [...new Set(pinned.map((want) => want.name))].filter(
-  (name) => !patched.has(name) && !overrides.has(name) && !(name in held && !(name in caps)),
+  (name) =>
+    !patched.has(name) &&
+    !overrides.has(name) &&
+    !(name in held && !(name in caps)) &&
+    !heldPrefixes.some((prefix) => name.startsWith(prefix)),
 )
 
 const now = Date.now()

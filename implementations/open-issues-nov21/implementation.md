@@ -59,7 +59,11 @@ Base: `main` at `3e6495df`. Branch: `claude/open-issues-nov21`. One agent wrote 
 - **AC-13** Every package in `tenon/` is at the highest version satisfying `^current` that is at least 3 days old,
   except: patched packages, `@ai-sdk/google-vertex` (waits for patched `@ai-sdk/google`), `@tanstack/solid-query`
   (<5.100), `@solidjs/meta` (0.29.4), `@solid-primitives/storage` (4.3.x), `ghostty-web` (git), overrides, and
-  `prettier` (a minor release reformats the repository; its own PR).
+  `prettier` (a minor release reformats the repository; its own PR). Amended during P5 (see "Test changes after
+  the freeze"): packages bound to a patched package (`@tanstack/solid-virtual`, `@effect/*`), prerelease pins
+  (`drizzle-orm`/`drizzle-kit` rc.5, `@clack/prompts` alpha, `@lydell/node-pty*` beta), `@pierre/diffs` (1.6 pairs
+  with diff 9) and `@tsconfig/bun` (1.0.12 needs `@types/bun` in the root package). The OpenTelemetry exporter moves
+  0.214 → 0.223.2, the release paired with SDK 2.12.1.
 - **AC-14** `bun install --frozen-lockfile`, `bun run check` and `bun run test:engine` pass (engine: only the known
   Windows failures and the git timeouts that also fail on `main` here); `bun audit` reports no more advisories than
   before.
