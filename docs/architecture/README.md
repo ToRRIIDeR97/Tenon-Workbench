@@ -2324,6 +2324,28 @@ note preview keep `html` blocks as highlighted code.
   Without a provider, or outside a saved desktop session, windows have no
   action buttons. Canvas state is in memory per session.
 
+### Viewer windows and Project artifacts
+
+A fenced block tagged `view` lists files the agent wants the user to see, one
+path (relative to the thread folder) or https URL per line
+(`ChatDisplay.viewGuidance` tells every agent). `session-ui/src/components/view-window.ts`
+parses it (`viewItems`: other URL schemes are dropped, at most 12 items) and
+`mountViewWindows` builds a window per file with Open and Pin to Project; the
+markdown worker keeps the `language-view` class (`aliases`). The app draws each
+file through `ViewSpaceProvider` (`pages/session/file-reference.tsx`,
+`features/artifacts/view-renderer.ts`): images, video and audio inline, PDFs in a
+reader frame, `.glb`/`.gltf` models on an orbiting three.js stage loaded only when
+one is shown, and a text excerpt for markdown, CSV and JSON. Files load through the
+desktop's `tenon-file://` URL when it serves them, else from the server's file
+read (base64, or a typed blob URL for text). Remote URLs show only as image,
+video or audio.
+
+Pinned files are the Project's artifacts (`features/artifacts/artifacts.ts`,
+kept per thread folder in `artifacts.v1` on this machine). They list at the top
+of the Documents section and on the Canvas tab's Files board, where each file
+shows in its viewer with a note field; Send notes puts the notes in the composer
+and sends them, as design notes do.
+
 ### File references in chat
 
 Inline code that names a file or folder relative to the thread folder becomes

@@ -11,4 +11,11 @@ describe("ChatDisplay.abilities", () => {
     expect(text).toContain("notes_write")
     expect(text).toContain("gh issue create")
   })
+
+  test.each(["harness", "native", "reply"] as const)("%s agents can show files with a view block", (kind) => {
+    const text = ChatDisplay.abilities(kind)
+    expect(text).toContain(ChatDisplay.viewGuidance)
+    expect(text).toContain("```view")
+    expect(text).toContain(".glb")
+  })
 })

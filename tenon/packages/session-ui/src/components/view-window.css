@@ -1,0 +1,130 @@
+/* ```view blocks rendered as viewer windows (view-window.ts); the app draws each file inside its body. */
+[data-component="markdown"] {
+  [data-component="markdown-code"][data-view-window] {
+    margin-top: 12px;
+    margin-bottom: 24px;
+  }
+
+  [data-component="markdown-code"][data-view-window] > pre,
+  [data-component="markdown-code"][data-view-window] > [data-slot="markdown-copy-button"] {
+    display: none;
+  }
+
+  [data-slot="view-windows"] {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  [data-slot="view-window"] {
+    margin: 0;
+    border: 1px solid var(--v2-border-border-muted);
+    border-radius: var(--v2-radius-md);
+    background: var(--v2-background-bg-layer-01);
+    overflow: hidden;
+  }
+
+  [data-slot="view-window-bar"] {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 36px;
+    padding: 0 8px 0 14px;
+    border-bottom: 1px solid var(--v2-border-border-muted);
+    color: var(--v2-text-text-muted);
+    font-size: 12px;
+  }
+
+  [data-slot="view-window-title"] {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--v2-text-text-base);
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  [data-slot="view-window-bar"] > button {
+    height: 26px;
+    padding: 0 10px;
+    border-radius: 999px;
+    color: var(--v2-text-text-muted);
+    font-size: 12px;
+    font-weight: 500;
+    transition:
+      background-color var(--v2-duration-short) var(--v2-ease-standard),
+      color var(--v2-duration-short) var(--v2-ease-standard);
+  }
+
+  [data-slot="view-window-bar"] > button:hover {
+    background: var(--v2-overlay-simple-overlay-hover);
+    color: var(--v2-text-text-base);
+  }
+
+  [data-slot="view-window-bar"] > button[aria-pressed="true"] {
+    background: var(--v2-background-bg-accent-container);
+    color: var(--v2-text-text-on-accent-container);
+  }
+
+  [data-slot="view-window-bar"] > button:focus-visible {
+    outline: 2px solid var(--v2-border-border-focus);
+    outline-offset: 2px;
+  }
+
+  [data-slot="view-window-body"] {
+    display: flex;
+    justify-content: center;
+    max-height: 560px;
+    overflow: auto;
+  }
+
+  [data-slot="view-window-body"] > img,
+  [data-slot="view-window-body"] > video {
+    display: block;
+    max-width: 100%;
+    max-height: 560px;
+    object-fit: contain;
+  }
+
+  [data-slot="view-window"][data-kind="audio"] [data-slot="view-window-body"] {
+    padding: 12px 14px;
+  }
+
+  [data-slot="view-window-body"] > audio {
+    width: 100%;
+  }
+
+  [data-slot="view-window-body"] > iframe,
+  [data-slot="view-window-body"] > [data-slot="view-model"] {
+    display: block;
+    width: 100%;
+    height: 480px;
+    border: 0;
+  }
+
+  [data-slot="view-window-body"] > [data-slot="view-text"] {
+    align-self: stretch;
+    width: 100%;
+    margin: 0;
+    padding: 12px 14px;
+    background: transparent;
+    color: var(--v2-text-text-base);
+    font-family: var(--v2-font-mono, ui-monospace, monospace);
+    font-size: 12px;
+    line-height: 18px;
+    white-space: pre-wrap;
+  }
+
+  [data-slot="view-window-notice"] {
+    padding: 14px;
+    color: var(--v2-text-text-muted);
+    font-size: 13px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-slot="view-window-bar"] > button {
+      transition: none;
+    }
+  }
+}

@@ -31,6 +31,12 @@ export const designGuidance = [
   "Diagrams stay ```svg blocks.",
 ].join("\n")
 
+/** ```view blocks: the universal viewer for files the user should see, not just read about. */
+export const viewGuidance = [
+  "To show the user a file (an image, video, sound, PDF, document, spreadsheet or 3D model), write a ```view fenced block with one path per line, relative to the thread folder (or an https URL for an image, video or sound on the web). Each line becomes a viewer window in the chat: images, video and audio play inline, 3D models (.glb, .gltf) turn in a viewport, PDFs page in a reader, and documents open in full with Open.",
+  "Use it whenever the user asks to see, hear or check something, and after you make or change a visual or audio asset. The user can pin a file to the Project's artifacts and leave notes on it for you.",
+].join("\n")
+
 /** File references the chat turns into links. */
 export const fileReferenceGuidance =
   "Cite files as inline code with a path relative to the thread folder, optionally with a line or range, like `src/app.tsx:42` or `src/app.tsx:42-58`. These become clickable in the chat."
@@ -60,7 +66,13 @@ export const checklistGuidance =
 
 /** All Tenon chat abilities for one kind of agent, kept short because harnesses receive it at every handoff. */
 export function abilities(agent: keyof typeof askGuidance) {
-  return [askGuidance[agent], checklistGuidance, workGuidance, designGuidance, svgGuidance, fileReferenceGuidance].join(
-    "\n\n",
-  )
+  return [
+    askGuidance[agent],
+    checklistGuidance,
+    workGuidance,
+    designGuidance,
+    svgGuidance,
+    viewGuidance,
+    fileReferenceGuidance,
+  ].join("\n\n")
 }

@@ -7,6 +7,8 @@ import { useSync } from "@/context/sync"
 import { threadDocuments } from "@/pages/session/documents"
 import { LiveDocumentChip } from "@/pages/session/live-document-view"
 import { useSessionLayout } from "@/pages/session/session-layout"
+import { PinnedArtifacts } from "@/features/artifacts/artifacts-view"
+import { useArtifacts } from "@/features/artifacts/artifacts"
 
 /**
  * The Documents section: what this thread's agent wrote or linked, each opening rendered in the Files viewer (or,
@@ -28,12 +30,14 @@ export function SessionDocumentsTab() {
       sdk().directory,
     )
   })
+  const artifacts = useArtifacts()
+  const pinned = () => artifacts.list(sdk().directory).length > 0
   const name = (path: string) => path.split("/").at(-1) ?? path
   const folder = (path: string) => path.split("/").slice(0, -1).join("/")
 
   return (
     <Show
-      when={documents().length > 0}
+      when={documents().length > 0 || pinned()}
       fallback={
         <div class="h-full px-6 pb-42 flex items-center justify-center text-center">
           <div class="max-w-56 text-[13px] leading-5 text-v2-text-text-muted">
@@ -43,6 +47,7 @@ export function SessionDocumentsTab() {
       }
     >
       <div class="h-full overflow-y-auto px-2 py-2" data-scrollable>
+        <PinnedArtifacts />
         <ul class="m-0 flex list-none flex-col gap-0.5 p-0" aria-label={language.t("secondBrain.documents.title")}>
           <For each={documents()}>
             {(document) => (

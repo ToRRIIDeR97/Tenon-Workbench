@@ -21,9 +21,49 @@ import { canvasNotesStore, notePosition, type CanvasNote } from "@/pages/session
 import { useDesignCanvas } from "@/pages/session/design-canvas"
 import { DesignBoard } from "@/pages/session/design-board"
 import { DesignFrame, LiveDesignFrame } from "@/pages/session/live-design-frame"
+import { useSDK } from "@/context/sdk"
+import { useArtifacts } from "@/features/artifacts/artifacts"
+import { ArtifactsBoard } from "@/features/artifacts/artifacts-view"
 
-/** The Canvas tab: the thread's designs as artboards on a pan/zoom board, or one of them shown large. */
+/**
+ * The Canvas tab: the thread's designs, and the Project's pinned files to review with notes. With pinned files a
+ * switch picks between the two boards.
+ */
 export function SessionCanvasTab() {
+  const language = useLanguage()
+  const sdk = useSDK()
+  const artifacts = useArtifacts()
+  const [board, setBoard] = createStore<{ view: "designs" | "files" }>({ view: "designs" })
+  const files = () => artifacts.list(sdk().directory).length > 0
+  return (
+    <div class="flex h-full min-h-0 flex-col">
+      <Show when={files()}>
+        <div class="flex shrink-0 px-3 pb-2 pt-1">
+          <SegmentedControlV2
+            aria-label={language.t("secondBrain.canvas.title")}
+            value={board.view}
+            onChange={(value) => value && setBoard("view", value === "files" ? "files" : "designs")}
+          >
+            <SegmentedControlItemV2 value="designs" data-action="canvas-designs">
+              {language.t("secondBrain.canvas.designs")}
+            </SegmentedControlItemV2>
+            <SegmentedControlItemV2 value="files" data-action="canvas-files">
+              {language.t("secondBrain.canvas.files")}
+            </SegmentedControlItemV2>
+          </SegmentedControlV2>
+        </div>
+      </Show>
+      <div class="min-h-0 flex-1">
+        <Show when={files() && board.view === "files"} fallback={<DesignsBoard />}>
+          <ArtifactsBoard />
+        </Show>
+      </div>
+    </div>
+  )
+}
+
+/** The thread's designs as artboards on a pan/zoom board, or one of them shown large. */
+function DesignsBoard() {
   const canvas = useDesignCanvas()
   const language = useLanguage()
   const byKey = createMemo(() => new Map(canvas.designs().map((design) => [design.key, design])))

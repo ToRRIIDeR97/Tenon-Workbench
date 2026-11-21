@@ -37,6 +37,8 @@ import type { FileReferenceActions } from "../context/file-reference"
 import { mountSvgWindows } from "./svg-window"
 import { mountHtmlWindows } from "./html-window"
 import { useDesignSpace } from "../context/design"
+import { mountViewWindows } from "./view-window"
+import { useViewSpace } from "../context/view"
 
 type RenderedBlock =
   | (MarkdownCacheEntry & { key: string; mode: Exclude<Block["mode"], "code"> })
@@ -391,6 +393,7 @@ export function Markdown(
   ])
   const i18n = useI18n()
   const designSpace = useDesignSpace()
+  const viewSpace = useViewSpace()
   const [root, setRoot] = createSignal<HTMLDivElement>()
   const owner = createUniqueId()
   const activeCodeKeys = new Set<string>()
@@ -564,6 +567,12 @@ export function Markdown(
       download: i18n.t("secondBrain.message.svg.download"),
       drawing: i18n.t("secondBrain.message.svg.drawing"),
     }
+    const viewLabels = {
+      open: i18n.t("secondBrain.message.view.open"),
+      pin: i18n.t("secondBrain.message.view.pin"),
+      pinned: i18n.t("secondBrain.message.view.pinned"),
+      unsupported: i18n.t("secondBrain.message.view.unsupported"),
+    }
     const designLabels = {
       title: i18n.t("secondBrain.message.design.title"),
       badge: i18n.t("secondBrain.message.design.badge"),
@@ -580,6 +589,7 @@ export function Markdown(
         .querySelectorAll<HTMLElement>('[data-slot="markdown-copy-button"]')
         .forEach((button) => setCopyState(button, labels, button.dataset.copied === "true"))
       mountSvgWindows(block, svgLabels)
+      mountViewWindows(block, viewLabels, viewSpace)
       if (!local.designs) return
       // ```html designs need their fence info string, which only the block's markdown source keeps.
       const raw = block === container ? local.text : content.find((item) => item.key === block.dataset.markdownKey)?.raw

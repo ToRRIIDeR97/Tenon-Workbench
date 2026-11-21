@@ -36,6 +36,7 @@ type PluralKey =
   | "session.revertDock.summary"
   | "secondBrain.calendar.moreOnDate"
   | "secondBrain.canvas.notes.send"
+  | "secondBrain.artifacts.notes.count"
   | "secondBrain.mcp.state.connectedTools"
   | "secondBrain.computerUse.stoppedThreads"
   | "secondBrain.sessionTab.messages"

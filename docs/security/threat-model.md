@@ -1422,6 +1422,22 @@ UDP policy still blocks STUN, but TURN over TCP (and the DNS lookup of its
 host) could in theory leak what the page contains, which is model output that
 may quote workspace content.
 
+## Agent-shown files in chat (```view)
+
+A ```view block names files for the user to look at. The agent's text is untrusted, so:
+
+- Each line is a path or an `https:` URL. `viewItems` drops every other scheme (`javascript:`, `data:`, `file:`,
+  plain `http:`), and a block shows at most 12 files.
+- A path is read only inside the thread's folder (`resolveFileReferencePath`); a path outside it shows a notice and
+  is not read. Local files load through the desktop's `tenon-file://` handler (which applies its own inside-folder
+  check) or the server's file read for that folder.
+- A remote URL is loaded only as an image, video or audio element, never as a frame, so it can't run script. Loading
+  it does reach the URL's host, which then sees the request, as a Markdown image would.
+- PDFs open in a frame of the local file (blob, data or `tenon-file:` URL). 3D models are parsed by three.js's glTF
+  loader in the renderer; a malformed model fails to a notice.
+- Pinned artifacts store only paths and names, in this machine's app storage; notes go to the agent as ordinary
+  composer text the user sends.
+
 ## File references in chat
 
 Inline-code file and folder references in assistant text open files, or

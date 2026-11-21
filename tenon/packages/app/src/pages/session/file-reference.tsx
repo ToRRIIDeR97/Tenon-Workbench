@@ -20,6 +20,9 @@ import { SESSION_OPEN_FILE_TAB } from "@/context/layout-tabs"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { OutsideFileDialog, outsideFileURL, useOutsideFileReader } from "@/pages/session/outside-file"
 import { showToast } from "@/utils/toast"
+import { ViewSpaceProvider } from "@tenon/session-ui/context/view"
+import { useArtifacts, type Artifact } from "@/features/artifacts/artifacts"
+import { createViewRenderer } from "@/features/artifacts/view-renderer"
 
 export type FileReveal = { directory: string; path: string; start?: number; end?: number; folder?: boolean }
 
@@ -240,8 +243,42 @@ export function SessionFileReferences(props: ParentProps) {
     onFileReference,
   } satisfies FileReferenceActions
 
+  // ```view windows: the agent shows the user a file in the thread; Pin keeps it in the Project's artifacts.
+  const artifacts = useArtifacts()
+  const relative = (src: string) => resolveFileReferencePath(src, sdk().directory) ?? undefined
+  const renderView = createViewRenderer({
+    directory: () => sdk().directory,
+    relative,
+    fileURL: platform.fileViewerURL ? (directory, path) => platform.fileViewerURL!(directory, path) : undefined,
+    read: async (path) => file.get(path)?.content ?? (await sdk().client.file.read({ path })).data,
+    labels: () => ({
+      loading: language.t("secondBrain.view.loading"),
+      missing: language.t("secondBrain.view.missing"),
+      outside: language.t("secondBrain.view.outside"),
+      noPreview: language.t("secondBrain.view.noPreview"),
+      modelFailed: language.t("secondBrain.view.modelFailed"),
+    }),
+  })
+  const pinItem = (item: { src: string; name: string; kind: Artifact["kind"] }) => {
+    const path = relative(item.src)
+    if (path) artifacts.toggle(sdk().directory, { ...item, src: path })
+  }
+
   // The right panel only exists on desktop widths; elsewhere references stay plain code.
   return (
-    <FileReferenceProvider value={() => (isDesktop() ? actions : undefined)}>{props.children}</FileReferenceProvider>
+    <ViewSpaceProvider
+      render={renderView}
+      open={(item) => {
+        const path = relative(item.src)
+        if (path) onFileReference({ path })
+      }}
+      pin={pinItem}
+      pinned={(item) => {
+        const path = relative(item.src)
+        return !!path && artifacts.has(sdk().directory, path)
+      }}
+    >
+      <FileReferenceProvider value={() => (isDesktop() ? actions : undefined)}>{props.children}</FileReferenceProvider>
+    </ViewSpaceProvider>
   )
 }
