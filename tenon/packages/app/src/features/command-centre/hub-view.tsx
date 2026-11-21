@@ -2,6 +2,7 @@ import { Harness } from "@tenon/schema/harness"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
+import { LoaderV2 } from "@tenon/ui/v2/loader-v2"
 import { Presence } from "@tenon/ui/v2/presence"
 import { ViewSwitch } from "@tenon/ui/v2/view-switch"
 import { createEffect, createMemo, createResource, For, Match, on, onCleanup, Show, Switch, type JSX } from "solid-js"
@@ -18,6 +19,7 @@ import { lastReplyText, useCommandCentre } from "@/features/command-centre/comma
 import {
   hubCards,
   modelLabel,
+  crewGroups,
   projectCrew,
   sessionHarness,
   sessionOrigin,
@@ -156,7 +158,10 @@ export function CommandHub(props: {
       instances: catalogue(),
     }),
   )
-  const agentIDs = createMemo(() => crew().agents.map((agent) => agent.id), [], { equals: sameIDs })
+  // Working agents (needing you, then running) sit above finished ones.
+  const groups = createMemo(() => crewGroups(crew().agents))
+  const workingIDs = createMemo(() => groups().working.map((agent) => agent.id), [], { equals: sameIDs })
+  const finishedIDs = createMemo(() => groups().finished.map((agent) => agent.id), [], { equals: sameIDs })
   const agentByID = createMemo(() => new Map(crew().agents.map((agent) => [agent.id, agent] as const)))
   const directoryOf = (id: string) =>
     (threads()[props.project ?? ""] ?? []).find((thread) => thread.id === id)?.directory
@@ -831,25 +836,49 @@ export function CommandHub(props: {
       <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pb-28 pt-1 @[1000px]:grid @[1000px]:grid-cols-[minmax(0,1fr)_380px] @[1000px]:items-start">
         <div class="flex min-w-0 flex-col gap-3">
           <Lead />
-          <section class="flex flex-col gap-2">
-            <Caption label={language.t("secondBrain.commandCentre.hub.agents")} count={crew().agents.length} />
-            <Show
-              when={crew().agents.length > 0}
-              fallback={
+          <Show
+            when={crew().agents.length > 0}
+            fallback={
+              <section class="flex flex-col gap-2">
+                <Caption label={language.t("secondBrain.commandCentre.hub.agents")} count={0} />
                 <p class="px-1 type-body text-v2-text-text-muted">
                   {language.t("secondBrain.commandCentre.hub.noCrew")}
                 </p>
-              }
-            >
-              <div class="grid grid-cols-1 gap-3 @[640px]:grid-cols-2">
-                <For each={agentIDs()}>
-                  {(id, index) => (
-                    <Show when={agentByID().get(id)}>{(agent) => <AgentCard agent={agent()} index={index()} />}</Show>
-                  )}
-                </For>
-              </div>
+              </section>
+            }
+          >
+            <section data-hub-crew="working" class="flex flex-col gap-2">
+              <Caption label={language.t("secondBrain.commandCentre.hub.working")} count={workingIDs().length} />
+              <Show
+                when={workingIDs().length > 0}
+                fallback={
+                  <p class="px-1 type-body text-v2-text-text-muted">
+                    {language.t("secondBrain.commandCentre.hub.noneWorking")}
+                  </p>
+                }
+              >
+                <div class="grid grid-cols-1 gap-3 @[640px]:grid-cols-2">
+                  <For each={workingIDs()}>
+                    {(id, index) => (
+                      <Show when={agentByID().get(id)}>{(agent) => <AgentCard agent={agent()} index={index()} />}</Show>
+                    )}
+                  </For>
+                </div>
+              </Show>
+            </section>
+            <Show when={finishedIDs().length > 0}>
+              <section data-hub-crew="finished" class="flex flex-col gap-2">
+                <Caption label={language.t("secondBrain.commandCentre.hub.finished")} count={finishedIDs().length} />
+                <div class="grid grid-cols-1 gap-3 @[640px]:grid-cols-2">
+                  <For each={finishedIDs()}>
+                    {(id, index) => (
+                      <Show when={agentByID().get(id)}>{(agent) => <AgentCard agent={agent()} index={index()} />}</Show>
+                    )}
+                  </For>
+                </div>
+              </section>
             </Show>
-          </section>
+          </Show>
         </div>
         <Side />
       </div>
@@ -994,22 +1023,7 @@ function StepMark(props: { status: string }) {
         </svg>
       </Match>
       <Match when={props.status === "in_progress"}>
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 16 16"
-          aria-hidden="true"
-          class="shrink-0 animate-spin motion-reduce:animate-none"
-        >
-          <circle cx="8" cy="8" r="6" fill="none" stroke="var(--v2-border-border-muted)" stroke-width="2" />
-          <path
-            d="M8 2a6 6 0 0 1 6 6"
-            fill="none"
-            stroke="var(--v2-icon-icon-accent)"
-            stroke-width="2"
-            stroke-linecap="round"
-          />
-        </svg>
+        <LoaderV2 class="text-v2-icon-icon-accent" />
       </Match>
     </Switch>
   )

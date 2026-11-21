@@ -731,7 +731,8 @@ assistant that spans workspaces, with its own threads, memory and routines.
   when it started one of its threads, and the newest running thread as the
   card's last line). A card opens `?project=<id>` (`projectCrew`): the Command
   Centre thread that last started work there, with its checklist as the plan,
-  then an agent card per thread that needs you, runs, or changed in the last day
+  then an agent card per thread that needs you, runs, or changed in the last day,
+  split by `crewGroups` into Working (needs you first, then running) above Finished
   (harness logo and model label, thread title, the checklist step "n of m" from
   `serverSync().session.todo`), and the day's Command Centre actions on those
   threads. An agent opens a panel with its plan, latest reply, Open thread and
@@ -749,7 +750,11 @@ assistant that spans workspaces, with its own threads, memory and routines.
   (`CommandViews`: Hub, Waiting on you, Workflows, Routines), where
   Waiting on you and Workflows go to `/command?view=waiting|workflows`; and the
   board sits beside the thread as a 380 px Mission panel (`CommandMissionPanel`,
-  shown on desktop, toggled and kept in `command.mission-panel`). The rail keeps
+  shown on desktop, toggled and kept in `command.mission-panel`). A thread the
+  hub, a crew, the Mission panel, the thread menu or the strip opens carries
+  `commandBackState(<where it was>)` in the history state, so the thread header's
+  Back (`thread-back.ts` `threadBack`) steps back to that exact screen; a Command
+  Centre thread reached another way goes back to `/command`. The rail keeps
   its Command Centre entry lit on those threads. Each turn's writes,
   including the Command Centre's own actions (`project`, `thread`, `steer`,
   `stop` `agent.write` events from `project_setup`, `thread_start`,
@@ -1109,7 +1114,14 @@ check, and one from the last 30 s is reused when a page opens again
 always ask. Picking a harness starts it on the model last used with it
 (`harness.models.v1`). In a thread, `createHarnessSwitchQueue`
 (`harness-switch.ts`) shows the pick at once and sends picks in order; a
-message sent meanwhile waits for the switch instead of being refused. The
+message sent meanwhile waits for the switch instead of being refused.
+`SessionV2.switchHarness` accepts a model or effort change on the same harness
+while the thread runs (the runner reads `harnessModel` when a turn starts, so it
+applies from the next turn); a switch to a different harness while one runs is
+refused with `OperationUnavailable`. Every view applies the server's
+`session.next.harness.switched` event to its cached session
+(`context/server-session.ts` `applyV2`), so the model pill names the model the
+next turn runs on even when the switch came from elsewhere. The
 Command Centre's `createComposerHarness` reads the remembered list while its
 query is pending instead of suspending.
 
@@ -1588,7 +1600,10 @@ options considered are in [ADR-011](../adr/ADR-011-cross-harness-delegation.md).
   routes (`tenon/src/server/routes/instance/httpapi/server.ts`). It runs
   each task as a child Run: `SessionV2.create({ parentID, harnessInstanceID,
   harnessModel, location })` in the caller's location, then `prompt` with the
-  task text and `resume`. The task ID is the child's session ID, and the
+  task text (`framedTask`: who delegated it, the final-report rule, and scope
+  lines telling the delegate to read only what the task needs and skip
+  lead-agent workflow steps from instruction files while still following their
+  code style, safety, git and check rules) and `resume`. The task ID is the child's session ID, and the
   result is the child's last assistant reply (capped at 100,000 characters).
 - With `delegate_to_project` (`project_id`), the task runs in that Project instead: the app-tools
   provider resolves the Project's thread folder (`HarnessAppTools.projectFolder`,

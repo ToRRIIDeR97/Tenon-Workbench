@@ -1,4 +1,4 @@
-import { useNavigate } from "@solidjs/router"
+import { useLocation, useNavigate } from "@solidjs/router"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
@@ -20,6 +20,7 @@ import { useServer } from "@/context/server"
 import { sessionHref } from "@/utils/session-route"
 import { useCommandCentre } from "./command-centre"
 import { commandStripAnchor, commandStripStyle } from "./command-strip-anchor"
+import { commandBackState } from "./thread-back"
 
 /**
  * The Command Centre card, a briefing. A handle just above the bottom edge of every page but the Command Centre;
@@ -34,6 +35,9 @@ import { commandStripAnchor, commandStripStyle } from "./command-strip-anchor"
 export function CommandStrip() {
   const language = useLanguage()
   const navigate = useNavigate()
+  const location = useLocation()
+  // Back in the opened thread returns to wherever the strip was opened over.
+  const back = () => ({ state: commandBackState(location.pathname + location.search) })
   const command = useCommand()
   const centre = useCommandCentre()
   const server = useServer()
@@ -75,7 +79,7 @@ export function CommandStrip() {
   }
   const openThread = (id: string) => {
     setState("open", false)
-    navigate(sessionHref(server.key, id))
+    navigate(sessionHref(server.key, id), back())
   }
   let input: HTMLTextAreaElement | undefined
   let card: HTMLDivElement | undefined
@@ -148,7 +152,7 @@ export function CommandStrip() {
   const openFull = () => {
     const id = centre.latest()?.id
     setState("open", false)
-    navigate(id ? sessionHref(server.key, id) : "/command")
+    navigate(id ? sessionHref(server.key, id) : "/command", id ? back() : undefined)
   }
 
   return (

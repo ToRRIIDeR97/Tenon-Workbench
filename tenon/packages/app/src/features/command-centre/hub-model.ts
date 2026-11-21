@@ -197,3 +197,17 @@ export function projectCrew(input: {
       })),
   }
 }
+
+/**
+ * A Project's crew split for the Project view: agents still working (those that need you first, then the running
+ * ones) above the finished ones. Order within each group is kept.
+ */
+export function crewGroups(agents: ReadonlyArray<CrewAgent>): { working: CrewAgent[]; finished: CrewAgent[] } {
+  return {
+    working: [
+      ...agents.filter((agent) => agent.state === "needs"),
+      ...agents.filter((agent) => agent.state === "running"),
+    ],
+    finished: agents.filter((agent) => agent.state === "done"),
+  }
+}

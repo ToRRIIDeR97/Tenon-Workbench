@@ -574,7 +574,10 @@ const layer = Layer.effect(
           session.harnessModel?.reasoningEffort === input.model?.reasoningEffort &&
           session.harnessModel?.serviceTier === input.model?.serviceTier
         if (session.harnessInstanceID === input.instanceID && sameModel) return
-        if ((yield* execution.active).has(input.sessionID))
+        // A model or effort change on the same harness is safe mid-turn: the runner reads the model when a turn
+        // starts, so it applies from the next one. A busy Command Centre lead would otherwise never take the pick.
+        // Changing harness while one runs is still refused.
+        if (session.harnessInstanceID !== input.instanceID && (yield* execution.active).has(input.sessionID))
           return yield* new OperationUnavailableError({ operation: "switchHarness" })
         yield* events.publish(SessionEvent.HarnessSwitched, {
           sessionID: input.sessionID,

@@ -394,10 +394,21 @@ function projectFolder(session: SessionSchema.Info, projectId: string) {
   )
 }
 
-function framedTask(from: string, task: string) {
+/**
+ * The first prompt of a delegated thread. The delegate also loads the user's and the folder's instruction files,
+ * which are written for a lead agent; the scope lines stop it onboarding itself on the whole repository while keeping
+ * the rules that matter for the work.
+ */
+export function framedTask(from: string, task: string) {
   return [
     `This task was delegated to you by ${from} in Tenon Workbench. It cannot see your conversation, only your final reply,`,
     "so finish with a complete report of what you did, what you found and anything left undone.",
+    "",
+    "You are a delegate, not the lead agent. The brief below has the context you need:",
+    "- Read only the files and docs this task needs. Don't survey the repository or read documentation beyond that.",
+    "- Skip lead-agent workflow steps from instruction files (project setup, feature mapping, planning documents,",
+    "  architecture diagrams, documentation upkeep) unless the brief asks for them.",
+    "- Still follow the instruction files' rules on code style, safety, git, and the checks to run for the files you change.",
     "",
     task,
   ].join("\n")

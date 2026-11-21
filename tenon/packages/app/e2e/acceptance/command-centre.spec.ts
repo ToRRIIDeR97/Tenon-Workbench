@@ -410,6 +410,56 @@ test("AC-1.6 Review and Open go to the thread", async ({ page }) => {
   await expect(page).toHaveURL(/\/session\/ses_board_done$/)
 })
 
+// implementations/command-centre-bugs/implementation.md (AC-1): Back returns to the screen a thread was opened from.
+test("AC-1 Back in a thread opened from the Command Centre returns to that screen", async ({ page }) => {
+  await start(page, [], { sessions: boardSessions(), projectThreads: [boardProject] })
+  // Reached without the Command Centre's state (an older link), a Command Centre thread goes back to the hub.
+  await page.goto(`/command?thread=${commandThread.id}`)
+  await expect(page).toHaveURL(threadURL)
+  await page.locator('[data-action="thread-back"]').click()
+  await expect(page).toHaveURL(/\/command$/)
+
+  // Opened from the Mission panel beside a Command Centre thread, Back returns to that thread.
+  await page.goto(`/command?thread=${commandThread.id}`)
+  await expect(page).toHaveURL(threadURL)
+  await mission(page).locator('[data-thread="ses_board_done"] [data-action="board-open"]').click()
+  await expect(page).toHaveURL(/\/session\/ses_board_done$/)
+  await page.locator('[data-action="thread-back"]').click()
+  await expect(page).toHaveURL(threadURL)
+})
+
+// implementations/command-centre-bugs/implementation.md (AC-3, AC-4): the crew splits Working from Finished, and the
+// plan's item in progress spins.
+test("AC-4 a Project's crew lists working agents above finished ones, and AC-3 the current step spins", async ({
+  page,
+}) => {
+  await start(page, [], {
+    sessions: boardSessions(),
+    projectThreads: [boardProject],
+    sessionStatus: { ses_board_run: { type: "busy" } },
+    todos: (sessionID) =>
+      sessionID === "ses_board_run"
+        ? [
+            { id: "t1", content: "Read the webhook handler", status: "completed", priority: "medium" },
+            { id: "t2", content: "Write the migration", status: "in_progress", priority: "medium" },
+            { id: "t3", content: "Run the tests", status: "pending", priority: "medium" },
+          ]
+        : [],
+  })
+  await page.goto("/command?project=prj_repo")
+  const working = page.locator('[data-hub-crew="working"]')
+  const finished = page.locator('[data-hub-crew="finished"]')
+  await expect(working.locator('[data-hub-agent="ses_board_run"]')).toBeVisible()
+  // Without a pending request this fixture's "needs" thread is idle, so it lists as finished.
+  await expect(finished.locator('[data-hub-agent="ses_board_need"]')).toBeVisible()
+  await expect(working.locator('[data-hub-agent="ses_board_need"]')).toHaveCount(0)
+  await working.locator('[data-hub-agent="ses_board_run"]').click()
+  const spinner = page.locator('[data-component="hub-agent-panel"] [data-component="loader-v2"]')
+  await expect(spinner).toHaveCount(1)
+  expect(await spinner.evaluate((el) => getComputedStyle(el).animationName)).toBe("loader-v2-spin")
+  await page.screenshot({ path: "e2e/test-results/command-centre-crew.png" })
+})
+
 // implementations/command-centre-orchestrator/implementation.md, Task 2 (AC-2.6, AC-2.7): the "Waiting on you" view.
 const queue = (page: Page) => page.locator('[data-component="approval-queue"]')
 const doneLog = (page: Page) => page.locator('[data-component="command-actions"]')

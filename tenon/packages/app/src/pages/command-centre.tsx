@@ -1,4 +1,4 @@
-import { useNavigate, useSearchParams } from "@solidjs/router"
+import { useLocation, useNavigate, useSearchParams } from "@solidjs/router"
 import { createEffect, Match, on, onMount, Switch } from "solid-js"
 import { createStore } from "solid-js/store"
 import { PageFrame, PageHeader } from "@/components/page"
@@ -10,6 +10,7 @@ import { useCommandCentre } from "@/features/command-centre/command-centre"
 import { CommandViews, type CommandView } from "@/features/command-centre/command-thread-chrome"
 import { CommandHub } from "@/features/command-centre/hub-view"
 import { createMissionThreads } from "@/features/command-centre/mission-board-view"
+import { commandBackState } from "@/features/command-centre/thread-back"
 import { Workflows } from "@/features/command-centre/workflows-view"
 import { sessionHref } from "@/utils/session-route"
 
@@ -28,6 +29,7 @@ import { sessionHref } from "@/utils/session-route"
 export default function CommandCentrePage() {
   const language = useLanguage()
   const navigate = useNavigate()
+  const location = useLocation()
   const server = useServer()
   const centre = useCommandCentre()
   const ctrl = useSidebarController()
@@ -56,7 +58,9 @@ export default function CommandCentrePage() {
   const project = () => (state.view === "board" ? search.project : undefined)
   const selectProject = (id: string | undefined) => setSearch({ project: id })
   const projectName = () => ctrl.groups().projects.find((group) => String(group.project.id) === project())?.project.name
-  const open = (sessionID: string) => navigate(sessionHref(server.key, sessionID))
+  // Back in the thread returns to this exact screen (the hub, a Project's crew, a view).
+  const open = (sessionID: string) =>
+    navigate(sessionHref(server.key, sessionID), { state: commandBackState(location.pathname + location.search) })
   const board = createMissionThreads(ctrl)
   const queue = createWaitingQueue(ctrl, board)
   createEffect(() => {

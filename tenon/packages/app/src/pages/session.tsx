@@ -47,6 +47,7 @@ import {
   createMissionPanelPref,
   MISSION_PANEL_WIDTH,
 } from "@/features/command-centre/command-thread-chrome"
+import { threadBack } from "@/features/command-centre/thread-back"
 import { ErrorPage } from "@/pages/error"
 import { CommentsProvider, useComments } from "@/context/comments"
 import { useCommand } from "@/context/command"
@@ -452,6 +453,15 @@ export default function Page() {
   const size = createSizing()
   // A Command Centre thread has no code folder: no review, files or terminal, only the timeline and composer.
   const commandThread = createMemo(() => isCommandThread(sdk().directory))
+  // Back to the Command Centre screen a thread was opened from, or to the hub for a Command Centre thread.
+  const headerBack = createMemo(() => {
+    const back = threadBack({ state: location.state, commandThread: commandThread() })
+    if (!back) return undefined
+    return {
+      label: language.t("secondBrain.commandCentre.threadBack"),
+      onClick: () => (back.type === "history" ? navigate(-1) : navigate(back.href)),
+    }
+  })
   // A Command Centre thread is its Mission control view: the Mission board sits beside it on a desktop window.
   const [missionPref, setMissionPref] = createMissionPanelPref()
   const missionOpen = createMemo(() => commandThread() && isDesktop() && missionPref.open)
@@ -2177,6 +2187,7 @@ export default function Page() {
                   onResumeScroll={resumeScroll}
                   setScrollRef={setScrollRef}
                   headerTitle={commandThread() && params.id ? <CommandThreadTitle sessionID={params.id} /> : undefined}
+                  headerBack={headerBack()}
                   headerActions={
                     <Show when={commandThread()} fallback={<ThreadEnvironmentButton harness={sessionHarness} />}>
                       <CommandThreadActions

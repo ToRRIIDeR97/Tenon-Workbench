@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 300" font-family="Inter, system-ui, sans-serif" font-size="13">
+  <rect width="760" height="300" fill="#ffffff"/>
+  <text x="20" y="28" font-size="15" font-weight="600" fill="#1f1f1f">Back from a thread (P1)</text>
+  <rect x="20" y="44" width="170" height="52" rx="10" fill="#f1f3f4" stroke="#c4c7c5"/>
+  <text x="105" y="66" text-anchor="middle" fill="#1f1f1f">Hub / Project crew</text>
+  <text x="105" y="84" text-anchor="middle" fill="#5f6368">/command?project=…</text>
+  <rect x="290" y="44" width="200" height="52" rx="10" fill="#f1f3f4" stroke="#c4c7c5"/>
+  <text x="390" y="66" text-anchor="middle" fill="#1f1f1f">Thread</text>
+  <text x="390" y="84" text-anchor="middle" fill="#5f6368">state.commandBack = from</text>
+  <line x1="190" y1="62" x2="288" y2="62" stroke="#1a73e8" stroke-width="2"/>
+  <polygon points="288,62 280,58 280,66" fill="#1a73e8"/>
+  <text x="239" y="56" text-anchor="middle" fill="#1a73e8">open</text>
+  <line x1="290" y1="84" x2="192" y2="84" stroke="#1a73e8" stroke-width="2" stroke-dasharray="5 4"/>
+  <polygon points="192,84 200,80 200,88" fill="#1a73e8"/>
+  <text x="240" y="104" text-anchor="middle" fill="#1a73e8">Back = history -1</text>
+  <rect x="560" y="44" width="180" height="52" rx="10" fill="#fff" stroke="#c4c7c5"/>
+  <text x="650" y="66" text-anchor="middle" fill="#1f1f1f">No state + CC thread</text>
+  <text x="650" y="84" text-anchor="middle" fill="#5f6368">Back = /command</text>
+
+  <text x="20" y="160" font-size="15" font-weight="600" fill="#1f1f1f">Model switch while running (P2)</text>
+  <rect x="20" y="176" width="200" height="60" rx="10" fill="#f1f3f4" stroke="#c4c7c5"/>
+  <text x="120" y="200" text-anchor="middle" fill="#1f1f1f">Pill: Opus · Medium</text>
+  <text x="120" y="218" text-anchor="middle" fill="#5f6368">POST /session/:id/harness</text>
+  <rect x="290" y="176" width="210" height="60" rx="10" fill="#f1f3f4" stroke="#c4c7c5"/>
+  <text x="395" y="200" text-anchor="middle" fill="#1f1f1f">switchHarness</text>
+  <text x="395" y="218" text-anchor="middle" fill="#5f6368">before: refused while active</text>
+  <line x1="220" y1="206" x2="288" y2="206" stroke="#1a73e8" stroke-width="2"/>
+  <polygon points="288,206 280,202 280,210" fill="#1a73e8"/>
+  <rect x="560" y="166" width="180" height="40" rx="10" fill="#e8f0fe" stroke="#1a73e8"/>
+  <text x="650" y="191" text-anchor="middle" fill="#1f1f1f">same harness → saved</text>
+  <rect x="560" y="216" width="180" height="40" rx="10" fill="#fff" stroke="#c4c7c5"/>
+  <text x="650" y="241" text-anchor="middle" fill="#1f1f1f">other harness → refused</text>
+  <line x1="500" y1="196" x2="558" y2="186" stroke="#1a73e8" stroke-width="2"/>
+  <line x1="500" y1="216" x2="558" y2="236" stroke="#5f6368" stroke-width="2"/>
+  <text x="380" y="280" text-anchor="middle" fill="#5f6368">The runner reads harnessModel at each turn, so the new model applies from the next turn.</text>
+</svg>

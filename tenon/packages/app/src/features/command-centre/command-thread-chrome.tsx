@@ -1,4 +1,4 @@
-import { useNavigate } from "@solidjs/router"
+import { useLocation, useNavigate } from "@solidjs/router"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Icon } from "@tenon/ui/v2/icon"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
@@ -15,6 +15,7 @@ import { sessionHref } from "@/utils/session-route"
 import { createWaitingQueue } from "./agent-hands-view"
 import { useCommandCentre } from "./command-centre"
 import { createMissionThreads, MissionBoard } from "./mission-board-view"
+import { commandBackState } from "./thread-back"
 
 export type CommandView = "board" | "waiting" | "workflows"
 
@@ -75,6 +76,7 @@ export function CommandViews(props: {
 export function CommandThreadTitle(props: { sessionID: string }) {
   const language = useLanguage()
   const navigate = useNavigate()
+  const location = useLocation()
   const server = useServer()
   const centre = useCommandCentre()
   const current = () => centre.threads().find((thread) => thread.id === props.sessionID)
@@ -108,7 +110,11 @@ export function CommandThreadTitle(props: { sessionID: string }) {
               {(thread) => (
                 <MenuV2.Item
                   data-current={thread.id === props.sessionID ? "" : undefined}
-                  onSelect={() => navigate(sessionHref(server.key, thread.id))}
+                  onSelect={() =>
+                    navigate(sessionHref(server.key, thread.id), {
+                      state: commandBackState(location.pathname + location.search),
+                    })
+                  }
                 >
                   <span class="min-w-0 flex-1 truncate" classList={{ "font-medium": thread.id === props.sessionID }}>
                     {label(thread)}
@@ -170,6 +176,7 @@ export function CommandThreadActions(props: { missionOpen: boolean; onMissionTog
 /** The Mission board beside a Command Centre thread: every Project's threads by state, as on Mission control. */
 export function CommandMissionPanel() {
   const navigate = useNavigate()
+  const location = useLocation()
   const server = useServer()
   const ctrl = useSidebarController()
   const board = createMissionThreads(ctrl)
@@ -182,7 +189,9 @@ export function CommandMissionPanel() {
       <MissionBoard
         ctrl={ctrl}
         threads={board()}
-        open={(id) => navigate(sessionHref(server.key, id))}
+        open={(id) =>
+          navigate(sessionHref(server.key, id), { state: commandBackState(location.pathname + location.search) })
+        }
         openRun={(run) => navigate(`/command?view=workflows&run=${encodeURIComponent(run)}`)}
       />
     </aside>
