@@ -472,7 +472,11 @@ function projectFolder(session: SessionSchema.Info, projectId: string) {
     Effect.flatMap((folder) =>
       folder
         ? Effect.succeed(folder)
-        : Effect.fail(new Error(`No Project ${projectId} is open to this thread; check the Project's id.`)),
+        : Effect.fail(
+            new Error(
+              `No Project "${projectId}" is open to this thread. Call threads_overview: it lists every Project with its id.`,
+            ),
+          ),
     ),
   )
 }

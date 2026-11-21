@@ -256,7 +256,10 @@ export const TOOLS = [
     inputSchema: {
       type: "object",
       properties: {
-        project_id: { type: "string", description: "Project ID from threads_overview's projects." },
+        project_id: {
+          type: "string",
+          description: "Project ID from threads_overview's projects (or the Project's exact name).",
+        },
         ...TASK_PROPERTIES,
       },
       required: ["project_id", "agent", "task"],
@@ -270,7 +273,10 @@ export const TOOLS = [
     inputSchema: {
       type: "object",
       properties: {
-        project_id: { type: "string", description: "Project ID from threads_overview's projects." },
+        project_id: {
+          type: "string",
+          description: "Project ID from threads_overview's projects (or the Project's exact name).",
+        },
         goal: {
           type: "string",
           description:
