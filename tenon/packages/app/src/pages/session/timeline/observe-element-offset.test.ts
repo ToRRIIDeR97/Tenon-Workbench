@@ -59,6 +59,54 @@ test("reports a divergent native offset once and ignores equal offsets and unrel
   route.remove()
 })
 
+test("finds the element again when it comes back under a different parent", async () => {
+  const main = document.createElement("main")
+  const first = document.createElement("section")
+  const second = document.createElement("section")
+  const viewport = document.createElement("div")
+  first.append(viewport)
+  main.append(first, second)
+  document.body.append(main)
+  const instance = {
+    scrollElement: viewport,
+    targetWindow: window,
+    scrollOffset: 79_400,
+    options: { horizontal: false, isRtl: false, isScrollingResetDelay: 0, useScrollendEvent: false },
+  } as unknown as Virtualizer<HTMLDivElement, HTMLDivElement>
+  const calls: [number, boolean][] = []
+  const cleanup = observeElementOffsetReconnectAware(instance, (offset, isScrolling) => {
+    calls.push([offset, isScrolling])
+    instance.scrollOffset = offset
+  })
+
+  // Detached in one task, re-inserted under a sibling that was never part of its ancestor chain in a later one.
+  viewport.remove()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  second.append(viewport)
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  await frames(3)
+  expect(calls).toEqual([[0, false]])
+
+  // Moved again within one task: the old parent reports the removal, the new one was not watched.
+  instance.scrollOffset = 79_400
+  first.append(viewport)
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  await frames(3)
+  expect(calls).toEqual([
+    [0, false],
+    [0, false],
+  ])
+
+  // Streaming inside the viewport never wakes it.
+  instance.scrollOffset = 79_400
+  viewport.append(document.createElement("p"))
+  await frames(3)
+  expect(calls).toHaveLength(2)
+
+  cleanup?.()
+  main.remove()
+})
+
 test("keeps checking until stale reset-delay callbacks can no longer win", async () => {
   const route = document.createElement("section")
   const viewport = document.createElement("div")
