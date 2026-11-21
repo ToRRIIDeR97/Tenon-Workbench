@@ -89,3 +89,36 @@ describe("AC-20 GitHub issues as tasks", () => {
     expect(source).toContain("ProjectGithubTasks")
   })
 })
+
+// #331 follow-up: a PR is traceable to the thread that produced it.
+describe("AC-12 GitHub task rows and threads", () => {
+  test("a row carries the thread of the PR it shows", () => {
+    const traced: GithubWorkOk = {
+      status: "ok",
+      repo: "o/r",
+      issues: [issue(5, "closed", "2026-11-18T00:00:00Z")],
+      pulls: [
+        {
+          number: 12,
+          title: "Fix",
+          url: "p12",
+          state: "merged",
+          draft: false,
+          closes: [5],
+          thread: { id: "ses_a", title: "Fix login" },
+        },
+      ],
+    }
+    expect(githubTaskRows(traced, "all", now)[0]?.thread).toEqual({ id: "ses_a", title: "Fix login" })
+  })
+
+  test("a row whose PR has no known thread has none", () => {
+    expect(githubTaskRows(work, "open", now).every((row) => row.thread === undefined)).toBe(true)
+  })
+
+  test("the task item opens the PR's thread", () => {
+    const view = readFileSync(join(import.meta.dir, "project-github-tasks.tsx"), "utf8")
+    expect(view).toContain("data-action=\"github-task-thread\"")
+    expect(view).toContain("secondBrain.github.fromThread")
+  })
+})
