@@ -311,6 +311,7 @@ export const makeSessionGroup = <I extends HttpApiMiddleware.AnyId, S>(sessionLo
     .add(
       HttpApiEndpoint.post("session.compact", "/api/session/:sessionID/compact", {
         params: { sessionID: Session.ID },
+        payload: Schema.Struct({ model: Harness.ModelSelection.pipe(Schema.optional) }),
         success: HttpApiSchema.NoContent,
         error: [SessionNotFoundError, ServiceUnavailableError],
       })
@@ -319,7 +320,8 @@ export const makeSessionGroup = <I extends HttpApiMiddleware.AnyId, S>(sessionLo
           OpenApi.annotations({
             identifier: "v2.session.compact",
             summary: "Compact session",
-            description: "Compact a session conversation.",
+            description:
+              "Compact a harness thread's conversation with the harness's own /compact (Claude Code, OpenCode over ACP), optionally on another model for the compaction only. Fails with 503 while the thread runs or for a harness without /compact.",
           }),
         ),
     )

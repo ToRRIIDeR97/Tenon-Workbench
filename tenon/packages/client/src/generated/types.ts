@@ -743,7 +743,12 @@ export type SessionsQueuedSteerInput = {
 
 export type SessionsQueuedSteerOutput = void
 
-export type SessionsCompactInput = { readonly sessionID: { readonly sessionID: string }["sessionID"] }
+export type SessionsCompactInput = {
+  readonly sessionID: { readonly sessionID: string }["sessionID"]
+  readonly model?: {
+    readonly model?: { readonly id: string; readonly reasoningEffort?: string; readonly serviceTier?: string } | null
+  }["model"]
+}
 
 export type SessionsCompactOutput = void
 

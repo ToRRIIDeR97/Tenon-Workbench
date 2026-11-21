@@ -24,6 +24,8 @@ type HarnessSelection = {
   set: (instanceID: Harness.InstanceID, model?: Harness.ModelSelection) => void
   model: PromptInputHarnessController["model"]
   disabled?: () => boolean
+  /** A turn is running: only the model and effort may change. */
+  harnessLocked?: () => boolean
   fallbackUnavailable?: boolean
 }
 
@@ -239,7 +241,7 @@ export function createPromptHarnessController(selection: HarnessSelection) {
     const next = reconcileHarnessModel({
       selected,
       current: selection.model.current(),
-      running: selection.disabled?.() ?? false,
+      running: (selection.harnessLocked ?? selection.disabled)?.() ?? false,
     })
     if ("set" in next) selection.model.set(next.set)
   })
@@ -253,6 +255,7 @@ export function createPromptHarnessController(selection: HarnessSelection) {
     // Any fetch in flight, or a harness that is up but whose models are still being asked for.
     checking: () => loaded.loading || (waitingForModels() && retry.count < MODEL_RETRIES),
     disabled: selection.disabled,
+    harnessLocked: selection.harnessLocked,
     revalidate,
     update: {
       status: (id: string) => upgrades().status(id),

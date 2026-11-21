@@ -17,7 +17,7 @@ import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
 import { useServerSDK } from "@/context/server-sdk"
 import { useServerSync } from "@/context/server-sync"
-import { modelProvider, useSettings, withVisibleModels } from "@/context/settings"
+import { DEFAULT_COLD_MINUTES, modelProvider, useSettings, withVisibleModels } from "@/context/settings"
 import { harnessSettingsChanged } from "@/components/prompt-input/harness-controller"
 import { createActionLocks, harnessUpgrades } from "@/components/harness-upgrades"
 import { HarnessUsageWindows, cachedUsage, fullestWindow, rememberUsage } from "@/components/harness-usage"
@@ -506,6 +506,9 @@ const HarnessDetails: Component<{
       <Show when={props.entry.enabled && !host()}>
         <HarnessModels entry={props.entry} models={props.instance?.models ?? []} />
       </Show>
+      <Show when={props.entry.enabled && NATIVE_COMPACT.has(props.entry.id)}>
+        <HarnessCompaction entry={props.entry} models={props.instance?.models ?? []} />
+      </Show>
 
       <Show when={editable()}>
         <div class="settings-v2-harness-footer">
@@ -521,6 +524,83 @@ const HarnessDetails: Component<{
         </div>
       </Show>
     </section>
+  )
+}
+
+/** Harnesses whose threads compact with their own /compact (the server's `NATIVE_COMPACT`). */
+const NATIVE_COMPACT = new Set<string>([Harness.ClaudeCode, "opencode-acp"])
+
+const numberClass =
+  "h-8 w-20 rounded-full bg-v2-background-bg-layer-01 px-3 text-right text-[13px] font-[450] leading-5 text-v2-text-text-base shadow-[inset_0_0_0_1px_var(--v2-border-border-base)] outline-none transition-shadow duration-short ease-standard hover:shadow-[inset_0_0_0_1px_var(--v2-border-border-strong)] focus:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)]"
+
+// A cold thread's /compact reloads its whole history into the model; this picks a cheaper model for that case.
+const HarnessCompaction: Component<{ entry: Harness.SettingsEntry; models: ReadonlyArray<Harness.Model> }> = (
+  props,
+) => {
+  const language = useLanguage()
+  const settings = useSettings()
+  const current = () => settings.harnesses.compaction(props.entry.id)
+  const minutes = () => current()?.coldMinutes ?? DEFAULT_COLD_MINUTES
+  const options = createMemo(() => [
+    { value: "", label: language.t("harness.settings.compaction.ownModel") },
+    ...props.models.map((model) => ({ value: model.id, label: model.name })),
+  ])
+  const [draft, setDraft] = createSignal(String(minutes()))
+  return (
+    <div class="settings-v2-section" data-component="harness-compaction">
+      <h4 class="settings-v2-section-title">{language.t("harness.settings.compaction")}</h4>
+      <SettingsListV2>
+        <SettingsRowV2
+          title={language.t("harness.settings.compaction.model")}
+          description={language.t("harness.settings.compaction.model.description")}
+        >
+          <SelectV2
+            appearance="inline"
+            data-action="harness-compaction-model"
+            options={options()}
+            current={options().find((option) => option.value === (current()?.model ?? "")) ?? options()[0]}
+            placement="bottom-end"
+            gutter={6}
+            value={(option) => option.value}
+            label={(option) => option.label}
+            onSelect={(option) =>
+              option &&
+              settings.harnesses.setCompaction(
+                props.entry.id,
+                option.value ? { model: option.value, coldMinutes: minutes() } : undefined,
+              )
+            }
+          />
+        </SettingsRowV2>
+        <Show when={current()?.model}>
+          <SettingsRowV2
+            title={language.t("harness.settings.compaction.cold")}
+            description={language.t("harness.settings.compaction.cold.description")}
+          >
+            <input
+              type="number"
+              min="1"
+              max="1440"
+              step="1"
+              data-action="harness-compaction-cold"
+              class={numberClass}
+              aria-label={language.t("harness.settings.compaction.cold")}
+              value={draft()}
+              // Saves on commit (Enter, the stepper or leaving the field), clamped to 1–1440 minutes.
+              onInput={(event) => setDraft(event.currentTarget.value)}
+              onChange={(event) => {
+                const value = Math.round(Number(event.currentTarget.value))
+                const next = Number.isFinite(value) && value > 0 ? Math.min(value, 1440) : minutes()
+                const setting = current()
+                if (setting) settings.harnesses.setCompaction(props.entry.id, { ...setting, coldMinutes: next })
+                setDraft(String(next))
+              }}
+              onBlur={() => setDraft(String(minutes()))}
+            />
+          </SettingsRowV2>
+        </Show>
+      </SettingsListV2>
+    </div>
   )
 }
 

@@ -515,6 +515,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/session/${encodeURIComponent(input.sessionID)}/compact`,
+            body: { model: input["model"] },
             successStatus: 204,
             declaredStatuses: [404, 503, 400, 401],
             empty: true,

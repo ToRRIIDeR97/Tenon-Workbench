@@ -9,7 +9,7 @@ import { usePermission } from "@/context/permission"
 import { usePrompt } from "@/context/prompt"
 import { useSDK } from "@/context/sdk"
 import { isCommandThread } from "@/features/command-centre/command-centre"
-import { useSettings } from "@/context/settings"
+import { compactionModel, useSettings } from "@/context/settings"
 import { useSync } from "@/context/sync"
 import { useTerminal } from "@/context/terminal"
 import { showToast } from "@/utils/toast"
@@ -22,6 +22,10 @@ import { useSessionLayout } from "@/pages/session/session-layout"
 import { useSessionArchive } from "@/pages/session/session-archive"
 import { createSessionOwnership } from "./session-ownership"
 import { useLocal } from "@/context/local"
+import { useServerSDK } from "@/context/server-sdk"
+import { compactHarnessForServer } from "@/utils/server"
+import { Harness } from "@tenon/schema/harness"
+import type { HarnessSession } from "@/utils/session"
 
 export type SessionCommandContext = {
   navigateMessageByOffset: (offset: number) => void
@@ -40,6 +44,7 @@ const withCategory = (category: string) => {
 
 export const useSessionCommands = (actions: SessionCommandContext) => {
   const platform = usePlatform()
+  const serverSDK = useServerSDK()
   const command = useCommand()
   const dialog = useDialog()
   const file = useFile()
@@ -318,6 +323,24 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   const compact = async () => {
     const sessionID = params.id
     if (!sessionID) return
+    const info = sync().session.get(sessionID) as HarnessSession | undefined
+    const harness = info?.harnessInstanceID ?? Harness.OpenCode
+
+    // A harness thread compacts with its own /compact. Once its prompt cache has gone cold, reloading the whole history
+    // into its model costs as much as the first read, so it compacts on the harness's cheaper compaction model instead.
+    if (harness !== Harness.OpenCode) {
+      const last = info?.time.updated ?? info?.time.created ?? Date.now()
+      const model = compactionModel(settings.harnesses.compaction(harness), (Date.now() - last) / 60_000)
+      try {
+        await compactHarnessForServer({ server: serverSDK().server.http, fetch: platform.fetch }, sessionID, model)
+      } catch (error) {
+        showToast({
+          title: language.t("common.requestFailed"),
+          description: error instanceof Error ? error.message : language.t("common.requestFailed"),
+        })
+      }
+      return
+    }
 
     const model = local.model.current()
     if (!model) {
@@ -329,7 +352,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     }
 
     try {
-      await sdk().api.session.compact({ sessionID, model: { providerID: model.provider.id, modelID: model.id } })
+      await sdk().api.session.compact({ sessionID })
     } catch (error) {
       showToast({
         title: language.t("common.requestFailed"),

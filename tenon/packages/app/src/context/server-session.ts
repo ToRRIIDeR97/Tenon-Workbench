@@ -1112,7 +1112,8 @@ export function createServerSession(
       const next: HarnessSession = {
         ...current,
         harnessInstanceID: switched.instanceID,
-        ...(switched.model ? { harnessModel: switched.model } : {}),
+        // No model means the harness default, as the server records it.
+        harnessModel: switched.model,
         harnessRevision:
           (current.harnessRevision ?? 0) +
           ((current.harnessInstanceID ?? Harness.OpenCode) === switched.instanceID ? 0 : 1),

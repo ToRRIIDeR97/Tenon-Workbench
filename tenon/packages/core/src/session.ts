@@ -94,7 +94,15 @@ type CreateInput = {
 type CompactInput = {
   sessionID: SessionSchema.ID
   prompt?: Prompt
+  /** Compact on this model instead of the thread's own, then switch back: a cheaper one when the cache has gone cold. */
+  model?: Harness.ModelSelection
 }
+
+/**
+ * Harnesses that compact their own conversation when sent `/compact` (Claude Code and OpenCode over ACP). Codex and
+ * the built-in agent don't take it as a command.
+ */
+export const NATIVE_COMPACT = new Set<string>([Harness.ClaudeCode, "opencode-acp"])
 
 export class NotFoundError extends Schema.TaggedError<NotFoundError>()("Session.NotFoundError", {
   sessionID: SessionSchema.ID,
@@ -594,8 +602,35 @@ const layer = Layer.effect(
         })
       }),
       compact: Effect.fn("V2Session.compact")(function* (input) {
-        yield* result.get(input.sessionID)
-        return yield* new OperationUnavailableError({ operation: "compact" })
+        const session = yield* result.get(input.sessionID)
+        if (!NATIVE_COMPACT.has(session.harnessInstanceID) || (yield* execution.active).has(input.sessionID))
+          return yield* new OperationUnavailableError({ operation: "compact" })
+        const original = session.harnessModel
+        const swap =
+          input.model !== undefined &&
+          (input.model.id !== original?.id || input.model.reasoningEffort !== original?.reasoningEffort)
+        const switchTo = (model: Harness.ModelSelection | undefined) =>
+          Effect.gen(function* () {
+            yield* events.publish(SessionEvent.HarnessSwitched, {
+              sessionID: input.sessionID,
+              timestamp: yield* DateTime.now,
+              instanceID: session.harnessInstanceID,
+              model,
+            })
+          })
+        if (swap) yield* switchTo(input.model)
+        // The harness runs its own compaction for the command; the turn ends when the summary replaces the history.
+        yield* SessionInput.admit(db, events, {
+          id: SessionMessage.ID.create(),
+          sessionID: input.sessionID,
+          prompt: resolvePrompt({ text: "/compact" }),
+          delivery: "steer",
+        }).pipe(Effect.orDie)
+        yield* execution.resume(input.sessionID).pipe(
+          Effect.catch(() => Effect.void),
+          // A thread with no model of its own goes back to the harness default.
+          Effect.ensuring(swap ? switchTo(original).pipe(Effect.orDie) : Effect.void),
+        )
       }),
       wait: Effect.fn("V2Session.wait")(function* (sessionID) {
         yield* result.get(sessionID)

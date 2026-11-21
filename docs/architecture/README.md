@@ -1122,7 +1122,18 @@ applies from the next turn); a switch to a different harness while one runs is
 refused with `OperationUnavailable`. Every view applies the server's
 `session.next.harness.switched` event to its cached session
 (`context/server-session.ts` `applyV2`), so the model pill names the model the
-next turn runs on even when the switch came from elsewhere. The
+next turn runs on even when the switch came from elsewhere.
+
+`/compact` on a harness thread posts `/api/session/:id/compact` with an optional
+`model` (`compactHarnessForServer`). `SessionV2.compact` sends the harness its own
+`/compact` for Claude Code and OpenCode over ACP (`NATIVE_COMPACT`; others, and a
+running thread, get 503). Given a model, it switches the thread to it for the
+compaction turn and back afterwards. Settings → Harnesses → Compaction keeps a
+per-harness `compaction` setting `{ model, coldMinutes }` (default 29): a thread
+idle that long has lost its prompt cache, so `/compact` (`compactionModel`) uses
+the cheaper model instead of reloading the history into the thread's own. While
+a turn runs the model pill keeps model and effort usable (`harnessLocked` locks
+only the harness). The
 Command Centre's `createComposerHarness` reads the remembered list while its
 query is pending instead of suspending.
 
