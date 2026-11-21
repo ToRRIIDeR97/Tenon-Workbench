@@ -397,6 +397,21 @@ app:
   (`@tenon/ui/v2/motion`), which understands both `200ms` and the minified
   `.2s`; never `parseFloat` a duration token yourself.
 
+## Sound
+
+Notification sounds are calm and short, like the motion. Tenon's own come from
+`tenon/packages/ui/script/sounds.ts`; change them there and run
+`bun script/sounds.ts` from `tenon/packages/ui` (needs ffmpeg) rather than
+editing audio files.
+
+- Three families (Glass, the default, Soft and Pulse), each with the same three
+  phrases: **done** rises, **needs you** taps twice on one note, **error**
+  falls. Error sits lowest and needs-you brightest, so they are told apart
+  without looking.
+- Under 0.8 s, a soft attack (no click), a fade to silence, and one peak level
+  (-9 dBFS) across the set.
+- "Done" is off by default because it fires often; needs-you and error are on.
+
 ## Accessibility
 
 - Text meets WCAG AA contrast in light and dark. Check both themes.

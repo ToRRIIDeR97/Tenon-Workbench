@@ -249,14 +249,15 @@ const defaultSettings: Settings = {
     permissions: true,
     errors: false,
   },
-  // Tenon's own sounds. "Finished" is off by default: it fires often, so it's opt-in.
+  // Tenon's own sounds, the Glass set. "Finished" is off by default: it fires often, so it's opt-in. A sound the user
+  // picked is kept; only unset ones follow the defaults.
   sounds: {
     agentEnabled: false,
-    agent: "tenon-done",
+    agent: "tenon-glass-done",
     permissionsEnabled: true,
-    permissions: "tenon-attention",
+    permissions: "tenon-glass-attention",
     errorsEnabled: true,
-    errors: "tenon-error",
+    errors: "tenon-glass-error",
   },
 }
 
