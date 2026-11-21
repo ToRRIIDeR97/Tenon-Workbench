@@ -9,7 +9,6 @@ import { Location } from "@tenon/core/location"
 import { LocationMutation } from "@tenon/core/location-mutation"
 import { ProjectV2 } from "@tenon/core/project"
 import { Effect, Option, Schema } from "effect"
-import matter from "gray-matter"
 import { createHash, randomBytes } from "node:crypto"
 import { readFileSync } from "node:fs"
 import { lstat, readdir, readFile, rmdir } from "node:fs/promises"
@@ -1155,13 +1154,9 @@ function encode(
   bom: boolean,
 ) {
   const rest = Object.fromEntries(Object.entries(properties).filter(([key]) => !reservedKeys.has(key)))
-  // An object, not a string: gray-matter parses a string first, so a body opening with its own front
+  // Never through gray-matter's string form, which parses the body first: a body opening with its own front
   // matter would merge into the page's properties, and a `---js` block would be evaluated.
-  const source = matter.stringify(
-    { content: body },
-    { id: head.id, title: head.title, ...rest, updated_at: head.updatedAt },
-    {},
-  )
+  const source = Frontmatter.stringify(body, { id: head.id, title: head.title, ...rest, updated_at: head.updatedAt })
   return bom ? `﻿${source}` : source
 }
 

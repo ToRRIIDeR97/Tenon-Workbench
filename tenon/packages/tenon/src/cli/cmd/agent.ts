@@ -5,7 +5,7 @@ import { Global } from "@tenon/core/global"
 import path from "path"
 import fs from "fs/promises"
 import { Filesystem } from "@/util/filesystem"
-import matter from "gray-matter"
+import { Frontmatter } from "@tenon/core/frontmatter"
 import { EOL } from "os"
 import type { Argv } from "yargs"
 import { Effect } from "effect"
@@ -205,7 +205,8 @@ const AgentCreateCommand = effectCmd({
       }
 
       // Write file
-      const content = matter.stringify(generated.systemPrompt, frontmatter)
+      // The generated prompt is model output: never parse it as front matter (a `---js` block would run).
+      const content = Frontmatter.stringify(generated.systemPrompt, frontmatter)
       const filePath = path.join(targetPath, `${generated.identifier}.md`)
 
       await fs.mkdir(targetPath, { recursive: true })

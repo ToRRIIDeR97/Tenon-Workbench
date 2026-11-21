@@ -11,7 +11,6 @@ import { SessionTable } from "@tenon/core/session/sql"
 import { WorkspaceInstructions } from "@tenon/core/workspace-instructions"
 import { and, count, inArray, isNull, max } from "drizzle-orm"
 import { Effect, Option, Schema } from "effect"
-import matter from "gray-matter"
 import path from "node:path"
 import { ulid } from "ulid"
 import type { PlannerCalendar } from "../planner/calendar"
@@ -964,7 +963,7 @@ export function encode(info: Info, previous: Record<string, unknown>, body: stri
   setOptional(data, "next_milestone", info.nextMilestone)
   setOptional(data, "blocker", info.blocker)
   setOptional(data, "location", info.location)
-  return matter.stringify({ content: body }, data, {})
+  return Frontmatter.stringify(body, data)
 }
 
 function validate(info: Info) {
