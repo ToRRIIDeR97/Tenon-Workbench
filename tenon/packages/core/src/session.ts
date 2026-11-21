@@ -104,6 +104,12 @@ type CompactInput = {
  */
 export const NATIVE_COMPACT = new Set<string>([Harness.ClaudeCode, "opencode-acp"])
 
+/** `/compact` ran and failed; `message` says why (the harness's own error, when it gave one). */
+export class CompactFailedError extends Schema.TaggedError<CompactFailedError>()("Session.CompactFailedError", {
+  sessionID: SessionSchema.ID,
+  message: Schema.String,
+}) {}
+
 export class NotFoundError extends Schema.TaggedError<NotFoundError>()("Session.NotFoundError", {
   sessionID: SessionSchema.ID,
 }) {}
@@ -211,7 +217,9 @@ export interface Interface {
     skill: string
     resume?: boolean
   }) => Effect.Effect<void, OperationUnavailableError>
-  readonly compact: (input: CompactInput) => Effect.Effect<void, NotFoundError | OperationUnavailableError>
+  readonly compact: (
+    input: CompactInput,
+  ) => Effect.Effect<void, NotFoundError | OperationUnavailableError | CompactFailedError>
   readonly wait: (id: SessionSchema.ID) => Effect.Effect<void, NotFoundError | OperationUnavailableError>
   readonly active: Effect.Effect<ReadonlySet<SessionSchema.ID>>
   readonly resume: (sessionID: SessionSchema.ID) => Effect.Effect<void, NotFoundError | SessionRunner.RunError>
@@ -239,6 +247,8 @@ const layer = Layer.effect(
     const execution = yield* SessionExecution.Service
     const store = yield* SessionStore.Service
     const locations = yield* LocationServiceMap.Service
+    // Threads running a /compact right now; messages sent to them queue until it ends.
+    const compacting = new Set<string>()
     const decodeMessage = Schema.decodeUnknownEffect(SessionMessage.Message)
     const isDurableSessionEvent = Schema.is(SessionEvent.Durable)
     const decode = (row: typeof SessionMessageTable.$inferSelect) =>
@@ -500,7 +510,9 @@ const layer = Layer.effect(
               resolvePrompt(input.prompt),
             )
             const messageID = input.id ?? SessionMessage.ID.create()
-            const delivery = input.delivery ?? "steer"
+            // A message sent while the thread compacts waits for the compaction instead of steering into it.
+            const compactingNow = compacting.has(input.sessionID)
+            const delivery = compactingNow ? "queue" : (input.delivery ?? "steer")
             const expected = { sessionID: input.sessionID, messageID, prompt, delivery }
             const admitted = yield* SessionInput.admit(db, events, {
               id: messageID,
@@ -516,7 +528,7 @@ const layer = Layer.effect(
             )
             if (!SessionInput.equivalent(admitted, expected))
               return yield* new PromptConflictError({ sessionID: input.sessionID, messageID })
-            if (input.resume !== false) yield* execution.wake(admitted.sessionID)
+            if (input.resume !== false && !compactingNow) yield* execution.wake(admitted.sessionID)
             return admitted
           }),
         ),
@@ -618,19 +630,40 @@ const layer = Layer.effect(
               model,
             })
           })
-        if (swap) yield* switchTo(input.model)
-        // The harness runs its own compaction for the command; the turn ends when the summary replaces the history.
-        yield* SessionInput.admit(db, events, {
-          id: SessionMessage.ID.create(),
-          sessionID: input.sessionID,
-          prompt: resolvePrompt({ text: "/compact" }),
-          delivery: "steer",
-        }).pipe(Effect.orDie)
-        yield* execution.resume(input.sessionID).pipe(
-          Effect.catch(() => Effect.void),
-          // A thread with no model of its own goes back to the harness default.
-          Effect.ensuring(swap ? switchTo(original).pipe(Effect.orDie) : Effect.void),
+        compacting.add(input.sessionID)
+        const failure = yield* Effect.gen(function* () {
+          if (swap) yield* switchTo(input.model)
+          // The harness runs its own compaction for the command; the turn ends when the summary replaces the history.
+          yield* SessionInput.admit(db, events, {
+            id: SessionMessage.ID.create(),
+            sessionID: input.sessionID,
+            prompt: resolvePrompt({ text: "/compact" }),
+            delivery: "steer",
+          }).pipe(Effect.orDie)
+          const run = yield* execution.resume(input.sessionID).pipe(
+            Effect.as(undefined),
+            Effect.catch((error) => Effect.succeed(error instanceof Error ? error.message : String(error))),
+            Effect.catchDefect((defect) => Effect.succeed(defect instanceof Error ? defect.message : String(defect))),
+          )
+          if (run) return run
+          // A turn that failed (the harness signed out, the model refused) records its error on its reply.
+          const [reply] = yield* result
+            .messages({ sessionID: input.sessionID, order: "desc", limit: 1 })
+            .pipe(Effect.orElseSucceed(() => []))
+          return reply?.type === "assistant" && reply.error ? reply.error.message : undefined
+        }).pipe(
+          Effect.ensuring(
+            Effect.gen(function* () {
+              // A thread with no model of its own goes back to the harness default.
+              if (swap) yield* switchTo(original).pipe(Effect.orDie)
+              compacting.delete(input.sessionID)
+              // Messages sent during the compaction were queued; they run now.
+              if ((yield* SessionInput.listQueued(db, input.sessionID)).length > 0)
+                yield* execution.wake(input.sessionID)
+            }),
+          ),
         )
+        if (failure) return yield* new CompactFailedError({ sessionID: input.sessionID, message: failure })
       }),
       wait: Effect.fn("V2Session.wait")(function* (sessionID) {
         yield* result.get(sessionID)
