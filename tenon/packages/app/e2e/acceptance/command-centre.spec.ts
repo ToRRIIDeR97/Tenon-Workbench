@@ -40,8 +40,9 @@ async function start(page: Page, events: unknown[] = [], input: Parameters<typeo
   )
 }
 const strip = (page: Page) => page.locator("[data-command-strip]")
-// The agent panel shows its newest exchange; Threads swaps it for the thread list and memory search.
-const openThreadList = (page: Page) => page.locator('[data-action="command-agent-threads"]').click()
+// The hub's band names the Command Centre's harness and model and opens its newest thread.
+const band = (page: Page) => page.locator('[data-component="hub-band"]')
+const openLeadThread = (page: Page) => band(page).getByRole("button", { name: "Open thread", exact: true }).click()
 // The app picks Ctrl or Cmd from navigator.platform, which the "Desktop Chrome" device reports as Win32 on any host.
 const toggleStrip = async (page: Page) => {
   const mac = await page.evaluate(() => /(Mac|iPod|iPhone|iPad)/.test(navigator.platform))
@@ -63,12 +64,14 @@ test("AC-7.1 the rail's fourth destination is Command Centre and /activity redir
   await expect(page).toHaveURL(/\/command$/)
 })
 
-test("AC-7.2 the Command Centre lists only its own threads", async ({ page }) => {
-  await start(page)
+test("AC-7.2 the Command Centre opens only its own threads, and they stay out of the sidebar", async ({ page }) => {
+  // The Project thread is the newer one: the hub must still open the Command Centre's own.
+  await start(page, [], {
+    sessions: [commandThread, { ...projectThread, time: { created: 1762000400000, updated: 1762000500000 } }],
+  })
   await page.goto("/command")
-  await openThreadList(page)
-  await expect(page.getByText("Plan the billing webhook work")).toBeVisible()
-  await expect(page.getByRole("list", { name: "Command Centre threads" }).getByText("Cookie migration")).toHaveCount(0)
+  await openLeadThread(page)
+  await expect(page).toHaveURL(threadURL)
   await page.goto("/")
   await expect(sidebar(page).getByText("Plan the billing webhook work")).toHaveCount(0)
 })
@@ -79,14 +82,14 @@ const threadURL = new RegExp(`/session/${commandThread.id}$`)
 test("AC-3 a Command Centre thread opens in the thread view, as do older ?thread= links", async ({ page }) => {
   await start(page)
   await page.goto("/command")
-  await openThreadList(page)
-  await page.getByRole("link", { name: /Plan the billing webhook work/ }).click()
+  await openLeadThread(page)
   await expect(page).toHaveURL(threadURL)
+  await expect(page.locator('[data-component="prompt-input-v2"]')).toBeVisible()
   await page.goto(`/command?thread=${commandThread.id}`)
   await expect(page).toHaveURL(threadURL)
 })
 
-test("AC-3 the Command Centre composer has the model pill", async ({ page }) => {
+test("AC-3 the hub names the Command Centre's harness and model and has its composer", async ({ page }) => {
   await start(page)
   await page.route("**/api/harness?**", (route) =>
     route.fulfill({
@@ -97,7 +100,10 @@ test("AC-3 the Command Centre composer has the model pill", async ({ page }) => 
     }),
   )
   await page.goto("/command")
-  await expect(page.getByRole("textbox", { name: "Message the Command Centre", exact: true })).toBeVisible()
+  await expect(page.getByRole("textbox", { name: "Ask or steer the Command Centre", exact: true })).toBeVisible()
+  await expect(band(page)).toContainText("Command Centre")
+  // The model is chosen in the thread, where the composer has the model pill.
+  await openLeadThread(page)
   await expect(page.locator('[data-action="prompt-model-pill"]')).toBeVisible()
 })
 
@@ -210,7 +216,7 @@ test("AC-7.4 memory age defaults to 45 days and lowering it warns", async ({ pag
   await expect(page.getByText("Threads older than this are summarised and deleted for good.")).toBeVisible()
 })
 
-test("AC-7.7 a Command Centre thread shows its writes as inline cards in the thread view", async ({ page }) => {
+test("AC-7.7 a Command Centre thread lists its writes as Done for you in the thread view", async ({ page }) => {
   const write = (id: string, kind: string, phase: string) => ({
     directory: commandDirectory,
     payload: {
@@ -236,9 +242,11 @@ test("AC-7.7 a Command Centre thread shows its writes as inline cards in the thr
   // Open the thread view first: on any other page these writes would rightly show the top pill.
   await page.goto(`/${base64Encode(commandDirectory)}/session/${commandThread.id}`)
   await expect(page).toHaveURL(threadURL)
-  // The thread view shows each write in its turn, as for a Project thread; never also as the top pill.
-  const cards = page.locator('[data-agent-write][data-variant="inline"]')
-  await expect(cards).toHaveCount(2)
+  // The thread view lists each write once, under "Done for you" (a Project thread shows inline cards instead); never
+  // also as the top pill.
+  const done = page.locator('[data-agent-write][data-variant="done"]')
+  await expect(done).toHaveCount(2)
+  await expect(page.getByRole("heading", { name: "Done for you · 2 actions" })).toBeVisible()
   expect(await page.locator('[data-agent-write][data-variant="pill"]').count()).toBe(0)
 })
 
@@ -294,7 +302,8 @@ const group = (page: Page, name: string) => mission(page).locator(`[data-group="
 const threadIDs = (scope: ReturnType<typeof group>) =>
   scope.locator("[data-thread]").evaluateAll((rows) => rows.map((row) => row.getAttribute("data-thread")))
 
-async function startBoard(
+// The Command Centre's fixtures: a running, a waiting and a finished Project thread, and a pending permission.
+async function startCommand(
   page: Page,
   input: Pick<
     Parameters<typeof openApp>[1],
@@ -307,19 +316,39 @@ async function startBoard(
     | "children"
     | "sessions"
   > = {},
+  // Events the stream delivers, one per connection.
+  events: unknown[] = [],
 ) {
-  await start(page, [], {
+  await start(page, events, {
     sessions: boardSessions(),
     projectThreads: [boardProject],
     sessionStatus: { ses_board_run: { type: "busy" } },
     permissions: [boardPermission],
     ...input,
   })
-  await page.goto("/command")
+}
+// The mission board sits in the panel beside a Command Centre thread.
+const showBoard = async (page: Page) => {
+  await page.goto(`/command?thread=${commandThread.id}`)
+  await expect(page).toHaveURL(threadURL)
   await expect(mission(page)).toBeVisible()
 }
+async function startBoard(page: Page, input: Parameters<typeof startCommand>[1] = {}) {
+  await startCommand(page, input)
+  await showBoard(page)
+}
+// The Command Centre page: the hub, with Waiting on you and Workflows in its header.
+async function startHub(
+  page: Page,
+  input: Parameters<typeof startCommand>[1] = {},
+  events: Parameters<typeof startCommand>[2] = [],
+) {
+  await startCommand(page, input, events)
+  await page.goto("/command")
+  await expect(page.locator('[data-component="command-hub"]')).toBeVisible()
+}
 
-test("AC-1.4 the board lists every Project's recent threads by state, beside the thread list and composer", async ({
+test("AC-1.4 the board lists every Project's recent threads by state, beside the Command Centre thread", async ({
   page,
 }) => {
   await startBoard(page)
@@ -330,11 +359,9 @@ test("AC-1.4 the board lists every Project's recent threads by state, beside the
   await expect(mission(page).locator('[data-thread="ses_command_1"]')).toHaveCount(0)
   await expect(group(page, "running").getByText("Migrate the billing webhook")).toBeVisible()
 
-  // The Command Centre's own thread list, memory search and composer stay on the page, in the agent panel.
-  await expect(page.getByRole("textbox", { name: "Message the Command Centre", exact: true })).toBeVisible()
-  await openThreadList(page)
-  await expect(page.getByRole("list", { name: "Command Centre threads" }).getByText(commandThread.title)).toBeVisible()
-  await expect(page.getByRole("searchbox", { name: "Search memory" })).toBeVisible()
+  // The board sits beside the Command Centre's own thread, whose composer stays in reach.
+  await expect(page.locator('[data-component="command-mission-panel"]')).toBeVisible()
+  await expect(page.locator('[data-component="prompt-input-v2"]')).toBeVisible()
 
   // By project: one section per Project, General last, each row keeping its state.
   await mission(page).locator('[data-action="board-view"]', { hasText: "By project" }).click()
@@ -382,11 +409,11 @@ test("AC-1.5 Steer sends one line to that thread, an empty line sends nothing, a
   await field.press("Enter")
   await expect.poll(() => prompts).toEqual([{ sessionID: "ses_board_run", text: "run the tests first" }])
   await expect(field).toHaveCount(0)
-  await expect(page).toHaveURL(/\/command$/)
+  await expect(page).toHaveURL(threadURL)
 
   await row.locator('[data-action="board-stop"]').click()
   await expect.poll(() => aborts).toEqual(["ses_board_run"])
-  await expect(page).toHaveURL(/\/command$/)
+  await expect(page).toHaveURL(threadURL)
 })
 
 test("AC-1.5 a failed Stop shows the request-failed message on the row", async ({ page }) => {
@@ -405,7 +432,7 @@ test("AC-1.6 Review and Open go to the thread", async ({ page }) => {
   await needs.locator('[data-action="board-review"]').click()
   await expect(page).toHaveURL(/\/session\/ses_board_need$/)
 
-  await page.goto("/command")
+  await showBoard(page)
   await mission(page).locator('[data-thread="ses_board_done"] [data-action="board-open"]').click()
   await expect(page).toHaveURL(/\/session\/ses_board_done$/)
 })
@@ -464,6 +491,11 @@ test("AC-4 a Project's crew lists working agents above finished ones, and AC-3 t
 const queue = (page: Page) => page.locator('[data-component="approval-queue"]')
 const doneLog = (page: Page) => page.locator('[data-component="command-actions"]')
 const waitingView = (page: Page) => page.locator('[data-action="command-view"]', { hasText: "Waiting on you" })
+// A request reaches the Command Centre live, from the event stream, whichever Project folder it is in.
+const asked = (type: "permission.asked" | "question.asked", properties: { id: string }) => ({
+  directory: repo,
+  payload: { id: `evt_${properties.id}`, type, properties },
+})
 const boardQuestion = {
   id: "que_board_run",
   sessionID: "ses_board_run",
@@ -474,10 +506,14 @@ test("AC-2.6 a pending permission of a Project thread is in the queue and Allow 
   page,
 }) => {
   const replies: { sessionID: string; requestID: string; body: unknown }[] = []
-  await startBoard(page, {
-    onPermissionReply: (input) =>
-      replies.push({ sessionID: input.sessionID, requestID: input.requestID, body: input.body }),
-  })
+  await startHub(
+    page,
+    {
+      onPermissionReply: (input) =>
+        replies.push({ sessionID: input.sessionID, requestID: input.requestID, body: input.body }),
+    },
+    [asked("permission.asked", boardPermission)],
+  )
   await waitingView(page).click()
   const card = queue(page).locator('[data-request="per_board_need"]')
   await expect(card).toBeVisible()
@@ -497,15 +533,19 @@ test("AC-2.6 a pending permission of a Project thread is in the queue and Allow 
   // Answering removes the item; the page stays where it was.
   await expect(card).toHaveCount(0)
   await expect(queue(page)).toContainText("Nothing is waiting on you.")
-  await expect(page).toHaveURL(/\/command$/)
+  await expect(page).toHaveURL(/\/command\?view=waiting$/)
 })
 
 test("AC-2.6 Deny sends its own reply, and a question item opens its thread", async ({ page }) => {
   const replies: string[] = []
-  await startBoard(page, {
-    questions: [boardQuestion],
-    onPermissionReply: (input) => replies.push(JSON.stringify(input.body)),
-  })
+  await startHub(
+    page,
+    {
+      questions: [boardQuestion],
+      onPermissionReply: (input) => replies.push(JSON.stringify(input.body)),
+    },
+    [asked("permission.asked", boardPermission), asked("question.asked", boardQuestion)],
+  )
   await waitingView(page).click()
   const question = queue(page).locator('[data-request="que_board_run"]')
   await expect(question).toContainText("Which environment should the webhook migration use?")
@@ -524,7 +564,7 @@ test("AC-2.6 Deny sends its own reply, and a question item opens its thread", as
 test("AC-2.7 the view lists today's actions of the agent with Open, and each Project's permission mode", async ({
   page,
 }) => {
-  await startBoard(page, {
+  await startHub(page, {
     commandActions: () => [
       {
         id: "act_stop",
@@ -604,14 +644,8 @@ const workflows = (page: Page) => page.locator('[data-component="workflows"]')
 const roleCard = (page: Page, id: string) => workflows(page).locator(`[data-role="${id}"]`)
 const problems = (page: Page) => workflows(page).locator('[data-slot="workflow-problems"]')
 
-async function startWorkflows(page: Page, input: Parameters<typeof startBoard>[1] = {}) {
-  await start(page, [], {
-    sessions: boardSessions(),
-    projectThreads: [boardProject],
-    sessionStatus: { ses_board_run: { type: "busy" } },
-    permissions: [boardPermission],
-    ...input,
-  })
+async function startWorkflows(page: Page, input: Parameters<typeof startCommand>[1] = {}) {
+  await startCommand(page, input)
   // The same harness list the composer offers.
   await page.route("**/api/harness?**", (route) =>
     route.fulfill({
@@ -845,7 +879,7 @@ async function startRuns(
     },
     { key: runsKey, runs: input.runs },
   )
-  await startBoard(page, {
+  await startHub(page, {
     sessions: [...boardSessions(), ...input.threads],
     pageMessages: (id) => ({ items: input.messages?.[id] ?? [] }),
     onAbort: input.onAbort,
@@ -1045,7 +1079,7 @@ test("AC-4.6 Pause interrupts the director, Resume sends it on, and Stop interru
   await expect.poll(async () => (await storedRuns(page))[0]?.status).toBe("stopped")
 })
 
-test("AC-4.6 a director's board row shows its round and opens the run view, and the run links back to the board", async ({
+test("AC-4.6 a director's board row shows its round and opens the run view, and the run links to its Project", async ({
   page,
 }) => {
   await startRuns(page, {
@@ -1053,6 +1087,7 @@ test("AC-4.6 a director's board row shows its round and opens the run view, and 
     threads: [directorThread("ses_dir_a", "Replace the tab strip")],
     messages: { ses_dir_a: twoRounds },
   })
+  await showBoard(page)
   const row = mission(page).locator('[data-thread="ses_dir_a"]')
   await expect(row.locator('[data-slot="board-row-detail"]')).toContainText("Round 2 of 5")
   // A thread without a run has neither.
@@ -1061,9 +1096,10 @@ test("AC-4.6 a director's board row shows its round and opens the run view, and 
   await expect(runView(page)).toBeVisible()
   await expect(runStatus(page)).toHaveText("Running · round 2 of 5")
 
+  // The run's Project opens in the hub, with its crew.
   await runView(page).locator('[data-action="run-open-project"]').click()
-  await expect(mission(page)).toBeVisible()
-  await expect(mission(page).locator('[data-project="prj_repo"]')).toBeVisible()
+  await expect(page).toHaveURL(/\/command\?project=prj_repo$/)
+  await expect(page.locator('[data-component="hub-project"]')).toBeVisible()
   await expect(runView(page)).toHaveCount(0)
 })
 
