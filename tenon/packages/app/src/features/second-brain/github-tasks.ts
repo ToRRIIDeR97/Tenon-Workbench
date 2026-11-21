@@ -20,6 +20,10 @@ export type GithubPull = {
   checks?: "passing" | "failing" | "pending"
   review?: "approved" | "changes" | "required"
   closes: ReadonlyArray<number>
+  /** When it merged or closed; a done PR shows under All for two weeks, as done issues do. */
+  closedAt?: string
+  /** The Project thread that produced the PR (its messages first carry the URL). */
+  thread?: { id: string; title: string }
 }
 export type GithubWorkOk = {
   status: "ok"
@@ -35,6 +39,8 @@ export type GithubWork =
 
 export type GithubTaskStatus = "merged" | "checks-failing" | "changes-requested" | "in-review" | "draft"
 export type GithubTaskRow = {
+  /** An issue (with the PRs that close it), or a PR that closes none of the listed issues. */
+  kind: "issue" | "pull"
   number: number
   title: string
   url: string
@@ -42,6 +48,8 @@ export type GithubTaskRow = {
   done: boolean
   pulls: GithubPull[]
   status?: GithubTaskStatus
+  /** The thread that produced the PR the row shows, so a merged PR leads back to its conversation. */
+  thread?: { id: string; title: string }
 }
 
 const RECENT_MS = 14 * 24 * 60 * 60 * 1000
@@ -64,7 +72,7 @@ export function githubTaskRows(
       : issue.state === "open" || (show === "all" && !!issue.closedAt && now - Date.parse(issue.closedAt) <= RECENT_MS),
   )
   // Open first, newest change first; done issues after them.
-  return shown
+  const issueRows: GithubTaskRow[] = shown
     .toSorted(
       (a, b) =>
         Number(a.state === "closed") - Number(b.state === "closed") ||
@@ -72,7 +80,9 @@ export function githubTaskRows(
     )
     .map((issue) => {
       const pulls = work.pulls.filter((pull) => pull.closes.includes(issue.number))
+      const shownPull = pulls.find((pull) => pull.state === "open") ?? pulls[0]
       return {
+        kind: "issue" as const,
         number: issue.number,
         title: issue.title,
         url: issue.url,
@@ -80,8 +90,36 @@ export function githubTaskRows(
         done: issue.state === "closed",
         pulls,
         status: taskStatus(pulls),
+        ...(shownPull?.thread ? { thread: shownPull.thread } : {}),
       }
     })
+  // A PR that closes none of the listed issues has no issue to hang under, so it is a row of its own (#331): open
+  // ones always, merged and closed ones under All.
+  const listed = new Set(work.issues.map((issue) => issue.number))
+  const pullRows: GithubTaskRow[] = work.pulls
+    .filter((pull) => !pull.closes.some((number) => listed.has(number)))
+    .filter(
+      (pull) =>
+        pull.state === "open" || (show === "all" && (!pull.closedAt || now - Date.parse(pull.closedAt) <= RECENT_MS)),
+    )
+    .toSorted((a, b) => Number(a.state !== "open") - Number(b.state !== "open") || b.number - a.number)
+    .map((pull) => ({
+      kind: "pull" as const,
+      number: pull.number,
+      title: pull.title,
+      url: pull.url,
+      author: "",
+      done: pull.state !== "open",
+      pulls: [pull],
+      status: taskStatus([pull]),
+      ...(pull.thread ? { thread: pull.thread } : {}),
+    }))
+  return [
+    ...issueRows.filter((row) => !row.done),
+    ...pullRows.filter((row) => !row.done),
+    ...issueRows.filter((row) => row.done),
+    ...pullRows.filter((row) => row.done),
+  ]
 }
 
 /** The one state that matters most for the task, from the PRs that close it. */

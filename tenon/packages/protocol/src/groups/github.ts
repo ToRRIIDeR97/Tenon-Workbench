@@ -23,6 +23,9 @@ const Pull = Schema.Struct({
   checks: Schema.optional(Schema.Literals(["passing", "failing", "pending"])),
   review: Schema.optional(Schema.Literals(["approved", "changes", "required"])),
   closes: Schema.Array(Schema.Number),
+  closedAt: Schema.optional(Schema.String),
+  /** The Project thread whose messages first carry the PR's URL: the one that produced it. */
+  thread: Schema.optional(Schema.Struct({ id: Schema.String, title: Schema.String })),
 })
 
 export const GithubWork = Schema.Union([

@@ -1,3 +1,4 @@
+import { useNavigate } from "@solidjs/router"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { Icon } from "@tenon/ui/v2/icon"
 import { TextInputV2 } from "@tenon/ui/v2/text-input-v2"
@@ -5,7 +6,9 @@ import { For, Match, Show, Switch, createMemo, createResource } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
+import { useServer } from "@/context/server"
 import { useServerSDK } from "@/context/server-sdk"
+import { sessionHref } from "@/utils/session-route"
 import { projectGithubWork } from "@/utils/server"
 import { githubTaskRows, type GithubTaskRow, type GithubWork } from "./github-tasks"
 
@@ -27,6 +30,8 @@ export function ProjectGithubTasks(props: {
   const language = useLanguage()
   const platform = usePlatform()
   const serverSDK = useServerSDK()
+  const server = useServer()
+  const navigate = useNavigate()
   const [request, setRequest] = createStore({
     options: {} as { refresh?: boolean },
     version: 0,
@@ -94,7 +99,15 @@ export function ProjectGithubTasks(props: {
             </Match>
           </Switch>
           <ul class="flex flex-col divide-y divide-v2-border-border-muted">
-            <For each={rows()}>{(row) => <GithubTaskItem row={row} open={(url) => platform.openExternal(url)} />}</For>
+            <For each={rows()}>
+              {(row) => (
+                <GithubTaskItem
+                  row={row}
+                  open={(url) => platform.openExternal(url)}
+                  openThread={(id) => navigate(sessionHref(server.key, id))}
+                />
+              )}
+            </For>
           </ul>
         </div>
       )}
@@ -102,14 +115,14 @@ export function ProjectGithubTasks(props: {
   )
 }
 
-function GithubTaskItem(props: { row: GithubTaskRow; open: (url: string) => void }) {
+function GithubTaskItem(props: { row: GithubTaskRow; open: (url: string) => void; openThread: (id: string) => void }) {
   const language = useLanguage()
   const pull = () => props.row.pulls.find((item) => item.state === "open") ?? props.row.pulls[0]
   const detail = () =>
     [
-      `#${props.row.number}`,
+      props.row.kind === "pull" ? "" : `#${props.row.number}`,
       pull()
-        ? props.row.done && pull()!.state === "merged"
+        ? props.row.kind === "issue" && props.row.done && pull()!.state === "merged"
           ? language.t("secondBrain.github.doneWhenMerged", { number: pull()!.number })
           : language.t("secondBrain.github.pull", { number: pull()!.number })
         : "",
@@ -118,11 +131,12 @@ function GithubTaskItem(props: { row: GithubTaskRow; open: (url: string) => void
       .filter(Boolean)
       .join(" · ")
   return (
-    <li>
+    <li class="flex items-center">
       <button
         type="button"
-        data-github-issue={props.row.number}
-        class="flex min-h-12 w-full items-center gap-3 px-4 py-1.5 text-left outline-none hover:bg-v2-overlay-simple-overlay-hover focus-visible:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)]"
+        data-github-issue={props.row.kind === "issue" ? props.row.number : undefined}
+        data-github-pull={props.row.kind === "pull" ? props.row.number : undefined}
+        class="flex min-h-12 min-w-0 flex-1 items-center gap-3 px-4 py-1.5 text-left outline-none hover:bg-v2-overlay-simple-overlay-hover focus-visible:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)]"
         onClick={() => props.open(props.row.url)}
       >
         {/* Read-only like a task's box: GitHub ticks it when the issue closes (a merged PR closes it). */}
@@ -169,6 +183,21 @@ function GithubTaskItem(props: { row: GithubTaskRow; open: (url: string) => void
           )}
         </Show>
       </button>
+      {/* The thread that produced the PR, so a merged PR leads back to its conversation (#331). */}
+      <Show when={props.row.thread}>
+        {(thread) => (
+          <ButtonV2
+            size="small"
+            variant="ghost-muted"
+            data-action="github-task-thread"
+            class="mr-2 max-w-48 shrink-0"
+            title={thread().title}
+            onClick={() => props.openThread(thread().id)}
+          >
+            <span class="truncate">{language.t("secondBrain.github.fromThread", { title: thread().title })}</span>
+          </ButtonV2>
+        )}
+      </Show>
     </li>
   )
 }

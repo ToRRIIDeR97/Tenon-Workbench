@@ -51,17 +51,17 @@
     "@tenon/ui": "workspace:*",
     "@pierre/diffs": "catalog:",
     "@shikijs/stream": "catalog:",
-    "@solid-primitives/event-listener": "2.4.5",
-    "@solid-primitives/media": "2.3.3",
-    "@solid-primitives/resize-observer": "2.1.5",
+    "@solid-primitives/event-listener": "2.4.6",
+    "@solid-primitives/media": "2.3.6",
+    "@solid-primitives/resize-observer": "2.2.0",
     "diff": "catalog:",
-    "dompurify": "3.4.17",
+    "dompurify": "3.4.18",
     "marked": "catalog:",
     "morphdom": "2.7.8",
-    "motion": "12.34.5",
+    "motion": "12.43.0",
     "remend": "catalog:",
     "shiki": "catalog:",
     "solid-js": "catalog:",
-    "strip-ansi": "7.1.2"
+    "strip-ansi": "7.2.0"
   }
 }

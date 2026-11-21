@@ -271,8 +271,11 @@ Use `[font-weight:N]` when a weight must differ from the role.
   grows: a small accent wave (14 bars, 56×16px) that follows the voice, the
   words heard so far in italic `text-muted` (they're still being transcribed;
   a long transcript clips at its start so the newest words stay in view), and
-  a small contrast Stop. Escape throws the recording away. The final
-  transcript goes in at the caret as ordinary text.
+  a layer-02 chip naming the language it transcribes in ("Detect language"
+  when the model detects it), and a small contrast Stop. Escape throws the
+  recording away. The final transcript goes in at the caret as ordinary text;
+  when it differs from the words shown, a toast says how many words changed
+  with "Use what I saw".
 - **Computer use on screen** (`computer-indicator.ts`): while an agent acts on
   the desktop, a Tenon-blue (`--v2-blue-600`, `#3b5cf6`) glow frames the
   display (a 2px edge with a soft inner glow that breathes; steady under

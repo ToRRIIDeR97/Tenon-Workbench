@@ -77,7 +77,11 @@ platform exposes `dictation` (desktop); the web build has no mic.
   `onLevel`, `onBands` and `onPartial` (only while recording; IPC
   `dictation-level`, `dictation-bands`, `dictation-partial`). While recording,
   the composer shows the live words (merged with `mergeCaption`, so the caption
-  only grows) and a 32-bar wave at the top of its own box (#328); the compact
+  only grows), the language it transcribes in (`dictation-review.ts`: its name,
+  or "Detect language") and a 32-bar wave at the top of its own box (#328); when
+  the final pass differs from the caption, a toast says how many words changed
+  (`captionChanges`) and "Use what I saw" swaps them back (`replaceBeforeCaret`,
+  or copies them once the text has moved on); the compact
   composer keeps a floating caption above the mic; the spoken language comes from Settings ›
   Dictation (`dictation-language.ts`: by default English for an English app and
   detection for any other, so a speaker whose app language differs isn't
@@ -412,9 +416,15 @@ weeks show as done. `POST /api/github/work` (location = the Project folder;
 `core/src/github/work.ts`) reads `git remote get-url origin` (or a repository
 the Project names, kept in the `project-github.v1` global key) and runs
 `gh issue list` and `gh pr list --json ...` with the user's own `gh` login,
-cached a minute per folder. Rows open on GitHub; without `gh`, signed out, or
-without a GitHub origin, the block says so. `gh` is found on PATH and the
-Windows install folders (`which`).
+cached a minute per folder. Each PR also names the thread that produced it:
+`core/src/github/threads.ts` reads the folder's threads' stored messages (v2
+`session_message`, v1 `part`) for `github.com/<repo>/pull/<n>` and takes the
+earliest thread to carry each URL (`gh pr create` prints it), read fresh on
+every request; the row's "From <thread>" button opens it. A PR that closes none
+of the listed issues is a row of its own (open ones always, merged and closed
+under All for two weeks, like done issues). Rows open on GitHub;
+without `gh`, signed out, or without a GitHub origin, the block says so. `gh`
+is found on PATH and the Windows install folders (`which`).
 
 
 A workspace's Projects are the subfolders of its `projects` folder (matched in
@@ -805,13 +815,18 @@ assistant that spans workspaces, with its own threads, memory and routines.
   in place with Deny or Allow once (`api.permission.reply` through the thread's
   folder), a question opened in its thread, "+N more" going to Waiting on you;
   the two newest running threads with their checklist step and progress
-  (`todo` items; "+N more running" after them); then the latest exchange (your last message,
+  (`todo` items; "+N more running" after them); then the shown thread's last exchange (your last message,
   `lastAskText`, and the reply drawn as Markdown, as the desktop widget draws
   it: capped at about five lines with a fade, "Show more" lets it grow and
   scroll inside the card; `lastReplyText` keeps the reply's line breaks for
-  that), New thread, "Open full"
-  (`/command?thread=<id>`) and a composer. A send replies to the shown thread
-  (`centre.send(text, latest.id)`); New thread makes the next send start one.
+  that), a thread menu (the eight newest Command Centre threads and New thread),
+  "Open full" (`/command?thread=<id>`) and a composer. The shown thread is the
+  one picked in the menu while it exists, else the newest (`stripTarget`, #329).
+  A send replies to it on its own harness (`promptRoute`: a reply never takes the
+  pill's harness), and the composer shows that thread's harness and model; with
+  New thread it shows the model pill (`createComposerHarness`, shared with the
+  page) and the new thread starts on that choice. The shortcut shows beside the
+  card's title and on the handle.
   The card and the page share the persisted draft (`composer.command`). When the
   shown thread waits on an approval or a question (`needsYou`), the card offers
   "Review in thread". Ctrl+J / Cmd+J

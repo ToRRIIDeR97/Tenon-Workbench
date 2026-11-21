@@ -21,7 +21,7 @@ import { useLanguage } from "@/context/language"
 import { useProviders } from "@/hooks/use-providers"
 import { useSDK } from "@/context/sdk"
 import { useSessionLayout } from "@/pages/session/session-layout"
-import { getSessionContext, getSessionHarnesses } from "./session-context-metrics"
+import { contextReadout, getSessionContext, getSessionHarnesses } from "./session-context-metrics"
 import { estimateSessionContextBreakdown, type SessionContextBreakdownKey } from "./session-context-breakdown"
 import { createSessionContextFormatter } from "./session-context-format"
 import { getSessionTotals, getSessionUsage, getSubagentUsage } from "./session-usage"
@@ -161,6 +161,12 @@ export function SessionContextTab() {
   const ctx = createMemo(() =>
     getSessionContext(messages(), [...providers.all().values()], selectedHarness(), (id) => sync().data.part[id]),
   )
+  // The same readout as the composer's ring and its menu (#310): a share only for a reported context in a known window.
+  const readout = createMemo(() => contextReadout(ctx()))
+  const share = () => {
+    const value = readout()
+    return value.kind === "share" ? value : undefined
+  }
   const formatter = createMemo(() => createSessionContextFormatter(language.intl()))
 
   // The server's whole-session totals have no per-harness split, so one harness's rows sum the loaded messages.
@@ -288,7 +294,10 @@ export function SessionContextTab() {
   const revealTurn = (turnID: string) =>
     window.dispatchEvent(new CustomEvent("tenon:reveal-message", { detail: turnID }))
   // A share of what's used, as a share of the whole window when the window is known.
-  const windowShare = (share: number) => (ctx()?.limit ? (share * (ctx()?.usage ?? 100)) / 100 : share)
+  const windowShare = (part: number) => {
+    const value = share()
+    return value ? (part * value.percent) / 100 : part
+  }
   const compactNumber = (value: number | undefined) =>
     value === undefined
       ? "—"
@@ -322,10 +331,10 @@ export function SessionContextTab() {
         label: "secondBrain.sessionTab.contextWindow",
         value: c?.compacted
           ? language.t("secondBrain.contextMenu.compacted")
-          : c?.limit
+          : share()
             ? language.t("secondBrain.sessionTab.contextUsed", {
-                used: formatter().number(c.total),
-                limit: formatter().number(c.limit),
+                used: formatter().number(share()!.tokens),
+                limit: formatter().number(share()!.limit),
               })
             : undefined,
       },
@@ -491,13 +500,24 @@ export function SessionContextTab() {
                 </span>
               }
             >
-              <span class="text-[13px] [font-weight:560] tabular-nums text-v2-text-text-base">
-                {compactNumber(ctx()?.total)}
-              </span>
-              <Show when={ctx()?.limit}>
-                <span class="text-[12.5px] tabular-nums text-v2-text-text-muted">
-                  {`/ ${compactNumber(ctx()?.limit)} · ${formatter().percent(ctx()?.usage)}`}
+              <Show
+                when={readout().kind !== "unreported"}
+                fallback={
+                  <span class="text-[12.5px] text-v2-text-text-muted">
+                    {language.t("secondBrain.contextMenu.notReported")}
+                  </span>
+                }
+              >
+                <span class="text-[13px] [font-weight:560] tabular-nums text-v2-text-text-base">
+                  {compactNumber(ctx()?.total)}
                 </span>
+                <Show when={share()}>
+                  {(value) => (
+                    <span class="text-[12.5px] tabular-nums text-v2-text-text-muted">
+                      {`/ ${compactNumber(value().limit)} · ${formatter().percent(value().percent)}`}
+                    </span>
+                  )}
+                </Show>
               </Show>
             </Show>
           </div>

@@ -22,6 +22,7 @@ import { useAgentWrites, type AgentWrite } from "@/features/agent-writes/store"
 import { Identifier } from "@/utils/id"
 import { settled } from "@/utils/resource"
 import { normalizeSessionInfo } from "@/utils/session"
+import { promptRoute } from "./command-strip-target"
 
 export type CommandThread = {
   id: string
@@ -334,13 +335,20 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
       setState({ sending: true, error: "" })
       try {
         const current = settings.commandCentre.current()
-        const harnessID = choice?.harnessID ?? Harness.InstanceID.make(current.harnessID ?? Harness.OpenCode)
-        const harness = harnessID !== Harness.OpenCode
         // The default target stays in the current folder: an earlier root's folder may be gone by now.
         const newest = list().find((thread) => sameDirectory(thread.directory, folder))
         const existing = sessionID === null ? undefined : (sessionID ?? newest?.id)
+        // A reply keeps its thread's harness whatever the pill shows; a new thread takes the pill's (#329).
+        const thread = existing ? list().find((item) => item.id === existing) : undefined
+        const { harness, model } = promptRoute({
+          choice,
+          defaults: {
+            harnessID: Harness.InstanceID.make(current.harnessID ?? Harness.OpenCode),
+            model: modelChoice(current.modelID),
+          },
+          thread: thread ? { harnessID: thread.session.harnessInstanceID ?? Harness.OpenCode } : undefined,
+        })
         const id = existing ?? (await createThread(folder, target, choice))
-        const model = harness ? undefined : choice ? choice.model : modelChoice(current.modelID)
         await serverSDK()
           .ensureDirSdkContext(folder)
           .api.session.prompt({
@@ -349,7 +357,7 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
             text,
             harness,
             ...(model ? { model: { providerID: model.providerID, modelID: model.modelID } } : {}),
-            ...(!harness && choice?.model?.variant ? { variant: choice.model.variant } : {}),
+            ...(!harness && model?.variant ? { variant: model.variant } : {}),
           })
         sync(id)
         if (!existing) void refetch()
@@ -367,6 +375,12 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
       /** The latest thread's last write in its current turn that can be undone, for the K3 strip. */
       lastWrite: () =>
         writes(latest()?.id).findLast((write) => write.phase === "done" && !!write.undo && !write.failed),
+      /** Any thread's last undoable write, last reply, last question and approval state, for the card's thread menu. */
+      lastWriteOf: (sessionID: string | undefined) =>
+        writes(sessionID).findLast((write) => write.phase === "done" && !!write.undo && !write.failed),
+      replyOf: (sessionID: string | undefined) => lastReplyText(serverSync().session.data, sessionID),
+      askOf: (sessionID: string | undefined) => lastAskText(serverSync().session.data, sessionID),
+      waitingOn: (sessionID: string | undefined) => needsYou(serverSync().session.data, sessionID ?? "") > 0,
       undo: (id: string) => agentWrites?.undo(id),
       threads: list,
       /** Tasks Command Centre threads delegated without a Project, which run in the Command Centre folder. */

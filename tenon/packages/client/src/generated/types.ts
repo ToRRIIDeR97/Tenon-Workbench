@@ -3963,6 +3963,8 @@ export type GithubWorkOutput = {
           readonly checks?: "passing" | "failing" | "pending" | null
           readonly review?: "approved" | "changes" | "required" | null
           readonly closes: ReadonlyArray<number | "Infinity" | "-Infinity" | "NaN">
+          readonly closedAt?: string | null
+          readonly thread?: { readonly id: string; readonly title: string } | null
         }>
         readonly source?: "origin" | "project" | null
       }

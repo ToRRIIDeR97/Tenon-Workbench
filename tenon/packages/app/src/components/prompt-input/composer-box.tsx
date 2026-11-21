@@ -105,7 +105,16 @@ export function ComposerBox(props: {
           void props.controller.send()
         }}
       />
-      <Show when={size() !== "compact"} fallback={actions}>
+      {/* Compact keeps one line: the controls (a model pill, say) sit just before the actions. */}
+      <Show
+        when={size() !== "compact"}
+        fallback={
+          <>
+            {props.controls}
+            {actions}
+          </>
+        }
+      >
         <div data-slot="prompt-input-controls" class="flex min-w-0 items-center gap-1 pb-2 pl-2.5 pr-2">
           <Show when={props.onExpand}>
             {(expand) => (

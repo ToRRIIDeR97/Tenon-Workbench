@@ -1,5 +1,7 @@
 import { useLocation, useNavigate } from "@solidjs/router"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
+import { Icon } from "@tenon/ui/v2/icon"
+import { MenuV2 } from "@tenon/ui/v2/menu-v2"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { Markdown } from "@tenon/session-ui/markdown"
@@ -7,8 +9,10 @@ import { createEffect, createMemo, For, on, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { ComposerBox } from "@/components/prompt-input/composer-box"
 import { createComposerController } from "@/components/prompt-input/composer-controller"
+import { ComposerModelPill, createComposerHarness } from "@/components/prompt-input/composer-harness"
 import { useSidebarController } from "@/components/sidebar/sidebar-controller"
-import { useCommand } from "@/context/command"
+import { formatKeybind, useCommand } from "@/context/command"
+import { useSettings } from "@/context/settings"
 import { useServerSDK } from "@/context/server-sdk"
 import { useServerSync } from "@/context/server-sync"
 import { permissionSummary } from "@/pages/session/composer/permission-summary"
@@ -20,16 +24,21 @@ import { useServer } from "@/context/server"
 import { sessionHref } from "@/utils/session-route"
 import { useCommandCentre } from "./command-centre"
 import { commandStripAnchor, commandStripStyle } from "./command-strip-anchor"
+import { runsOnLabel, stripTarget } from "./command-strip-target"
 import { commandBackState } from "./thread-back"
+
+/** Recent threads the card's thread menu lists. */
+const THREAD_MENU = 8
 
 /**
  * The Command Centre card, a briefing. A handle just above the bottom edge of every page but the Command Centre;
  * Ctrl/Cmd+J or a click raises a 640px card named "Command Centre" with, in order: the counts (running, needs
  * you, done today); the oldest request waiting on you, answered right there (Allow, Deny) or opened (a question);
- * the running threads with their checklist step and progress; then the latest exchange (your last message and the
- * reply drawn as Markdown, capped at about five lines with "Show more"), Undo when that reply made a write, "Open full", and a composer that replies to the shown
- * thread (New thread starts a fresh one). An approval or question on that thread is answered in the thread, so the
- * card offers "Review in thread". The draft is the Command Centre page's. Esc hides it. The card rises and fades in
+ * the running threads with their checklist step and progress; then the shown thread's last exchange (your last
+ * message and the reply drawn as Markdown, capped at about five lines with "Show more"), Undo when that reply made a
+ * write, a thread menu (recent threads and New thread, #329), "Open full", and a composer that replies to the shown
+ * thread on its own harness, or starts a new one on the model pill's. An approval or question on that thread is
+ * answered in the thread, so the card offers "Review in thread". The draft is the Command Centre page's. Esc hides it. The card rises and fades in
  * over 300 ms emphasized-decelerate and drops out over 200 ms emphasized-accelerate; reduced motion snaps.
  */
 export function CommandStrip() {
@@ -42,16 +51,49 @@ export function CommandStrip() {
   const centre = useCommandCentre()
   const server = useServer()
   // `fresh`: New thread was chosen, so the next send starts a thread instead of replying to the shown one.
+  // `chosen`: the thread picked in the thread menu (#329); the newest when it is gone or none was picked.
   // `expanded`: Show more was chosen for the reply on show; `overflow`: that reply is taller than the cap.
   const [state, setState] = createStore({
     open: false,
     fresh: false,
+    chosen: undefined as string | undefined,
     expanded: false,
     overflow: false,
     /** The request being answered, and requests answered from here (the queue drops them on the next sync). */
     busy: undefined as string | undefined,
     answered: {} as Record<string, true>,
   })
+  const settings = useSettings()
+  // The thread the card shows and replies to, and what it runs on (#329).
+  const targetID = createMemo(() =>
+    stripTarget(state.fresh ? null : state.chosen, centre.threads(), centre.latest()?.id),
+  )
+  const target = () => centre.threads().find((thread) => thread.id === targetID())
+  const lastReply = createMemo(() => centre.replyOf(targetID() ?? undefined))
+  const lastAsk = createMemo(() => centre.askOf(targetID() ?? undefined))
+  const waitingHere = () => centre.waitingOn(targetID() ?? undefined)
+  // A new thread starts on the pill's harness and model; the page's composer shares the list and the choice.
+  const harness = createComposerHarness({
+    scope: "command",
+    directory: () => centre.directory() ?? "",
+    initial: () => {
+      const current = settings.commandCentre.current()
+      return current.harnessID
+        ? { harnessID: current.harnessID, model: current.modelID ? { id: current.modelID } : undefined }
+        : undefined
+    },
+  })
+  const runsOn = () => {
+    const thread = target()
+    if (!thread) return ""
+    return runsOnLabel({
+      harnessID: thread.session.harnessInstanceID ?? "",
+      harnessModel: thread.session.harnessModel,
+      defaultModel: settings.commandCentre.current().modelID,
+      instances: harness.controller.instances(),
+    })
+  }
+  const shortcut = () => formatKeybind("mod+j")
   const serverSDK = useServerSDK()
   const serverSync = useServerSync()
   const ctrl = useSidebarController()
@@ -94,7 +136,7 @@ export function CommandStrip() {
   createResizeObserver(() => reply, measureReply)
   // A new reply, or the card closing, goes back to the capped view.
   createEffect(
-    on([() => centre.lastReply(), () => state.open], () => {
+    on([lastReply, () => state.open], () => {
       setState("expanded", false)
       queueMicrotask(measureReply)
     }),
@@ -136,21 +178,33 @@ export function CommandStrip() {
   // stays if sending fails; the draft is shared with the Command Centre page.
   const composer = createComposerController({
     send: async (text) => {
-      const sent = !!(await centre.send(text, state.fresh ? null : centre.latest()?.id))
-      if (sent) setState("fresh", false)
-      return sent
+      // A reply runs on its thread's harness; only a new thread takes the pill's pick.
+      const id = targetID()
+      const sent = await centre.send(
+        text,
+        id,
+        id
+          ? undefined
+          : { harnessID: harness.harnessID(), harnessModel: harness.harnessModel(), model: harness.builtInModel() },
+      )
+      if (sent) setState({ fresh: false, chosen: sent })
+      return !!sent
     },
     disabled: () => !centre.directory(),
-    blocked: centre.sending,
+    blocked: () => centre.sending() || (!targetID() && harness.waiting()),
     persist: "command",
   })
-  const shown = () => !state.fresh && !!centre.latest()
+  const shown = () => !!targetID()
   const startNew = () => {
     setState("fresh", true)
-    input?.focus()
+    queueMicrotask(() => input?.focus())
+  }
+  const pick = (id: string) => {
+    setState({ fresh: false, chosen: id })
+    queueMicrotask(() => input?.focus())
   }
   const openFull = () => {
-    const id = centre.latest()?.id
+    const id = targetID()
     setState("open", false)
     navigate(id ? sessionHref(server.key, id) : "/command", id ? back() : undefined)
   }
@@ -176,6 +230,8 @@ export function CommandStrip() {
           "pointer-events-auto opacity-100 duration-medium ease-standard": !state.open,
         }}
         aria-label={language.t("secondBrain.commandCentre.strip.open")}
+        aria-keyshortcuts="Control+J Meta+J"
+        title={language.t("secondBrain.commandCentre.strip.openShortcut", { shortcut: shortcut() })}
         aria-hidden={state.open ? true : undefined}
         onClick={() => setState("open", true)}
       >
@@ -209,6 +265,12 @@ export function CommandStrip() {
             >
               {language.t("secondBrain.commandCentre.strip.title")}
             </span>
+            <kbd
+              data-slot="command-card-shortcut"
+              class="ml-1.5 shrink-0 rounded-[6px] bg-v2-background-bg-layer-02 px-1.5 font-sans text-[11px] leading-5 text-v2-text-text-muted"
+            >
+              {shortcut()}
+            </kbd>
             <span
               data-slot="command-card-counts"
               class="ml-1.5 min-w-0 flex-1 truncate type-meta text-v2-text-text-muted"
@@ -223,7 +285,7 @@ export function CommandStrip() {
                 : ""}
             </span>
             {/* Undo for the latest reply's last write; after it the button reports how that went. */}
-            <Show when={shown() ? centre.lastWrite() : undefined} keyed>
+            <Show when={shown() ? centre.lastWriteOf(targetID() ?? undefined) : undefined} keyed>
               {(write) => (
                 <Show
                   when={write.undoState === "idle" || write.undoState === "pending"}
@@ -251,11 +313,42 @@ export function CommandStrip() {
                 </Show>
               )}
             </Show>
-            <Show when={shown()}>
-              <ButtonV2 size="small" variant="ghost-muted" data-action="command-card-new" onClick={startNew}>
-                {language.t("secondBrain.commandCentre.strip.newThread")}
-              </ButtonV2>
-            </Show>
+            {/* The thread the card replies to: recent Command Centre threads, or a new one. */}
+            <MenuV2 gutter={4} modal={false} placement="bottom-end">
+              <MenuV2.Trigger
+                as={ButtonV2}
+                size="small"
+                variant="ghost-muted"
+                data-action="command-card-threads"
+                aria-label={language.t("secondBrain.commandCentre.strip.threadMenu")}
+              >
+                <span class="max-w-40 truncate">
+                  {target()
+                    ? centre.label(target()!) || language.t("secondBrain.commandCentre.threads.untitled")
+                    : language.t("secondBrain.commandCentre.strip.newThread")}
+                </span>
+                <Icon name="chevron-down" size="small" />
+              </MenuV2.Trigger>
+              <MenuV2.Portal>
+                <MenuV2.Content class="max-w-80">
+                  <For each={centre.threads().slice(0, THREAD_MENU)}>
+                    {(thread) => (
+                      <MenuV2.Item onSelect={() => pick(thread.id)}>
+                        <span class="min-w-0 flex-1 truncate">
+                          {centre.label(thread) || language.t("secondBrain.commandCentre.threads.untitled")}
+                        </span>
+                        <Show when={centre.working(thread.id)}>
+                          <span class="size-1.5 shrink-0 rounded-full bg-v2-icon-icon-accent running-pulse" />
+                        </Show>
+                      </MenuV2.Item>
+                    )}
+                  </For>
+                  <MenuV2.Item data-action="command-card-new" onSelect={startNew}>
+                    {language.t("secondBrain.commandCentre.strip.newThread")}
+                  </MenuV2.Item>
+                </MenuV2.Content>
+              </MenuV2.Portal>
+            </MenuV2>
             <ButtonV2 ref={full} size="small" variant="ghost-muted" onClick={openFull}>
               {language.t("secondBrain.commandCentre.strip.openFull")}
             </ButtonV2>
@@ -381,7 +474,7 @@ export function CommandStrip() {
           </Show>
           <Show when={shown()}>
             <div class="flex min-w-0 flex-col gap-2.5 px-1">
-              <Show when={centre.lastAsk()}>
+              <Show when={lastAsk()}>
                 {(ask) => (
                   <div
                     data-slot="command-card-ask"
@@ -399,7 +492,7 @@ export function CommandStrip() {
               {/* The reply as the thread shows it (Markdown). Capped at about five lines; Show more lets it
                   grow and scroll inside the card. */}
               <Show
-                when={!centre.error() && centre.lastReply()}
+                when={!centre.error() && lastReply()}
                 fallback={
                   <p data-slot="command-card-reply" class="m-0 px-1 text-[13px] leading-[21px] text-v2-text-text-muted">
                     {centre.error()
@@ -422,7 +515,7 @@ export function CommandStrip() {
                       "max-h-64 overflow-y-auto": state.expanded,
                     }}
                   >
-                    <Markdown text={centre.lastReply()} class="text-[13px]" />
+                    <Markdown text={lastReply()} class="text-[13px]" />
                   </div>
                   <Show when={state.overflow || state.expanded}>
                     <ButtonV2
@@ -437,7 +530,7 @@ export function CommandStrip() {
                   </Show>
                 </div>
               </Show>
-              <Show when={centre.waiting()}>
+              <Show when={waitingHere()}>
                 <div class="flex min-w-0 items-center gap-2 rounded-[16px] bg-v2-state-bg-warning px-3 py-1.5">
                   <span class="min-w-0 flex-1 truncate text-[13px] leading-5 text-v2-state-fg-warning">
                     {language.t("secondBrain.commandCentre.strip.waiting")}
@@ -458,6 +551,17 @@ export function CommandStrip() {
               shown() ? "secondBrain.commandCentre.strip.reply" : "secondBrain.commandCentre.composer.placeholder",
             )}
             sendLabel={language.t("secondBrain.commandCentre.composer.send")}
+            controls={
+              <Show when={shown()} fallback={<ComposerModelPill harness={harness} />}>
+                <span
+                  data-slot="command-card-runs-on"
+                  title={language.t("secondBrain.commandCentre.strip.runsOn", { name: runsOn() })}
+                  class="max-w-56 truncate px-2 type-meta text-v2-text-text-muted"
+                >
+                  {runsOn()}
+                </span>
+              </Show>
+            }
           />
         </div>
       </div>
