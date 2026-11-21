@@ -718,6 +718,10 @@ and `gh pr list` with fixed arguments and `--json` fields. Controls:
 - Only titles, numbers, URLs, states, labels and author logins reach the
   renderer; issue bodies are not requested. Errors return their first line.
 - Read-only: Tenon never closes issues or changes PRs.
+- A PR's thread comes from the local database only: the location folder's own
+  threads, matched by a LIKE pre-filter and then the exact
+  `https://github.com/<repo>/pull/<n>` URL, at most 2,000 rows per message
+  store. Only the thread's id and title reach the renderer, never message text.
 
 ### Harness skill catalog
 

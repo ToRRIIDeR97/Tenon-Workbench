@@ -731,6 +731,7 @@ export const dict = {
   "secondBrain.github.failed": "Couldn't read GitHub: {{message}}",
   "secondBrain.github.none": "No open issues.",
   "secondBrain.github.pull": "PR #{{number}}",
+  "secondBrain.github.fromThread": "From {{title}}",
   "secondBrain.github.doneWhenMerged": "done when PR #{{number}} merged",
   "secondBrain.github.by": "filed by {{author}}",
   "secondBrain.github.status.merged": "Merged",

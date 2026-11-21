@@ -6,6 +6,7 @@ import path from "path"
 import { Global } from "../global"
 import { Effect } from "effect"
 import { Location } from "../location"
+import { GithubThreads } from "./threads"
 import { which } from "../util/which"
 
 // A Project's GitHub work (#331): the linked repository's issues and pull requests, read with the user's own `gh`
@@ -32,6 +33,8 @@ export type Pull = {
   review?: "approved" | "changes" | "required"
   /** The issues this PR closes when it merges. */
   closes: number[]
+  /** The Project thread whose messages first carry this PR's URL: the one that produced it. */
+  thread?: { id: string; title: string }
 }
 export type Work =
   | { status: "ok"; repo: string; issues: Issue[]; pulls: Pull[]; source?: "origin" | "project" }
@@ -154,7 +157,7 @@ export const forLocation = Effect.fn("GithubWork.forLocation")(function* (input:
 }) {
   const location = yield* Location.Service
   const config = Global.make().config
-  return yield* Effect.promise(async () => {
+  const work = yield* Effect.promise(async (): Promise<Work> => {
     // A typed repository must be a plain owner/name; anything else is refused, and the saved choice stays.
     if (input.save && input.repo && !validRepo(input.repo))
       return { status: "error" as const, message: `"${input.repo.slice(0, 80)}" isn't owner/name.` }
@@ -167,6 +170,13 @@ export const forLocation = Effect.fn("GithubWork.forLocation")(function* (input:
     })
     return work.status === "ok" ? { ...work, source: repo ? ("project" as const) : ("origin" as const) } : work
   })
+  if (work.status !== "ok" || work.pulls.length === 0) return work
+  // Each PR's thread, read fresh: the cache above holds GitHub's answer, not the threads. A failed read only drops
+  // the links.
+  const mentions = yield* GithubThreads.mentions(location.directory, work.repo).pipe(
+    Effect.orElseSucceed(() => [] as GithubThreads.Mention[]),
+  )
+  return { ...work, pulls: GithubThreads.attach(work.pulls, GithubThreads.pullThreads(mentions, work.repo)) }
 })
 
 function execute(command: string, args: string[], cwd: string) {

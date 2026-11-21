@@ -412,9 +412,13 @@ weeks show as done. `POST /api/github/work` (location = the Project folder;
 `core/src/github/work.ts`) reads `git remote get-url origin` (or a repository
 the Project names, kept in the `project-github.v1` global key) and runs
 `gh issue list` and `gh pr list --json ...` with the user's own `gh` login,
-cached a minute per folder. Rows open on GitHub; without `gh`, signed out, or
-without a GitHub origin, the block says so. `gh` is found on PATH and the
-Windows install folders (`which`).
+cached a minute per folder. Each PR also names the thread that produced it:
+`core/src/github/threads.ts` reads the folder's threads' stored messages (v2
+`session_message`, v1 `part`) for `github.com/<repo>/pull/<n>` and takes the
+earliest thread to carry each URL (`gh pr create` prints it), read fresh on
+every request; the row's "From <thread>" button opens it. Rows open on GitHub;
+without `gh`, signed out, or without a GitHub origin, the block says so. `gh`
+is found on PATH and the Windows install folders (`which`).
 
 
 A workspace's Projects are the subfolders of its `projects` folder (matched in

@@ -20,6 +20,8 @@ export type GithubPull = {
   checks?: "passing" | "failing" | "pending"
   review?: "approved" | "changes" | "required"
   closes: ReadonlyArray<number>
+  /** The Project thread that produced the PR (its messages first carry the URL). */
+  thread?: { id: string; title: string }
 }
 export type GithubWorkOk = {
   status: "ok"
@@ -42,6 +44,8 @@ export type GithubTaskRow = {
   done: boolean
   pulls: GithubPull[]
   status?: GithubTaskStatus
+  /** The thread that produced the PR the row shows, so a merged PR leads back to its conversation. */
+  thread?: { id: string; title: string }
 }
 
 const RECENT_MS = 14 * 24 * 60 * 60 * 1000
@@ -72,6 +76,7 @@ export function githubTaskRows(
     )
     .map((issue) => {
       const pulls = work.pulls.filter((pull) => pull.closes.includes(issue.number))
+      const shownPull = pulls.find((pull) => pull.state === "open") ?? pulls[0]
       return {
         number: issue.number,
         title: issue.title,
@@ -80,6 +85,7 @@ export function githubTaskRows(
         done: issue.state === "closed",
         pulls,
         status: taskStatus(pulls),
+        ...(shownPull?.thread ? { thread: shownPull.thread } : {}),
       }
     })
 }
