@@ -35,6 +35,7 @@ const execution = Layer.succeed(
     resume: (sessionID) => Effect.sync(() => void resumed.push(sessionID)),
     wake: () => Effect.void,
     interrupt: () => Effect.void,
+    compact: () => Effect.succeed({ status: "unavailable" as const }),
   }),
 )
 const it = testEffect(

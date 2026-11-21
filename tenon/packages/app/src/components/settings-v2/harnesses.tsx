@@ -506,7 +506,7 @@ const HarnessDetails: Component<{
       <Show when={props.entry.enabled && !host()}>
         <HarnessModels entry={props.entry} models={props.instance?.models ?? []} />
       </Show>
-      <Show when={props.entry.enabled && NATIVE_COMPACT.has(props.entry.id)}>
+      <Show when={props.entry.enabled && !host() && props.entry.id !== Harness.Codex}>
         <HarnessCompaction entry={props.entry} models={props.instance?.models ?? []} />
       </Show>
 
@@ -527,9 +527,7 @@ const HarnessDetails: Component<{
   )
 }
 
-/** Harnesses whose threads compact with their own /compact (the server's `NATIVE_COMPACT`). */
-const NATIVE_COMPACT = new Set<string>([Harness.ClaudeCode, "opencode-acp"])
-
+// Codex compacts on its own side, always on the thread's model, so it has no compaction model to pick.
 const numberClass =
   "h-8 w-20 rounded-full bg-v2-background-bg-layer-01 px-3 text-right text-[13px] font-[450] leading-5 text-v2-text-text-base shadow-[inset_0_0_0_1px_var(--v2-border-border-base)] outline-none transition-shadow duration-short ease-standard hover:shadow-[inset_0_0_0_1px_var(--v2-border-border-strong)] focus:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)]"
 

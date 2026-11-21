@@ -513,6 +513,27 @@ const layer = Layer.effectDiscard(
     yield* events.project(SessionEvent.Reasoning.Ended, (event) => run(db, event))
     // yield* events.project(SessionEvent.Retried, (event) => run(db, event))
     yield* events.project(SessionEvent.Compaction.Ended, (event) => run(db, event))
+    // A compaction the user asked for replaces the history a harness's native session holds with Tenon's summary, so
+    // the next turn opens a fresh native session that gets the summary as its handoff (as after a rollback).
+    yield* events.project(SessionEvent.Compaction.Ended, (event) =>
+      Effect.gen(function* () {
+        if (event.data.reason !== "manual") return
+        const row = yield* db
+          .select({ metadata: SessionTable.metadata })
+          .from(SessionTable)
+          .where(eq(SessionTable.id, event.data.sessionID))
+          .get()
+          .pipe(Effect.orDie)
+        if (!row?.metadata) return
+        const { harnessContinuation: _legacy, harnessContinuations: _continuations, ...metadata } = row.metadata
+        yield* db
+          .update(SessionTable)
+          .set({ metadata })
+          .where(eq(SessionTable.id, event.data.sessionID))
+          .run()
+          .pipe(Effect.orDie)
+      }),
+    )
     yield* events.project(SessionEvent.RevertEvent.Staged, (event) =>
       db
         .update(SessionTable)

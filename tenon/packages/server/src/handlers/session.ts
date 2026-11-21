@@ -298,6 +298,9 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
         "session.compact",
         Effect.fn(function* (ctx) {
           yield* session.compact({ sessionID: ctx.params.sessionID, model: ctx.payload.model }).pipe(
+            Effect.catchTag("Session.CompactFailedError", (error) =>
+              Effect.fail(new ServiceUnavailableError({ message: error.message, service: "session.compact" })),
+            ),
             Effect.catchTag("Session.NotFoundError", (error) =>
               Effect.fail(
                 new SessionNotFoundError({
@@ -310,7 +313,7 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
               Effect.fail(
                 new ServiceUnavailableError({
                   message:
-                    "Compaction needs a Claude Code or OpenCode (ACP) thread that isn't running. Wait for the turn to finish.",
+                    "Nothing to compact yet, or the thread is running. Wait for the turn to finish and try again.",
                   service: `session.${error.operation}`,
                 }),
               ),

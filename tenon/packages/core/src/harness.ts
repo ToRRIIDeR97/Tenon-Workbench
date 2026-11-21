@@ -81,6 +81,8 @@ export interface Driver {
   readonly stream: (input: StreamInput) => Stream.Stream<LLMEvent, LLMError>
   /** One prompt in a fresh, throwaway native session; undefined for the in-process loop. */
   readonly complete?: (input: CompleteInput) => Effect.Effect<string, LLMError>
+  /** Compacts the thread's native session on the harness's own side; undefined where the harness can't. */
+  readonly compact?: (input: StreamInput) => Effect.Effect<void, LLMError>
 }
 
 export interface CompleteInput {
@@ -122,6 +124,13 @@ export interface Interface {
   readonly complete: (
     input: CompleteInput & { readonly instanceID: Harness.InstanceID },
   ) => Effect.Effect<string, LLMError>
+  /**
+   * Compacts a thread's native session with the harness's own compaction (Codex's `thread/compact/start`).
+   * Resolves false for a harness that has none, so the caller can compact on Tenon's side instead.
+   */
+  readonly compact: (
+    input: StreamInput & { readonly instanceID: Harness.InstanceID },
+  ) => Effect.Effect<boolean, LLMError>
   /** The harness that titles new threads, when one is set in settings; otherwise each thread's own. */
   readonly titleAgent: () => Effect.Effect<Harness.InstanceID | undefined>
   readonly setTitleAgent: (id: Harness.InstanceID | undefined) => Effect.Effect<void, HarnessRegistry.RegisterError>
@@ -161,7 +170,7 @@ export interface InstanceConfig {
   readonly config: Readonly<Record<string, unknown>>
 }
 
-interface CodexRuntime {
+export interface CodexRuntime {
   readonly client: CodexClient
   readonly scope: Scope.Closeable
   readonly threadID: string
@@ -408,7 +417,8 @@ const layer = Layer.effect(
         }),
       )
 
-    // A committed rollback removed turns the native sessions still hold; their next turn reconnects fresh.
+    // A committed rollback removed turns the native sessions still hold, and a compaction on Tenon's side replaced
+    // them with a summary; their next turn reconnects fresh.
     const unlisten = yield* closeOnRevertCommit(events, (sessionID) =>
       closeRuntimesWhere((key) => key.includes(`:${sessionID}:`)),
     )
@@ -856,6 +866,10 @@ const layer = Layer.effect(
                 )
               : Stream.fail(llmError("CodexHarness", "stream", `${instance.name} is disabled.`)),
           complete: (input) => codexComplete(settings, input),
+          compact: (input) =>
+            instance.enabled
+              ? codexCompact(getRuntime(instance, input))
+              : Effect.fail(llmError("CodexHarness", "compact", `${instance.name} is disabled.`)),
         }
       }
       if (instance.driver === Harness.AcpDriver) {
@@ -1227,6 +1241,14 @@ const layer = Layer.effect(
           ),
         )
       },
+      compact: (input) =>
+        instances.pipe(
+          Effect.flatMap((current) => {
+            const instance = current.find((item) => item.id === input.instanceID)
+            const compact = instance ? driverFor(instance).compact : undefined
+            return compact ? compact(input).pipe(Effect.as(true)) : Effect.succeed(false)
+          }),
+        ),
       complete: (input) =>
         instances.pipe(
           Effect.flatMap((current) => {
@@ -2390,10 +2412,44 @@ export function makeCachedProbe(state: {
 export function closeOnRevertCommit(events: EventV2.Interface, close: (sessionID: SessionID) => Effect.Effect<void>) {
   return events.listen((event) => {
     const sessionID: unknown = isRecord(event.data) ? event.data.sessionID : undefined
-    return event.type === SessionEvent.RevertEvent.Committed.type && typeof sessionID === "string"
+    const manualCompaction =
+      event.type === SessionEvent.Compaction.Ended.type && isRecord(event.data) && event.data.reason === "manual"
+    return (event.type === SessionEvent.RevertEvent.Committed.type || manualCompaction) && typeof sessionID === "string"
       ? close(SessionID.make(sessionID))
       : Effect.void
   })
+}
+
+/**
+ * Codex compacts the thread on its side (`thread/compact/start`), as a turn of its own; this waits for that turn to
+ * complete, for at most ten minutes. The thread must be idle: the turn's notifications are read from the same queue.
+ */
+export function codexCompact(runtime: Effect.Effect<CodexRuntime, unknown>) {
+  return runtime.pipe(
+    Effect.flatMap((runtime) =>
+      runtime.client.request("thread/compact/start", { threadId: runtime.threadID }, THREAD_SETUP_TIMEOUT).pipe(
+        Effect.andThen(
+          runtime.client.notifications.pipe(
+            Stream.filter(
+              (notification) =>
+                notification.method === "turn/completed" &&
+                isRecord(notification.params) &&
+                notification.params.threadId === runtime.threadID,
+            ),
+            Stream.take(1),
+            Stream.runDrain,
+            Effect.timeoutOrElse({
+              duration: "10 minutes",
+              orElse: () => Effect.fail(new ProtocolError("Codex did not finish compacting within 10 minutes.")),
+            }),
+          ),
+        ),
+      ),
+    ),
+    Effect.mapError((error) =>
+      error instanceof LLMError ? error : llmError("CodexHarness", "compact", errorMessage(error)),
+    ),
+  )
 }
 
 function readContinuation(

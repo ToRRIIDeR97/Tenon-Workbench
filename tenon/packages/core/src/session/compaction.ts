@@ -215,61 +215,91 @@ export const buildPrompt = (input: { readonly previousSummary?: string; readonly
   ].join("\n\n")
 }
 
+/**
+ * Records a compaction: summarizes the older part of `entries` with `summarize` and keeps the newest turns as they are.
+ * Resolves false, recording nothing, when there is nothing to summarize, the prompt exceeds `limit`, or the summary
+ * comes back empty. Runs for any summarizer: the in-process model, or a harness's one-off prompt on Tenon's side.
+ */
+export const record = Effect.fn("SessionCompaction.record")(function* (
+  events: EventV2.Interface,
+  input: {
+    readonly sessionID: SessionSchema.ID
+    readonly entries: readonly Entry[]
+    readonly reason: "auto" | "manual"
+    readonly keepTokens?: number
+    /** The longest summary prompt the summarizer can read, in estimated tokens. */
+    readonly limit?: number
+    readonly summarize: (prompt: string) => Effect.Effect<string | undefined>
+  },
+) {
+  const selected = select(input.entries, input.keepTokens ?? DEFAULT_KEEP_TOKENS)
+  const previousSummary = input.entries.find((entry) => entry.message.type === "compaction")?.message
+  if (!selected || (selected.head.length === 0 && previousSummary?.type !== "compaction")) return false
+  const summaryPrompt = buildPrompt({
+    previousSummary: previousSummary?.type === "compaction" ? previousSummary.summary : undefined,
+    context: [previousSummary?.type === "compaction" ? previousSummary.recent : "", selected.head].filter(Boolean),
+  })
+  if (input.limit !== undefined && Token.estimate(summaryPrompt) > input.limit) return false
+  const messageID = SessionMessage.ID.create()
+  yield* events.publish(SessionEvent.Compaction.Started, {
+    sessionID: input.sessionID,
+    messageID,
+    timestamp: yield* DateTime.now,
+    reason: input.reason,
+  })
+  const summary = yield* input.summarize(summaryPrompt)
+  if (!summary?.trim()) return false
+  yield* events.publish(SessionEvent.Compaction.Ended, {
+    sessionID: input.sessionID,
+    messageID,
+    timestamp: yield* DateTime.now,
+    reason: input.reason,
+    text: summary,
+    recent: selected.recent,
+  })
+  return true
+})
+
 export const make = (dependencies: Dependencies) => {
   const config = settings(dependencies.config)
-  const compactAfterOverflow = Effect.fn("SessionCompaction.compactAfterOverflow")(function* (input: Input) {
+  const compactAfterOverflow = Effect.fn("SessionCompaction.compactAfterOverflow")(function* (
+    input: Input & { readonly reason?: "auto" | "manual" },
+  ) {
     const context = input.model.route.defaults.limits?.context
     if (context === undefined || context <= 0) return false
     const output = input.request.generation?.maxTokens ?? input.model.route.defaults.limits?.output ?? 0
-    const selected = select(input.entries, config.tokens)
-    const previousSummary = input.entries.find((entry) => entry.message.type === "compaction")?.message
-    if (!selected || (selected.head.length === 0 && previousSummary?.type !== "compaction")) return false
-    const summaryPrompt = buildPrompt({
-      previousSummary: previousSummary?.type === "compaction" ? previousSummary.summary : undefined,
-      context: [previousSummary?.type === "compaction" ? previousSummary.recent : "", selected.head].filter(Boolean),
-    })
     const summaryOutput = Math.min(output || SUMMARY_OUTPUT_TOKENS, SUMMARY_OUTPUT_TOKENS)
-    if (Token.estimate(summaryPrompt) > context - summaryOutput) return false
-    const messageID = SessionMessage.ID.create()
-    yield* dependencies.events.publish(SessionEvent.Compaction.Started, {
+    return yield* record(dependencies.events, {
       sessionID: input.sessionID,
-      messageID,
-      timestamp: yield* DateTime.now,
-      reason: "auto",
+      entries: input.entries,
+      reason: input.reason ?? "auto",
+      keepTokens: config.tokens,
+      limit: context - summaryOutput,
+      summarize: (prompt) => {
+        const chunks: string[] = []
+        let failed = false
+        return dependencies.llm
+          .stream(
+            LLM.request({
+              model: input.model,
+              http: input.request.http,
+              messages: [Message.user(prompt)],
+              tools: [],
+              generation: { maxTokens: summaryOutput },
+            }),
+          )
+          .pipe(
+            Stream.runForEach((event) => {
+              if (LLMEvent.is.providerError(event)) failed = true
+              if (LLMEvent.is.textDelta(event)) chunks.push(event.text)
+              return Effect.void
+            }),
+            Effect.as(true),
+            Effect.catchTag("LLM.Error", () => Effect.succeed(false)),
+            Effect.map((summarized) => (summarized && !failed ? chunks.join("") : undefined)),
+          )
+      },
     })
-
-    const chunks: string[] = []
-    let failed = false
-    const summarized = yield* dependencies.llm
-      .stream(
-        LLM.request({
-          model: input.model,
-          http: input.request.http,
-          messages: [Message.user(summaryPrompt)],
-          tools: [],
-          generation: { maxTokens: summaryOutput },
-        }),
-      )
-      .pipe(
-        Stream.runForEach((event) => {
-          if (LLMEvent.is.providerError(event)) failed = true
-          if (LLMEvent.is.textDelta(event)) chunks.push(event.text)
-          return Effect.void
-        }),
-        Effect.as(true),
-        Effect.catchTag("LLM.Error", () => Effect.succeed(false)),
-      )
-    const summary = chunks.join("")
-    if (!summarized || failed || !summary.trim()) return false
-    yield* dependencies.events.publish(SessionEvent.Compaction.Ended, {
-      sessionID: input.sessionID,
-      messageID,
-      timestamp: yield* DateTime.now,
-      reason: "auto",
-      text: summary,
-      recent: selected.recent,
-    })
-    return true
   })
   const compactIfNeeded = Effect.fn("SessionCompaction.compactIfNeeded")(function* (input: Input) {
     if (!config.auto) return false

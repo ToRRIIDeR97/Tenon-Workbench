@@ -34,6 +34,7 @@ const busy = Layer.succeed(
     resume: () => Effect.void,
     wake: () => Effect.void,
     interrupt: () => Effect.void,
+    compact: () => Effect.succeed({ status: "unavailable" as const }),
   }),
 )
 const it = testEffect(

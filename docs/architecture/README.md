@@ -1124,14 +1124,30 @@ refused with `OperationUnavailable`. Every view applies the server's
 (`context/server-session.ts` `applyV2`), so the model pill names the model the
 next turn runs on even when the switch came from elsewhere.
 
-`/compact` on a harness thread posts `/api/session/:id/compact` with an optional
-`model` (`compactHarnessForServer`). `SessionV2.compact` sends the harness its own
-`/compact` for Claude Code and OpenCode over ACP (`NATIVE_COMPACT`; others, and a
-running thread, get 503). Given a model, it switches the thread to it for the
-compaction turn and back afterwards. Settings → Harnesses → Compaction keeps a
-per-harness `compaction` setting `{ model, coldMinutes }` (default 29): a thread
-idle that long has lost its prompt cache, so `/compact` (`compactionModel`) uses
-the cheaper model instead of reloading the history into the thread's own. While
+`/compact` posts `/api/session/:id/compact` with an optional `model`
+(`compactHarnessForServer`); `SessionV2.compact` refuses a running thread (503)
+and picks how by harness:
+
+- Claude Code and OpenCode over ACP (`NATIVE_COMPACT`), and any ACP agent that
+  reported a `compact` command (`HarnessRuntime.reportedCommands`): the harness's
+  own `/compact`, switched to the given model for that turn and back afterwards.
+- Codex: `SessionRunner.compact` → `HarnessRuntime.compact` → `codexCompact`,
+  which sends `thread/compact/start` and waits for that thread's `turn/completed`.
+  Codex compacts on the thread's own model.
+- The built-in agent: the runner's `SessionCompaction.compactAfterOverflow` with
+  reason `manual`.
+- Any other harness: `SessionCompaction.record` writes the summary as a one-off
+  prompt (`HarnessRuntime.complete`) on the given model, retrying on the thread's
+  own if that comes back empty. A `manual` `Compaction.Ended` drops the thread's
+  `harnessContinuations` (projector) and closes its runtimes
+  (`closeOnRevertCommit`), so the next turn opens a fresh native session whose
+  handoff carries the summary and the recent turns.
+
+Tenon-side compaction keeps the newest turns (`compaction.keep.tokens`, default
+8,000) verbatim, so a short thread answers "Nothing to compact yet". Settings →
+Harnesses → Compaction keeps a per-harness `{ model, coldMinutes }` (default 29;
+not offered for Codex or the built-in agent): a thread idle that long has lost
+its prompt cache, so `/compact` (`compactionModel`) uses the cheaper model. While
 a turn runs the model pill keeps model and effort usable (`harnessLocked` locks
 only the harness). The
 Command Centre's `createComposerHarness` reads the remembered list while its

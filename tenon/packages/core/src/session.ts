@@ -104,6 +104,12 @@ type CompactInput = {
  */
 export const NATIVE_COMPACT = new Set<string>([Harness.ClaudeCode, "opencode-acp"])
 
+/** `/compact` ran and failed; `message` says why (the harness's own error, when it gave one). */
+export class CompactFailedError extends Schema.TaggedError<CompactFailedError>()("Session.CompactFailedError", {
+  sessionID: SessionSchema.ID,
+  message: Schema.String,
+}) {}
+
 export class NotFoundError extends Schema.TaggedError<NotFoundError>()("Session.NotFoundError", {
   sessionID: SessionSchema.ID,
 }) {}
@@ -211,7 +217,9 @@ export interface Interface {
     skill: string
     resume?: boolean
   }) => Effect.Effect<void, OperationUnavailableError>
-  readonly compact: (input: CompactInput) => Effect.Effect<void, NotFoundError | OperationUnavailableError>
+  readonly compact: (
+    input: CompactInput,
+  ) => Effect.Effect<void, NotFoundError | OperationUnavailableError | CompactFailedError>
   readonly wait: (id: SessionSchema.ID) => Effect.Effect<void, NotFoundError | OperationUnavailableError>
   readonly active: Effect.Effect<ReadonlySet<SessionSchema.ID>>
   readonly resume: (sessionID: SessionSchema.ID) => Effect.Effect<void, NotFoundError | SessionRunner.RunError>
@@ -603,8 +611,17 @@ const layer = Layer.effect(
       }),
       compact: Effect.fn("V2Session.compact")(function* (input) {
         const session = yield* result.get(input.sessionID)
-        if (!NATIVE_COMPACT.has(session.harnessInstanceID) || (yield* execution.active).has(input.sessionID))
+        if ((yield* execution.active).has(input.sessionID))
           return yield* new OperationUnavailableError({ operation: "compact" })
+        // Claude Code and OpenCode take `/compact` themselves; the runner compacts every other thread (Codex on its
+        // own side, the rest on Tenon's), or reports an ACP agent that turned out to take `/compact` too.
+        if (!NATIVE_COMPACT.has(session.harnessInstanceID)) {
+          const outcome = yield* execution.compact({ sessionID: input.sessionID, model: input.model })
+          if (outcome.status === "done") return
+          if (outcome.status === "failed")
+            return yield* new CompactFailedError({ sessionID: input.sessionID, message: outcome.message })
+          if (outcome.status === "unavailable") return yield* new OperationUnavailableError({ operation: "compact" })
+        }
         const original = session.harnessModel
         const swap =
           input.model !== undefined &&
