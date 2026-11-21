@@ -3079,9 +3079,11 @@ product) adds three tools to Review, Session, Canvas, agent and file tabs.
   viewer), video, spreadsheets (SheetJS) and Word documents (mammoth, then the
   markdown sanitizer). Binary files come through `tenon-file://` URLs that main
   issues for a folder-relative path after checking it stays inside the folder
-  (`desktop/src/main/file-viewer.ts`); the protocol serves only issued URLs,
-  read-only, with range requests. Other platforms fall back to the base64 the
-  server read.
+  (`desktop/src/main/file-viewer.ts`); the protocol serves only issued URLs for
+  the binary formats the viewers show (never markup such as `.svg` or `.html`),
+  read-only, with range requests and CORS for the renderer origin only. Other
+  platforms fall back to the base64 the server read when its MIME type matches
+  the viewer; a desktop PDF the handler refuses is not shown.
 - **Live document.** A file the agent writes or edits types into its Files tab
   (`app/src/pages/session/live-document.ts`, `live-document-view.tsx`,
   `file-tabs.tsx`, `file-viewer.tsx`). `liveWrites` reads the thread's `write`
