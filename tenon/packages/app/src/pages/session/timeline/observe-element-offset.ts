@@ -44,21 +44,43 @@ export function observeElementOffsetReconnectAware<TScrollElement extends Elemen
     }
     frame = targetWindow.requestAnimationFrame(check)
   }
+  // While attached, only the ancestor chain up to `root` is watched (no `subtree`), so streaming mutations
+  // inside the timeline, terminal or review panel don't wake this observer. Once the element is detached it
+  // can come back under any parent, so the whole of `root` is watched until it does.
+  const watchAncestors = () => {
+    observer.disconnect()
+    let ancestor: Node | null = element.parentNode
+    while (ancestor) {
+      observer.observe(ancestor, { childList: true })
+      if (ancestor === root) break
+      ancestor = ancestor.parentNode
+    }
+  }
+  const watchRoot = () => {
+    observer.disconnect()
+    observer.observe(root, { childList: true, subtree: true })
+  }
+  const reattached = () => {
+    removed = false
+    startCheck()
+    watchAncestors()
+  }
   const observer = new targetWindow.MutationObserver((records) => {
     if (!active) return
-    records.forEach((record) => {
-      if (record.target === element || element.contains(record.target)) return
+    for (const record of records) {
+      if (record.target === element || element.contains(record.target)) continue
       if (mutationNodesContainElement(record.removedNodes, element)) {
         removed = true
         clearCheck()
       }
-      if (!removed || !element.isConnected || !mutationNodesContainElement(record.addedNodes, element)) return
-      removed = false
-      startCheck()
-    })
+      if (removed && element.isConnected && mutationNodesContainElement(record.addedNodes, element)) reattached()
+    }
+    if (!removed) return
+    // Re-inserted under a parent nobody watched yet: no record reports the addition, but it's connected again.
+    if (element.isConnected) reattached()
+    else watchRoot()
   })
-  // Session routes are replaced below persistent main; body is the fallback for isolated hosts.
-  observer.observe(root, { childList: true, subtree: true })
+  watchAncestors()
 
   return () => {
     active = false

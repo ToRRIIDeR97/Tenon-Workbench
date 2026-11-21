@@ -45,10 +45,22 @@ export const ripgrepLayer = Layer.effect(
       ),
       LISTING_TTL,
     )
+    const resolveContained = Effect.fnUntraced(function* (inputPath: string | undefined) {
+      const target = path.resolve(location.directory, inputPath ?? ".")
+      if (!FSUtil.contains(location.directory, target)) {
+        return yield* Effect.die(new Error(`Path escapes location: ${inputPath ?? "."}`))
+      }
+      const root = yield* fs.realPath(location.directory).pipe(Effect.orElseSucceed(() => location.directory))
+      const realTarget = yield* fs.realPath(target).pipe(Effect.orDie)
+      if (!FSUtil.contains(root, realTarget)) {
+        return yield* Effect.die(new Error(`Path escapes location: ${inputPath ?? "."}`))
+      }
+      return realTarget
+    })
     return Service.of({
       glob: (input) =>
         Effect.gen(function* () {
-          const target = path.resolve(location.directory, input.path ?? ".")
+          const target = yield* resolveContained(input.path)
           const info = yield* fs.stat(target).pipe(Effect.orDie)
           const cwd = info.type === "File" ? path.dirname(target) : target
           return yield* ripgrep
@@ -71,7 +83,7 @@ export const ripgrepLayer = Layer.effect(
         }),
       grep: (input) =>
         Effect.gen(function* () {
-          const target = path.resolve(location.directory, input.path ?? ".")
+          const target = yield* resolveContained(input.path)
           const info = yield* fs.stat(target).pipe(Effect.orDie)
           const cwd = info.type === "File" ? path.dirname(target) : target
           return yield* ripgrep

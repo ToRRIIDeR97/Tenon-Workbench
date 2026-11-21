@@ -146,6 +146,10 @@ describe("markdown stream", () => {
       "```\na\n```x\nb\n```\n\ntail",
       'see [docs][1] and [other][2]\n\n[1]: https://example.com\n\nmore\n\n[2]: https://example.org "title"\n\nend',
       '[a]: /x\n"title"\n\ntext',
+      "intro [docs][q]\n\n> [q]: /quoted\n\nafter",
+      "- item [ref][l]\n\n- [l]: /listed\n\nafter",
+      "1. step [ref][n]\n\n2. [n]: /numbered\n\nafter",
+      "inline text with a[x]: colon\n\nand [y]: mid-line\n\nmore",
       "  \n\n  leading space\n\n\n\ntrailing blanks\n\n\n",
       "a\r\nb\r\n\r\nc\r\n",
     ]

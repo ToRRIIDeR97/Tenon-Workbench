@@ -574,7 +574,9 @@ export function AppInterface(props: {
   // providers beneath it.
   // The shell reuses AppBaseProviders' QueryClient, the one GlobalProvider's server sync
   // writes to, so live session events reach the sidebar and Home queries.
-  onMount(prefetchPages)
+  onMount(() => {
+    if (props.surface !== "widget") prefetchPages()
+  })
   const ServerShell = (shellProps: ParentProps) => (
     <SharedProviders>
       {props.children}

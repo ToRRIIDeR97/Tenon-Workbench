@@ -11,12 +11,24 @@ export const FileSystemHandler = HttpApiBuilder.group(Api, "server.fs", (handler
     return handlers
       .handleRaw("fs.read", (ctx) =>
         Effect.gen(function* () {
+          const decoded = yield* Effect.try({
+            try: () => decodeURIComponent(new URL(ctx.request.url, "http://localhost").pathname.slice(13)),
+            catch: () => "invalid_uri" as const,
+          }).pipe(Effect.option)
+          if (decoded._tag === "None") {
+            return HttpServerResponse.text("Invalid path encoding", { status: 400 })
+          }
           const file = yield* (yield* FileSystem.Service).read({
-            path: RelativePath.make(
-              decodeURIComponent(new URL(ctx.request.url, "http://localhost").pathname.slice(13)),
-            ),
+            path: RelativePath.make(decoded.value),
           })
-          return HttpServerResponse.uint8Array(file.content, { contentType: file.mime })
+          return HttpServerResponse.uint8Array(file.content, {
+            contentType: file.mime,
+            headers: {
+              "x-content-type-options": "nosniff",
+              "content-security-policy": "default-src 'none'; sandbox",
+              "content-disposition": "attachment",
+            },
+          })
         }),
       )
       .handle("fs.list", (ctx) =>

@@ -48,7 +48,10 @@ export function TooltipV2(props: TooltipV2Props) {
     return ref.contains(active)
   }
 
-  const drop = (expand = state.expand) => {
+  const hasExpanded = () => !!ref?.querySelector('[aria-expanded="true"], [data-expanded]')
+
+  const drop = (expand = hasExpanded()) => {
+    setState("expand", expand)
     if (expand) return
     if (ref?.matches(":hover")) return
     if (inside()) return
@@ -56,14 +59,15 @@ export function TooltipV2(props: TooltipV2Props) {
   }
 
   const sync = () => {
-    const expand = !!ref?.querySelector('[aria-expanded="true"], [data-expanded]')
+    const expand = hasExpanded()
     setState("expand", expand)
     if (expand) {
       setState("block", true)
       close()
-      return
+      return true
     }
-    drop(expand)
+    drop(false)
+    return false
   }
 
   const arm = () => {
@@ -75,19 +79,6 @@ export function TooltipV2(props: TooltipV2Props) {
     close()
     drop()
   }
-
-  createEffect(() => {
-    if (!ref) return
-    sync()
-    const obs = new MutationObserver(sync)
-    obs.observe(ref, {
-      subtree: true,
-      childList: true,
-      attributes: true,
-      attributeFilter: ["aria-expanded", "data-expanded"],
-    })
-    onCleanup(() => obs.disconnect())
-  })
 
   let justClickedTrigger = false
 
@@ -106,6 +97,7 @@ export function TooltipV2(props: TooltipV2Props) {
           open={local.forceOpen || state.open}
           onOpenChange={(open) => {
             if (local.forceOpen) return
+            if (open && sync()) return
             if (state.block && open) return
             // A press on the trigger only suppresses the reopen that follows it; a close request always goes through.
             if (justClickedTrigger) {
@@ -120,6 +112,8 @@ export function TooltipV2(props: TooltipV2Props) {
             as="div"
             data-component="tooltip-v2-trigger"
             class={local.class}
+            onPointerEnter={() => sync()}
+            onFocusIn={() => sync()}
             onPointerDownCapture={arm}
             onKeyDownCapture={(event: KeyboardEvent) => {
               if (event.key !== "Enter" && event.key !== " ") return

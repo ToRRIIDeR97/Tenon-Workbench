@@ -150,10 +150,14 @@ const layer = Layer.effect(
 
       const outputPath = yield* write(contextual)
       const marker = `... output truncated; full content saved to ${outputPath} ...`
+      const boundedStructured = boundStructured(
+        input.output.structured,
+        Math.max(outputLimits.maxBytes * 4, 256 * 1024),
+      )
 
       return {
         output: {
-          structured: input.output.structured,
+          structured: boundedStructured,
           content: [
             {
               type: "text" as const,
@@ -184,6 +188,17 @@ const layer = Layer.effect(
     return Service.of({ limits, bound, cleanup })
   }),
 )
+
+function boundStructured(value: unknown, maxBytes: number): unknown {
+  if (value === undefined || value === null) return value
+  try {
+    const serialized = JSON.stringify(value)
+    if (serialized === undefined || Buffer.byteLength(serialized, "utf-8") <= maxBytes) return value
+    return undefined
+  } catch {
+    return undefined
+  }
+}
 
 export const node = makeLocationNode({ service: Service, layer, deps: [FSUtil.node, Global.node, Config.node] })
 

@@ -77,18 +77,22 @@ function openDraftStore(filename: string, onFlushError?: (error: unknown) => voi
   const used = new Set<string>()
   try {
     native.exec(
-      "PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS document (key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE IF NOT EXISTS blob (id TEXT PRIMARY KEY, data BLOB NOT NULL);",
+      "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=5000; CREATE TABLE IF NOT EXISTS document (key TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE IF NOT EXISTS blob (id TEXT PRIMARY KEY, data BLOB NOT NULL);",
     )
     ownerOnly(filename)
     db.select({ value: documents.value })
       .from(documents)
       .all()
-      .forEach(({ value }) =>
-        JSON.parse(value, (_key, item) => {
-          if (item?.blob && typeof item.blob.id === "string") used.add(item.blob.id)
-          return item
-        }),
-      )
+      .forEach(({ value }) => {
+        try {
+          JSON.parse(value, (_key, item) => {
+            if (item?.blob && typeof item.blob.id === "string") used.add(item.blob.id)
+            return item
+          })
+        } catch {
+          // Ignore malformed draft JSON so a single corrupt row never prevents launch.
+        }
+      })
     // One statement for all orphans; json_each sidesteps SQLite's bound-parameter limit.
     db.transaction((tx) =>
       tx
@@ -106,6 +110,7 @@ function openDraftStore(filename: string, onFlushError?: (error: unknown) => voi
   const flush = () => {
     if (timer) clearTimeout(timer)
     timer = undefined
+    if (pending.size === 0) return
     const writes = [...pending]
     pending.clear()
     try {

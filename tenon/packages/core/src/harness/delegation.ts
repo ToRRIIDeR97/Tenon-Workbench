@@ -550,10 +550,11 @@ async function serve(request: IncomingMessage, response: ServerResponse) {
 function authorize(header: string | undefined) {
   const presented = header?.startsWith("Bearer ") ? Buffer.from(header.slice(7)) : undefined
   if (!presented) return undefined
-  return [...state.tokens].find(([token]) => {
+  for (const [token, caller] of state.tokens) {
     const expected = Buffer.from(token)
-    return expected.length === presented.length && timingSafeEqual(expected, presented)
-  })?.[1]
+    if (expected.length === presented.length && timingSafeEqual(expected, presented)) return caller
+  }
+  return undefined
 }
 
 async function readBody(request: IncomingMessage) {

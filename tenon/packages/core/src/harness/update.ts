@@ -87,7 +87,10 @@ export function sourceFromPath(file: string, expected?: string): Source | undefi
   if (expected && packageName.test(expected) && /\/(npm|nodejs)$/i.test(folder) && /^[^./]+(\.(cmd|ps1))?$/i.test(base))
     return { method: "npm", packageName: expected, packageDir: `${folder}/node_modules/${expected}`, prefix: folder }
   const cellar = normalized.match(/^(.*)\/(Cellar|Caskroom)\/([^/]+)\/([^/]+)\//)
-  if (cellar && simpleName.test(cellar[3]!)) {
+  const brewPrefixes = new Set(["/opt/homebrew", "/usr/local", "/home/linuxbrew/.linuxbrew"])
+  if (process.env.HOMEBREW_PREFIX)
+    brewPrefixes.add(process.env.HOMEBREW_PREFIX.replaceAll("\\", "/").replace(/\/+$/, ""))
+  if (cellar && simpleName.test(cellar[3]!) && brewPrefixes.has(cellar[1]!)) {
     return {
       method: "brew",
       name: cellar[3]!,

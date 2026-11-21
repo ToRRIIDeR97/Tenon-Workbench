@@ -4,7 +4,7 @@ import type { DesktopTheme } from "@tenon/ui/theme/types"
 import oc2ThemeJson from "../../../ui/src/theme/themes/oc-2.json"
 import { randomUUID } from "node:crypto"
 import { rmSync } from "node:fs"
-import { stat } from "node:fs/promises"
+import { realpath, stat } from "node:fs/promises"
 import { app, BrowserWindow, dialog, net, nativeImage, nativeTheme, protocol, shell } from "electron"
 import { dirname, isAbsolute, join, relative, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
@@ -376,10 +376,14 @@ export function openLocalFileURL(value: string) {
     writeLog("window", "blocked local file target", { url: redactURL(value) }, "warn")
     return
   }
-  // A file:// link in terminal output or Markdown must not launch a program: executables
-  // (and anything we cannot stat) are revealed in the file manager instead of opened.
-  void stat(path)
-    .then((info) => localFileAction(path, { isDirectory: info.isDirectory(), mode: info.mode }))
+  // A file:// link in terminal output or Markdown must not launch a program: executables,
+  // symlinks to executables, and anything we cannot stat are revealed instead of opened.
+  void Promise.all([stat(path), realpath(path)])
+    .then(([info, real]) => {
+      const meta = { isDirectory: info.isDirectory(), mode: info.mode }
+      if (localFileAction(path, meta) === "reveal" || localFileAction(real, meta) === "reveal") return "reveal" as const
+      return "open" as const
+    })
     .catch(() => "reveal" as const)
     .then((action) => {
       if (action === "reveal") return shell.showItemInFolder(path)
@@ -678,12 +682,6 @@ function wireSession(session: Electron.Session) {
     return isTrustedRendererUrl(details.requestingUrl) || isTrustedRendererUrl(requestingOrigin)
   })
 
-  session.webRequest.onBeforeSendHeaders((details, callback) => {
-    const { requestHeaders } = details
-    upsertKeyValue(requestHeaders, "Access-Control-Allow-Origin", ["*"])
-    callback({ requestHeaders })
-  })
-
   session.webRequest.onHeadersReceived((details, callback) => {
     const { responseHeaders = {} } = details
     addRendererHeaders(details.url, responseHeaders)
@@ -701,8 +699,6 @@ function isTrustedRendererUrl(value?: string) {
 }
 
 function addRendererHeaders(value: string, headers: Record<string, any>) {
-  upsertKeyValue(headers, "Access-Control-Allow-Origin", ["*"])
-  upsertKeyValue(headers, "Access-Control-Allow-Headers", ["*"])
   if (!isRendererUrl(value, true)) return
   upsertKeyValue(headers, documentPolicyHeader, [jsCallStacksDocumentPolicy])
   upsertKeyValue(headers, contentPolicyHeader, [contentPolicy])

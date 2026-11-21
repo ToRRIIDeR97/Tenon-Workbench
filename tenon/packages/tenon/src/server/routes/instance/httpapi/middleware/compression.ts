@@ -1,6 +1,10 @@
-import { deflateSync, gzipSync } from "node:zlib"
+import { deflate, gzip } from "node:zlib"
+import { promisify } from "node:util"
 import { Effect } from "effect"
 import { HttpBody, HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http"
+
+const gzipAsync = promisify(gzip)
+const deflateAsync = promisify(deflate)
 
 // Keep the server's compressible content-type set stable across HTTP backend changes.
 const COMPRESSIBLE_CONTENT_TYPE_REGEX =
@@ -60,7 +64,10 @@ export const compressionLayer = HttpRouter.middleware<{ handles: unknown }>()((e
     const encoding = pickEncoding(request.headers["accept-encoding"])
     if (!encoding) return response
 
-    const compressed = encoding === "gzip" ? gzipSync(body.body) : deflateSync(body.body)
+    const compressed = yield* Effect.tryPromise(() =>
+      encoding === "gzip" ? gzipAsync(body.body) : deflateAsync(body.body),
+    ).pipe(Effect.catch(() => Effect.succeed(undefined)))
+    if (!compressed) return response
     return HttpServerResponse.setHeader(
       HttpServerResponse.setBody(response, HttpBody.uint8Array(compressed, contentType)),
       "content-encoding",

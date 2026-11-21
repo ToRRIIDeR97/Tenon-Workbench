@@ -229,7 +229,7 @@ function ensureCodeWrapper(block: HTMLPreElement, labels: CopyLabels) {
   applyCodeMetadata(parent, codeLanguage(block))
 
   const buttons = Array.from(parent.querySelectorAll('[data-slot="markdown-copy-button"]')).filter(
-    (el): el is HTMLButtonElement => el instanceof HTMLButtonElement,
+    (el): el is HTMLElement => el instanceof HTMLElement,
   )
 
   if (buttons.length === 0) {
@@ -707,9 +707,13 @@ function updateBlock(
         fromEl.getAttribute("data-slot") === "markdown-copy-button" &&
         toEl.getAttribute("data-slot") === "markdown-copy-button"
       ) {
+        disposeCopyButtons(toEl)
         return false
       }
-      if (fromEl.isEqualNode(toEl)) return false
+      if (fromEl.isEqualNode(toEl)) {
+        if (toEl instanceof Element) disposeCopyButtons(toEl)
+        return false
+      }
       return true
     },
     onBeforeNodeDiscarded: (node) => {
@@ -717,6 +721,8 @@ function updateBlock(
       return true
     },
   })
+  // Dispose any Solid copy-button roots still attached to the detached `next` tree.
+  disposeCopyButtons(next)
   return current
 }
 

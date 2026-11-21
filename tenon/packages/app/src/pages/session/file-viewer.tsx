@@ -22,6 +22,25 @@ import { viewerKind, type ViewerKind } from "./viewer-kind"
 
 export { viewerKind, type ViewerKind }
 
+function isAllowedDataMime(kind: ViewerKind, mimeType: string | undefined) {
+  const mime = mimeType?.split(";")[0]?.trim().toLowerCase() ?? ""
+  if (kind === "pdf") return mime === "application/pdf"
+  if (kind === "video") return mime.startsWith("video/")
+  if (kind === "sheet")
+    return (
+      mime === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+      mime === "application/vnd.ms-excel" ||
+      mime === "application/vnd.oasis.opendocument.spreadsheet" ||
+      mime === "application/octet-stream"
+    )
+  if (kind === "doc")
+    return (
+      mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      mime === "application/octet-stream"
+    )
+  return false
+}
+
 // Tables stop here; the source view still has every row.
 const MAX_ROWS = 500
 
@@ -51,12 +70,19 @@ export function FileViewer(props: {
   const textKind = () => props.kind === "markdown" || props.kind === "csv" || props.kind === "json"
   // Large binaries come through the desktop's tenon-file:// URL; elsewhere, the base64 the server read.
   const [url] = createResource(
-    () => (textKind() ? undefined : { directory: props.directory, path: props.path }),
-    async (input) =>
-      (await platform.fileViewerURL?.(input.directory, input.path).catch(() => undefined)) ??
-      (props.content?.encoding === "base64"
-        ? `data:${props.content.mimeType ?? ""};base64,${props.content.content}`
-        : undefined),
+    () => (textKind() ? undefined : { directory: props.directory, path: props.path, kind: props.kind }),
+    async (input) => {
+      if (platform.fileViewerURL) {
+        const desktopUrl = await platform.fileViewerURL(input.directory, input.path).catch(() => undefined)
+        if (desktopUrl) return desktopUrl
+        // On Desktop, if fileViewerURL refused (e.g. symlink extension mismatch), never fall back to data: for PDFs.
+        if (input.kind === "pdf") return undefined
+      }
+      if (props.content?.encoding === "base64" && isAllowedDataMime(input.kind, props.content.mimeType)) {
+        return `data:${props.content.mimeType};base64,${props.content.content}`
+      }
+      return undefined
+    },
   )
   const text = () => (props.content?.encoding === "base64" ? "" : (props.content?.content ?? ""))
   const writing = () => !!props.live?.writing

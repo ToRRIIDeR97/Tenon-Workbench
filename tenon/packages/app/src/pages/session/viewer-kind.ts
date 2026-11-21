@@ -22,5 +22,5 @@ const kinds: Record<string, ViewerKind> = {
 
 export function viewerKind(path: string | undefined): ViewerKind | undefined {
   const ext = path?.split(".").pop()?.toLowerCase()
-  return ext ? kinds[ext] : undefined
+  return ext && Object.hasOwn(kinds, ext) ? kinds[ext] : undefined
 }

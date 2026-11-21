@@ -79,7 +79,10 @@ folder dialog is initialized when empty.
 Markdown front matter in notes, Project cards, skills and agent configs is
 parsed through `Frontmatter.parse` (`tenon/packages/core/src/frontmatter.ts`),
 which refuses gray-matter's `---js` engine (it would `eval` the block) and any
-front matter over 64 KiB. Writers pass the body to gray-matter as an object, so
+front matter over 64 KiB or with more than 25 YAML aliases (a billion-laughs
+bomb), and reads front matter behind a UTF-8 byte order mark. Every writer
+(Project cards, vault pages, the CLI agent generator) goes through
+`Frontmatter.stringify`, which passes the body to gray-matter as an object, so
 a body is never parsed (a string body would merge its own front matter into
 the page and run a `---js` block). Cards and the manifest over 1 MiB, notes over 5 MiB
 and the calendar over 16 MiB are refused after a `stat`, before they are read.
@@ -171,8 +174,18 @@ their own origin first. `img-src` and `media-src` are only reported
 they flag on a candidate before enforcing them, because that is what would back
 the Markdown rule above.
 
+Main adds no CORS headers of its own: the default session used to stamp
+`Access-Control-Allow-Origin: *` and `Access-Control-Allow-Headers: *` on every
+response, which let any page the renderer loaded read any local server. Cross-origin
+requests from the renderer now get only what each server allows; the Tenon server
+allows `oc://renderer` (see [Managed server controls](#managed-server-controls)).
+Sanitized Markdown also drops form controls (`form`, `input`, `button`,
+`textarea`, `select`, `option`, `fieldset`), so a reply can't draw a fake prompt.
+
 `file://` links (terminal output, Markdown) open with the default app only for
-documents. Executables (the default Windows `PATHEXT` and the user's own, which
+documents. The check runs on the link and on the file a symlink resolves to, so
+`notes.txt` pointing at an app is revealed, not run; the same applies to
+`open-path` from the renderer. Executables (the default Windows `PATHEXT` and the user's own, which
 adds to it, plus shell launchers such as `.lnk`, `.hta`, `.msi`, `.scr`, `.cpl`,
 `.chm`, `.msix`, `.msixbundle`, `.appx`, `.appxbundle`, `.msu`, `.rdp`, `.scf`, `.inf`, `.library-ms`, `.search-ms`,
 `.searchconnector-ms`, `.desktopthemepackfile`, `.xll` and `.diagcab`, and any file name with
@@ -209,6 +222,11 @@ RunAsNode.
 - **CORS.** The allowlist is `oc://renderer` (exact match), numeric-port
   `localhost` and `127.0.0.1` origins for development, and origins passed to
   `Server.listen`. Tauri and `*.opencode.ai` origins are no longer trusted.
+- **File read route.** `GET /api/fs/read/*` answers with
+  `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; sandbox`
+  and `Content-Disposition: attachment`, so an `.html` or `.svg` file in the
+  workspace can't run script on the server's origin. A path whose percent
+  encoding doesn't decode is a 400, not a crash.
 - **Host and Origin guard.** A listener bound to a loopback address answers
   only a `Host` of `localhost`, `127.x.x.x`, `[::1]` or its own hostname (any
   port), so a DNS-rebound page is refused with 403. A request that carries an
@@ -248,6 +266,11 @@ on its own. Removed in the T3 parity Phase 1 cleanup:
 - Go/Zen upsell links in retry actions and the upsell dialogs,
 - the `HTTP-Referer: https://opencode.ai/` header sent to providers,
 - Help menu, sidebar, and error-page links to docs, Discord, and feedback.
+
+On Windows, downloaded LSP server archives are unpacked by PowerShell's
+`Expand-Archive -LiteralPath`, with both paths passed in environment variables
+(`tenon/src/util/archive.ts`), so a quote, bracket or `$` in a path can't end
+the command or act as a wildcard.
 
 Still outbound: the configured LLM providers (including the `opencode` Zen
 provider when the user selects it), the `models.dev` catalog, Google APIs,
@@ -294,6 +317,10 @@ The package manager gets the app's full environment, not the harness allowlist,
 because npm and brew need the user's proxy and registry settings. It runs
 outside any workspace (cwd is the home directory). Output is not logged. A
 failure shows the exit code and the last three lines of stderr.
+
+A `Cellar` or `Caskroom` path counts as Homebrew only under `/opt/homebrew`,
+`/usr/local`, `/home/linuxbrew/.linuxbrew` or `$HOMEBREW_PREFIX`; elsewhere the
+app would have run `<folder>/bin/brew` from wherever the CLI was found.
 
 Known gap: an update trusts the user's package registry and Homebrew taps the
 same way a manual `npm install -g` or `brew upgrade` would. A harness whose
@@ -750,7 +777,9 @@ the agent tab. Treat it as untrusted model output: the tab renders text as
 Markdown through the same sanitizing renderer as chat, and tool output as
 plain text. Each subagent's transcript is capped at 100,000 characters, and
 live checkpoints carry at most 50 entries without tool output, which bounds
-what an agent can make the app store per subagent call.
+what an agent can make the app store per subagent call. The subagent's session
+ID comes from the agent's output, so the usage lookup (`opencode api GET
+/api/session/<id>`) runs only for IDs of 1-128 letters, digits, `_` and `-`.
 
 ### Upstream OpenCode harness
 
@@ -1076,7 +1105,9 @@ is an assistant whose threads span workspaces.
 - **Tool prompts.** Command Centre threads read untrusted mail, so in the
   built-in loop `bash`, `webfetch`, `websearch`, `edit` and `tenon_write` ask
   first in a folder named `.command-centre`. Subagents ask too, and an ask never
-  widens an agent's deny. A user's `permission` config still wins, so allowing
+  widens an agent's deny. The read-only `explore` subagent asks for `webfetch`
+  and `websearch` in every folder, and keeps the `.env` read prompts after its
+  `read: *` allow. A user's `permission` config still wins, so allowing
   one of these there takes the prompt away. Harness-run threads keep their own
   policy. Browser and device tools are unchanged.
 - **Thread tools.** A Command Centre thread can see, read, message and stop
@@ -1520,12 +1551,22 @@ message and shows in a toast. It doesn't run outside git.
   500), read-only, with `X-Content-Type-Options: nosniff`, and
   sub-frames may load only those URLs and Chromium's PDF viewer. `plugins: true`
   is set on app windows for that viewer. Word documents are converted to HTML
-  and passed through the markdown sanitizer before they reach the page.
+  and passed through the markdown sanitizer before they reach the page. Only
+  the binary formats the viewers show get a URL: PDF, video, spreadsheets,
+  Word, raster images, audio and `.glb`/`.gltf` models. Markup (`.svg`,
+  `.html`) and other text never do; the renderer reads those through the
+  server. Responses allow CORS only for `oc://renderer` and the numeric-port
+  dev origins, and everything but PDFs (which Chromium's viewer renders) carries
+  `Content-Security-Policy: default-src 'none'`. On desktop a PDF the handler
+  refuses is not shown at all; elsewhere a `data:` URL is built only when the
+  server's MIME type matches the viewer.
 - **Embedded browser.** Pages run in a `WebContentsView` in the
   `persist:tenon-browser` session: no cookies or storage shared with the app,
   every permission denied, `window.open` loads in place, and only http(s)
   navigations. Requests to the app's own server are cancelled, by origin and by
-  port under every loopback name, so a page can't reach its API. The element
+  port under every loopback name (`localhost` and `*.localhost`, all of
+  `127.0.0.0/8`, `0.0.0.0`, `[::]`, `[::1]` and IPv4-mapped loopback), so a page
+  can't reach its API. The element
   picker and snapshots run in an isolated world the page can't see.
 - **Agent bridge.** A loopback HTTP server in main (`127.0.0.1:0`) takes
   browser and device tool calls. It requires a 256-bit bearer token passed only
@@ -1724,7 +1765,8 @@ folder stays unapproved. Until a folder is approved:
   and its skills there aren't loaded, because custom code and skill folders run
   or widen access as the user.
 - The keys `mcp`, `plugin`, `lsp`, `formatter`, `provider`, `shell`,
-  `references` and `skills` are dropped, and `instructions` entries that are
+  `references`, `skills`, `permissions`, `agents`, `default_agent` and
+  `experimental` are dropped, and `instructions` entries that are
   absolute, home-relative or climb with `..` are dropped.
 - `{env:}` and `{file:}` stay as literal text, so a config can't put a secret
   in a URL or header. A file that only decodes once its variables expand, such
@@ -1735,15 +1777,17 @@ folder stays unapproved. Until a folder is approved:
   (`ConfigTrust.commandsV1`). That block runs in a shell without asking each
   time the command is used, and a project command can replace a built-in one
   such as `/review`. Commands that only send text still load.
+- Its `.tenon`/`.opencode` `agent(s)` and `command(s)` folders aren't read, so
+  it can't replace a built-in agent or widen what one may do. In every folder,
+  an agent or command file that is a symlink resolving outside its folder is
+  skipped.
 - Skills under the folder's own `.claude` and `.agents` folders (inside the
   approval root) aren't loaded (`tenon/src/skill/index.ts`). The home copies,
   `~/.claude/skills` and `~/.agents/skills`, are the user's and always load.
 - Nothing is written into the folder: no `$schema` line, `.gitignore` or
   dependency install.
 
-Other keys, such as `model`, `experimental.policies` (provider access only, and
-user rules override it) and markdown agents (with the permission limits below)
-still apply. The user's own `~/.tenon` and
+Other keys, such as `model` and `username`, still apply. The user's own `~/.tenon` and
 `~/.opencode` are never project folders, even when a folder with no repository
 walks up past them. A linked Git worktree is its own folder, so it needs its own
 approval. When something was withheld, `GET /config/trust` names it and the app
@@ -1758,6 +1802,14 @@ markdown agents. A `read` allow pattern is refused if it ends in a wildcard,
 names `env`, or its last segment matches a sample `.env` name, so a repository that sets
 `"*": "deny"` can't reopen all reads from its own config. Deny and ask entries
 stay, and user config isn't limited.
+
+The search tools follow the same rules as `read`. `grep` and `glob` resolve
+their folder through `LocationMutation`, so one outside the opened folder asks
+for `external_directory` first, and searches the resolved (symlink-free) path.
+A `grep` on a single file also asks for `read` on it, so a `.env` keeps its
+prompt. The server's own file search (`core/src/filesystem/search.ts`, behind
+the app's file finder) refuses any path that leaves the opened folder, before
+or after resolving symlinks.
 
 The gate protects against a repository, not against an agent. An agent with
 shell access runs as the user and could edit the list itself. An approved
@@ -1830,6 +1882,11 @@ fix lands.
   keeps cmd metacharacters out of that command line.
 - Draft IPC accepts only string keys and values and caps one attachment blob
   at 64 MiB (`draft-store.ts`).
+- Renderer store IPC (`store-get`/`store-set`/`store-delete`) takes only
+  non-empty string keys other than `__proto__`, `constructor` and `prototype`,
+  and string values (`assertStoreKey` in `store-name.ts`). The stores behind it
+  are prototype-free objects, and a failed disk write is dropped instead of
+  crashing main (`write-behind-store.ts`).
 - Server authorization also accepts an `auth_token` query parameter, so the
   credential can appear in URLs. Desktop main-process logs record only the
   scheme and host of blocked and rejected URLs, never the query string. The
@@ -1843,11 +1900,13 @@ fix lands.
   renderer console output into the log files, and no terminal console
   messages are written to `pty.log`.
 - Renderer sourcemaps are built as hidden maps and excluded from the packaged
-  app. The macOS entitlements no longer request microphone access. They still
-  include `allow-jit`, `allow-unsigned-executable-memory`,
-  `disable-executable-page-protection`, `allow-dyld-environment-variables` and
-  `disable-library-validation`; check which ones the runtime and native modules
-  need before removing any.
+  app. The macOS entitlements are `allow-jit`, `allow-unsigned-executable-memory`
+  and `device.audio-input` (dictation). `disable-executable-page-protection`,
+  `allow-dyld-environment-variables` and `disable-library-validation` were
+  removed: they let `DYLD_INSERT_LIBRARIES` or an unsigned library load into the
+  app, undoing the Electron fuses. Not yet confirmed on a signed macOS build;
+  if a native module fails to load there, it needs signing with the app's
+  team ID, not the entitlement back.
 - `drafts.sqlite` stores unsent draft content unencrypted in the profile, the
   same as the session database next to it. The file and its `-wal`/`-shm`
   companions are owner-only (`0600`) on macOS and Linux (`draft-store.ts`).

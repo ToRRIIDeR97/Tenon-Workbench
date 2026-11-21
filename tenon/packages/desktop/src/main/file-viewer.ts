@@ -38,16 +38,52 @@ export function isInside(root: string, file: string, platform: NodeJS.Platform =
   return Boolean(rel) && !rel.startsWith("..") && !paths.isAbsolute(rel)
 }
 
+// Only the binary formats the viewers show are eligible for tenon-file:// URLs: never markup (.html, .svg),
+// keys or other text, which the renderer reads through the server instead.
+const ALLOWED_VIEWER_EXTENSIONS = new Set([
+  // Workbench panel: PDF, video and Office files.
+  ".pdf",
+  ".mp4",
+  ".webm",
+  ".mov",
+  ".m4v",
+  ".ogv",
+  ".xlsx",
+  ".xls",
+  ".ods",
+  ".docx",
+  // Thread view windows: raster images, audio and 3D models.
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".webp",
+  ".avif",
+  ".bmp",
+  ".mp3",
+  ".wav",
+  ".ogg",
+  ".oga",
+  ".flac",
+  ".m4a",
+  ".aac",
+  ".opus",
+  ".glb",
+  ".gltf",
+])
+
 export async function fileViewerURL(directory: string, path: string) {
   const lexical = resolveInside(directory, path)
   if (!lexical) return
+  const requestedExt = extname(lexical).toLowerCase()
+  if (!ALLOWED_VIEWER_EXTENSIONS.has(requestedExt)) return
   // The lexical check alone would follow a symlink in the folder out to ~/.ssh/id_rsa: resolve
   // links on both sides and check again. The issued URL serves the resolved file.
   const [root, file] = await Promise.all([realpath(directory), realpath(lexical)]).catch(() => [])
   if (!root || !file || !isInside(root, file)) return
   // The renderer picks the viewer from the requested name, but the served type follows the resolved file, so
   // `report.pdf -> page.html` would run HTML in the frame. A link must keep its target's extension.
-  if (extname(file).toLowerCase() !== extname(lexical).toLowerCase()) return
+  if (extname(file).toLowerCase() !== requestedExt) return
   const info = await stat(file).catch(() => undefined)
   if (!info?.isFile()) return
   const token = randomUUID()
@@ -69,15 +105,30 @@ export function isFileViewerFrameURL(value: string) {
 export function registerFileViewerProtocol() {
   if (protocol.isProtocolHandled(fileViewerProtocol)) return
   protocol.handle(fileViewerProtocol, async (request) => {
-    const url = new URL(request.url)
+    let url: URL
+    try {
+      url = new URL(request.url)
+    } catch {
+      return new Response("Bad request", { status: 400 })
+    }
     const file = url.host === host ? issued.get(url.pathname.split("/")[1] ?? "") : undefined
     if (!file || request.method !== "GET") return new Response("Not found", { status: 404 })
     const range = request.headers.get("range")
-    const response = await net.fetch(pathToFileURL(file).toString(), { headers: range ? { range } : undefined })
+    const response = await net
+      .fetch(pathToFileURL(file).toString(), { headers: range ? { range } : undefined })
+      .catch(() => undefined)
+    if (!response) return new Response("Not found", { status: 404 })
     // The renderer (oc://renderer, or the dev server) reads spreadsheets and documents with fetch().
     const headers = new Headers(response.headers)
-    headers.set("Access-Control-Allow-Origin", "*")
+    const origin = request.headers.get("origin")
+    if (origin && (origin === "oc://renderer" || /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin))) {
+      headers.set("Access-Control-Allow-Origin", origin)
+      headers.set("Vary", "Origin")
+    }
     headers.set("X-Content-Type-Options", "nosniff")
+    if (extname(file).toLowerCase() !== ".pdf") {
+      headers.set("Content-Security-Policy", "default-src 'none'; script-src 'none'; object-src 'none'")
+    }
     return new Response(response.body, { status: response.status, statusText: response.statusText, headers })
   })
 }

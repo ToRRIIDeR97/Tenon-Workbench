@@ -133,6 +133,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       // toURL() honors the Host + x-forwarded-proto headers, so the Link
       // header echoes the real origin instead of a hard-coded localhost.
       const url = Option.getOrElse(HttpServerRequest.toURL(request), () => new URL(request.url, "http://localhost"))
+      url.searchParams.delete("auth_token")
       url.searchParams.set("limit", ctx.query.limit.toString())
       url.searchParams.set("before", page.cursor)
       return HttpServerResponse.jsonUnsafe(page.items, {

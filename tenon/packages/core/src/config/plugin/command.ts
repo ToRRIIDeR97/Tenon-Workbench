@@ -21,6 +21,8 @@ export const Plugin = define({
       Effect.fn(function* (draft) {
         const documents = yield* Effect.forEach(yield* config.entries(), (entry) => {
           if (entry.type === "document") return Effect.succeed([{ commands: entry.info.commands }])
+          if (entry.untrusted)
+            return Effect.succeed([] as { commands: Record<string, ConfigCommand.Info> | undefined }[])
           return loadDirectory(fs, entry.path).pipe(
             Effect.map((commands) => [
               { commands: Object.fromEntries(commands.map((command) => [command.name, command.info])) },
@@ -51,14 +53,17 @@ export const Plugin = define({
 
 function loadDirectory(fs: FSUtil.Interface, directory: string) {
   return Effect.gen(function* () {
+    const realDir = yield* fs.realPath(directory).pipe(Effect.orElseSucceed(() => directory))
     const files = yield* fs
       .glob("{command,commands}/**/*.md", { cwd: directory, absolute: true, dot: true, symlink: true })
       .pipe(Effect.catch(() => Effect.succeed([] as string[])))
     return yield* Effect.forEach(files.toSorted(), (filepath) =>
-      fs.readFileStringSafe(filepath).pipe(
-        Effect.map((content) => (content === undefined ? undefined : decode(directory, filepath, content))),
-        Effect.catch(() => Effect.succeed(undefined)),
-      ),
+      Effect.gen(function* () {
+        const realFile = yield* fs.realPath(filepath).pipe(Effect.catch(() => Effect.succeed(undefined)))
+        if (!realFile || !FSUtil.contains(realDir, realFile)) return undefined
+        const content = yield* fs.readFileStringSafe(realFile)
+        return content === undefined ? undefined : decode(directory, filepath, content)
+      }).pipe(Effect.catch(() => Effect.succeed(undefined))),
     ).pipe(
       Effect.map((commands) =>
         commands.filter((command): command is { name: string; info: ConfigCommand.Info } => command !== undefined),

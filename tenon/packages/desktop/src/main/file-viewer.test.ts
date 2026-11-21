@@ -47,6 +47,20 @@ describe("isInside", () => {
   })
 })
 
+describe("fileViewerURL types", () => {
+  const base = mkdtemp(join(tmpdir(), "tenon-file-viewer-types-"))
+  afterAll(async () => rm(await base, { recursive: true, force: true }))
+
+  test("serves the media the viewers show and refuses markup and other files", async () => {
+    const repo = await base
+    for (const name of ["a.pdf", "b.mp4", "c.PNG", "d.mp3", "e.glb", "f.docx", "g.svg", "h.html", "i.txt", "id_rsa"])
+      await writeFile(join(repo, name), "x")
+    for (const name of ["a.pdf", "b.mp4", "c.PNG", "d.mp3", "e.glb", "f.docx"])
+      expect(await fileViewerURL(repo, name)).toMatch(/^tenon-file:\/\/local\//)
+    for (const name of ["g.svg", "h.html", "i.txt", "id_rsa"]) expect(await fileViewerURL(repo, name)).toBeUndefined()
+  })
+})
+
 // Creating symlinks on Windows needs Developer Mode or elevation, so the link case runs on POSIX.
 describe.skipIf(process.platform === "win32")("fileViewerURL", () => {
   const base = mkdtemp(join(tmpdir(), "tenon-file-viewer-"))
