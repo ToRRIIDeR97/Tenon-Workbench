@@ -197,11 +197,17 @@ const api: ElectronAPI = {
   dictation: {
     start: (options) => ipcRenderer.invoke("dictation-start", options),
     stop: () => ipcRenderer.invoke("dictation-stop"),
+    transcribe: (samples) => ipcRenderer.invoke("dictation-transcribe", samples),
     cancel: () => ipcRenderer.invoke("dictation-cancel"),
     onLevel: (cb) => {
       const handler = (_: unknown, rms: number) => cb(rms)
       ipcRenderer.on("dictation-level", handler)
       return () => ipcRenderer.removeListener("dictation-level", handler)
+    },
+    onBands: (cb) => {
+      const handler = (_: unknown, values: number[]) => cb(values)
+      ipcRenderer.on("dictation-bands", handler)
+      return () => ipcRenderer.removeListener("dictation-bands", handler)
     },
     onPartial: (cb) => {
       const handler = (_: unknown, text: string) => cb(text)

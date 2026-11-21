@@ -311,6 +311,7 @@ export const makeSessionGroup = <I extends HttpApiMiddleware.AnyId, S>(sessionLo
     .add(
       HttpApiEndpoint.post("session.compact", "/api/session/:sessionID/compact", {
         params: { sessionID: Session.ID },
+        payload: Schema.Struct({ model: Harness.ModelSelection.pipe(Schema.optional) }),
         success: HttpApiSchema.NoContent,
         error: [SessionNotFoundError, ServiceUnavailableError],
       })
@@ -319,7 +320,8 @@ export const makeSessionGroup = <I extends HttpApiMiddleware.AnyId, S>(sessionLo
           OpenApi.annotations({
             identifier: "v2.session.compact",
             summary: "Compact session",
-            description: "Compact a session conversation.",
+            description:
+              "Compact a thread's conversation: with the harness's own /compact (Claude Code, OpenCode, ACP agents that report it), Codex's thread compaction, or a summary written on Tenon's side for the built-in agent and other harnesses. `model` runs the compaction or summary on another model of the same harness. Fails with 503 while the thread runs, when there is nothing to compact yet, or with the harness's error.",
           }),
         ),
     )

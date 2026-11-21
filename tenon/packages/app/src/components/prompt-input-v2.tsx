@@ -16,7 +16,7 @@ import { KeybindV2 } from "@tenon/ui/v2/keybind-v2"
 import { MenuV2 } from "@tenon/ui/v2/menu-v2"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import type { ReferenceInfo } from "@opencode-ai/sdk/v2/client"
-import { createEffect, createMemo, createSignal, For, on, onCleanup, Show, type JSX } from "solid-js"
+import { createEffect, createMemo, createResource, createSignal, For, on, onCleanup, Show, type JSX } from "solid-js"
 import { ModelSelectorPopoverV2 } from "@/components/dialog-select-model"
 import { DialogSelectModelUnpaidV2 } from "@/components/dialog-select-model-unpaid-v2"
 import { PromptModelPill } from "@/components/prompt-input/model-pill"
@@ -45,6 +45,10 @@ import { createSessionTabs } from "@/pages/session/helpers"
 import { showToast } from "@/utils/toast"
 import { PromptInputV2, type PromptInputV2Suggestion } from "@tenon/session-ui/v2/prompt-input"
 import { Harness } from "@tenon/schema/harness"
+import { DEFAULT_INPUTS, mediaPlan } from "@/components/prompt-input/attachment-media"
+import { attachmentNote, createNoteDetails } from "@/components/prompt-input/attachment-note"
+import { frameGrids, setAttachmentTranscriber } from "@/components/prompt-input/attachment-prepare"
+import { modelInputs } from "@/components/prompt-input/submit"
 import {
   createPromptInputV2Controller,
   createPromptInputV2State,
@@ -62,6 +66,8 @@ export type PromptInputV2ComposerProps = {
   header?: JSX.Element
   /** A row inside the box above the text, such as the new thread's folder and worktree. */
   boxHeader?: JSX.Element
+  /** A section of the same tray above the box header, such as the thread's checklist. */
+  boxHeaderTop?: JSX.Element
 }
 
 export type PromptInputV2ControllerProps = Omit<PromptInputProps, "class" | "submission">
@@ -75,6 +81,20 @@ export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
   const command = useCommand()
   const language = useLanguage()
   const platform = usePlatform()
+  const noteDetails = createNoteDetails()
+  // Audio the model can't hear is transcribed by the local dictation engine (desktop only).
+  setAttachmentTranscriber(
+    platform.dictation?.transcribe ? (samples) => platform.dictation!.transcribe!(samples) : undefined,
+    (event) =>
+      showToast({
+        description: language.t(
+          event.kind === "transcribing"
+            ? "secondBrain.attachment.transcribing"
+            : "secondBrain.attachment.transcribeFailed",
+          { name: event.filename },
+        ),
+      }),
+  )
   const settings = useSettings()
   // A pick here is the next new thread's starting harness and model (Settings › Harnesses, "last one I used").
   const harness = () => props.harness && rememberingHarness(props.harness, settings.harnesses.setLastUsed)
@@ -101,7 +121,22 @@ export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
       <PromptInputV2
         controller={props.controller}
         headerControl={props.boxHeader}
+        headerTop={props.boxHeaderTop}
         quoteRemoveLabel={language.t("secondBrain.quote.remove")}
+        attachmentNote={(attachment) => {
+          // How it will reach the selected model: the built-in agent's model reports its inputs; a harness's model
+          // is taken to read images and PDF (#330).
+          noteDetails.load(attachment)
+          const inputs =
+            (builtInLoop() ? modelInputs(props.controller.model.selection.current()) : undefined) ?? DEFAULT_INPUTS
+          const note = attachmentNote(
+            attachment.mime,
+            inputs,
+            noteDetails.get(attachment.id),
+            !!platform.dictation?.transcribe,
+          )
+          return note && language.t(note.key, note.params)
+        }}
         runtimeControl={
           harness() ? (
             <>
@@ -547,7 +582,16 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
       if (item?.type === "file" && item.commentID) comments.remove(item.path, item.commentID)
     },
     openAttachment: (attachment) =>
-      dialog.show(() => <AttachmentPreview src={attachment.blob.url} name={attachment.filename} />),
+      dialog.show(() =>
+        // A video for a model that reads only images opens on the frame grids it will be sent as (#330).
+        attachment.mime.startsWith("video/") &&
+        mediaPlan(attachment.mime, modelInputs(props.controls.model.selection.current()) ?? DEFAULT_INPUTS) ===
+          "frames" ? (
+          <FrameGridPreview url={attachment.blob.url} name={attachment.filename} />
+        ) : (
+          <AttachmentPreview src={attachment.blob.url} name={attachment.filename} />
+        ),
+      ),
     openContext(key) {
       const item = controller.contextItem(key)
       if (item?.type === "file") openComment(item, props, sync, layout, files, comments)
@@ -608,6 +652,7 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
     registerReplySender({
       send: (reply) => void submission.handleSubmit(new Event("submit"), { reply }),
       add: (reply) => prompt.context.add({ type: "quote", text: reply.quote, comment: reply.text.trim() || undefined }),
+      submit: () => void submission.handleSubmit(new Event("submit")),
     }),
   )
   Object.defineProperty(controller, "model", { get: () => props.controls.model })
@@ -679,6 +724,48 @@ function AttachmentPreview(props: { src: string; name: string }) {
           alt={props.name}
           class="max-h-[min(calc(100vh-180px),512px)] max-w-full rounded-[16px] object-contain"
         />
+      </DialogBody>
+    </Dialog>
+  )
+}
+
+/** The frame grids a video becomes, built the same way as when it is sent. */
+function FrameGridPreview(props: { url: string; name: string }) {
+  const language = useLanguage()
+  const [grids] = createResource(
+    () => props.url,
+    (url) =>
+      fetch(url)
+        .then((response) => response.blob())
+        .then(frameGrids)
+        .then((blobs) => blobs.map((blob) => URL.createObjectURL(blob)))
+        .catch(() => [] as string[]),
+  )
+  onCleanup(() => grids.latest?.forEach((url) => URL.revokeObjectURL(url)))
+  return (
+    <Dialog size="x-large">
+      <DialogHeader>
+        <DialogTitle>
+          <span class="block truncate">{props.name}</span>
+        </DialogTitle>
+      </DialogHeader>
+      <DialogBody class="min-h-0 flex-col gap-3 overflow-y-auto px-4 pb-4">
+        <p class="type-meta text-v2-text-text-muted">
+          {grids.loading
+            ? language.t("secondBrain.attachment.gridsLoading")
+            : (grids.latest?.length ?? 0) > 0
+              ? language.t("secondBrain.attachment.gridsShown")
+              : language.t("secondBrain.attachment.gridsFailed")}
+        </p>
+        <For each={grids.latest ?? []}>
+          {(src) => (
+            <img
+              src={src}
+              alt=""
+              class="max-h-[min(calc(100vh-220px),512px)] max-w-full self-center rounded-[16px] object-contain"
+            />
+          )}
+        </For>
       </DialogBody>
     </Dialog>
   )

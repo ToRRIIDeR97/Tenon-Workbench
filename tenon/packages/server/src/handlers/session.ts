@@ -297,7 +297,10 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
       .handle(
         "session.compact",
         Effect.fn(function* (ctx) {
-          yield* session.compact({ sessionID: ctx.params.sessionID }).pipe(
+          yield* session.compact({ sessionID: ctx.params.sessionID, model: ctx.payload.model }).pipe(
+            Effect.catchTag("Session.CompactFailedError", (error) =>
+              Effect.fail(new ServiceUnavailableError({ message: error.message, service: "session.compact" })),
+            ),
             Effect.catchTag("Session.NotFoundError", (error) =>
               Effect.fail(
                 new SessionNotFoundError({
@@ -309,7 +312,8 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
             Effect.catchTag("Session.OperationUnavailableError", (error) =>
               Effect.fail(
                 new ServiceUnavailableError({
-                  message: `Session ${error.operation} is not available yet`,
+                  message:
+                    "Nothing to compact yet, or the thread is running. Wait for the turn to finish and try again.",
                   service: `session.${error.operation}`,
                 }),
               ),

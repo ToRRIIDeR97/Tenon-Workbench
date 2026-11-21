@@ -54,6 +54,7 @@ import { HarnessAskUser } from "./harness/ask-user"
 import { HarnessCatalogCache } from "./harness/catalog-cache"
 import { HarnessDelegation } from "./harness/delegation"
 import { HarnessForwardedMcp } from "./harness/forwarded-mcp"
+import { HarnessComputerUse } from "./harness/computer-use"
 import { HarnessRegistry } from "./harness/registry"
 import { HarnessSetup } from "./harness/setup"
 import { HarnessPids } from "./harness/pids"
@@ -80,6 +81,8 @@ export interface Driver {
   readonly stream: (input: StreamInput) => Stream.Stream<LLMEvent, LLMError>
   /** One prompt in a fresh, throwaway native session; undefined for the in-process loop. */
   readonly complete?: (input: CompleteInput) => Effect.Effect<string, LLMError>
+  /** Compacts the thread's native session on the harness's own side; undefined where the harness can't. */
+  readonly compact?: (input: StreamInput) => Effect.Effect<void, LLMError>
 }
 
 export interface CompleteInput {
@@ -121,6 +124,13 @@ export interface Interface {
   readonly complete: (
     input: CompleteInput & { readonly instanceID: Harness.InstanceID },
   ) => Effect.Effect<string, LLMError>
+  /**
+   * Compacts a thread's native session with the harness's own compaction (Codex's `thread/compact/start`).
+   * Resolves false for a harness that has none, so the caller can compact on Tenon's side instead.
+   */
+  readonly compact: (
+    input: StreamInput & { readonly instanceID: Harness.InstanceID },
+  ) => Effect.Effect<boolean, LLMError>
   /** The harness that titles new threads, when one is set in settings; otherwise each thread's own. */
   readonly titleAgent: () => Effect.Effect<Harness.InstanceID | undefined>
   readonly setTitleAgent: (id: Harness.InstanceID | undefined) => Effect.Effect<void, HarnessRegistry.RegisterError>
@@ -160,7 +170,7 @@ export interface InstanceConfig {
   readonly config: Readonly<Record<string, unknown>>
 }
 
-interface CodexRuntime {
+export interface CodexRuntime {
   readonly client: CodexClient
   readonly scope: Scope.Closeable
   readonly threadID: string
@@ -236,9 +246,12 @@ const layer = Layer.effect(
       HarnessSetup.readOpenCodeUserConfig(),
     ]).pipe(
       Effect.map(([registry, keys, openCodeConfig]) =>
-        withOpenCodePermissions(
-          withSetupKeys(configuredInstances(entries, registry, global.config), keys),
-          HarnessSetup.openCodeLaunchEnv(openCodeConfig),
+        withClaudeCodeTimeouts(
+          withOpenCodePermissions(
+            withSetupKeys(configuredInstances(entries, registry, global.config), keys),
+            HarnessSetup.openCodeLaunchEnv(openCodeConfig),
+          ),
+          HarnessSetup.claudeCodeLaunchEnv(globalThis.process.env),
         ),
       ),
     )
@@ -407,7 +420,8 @@ const layer = Layer.effect(
         }),
       )
 
-    // A committed rollback removed turns the native sessions still hold; their next turn reconnects fresh.
+    // A committed rollback removed turns the native sessions still hold, and a compaction on Tenon's side replaced
+    // them with a summary; their next turn reconnects fresh.
     const unlisten = yield* closeOnRevertCommit(events, (sessionID) =>
       closeRuntimesWhere((key) => key.includes(`:${sessionID}:`)),
     )
@@ -587,6 +601,8 @@ const layer = Layer.effect(
     ) {
       const runtimeScope = yield* Scope.make()
       const gate = turnGate()
+      // Read by the approval handler, which is handed to the session before the session exists.
+      let background = () => false
       const blocked = new Map<string, Blocked>()
       const revision = input.revision ?? 0
       const continuation = yield* readContinuation(database.db, input.sessionID, instance.id, revision)
@@ -595,11 +611,17 @@ const layer = Layer.effect(
         Effect.provideService(Scope.Scope, runtimeScope),
         Effect.provideService(Location.Service, location),
       )
-      // Tenon sets the MCP call timeout of the built-in agents (OpenCode's launch config; Claude Code's default is
-      // hours). Another agent's client may give up after 60 s, so its `ask_user` returns "still open" sooner.
+      // Tenon sets the MCP call timeout of the built-in agents (OpenCode's launch config, Claude Code's launch
+      // environment). Another agent's client may give up after 60 s, so its `ask_user` returns "still open" sooner.
       const longWait = instance.id === Harness.OpenCodeAcp || instance.id === Harness.ClaudeCode
-      const delegation = yield* HarnessDelegation.endpoint(input.sessionID, (prompts, waitSeconds) =>
-        asker.ask(prompts, longWait ? waitSeconds : Math.min(waitSeconds, HarnessAskUser.SHORT_WAIT_SECONDS)),
+      const delegation = yield* HarnessDelegation.endpoint(
+        input.sessionID,
+        (prompts, waitSeconds) =>
+          asker.ask(prompts, longWait ? waitSeconds : Math.min(waitSeconds, HarnessAskUser.SHORT_WAIT_SECONDS)),
+        // Computer use goes through Tenon's Cua Driver proxy (#333); Claude Code has its own.
+        HarnessComputerUse.serverFor(instance.id, true, "proxy")
+          ? { directory: input.directory, harness: instance.name }
+          : undefined,
       ).pipe(Effect.provideService(Scope.Scope, runtimeScope))
       const session = yield* AcpHarness.open(process, {
         settings,
@@ -641,12 +663,14 @@ const layer = Layer.effect(
                 ),
               ),
               false,
+              () => background(),
             )
             .pipe(Effect.provideService(Location.Service, location)),
       }).pipe(
         Effect.provideService(Scope.Scope, runtimeScope),
         Effect.onError(() => Scope.close(runtimeScope, Exit.void).pipe(Effect.ignore)),
       )
+      background = session.backgroundWorking
       if (session.sessionId !== continuation?.nativeID) {
         yield* events.publish(SessionEvent.HarnessContinuationSet, {
           sessionID: input.sessionID,
@@ -845,6 +869,10 @@ const layer = Layer.effect(
                 )
               : Stream.fail(llmError("CodexHarness", "stream", `${instance.name} is disabled.`)),
           complete: (input) => codexComplete(settings, input),
+          compact: (input) =>
+            instance.enabled
+              ? codexCompact(getRuntime(instance, input))
+              : Effect.fail(llmError("CodexHarness", "compact", `${instance.name} is disabled.`)),
         }
       }
       if (instance.driver === Harness.AcpDriver) {
@@ -1216,6 +1244,14 @@ const layer = Layer.effect(
           ),
         )
       },
+      compact: (input) =>
+        instances.pipe(
+          Effect.flatMap((current) => {
+            const instance = current.find((item) => item.id === input.instanceID)
+            const compact = instance ? driverFor(instance).compact : undefined
+            return compact ? compact(input).pipe(Effect.as(true)) : Effect.succeed(false)
+          }),
+        ),
       complete: (input) =>
         instances.pipe(
           Effect.flatMap((current) => {
@@ -1350,6 +1386,15 @@ function withOpenCodePermissions(instances: ReadonlyArray<InstanceConfig>, env: 
     const current = isRecord(instance.config.env) ? instance.config.env : {}
     if (current.OPENCODE_CONFIG_CONTENT !== undefined) return instance
     return { ...instance, config: { ...instance.config, env: { ...current, ...env } } }
+  })
+}
+
+function withClaudeCodeTimeouts(instances: ReadonlyArray<InstanceConfig>, env: Record<string, string>) {
+  return instances.map((instance) => {
+    if (instance.id !== Harness.ClaudeCode || Object.keys(env).length === 0) return instance
+    const current = isRecord(instance.config.env) ? instance.config.env : {}
+    // A value set on the harness itself in Settings wins.
+    return { ...instance, config: { ...instance.config, env: { ...env, ...current } } }
   })
 }
 
@@ -2379,10 +2424,44 @@ export function makeCachedProbe(state: {
 export function closeOnRevertCommit(events: EventV2.Interface, close: (sessionID: SessionID) => Effect.Effect<void>) {
   return events.listen((event) => {
     const sessionID: unknown = isRecord(event.data) ? event.data.sessionID : undefined
-    return event.type === SessionEvent.RevertEvent.Committed.type && typeof sessionID === "string"
+    const manualCompaction =
+      event.type === SessionEvent.Compaction.Ended.type && isRecord(event.data) && event.data.reason === "manual"
+    return (event.type === SessionEvent.RevertEvent.Committed.type || manualCompaction) && typeof sessionID === "string"
       ? close(SessionID.make(sessionID))
       : Effect.void
   })
+}
+
+/**
+ * Codex compacts the thread on its side (`thread/compact/start`), as a turn of its own; this waits for that turn to
+ * complete, for at most ten minutes. The thread must be idle: the turn's notifications are read from the same queue.
+ */
+export function codexCompact(runtime: Effect.Effect<CodexRuntime, unknown>) {
+  return runtime.pipe(
+    Effect.flatMap((runtime) =>
+      runtime.client.request("thread/compact/start", { threadId: runtime.threadID }, THREAD_SETUP_TIMEOUT).pipe(
+        Effect.andThen(
+          runtime.client.notifications.pipe(
+            Stream.filter(
+              (notification) =>
+                notification.method === "turn/completed" &&
+                isRecord(notification.params) &&
+                notification.params.threadId === runtime.threadID,
+            ),
+            Stream.take(1),
+            Stream.runDrain,
+            Effect.timeoutOrElse({
+              duration: "10 minutes",
+              orElse: () => Effect.fail(new ProtocolError("Codex did not finish compacting within 10 minutes.")),
+            }),
+          ),
+        ),
+      ),
+    ),
+    Effect.mapError((error) =>
+      error instanceof LLMError ? error : llmError("CodexHarness", "compact", errorMessage(error)),
+    ),
+  )
 }
 
 function readContinuation(
@@ -2457,20 +2536,32 @@ export type TurnGate = ReturnType<typeof turnGate>
  * One harness runtime's current turn. An approval asked during the turn runs through `guard`; when the turn ends
  * (Stop included) before it is answered, the wait is interrupted, which withdraws the prompt from the dock, and the
  * agent gets `fallback`, a denial, instead of an answer to a request it has already abandoned.
+ *
+ * A request that arrives between turns gets `fallback` at once, unless `between` says work the agent sent to the
+ * background is still running: OpenCode keeps background subagents going after the turn that launched them, and
+ * refusing their requests unseen cancels them. Such a request is asked like any other and waits for
+ * its answer; a later turn's end doesn't withdraw it, since it never belonged to that turn.
  */
 export function turnGate() {
   let ended = Deferred.makeUnsafe<void>()
+  let active = false
   let open = 0
   return {
     pending: () => open > 0,
     begin: () => {
       ended = Deferred.makeUnsafe<void>()
+      active = true
     },
-    end: Effect.suspend(() => Deferred.succeed(ended, undefined)).pipe(Effect.asVoid),
-    guard: <A, E, R>(effect: Effect.Effect<A, E, R>, fallback: A) =>
+    end: Effect.suspend(() => {
+      active = false
+      return Deferred.succeed(ended, undefined)
+    }).pipe(Effect.asVoid),
+    guard: <A, E, R>(effect: Effect.Effect<A, E, R>, fallback: A, between?: () => boolean) =>
       Effect.suspend(() => {
         open += 1
-        return Effect.raceFirst(effect, Deferred.await(ended).pipe(Effect.as(fallback))).pipe(
+        const raced =
+          !active && between?.() ? effect : Effect.raceFirst(effect, Deferred.await(ended).pipe(Effect.as(fallback)))
+        return raced.pipe(
           Effect.ensuring(
             Effect.sync(() => {
               open -= 1

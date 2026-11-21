@@ -209,7 +209,7 @@ const decodeSettingsList = Schema.decodeUnknownSync(Location.response(Schema.Arr
 const decodeSettingsEntry = Schema.decodeUnknownSync(Location.response(HarnessSchema.SettingsEntry))
 const decodeDiscovery = Schema.decodeUnknownSync(Location.response(HarnessSchema.Discovery))
 
-type HarnessServer = {
+export type HarnessServer = {
   server: ServerConnection.HttpBase
   fetch?: typeof globalThis.fetch
 }
@@ -247,6 +247,88 @@ async function locationRequest(
   throw new Error(message)
 }
 
+/** Computer use for a Project folder (#333): its switch and the Cua Driver's install and permission state. */
+export async function getComputerUse(input: HarnessServer, folder: string) {
+  const body = await locationRequest(input, folder, "/api/computer-use", "Computer use request failed")
+  return (body as { data: import("@/features/second-brain/project-computer-use-model").ComputerUseState }).data
+}
+
+export async function setComputerUse(input: HarnessServer, folder: string, enabled: boolean) {
+  const body = await locationRequest(input, folder, "/api/computer-use", "Computer use request failed", {
+    method: "POST",
+    body: JSON.stringify({ enabled }),
+  })
+  return (body as { data: import("@/features/second-brain/project-computer-use-model").ComputerUseState }).data
+}
+
+/** The Project folder's GitHub issues and PRs (#331), read on the server with the user's gh login. */
+export async function projectGithubWork(
+  input: HarnessServer,
+  folder: string,
+  options: { repo?: string; save?: boolean; refresh?: boolean } = {},
+) {
+  const body = await locationRequest(input, folder, "/api/github/work", "GitHub request failed", {
+    method: "POST",
+    body: JSON.stringify(options),
+  })
+  return (body as { data: import("@/features/second-brain/github-tasks").GithubWork }).data
+}
+
+/** Deletes one MCP server from the global config (#334); a config patch can only add or change servers. */
+export async function removeMcpServer(input: HarnessServer, name: string) {
+  const body = await locationRequest(
+    input,
+    "",
+    `/global/config/mcp/${encodeURIComponent(name)}`,
+    "MCP request failed",
+    {
+      method: "DELETE",
+    },
+  )
+  return typeof body === "object" && body !== null && "changed" in body && body.changed === true
+}
+
+/** Each connected server's tool names in a folder, for Settings › MCP servers. */
+export async function mcpToolNames(input: HarnessServer, directory: string) {
+  const body = await locationRequest(
+    input,
+    "",
+    `/mcp/tools?directory=${encodeURIComponent(directory)}`,
+    "MCP request failed",
+  )
+  return (typeof body === "object" && body !== null ? body : {}) as Record<string, string[]>
+}
+
+/** A server's environment variable and header names; the values never leave the config file. */
+export async function mcpSecretNames(input: HarnessServer, name: string) {
+  const body = await locationRequest(
+    input,
+    "",
+    `/global/config/mcp/${encodeURIComponent(name)}/names`,
+    "MCP request failed",
+  )
+  const value = (body ?? {}) as { environment?: string[]; headers?: string[] }
+  return { environment: value.environment ?? [], headers: value.headers ?? [] }
+}
+
+/** Renames a server or removes some of its fields in the config file, keeping its secrets. */
+export async function editMcpServer(
+  input: HarnessServer,
+  name: string,
+  change: { rename?: string; clear?: ReadonlyArray<string> },
+) {
+  const body = await locationRequest(
+    input,
+    "",
+    `/global/config/mcp/${encodeURIComponent(name)}/edit`,
+    "MCP request failed",
+    { method: "POST", body: JSON.stringify(change) },
+  )
+  const value = (body ?? {}) as { changed?: boolean; error?: string }
+  if (value.error) throw new Error(value.error)
+  return value.changed === true
+}
+
 const decodeSkillCatalog = Schema.decodeUnknownSync(Location.response(SkillSchema.Catalog))
 
 /** Tenon's skills and each harness's skills, read-only, for Settings → Skills. */
@@ -265,12 +347,18 @@ export async function listSkills(input: HarnessServer, directory: string) {
   return decodeSkills(await locationRequest(input, directory, "/api/skill", "Skills request failed")).data
 }
 
-/** Switches one of Tenon's skills on or off; harness skills can't be switched. */
-export async function setSkillEnabled(input: HarnessServer, directory: string, name: string, enabled: boolean) {
+/** Switches one of Tenon's skills on or off, or with `harness` that harness's skill (#323). */
+export async function setSkillEnabled(
+  input: HarnessServer,
+  directory: string,
+  name: string,
+  enabled: boolean,
+  harness?: string,
+) {
   return decodeSkillEnabled(
     await locationRequest(input, directory, "/api/skill/enabled", "Skills request failed", {
       method: "POST",
-      body: JSON.stringify({ name, enabled }),
+      body: JSON.stringify(harness === undefined ? { name, enabled } : { name, enabled, harness }),
     }),
   ).data
 }
@@ -567,6 +655,38 @@ export async function switchHarnessForServer(
     },
   )
   if (!response.ok) throw new Error(`Harness switch failed (${response.status}).`)
+}
+
+/**
+ * Compacts a harness thread with the harness's own /compact, on `model` for the compaction only when given. The server
+ * answers 503 with a reason while the thread runs or for a harness without /compact.
+ */
+export async function compactHarnessForServer(
+  input: { server: ServerConnection.HttpBase; fetch?: typeof globalThis.fetch },
+  sessionID: string,
+  model?: Harness.ModelSelection,
+) {
+  const response = await (input.fetch ?? globalThis.fetch)(
+    `${input.server.url.replace(/\/+$/, "")}/api/session/${encodeURIComponent(sessionID)}/compact`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(input.server.password
+          ? {
+              Authorization: `Basic ${authTokenFromCredentials({
+                username: input.server.username,
+                password: input.server.password,
+              })}`,
+            }
+          : {}),
+      },
+      body: JSON.stringify(model ? { model } : {}),
+    },
+  )
+  if (response.ok) return
+  const body = (await response.json().catch(() => undefined)) as { message?: string } | undefined
+  throw new Error(body?.message ?? `Compaction failed (${response.status}).`)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

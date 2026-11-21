@@ -14,6 +14,7 @@ import { Harness } from "@tenon/schema/harness"
 
 const isHarnessInstanceID = Schema.is(Harness.InstanceID)
 const isHarnessModel = Schema.is(Harness.ModelSelection)
+const isOrigin = Schema.is(SessionSchema.Origin)
 
 export function fromRow(row: typeof SessionTable.$inferSelect): SessionSchema.Info {
   return SessionSchema.Info.make({
@@ -24,6 +25,7 @@ export function fromRow(row: typeof SessionTable.$inferSelect): SessionSchema.In
       : Harness.OpenCode,
     harnessModel: isHarnessModel(row.metadata?.harnessModel) ? row.metadata.harnessModel : undefined,
     harnessRevision: typeof row.metadata?.harnessRevision === "number" ? row.metadata.harnessRevision : 0,
+    ...(isOrigin(row.metadata?.origin) ? { origin: row.metadata.origin } : {}),
     title: row.title,
     parentID: row.parent_id ? SessionSchema.ID.make(row.parent_id) : undefined,
     agent: row.agent ? AgentV2.ID.make(row.agent) : undefined,

@@ -20,9 +20,11 @@ describe("AgentAppTools.catalogFor", () => {
     process.env.TENON_MAIL_TOKEN = "t"
     const project = names(path.resolve("some-workspace", "projects", "Acme"))
     expect(project).toContain("notes_write")
+    // Any thread can make a new Project and start a thread in it.
+    expect(project).toContain("project_setup")
+    expect(project).toContain("thread_start")
     for (const name of [
       "memory_search",
-      "project_setup",
       "threads_overview",
       "thread_read",
       "thread_message",

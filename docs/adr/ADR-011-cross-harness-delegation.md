@@ -72,7 +72,10 @@ Use H1.
 - Four tools: `list_agents`, `delegate_task` (waits up to `wait_seconds`,
   default 300, max 600), `task_result` and `cancel_task`. A task that outlives
   one call is collected with `task_result`, so MCP client timeouts never cut
-  off a long run. Codex's tool timeout is set to 660 seconds.
+  off a long run. (Later added: `message_task` to steer a running task, a
+  notice when a task finishes, a check-in every 12 minutes while it runs, and
+  `delegate_to_project` to run a task in a Project;
+  see the architecture README's Cross-harness delegation.) Codex's tool timeout is set to 660 seconds.
 - Limits: a delegated agent may delegate once more (depth 2), and a Run may
   have at most four tasks running at once. Only the Run that started a task
   can read or stop it.

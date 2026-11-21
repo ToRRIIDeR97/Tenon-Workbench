@@ -249,6 +249,10 @@ const icons = {
     viewBox: "0 0 16 16",
     body: `<path d="M2.5 2.5H13.5V13.5H2.5V2.5Z" stroke="currentColor"/><path d="M2.5 11L6 7.5L9 10.5L10.5 9L13.5 12" stroke="currentColor"/><circle cx="10.25" cy="5.75" r="1" stroke="currentColor"/>`,
   },
+  document: {
+    viewBox: "0 0 16 16",
+    body: `<path d="M3.5 1.5H9.5L12.5 4.5V14.5H3.5V1.5Z" stroke="currentColor" stroke-linejoin="round"/><path d="M9.5 1.5V4.5H12.5M5.5 7.5H10.5M5.5 9.5H10.5M5.5 11.5H8.5" stroke="currentColor"/>`,
+  },
   link: {
     viewBox: "0 0 16 16",
     body: `<path d="M6.5 9.5L9.5 6.5M7 4.5L8 3.5C9.10457 2.39543 10.8954 2.39543 12 3.5L12.5 4C13.6046 5.10457 13.6046 6.89543 12.5 8L11.5 9M9 11.5L8 12.5C6.89543 13.6046 5.10457 13.6046 4 12.5L3.5 12C2.39543 10.8954 2.39543 9.10457 3.5 8L4.5 7" stroke="currentColor"/>`,

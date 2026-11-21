@@ -13,10 +13,18 @@ export type PromptInputHarnessController = {
   /** True while any harness check runs or the current harness's models are still being listed. */
   checking?: () => boolean
   disabled?: () => boolean
+  /** While a turn runs: the model and effort can change (from the next turn), the harness can't. */
+  harnessLocked?: () => boolean
   /** Checks the harnesses again in the background; the shown list stays until the answer arrives. */
   revalidate?: () => void
   current: () => Harness.InstanceID
   select: (instanceID: Harness.InstanceID) => void
+  /** Harness CLI updates, so a harness that fails its check can be updated where the picker reports it (#321). */
+  update?: {
+    status: (id: string) => Harness.UpdateStatus | undefined
+    running: (id: string) => boolean
+    run: (id: string) => Promise<Harness.UpdateStatus>
+  }
   model: {
     current: () => Harness.ModelSelection | undefined
     set: (model: Harness.ModelSelection | undefined) => void
@@ -29,8 +37,11 @@ export function orderHarnesses(instances: ReadonlyArray<Harness.Instance> | unde
 }
 
 /** What the harness pickers say beside a harness. A missing sign-in is a hint: the agent may have another login. */
-export function harnessStatusKey(instance: Pick<Harness.Instance, "driver" | "status" | "authenticated">) {
+export function harnessStatusKey(
+  instance: Pick<Harness.Instance, "driver" | "status" | "authenticated" | "slowStart">,
+) {
   if (instance.status === "unavailable") return "harness.unavailable"
+  if (instance.slowStart) return "harness.slowStart"
   if (instance.driver === Harness.AcpDriver && instance.authenticated === false) return "harness.signInNotFound"
   return undefined
 }

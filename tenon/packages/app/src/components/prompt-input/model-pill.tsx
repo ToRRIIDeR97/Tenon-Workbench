@@ -13,6 +13,8 @@ import {
   type PromptInputHarnessController,
 } from "./harness-controls"
 import { harnessModelSlot } from "./harness-model-slot"
+import { harnessUpdateChoice } from "./harness-update-choice"
+import { showToast } from "@/utils/toast"
 import { HarnessIcon } from "@/components/harness-icon"
 import { filterHarnessModels, searchableModelCount } from "./harness-choice"
 import { modelPillLabel, pillEffort } from "./model-pill-label"
@@ -150,6 +152,45 @@ export function PromptModelPill(props: {
     setState({ step: "summary", motion: "back" })
     focusSoon(`[data-step="${from}"]`)
   }
+  // A harness that failed its check because its CLI is behind is updated from its row; the list is asked again
+  // once the upgrade lands, so it can be picked without reopening the app (#321).
+  const updateChoice = (item: Harness.Instance) =>
+    harnessUpdateChoice(item, props.harness.update?.status(item.id), props.harness.update?.running(item.id) ?? false)
+  const harnessDetail = (item: Harness.Instance) => {
+    const choice = updateChoice(item)
+    if (choice?.kind === "update") return language.t("harness.update.row", { latest: choice.latest ?? "" })
+    if (choice?.kind === "updating") return language.t("harness.settings.updating")
+    if (choice?.kind === "unavailable") return choice.error ?? language.t("harness.unavailable")
+    const key = harnessStatusKey(item)
+    const update = props.harness.update?.status(item.id)
+    if (item.slowStart && update?.updateAvailable)
+      return language.t("harness.slowStartUpdate", { latest: update.latest ?? "" })
+    return key && language.t(key)
+  }
+  const slowUpdate = (item: Harness.Instance) => {
+    const update = props.harness.update?.status(item.id)
+    return item.slowStart && update?.updateAvailable && update.method && !update.manual
+      ? (update.latest ?? "")
+      : undefined
+  }
+  const startUpdate = (item: Harness.Instance) =>
+    void props.harness.update?.run(item.id).then(
+      (result) =>
+        showToast({
+          variant: "success",
+          icon: "circle-check",
+          title: language.t("harness.settings.updated", {
+            name: item.name,
+            version: result.version ?? "",
+          }),
+        }),
+      (error: unknown) =>
+        showToast({
+          title: language.t("common.requestFailed"),
+          description: error instanceof Error ? error.message : String(error),
+        }),
+    )
+
   const pick = (apply: () => void) => {
     apply()
     back()
@@ -353,15 +394,46 @@ export function PromptModelPill(props: {
                         <Match when={state.step === "harness"}>
                           <For each={view.options() ?? []}>
                             {(item) => (
-                              <Choice
-                                icon={<HarnessIcon instance={item} />}
-                                label={item.name}
-                                detail={harnessStatusKey(item) && language.t(harnessStatusKey(item)!)}
-                                title={item.error}
-                                selected={item.id === props.harness.current()}
-                                disabled={item.status === "unavailable"}
-                                onSelect={() => pick(() => props.harness.select(Harness.InstanceID.make(item.id)))}
-                              />
+                              <>
+                                <Choice
+                                  icon={<HarnessIcon instance={item} />}
+                                  label={item.name}
+                                  detail={harnessDetail(item)}
+                                  title={item.error}
+                                  selected={item.id === props.harness.current()}
+                                  disabled={
+                                    (updateChoice(item)?.disabled ?? item.status === "unavailable") ||
+                                    (props.harness.harnessLocked?.() === true && item.id !== props.harness.current())
+                                  }
+                                  onSelect={() =>
+                                    updateChoice(item)?.kind === "update"
+                                      ? startUpdate(item)
+                                      : pick(() => props.harness.select(Harness.InstanceID.make(item.id)))
+                                  }
+                                />
+                                {/* A slow harness without a known update can be checked again from here. */}
+                                <Show when={item.slowStart && slowUpdate(item) === undefined}>
+                                  <Choice
+                                    label={language.t("harness.checkAgain", { name: item.name })}
+                                    muted
+                                    onSelect={() => props.harness.revalidate?.()}
+                                  />
+                                </Show>
+                                {/* A slow start is often an outdated CLI: the update sits right under it. */}
+                                <Show when={slowUpdate(item)}>
+                                  {(latest) => (
+                                    <Choice
+                                      label={language.t("harness.slowStartUpdateRow", {
+                                        name: item.name,
+                                        latest: latest(),
+                                      })}
+                                      muted
+                                      disabled={props.harness.update?.running(item.id) ?? false}
+                                      onSelect={() => startUpdate(item)}
+                                    />
+                                  )}
+                                </Show>
+                              </>
                             )}
                           </For>
                           <div class="mx-1.5 my-1 h-px bg-v2-border-border-muted" />

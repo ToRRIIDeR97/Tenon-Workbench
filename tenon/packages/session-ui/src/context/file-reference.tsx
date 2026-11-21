@@ -16,7 +16,8 @@ export type FileReferencePreview =
 /**
  * App-supplied actions for file references in assistant replies. `directory` is the thread's
  * folder; references are validated against it before either callback sees them, so `path` is
- * always relative and free of `..` segments.
+ * relative and free of `..` segments, except an `outside` reference, whose `path` is a normalized
+ * absolute path outside the folder (still free of `..`).
  */
 export type FileReferenceActions = {
   directory: string

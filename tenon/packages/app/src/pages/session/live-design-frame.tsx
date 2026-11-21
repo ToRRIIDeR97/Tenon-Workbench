@@ -12,6 +12,7 @@ import {
   liveDesignDocument,
   partialDesignMarkup,
 } from "@tenon/session-ui/design-stream"
+import { DESIGN_INSPECT } from "@tenon/session-ui/design-inspect"
 import { motionDuration } from "@tenon/ui/v2/motion"
 import { useLanguage } from "@/context/language"
 
@@ -24,7 +25,22 @@ const FRAME_INTERVAL = 125
  * the frame swaps to `designDocument(source)` once, so the page's own scripts run only then.
  * Mount it only for a design that is streaming; the caller shows the size-cap notice.
  */
-export function LiveDesignFrame(props: { design: CanvasDesign; title: string; class: string }) {
+/** Inspect mode for the canvas's notes (#326): the frame's picker is told on/off, and its replies come back here. */
+type Inspect = { inspect?: boolean; onInspect?: (data: unknown) => void }
+
+/** Sends the picker its on/off state on load and on change, and passes on only this frame's own messages. */
+function connectInspect(frame: () => HTMLIFrameElement | undefined, props: Inspect) {
+  const tell = () => frame()?.contentWindow?.postMessage({ type: DESIGN_INSPECT, on: !!props.inspect }, "*")
+  createEffect(on(() => props.inspect, tell, { defer: true }))
+  const listen = (event: MessageEvent) => {
+    if (event.source === frame()?.contentWindow) props.onInspect?.(event.data)
+  }
+  window.addEventListener("message", listen)
+  onCleanup(() => window.removeEventListener("message", listen))
+  return tell
+}
+
+export function LiveDesignFrame(props: { design: CanvasDesign; title: string; class: string } & Inspect) {
   const state = {
     frame: undefined as HTMLIFrameElement | undefined,
     ready: false,
@@ -47,7 +63,7 @@ export function LiveDesignFrame(props: { design: CanvasDesign; title: string; cl
         if (!streaming) {
           state.done = true
           clearTimeout(state.timer)
-          state.frame.srcdoc = designDocument(source)
+          state.frame.srcdoc = designDocument(source, { inspect: props.onInspect !== undefined })
           return
         }
         if (state.timer) return
@@ -56,6 +72,7 @@ export function LiveDesignFrame(props: { design: CanvasDesign; title: string; cl
     ),
   )
   onCleanup(() => clearTimeout(state.timer))
+  const tell = connectInspect(() => state.frame, props)
   return (
     <iframe
       ref={(el) => {
@@ -69,7 +86,7 @@ export function LiveDesignFrame(props: { design: CanvasDesign; title: string; cl
           accent: style.getPropertyValue("--v2-background-bg-accent").trim(),
         })
         el.addEventListener("load", () => {
-          if (state.done) return
+          if (state.done) return tell()
           state.ready = true
           post()
         })
@@ -84,14 +101,18 @@ export function LiveDesignFrame(props: { design: CanvasDesign; title: string; cl
 }
 
 /** A finished design in a sandboxed frame (see design-fence.ts), or a notice when it is over the size cap. */
-export function DesignFrame(props: {
-  design: Design
-  title: string
-  class: string
-  style?: Record<string, string>
-  preview?: boolean
-}) {
+export function DesignFrame(
+  props: {
+    design: Design
+    title: string
+    class: string
+    style?: Record<string, string>
+    preview?: boolean
+  } & Inspect,
+) {
   const language = useLanguage()
+  let frame: HTMLIFrameElement | undefined
+  const tell = connectInspect(() => frame, props)
   return (
     <Show
       when={!designTooLarge(props.design.source)}
@@ -105,7 +126,9 @@ export function DesignFrame(props: {
         ref={(el) => {
           // Sandboxed before the document is set and before the frame is attached.
           el.setAttribute("sandbox", DESIGN_SANDBOX)
-          el.srcdoc = designDocument(props.design.source)
+          el.srcdoc = designDocument(props.design.source, { inspect: props.onInspect !== undefined })
+          el.addEventListener("load", tell)
+          frame = el
         }}
         referrerpolicy="no-referrer"
         loading="lazy"

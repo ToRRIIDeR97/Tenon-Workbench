@@ -14,6 +14,12 @@ import { useLanguage } from "@/context/language"
 const doneToken = "\u0000done\u0000"
 const totalToken = "\u0000total\u0000"
 
+/**
+ * The agent's checklist as the top section of the composer's tray (the lighter tab that holds the folder and
+ * branch), so it is part of the composer rather than a card parked on it. A 36px row shows the step in progress,
+ * "2 of 5" and a 2px line that fills as steps finish; expanding unfolds the steps above the row, inside the same
+ * tray. The section opens and closes with the run (`dockProgress`), clipped from the top so the row leads.
+ */
 export function SessionTodoDock(props: {
   todos: Todo[]
   collapsed: boolean
@@ -24,11 +30,12 @@ export function SessionTodoDock(props: {
 }) {
   const language = useLanguage()
   const [store, setStore] = createStore({
-    height: 78,
+    height: ROW,
   })
 
-  const total = createMemo(() => props.todos.length)
+  const total = createMemo(() => props.todos.filter((todo) => todo.status !== "cancelled").length)
   const done = createMemo(() => props.todos.filter((todo) => todo.status === "completed").length)
+  const finished = createMemo(() => total() > 0 && done() >= total())
   const label = createMemo(() => language.t("session.todo.progress", { done: done(), total: total() }))
   const progress = createMemo(() =>
     language
@@ -44,23 +51,18 @@ export function SessionTodoDock(props: {
       props.todos[0],
   )
 
-  const preview = createMemo(() => active()?.content ?? "")
   const collapse = useSpring(() => (props.collapsed ? 1 : 0), { visualDuration: 0.3, bounce: 0 })
-  const dock = createMemo(() => Math.max(0, Math.min(1, props.dockProgress)))
-  const shut = createMemo(() => 1 - dock())
   const value = createMemo(() => Math.max(0, Math.min(1, collapse())))
+  const shut = createMemo(() => 1 - Math.max(0, Math.min(1, props.dockProgress)))
   const hide = createMemo(() => Math.max(value(), shut()))
   const off = createMemo(() => hide() > 0.98)
-  const turn = createMemo(() => Math.max(0, Math.min(1, value())))
-  const full = createMemo(() => Math.max(78, store.height))
+  const full = createMemo(() => Math.max(ROW, store.height))
   let contentRef: HTMLDivElement | undefined
 
   createEffect(() => {
     const el = contentRef
     if (!el) return
-    const update = () => {
-      setStore("height", (height) => Math.max(height, el.scrollHeight))
-    }
+    const update = () => setStore("height", el.scrollHeight)
     update()
     createResizeObserver(el, update)
   })
@@ -68,19 +70,25 @@ export function SessionTodoDock(props: {
   return (
     <div
       data-component="session-todo-dock"
-      class="w-full overflow-hidden rounded-[24px] bg-v2-background-bg-layer-01 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]"
-      style={{
-        "overflow-x": "visible",
-        "overflow-y": "hidden",
-        "max-height": `${Math.max(78, full() - value() * (full() - 78))}px`,
-      }}
+      class="flex min-w-0 flex-col justify-end overflow-hidden"
+      style={{ "max-height": `${full() - value() * (full() - ROW)}px`, opacity: `${1 - shut()}` }}
     >
-      <div ref={contentRef}>
+      <div ref={contentRef} class="flex min-w-0 shrink-0 flex-col">
+        <div
+          data-slot="session-todo-list"
+          aria-hidden={props.collapsed || off()}
+          classList={{ "pointer-events-none": hide() > 0.1 }}
+          style={{ visibility: off() ? "hidden" : "visible", opacity: `${1 - hide()}` }}
+        >
+          <TodoList todos={props.todos} />
+        </div>
         <div
           data-action="session-todo-toggle"
-          class="flex items-center gap-2 overflow-visible h-[42px] pl-[18px] pr-2"
+          class="relative flex h-9 min-w-0 shrink-0 items-center gap-2 rounded-[12px] pl-4 pr-2 outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)]"
           role="button"
           tabIndex={0}
+          aria-label={label()}
+          aria-expanded={!props.collapsed}
           onClick={props.onToggle}
           onKeyDown={(event) => {
             if (event.key !== "Enter" && event.key !== " ") return
@@ -88,24 +96,13 @@ export function SessionTodoDock(props: {
             props.onToggle()
           }}
         >
-          <span
-            class="cursor-default shrink-0 text-[13px] leading-5 [font-weight:600] text-v2-text-text-base"
-            aria-label={label()}
-            style={{ opacity: `${Math.max(0, Math.min(1, 1 - shut()))}` }}
-          >
-            {language.t("session.todo.title")}
+          <span class="flex shrink-0" aria-hidden="true">
+            <TodoMark status={finished() ? "completed" : "in_progress"} />
           </span>
-          <div
-            data-slot="session-todo-preview"
-            class="ml-1 min-w-0 overflow-hidden"
-            style={{
-              flex: "1 1 auto",
-              "max-width": "100%",
-            }}
-          >
+          <div data-slot="session-todo-preview" class="min-w-0 flex-1 overflow-hidden">
             <TextReveal
-              class="cursor-default text-[13px] leading-5 text-v2-text-text-muted"
-              text={props.collapsed ? preview() : undefined}
+              class="cursor-default text-[13px] leading-5 [font-weight:500] text-v2-text-text-base"
+              text={active()?.content ?? language.t("session.todo.title")}
               duration="var(--v2-duration-long)"
               travel={25}
               edge={17}
@@ -124,7 +121,6 @@ export function SessionTodoDock(props: {
               "--tool-motion-mask-height": "0px",
               "--tool-motion-spring-ms": "var(--v2-duration-long)",
               "white-space": "pre",
-              opacity: `${Math.max(0, Math.min(1, 1 - shut()))}`,
             }}
           >
             <Index each={progress()}>
@@ -145,9 +141,11 @@ export function SessionTodoDock(props: {
                 data-action="session-todo-toggle-button"
                 data-collapsed={props.collapsed ? "true" : "false"}
                 icon={<Icon name="outline-chevron-down" size="small" />}
-                size="normal"
+                size="small"
                 variant="ghost-muted"
-                style={{ transform: `rotate(${turn() * 180}deg)` }}
+                // Collapsed it points up, where the steps open; open it points down.
+                style={{ transform: `rotate(${value() * 180}deg)` }}
+                tabIndex={-1}
                 onMouseDown={(event) => {
                   event.preventDefault()
                   event.stopPropagation()
@@ -160,25 +158,24 @@ export function SessionTodoDock(props: {
               />
             </TooltipV2>
           </div>
-        </div>
-
-        <div
-          data-slot="session-todo-list"
-          aria-hidden={props.collapsed || off()}
-          classList={{
-            "pointer-events-none": hide() > 0.1,
-          }}
-          style={{
-            visibility: off() ? "hidden" : "visible",
-            opacity: `${Math.max(0, Math.min(1, 1 - hide()))}`,
-          }}
-        >
-          <TodoList todos={props.todos} />
+          {/* The run's progress, on the row's bottom edge. */}
+          <span
+            aria-hidden="true"
+            class="absolute inset-x-4 bottom-0 h-0.5 overflow-hidden rounded-full bg-v2-border-border-muted"
+          >
+            <span
+              class="block h-full rounded-full bg-v2-icon-icon-accent transition-[width] duration-long ease-emphasized-decelerate motion-reduce:transition-none"
+              style={{ width: `${total() ? Math.round((done() / total()) * 100) : 0}%` }}
+            />
+          </span>
         </div>
       </div>
     </div>
   )
 }
+
+/** The step row's height; the section never folds below it while the run is on. */
+const ROW = 36
 
 /**
  * The steps, in the workshop's variant A: a filled check for a finished step (its text dimmed), the spinner on the
@@ -194,7 +191,7 @@ function TodoList(props: { todos: Todo[] }) {
   return (
     <div class="relative">
       <div
-        class="px-3.5 pb-11 flex flex-col max-h-48 overflow-y-auto"
+        class="px-3 pt-2.5 pb-1 flex flex-col max-h-48 overflow-y-auto"
         style={{ "overflow-anchor": "none" }}
         onScroll={(e) => {
           setStore("stuck", e.currentTarget.scrollTop > 0)
@@ -225,7 +222,7 @@ function TodoList(props: { todos: Todo[] }) {
       <div
         class="pointer-events-none absolute top-0 left-0 right-0 h-4 transition-opacity motion-reduce:transition-none"
         style={{
-          background: "linear-gradient(to bottom, var(--v2-background-bg-layer-01), transparent)",
+          background: "linear-gradient(to bottom, var(--v2-background-bg-layer-02), transparent)",
           opacity: store.stuck ? 1 : 0,
         }}
       />
@@ -255,7 +252,7 @@ function TodoMark(props: { status: string }) {
           <circle cx="8" cy="8" r="7" fill="currentColor" />
           <path
             d="M5 8.2l2 2 4-4.2"
-            stroke="var(--v2-background-bg-layer-01)"
+            stroke="var(--v2-background-bg-layer-02)"
             stroke-width="1.6"
             stroke-linecap="round"
             stroke-linejoin="round"

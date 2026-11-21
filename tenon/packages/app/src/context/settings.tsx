@@ -18,6 +18,8 @@ export interface SoundSettings {
   permissions: string
   errorsEnabled: boolean
   errors: string
+  /** 2 once the Soft set replaced the earlier Tenon defaults; see `migrateSounds`. */
+  defaults?: number
 }
 
 export type ThreadWidth = "narrow" | "medium" | "wide" | "full"
@@ -78,9 +80,34 @@ export interface Settings {
     defaults?: HarnessDefaults
     /** The harness, model and reasoning of the last prompt sent, for `defaults.mode === "last"`. */
     lastUsed?: HarnessChoice
+    /** How each harness compacts a thread, by harness instance ID. */
+    compaction?: Record<string, CompactionSetting>
   }
   /** Rules added to a model's instructions, by model id (full or without the provider). */
   modelProfiles?: Record<string, ModelProfile>
+}
+
+/**
+ * Compacting a thread whose prompt cache has gone cold reloads its whole history into the model, so a thread idle
+ * for `coldMinutes` compacts on the cheaper `model` instead of its own.
+ */
+export type CompactionSetting = {
+  /** A model ID from the harness's list; unset compacts on the thread's own model. */
+  model?: string
+  reasoningEffort?: string
+  coldMinutes: number
+}
+
+/** Anthropic's prompt cache lasts five minutes by default and an hour at most; 29 minutes is the user's default. */
+export const DEFAULT_COLD_MINUTES = 29
+
+/** The model `/compact` runs on: the cheap one once the thread has idled past the cold limit, else the thread's own. */
+export function compactionModel(
+  setting: CompactionSetting | undefined,
+  idleMinutes: number,
+): { id: string; reasoningEffort?: string } | undefined {
+  if (!setting?.model || idleMinutes < setting.coldMinutes) return undefined
+  return { id: setting.model, ...(setting.reasoningEffort ? { reasoningEffort: setting.reasoningEffort } : {}) }
 }
 
 export type CalendarSyncSettings = {
@@ -249,15 +276,35 @@ const defaultSettings: Settings = {
     permissions: true,
     errors: false,
   },
-  // Tenon's own sounds. "Finished" is off by default: it fires often, so it's opt-in.
+  // Tenon's own sounds, the Soft set. "Finished" is off by default: it fires often, so it's opt-in. A sound the user
+  // picked is kept; only unset ones follow the defaults.
   sounds: {
     agentEnabled: false,
-    agent: "tenon-done",
+    agent: "tenon-soft-done",
     permissionsEnabled: true,
-    permissions: "tenon-attention",
+    permissions: "tenon-soft-attention",
     errorsEnabled: true,
-    errors: "tenon-error",
+    errors: "tenon-soft-error",
+    defaults: 2,
   },
+}
+
+// The sounds Tenon used before the Soft set, by setting.
+const EARLIER_SOUNDS = { agent: "tenon-done", permissions: "tenon-attention", errors: "tenon-error" } as const
+
+/**
+ * Settings are saved whole on first run, so a profile from before the Soft set holds the earlier defaults as if picked.
+ * Once per profile, a sound still on its earlier default moves to Soft; any other pick is kept, and a later pick of
+ * the earlier sound sticks, since the profile is then marked.
+ */
+export function migrateSounds(value: unknown) {
+  if (!value || typeof value !== "object" || !("sounds" in value)) return value
+  const sounds = value.sounds
+  if (!sounds || typeof sounds !== "object" || ("defaults" in sounds && sounds.defaults === 2)) return value
+  const next: Record<string, unknown> = { ...sounds, defaults: 2 }
+  for (const [key, earlier] of Object.entries(EARLIER_SOUNDS))
+    if (next[key] === earlier) next[key] = defaultSettings.sounds[key as keyof typeof EARLIER_SOUNDS]
+  return { ...value, sounds: next }
 }
 
 function withFallback<T>(read: () => T | undefined, fallback: T) {
@@ -269,7 +316,10 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
   gate: false,
   init: () => {
     const platform = usePlatform()
-    const [store, setStore, settingsInit, ready] = persisted("settings.v3", createStore<Settings>(defaultSettings))
+    const [store, setStore, settingsInit, ready] = persisted(
+      { key: "settings.v3", migrate: migrateSounds },
+      createStore<Settings>(defaultSettings),
+    )
     const [launch, setLaunch, , launchReady] = persisted(
       "app-version.v1",
       createStore<{ version?: string }>({ version: undefined }),
@@ -503,6 +553,15 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
             ...value,
             hiddenModels: { ...value?.hiddenModels, [instanceID]: next },
           }))
+        },
+        compaction: (instanceID: string) => store.harnesses?.compaction?.[instanceID],
+        setCompaction(instanceID: string, value: CompactionSetting | undefined) {
+          setStore("harnesses", (current) => {
+            const next = { ...current?.compaction }
+            if (value) next[instanceID] = value
+            else delete next[instanceID]
+            return { ...current, compaction: next }
+          })
         },
         hiddenProviders: (instanceID: string) => store.harnesses?.hiddenProviders?.[instanceID] ?? [],
         setProviderHidden(instanceID: string, provider: string, hidden: boolean) {

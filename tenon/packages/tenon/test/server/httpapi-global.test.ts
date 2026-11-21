@@ -6,6 +6,7 @@ import { HttpApiBuilder } from "effect/http-api"
 import { Auth } from "../../src/auth"
 import { GlobalBus } from "../../src/bus/global"
 import { Config } from "../../src/config/config"
+import { McpAuth } from "../../src/mcp/auth"
 import { Installation } from "../../src/installation"
 import { MoveSession } from "@tenon/core/control-plane/move-session"
 import { SessionV2 } from "@tenon/core/session"
@@ -32,6 +33,7 @@ const apiLayer = HttpRouter.serve(
   Layer.provideMerge(NodeHttpServer.layerTest),
   Layer.provide(Layer.mock(Auth.Service)({})),
   Layer.provide(Layer.mock(Config.Service)({})),
+  Layer.provide(Layer.mock(McpAuth.Service)({})),
   Layer.provide(Layer.mock(MoveSession.Service)({})),
   Layer.provide(Layer.mock(SessionV2.Service)({ revert: {} as SessionV2.Interface["revert"] })),
   Layer.provide(

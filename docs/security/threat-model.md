@@ -401,7 +401,18 @@ allows `/usr/bin/security` (it does for entries Claude Code writes).
   (`turnGate` in `core/src/harness.ts`). When the turn ends first, the wait is
   interrupted, `PermissionV2.assert` publishes a `reject` reply so the dock
   drops the prompt, and the agent gets a denial. A late click can no longer
-  approve a request the agent abandoned.
+  approve a request the agent abandoned. A request that arrives between turns
+  is denied at once, unless subagents an earlier ACP turn sent to the
+  background may still be running (`Session.backgroundWorking`, at most an
+  hour after launch): OpenCode keeps those going after the turn ends, so their
+  requests are asked in the dock like any other, under the thread's permission
+  mode, and wait for an answer instead of being refused unseen.
+- **Following background subagents.** While they are out, the ACP turn reads
+  the parent session's messages through the local `opencode api` CLI (the same
+  route as the subagent usage read, run with the harness allowlist), never over
+  the network. What it reads is the agent's own output and is rendered as
+  untrusted model output, like the live ACP stream; it gives the agent no new
+  ability, and the wait ends at the one-hour background limit.
 - **Leftover processes.** Harnesses run in their own process group. Each one's
   PID, command and owning server PID are written to
   `<state>/harness-pids/<pid>.json` and removed when it closes
@@ -552,6 +563,21 @@ Agents can start work in another harness through the delegation endpoint
 - A delegated task runs as a normal child Run on the target harness with that
   harness's usual approval flow. Delegation grants no permission the target
   wouldn't ask for anyway. Its approvals reach the delegating Run's composer.
+- With `delegate_to_project` (`project_id`) the task runs as a root Run in that Project's thread
+  folder instead, linked back by `metadata.origin`. The folder comes only from
+  the server's own Project lookup for the caller's workspace
+  (`tenon/src/agents/app-tools.ts` `projectFolder`), never from the agent: an
+  unknown id fails, and the Command Centre's own folder is refused. The task
+  then works with that Project's folder, instructions and folder trust rather
+  than reaching it by absolute paths from the Command Centre's folder. Its
+  approvals ask in its own thread and show in the Command Centre's Needs you,
+  not in the delegating Run's composer. Only the delegating Run reads or stops
+  it, and the depth and running limits count it as they count a child. An
+  unattended routine refuses its prompts as it does a child's, so it can't
+  wait forever on one. The in-process loop's `delegate` approval names the
+  Project (`project:<id>`) beside the agent. `thread_start` stamps the same
+  `origin` with `handOff`: that thread is the user's, so it counts toward no
+  delegation limit and the starter can't read or stop it as a task.
 - The built-in loop asks permission `delegate` before starting or stopping a
   task. Codex and ACP agents apply their own MCP tool policy to the call.
 - Codex asks before each MCP tool call (`mcpServer/elicitation/request`). Tenon answers it
@@ -570,6 +596,26 @@ Agents can start work in another harness through the delegation endpoint
 - The delegated agent receives only the task text the caller wrote, framed as
   a delegated task. The reply returns to the caller as tool output: it is
   untrusted model output and may carry text from workspace files.
+- A task that finishes with no call waiting on it queues the caller a notice,
+  which starts a new turn in an idle caller. The notice carries only the task's
+  ID, its title (the caller's own) and whether it finished or failed, never the
+  reply, so a worker's output still reaches the caller only as tool output it
+  asked for. A cancelled task sends none. Each notice is one turn; the
+  four-task limit bounds how many can arrive at once. Stopping the caller
+  doesn't withdraw a notice already queued.
+- While a task runs, its caller gets a check-in every 12 minutes, at most one
+  queued per task, so four tasks cost at most about 20 caller turns an hour.
+  The check-in text is Tenon's own; the task's checklist and latest note reach
+  the caller only through `task_result`, as tool output, and are untrusted
+  model output like the final reply.
+- `message_task` lets only the Run that started a task steer it, and only
+  while the task is running in this server process.
+- On start, Tenon wakes a thread whose next queued input is one of its own
+  `[Tenon]` notices (tasks interrupted when it last closed). The match is on
+  queued input text, which a user could also type; that only starts the turn the
+  user's own message would start. Waking drains the inbox; it never retries a
+  provider turn. A notice for a task stopped while Tenon ran tells the caller
+  not to restart it unless the user asks.
 
 The endpoint also serves `ask_user` and is now attached to every Codex and
 ACP runtime, not only when delegation is on. With delegation off it lists
@@ -603,6 +649,49 @@ selectable agent denies everything.
 Known gaps: interrupting a Run doesn't stop the tasks it delegated. An ACP
 agent without HTTP MCP support gets neither delegation nor `ask_user`.
 
+### Computer use through the Cua Driver
+
+Computer use (#333) lets an agent see the whole desktop and send clicks and
+keys anywhere. Controls:
+
+- Off by default and per Project folder: only folders listed in
+  `computer-use.json` (Tenon config folder, mode `0600`, written through a
+  temporary file) see the driver's tools; the route only changes the request's
+  own location folder.
+- Proxied: agents never get the driver itself. Tenon runs `cua-driver mcp` and
+  forwards each call only after checking the switch (off refuses the next
+  action) and, for anything but a screen read, a grant for that thread (asked
+  once; "Just this once" asks again; a denial runs nothing).
+- Visible and stoppable: every action shows an always-on-top pill naming the
+  harness, over full-screen apps too; Stop kills the driver process at once
+  and clears every grant. The pill is a sandboxed data: page with a CSP that
+  allows no loads; Stop reaches the server over the existing token-guarded
+  loopback bridge (`computer_watch`).
+- The driver is the user's own install (found with `which`); Tenon runs no
+  installer. On macOS its Accessibility and Screen Recording grants are its
+  own (`com.trycua.driver`), not Tenon's.
+- Codex and Claude Code never receive it; they bring their own.
+- Gaps: a thread granted "for this thread" can then act without asking until
+  Stop or the server restarts; screen reads never ask, so an enabled Project's
+  agents can always see the screen; the built-in agent's tool list is read
+  when the folder's services start, so switching on needs a restart there.
+
+### Project GitHub work
+
+`POST /api/github/work` (#331) runs two CLIs in the request's location folder
+(`core/src/github/work.ts`): `git remote get-url origin`, then `gh issue list`
+and `gh pr list` with fixed arguments and `--json` fields. Controls:
+
+- `execFile`, never a shell; the repository is the parsed origin or a Project
+  override that must match a plain `owner/name` pattern (no flags, spaces or
+  separators), otherwise nothing runs.
+- Tenon stores and returns no GitHub token: `gh` uses its own login (macOS
+  keychain, Windows Credential Manager). `GH_PROMPT_DISABLED=1` keeps it from
+  waiting on a prompt; 15 s timeout, 5 MB output cap.
+- Only titles, numbers, URLs, states, labels and author logins reach the
+  renderer; issue bodies are not requested. Errors return their first line.
+- Read-only: Tenon never closes issues or changes PRs.
+
 ### Harness skill catalog
 
 `GET /api/skill/catalog` reads `SKILL.md` frontmatter from fixed folders under
@@ -613,8 +702,8 @@ repository root. The location is the same validated scope the other location
 routes use, and the walk never goes above the first directory holding `.git`.
 Controls:
 
-- Read-only. No shell runs and no harness process starts; the harness list
-  comes from settings.
+- No shell runs and no harness process starts; the harness list comes from
+  settings. The catalog itself only reads.
 - Only skill names, descriptions and absolute paths reach the renderer. Skill
   bodies are read to parse frontmatter and are never returned or logged.
 - Commands an ACP agent reports through `available_commands_update` are kept
@@ -624,12 +713,26 @@ Controls:
   same as Tenon's own skill loading, so a symlinked skill folder can expose
   the frontmatter of files outside these folders.
 
-`POST /api/skill/enabled` is the only write. It accepts a skill name and a
-boolean, refuses names that aren't one of Tenon's loaded skills, and writes
-only `skills.json` in the Tenon config directory (mode `0600`, atomic rename,
-serialized, never overwriting a malformed file). Harness skill folders are
-never written. Switching a skill off only hides it from Tenon's agent; it isn't
-a security control, since the skill file stays readable on disk.
+`POST /api/skill/enabled` is the only write. Without `harness` it accepts a
+skill name and a boolean, refuses names that aren't one of Tenon's loaded
+skills, and writes only `skills.json` in the Tenon config directory (mode
+`0600`, atomic rename, serialized, never overwriting a malformed file).
+
+With `harness` (an external harness ID from settings) it switches that
+harness's skill (#323) by renaming one file: `SKILL.md` to `SKILL.md.disabled`
+or back, in the folder where the catalog found it. Controls:
+
+- The renderer sends a harness ID and a skill name, never a path. The server
+  re-runs the same scan and only renames a file it found there.
+- Only home and project skill folders are writable this way; `/etc/codex/skills`
+  and reported commands are refused.
+- The file is renamed in place, never rewritten, and never renamed over an
+  existing file, so switching back restores it byte for byte.
+- A symlinked skill folder is followed like the scan, so the rename lands in
+  the link's target, which other tools reading that folder also see.
+
+Switching a skill off, Tenon's or a harness's, isn't a security control: the
+file stays readable on disk and a harness may still be told to read it.
 
 Composer skill chips read Tenon's skill bodies through the existing
 `GET /api/skill` (same location scope and auth). A body leaves the renderer
@@ -888,13 +991,21 @@ apply unchanged: loopback only, a bearer token per runtime bound to its Run,
   Workspace threads are not limited to one Project. Command Centre threads
   (directory `<vault root>/.command-centre`) may write in any workspace with
   Project cards, named by `workspace` or found from `projectId`, and also get
-  `memory_search`, `project_setup` and the draft-only mail tools (see
+  `memory_search` and the draft-only mail tools (see
   [Command Centre memory and routines](#command-centre-memory-and-routines)
   and [Email accounts](#email-accounts)). A call checks the thread's folder
   in the session table once and caches the answer for the process (a
   session's folder never changes), so other threads can't reach them; the
   in-process loop registers those tools only in the `.command-centre`
   folder.
+- Any thread may call `project_setup` (a new folder under its own workspace
+  by default, refused when the folder already has files) and `thread_start`.
+  `thread_start` reaches only the root thread folders of the caller's
+  workspace (its Projects and General), never a Command Centre folder, and
+  the new thread runs on the caller's own harness and model with that
+  harness's normal permissions: it gains nothing the caller lacked. Both are
+  writes, so the in-process loop asks `tenon_write` and an external harness
+  applies its own tool approval.
 - Tool arguments and page text are data. Arguments are decoded against a
   schema per tool and passed to the same vault and calendar validation as the
   HTTP routes; page bodies are stored verbatim and never interpreted. Content a
@@ -1073,9 +1184,37 @@ Mail lives in the desktop main process (`desktop/src/main/mail/`; see
 
 Scrollback stays in memory. The sidecar keeps up to 2 MB per PTY for replay, and
 the renderer keeps a serialized copy per PTY only to restore a tab switch
-(`terminalScrollback` in `app/src/context/terminal.tsx`). The persisted workspace
-store holds a terminal's title, size, cursor and scroll position, not its output,
-and loading an older store removes any `buffer` it saved.
+(`terminalScrollback` in `app/src/context/terminal.tsx`). The persisted
+per-thread store holds a terminal's title, size, cursor and scroll position, not
+its output, and loading an older store removes any `buffer` it saved.
+
+## Agent terminals
+
+Agents can start a long-running command in a terminal tab of their thread
+(`terminal_start`, `terminal_read`, `terminal_stop`; see
+[Thread terminals](../architecture/README.md#thread-terminals)).
+
+- What runs: one command line, typed into the user's shell in the thread's own
+  folder, the same as the agent's shell tool could run there. A command with a
+  control character (a newline, Ctrl+C, an escape) is refused, so the agent
+  can't press keys the user doesn't see in its call. At most 6 run per thread.
+- Approval: the built-in loop asks the thread's `bash` permission with the
+  command as the resource, so the thread's mode and `bash` rules decide as for
+  its own shell. Codex and ACP agents apply their own MCP tool approval. The
+  Command Centre (untrusted mail) gets none of these tools, and a call from
+  one of its threads is refused.
+- Ownership: the server tags the PTY with the root thread
+  (`Pty.Info.sessionID`); the HTTP create route can't set it. A thread's agent
+  reads and stops only PTYs tagged with its own root thread, never the user's
+  own tabs or another thread's terminals; any other id reads as "No terminal".
+- Output: `terminal_read` returns at most the last 400 lines and 12,000
+  characters as plain text, and tells the agent it is data from the program,
+  never instructions. It is not logged.
+
+Known gaps: a command the agent starts keeps running when the agent's turn
+ends, until the user closes the tab, the agent calls `terminal_stop`, or the
+server stops; the tag is the thread's session id, which any client of the
+server can read in the PTY list.
 
 ## Local dictation
 
@@ -1207,6 +1346,15 @@ keeps its scripts so designs can animate and respond, so the frame, not
 sanitizing, is the control (`session-ui/src/components/design-fence.ts`,
 `html-window.ts`, `app/src/pages/session/canvas-tab.tsx`):
 
+- Canvas Notes (#326) add a picker script to the large design's document
+  (`designInspectScript`, `session-ui/src/components/design-inspect.ts`). It
+  stays idle until the app posts `{ type: "tenon-design-inspect", on }`, then
+  reports hover boxes, picks (a short CSS path, tag, text, box) and scrolling.
+  The app accepts only messages whose `source` is that frame's window and keeps
+  only bounded plain data (`pickedDesignElement`: strings cut to 200/120
+  characters, finite numbers); the highlight, note and pins are drawn by the
+  app over the frame. A design can fake a pick, which at worst puts wrong text
+  in a note the user still reviews before sending.
 - Frames get `sandbox="allow-scripts"` only (`DESIGN_SANDBOX`), set before the
   document and before the frame joins the page. No `allow-same-origin`, so the
   frame has an opaque origin and can't reach the renderer, its storage or
@@ -1274,6 +1422,24 @@ UDP policy still blocks STUN, but TURN over TCP (and the DNS lookup of its
 host) could in theory leak what the page contains, which is model output that
 may quote workspace content.
 
+## Agent-shown files in chat (```view)
+
+A ```view block names files for the user to look at. The agent's text is untrusted, so:
+
+- Each line is a path or an `https:` URL. `viewItems` drops every other scheme (`javascript:`, `data:`, `file:`,
+  plain `http:`), and a block shows at most 12 files.
+- A path is read only inside the thread's folder or a Project's thread folder (`resolveFileReferencePath` against
+  each); any other path shows a notice and is not read, and Open and Pin are left out. Local files load through the
+  desktop's `tenon-file://` handler (which applies its own inside-folder check) or the server's file read for that
+  folder.
+- A remote URL loads only when the user clicks "Load from <host>", and only as an image, video or audio element,
+  never a frame, so a thread can't make its host see that it was opened (the beacon the renderer's report-only
+  `img-src`/`media-src` policy is headed to block) and can't run script.
+- PDFs open in a frame of the local file (blob, data or `tenon-file:` URL). 3D models are parsed by three.js's glTF
+  loader in the renderer; a malformed model fails to a notice.
+- A Project's pinned files are stored on its vault page `Artifacts.md` (paths and names only) and are data to
+  agents, like any note. Notes on them go to the agent as ordinary composer text the user sends.
+
 ## File references in chat
 
 Inline-code file and folder references in assistant text open files, or
@@ -1301,9 +1467,26 @@ those link targets, the sanitizer's URI allowlist adds `file:` to DOMPurify's
 default list. Inline `style` attributes keep only colour and font properties
 (`restrictStyle` in `markdown-media.ts`), which highlighted code needs; layout,
 positioning and `url()` values are dropped, so raw HTML can't place itself over
-the app shell. A `file:` link that isn't a chip (outside the thread folder)
-opens nothing: the desktop window refuses to navigate to it
-(`openExternalURL` accepts only `http`, `https` and `mailto`).
+the app shell. A `file:` link that isn't a chip opens nothing: the desktop
+window refuses to navigate to it (`openExternalURL` accepts only `http`,
+`https` and `mailto`).
+
+An agent that worked outside the thread folder cites files there by absolute
+path; those become chips too, marked `outside`
+(`outsideFileReferencePath`). The path must be absolute in the thread folder's
+own platform form (a drive path in a Windows folder, `/…` in a POSIX one), and
+the same `..`, `~`, control-character and drive-relative rules apply; it is
+normalized to forward slashes. An inline-code outside reference must name a
+file (an extension or known file name) or end in a slash, since there is no
+listing to settle an extensionless path. Nothing is read until the user hovers
+or clicks the chip. The app then reads the file through the server's normal
+file read with the file's parent as the location and its bare name as the
+relative path (`app/src/pages/session/outside-file.tsx`), so the server's
+containment check still applies to that folder; it is read-only, shown in a
+viewer dialog (the cited lines marked), and never written. A cited outside
+folder is listed only for the peek's item count. Opening a folder, media file
+or binary file sends it to its default app on desktop through
+`openLocalFileURL` under the rules below.
 
 On desktop, a referenced file that the server reads as binary and that isn't
 an image or other media type opens in its default app instead of the panel
@@ -1471,7 +1654,11 @@ location and canonical Git worktree.
 - Provider keys never reach the renderer: `/provider` and `/config/providers`
   return `Provider.toRendererInfo` (no `key`, no token or header values), and
   `/config` and `/global/config` responses drop credential fields wherever they
-  appear (`config/redact.ts`).
+  appear (`config/redact.ts`). Settings › MCP servers therefore never edits an
+  existing server's environment or headers: it adds servers (values typed into
+  password fields go straight into the config) and removes them with
+  `DELETE /global/config/mcp/:name` (#334), which deletes only that key from
+  the global config file and takes the same auth as the other `/global` routes.
 - A PTY connect ticket stands in for credentials only after the auth
   middleware has checked, without consuming it, that the ticket exists for that
   PTY and that the Origin is allowed. Routing and instance loading happen after
@@ -1498,6 +1685,17 @@ location and canonical Git worktree.
   them on the server and Ask showed nothing. A user config rule that allows an
   action still wins, and a client with no renderer (the bare server) must answer
   these requests itself.
+- **MCP calls in the in-process loop.** The legacy loop that runs Command
+  Centre routines and threads (`tenon/src/session/prompt.ts`) loads the
+  servers from Settings › MCP servers. Each call asks action `mcp` for its
+  server (`MCP.permission` in `tenon/src/mcp/index.ts`), the shape Codex MCP
+  approvals use, and that loop's agents (`tenon/src/agent/agent.ts`) default
+  `mcp` to ask. Before, the call asked under the tool's own name and the
+  wildcard allow approved it, so a routine reading untrusted mail could run any
+  MCP tool unasked; an unattended routine now refuses the call. "Always" saves
+  the server name literally. Allow a trusted server with
+  `"permission": { "mcp": { "<server>": "allow" } }`; a rule naming the tool
+  (`github_*`) still hides the tool when it denies, but no longer skips the ask.
 - **Model profiles.** Profile rules are the user's own text, added to prompts as
   a hidden attachment. They are trusted like a typed message; an imported
   `profile.md` is read only as text.

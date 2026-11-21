@@ -217,7 +217,8 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
       return (
         results
           .flatMap((result) => result?.data ?? [])
-          // The server's list keeps archived sessions.
+          // The server's list keeps archived sessions. It also keeps the tasks a thread delegated (the session API
+          // has no parent filter); `list` and `tasks` split them.
           .filter(
             (session) =>
               folders.some((item) => sameDirectory(session.location?.directory, item)) && !session.time.archived,
@@ -248,8 +249,10 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
       onCleanup(unsubscribe)
     })
     // The synced session info carries the title the server sets after the first reply and the latest activity.
+    // Delegated tasks can't be prompted, so the latest thread must never be one.
     const list = createMemo(() =>
       (settled(threads) ?? [])
+        .filter((thread) => !thread.session.parentID)
         .map((thread) => {
           const info = serverSync().session.get(thread.id)
           return {
@@ -304,6 +307,22 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
     const timer = setInterval(() => compact(workspace()), HOUR)
     onCleanup(() => clearInterval(timer))
 
+    /** A new, empty Command Centre thread on the Settings default harness (or `choice`'s); its id. */
+    const createThread = async (folder: string, target: string, choice?: CommandChoice) => {
+      const current = settings.commandCentre.current()
+      const harnessID = choice?.harnessID ?? Harness.InstanceID.make(current.harnessID ?? Harness.OpenCode)
+      const harnessModel = choice ? choice.harnessModel : current.modelID ? { id: current.modelID } : undefined
+      // The server creates the vault's .command-centre folder; an older server without the route is fine.
+      await commandDirectory(client(target)).catch(() => undefined)
+      const info = await serverSDK().api.session.create({
+        harnessInstanceID: harnessID,
+        harnessModel: harnessID !== Harness.OpenCode ? harnessModel : undefined,
+        location: { directory: folder },
+      })
+      if (!info?.id) throw new Error("command_centre_thread_failed")
+      return info.id
+    }
+
     /**
      * Send to `sessionID`, else the latest Command Centre thread, else a new one; `null` always starts a new
      * thread. Resolves with the thread id.
@@ -317,22 +336,10 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
         const current = settings.commandCentre.current()
         const harnessID = choice?.harnessID ?? Harness.InstanceID.make(current.harnessID ?? Harness.OpenCode)
         const harness = harnessID !== Harness.OpenCode
-        const harnessModel = choice ? choice.harnessModel : current.modelID ? { id: current.modelID } : undefined
         // The default target stays in the current folder: an earlier root's folder may be gone by now.
         const newest = list().find((thread) => sameDirectory(thread.directory, folder))
         const existing = sessionID === null ? undefined : (sessionID ?? newest?.id)
-        const create = async () => {
-          // The server creates the vault's .command-centre folder; an older server without the route is fine.
-          await commandDirectory(client(target)).catch(() => undefined)
-          const info = await serverSDK().api.session.create({
-            harnessInstanceID: harnessID,
-            harnessModel: harness ? harnessModel : undefined,
-            location: { directory: folder },
-          })
-          if (!info?.id) throw new Error("command_centre_thread_failed")
-          return info.id
-        }
-        const id = existing ?? (await create())
+        const id = existing ?? (await createThread(folder, target, choice))
         const model = harness ? undefined : choice ? choice.model : modelChoice(current.modelID)
         await serverSDK()
           .ensureDirSdkContext(folder)
@@ -362,6 +369,8 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
         writes(latest()?.id).findLast((write) => write.phase === "done" && !!write.undo && !write.failed),
       undo: (id: string) => agentWrites?.undo(id),
       threads: list,
+      /** Tasks Command Centre threads delegated without a Project, which run in the Command Centre folder. */
+      tasks: createMemo(() => (settled(threads) ?? []).filter((thread) => !!thread.session.parentID)),
       loading: () => threads.loading || vault.loading,
       latest,
       messages,
@@ -380,6 +389,18 @@ export const { use: useCommandCentre, provider: CommandCentreProvider } = create
       error: () => state.error,
       clearError: () => setState("error", ""),
       send,
+      /** Starts an empty thread to open in the thread view; resolves with its id, or undefined without a vault. */
+      create: async () => {
+        const folder = directory()
+        const target = workspace()
+        if (!folder || !target) return undefined
+        const id = await createThread(folder, target).catch((error: unknown) => {
+          setState("error", error instanceof Error ? error.message : String(error))
+          return undefined
+        })
+        if (id) void refetch()
+        return id
+      },
       refetch,
     }
   },

@@ -76,9 +76,13 @@ Use `[font-weight:N]` when a weight must differ from the role.
   corners and a hairline on its left. With the side panel closed the rail
   alone is the card. The rail's buttons are 36px (10px corners, 6px apart;
   hover `overlay-hover`, the open section the accent container), with badges
-  at each button's top right; Context (the usage ring) is the last button,
+  at each button's top right; Documents (the thread's written and linked
+  documents, each opening in the Files viewer) follows Files; Context (the
+  usage ring) is the last section,
   after Canvas, which is always there (it opens on the canvas's empty state
-  before the agent has drawn). Review and the terminal stacked in the panel are split by a
+  before the agent has drawn). The Terminal button sits apart at the rail's
+  foot, outside the section tabs (it toggles the panel below the thread, as
+  the header button and Ctrl+` do), in the accent container while open. Review and the terminal stacked in the panel are split by a
   hairline, and the panel's resize handle sits on its left edge. Rounded
   corners otherwise are for things inside or above the page (cards, docks,
   menus, floating windows).
@@ -155,7 +159,10 @@ Use `[font-weight:N]` when a weight must differ from the role.
   Running section becomes "Subagents · N running · M done" listing only the
   subagents still at work (breathing dot, small bar, chevron; "None running
   now" when all have finished), then **All subagents**. A row or that link
-  opens the side panel's Agents tab and closes the window.
+  opens the side panel's Agents tab and closes the window. Its Connectors
+  section starts collapsed to "Connectors · N on" with a chevron; open, it
+  lists each server on or off and ends with Manage MCP servers. The choice is
+  remembered.
 - **Composer: light tab** (`session-ui` `prompt-input`, both the thread and
   the new-thread composer). At most 560px wide, centred in its column (the
   docks that attach to it share that width); empty, it is about 130px tall.
@@ -236,11 +243,17 @@ Use `[font-weight:N]` when a weight must differ from the role.
 - **Free-text answers in a choice card** (the question dock's "Other"): no ring
   on the text box itself; while it has focus the option's edge becomes a 1.5px
   line in the focus colour, and the caret does the rest.
-- **Agent task list** (the dock on the composer, `session-todo-dock.tsx`):
-  a "Tasks" title with "N of M" and a chevron; each step has a 16px mark, a
-  filled check for done (text dimmed), `LoaderV2` in accent for the step in
-  progress (weight 500), and a dashed circle for steps to come. Collapsed, the
-  title row shows the current step. Status is carried by the mark's shape.
+- **Agent task list** (`session-todo-dock.tsx`, `SessionTodoTray`): part of
+  the composer's tray, the layer-02 tab inset 18px that holds the folder and
+  branch, never a card of its own. While an agent runs, the tray grows a 36px
+  row above the where row: the run's mark (`LoaderV2` in accent, a check when
+  done), the step in progress (weight 500), "N of M" and a chevron that points
+  up while collapsed; a 2px accent line on the row's bottom edge fills as steps
+  finish. Expanding unfolds the steps above the row inside the same tray; each
+  step has a 16px mark, a filled check for done (text dimmed), `LoaderV2` for
+  the step in progress (weight 500) and a dashed circle for steps to come.
+  Status is carried by the mark's shape. The section opens and closes with the
+  run (300 ms spring), clipped from the top so the row leads.
 - **Reply to a passage** (`selection-reply.tsx`): the selection pill grows
   into a 400px floating card (radius 20px, floating elevation, ~74px tall):
   the pill's own "↩ Reply" label, one faint truncated line of the passage and
@@ -253,6 +266,56 @@ Use `[font-weight:N]` when a weight must differ from the role.
   click outside closes it only while empty. A sent reply puts each passage and
   its answer in an inset box (layer-02 on the layer-01 bubble; layer-03 on
   layer-02 in light) inside the user's bubble.
+- **Dictation** (`dictation-button.tsx`): while recording, one row takes the
+  composer toolbar's place at the toolbar's height, so the composer never
+  grows: a small accent wave (14 bars, 56×16px) that follows the voice, the
+  words heard so far in italic `text-muted` (they're still being transcribed;
+  a long transcript clips at its start so the newest words stay in view), and
+  a small contrast Stop. Escape throws the recording away. The final
+  transcript goes in at the caret as ordinary text.
+- **Computer use on screen** (`computer-indicator.ts`): while an agent acts on
+  the desktop, a Tenon-blue (`--v2-blue-600`, `#3b5cf6`) glow frames the
+  display (a 2px edge with a soft inner glow that breathes; steady under
+  reduced motion) and lets every click through; the Stop pill sits above it
+  at the bottom of the screen. Both go a few quiet seconds after the last
+  action.
+- **Command Centre hub** (`hub-view.tsx`): `/command` is a hub first and a
+  chat second, so work can run on its own. A band (16px card) names the
+  Command Centre's harness and model and what is running (agents in Projects,
+  then "N tasks running outside a Project" for tasks it delegated without
+  one); Needs you rows
+  (layer-02, warning icon) answer permissions in place; then a card per
+  Project (16px, layer-01, inset hairline; three columns from 1180px, two from
+  760px): name (15px semibold) and outcome, the state on the right (warning
+  chip for Needs you, the running dot for Running, muted text otherwise), the
+  next milestone with % and a 4px bar, a stack of 24px harness-logo tiles
+  (who is working; the Command Centre's first) with "N working · N needs
+  you", and a hairline-topped last line: the newest running thread's logo,
+  title and time. Cards enter with a 40ms stagger. A card opens the Project
+  (Back in the page header): the Command Centre's card leads (its logo and
+  model, its thread title, "Now:" its current step, its checklist as the
+  plan), then a card per agent: the harness logo on a 28px tile, the model as
+  the name and the harness under it, the thread title (two lines), the step
+  "text · n of m" with the running dot (or warning, or a muted check and
+  "Finished · time"), a 2px progress line, and the Command Centre's rail icon
+  when it started that thread. The milestone and Activity sit in a 380px
+  column on the right. An agent opens a 24px floating panel over that column
+  (plan, latest reply, Open thread, Stop); Esc or Close dismisses it. Harness
+  and model tell agents apart, never colour. Chat is the composer docked at
+  the foot (the light composer's raised pill, 560px): focusing it opens a 24px
+  floating sheet above it with the latest exchange and Open thread. Views
+  fade through (`ViewSwitch`); panels and the sheet use `Presence`.
+- **Command Centre threads** (`command-thread-chrome.tsx`): a Command Centre
+  thread is the ordinary thread view, never a second chat UI. Its extras sit
+  around it: the page's title, thread menu and views in the thread's header,
+  the Mission board as a side panel, and each turn's actions as one
+  Done-for-you list under the reply. The Ctrl+J card briefs before it
+  converses: counts, then what needs you (answered in place), then what's
+  running with its checklist step, then the latest exchange and composer.
+- **Started by Command Centre:** a thread the Command Centre started (a task
+  it delegated into a Project, or `thread_start`) shows the Command Centre's
+  rail icon (`console`, muted, small) in its sidebar row before the status
+  mark, with the tooltip and label "Started by Command Centre".
 - **Links in the composer** (`link-highlight.ts`): accent text, underlined,
   drawn with the CSS Highlight API so the editor's text is untouched. A plain
   click edits; Ctrl/⌘-click opens the link.
@@ -333,6 +396,24 @@ app:
 - JS that waits out a CSS animation reads the duration with `motionDuration`
   (`@tenon/ui/v2/motion`), which understands both `200ms` and the minified
   `.2s`; never `parseFloat` a duration token yourself.
+
+## Sound
+
+Notification sounds are calm and short, like the motion. Tenon's own come from
+`tenon/packages/ui/script/sounds.ts`; change them there and run
+`bun script/sounds.ts` from `tenon/packages/ui` (needs ffmpeg) rather than
+editing audio files.
+
+- Three families (Soft, the default, Glass and Pulse), each with the same three
+  phrases: **done** rises, **needs you** taps twice on one note, **error**
+  falls. Error sits lowest and needs-you brightest, so they are told apart
+  without looking.
+- Under 0.8 s, a soft attack (no click), a fade to silence, and one peak level
+  (-9 dBFS) across the set.
+- "Done" is off by default because it fires often; needs-you and error are on.
+- A profile from before the Soft set moves each sound still on the earlier
+  Tenon default to Soft, once (`migrateSounds` in `context/settings.tsx`);
+  sounds the user picked are kept.
 
 ## Accessibility
 

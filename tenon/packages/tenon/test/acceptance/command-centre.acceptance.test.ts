@@ -399,7 +399,9 @@ describe("Command Centre", () => {
       expect(commandTools).toContain("memory_search")
       expect(commandTools).toContain("project_setup")
       const projectTools = AgentAppTools.list({ sessionID: projectThread.id }).map((tool) => tool.name)
-      expect(projectTools).not.toContain("project_setup")
+      // Since 2026-11-19 any thread can set up a Project and start a thread in it; memory stays the Command Centre's.
+      expect(projectTools).toContain("project_setup")
+      expect(projectTools).not.toContain("memory_search")
       const write = (yield* AgentAppTools.call(
         "notes_write",
         { path: "From command.md", body: "cross-project", projectId: project.id, create: true },

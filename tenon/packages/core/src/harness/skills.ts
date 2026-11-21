@@ -19,9 +19,14 @@ export type Skill = {
   description?: string
   location?: string
   scope: "global" | "project"
-  /** Tenon skills only: false when switched off in Settings → Skills. */
+  /** False when switched off in Settings → Skills (for a harness skill: its SKILL.md renamed, #323). */
   enabled?: boolean
+  /** Harness skills only: true when the skill sits in a folder Tenon may switch it in (home or project). */
+  editable?: boolean
 }
+
+/** The suffix that switches a harness skill off: every harness loads skills by the exact file name SKILL.md. */
+export const DISABLED_SUFFIX = ".disabled"
 export type Source = "filesystem" | "reported" | "none"
 
 /**
@@ -39,10 +44,15 @@ export const scan = Effect.fn("HarnessSkills.scan")(function* (input: {
   if (!folders) return fromReport(input.harness, input.reported)
   const levels = yield* projectLevels(input.directory)
   const roots = [
-    ...folders.global.map((folder) => ({ root: path.join(input.home, folder), scope: "global" as const })),
-    ...(folders.system ?? []).map((root) => ({ root, scope: "global" as const })),
+    ...folders.global.map((folder) => ({
+      root: path.join(input.home, folder),
+      scope: "global" as const,
+      editable: true,
+    })),
+    // System folders belong to an administrator; Tenon lists their skills but never renames them.
+    ...(folders.system ?? []).map((root) => ({ root, scope: "global" as const, editable: false })),
     ...levels.flatMap((level) =>
-      folders.project.map((folder) => ({ root: path.join(level, folder), scope: "project" as const })),
+      folders.project.map((folder) => ({ root: path.join(level, folder), scope: "project" as const, editable: true })),
     ),
   ]
   const seen = new Set<string>()
@@ -57,7 +67,7 @@ export const scan = Effect.fn("HarnessSkills.scan")(function* (input: {
       const skill = yield* read(location, item.scope)
       if (!skill || names.has(skill.name)) continue
       names.add(skill.name)
-      skills.push(skill)
+      skills.push({ ...skill, enabled: !location.endsWith(DISABLED_SUFFIX), editable: item.editable })
     }
   }
   return { source: "filesystem" as Source, skills }
@@ -96,14 +106,78 @@ export class UnknownSkill extends Schema.TaggedError<UnknownSkill>()("HarnessSki
   message: Schema.String,
 }) {}
 
-/** Switches one of Tenon's skills on or off. Only Tenon skills can be switched; harness skills are read-only. */
-export const setEnabled = Effect.fn("HarnessSkills.setEnabled")(function* (name: string, enabled: boolean) {
+export class SwitchFailed extends Schema.TaggedError<SwitchFailed>()("HarnessSkills.SwitchFailed", {
+  message: Schema.String,
+}) {}
+
+/**
+ * Switches one of Tenon's skills on or off, or with `harness` that harness's skill. A harness skill is switched by
+ * renaming its SKILL.md to SKILL.md.disabled and back (#323); the skill is found by name in the harness's own
+ * folders, so the caller never names a path.
+ */
+export const setEnabled = Effect.fn("HarnessSkills.setEnabled")(function* (
+  name: string,
+  enabled: boolean,
+  harness?: string,
+) {
+  if (harness !== undefined) {
+    const harnesses = yield* HarnessRuntime.Service
+    const location = yield* Location.Service
+    const entry = (yield* harnesses.settings()).find((item) => item.id === harness)
+    if (!entry || entry.driver === HarnessSchema.OpenCodeDriver)
+      return yield* new UnknownSkill({ message: `No external harness has ID "${harness}".` })
+    return yield* switchSkill({
+      home: Global.Path.home,
+      directory: location.directory,
+      harness: { id: entry.id, driver: entry.driver, command: entry.command },
+      name,
+      enabled,
+    })
+  }
   const skills = yield* SkillV2.Service
   if (!(yield* skills.all()).some((skill) => skill.name === name))
     return yield* new UnknownSkill({ message: `"${name}" isn't one of Tenon's skills.` })
   const disabled = yield* SkillToggle.set(Global.make().config, name, enabled)
   return { name, enabled: !disabled.has(name) }
 })
+
+/** Renames a harness skill's SKILL.md to switch it, after finding it by name where the harness loads skills. */
+export const switchSkill = Effect.fn("HarnessSkills.switchSkill")(function* (input: {
+  home: string
+  directory: string
+  harness: Harness
+  name: string
+  enabled: boolean
+}) {
+  const found = (yield* scan(input)).skills.find((skill) => skill.name === input.name)
+  if (!found?.location || !found.editable)
+    return yield* new UnknownSkill({ message: `"${input.name}" isn't a skill Tenon can switch for this harness.` })
+  const target = toggledLocation(found.location, input.enabled)
+  if (target !== found.location) yield* rename(found.location, target)
+  return { name: input.name, enabled: input.enabled }
+})
+
+/** The SKILL.md path for the asked state: `SKILL.md` when on, `SKILL.md.disabled` when off. */
+export function toggledLocation(location: string, enabled: boolean, api: Pick<typeof path, "basename"> = path) {
+  const off = api.basename(location).endsWith(DISABLED_SUFFIX)
+  if (enabled && off) return location.slice(0, -DISABLED_SUFFIX.length)
+  if (!enabled && !off) return location + DISABLED_SUFFIX
+  return location
+}
+
+// A file already at the target (a newer SKILL.md beside a disabled one) is never overwritten.
+const rename = (from: string, to: string) =>
+  Effect.tryPromise({
+    try: async () => {
+      const taken = await fs.stat(to).then(
+        () => true,
+        () => false,
+      )
+      if (taken) throw new Error(`${path.basename(to)} already exists in ${path.dirname(to)}.`)
+      await fs.rename(from, to)
+    },
+    catch: (cause) => new SwitchFailed({ message: cause instanceof Error ? cause.message : String(cause) }),
+  })
 
 /** Tenon's skills for the catalog. Embedded skills ship inside the app, so they have no file location. */
 export function tenonSkills(
@@ -190,8 +264,11 @@ function fromReport(harness: Harness, reported: Reported | undefined) {
 }
 
 // A missing or unreadable folder simply has no skills.
+// A switched-off skill's SKILL.md.disabled is listed too, so it can be switched back on.
 const skillFiles = (root: string) =>
-  Effect.tryPromise(() => Glob.scan("**/SKILL.md", { cwd: root, absolute: true, dot: true, symlink: true })).pipe(
+  Effect.tryPromise(() =>
+    Glob.scan("**/SKILL.md{,.disabled}", { cwd: root, absolute: true, dot: true, symlink: true }),
+  ).pipe(
     Effect.map((files) => files.toSorted()),
     Effect.catch(() => Effect.succeed([] as string[])),
   )

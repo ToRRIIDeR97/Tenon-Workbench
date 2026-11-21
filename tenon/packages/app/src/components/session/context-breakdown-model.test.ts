@@ -24,7 +24,7 @@ function build(entries: { message: Record<string, unknown>; parts: Record<string
 
 describe("contextBreakdown", () => {
   test("splits the reported use by the thread's text and leaves the rest as the agent's own and free", () => {
-    // 4,000 chars of messages = 1,000 tokens; 2,000 chars of tool output plus input ≈ 504; system 400 chars = 100.
+    // 4,000 chars of messages = 1,000 tokens; 2,000 chars of tool output plus its 12-char input = 503; system 400 chars = 100.
     const thread = build([
       user("u1", "a".repeat(2000), "s".repeat(400)),
       assistant("a1", "b".repeat(2000), "c".repeat(2000)),
@@ -33,8 +33,8 @@ describe("contextBreakdown", () => {
     const by = Object.fromEntries(parts.map((part) => [part.key, part]))
     expect(by.system?.tokens).toBe(100)
     expect(by.messages?.tokens).toBe(1000)
-    expect(by.tools?.tokens).toBe(504)
-    expect(by.other?.tokens).toBe(20_000 - 100 - 1000 - 504)
+    expect(by.tools?.tokens).toBe(503)
+    expect(by.other?.tokens).toBe(20_000 - 100 - 1000 - 503)
     expect(by.free?.tokens).toBe(80_000)
     expect(parts.reduce((sum, part) => sum + part.percent, 0)).toBeCloseTo(100, 5)
   })

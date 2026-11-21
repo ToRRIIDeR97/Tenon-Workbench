@@ -1,3 +1,4 @@
+import { messageDurationMs, stoppedComputerUse, toolDurationMs } from "./message-duration"
 import {
   Component,
   createEffect,
@@ -35,7 +36,7 @@ import { useData, useFileReferences, type FileReferenceActions } from "../contex
 import { useFileComponent } from "@tenon/ui/context/file"
 import { useDialog } from "@tenon/ui/context/dialog"
 import { type UiI18n, useI18n } from "@tenon/ui/context/i18n"
-import { BasicTool, GenericTool } from "./basic-tool"
+import { BasicTool, GenericTool, ToolTimeContext } from "./basic-tool"
 import { Accordion } from "@tenon/ui/accordion"
 import { StickyAccordionHeader } from "@tenon/ui/sticky-accordion-header"
 import { Collapsible } from "@tenon/ui/collapsible"
@@ -214,7 +215,6 @@ export interface MessagePartProps {
   virtualizeDiff?: boolean
   onContentRendered?: () => void
   showAssistantCopyPartID?: string | null
-  turnDurationMs?: number
   useV2Actions?: boolean
 }
 
@@ -659,7 +659,6 @@ export { partDefaultOpen } from "./part-default-open"
 export function AssistantParts(props: {
   messages: AssistantMessage[]
   showAssistantCopyPartID?: string | null
-  turnDurationMs?: number
   useV2Actions?: boolean
   working?: boolean
   showReasoningSummaries?: boolean
@@ -747,7 +746,6 @@ export function AssistantParts(props: {
                             <Part
                               part={item()}
                               message={message()}
-                              turnDurationMs={props.turnDurationMs}
                               useV2Actions={props.useV2Actions}
                               defaultOpen={partDefaultOpen(
                                 item(),
@@ -783,7 +781,6 @@ export function AssistantParts(props: {
                         part={item()!}
                         message={message()!}
                         showAssistantCopyPartID={props.showAssistantCopyPartID}
-                        turnDurationMs={props.turnDurationMs}
                         useV2Actions={props.useV2Actions}
                         defaultOpen={partDefaultOpen(item()!, props.shellToolDefaultOpen, props.editToolDefaultOpen)}
                       />
@@ -1553,7 +1550,6 @@ export function Part(props: MessagePartProps) {
         virtualizeDiff={props.virtualizeDiff}
         onContentRendered={props.onContentRendered}
         showAssistantCopyPartID={props.showAssistantCopyPartID}
-        turnDurationMs={props.turnDurationMs}
         useV2Actions={props.useV2Actions}
       />
     </Show>
@@ -1679,75 +1675,101 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
   const namedByRenderer = () => !!ToolRegistry.render(part().tool) && part().tool !== "acp_subagent"
   const controlledOpen = () => (props.onToolOpenChange ? (props.toolOpen ?? props.defaultOpen) : undefined)
   const handleToolOpenChange = (open: boolean) => props.onToolOpenChange?.(open)
+  // Each card shows its own call's time, not the turn's (#322).
+  const toolTime = createMemo(() => {
+    const ms = toolDurationMs(part().state as { status: string; time?: { start?: number; end?: number } })
+    if (ms === undefined) return undefined
+    const total = Math.round(ms / 1000)
+    const format = (value: number) => value.toLocaleString(i18n.locale())
+    if (total < 60) return i18n.t("ui.message.duration.seconds", { count: format(total) })
+    return i18n.t("ui.message.duration.minutesSeconds", {
+      minutes: format(Math.floor(total / 60)),
+      seconds: format(total % 60),
+    })
+  })
 
   return (
     <Show when={!hideQuestion()}>
-      <div data-component="tool-part-wrapper" data-timeline-part-id={part().id}>
-        <Switch>
-          <Match when={part().state.status === "error" && (part().state as any).error}>
-            {(error) => {
-              const cleaned = error().replace("Error: ", "")
-              if (part().tool === "question" && cleaned.includes("dismissed this question")) {
+      <ToolTimeContext.Provider value={toolTime}>
+        <div data-component="tool-part-wrapper" data-timeline-part-id={part().id}>
+          <Switch>
+            <Match when={part().state.status === "error" && (part().state as any).error}>
+              {(error) => {
+                const cleaned = error().replace("Error: ", "")
+                if (part().tool === "question" && cleaned.includes("dismissed this question")) {
+                  return (
+                    <div style="width: 100%; display: flex; justify-content: flex-end;">
+                      <span class="text-[13px] text-v2-text-text-muted cursor-default">
+                        {i18n.t("ui.messagePart.questions.dismissed")}
+                      </span>
+                    </div>
+                  )
+                }
                 return (
-                  <div style="width: 100%; display: flex; justify-content: flex-end;">
-                    <span class="text-[13px] text-v2-text-text-muted cursor-default">
-                      {i18n.t("ui.messagePart.questions.dismissed")}
-                    </span>
-                  </div>
+                  <ToolErrorCard
+                    tool={part().tool}
+                    error={error()}
+                    title={
+                      part().tool === "websearch"
+                        ? webSearchProviderLabel(partMetadata().provider, i18n)
+                        : namedByRenderer()
+                          ? undefined
+                          : getToolInfo(part().tool, input()).title
+                    }
+                    defaultOpen={props.defaultOpen}
+                    open={controlledOpen()}
+                    onOpenChange={props.onToolOpenChange ? handleToolOpenChange : undefined}
+                    subtitle={
+                      taskSubtitle() ?? (namedByRenderer() ? undefined : getToolInfo(part().tool, input()).subtitle)
+                    }
+                    href={taskHref()}
+                    onSubtitleClick={(event) => {
+                      if (!data.navigateToSession) return
+                      if (event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+                      const id = taskId()
+                      if (!id) return
+                      event.preventDefault()
+                      data.navigateToSession(id)
+                    }}
+                  />
                 )
-              }
-              return (
-                <ToolErrorCard
-                  tool={part().tool}
-                  error={error()}
-                  title={
-                    part().tool === "websearch"
-                      ? webSearchProviderLabel(partMetadata().provider, i18n)
-                      : namedByRenderer()
-                        ? undefined
-                        : getToolInfo(part().tool, input()).title
-                  }
-                  defaultOpen={props.defaultOpen}
-                  open={controlledOpen()}
-                  onOpenChange={props.onToolOpenChange ? handleToolOpenChange : undefined}
-                  subtitle={
-                    taskSubtitle() ?? (namedByRenderer() ? undefined : getToolInfo(part().tool, input()).subtitle)
-                  }
-                  href={taskHref()}
-                  onSubtitleClick={(event) => {
-                    if (!data.navigateToSession) return
-                    if (event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
-                    const id = taskId()
-                    if (!id) return
-                    event.preventDefault()
-                    data.navigateToSession(id)
-                  }}
-                />
-              )
-            }}
-          </Match>
-          <Match when={true}>
-            <Dynamic
-              component={render()}
-              input={input()}
-              tool={part().tool}
-              sessionID={part().sessionID}
-              partID={part().id}
-              metadata={partMetadata()}
-              // @ts-expect-error
-              output={part().state.output}
-              status={part().state.status}
-              hideDetails={props.hideDetails}
-              defaultOpen={props.defaultOpen}
-              open={controlledOpen()}
-              onOpenChange={props.onToolOpenChange ? handleToolOpenChange : undefined}
-              deferContent={props.deferToolContent}
-              virtualizeDiff={props.virtualizeDiff}
-              onContentRendered={props.onContentRendered}
-            />
-          </Match>
-        </Switch>
-      </div>
+              }}
+            </Match>
+            <Match when={true}>
+              <Dynamic
+                component={render()}
+                input={input()}
+                tool={part().tool}
+                sessionID={part().sessionID}
+                partID={part().id}
+                metadata={partMetadata()}
+                // @ts-expect-error
+                output={part().state.output}
+                status={part().state.status}
+                hideDetails={props.hideDetails}
+                defaultOpen={props.defaultOpen}
+                open={controlledOpen()}
+                onOpenChange={props.onToolOpenChange ? handleToolOpenChange : undefined}
+                deferContent={props.deferToolContent}
+                virtualizeDiff={props.virtualizeDiff}
+                onContentRendered={props.onContentRendered}
+              />
+            </Match>
+          </Switch>
+        </div>
+        {/* The call Stop cut off: nothing more happens on screen, and the thread says so. */}
+        <Show when={stoppedComputerUse(part().state as { status: string; error?: unknown; output?: unknown })}>
+          <div
+            data-slot="tool-computer-stopped"
+            role="note"
+            class="flex items-center gap-3 py-1 text-[12px] text-v2-text-text-muted"
+          >
+            <span class="h-px flex-1 bg-v2-border-border-muted" />
+            {i18n.t("secondBrain.messagePart.computerStopped")}
+            <span class="h-px flex-1 bg-v2-border-border-muted" />
+          </div>
+        </Show>
+      </ToolTimeContext.Provider>
     </Show>
   )
 }
@@ -1791,15 +1813,9 @@ PART_MAPPING["text"] = function TextPartDisplay(props) {
 
   const duration = createMemo(() => {
     if (props.message.role !== "assistant") return ""
-    const message = props.message as AssistantMessage
-    const completed = message.time.completed
-    const ms =
-      typeof props.turnDurationMs === "number"
-        ? props.turnDurationMs
-        : typeof completed === "number"
-          ? completed - message.time.created
-          : -1
-    if (!(ms >= 0)) return ""
+    // The row's own message, not the turn: each step of a multi-step turn shows its own time (#322).
+    const ms = messageDurationMs(props.message as AssistantMessage)
+    if (ms === undefined) return ""
     const total = Math.round(ms / 1000)
     if (total < 60) return i18n.t("ui.message.duration.seconds", { count: numfmt().format(total) })
     const minutes = Math.floor(total / 60)

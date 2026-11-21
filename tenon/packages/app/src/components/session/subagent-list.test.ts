@@ -1,6 +1,14 @@
 import { describe, expect, test } from "bun:test"
 import type { Message, Part } from "@opencode-ai/sdk/v2"
-import { childTranscript, splitResult, subagentCounts, taskResult, threadSubagents } from "./subagent-list"
+import {
+  childTranscript,
+  splitResult,
+  subagentCounts,
+  subagentModel,
+  subagentModelLabel,
+  taskResult,
+  threadSubagents,
+} from "./subagent-list"
 import { childLaneSteps, laneElapsed, laneQuiet, laneTokens } from "./subagent-lane"
 
 const user = (id: string, created: number) => ({ id, role: "user", time: { created } }) as unknown as Message
@@ -32,6 +40,34 @@ describe("threadSubagents", () => {
 
   test("counts running and failed subagents", () => {
     expect(subagentCounts(groups)).toEqual({ all: 3, running: 1, failed: 1 })
+  })
+})
+
+describe("subagentModel", () => {
+  const part = (input: Record<string, unknown>) => ({ state: { status: "running", input } }) as never
+  const parent = { id: "opencode-go/deepseek-v4.1-flash", reasoning: "max" }
+
+  test("a subagent inherits the parent's model and reasoning", () => {
+    const model = subagentModel({ part: part({ agent: "general" }), parent })
+    expect(subagentModelLabel(model)).toBe("deepseek-v4.1-flash · max")
+  })
+
+  test("the model its call asked for wins, then its own child session's", () => {
+    expect(subagentModelLabel(subagentModel({ part: part({ model: "sonnet" }), parent }))).toBe("sonnet")
+    expect(
+      subagentModelLabel(subagentModel({ part: part({ model: "gpt-5.5", reasoning_effort: "high" }), parent })),
+    ).toBe("gpt-5.5 · high")
+    expect(
+      subagentModelLabel(subagentModel({ part: part({}), parent }, { modelID: "qwen3-coder", variant: "low" })),
+    ).toBe("qwen3-coder · low")
+  })
+
+  test("threadSubagents records the parent's model", () => {
+    const groups = threadSubagents(
+      [user("u", 1), { ...(assistant("a", "u") as object), modelID: "opus", variant: "high" } as unknown as Message],
+      () => [tool("s", "acp_subagent", "running")],
+    )
+    expect(groups[0]!.items[0]!.parent).toEqual({ id: "opus", reasoning: "high" })
   })
 })
 

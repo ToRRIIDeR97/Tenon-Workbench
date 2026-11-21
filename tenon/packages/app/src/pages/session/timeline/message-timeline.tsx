@@ -30,6 +30,9 @@ import {
 } from "@tenon/session-ui/message-part"
 import { DiffChanges } from "@tenon/ui/v2/diff-changes-v2"
 import { FileIcon } from "@tenon/ui/file-icon"
+import { Icon } from "@tenon/ui/v2/icon"
+import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
+import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { InlineInput } from "@tenon/ui/inline-input"
 import { SessionRetry } from "@tenon/session-ui/session-retry"
 import { isScrollKeyTarget, scrollKey, scrollKeyOwner, ScrollView } from "@tenon/ui/scroll-view"
@@ -55,9 +58,11 @@ import { requireServerKey, sessionHref } from "@/utils/session-route"
 import { useSDK } from "@/context/sdk"
 import { ServerConnection } from "@/context/server"
 import { useServerSDK } from "@/context/server-sdk"
+import { rememberedHarnesses } from "@/utils/server"
 import { useSync } from "@/context/sync"
 import { sessionTitle } from "@/utils/session-title"
 import { scheduleConnectedMeasure } from "./measure"
+import { TOGGLE_HOLD_MS, resizeAnchoring } from "./resize-anchor"
 import { observeElementOffsetReconnectAware } from "./observe-element-offset"
 import { createTimelineProjection } from "./projection"
 import { MessageComment, SummaryDiff, TimelineRow, TimelineRowMap } from "./rows"
@@ -66,8 +71,9 @@ import { filterVirtualIndexes } from "./virtual-items"
 import { TurnStepsSummary, hasVisibleSteps, turnDuration } from "@/components/session/turn-steps-summary"
 import { useData } from "@tenon/session-ui/context"
 import { readPartText } from "@tenon/session-ui/message-part-text"
-import { AgentWritesInline } from "@/features/agent-writes/cards"
-import { type AgentWrite, useAgentWrites } from "@/features/agent-writes/store"
+import { AgentWritesDone, AgentWritesInline } from "@/features/agent-writes/cards"
+import { isCommandThread } from "@/features/command-centre/command-centre"
+import { type AgentWrite, useAgentWrites, writeTurn } from "@/features/agent-writes/store"
 
 const emptyMessages: MessageType[] = []
 const emptyParts: PartType[] = []
@@ -257,6 +263,10 @@ export function MessageTimeline(props: {
   setContentRef: (el: HTMLDivElement) => void
   /** Extra controls in the thread header, before the "…" menu (the Environment button). */
   headerActions?: JSX.Element
+  /** Shown in place of the thread's title (the Command Centre's title and thread switcher). */
+  headerTitle?: JSX.Element
+  /** A Back button before the title, for a thread opened from the Command Centre. */
+  headerBack?: { label: string; onClick: () => void }
   userMessages: UserMessage[]
   anchor: (id: string) => string
   setRevealMessage?: (fn: (id: string) => void) => void
@@ -267,6 +277,8 @@ export function MessageTimeline(props: {
 
   const navigate = useNavigate()
   const sdk = useSDK()
+  // A Command Centre thread lists its turn's actions as one Done-for-you list instead of a card per write.
+  const commandThread = createMemo(() => isCommandThread(sdk().directory))
   const serverSDK = useServerSDK()
   const sync = useSync()
   const settings = useSettings()
@@ -369,7 +381,8 @@ export function MessageTimeline(props: {
   const timelineRows = projection.rows
 
   // Agent writes (W5) by turn: a write's assistant message answers the user message whose turn shows it.
-  // Writes without a known turn (external harnesses, or a turn not loaded) go after the last turn.
+  // An external harness names no message, so its writes go to the turn that was running when they arrived.
+  // Writes without a loaded turn go after the last turn.
   const agentWrites = useAgentWrites()
   const writesByTurn = createMemo(() => {
     const id = sessionID()
@@ -377,8 +390,14 @@ export function MessageTimeline(props: {
     const loose: AgentWrite[] = []
     if (!id || !agentWrites) return { turns, loose }
     for (const write of agentWrites.forSession(id)) {
-      const message = write.messageID ? messageByID().get(write.messageID) : undefined
-      const turn = message?.role === "assistant" ? message.parentID : undefined
+      const turn = writeTurn(
+        write,
+        (messageID) => {
+          const message = messageByID().get(messageID)
+          return message?.role === "assistant" ? message.parentID : undefined
+        },
+        props.userMessages,
+      )
       if (!turn || !messageLastRowIndex().has(turn)) {
         loose.push(write)
         continue
@@ -552,15 +571,19 @@ export function MessageTimeline(props: {
     // whatever `shouldAdjustScrollPositionOnItemSizeChange` says. It only keeps the end while the timeline follows
     // the bottom: someone reading just above it shouldn't be dragged down by each new step, and a card the user
     // toggled grows in place.
-    const holdEnd = props.shouldAnchorBottom() && performance.now() - toggledAt >= 800
+    // One owner per resize: the end anchor and one scroll to the end while following, neither just after a toggle.
+    const { holdEnd, scrollToEnd } = resizeAnchoring({
+      following: props.shouldAnchorBottom(),
+      sinceToggleMs: performance.now() - toggledAt,
+    })
     const anchorTo = virtualizer.options.anchorTo
     if (!holdEnd) virtualizer.options.anchorTo = "start"
     resizeItem(index, size)
     if (!holdEnd) virtualizer.options.anchorTo = anchorTo
-    if (root && props.shouldAnchorBottom()) anchorResizedBottom()
+    if (root && scrollToEnd) anchorResizedBottom()
   }
   virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item) => {
-    if (props.shouldAnchorBottom() || performance.now() - toggledAt < 800) return false
+    if (props.shouldAnchorBottom() || performance.now() - toggledAt < TOGGLE_HOLD_MS) return false
     const first = virtualizer.range?.startIndex
     return first !== undefined && item.index < first
   }
@@ -802,6 +825,20 @@ export function MessageTimeline(props: {
     return message?.role === "user" ? message.time.created : undefined
   }
 
+  // Tenon's compaction summary, opened from its divider (#332): the summary reply's text in that turn.
+  const [summaryOpen, setSummaryOpen] = createStore<Record<string, boolean>>({})
+  const summaryText = (userMessageID: string) => {
+    const summary = (assistantMessagesByParent().get(userMessageID) ?? []).find(
+      (message) => (message as { summary?: boolean }).summary === true,
+    )
+    if (!summary) return undefined
+    const text = getMsgParts(summary.id)
+      .flatMap((part) => (part.type === "text" && typeof part.text === "string" ? [part.text] : []))
+      .join("\n")
+      .trim()
+    return text || undefined
+  }
+
   const turnDurationMs = (userMessageID: string) => {
     const message = messageByID().get(userMessageID)
     if (!message || message.role !== "user") return
@@ -848,7 +885,6 @@ export function MessageTimeline(props: {
           part={part()}
           message={message()}
           showAssistantCopyPartID={assistantCopyPartID(row().userMessageID)}
-          turnDurationMs={turnDurationMs(row().userMessageID)}
           useV2Actions
           defaultOpen={defaultOpen()}
           toolOpen={toolOpen[part().id] ?? defaultOpen()}
@@ -877,7 +913,10 @@ export function MessageTimeline(props: {
           <ContextToolGroup
             parts={groupParts()}
             open={toolOpen[groupOpenKey()] === true}
-            onOpenChange={(value) => setToolOpen(groupOpenKey(), value)}
+            onOpenChange={(value) => {
+              holdBottom()
+              setToolOpen(groupOpenKey(), value)
+            }}
             busy={
               workingTurn(row().userMessageID) && lastAssistantGroupKey().get(row().userMessageID) === row().group.key
             }
@@ -888,7 +927,10 @@ export function MessageTimeline(props: {
           <ToolGroup
             parts={groupParts()}
             open={toolOpen[groupOpenKey()] === true}
-            onOpenChange={(value) => setToolOpen(groupOpenKey(), value)}
+            onOpenChange={(value) => {
+              holdBottom()
+              setToolOpen(groupOpenKey(), value)
+            }}
             onSizeChange={onSizeChange}
           >
             {(item) => <Show when={messageByID().get(item().messageID)}>{(message) => renderPart(item, message)}</Show>}
@@ -927,7 +969,11 @@ export function MessageTimeline(props: {
           {input.children}
         </div>
         {/* The turn's agent writes, after its last row; the virtual row's measurement observer picks up their growth. */}
-        <Show when={rowWrites(input.row())}>{(writes) => <AgentWritesInline writes={writes()} />}</Show>
+        <Show when={rowWrites(input.row())}>
+          {(writes) =>
+            commandThread() ? <AgentWritesDone writes={writes()} /> : <AgentWritesInline writes={writes()} />
+          }
+        </Show>
       </div>
     )
   }
@@ -1010,10 +1056,50 @@ export function MessageTimeline(props: {
             <div data-slot="session-turn-message-container" class="w-full px-4 md:px-5">
               <div data-slot="session-turn-compaction">
                 <MessageDivider
-                  label={language.t(
-                    turnDividerRow().label === "compaction" ? "ui.messagePart.compaction" : "ui.message.interrupted",
-                  )}
+                  label={(() => {
+                    const row = turnDividerRow()
+                    // Seen, not reported: the harness compacted in its own process, and the figures say how we know.
+                    if (row.label === "harness-compaction" && row.observed)
+                      return language.t("secondBrain.timeline.harnessCompaction", {
+                        harness:
+                          rememberedHarnesses(serverSDK().server.http.url, sdk().directory)?.find(
+                            (item) => item.id === row.observed!.harness,
+                          )?.name ??
+                          HARNESS_NAMES[row.observed.harness] ??
+                          language.t("secondBrain.timeline.theAgent"),
+                        before: compactTokens(row.observed.before),
+                        after: compactTokens(row.observed.after),
+                      })
+                    if (row.label === "compaction" && row.summarised)
+                      return language.t("secondBrain.timeline.tenonCompaction", { count: row.summarised })
+                    return language.t(
+                      row.label === "compaction" ? "ui.messagePart.compaction" : "ui.message.interrupted",
+                    )
+                  })()}
                 />
+                <Show when={turnDividerRow().label === "compaction" && summaryText(turnDividerRow().userMessageID)}>
+                  {(text) => (
+                    <div class="flex flex-col items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        class="type-meta text-v2-text-text-accent hover:underline"
+                        aria-expanded={summaryOpen[turnDividerRow().userMessageID] === true}
+                        onClick={() => setSummaryOpen(turnDividerRow().userMessageID, (open) => !open)}
+                      >
+                        {language.t(
+                          summaryOpen[turnDividerRow().userMessageID]
+                            ? "secondBrain.timeline.hideSummary"
+                            : "secondBrain.timeline.viewSummary",
+                        )}
+                      </button>
+                      <Show when={summaryOpen[turnDividerRow().userMessageID]}>
+                        <div class="w-full whitespace-pre-wrap rounded-[12px] bg-v2-background-bg-layer-01 px-3 py-2 type-body-compact text-v2-text-text-muted">
+                          {text()}
+                        </div>
+                      </Show>
+                    </div>
+                  )}
+                </Show>
               </div>
             </div>
           </TimelineRowFrame>
@@ -1162,7 +1248,7 @@ export function MessageTimeline(props: {
     }
     const asyncFile = () => ["edit", "write", "apply_patch"].includes(tool()?.tool ?? "")
     const [ready, setReady] = createSignal(initialItem.size <= timelineFallbackItemSize || !asyncFile())
-    let contentMeasureFrame: number | undefined
+    let cancelContentMeasure: (() => void) | undefined
 
     onMount(() => virtualizer.measureElement(element))
 
@@ -1177,7 +1263,7 @@ export function MessageTimeline(props: {
     )
 
     onCleanup(() => {
-      if (contentMeasureFrame !== undefined) cancelAnimationFrame(contentMeasureFrame)
+      cancelContentMeasure?.()
     })
 
     return (
@@ -1205,8 +1291,8 @@ export function MessageTimeline(props: {
             row={row()}
             onSizeChange={() => {
               setReady(true)
-              if (contentMeasureFrame !== undefined) cancelAnimationFrame(contentMeasureFrame)
-              contentMeasureFrame = scheduleConnectedMeasure(element, virtualizer.measureElement)
+              cancelContentMeasure?.()
+              cancelContentMeasure = scheduleConnectedMeasure(element, virtualizer.measureElement)
             }}
           />
         </div>
@@ -1273,7 +1359,22 @@ export function MessageTimeline(props: {
                 }}
               >
                 <div class="flex items-center min-w-0 flex-1 w-full">
-                  <Show when={parentID()}>
+                  <Show when={props.headerBack}>
+                    {(back) => (
+                      <TooltipV2 placement="bottom" value={back().label}>
+                        <IconButtonV2
+                          type="button"
+                          variant="ghost-muted"
+                          data-action="thread-back"
+                          aria-label={back().label}
+                          icon={<Icon name="arrow-left" size="small" />}
+                          onClick={() => back().onClick()}
+                        />
+                      </TooltipV2>
+                    )}
+                  </Show>
+                  {props.headerTitle}
+                  <Show when={!props.headerTitle && parentID()}>
                     <button
                       type="button"
                       data-slot="session-title-parent"
@@ -1290,7 +1391,7 @@ export function MessageTimeline(props: {
                       /
                     </span>
                   </Show>
-                  <Show when={childTitle() || title.editing}>
+                  <Show when={!props.headerTitle && (childTitle() || title.editing)}>
                     <Show
                       when={title.editing}
                       fallback={
@@ -1379,7 +1480,12 @@ export function MessageTimeline(props: {
           </Show>
         </div>
         {/* Writes (W5) this thread's agent made without a known turn, after the last turn. */}
-        <AgentWritesInline writes={writesByTurn().loose} centered={props.centered} />
+        <Show
+          when={commandThread()}
+          fallback={<AgentWritesInline writes={writesByTurn().loose} centered={props.centered} />}
+        >
+          <AgentWritesDone writes={writesByTurn().loose} centered={props.centered} />
+        </Show>
       </ScrollView>
       <SelectionReply
         root={listRoot}
@@ -1390,4 +1496,18 @@ export function MessageTimeline(props: {
       />
     </div>
   )
+}
+
+const HARNESS_NAMES: Record<string, string> = {
+  "claude-code": "Claude Code",
+  codex: "Codex",
+  "opencode-acp": "OpenCode",
+  gemini: "Gemini",
+  antigravity: "Antigravity",
+  "command-code": "Command Code",
+}
+
+/** Tokens as the divider shows them: 182k, 41k, 900. */
+function compactTokens(value: number) {
+  return value >= 1000 ? `${Math.round(value / 1000)}k` : String(value)
 }

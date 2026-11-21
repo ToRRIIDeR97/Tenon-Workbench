@@ -287,6 +287,12 @@ export type SessionsListOutput = {
     readonly harnessInstanceID: string
     readonly harnessModel?: { readonly id: string; readonly reasoningEffort?: string; readonly serviceTier?: string }
     readonly harnessRevision?: number
+    readonly origin?: {
+      readonly sessionID: string
+      readonly commandCentre: boolean
+      readonly handOff?: boolean
+      readonly lead?: boolean
+    }
     readonly agent?: string
     readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string }
     readonly cost: number
@@ -405,6 +411,12 @@ export type SessionsCreateOutput = {
     readonly harnessInstanceID: string
     readonly harnessModel?: { readonly id: string; readonly reasoningEffort?: string; readonly serviceTier?: string }
     readonly harnessRevision?: number
+    readonly origin?: {
+      readonly sessionID: string
+      readonly commandCentre: boolean
+      readonly handOff?: boolean
+      readonly lead?: boolean
+    }
     readonly agent?: string
     readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string }
     readonly cost: number
@@ -454,6 +466,12 @@ export type SessionsForkOutput = {
     readonly harnessInstanceID: string
     readonly harnessModel?: { readonly id: string; readonly reasoningEffort?: string; readonly serviceTier?: string }
     readonly harnessRevision?: number
+    readonly origin?: {
+      readonly sessionID: string
+      readonly commandCentre: boolean
+      readonly handOff?: boolean
+      readonly lead?: boolean
+    }
     readonly agent?: string
     readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string }
     readonly cost: number
@@ -513,6 +531,12 @@ export type SessionsGetOutput = {
     readonly harnessInstanceID: string
     readonly harnessModel?: { readonly id: string; readonly reasoningEffort?: string; readonly serviceTier?: string }
     readonly harnessRevision?: number
+    readonly origin?: {
+      readonly sessionID: string
+      readonly commandCentre: boolean
+      readonly handOff?: boolean
+      readonly lead?: boolean
+    }
     readonly agent?: string
     readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string }
     readonly cost: number
@@ -719,7 +743,12 @@ export type SessionsQueuedSteerInput = {
 
 export type SessionsQueuedSteerOutput = void
 
-export type SessionsCompactInput = { readonly sessionID: { readonly sessionID: string }["sessionID"] }
+export type SessionsCompactInput = {
+  readonly sessionID: { readonly sessionID: string }["sessionID"]
+  readonly model?: {
+    readonly model?: { readonly id: string; readonly reasoningEffort?: string; readonly serviceTier?: string } | null
+  }["model"]
+}
 
 export type SessionsCompactOutput = void
 
@@ -2812,6 +2841,7 @@ export type HarnessesListOutput = {
     readonly version?: string
     readonly authenticated?: boolean
     readonly error?: string
+    readonly slowStart?: boolean
     readonly models: ReadonlyArray<{
       readonly id: string
       readonly name: string
@@ -3104,6 +3134,7 @@ export type HarnessesRefreshOutput = {
     readonly version?: string
     readonly authenticated?: boolean
     readonly error?: string
+    readonly slowStart?: boolean
     readonly models: ReadonlyArray<{
       readonly id: string
       readonly name: string
@@ -3838,6 +3869,7 @@ export type SkillsCatalogOutput = {
       readonly location?: string
       readonly scope: "global" | "project"
       readonly enabled?: boolean
+      readonly editable?: boolean
     }>
     readonly harnesses: ReadonlyArray<{
       readonly id: string
@@ -3849,6 +3881,7 @@ export type SkillsCatalogOutput = {
         readonly location?: string
         readonly scope: "global" | "project"
         readonly enabled?: boolean
+        readonly editable?: boolean
       }>
     }>
   }
@@ -3858,8 +3891,17 @@ export type SkillsSetEnabledInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
   }["location"]
-  readonly name: { readonly name: string; readonly enabled: boolean }["name"]
-  readonly enabled: { readonly name: string; readonly enabled: boolean }["enabled"]
+  readonly name: { readonly name: string; readonly enabled: boolean; readonly harness?: string | undefined }["name"]
+  readonly enabled: {
+    readonly name: string
+    readonly enabled: boolean
+    readonly harness?: string | undefined
+  }["enabled"]
+  readonly harness?: {
+    readonly name: string
+    readonly enabled: boolean
+    readonly harness?: string | undefined
+  }["harness"]
 }
 
 export type SkillsSetEnabledOutput = {
@@ -3869,6 +3911,108 @@ export type SkillsSetEnabledOutput = {
     readonly project: { readonly id: string; readonly directory: string }
   }
   readonly data: { readonly name: string; readonly enabled: boolean }
+}
+
+export type GithubWorkInput = {
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly repo?: {
+    readonly repo?: string | undefined
+    readonly save?: boolean | undefined
+    readonly refresh?: boolean | undefined
+  }["repo"]
+  readonly save?: {
+    readonly repo?: string | undefined
+    readonly save?: boolean | undefined
+    readonly refresh?: boolean | undefined
+  }["save"]
+  readonly refresh?: {
+    readonly repo?: string | undefined
+    readonly save?: boolean | undefined
+    readonly refresh?: boolean | undefined
+  }["refresh"]
+}
+
+export type GithubWorkOutput = {
+  readonly location: {
+    readonly directory: string
+    readonly workspaceID?: string
+    readonly project: { readonly id: string; readonly directory: string }
+  }
+  readonly data:
+    | {
+        readonly status: "ok"
+        readonly repo: string
+        readonly issues: ReadonlyArray<{
+          readonly number: number | "Infinity" | "-Infinity" | "NaN"
+          readonly title: string
+          readonly url: string
+          readonly state: "open" | "closed"
+          readonly updatedAt: string
+          readonly closedAt?: string | null
+          readonly author: string
+          readonly labels: ReadonlyArray<string>
+        }>
+        readonly pulls: ReadonlyArray<{
+          readonly number: number | "Infinity" | "-Infinity" | "NaN"
+          readonly title: string
+          readonly url: string
+          readonly state: "open" | "merged" | "closed"
+          readonly draft: boolean
+          readonly checks?: "passing" | "failing" | "pending" | null
+          readonly review?: "approved" | "changes" | "required" | null
+          readonly closes: ReadonlyArray<number | "Infinity" | "-Infinity" | "NaN">
+        }>
+        readonly source?: "origin" | "project" | null
+      }
+    | { readonly status: "no-repo" | "no-gh" | "signed-out" }
+    | { readonly status: "error"; readonly message: string }
+}
+
+export type ComputerUseGetInput = {
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type ComputerUseGetOutput = {
+  readonly location: {
+    readonly directory: string
+    readonly workspaceID?: string
+    readonly project: { readonly id: string; readonly directory: string }
+  }
+  readonly data: {
+    readonly enabled: boolean
+    readonly installed: boolean
+    readonly permissions: "granted" | "missing" | "unknown"
+    readonly grants?: { readonly accessibility: boolean; readonly screen: boolean } | null
+    readonly platform: string
+    readonly stopped?: number | "Infinity" | "-Infinity" | "NaN" | null
+  }
+}
+
+export type ComputerUseSetInput = {
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly enabled: { readonly enabled: boolean }["enabled"]
+}
+
+export type ComputerUseSetOutput = {
+  readonly location: {
+    readonly directory: string
+    readonly workspaceID?: string
+    readonly project: { readonly id: string; readonly directory: string }
+  }
+  readonly data: {
+    readonly enabled: boolean
+    readonly installed: boolean
+    readonly permissions: "granted" | "missing" | "unknown"
+    readonly grants?: { readonly accessibility: boolean; readonly screen: boolean } | null
+    readonly platform: string
+    readonly stopped?: number | "Infinity" | "-Infinity" | "NaN" | null
+  }
 }
 
 export type EventsSubscribeOutput = TenonEventEncoded
@@ -3894,6 +4038,7 @@ export type PtysListOutput = {
     readonly status: "running" | "exited"
     readonly pid: number
     readonly exitCode?: number
+    readonly sessionID?: string
   }>
 }
 
@@ -3953,6 +4098,7 @@ export type PtysCreateOutput = {
     readonly status: "running" | "exited"
     readonly pid: number
     readonly exitCode?: number
+    readonly sessionID?: string
   }
 }
 
@@ -3978,6 +4124,7 @@ export type PtysGetOutput = {
     readonly status: "running" | "exited"
     readonly pid: number
     readonly exitCode?: number
+    readonly sessionID?: string
   }
 }
 
@@ -4008,6 +4155,7 @@ export type PtysUpdateOutput = {
     readonly status: "running" | "exited"
     readonly pid: number
     readonly exitCode?: number
+    readonly sessionID?: string
   }
 }
 

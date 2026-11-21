@@ -182,3 +182,35 @@ describe("harness approvals blocked without asking", () => {
     expect(markBlocked(failed("call_2"), blocked)).toEqual(failed("call_2"))
   })
 })
+
+describe("turn gate", () => {
+  const ask = (gate: ReturnType<typeof turnGate>, between?: () => boolean) =>
+    // An approval waits for a person, so the test request takes a moment too.
+    Effect.runPromise(gate.guard(Effect.sleep("20 millis").pipe(Effect.as(true)), false, between))
+
+  test("a request after the turn ended is refused when nothing works in the background", async () => {
+    const gate = turnGate()
+    gate.begin()
+    expect(await ask(gate)).toBe(true)
+    await Effect.runPromise(gate.end)
+    expect(await ask(gate)).toBe(false)
+    expect(await ask(gate, () => false)).toBe(false)
+  })
+
+  // OpenCode keeps background subagents running after the turn that launched them; refusing their requests
+  // unseen made OpenCode cancel them.
+  test("a request between turns is asked while background subagents are still working", async () => {
+    const gate = turnGate()
+    gate.begin()
+    await Effect.runPromise(gate.end)
+    expect(await ask(gate, () => true)).toBe(true)
+  })
+
+  test("a request still open when its turn ends is withdrawn, background work or not", async () => {
+    const gate = turnGate()
+    gate.begin()
+    const waiting = Effect.runPromise(gate.guard(Effect.never, false, () => true))
+    await Effect.runPromise(gate.end)
+    expect(await waiting).toBe(false)
+  })
+})

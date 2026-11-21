@@ -61,8 +61,10 @@ export const CatalogSkill = Schema.Struct({
   description: Schema.String.pipe(optional),
   location: Schema.String.pipe(optional),
   scope: Schema.Literals(["global", "project"]),
-  /** Tenon skills only: false when switched off in Settings → Skills. */
+  /** False when switched off in Settings → Skills (a harness skill: its SKILL.md renamed). */
   enabled: Schema.Boolean.pipe(optional),
+  /** Harness skills: true when Tenon may switch it (its SKILL.md sits in a home or project folder). */
+  editable: Schema.Boolean.pipe(optional),
 }).annotate({ identifier: "SkillV2.CatalogSkill" })
 
 export interface HarnessCatalog extends Schema.Schema.Type<typeof HarnessCatalog> {}

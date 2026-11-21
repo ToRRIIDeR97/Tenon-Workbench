@@ -21,7 +21,9 @@ export type TimelineRowMap = {
   }
   TurnDivider: {
     userMessageID: string
-    label: "compaction" | "interrupted"
+    label: "compaction" | "interrupted" | "harness-compaction"
+    observed?: { harness: string; before: number; after: number }
+    summarised?: number
   }
   AssistantPart: {
     userMessageID: string
@@ -141,6 +143,8 @@ export namespace Timeline {
     status: SessionStatus["type"],
     activeMessageID: string | undefined,
     inlineComments: boolean,
+    observed?: { harness: string; before: number; after: number },
+    summarised?: number,
   ) {
     return constructMessageRows(
       turn.user,
@@ -152,6 +156,8 @@ export namespace Timeline {
       turn.user.id === activeMessageID,
       inlineComments,
       !turn.shell,
+      observed,
+      summarised,
     )
   }
 
@@ -167,6 +173,10 @@ export namespace Timeline {
     inlineComments: boolean,
     // A user-run shell command shows its output directly instead of folding it as an agent step.
     foldSteps = true,
+    // A harness that compacted inside its own process before this turn, seen from its context reports (#332).
+    observed?: { harness: string; before: number; after: number },
+    // Messages before a Tenon compaction, which its summary stands for (#332).
+    summarised?: number,
   ) {
     const rows: TimelineRow.TimelineRow[] = []
 
@@ -212,9 +222,18 @@ export namespace Timeline {
         new TimelineRow.TurnDivider({
           userMessageID: userMessage.id,
           label: "compaction",
+          ...(summarised ? { summarised } : {}),
         }),
       )
     }
+    if (observed && !compaction)
+      rows.push(
+        new TimelineRow.TurnDivider({
+          userMessageID: userMessage.id,
+          label: "harness-compaction",
+          observed,
+        }),
+      )
 
     let assistantGroupIndex = 0
     // Cards are numbered across the turn: an interrupt or an update from the agent between steps starts a new one.

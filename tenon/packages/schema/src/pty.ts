@@ -28,6 +28,8 @@ export const Info = Schema.Struct({
   status: Schema.Literals(["running", "exited"]),
   pid: NonNegativeInt,
   exitCode: optional(NonNegativeInt),
+  /** The thread an agent started this terminal for (with the `terminal_start` app tool); its tabs show it. */
+  sessionID: optional(Schema.String),
 }).annotate({ identifier: "Pty" })
 export interface Info extends Schema.Schema.Type<typeof Info> {}
 

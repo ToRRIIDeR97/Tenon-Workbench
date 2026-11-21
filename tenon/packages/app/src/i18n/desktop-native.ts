@@ -343,6 +343,8 @@ export const DESKTOP_NATIVE_ENGLISH = {
   "secondBrain.desktop.unsaved.detail": "If you leave now, the edits you haven't saved will be lost.",
   "secondBrain.desktop.unsaved.leave": "Leave",
   "secondBrain.desktop.unsaved.stay": "Stay",
+  "secondBrain.desktop.computer.active": "{{harness}} is using your computer",
+  "secondBrain.desktop.computer.stop": "Stop",
 } as const
 
 export type DesktopNativeKey = keyof typeof DESKTOP_NATIVE_ENGLISH

@@ -1,22 +1,32 @@
-import { useNavigate } from "@solidjs/router"
+import { useLocation, useNavigate } from "@solidjs/router"
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { Markdown } from "@tenon/session-ui/markdown"
-import { createEffect, on, Show } from "solid-js"
+import { createEffect, createMemo, For, on, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { ComposerBox } from "@/components/prompt-input/composer-box"
 import { createComposerController } from "@/components/prompt-input/composer-controller"
+import { useSidebarController } from "@/components/sidebar/sidebar-controller"
 import { useCommand } from "@/context/command"
+import { useServerSDK } from "@/context/server-sdk"
+import { useServerSync } from "@/context/server-sync"
+import { permissionSummary } from "@/pages/session/composer/permission-summary"
+import { createWaitingQueue, type WaitingRequest } from "./agent-hands-view"
+import { BRIEFING_RUNNING, commandBriefing } from "./command-briefing"
+import { createMissionThreads } from "./mission-board-view"
 import { useLanguage } from "@/context/language"
 import { useServer } from "@/context/server"
 import { sessionHref } from "@/utils/session-route"
 import { useCommandCentre } from "./command-centre"
 import { commandStripAnchor, commandStripStyle } from "./command-strip-anchor"
+import { commandBackState } from "./thread-back"
 
 /**
- * The Command Centre card. A handle just above the bottom edge of every page but the Command Centre; Ctrl/Cmd+J
- * or a click raises a 640px card named "Command Centre" with the latest exchange (your last message and the
+ * The Command Centre card, a briefing. A handle just above the bottom edge of every page but the Command Centre;
+ * Ctrl/Cmd+J or a click raises a 640px card named "Command Centre" with, in order: the counts (running, needs
+ * you, done today); the oldest request waiting on you, answered right there (Allow, Deny) or opened (a question);
+ * the running threads with their checklist step and progress; then the latest exchange (your last message and the
  * reply drawn as Markdown, capped at about five lines with "Show more"), Undo when that reply made a write, "Open full", and a composer that replies to the shown
  * thread (New thread starts a fresh one). An approval or question on that thread is answered in the thread, so the
  * card offers "Review in thread". The draft is the Command Centre page's. Esc hides it. The card rises and fades in
@@ -25,12 +35,52 @@ import { commandStripAnchor, commandStripStyle } from "./command-strip-anchor"
 export function CommandStrip() {
   const language = useLanguage()
   const navigate = useNavigate()
+  const location = useLocation()
+  // Back in the opened thread returns to wherever the strip was opened over.
+  const back = () => ({ state: commandBackState(location.pathname + location.search) })
   const command = useCommand()
   const centre = useCommandCentre()
   const server = useServer()
   // `fresh`: New thread was chosen, so the next send starts a thread instead of replying to the shown one.
   // `expanded`: Show more was chosen for the reply on show; `overflow`: that reply is taller than the cap.
-  const [state, setState] = createStore({ open: false, fresh: false, expanded: false, overflow: false })
+  const [state, setState] = createStore({
+    open: false,
+    fresh: false,
+    expanded: false,
+    overflow: false,
+    /** The request being answered, and requests answered from here (the queue drops them on the next sync). */
+    busy: undefined as string | undefined,
+    answered: {} as Record<string, true>,
+  })
+  const serverSDK = useServerSDK()
+  const serverSync = useServerSync()
+  const ctrl = useSidebarController()
+  const board = createMissionThreads(ctrl)
+  const queue = createWaitingQueue(ctrl, board)
+  const waiting = createMemo(() => queue().filter((entry) => !state.answered[entry.item.requestID]))
+  const brief = createMemo(() =>
+    state.open ? commandBriefing(board(), (id) => serverSync().session.data.todo[id], Date.now()) : undefined,
+  )
+  // A running thread's checklist is loaded once the card shows it; live updates arrive as todo.updated events.
+  createEffect(() => {
+    for (const run of brief()?.running.slice(0, BRIEFING_RUNNING) ?? []) void serverSync().session.todo(run.thread.id)
+  })
+  // The thread's own folder routes the reply, as it does from the thread's page and the Waiting view.
+  const answer = (entry: WaitingRequest, reply: "once" | "reject") => {
+    if (state.busy) return
+    setState("busy", entry.item.requestID)
+    void serverSDK()
+      .ensureDirSdkContext(entry.root.directory)
+      .api.permission.reply({ sessionID: entry.item.sessionID, requestID: entry.item.requestID, reply })
+      .then(
+        () => setState({ busy: undefined, answered: { ...state.answered, [entry.item.requestID]: true } }),
+        () => setState("busy", undefined),
+      )
+  }
+  const openThread = (id: string) => {
+    setState("open", false)
+    navigate(sessionHref(server.key, id), back())
+  }
   let input: HTMLTextAreaElement | undefined
   let card: HTMLDivElement | undefined
   let full: HTMLButtonElement | undefined
@@ -102,7 +152,7 @@ export function CommandStrip() {
   const openFull = () => {
     const id = centre.latest()?.id
     setState("open", false)
-    navigate(id ? sessionHref(server.key, id) : "/command")
+    navigate(id ? sessionHref(server.key, id) : "/command", id ? back() : undefined)
   }
 
   return (
@@ -155,9 +205,22 @@ export function CommandStrip() {
           <div class="flex h-7 min-w-0 items-center gap-0.5 pl-2">
             <span
               data-slot="command-card-title"
-              class="min-w-0 flex-1 truncate text-[13px] leading-5 [font-weight:600] text-v2-text-text-base"
+              class="shrink-0 text-[13px] leading-5 [font-weight:600] text-v2-text-text-base"
             >
               {language.t("secondBrain.commandCentre.strip.title")}
+            </span>
+            <span
+              data-slot="command-card-counts"
+              class="ml-1.5 min-w-0 flex-1 truncate type-meta text-v2-text-text-muted"
+            >
+              {/* An expression, not a <Show> callback, which would compute the text once and keep it. */}
+              {brief()
+                ? language.t("secondBrain.commandCentre.strip.counts", {
+                    running: brief()!.counts.running,
+                    waiting: waiting().length,
+                    done: brief()!.counts.done,
+                  })
+                : ""}
             </span>
             {/* Undo for the latest reply's last write; after it the button reports how that went. */}
             <Show when={shown() ? centre.lastWrite() : undefined} keyed>
@@ -197,6 +260,125 @@ export function CommandStrip() {
               {language.t("secondBrain.commandCentre.strip.openFull")}
             </ButtonV2>
           </div>
+          {/* What needs you: the oldest request, answered here; the rest are one click away in Waiting on you. */}
+          <Show when={waiting()[0]} keyed>
+            {(entry) => {
+              const summary = entry.permission ? permissionSummary(entry.permission) : undefined
+              return (
+                <div
+                  data-slot="command-card-needs"
+                  data-kind={entry.item.kind}
+                  class="flex min-w-0 items-center gap-2 rounded-[16px] bg-v2-state-bg-warning py-1.5 pl-3.5 pr-1.5"
+                >
+                  <div class="flex min-w-0 flex-1 flex-col">
+                    <span class="min-w-0 truncate text-[13px] leading-5 [font-weight:500] text-v2-state-fg-warning">
+                      {language.t("secondBrain.commandCentre.strip.needsTitle", {
+                        title: entry.root.title,
+                        project: entry.item.project,
+                      })}
+                    </span>
+                    <span class="min-w-0 truncate type-meta text-v2-text-text-base">
+                      {summary
+                        ? language.plural(summary.key, summary.count, { count: summary.count, tool: summary.tool })
+                        : (entry.question?.questions[0]?.question ?? entry.item.title)}
+                    </span>
+                  </div>
+                  <Show when={waiting().length > 1}>
+                    <ButtonV2
+                      size="small"
+                      variant="ghost-muted"
+                      data-action="command-card-waiting"
+                      onClick={() => {
+                        setState("open", false)
+                        navigate("/command?view=waiting")
+                      }}
+                    >
+                      {language.t("secondBrain.commandCentre.strip.moreWaiting", { count: waiting().length - 1 })}
+                    </ButtonV2>
+                  </Show>
+                  <Show
+                    when={entry.item.kind === "permission"}
+                    fallback={
+                      <ButtonV2 size="small" variant="contrast" onClick={() => openThread(entry.root.id)}>
+                        {language.t("secondBrain.commandCentre.strip.answer")}
+                      </ButtonV2>
+                    }
+                  >
+                    <ButtonV2
+                      size="small"
+                      variant="outline"
+                      data-action="command-card-deny"
+                      disabled={state.busy === entry.item.requestID}
+                      onClick={() => answer(entry, "reject")}
+                    >
+                      {language.t("ui.permission.deny")}
+                    </ButtonV2>
+                    <ButtonV2
+                      size="small"
+                      variant="contrast"
+                      data-action="command-card-allow"
+                      disabled={state.busy === entry.item.requestID}
+                      onClick={() => answer(entry, "once")}
+                    >
+                      {language.t("ui.permission.allowOnce")}
+                    </ButtonV2>
+                  </Show>
+                </div>
+              )
+            }}
+          </Show>
+          {/* What's running, newest first, with the checklist step it is on and how far it is. */}
+          <Show when={brief()?.running.length ? brief() : undefined}>
+            {(value) => (
+              <ul data-slot="command-card-running" class="m-0 flex list-none flex-col p-0 px-1">
+                <For each={value().running.slice(0, BRIEFING_RUNNING)}>
+                  {(run) => (
+                    <li class="flex min-w-0 flex-col gap-1 py-1.5">
+                      <button
+                        type="button"
+                        class="flex min-w-0 items-center gap-2 rounded-[8px] text-left text-[13px] leading-5 outline-none focus-visible:shadow-[0_0_0_2px_var(--v2-border-border-focus)]"
+                        onClick={() => openThread(run.thread.id)}
+                      >
+                        <span
+                          aria-hidden="true"
+                          class="size-2 shrink-0 rounded-full bg-v2-icon-icon-accent running-pulse"
+                        />
+                        <span class="min-w-0 truncate [font-weight:500] text-v2-text-text-base">
+                          {run.thread.title}
+                        </span>
+                        <span class="min-w-0 flex-1 truncate text-v2-text-text-muted">{run.thread.project}</span>
+                        <Show when={run.total > 0}>
+                          <span class="shrink-0 type-meta tabular-nums text-v2-text-text-muted">
+                            {language.t("secondBrain.commandCentre.strip.steps", { done: run.done, total: run.total })}
+                          </span>
+                        </Show>
+                      </button>
+                      <Show when={run.step}>
+                        {(step) => (
+                          <span class="min-w-0 truncate pl-4 type-meta text-v2-text-text-muted">{step()}</span>
+                        )}
+                      </Show>
+                      <Show when={run.total > 0}>
+                        <div class="ml-4 h-[3px] overflow-hidden rounded-full bg-v2-background-bg-layer-02">
+                          <div
+                            class="h-full rounded-full bg-v2-icon-icon-accent transition-[width] duration-medium ease-emphasized-decelerate motion-reduce:transition-none"
+                            style={{ width: `${Math.round((run.done / run.total) * 100)}%` }}
+                          />
+                        </div>
+                      </Show>
+                    </li>
+                  )}
+                </For>
+                <Show when={value().running.length > BRIEFING_RUNNING}>
+                  <li class="pl-4 type-meta text-v2-text-text-muted">
+                    {language.t("secondBrain.commandCentre.strip.moreRunning", {
+                      count: value().running.length - BRIEFING_RUNNING,
+                    })}
+                  </li>
+                </Show>
+              </ul>
+            )}
+          </Show>
           <Show when={shown()}>
             <div class="flex min-w-0 flex-col gap-2.5 px-1">
               <Show when={centre.lastAsk()}>

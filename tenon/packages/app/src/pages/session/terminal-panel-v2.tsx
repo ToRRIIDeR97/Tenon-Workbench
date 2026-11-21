@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, on, onCleanup, onMount } from "solid-js"
+import { For, Show, createEffect, createMemo, on, onCleanup, onMount, untrack } from "solid-js"
 import { createStore } from "solid-js/store"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { createMediaQuery } from "@solid-primitives/media"
@@ -32,7 +32,7 @@ export function TerminalPanelV2(props: { stacked?: boolean } = {}) {
   const sdk = useSDK()
   const language = useLanguage()
   const command = useCommand()
-  const { workspaceKey, view } = useSessionLayout()
+  const { sessionKey, view } = useSessionLayout()
 
   const isDesktop = createMediaQuery("(min-width: 768px)")
   const opened = createMemo(() => view().terminal.opened())
@@ -45,7 +45,8 @@ export function TerminalPanelV2(props: { stacked?: boolean } = {}) {
   onCleanup(() => terminal.cancelFocus())
 
   const [store, setStore] = createStore({
-    autoCreated: false,
+    // The thread whose opening of the panel has been answered (a first terminal started, or none needed).
+    servedKey: undefined as string | undefined,
     recovered: {} as Record<string, boolean>,
     view: typeof window === "undefined" ? 1000 : (window.visualViewport?.height ?? window.innerHeight),
   })
@@ -70,16 +71,19 @@ export function TerminalPanelV2(props: { stacked?: boolean } = {}) {
     if (port) makeEventListener(port, "resize", sync)
   })
 
-  createEffect(() => {
-    if (!opened()) {
-      setStore("autoCreated", false)
-      return
-    }
-
-    if (!terminal.ready() || terminal.all().length !== 0 || store.autoCreated) return
-    terminal.new()
-    setStore("autoCreated", true)
-  })
+  // Opening the panel on a thread with no terminals starts one. Only opening does: closing the last tab while the
+  // panel is open closes the panel (below) instead of starting a replacement behind it.
+  createEffect(
+    on(
+      () => [opened(), terminal.ready(), terminal.key()] as const,
+      ([open, ready, key]) => {
+        if (!open) return setStore("servedKey", undefined)
+        if (!ready || store.servedKey === key) return
+        setStore("servedKey", key)
+        if (untrack(() => terminal.all().length) === 0) terminal.new()
+      },
+    ),
+  )
 
   createEffect(
     on(
@@ -117,7 +121,7 @@ export function TerminalPanelV2(props: { stacked?: boolean } = {}) {
     language.locale()
 
     setTerminalHandoff(
-      workspaceKey(),
+      sessionKey(),
       terminal.all().map((pty) =>
         terminalTabLabel({
           title: pty.title,
@@ -131,7 +135,7 @@ export function TerminalPanelV2(props: { stacked?: boolean } = {}) {
   const handoff = createMemo(() => {
     const dir = sdk().directory
     if (!dir) return []
-    return getTerminalHandoff(workspaceKey()) ?? []
+    return getTerminalHandoff(sessionKey()) ?? []
   })
 
   const all = terminal.all

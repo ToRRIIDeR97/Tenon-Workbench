@@ -152,6 +152,21 @@ export function createHomeSessionIndexCache(queryClient: QueryClient, server: st
       }
       queryClient.setQueryData<HomeSessionEvents>(eventsKey, { sequence: next.sequence, entries: [] })
     },
+    /**
+     * A prompt or a finished reply is the thread's latest conversation: its last update moves forward, so it
+     * rises in the lists without refetching the index (the server stores the same time).
+     */
+    touch(sessionID: string, time: number) {
+      const index = queryClient.getQueryData<HomeSessionIndex>(indexKey)
+      const session = homeSessionIndexSessions(index, queryClient.getQueryData<HomeSessionEvents>(eventsKey)).find(
+        (item) => item.id === sessionID,
+      )
+      if (!session || time <= (session.time.updated ?? session.time.created)) return
+      this.apply({
+        type: "session.updated",
+        properties: { sessionID, info: { ...session, time: { ...session.time, updated: time } } },
+      })
+    },
     refresh(event: Event["type"]) {
       const result = homeSessionIndexRefresh(event, connected)
       connected = result.connected
@@ -224,7 +239,23 @@ function toLegacySummary(session: SessionV2Info): Session {
     model: session.model,
     version: "",
     time: session.time,
-    // V2 exposes the pin as `time.pinned`; the legacy shape keeps it in `metadata.pinned`.
-    metadata: session.time.pinned === undefined ? undefined : { pinned: session.time.pinned },
+    // The legacy shape keeps in `metadata` what V2 has as fields: the pin, the harness and the thread's origin.
+    // The sidebar merges this summary over the folder lists, so anything left out here is lost to it.
+    metadata: legacyMetadata(session),
   }
+}
+
+function legacyMetadata(session: SessionV2Info) {
+  const extra = session as SessionV2Info & {
+    harnessInstanceID?: string
+    harnessModel?: unknown
+    origin?: { sessionID: string; commandCentre: boolean }
+  }
+  const metadata = {
+    ...(session.time.pinned === undefined ? {} : { pinned: session.time.pinned }),
+    ...(extra.harnessInstanceID === undefined ? {} : { harnessInstanceID: extra.harnessInstanceID }),
+    ...(extra.harnessModel === undefined ? {} : { harnessModel: extra.harnessModel }),
+    ...(extra.origin === undefined ? {} : { origin: extra.origin }),
+  }
+  return Object.keys(metadata).length > 0 ? metadata : undefined
 }

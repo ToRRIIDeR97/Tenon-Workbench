@@ -9,6 +9,7 @@ import { LLM } from "@/session/llm"
 import { SessionPrompt } from "@/session/prompt"
 import { MessageID, SessionID } from "@/session/schema"
 import { Session } from "@/session/session"
+import { isRecord } from "@/util/record"
 import type { EventV2 } from "@tenon/core/event"
 import { LLMEvent } from "@tenon/llm"
 import { ModelV2 } from "@tenon/core/model"
@@ -59,7 +60,14 @@ export const refusePrompts = Effect.fnUntraced(function* (root: SessionID) {
     id === root
       ? Effect.succeed(true)
       : sessions.get(id).pipe(
-          Effect.flatMap((session) => (session.parentID ? inRun(session.parentID) : Effect.succeed(false))),
+          Effect.flatMap((session) => {
+            // A task the run delegated into a Project has no parent but links back through `origin`.
+            const origin = isRecord(session.metadata?.origin) ? session.metadata.origin : undefined
+            const delegatedBy =
+              origin && origin.handOff !== true && typeof origin.sessionID === "string" ? origin.sessionID : undefined
+            const from = session.parentID ?? (delegatedBy ? SessionID.make(delegatedBy) : undefined)
+            return from ? inRun(from) : Effect.succeed(false)
+          }),
           Effect.orElseSucceed(() => false),
         )
   const stop = yield* events.listen((event) => {

@@ -1,9 +1,11 @@
 import { randomBytes, timingSafeEqual } from "node:crypto"
 import { createServer, type IncomingMessage } from "node:http"
-import { BrowserWindow, dialog, session, WebContentsView } from "electron"
+import { BrowserWindow, dialog, nativeTheme, session, WebContentsView } from "electron"
 import { isBlockedRequest, isLocal, needsAgentConsent } from "./browser-policy"
+import { browserCertificateFailure, browserCrash, browserLoadFailure, type BrowserFailure } from "./browser-failure"
 import { nativeT } from "./native-translations"
 import { renderSvg } from "./svg-render"
+import { indicate, watch } from "./computer-indicator"
 import { deviceInput, deviceLogs, deviceScreenshot, deviceStatus, installApp, launchApp } from "./device"
 
 // The Workbench panel's browser: one WebContentsView laid over the panel's Browser tab, in its own
@@ -24,6 +26,10 @@ const state = {
   window: undefined as BrowserWindow | undefined,
   bounds: undefined as Bounds | undefined,
   visible: false,
+  // Why the last main-frame navigation has no page; cleared when the next one starts.
+  failure: undefined as BrowserFailure | undefined,
+  // A main-frame navigation has committed in this view; until then getURL() can be the pending address.
+  committed: false,
   log: [] as LogEntry[],
   // The app's own server; the browser never loads it, so pages can't reach its API.
   blocked: new Set<string>(),
@@ -79,6 +85,40 @@ function ensureView() {
     if (event.isMainFrame && holdForConsent(event.url)) event.preventDefault()
   })
   contents.on("console-message", (event) => push({ level: event.level, text: event.message }))
+  // A failed load, crash or rejected certificate used to leave the same blank white view as no page at all.
+  contents.on("did-start-navigation", (event) => {
+    if (!event.isMainFrame || event.isSameDocument) return
+    // Until it commits, the stage shows loading over the old page rather than a blank native view.
+    state.committed = false
+    state.failure = undefined
+    sendState()
+  })
+  contents.on("did-navigate-in-page", (_event, _url, isMainFrame) => {
+    if (isMainFrame) state.committed = true
+  })
+  contents.on("did-navigate", () => {
+    state.committed = true
+  })
+  contents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    const failure = browserLoadFailure({ errorCode, errorDescription, validatedURL, isMainFrame })
+    if (!failure) return
+    state.failure = failure
+    sendState()
+  })
+  contents.on("render-process-gone", (_event, details) => {
+    const failure = browserCrash(details, contents.getURL())
+    if (!failure) return
+    state.failure = failure
+    sendState()
+  })
+  contents.on("certificate-error", (event, url, error, _certificate, callback, isMainFrame) => {
+    // Never trust a bad certificate; only say why the page didn't load.
+    event.preventDefault()
+    callback(false)
+    if (!isMainFrame) return
+    state.failure = browserCertificateFailure(url, error)
+    sendState()
+  })
   for (const name of [
     "did-navigate",
     "did-navigate-in-page",
@@ -100,6 +140,8 @@ function sendState() {
     loading: contents.isLoading(),
     canGoBack: contents.navigationHistory.canGoBack(),
     canGoForward: contents.navigationHistory.canGoForward(),
+    error: state.failure,
+    committed: state.committed,
   })
 }
 
@@ -252,6 +294,9 @@ async function runTool(
   signal: AbortSignal,
 ): Promise<{ text?: string; image?: string }> {
   if (name.startsWith("device_")) return runDeviceTool(name, args)
+  // The computer use pill (#333): shown on each Cua Driver action; Stop answers a held `computer_watch`.
+  if (name === "computer_indicator") return indicate(args, nativeTheme.shouldUseDarkColors)
+  if (name === "computer_watch") return watch(signal)
   if (name === "render_svg") return renderSvg(String(args.svg ?? ""))
   const window = state.window ?? BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
   if (!window) throw new Error("Open Tenon Workbench to use its browser.")

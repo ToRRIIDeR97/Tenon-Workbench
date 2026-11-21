@@ -40,6 +40,14 @@ import { base64Encode, checksum } from "@tenon/core/util/encode"
 import { useLocation, useNavigate, useParams, useSearchParams } from "@solidjs/router"
 import { SessionHeader } from "@/components/session"
 import { isCommandThread } from "@/features/command-centre/command-centre"
+import {
+  CommandMissionPanel,
+  CommandThreadActions,
+  CommandThreadTitle,
+  createMissionPanelPref,
+  MISSION_PANEL_WIDTH,
+} from "@/features/command-centre/command-thread-chrome"
+import { threadBack } from "@/features/command-centre/thread-back"
 import { ErrorPage } from "@/pages/error"
 import { CommentsProvider, useComments } from "@/context/comments"
 import { useCommand } from "@/context/command"
@@ -68,6 +76,7 @@ import {
   createSessionComposerController,
   createSessionComposerRegionController,
   SessionComposerRegion,
+  SessionTodoTray,
   SessionRevertTray,
 } from "@/pages/session/composer"
 import {
@@ -444,9 +453,31 @@ export default function Page() {
   const size = createSizing()
   // A Command Centre thread has no code folder: no review, files or terminal, only the timeline and composer.
   const commandThread = createMemo(() => isCommandThread(sdk().directory))
+  // Back to the Command Centre screen a thread was opened from, or to the hub for a Command Centre thread.
+  const headerBack = createMemo(() => {
+    const back = threadBack({ state: location.state, commandThread: commandThread() })
+    if (!back) return undefined
+    return {
+      label: language.t("secondBrain.commandCentre.threadBack"),
+      onClick: () => (back.type === "history" ? navigate(-1) : navigate(back.href)),
+    }
+  })
+  // A Command Centre thread is its Mission control view: the Mission board sits beside it on a desktop window.
+  const [missionPref, setMissionPref] = createMissionPanelPref()
+  const missionOpen = createMemo(() => commandThread() && isDesktop() && missionPref.open)
   const desktopReviewOpen = createMemo(() => isDesktop() && !commandThread() && view().reviewPanel.opened())
   const desktopV2ReviewOpen = createMemo(() => desktopReviewOpen() && !!params.id)
   const terminalOpen = createMemo(() => !commandThread() && view().terminal.opened())
+  // A terminal the agent starts for this thread (a dev server, a watch build) shows in the panel, without taking focus.
+  createEffect(
+    on(
+      () => terminal.agentStarted()?.at,
+      (at) => {
+        if (at) view().terminal.open()
+      },
+      { defer: true },
+    ),
+  )
   const desktopTerminalOpen = createMemo(() => isDesktop() && terminalOpen())
   const desktopFileTreeOpen = createMemo(
     () =>
@@ -604,6 +635,7 @@ export default function Page() {
     window.addEventListener("pointercancel", end)
   }
   const sessionPanelWidth = createMemo(() => {
+    if (missionOpen()) return `calc(100% - ${MISSION_PANEL_WIDTH + 8}px)`
     if (panelClosing()) return `calc(100% - ${SESSION_SIDE_RAIL_WIDTH + 8}px)`
     if (!desktopSidePanelOpen()) return railSpace() ? `calc(100% - ${railSpace() + 8}px)` : "100%"
     if (desktopSessionResizeOpen()) {
@@ -698,7 +730,8 @@ export default function Page() {
       current: () => (pick() ? pick()!.model : info()?.harnessModel),
       set: (model) => switchHarness(currentHarness(), model),
     },
-    disabled: () => (params.id ? sync().data.session_working(params.id) : false),
+    // While a turn runs the model and effort can still change; the server applies them from the next turn.
+    harnessLocked: () => (params.id ? sync().data.session_working(params.id) : false),
     fallbackUnavailable: false,
   })
   const isChildSession = createMemo(() => !!info()?.parentID)
@@ -2154,7 +2187,16 @@ export default function Page() {
                   scroll={ui.scroll}
                   onResumeScroll={resumeScroll}
                   setScrollRef={setScrollRef}
-                  headerActions={<ThreadEnvironmentButton harness={sessionHarness} />}
+                  headerTitle={commandThread() && params.id ? <CommandThreadTitle sessionID={params.id} /> : undefined}
+                  headerBack={headerBack()}
+                  headerActions={
+                    <Show when={commandThread()} fallback={<ThreadEnvironmentButton harness={sessionHarness} />}>
+                      <CommandThreadActions
+                        missionOpen={missionPref.open}
+                        onMissionToggle={() => setMissionPref("open", !missionPref.open)}
+                      />
+                    </Show>
+                  }
                   onScheduleScrollState={scheduleScrollState}
                   onAutoScrollHandleScroll={autoScroll.handleScroll}
                   onMarkScrollGesture={markScrollGesture}
@@ -2277,7 +2319,8 @@ export default function Page() {
                     harness={sessionHarness}
                     borderUnderlay
                     header={<SessionRevertTray dock={controller.revert} />}
-                    boxHeader={<ComposerWhereRow />}
+                    boxHeader={commandThread() ? undefined : <ComposerWhereRow />}
+                    boxHeaderTop={<SessionTodoTray controller={controller} />}
                     trailing={<ComposerContextRing context={composerContext} harness={sessionHarness} />}
                   />
                 }
@@ -2314,6 +2357,10 @@ export default function Page() {
             )}
           </Show>
         </div>
+
+        <Show when={missionOpen()}>
+          <CommandMissionPanel />
+        </Show>
 
         {/* The right shell: the side panel and the rail in one 16px card with a hairline ring. It is not clipped, so
             the resize handle can straddle the panel's left edge; the panel column clips itself. */}

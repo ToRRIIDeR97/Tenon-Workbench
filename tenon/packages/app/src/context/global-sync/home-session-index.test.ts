@@ -136,6 +136,25 @@ describe("Home session parent links", () => {
     expect(cache.sessions(next, queryClient.getQueryData<HomeSessionEvents>(cache.eventsKey))).toEqual([renamed])
   })
 
+  test("a prompt or finished reply moves a thread's last update forward, never back", () => {
+    const queryClient = new QueryClient()
+    const cache = createHomeSessionIndexCache(queryClient, "server")
+    const root = legacy("root")
+    queryClient.setQueryData<HomeSessionIndex>(cache.indexKey, { sessions: [root], eventSequence: 0 })
+    const now = () =>
+      cache.sessions(
+        queryClient.getQueryData<HomeSessionIndex>(cache.indexKey),
+        queryClient.getQueryData<HomeSessionEvents>(cache.eventsKey),
+      )[0]!.time.updated
+    cache.touch("root", 5_000)
+    expect(now()).toBe(5_000)
+    cache.touch("root", 10)
+    expect(now()).toBe(5_000)
+    // A thread Home doesn't list (a subagent) is left alone.
+    cache.touch("child", 9_000)
+    expect(now()).toBe(5_000)
+  })
+
   test("a fetch after skipped events keeps the events that arrive while it runs", async () => {
     const queryClient = new QueryClient()
     const cache = createHomeSessionIndexCache(queryClient, "server")

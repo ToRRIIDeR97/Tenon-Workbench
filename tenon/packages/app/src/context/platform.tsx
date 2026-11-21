@@ -22,6 +22,13 @@ type PlatformName = "web" | "desktop"
 type DesktopOS = "macos" | "windows" | "linux"
 
 export type DeviceInfo = { platform: "android" | "ios"; id: string; name: string; state: string }
+/** Why the panel's browser has no page to show (#325). */
+export type BrowserFailure = {
+  kind: "load" | "crashed" | "certificate"
+  code: number | string
+  description: string
+  url: string
+}
 export type DeviceInput =
   | { kind: "tap"; x: number; y: number }
   | { kind: "swipe"; x: number; y: number; toX: number; toY: number }
@@ -46,6 +53,10 @@ export type DictationPlatform = {
   onLevel(cb: (rms: number) => void): () => void
   /** The transcript of the recording so far, about once a second while it records; each replaces the last. */
   onPartial?(cb: (text: string) => void): () => void
+  /** Transcribes 16 kHz mono samples (an attachment's audio, #330) with the local engine. */
+  transcribe?(samples: Float32Array): Promise<{ text?: string; error?: DictationFailure }>
+  /** The microphone's frequency bands (0–1 each) while recording, for the voice wave (#328). */
+  onBands?(cb: (values: number[]) => void): () => void
   /** The recording reached its length limit; the engine has stopped listening and `stop()` collects the text. */
   onLimit(cb: () => void): () => void
   models(): Promise<DictationModelState>
@@ -229,7 +240,15 @@ type PlatformBase = {
       styles: Record<string, string>
     } | null>
     onState(
-      cb: (state: { url: string; title: string; loading: boolean; canGoBack: boolean; canGoForward: boolean }) => void,
+      cb: (state: {
+        url: string
+        title: string
+        loading: boolean
+        canGoBack: boolean
+        canGoForward: boolean
+        committed?: boolean
+        error?: BrowserFailure
+      }) => void,
     ): () => void
     onAgent(cb: (event: { tool: string }) => void): () => void
   }

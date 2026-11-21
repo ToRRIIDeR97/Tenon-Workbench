@@ -73,6 +73,8 @@ type SessionView = {
   pendingMessage?: string
   pendingMessageAt?: number
   todoCollapsed?: boolean
+  /** Whether this thread shows its terminal panel; each thread has its own tabs, so its own toggle. */
+  terminalOpened?: boolean
 }
 
 type TabHandoff = {
@@ -832,20 +834,18 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           const file = s().reviewFile
           if (typeof file === "string") return file
         })
-        const terminalOpened = createMemo(() => store.terminal?.opened ?? false)
+        const terminalOpened = createMemo(() => s().terminalOpened ?? false)
         const reviewPanelOpened = createMemo(() => store.review?.panelOpened ?? DEFAULT_REVIEW_PANEL_OPENED)
         const reviewPanelSource = createMemo(() => (reviewPanelOpened() ? ephemeral.reviewPanelSource : "other"))
 
         function setTerminalOpened(next: boolean) {
-          const current = store.terminal
-          if (!current) {
-            setStore("terminal", { height: DEFAULT_TERMINAL_HEIGHT, opened: next })
+          if (terminalOpened() === next) return
+          const session = key()
+          if (!store.sessionView[session]) {
+            setStore("sessionView", session, { scroll: {}, terminalOpened: next })
             return
           }
-
-          const value = current.opened ?? false
-          if (value === next) return
-          setStore("terminal", "opened", next)
+          setStore("sessionView", session, "terminalOpened", next)
         }
 
         function setReviewPanelOpened(next: boolean, source: ReviewPanelSource) {

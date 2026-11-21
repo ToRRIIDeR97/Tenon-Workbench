@@ -110,6 +110,19 @@ function applyUsage(
     .pipe(Effect.orDie)
 }
 
+/**
+ * A thread's last update is its latest conversation: a prompt joining the transcript, or the agent finishing its
+ * reply. Thread lists order by it; settings such as a harness, model or agent switch leave it alone.
+ */
+function touch(db: DatabaseService, event: SessionEvent.Event) {
+  return db
+    .update(SessionTable)
+    .set({ time_updated: DateTime.toEpochMillis(event.data.timestamp) })
+    .where(eq(SessionTable.id, event.data.sessionID))
+    .run()
+    .pipe(Effect.orDie)
+}
+
 function run(db: DatabaseService, event: SessionEvent.Event) {
   return Effect.gen(function* () {
     const decodeRow = (row: typeof SessionMessageTable.$inferSelect) =>
@@ -355,7 +368,7 @@ const layer = Layer.effectDiscard(
     yield* events.project(SessionEvent.AgentSwitched, (event) =>
       db
         .update(SessionTable)
-        .set({ agent: event.data.agent, time_updated: DateTime.toEpochMillis(event.data.timestamp) })
+        .set({ agent: event.data.agent })
         .where(eq(SessionTable.id, event.data.sessionID))
         .run()
         .pipe(Effect.orDie, Effect.andThen(run(db, event))),
@@ -364,7 +377,7 @@ const layer = Layer.effectDiscard(
       Effect.gen(function* () {
         yield* db
           .update(SessionTable)
-          .set({ model: event.data.model, time_updated: DateTime.toEpochMillis(event.data.timestamp) })
+          .set({ model: event.data.model })
           .where(eq(SessionTable.id, event.data.sessionID))
           .run()
           .pipe(Effect.orDie)
@@ -395,7 +408,6 @@ const layer = Layer.effectDiscard(
               ...(event.data.model ? { harnessModel: event.data.model } : {}),
               harnessRevision: revision,
             },
-            time_updated: DateTime.toEpochMillis(event.data.timestamp),
           })
           .where(eq(SessionTable.id, event.data.sessionID))
           .run()
@@ -432,7 +444,6 @@ const layer = Layer.effectDiscard(
                 },
               },
             },
-            time_updated: DateTime.toEpochMillis(event.data.timestamp),
           })
           .where(eq(SessionTable.id, event.data.sessionID))
           .run()
@@ -450,6 +461,7 @@ const layer = Layer.effectDiscard(
           timeCreated: event.data.timestamp,
           promotedSeq: event.durable.seq,
         })
+        yield* touch(db, event)
         yield* run(db, event)
       }),
     )
@@ -485,7 +497,9 @@ const layer = Layer.effectDiscard(
     yield* events.project(SessionEvent.Shell.Started, (event) => run(db, event))
     yield* events.project(SessionEvent.Shell.Ended, (event) => run(db, event))
     yield* events.project(SessionEvent.Step.Started, (event) => run(db, event))
-    yield* events.project(SessionEvent.Step.Ended, (event) => run(db, event))
+    yield* events.project(SessionEvent.Step.Ended, (event) =>
+      run(db, event).pipe(Effect.andThen(event.data.finish === "tool-calls" ? Effect.void : touch(db, event))),
+    )
     yield* events.project(SessionEvent.Step.Failed, (event) => run(db, event))
     yield* events.project(SessionEvent.Text.Started, (event) => run(db, event))
     yield* events.project(SessionEvent.Text.Ended, (event) => run(db, event))
@@ -499,6 +513,27 @@ const layer = Layer.effectDiscard(
     yield* events.project(SessionEvent.Reasoning.Ended, (event) => run(db, event))
     // yield* events.project(SessionEvent.Retried, (event) => run(db, event))
     yield* events.project(SessionEvent.Compaction.Ended, (event) => run(db, event))
+    // A compaction the user asked for replaces the history a harness's native session holds with Tenon's summary, so
+    // the next turn opens a fresh native session that gets the summary as its handoff (as after a rollback).
+    yield* events.project(SessionEvent.Compaction.Ended, (event) =>
+      Effect.gen(function* () {
+        if (event.data.reason !== "manual") return
+        const row = yield* db
+          .select({ metadata: SessionTable.metadata })
+          .from(SessionTable)
+          .where(eq(SessionTable.id, event.data.sessionID))
+          .get()
+          .pipe(Effect.orDie)
+        if (!row?.metadata) return
+        const { harnessContinuation: _legacy, harnessContinuations: _continuations, ...metadata } = row.metadata
+        yield* db
+          .update(SessionTable)
+          .set({ metadata })
+          .where(eq(SessionTable.id, event.data.sessionID))
+          .run()
+          .pipe(Effect.orDie)
+      }),
+    )
     yield* events.project(SessionEvent.RevertEvent.Staged, (event) =>
       db
         .update(SessionTable)

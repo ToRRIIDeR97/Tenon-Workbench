@@ -7,7 +7,7 @@
 //!
 //! Requests: {"id","type":"load","model"} {"id","type":"start","language"?} {"id","type":"stop"}
 //!           {"id","type":"cancel"} {"id","type":"transcribe_file","path"}
-//! Events:   {"type":"ready"} {"type":"level","rms"} {"type":"partial","text"}
+//! Events:   {"type":"ready"} {"type":"level","rms"} {"type":"bands","values"} {"type":"partial","text"}
 //!           {"type":"final","id","text"} {"type":"error","id"?,"code","message"}
 //!
 //! `language` is the spoken language's code (`en`, `zh`...); missing or `auto` lets the model detect it.

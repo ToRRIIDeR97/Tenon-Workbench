@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import {
   hasExistingWebState,
   initialAgentVisibility,
+  migrateSounds,
   modelProvider,
   newThreadChoice,
   withVisibleModels,
@@ -66,5 +67,30 @@ describe("newThreadChoice", () => {
     expect(newThreadChoice({ defaults: { ...fixed, mode: "last" }, lastUsed })).toEqual(lastUsed)
     const last = { ...fixed, mode: "last" as const }
     expect(newThreadChoice({ defaults: last })).toEqual(last)
+  })
+})
+
+describe("sound defaults", () => {
+  const earlier = {
+    agentEnabled: false,
+    agent: "tenon-done",
+    permissionsEnabled: true,
+    permissions: "alert-02",
+    errorsEnabled: true,
+    errors: "tenon-error",
+  }
+
+  test("a profile from before the Soft set moves its untouched sounds to Soft and keeps its own picks", () => {
+    expect(migrateSounds({ general: {}, sounds: earlier })).toEqual({
+      general: {},
+      sounds: { ...earlier, agent: "tenon-soft-done", errors: "tenon-soft-error", defaults: 2 },
+    })
+  })
+
+  test("runs once: a profile already moved keeps the earlier sound when picked again", () => {
+    const moved = { sounds: { ...earlier, defaults: 2 } }
+    expect(migrateSounds(moved)).toBe(moved)
+    expect(migrateSounds({ general: {} })).toEqual({ general: {} })
+    expect(migrateSounds(null)).toBe(null)
   })
 })

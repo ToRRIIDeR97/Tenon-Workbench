@@ -1,6 +1,6 @@
 import { createStore, produce } from "solid-js/store"
 import { createSimpleContext } from "@tenon/ui/context"
-import { batch, createEffect, createMemo, createRoot, on, onCleanup } from "solid-js"
+import { batch, createEffect, createMemo, createRoot, on, onCleanup, untrack } from "solid-js"
 import { useParams } from "@solidjs/router"
 import { useSDK, type DirectorySDK } from "./sdk"
 import type { Platform } from "./platform"
@@ -24,6 +24,21 @@ export type LocalPTY = {
 }
 
 type TerminalUpdate = Partial<LocalPTY> & { id: string; buffer?: string }
+
+/** A terminal as the server reports it; `sessionID` is set on the ones an agent started for a thread. */
+type AgentTerminal = { id: string; title: string; status?: string; sessionID?: string }
+
+/** The tab to add for `info` in the thread `sessionID`: only a running agent terminal of that thread not yet shown. */
+export function agentTerminalTab(
+  info: AgentTerminal,
+  sessionID: string | undefined,
+  all: ReadonlyArray<LocalPTY>,
+): LocalPTY | undefined {
+  if (!sessionID || info.sessionID !== sessionID || info.status === "exited") return
+  if (all.some((pty) => pty.id === info.id)) return
+  // No number: the tab shows the agent's title rather than "Terminal N".
+  return { id: info.id, title: info.title, titleNumber: 0 }
+}
 
 const WORKSPACE_KEY = "__workspace__"
 const MAX_TERMINAL_SESSIONS = 20
@@ -99,12 +114,22 @@ export function getWorkspaceTerminalCacheKey(dir: string, scope: ServerScopeValu
   return ScopedKey.from(scope, dir, WORKSPACE_KEY)
 }
 
+/** Each thread keeps its own terminal tabs; a page with no thread yet falls back to the folder's. */
+export function getThreadTerminalCacheKey(
+  dir: string,
+  sessionID: string | undefined,
+  scope: ServerScopeValue = ServerScope.local,
+) {
+  if (!sessionID) return getWorkspaceTerminalCacheKey(dir, scope)
+  return ScopedKey.from(scope, dir, sessionID)
+}
+
 export function getLegacyTerminalStorageKeys(dir: string, legacySessionID?: string) {
   if (!legacySessionID) return [`${dir}/terminal.v1`]
   return [`${dir}/terminal/${legacySessionID}.v1`, `${dir}/terminal.v1`]
 }
 
-type TerminalSession = ReturnType<typeof createWorkspaceTerminalSession>
+type TerminalSession = ReturnType<typeof createThreadTerminalSession>
 
 type TerminalCacheEntry = {
   value: TerminalSession
@@ -125,6 +150,12 @@ const trimTerminal = (pty: LocalPTY) => {
 
 function terminalPersistTarget(scope: ServerScopeValue, dir: string, legacy?: string[]) {
   return Persist.serverWorkspace(scope, dir, "terminal", legacy)
+}
+
+function threadTerminalPersistTarget(scope: ServerScopeValue, dir: string, sessionID: string | undefined) {
+  if (!sessionID)
+    return terminalPersistTarget(scope, dir, scope === ServerScope.local ? getLegacyTerminalStorageKeys(dir) : [])
+  return Persist.serverSession(scope, dir, sessionID, "terminal")
 }
 
 export function clearWorkspaceTerminals(
@@ -153,12 +184,7 @@ export function clearWorkspaceTerminals(
   }
 }
 
-function createWorkspaceTerminalSession(
-  sdk: DirectorySDK,
-  dir: string,
-  scope: ServerScopeValue,
-  legacySessionID?: string,
-) {
+function createThreadTerminalSession(sdk: DirectorySDK, dir: string, scope: ServerScopeValue, sessionID?: string) {
   const language = useLanguage()
   const location = { directory: sdk.directory }
   // The client throws a declared error body as a plain object, so the server's sentence is read off it.
@@ -169,11 +195,10 @@ function createWorkspaceTerminalSession(
       description:
         (!(error instanceof Error) && record(error) && text(error.message)) || formatServerError(error, language.t),
     })
-  const legacy = scope === ServerScope.local ? getLegacyTerminalStorageKeys(dir, legacySessionID) : []
-
+  // Tabs shared by a folder's threads before they had their own aren't carried over: each thread starts empty.
   const [store, setStore, _, ready] = persisted(
     {
-      ...terminalPersistTarget(scope, dir, legacy),
+      ...threadTerminalPersistTarget(scope, dir, sessionID),
       migrate: migrateTerminalState,
     },
     createStore<{
@@ -185,6 +210,8 @@ function createWorkspaceTerminalSession(
   )
   const [ui, setUi] = createStore({
     focus: undefined as { request: number; id?: string; pending: boolean } | undefined,
+    // The last terminal an agent started for this thread while it was open, so the page can show the panel.
+    agentStarted: undefined as { id: string; at: number } | undefined,
   })
   const focus = { request: 0 }
 
@@ -260,6 +287,40 @@ function createWorkspaceTerminalSession(
     removeExited(event.properties.id)
   })
   onCleanup(unsub)
+  // A terminal removed elsewhere (another window, or an agent's terminal_stop) leaves no tab behind.
+  const unsubDeleted = sdk.event.on("pty.deleted", (event: { properties: { id: string } }) => {
+    removeExited(event.properties.id)
+  })
+  onCleanup(unsubDeleted)
+
+  // Terminals an agent started for this thread (`terminal_start`) join its tabs: as they start while it is open,
+  // and when it loads for any started meanwhile. The user's own tabs never carry a thread, so only these match.
+  const adopt = (info: AgentTerminal) => {
+    const tab = agentTerminalTab(info, sessionID, store.all)
+    if (!tab) return false
+    setStore("all", store.all.length, tab)
+    return true
+  }
+  const unsubCreated = sdk.event.on("pty.created", (event: { properties: { info: AgentTerminal } }) => {
+    // Before the saved tabs load, the listing below picks it up instead.
+    if (!ready()) return
+    const info = event.properties.info
+    if (!adopt(info)) return
+    batch(() => {
+      setStore("active", info.id)
+      setUi("agentStarted", { id: info.id, at: Date.now() })
+    })
+  })
+  onCleanup(unsubCreated)
+  createEffect(() => {
+    if (!sessionID || !ready()) return
+    untrack(() => {
+      sdk.api.pty
+        .list({ location })
+        .then((result) => result.data.forEach(adopt))
+        .catch((error: unknown) => console.error("Failed to list terminals", error))
+    })
+  })
 
   const update = (input: TerminalUpdate) => {
     const { buffer, ...pty } = input
@@ -335,6 +396,8 @@ function createWorkspaceTerminalSession(
 
   return {
     ready,
+    key: getThreadTerminalCacheKey(dir, sessionID, scope),
+    agentStarted: () => ui.agentStarted,
     all: createMemo(() => store.all),
     active: createMemo(() => store.active),
     clear() {
@@ -511,9 +574,9 @@ export const { use: useTerminal, provider: TerminalProvider } = createSimpleCont
       }
     }
 
-    const loadWorkspace = (dir: string, legacySessionID: string | undefined, serverScope: ServerScopeValue) => {
-      // Terminals are workspace-scoped so tabs persist while switching sessions in the same directory.
-      const key = getWorkspaceTerminalCacheKey(dir, serverScope)
+    const loadThread = (dir: string, sessionID: string | undefined, serverScope: ServerScopeValue) => {
+      // Each thread has its own tabs, kept while switching between threads.
+      const key = getThreadTerminalCacheKey(dir, sessionID, serverScope)
       const existing = cache.get(key)
       if (existing) {
         cache.delete(key)
@@ -522,7 +585,7 @@ export const { use: useTerminal, provider: TerminalProvider } = createSimpleCont
       }
 
       const entry = createRoot((dispose) => ({
-        value: createWorkspaceTerminalSession(sdk(), dir, serverScope, legacySessionID),
+        value: createThreadTerminalSession(sdk(), dir, serverScope, sessionID),
         dispose,
       }))
 
@@ -531,16 +594,16 @@ export const { use: useTerminal, provider: TerminalProvider } = createSimpleCont
       return entry.value
     }
 
-    const workspace = createMemo(() => loadWorkspace(directory(), params.id, scope()))
+    const workspace = createMemo(() => loadThread(directory(), params.id, scope()))
 
+    // Leaving a thread drops the scroll positions its tabs kept for a quick return.
     createEffect(
       on(
         () => ({ dir: directory(), id: params.id, scope: scope() }),
         (next, prev) => {
           if (!prev?.dir) return
           if (next.dir === prev.dir && next.id === prev.id && next.scope === prev.scope) return
-          if (next.dir === prev.dir && next.id && next.scope === prev.scope) return
-          loadWorkspace(prev.dir, prev.id, prev.scope).trimAll()
+          loadThread(prev.dir, prev.id, prev.scope).trimAll()
         },
         { defer: true },
       ),
@@ -548,6 +611,9 @@ export const { use: useTerminal, provider: TerminalProvider } = createSimpleCont
 
     return {
       ready: () => workspace().ready(),
+      /** Which thread's tabs these are; changes when the page moves to another thread. */
+      key: () => workspace().key,
+      agentStarted: () => workspace().agentStarted(),
       all: () => workspace().all(),
       active: () => workspace().active(),
       new: (options?: { focus?: boolean }) => workspace().new(options),

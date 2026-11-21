@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { MIN_WRITING_MS, openHref, parseAgentWrite, pillWrite, sessionFromPath, writingHold } from "./store"
+import { sessionHref } from "@/utils/session-route"
+import { MIN_WRITING_MS, openHref, parseAgentWrite, pillWrite, sessionFromPath, writeTurn, writingHold } from "./store"
 
 describe("agent writes", () => {
   test("parses agent.write events and ignores anything else", () => {
@@ -34,6 +35,25 @@ describe("agent writes", () => {
       }),
     ).toBeUndefined()
     expect(parseAgentWrite("/w", { type: "session.idle", properties: {} })).toBeUndefined()
+  })
+
+  test("reads the Command Centre's own actions, and opens the thread one started", () => {
+    const write = parseAgentWrite("/vault/.command-centre", {
+      type: "agent.write",
+      properties: {
+        id: "w2",
+        sessionID: "ses_cc",
+        kind: "thread",
+        phase: "done",
+        target: "Wickfall",
+        open: { session: "ses_new" },
+      },
+    })
+    expect(write).toMatchObject({ kind: "thread", open: { session: "ses_new" } })
+    const key = "local" as Parameters<typeof sessionHref>[0]
+    expect(openHref(write!, key)).toBe(sessionHref(key, "ses_new"))
+    // Without a server to open it on there is nowhere to go.
+    expect(openHref(write!)).toBeUndefined()
   })
 
   test("opens the written page, Project or calendar", () => {
@@ -76,5 +96,19 @@ describe("agent writes", () => {
     expect(sessionFromPath("/server/local/session/ses_1")).toBe("ses_1")
     expect(sessionFromPath("/L3cvYQ/session/ses_2")).toBe("ses_2")
     expect(sessionFromPath("/calendar")).toBeUndefined()
+  })
+})
+
+describe("writeTurn", () => {
+  const users = [
+    { id: "u1", time: { created: 100 } },
+    { id: "u2", time: { created: 200 } },
+  ]
+  test("a write's turn is its assistant message's parent, else the turn running when it arrived", () => {
+    expect(writeTurn({ messageID: "a1", at: 999 }, (id) => (id === "a1" ? "u1" : undefined), users)).toBe("u1")
+    // External harnesses name no message.
+    expect(writeTurn({ at: 150 }, () => undefined, users)).toBe("u1")
+    expect(writeTurn({ at: 250 }, () => undefined, users)).toBe("u2")
+    expect(writeTurn({ at: 50 }, () => undefined, users)).toBeUndefined()
   })
 })

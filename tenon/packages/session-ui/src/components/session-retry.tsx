@@ -28,20 +28,17 @@ export function SessionRetry(props: { status: SessionStatus; show?: boolean }) {
       onCleanup(() => clearInterval(timer))
     }),
   )
+  // A provider error without a message (OpenCode's free-usage limit) still reaches here as a retry.
+  const text = () => retry()?.message ?? ""
   const message = createMemo(() => {
-    const current = retry()
-    if (!current) return ""
-    if (current.message.includes("exceeded your current quota") && current.message.includes("gemini")) {
+    const current = text()
+    if (current.includes("exceeded your current quota") && current.includes("gemini")) {
       return i18n.t("ui.sessionTurn.retry.geminiHot")
     }
-    if (current.message.length > 80) return current.message.slice(0, 80) + "..."
-    return current.message
+    if (current.length > 80) return current.slice(0, 80) + "..."
+    return current
   })
-  const truncated = createMemo(() => {
-    const current = retry()
-    if (!current) return false
-    return current.message.length > 80
-  })
+  const truncated = createMemo(() => text().length > 80)
   const info = createMemo(() => {
     const current = retry()
     if (!current) return ""

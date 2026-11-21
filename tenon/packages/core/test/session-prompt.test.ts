@@ -40,6 +40,7 @@ const execution = Layer.succeed(
       Effect.sync(() => {
         wakeCalls.push(sessionID)
       }),
+    compact: () => Effect.succeed({ status: "unavailable" as const }),
   }),
 )
 const it = testEffect(
@@ -676,6 +677,27 @@ describe("SessionV2.prompt", () => {
       expect(yield* eventCount(EventV2.versionedType(SessionEvent.PromptWithdrawn.type, 1))).toBe(0)
       expect(yield* eventCount(EventV2.versionedType(SessionEvent.PromptSteered.type, 1))).toBe(0)
       expect((yield* session.messages({ sessionID })).map((message) => message.id)).toEqual([input.id])
+    }),
+  )
+
+  it.effect("wakes an idle session whose next queued input is accepted, and leaves the rest waiting", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const session = yield* SessionV2.Service
+      wakeCalls.length = 0
+      yield* queue("[Tenon] Your delegated task was interrupted because Tenon closed.")
+
+      expect(yield* session.wakeQueued((input) => input.prompt.text.startsWith("[Tenon] "))).toBe(1)
+      expect(wakeCalls).toEqual([sessionID])
+      // Waking drains the inbox later; nothing is promoted here.
+      expect(yield* session.queued(sessionID)).toHaveLength(1)
+
+      wakeCalls.length = 0
+      expect(yield* session.wakeQueued((input) => input.prompt.text.startsWith("Something else"))).toBe(0)
+      activeSessions.add(sessionID)
+      expect(yield* session.wakeQueued(() => true)).toBe(0)
+      activeSessions.delete(sessionID)
+      expect(wakeCalls).toEqual([])
     }),
   )
 

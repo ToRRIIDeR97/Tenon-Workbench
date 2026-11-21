@@ -1,5 +1,6 @@
 import { Binary } from "@tenon/core/util/binary"
 import { retry } from "@tenon/core/util/retry"
+import { Harness } from "@tenon/schema/harness"
 import type {
   OpenCodeEvent,
   SessionApi,
@@ -22,7 +23,7 @@ import { createStore, produce, reconcile } from "solid-js/store"
 import { message as cleanMessage } from "@/utils/diffs"
 import { sessionNotFoundError } from "@/utils/server-errors"
 import { rootSession } from "@/utils/session-route"
-import { normalizeSessionInfo } from "@/utils/session"
+import { normalizeSessionInfo, type HarnessSession } from "@/utils/session"
 import { compareMessages, isTurnStart, messageKey, normalizeSessionMessages } from "@/utils/session-message"
 import { dropSessionCaches, pickSessionCacheEvictions, SESSION_CACHE_LIMIT } from "./global-sync/session-cache"
 import { isSessionMovedEvent, isSessionRevertEvent, sessionMovedData } from "./global-sync/event-names"
@@ -1100,6 +1101,25 @@ export function createServerSession(
         time: { ...info.time, updated: "created" in event ? event.created : info.time.updated },
       })
     }
+    // A harness or model switch made anywhere (another window, the Command Centre, a pick that landed while a turn
+    // ran) reaches every view, so the model pill always names the model the next turn runs on.
+    if (eventType === "session.next.harness.switched" && info) {
+      const switched = event.data as unknown as {
+        instanceID: NonNullable<HarnessSession["harnessInstanceID"]>
+        model?: HarnessSession["harnessModel"]
+      }
+      const current: HarnessSession = info
+      const next: HarnessSession = {
+        ...current,
+        harnessInstanceID: switched.instanceID,
+        // No model means the harness default, as the server records it.
+        harnessModel: switched.model,
+        harnessRevision:
+          (current.harnessRevision ?? 0) +
+          ((current.harnessInstanceID ?? Harness.OpenCode) === switched.instanceID ? 0 : 1),
+      }
+      remember(next)
+    }
     if (event.type === "session.usage.updated" && info)
       remember({ ...info, cost: event.data.cost, tokens: event.data.tokens })
     // if (event.type === "session.archived") {
@@ -1547,16 +1567,23 @@ export function createServerSession(
     async todo(sessionID: string, request?: { force?: boolean }) {
       touch(sessionID)
       if (data.todo[sessionID] !== undefined && !request?.force) return
-      if ((await options?.protocol) === "v2") {
-        setData("todo", sessionID, [])
-        return
-      }
+      // A v2 server keeps harness checklists too (saved from their plan calls) and still serves the route; one
+      // without it leaves the list empty, as before, rather than retrying.
+      const v2 = (await options?.protocol) === "v2"
       return runInflight(inflightTodo, sessionID, () => {
         const active = generation(sessionID)
-        return (options?.retry ?? retry)(() => client.session.todo({ sessionID })).then((result) => {
-          if (generations.get(sessionID) !== active) return
-          setData("todo", sessionID, reconcile(result.data ?? [], { key: "id" }))
-        })
+        const load = () => client.session.todo({ sessionID })
+        return (v2 ? load() : (options?.retry ?? retry)(load)).then(
+          (result) => {
+            if (generations.get(sessionID) !== active) return
+            setData("todo", sessionID, reconcile(result.data ?? [], { key: "id" }))
+          },
+          (error: unknown) => {
+            if (!v2) throw error
+            if (generations.get(sessionID) === active && data.todo[sessionID] === undefined)
+              setData("todo", sessionID, [])
+          },
+        )
       })
     },
     history: {

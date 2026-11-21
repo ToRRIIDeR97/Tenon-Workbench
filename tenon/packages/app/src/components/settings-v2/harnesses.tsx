@@ -17,8 +17,9 @@ import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
 import { useServerSDK } from "@/context/server-sdk"
 import { useServerSync } from "@/context/server-sync"
-import { modelProvider, useSettings, withVisibleModels } from "@/context/settings"
+import { DEFAULT_COLD_MINUTES, modelProvider, useSettings, withVisibleModels } from "@/context/settings"
 import { harnessSettingsChanged } from "@/components/prompt-input/harness-controller"
+import { createActionLocks, harnessUpgrades } from "@/components/harness-upgrades"
 import { HarnessUsageWindows, cachedUsage, fullestWindow, rememberUsage } from "@/components/harness-usage"
 import {
   addHarness,
@@ -33,7 +34,6 @@ import {
   removeHarness,
   setHarnessEnabled,
   setTitleAgent,
-  upgradeHarness,
   verifyHarness,
 } from "@/utils/server"
 import { type CheckStatus, checklistPassed, harnessChecklist } from "./harness-checklist"
@@ -94,9 +94,12 @@ export const SettingsHarnessesV2: Component<{
   )
   const [state, setState] = createStore({
     selected: undefined as string | undefined,
-    busy: undefined as string | undefined,
     confirming: undefined as string | undefined,
   })
+  // One action per harness at a time; different harnesses (separate CLIs) update side by side (#320).
+  const locks = createActionLocks()
+  const upgrades = () => harnessUpgrades(server(), directory()!)
+  const busy = (id: string) => locks.busy(id) || (!!directory() && upgrades().running(id))
 
   const builtIn = createMemo(() => (entries.latest ?? []).filter((entry) => entry.source !== "registry"))
   const registered = createMemo(() => (entries.latest ?? []).filter((entry) => entry.source === "registry"))
@@ -114,12 +117,12 @@ export const SettingsHarnessesV2: Component<{
     })
 
   const run = (id: string, action: () => Promise<unknown>) => {
-    const dir = directory()
-    if (!dir || state.busy) return
-    setState("busy", id)
-    void action()
-      .then(changed, failed)
-      .finally(() => setState({ busy: undefined, confirming: undefined }))
+    if (!directory()) return
+    locks.run(id, () =>
+      action()
+        .then(changed, failed)
+        .finally(() => state.confirming === id && setState("confirming", undefined)),
+    )
   }
 
   const openAdd = () => {
@@ -172,7 +175,8 @@ export const SettingsHarnessesV2: Component<{
 
   const upgrade = (entry: Harness.SettingsEntry) =>
     run(entry.id, async () => {
-      const result = await upgradeHarness(server(), directory()!, entry.id)
+      // Shared with the update toast, so the two never upgrade the same CLI at once.
+      const result = await upgrades().start(entry.id)
       setUpdates((current) => current?.map((item) => (item.id === result.id ? result : item)))
       setInstances(await refreshHarnesses(server(), directory()!, entry.id))
       showToast({
@@ -234,7 +238,7 @@ export const SettingsHarnessesV2: Component<{
               current={titleOptions().find((option) => option.value === (titleAgent.latest ?? "")) ?? titleOptions()[0]}
               placement="bottom-end"
               gutter={6}
-              disabled={!directory() || state.busy !== undefined}
+              disabled={!directory() || locks.busy("title-agent")}
               value={(option) => option.value}
               label={(option) => option.label}
               onSelect={(option) => option && chooseTitleAgent(option.value)}
@@ -331,7 +335,7 @@ export const SettingsHarnessesV2: Component<{
                 update={update(entry.id)}
                 usage={usageReport(entry.id)}
                 usageNow={usage.latest?.now ?? Date.now()}
-                busy={state.busy === entry.id}
+                busy={busy(entry.id)}
                 confirming={state.confirming === entry.id}
                 onToggle={(checked) =>
                   run(entry.id, () => setHarnessEnabled(server(), directory()!, entry.id, checked))
@@ -502,6 +506,9 @@ const HarnessDetails: Component<{
       <Show when={props.entry.enabled && !host()}>
         <HarnessModels entry={props.entry} models={props.instance?.models ?? []} />
       </Show>
+      <Show when={props.entry.enabled && !host() && props.entry.id !== Harness.Codex}>
+        <HarnessCompaction entry={props.entry} models={props.instance?.models ?? []} />
+      </Show>
 
       <Show when={editable()}>
         <div class="settings-v2-harness-footer">
@@ -517,6 +524,84 @@ const HarnessDetails: Component<{
         </div>
       </Show>
     </section>
+  )
+}
+
+// Codex compacts on its own side, always on the thread's model, so it has no compaction model to pick.
+const OWN_MODEL = "own"
+
+const numberClass =
+  "h-8 w-20 rounded-full bg-v2-background-bg-layer-01 px-3 text-right text-[13px] font-[450] leading-5 text-v2-text-text-base shadow-[inset_0_0_0_1px_var(--v2-border-border-base)] outline-none transition-shadow duration-short ease-standard hover:shadow-[inset_0_0_0_1px_var(--v2-border-border-strong)] focus:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)]"
+
+// A cold thread's /compact reloads its whole history into the model; this picks a cheaper model for that case.
+const HarnessCompaction: Component<{ entry: Harness.SettingsEntry; models: ReadonlyArray<Harness.Model> }> = (
+  props,
+) => {
+  const language = useLanguage()
+  const settings = useSettings()
+  const current = () => settings.harnesses.compaction(props.entry.id)
+  const minutes = () => current()?.coldMinutes ?? DEFAULT_COLD_MINUTES
+  const options = createMemo(() => [
+    // A real value: the select shows an empty-string option as no selection at all.
+    { value: OWN_MODEL, label: language.t("harness.settings.compaction.ownModel") },
+    ...props.models.map((model) => ({ value: model.id, label: model.name })),
+  ])
+  const [draft, setDraft] = createSignal(String(minutes()))
+  return (
+    <div class="settings-v2-section" data-component="harness-compaction">
+      <h4 class="settings-v2-section-title">{language.t("harness.settings.compaction")}</h4>
+      <SettingsListV2>
+        <SettingsRowV2
+          title={language.t("harness.settings.compaction.model")}
+          description={language.t("harness.settings.compaction.model.description")}
+        >
+          <SelectV2
+            appearance="inline"
+            data-action="harness-compaction-model"
+            options={options()}
+            current={options().find((option) => option.value === (current()?.model ?? OWN_MODEL)) ?? options()[0]}
+            placement="bottom-end"
+            gutter={6}
+            value={(option) => option.value}
+            label={(option) => option.label}
+            onSelect={(option) =>
+              option &&
+              settings.harnesses.setCompaction(
+                props.entry.id,
+                option.value !== OWN_MODEL ? { model: option.value, coldMinutes: minutes() } : undefined,
+              )
+            }
+          />
+        </SettingsRowV2>
+        <Show when={current()?.model}>
+          <SettingsRowV2
+            title={language.t("harness.settings.compaction.cold")}
+            description={language.t("harness.settings.compaction.cold.description")}
+          >
+            <input
+              type="number"
+              min="1"
+              max="1440"
+              step="1"
+              data-action="harness-compaction-cold"
+              class={numberClass}
+              aria-label={language.t("harness.settings.compaction.cold")}
+              value={draft()}
+              // Saves on commit (Enter, the stepper or leaving the field), clamped to 1–1440 minutes.
+              onInput={(event) => setDraft(event.currentTarget.value)}
+              onChange={(event) => {
+                const value = Math.round(Number(event.currentTarget.value))
+                const next = Number.isFinite(value) && value > 0 ? Math.min(value, 1440) : minutes()
+                const setting = current()
+                if (setting) settings.harnesses.setCompaction(props.entry.id, { ...setting, coldMinutes: next })
+                setDraft(String(next))
+              }}
+              onBlur={() => setDraft(String(minutes()))}
+            />
+          </SettingsRowV2>
+        </Show>
+      </SettingsListV2>
+    </div>
   )
 }
 

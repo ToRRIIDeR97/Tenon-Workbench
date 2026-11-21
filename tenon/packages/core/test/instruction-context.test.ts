@@ -69,6 +69,58 @@ describe("InstructionContext", () => {
     ),
   )
 
+  it.live("a delegate reads DELEGATE.md in place of each AGENTS.md that has one beside it", () =>
+    Effect.acquireRelease(
+      Effect.promise(() => tmpdir()),
+      (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]()),
+    ).pipe(
+      Effect.flatMap((tmp) =>
+        Effect.gen(function* () {
+          const global = path.join(tmp.path, "global")
+          const root = path.join(tmp.path, "Brain")
+          const project = path.join(root, "projects", "alpha")
+          yield* Effect.promise(async () => {
+            await fs.mkdir(global, { recursive: true })
+            await fs.mkdir(path.join(root, ".tenon"), { recursive: true })
+            await fs.mkdir(project, { recursive: true })
+            await fs.writeFile(path.join(root, ".tenon", "workspace.json"), "{}")
+            await fs.writeFile(path.join(global, "AGENTS.md"), "global lead rules")
+            await fs.writeFile(path.join(global, "DELEGATE.md"), "global delegate rules")
+            await fs.writeFile(path.join(project, "AGENTS.md"), "project rules")
+          })
+          const load = (role: "lead" | "delegate") =>
+            SystemContextRegistry.Service.pipe(
+              Effect.flatMap((service) => service.load()),
+              Effect.provideService(InstructionContext.Role, role),
+              Effect.provide(
+                instructionLayer({
+                  config: global,
+                  locationServiceLayer: Layer.succeed(
+                    Location.Service,
+                    Location.Service.of(
+                      location(
+                        { directory: AbsolutePath.make(project) },
+                        { projectDirectory: AbsolutePath.make(root) },
+                      ),
+                    ),
+                  ),
+                }),
+              ),
+            )
+          const lead = (yield* SystemContext.initialize(yield* load("lead"))).baseline
+          const delegate = (yield* SystemContext.initialize(yield* load("delegate"))).baseline
+          expect(lead).toContain("global lead rules")
+          expect(lead).not.toContain("global delegate rules")
+          // The global DELEGATE.md replaces the global AGENTS.md; the project has none, so its AGENTS.md stays.
+          expect(delegate).toContain("global delegate rules")
+          expect(delegate).not.toContain("global lead rules")
+          expect(delegate).toContain("project rules")
+          expect(delegate).toContain(path.join(global, "DELEGATE.md"))
+        }),
+      ),
+    ),
+  )
+
   it.live("loads global and upward project AGENTS.md files as one aggregate context", () =>
     Effect.acquireRelease(
       Effect.promise(() => tmpdir()),

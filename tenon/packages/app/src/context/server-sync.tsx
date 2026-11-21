@@ -617,7 +617,11 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
     const eventType: string = event.type
     const recent = bootingRoot || Date.now() - bootedAt < 1500
 
-    if (event.current) session.applyV2(event.current)
+    if (event.current) {
+      session.applyV2(event.current)
+      const touched = conversationTime(event.current)
+      if (touched) homeSessions.touch(touched.sessionID, touched.time)
+    }
     session.apply(event)
     if (event.type === "session.created" || event.type === "session.updated" || event.type === "session.deleted") {
       homeSessions.apply(event)
@@ -778,6 +782,8 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
     refreshProviders,
     // bootstrap,
     updateConfig: updateConfigMutation.mutateAsync,
+    /** Reads the global config again, after a route other than `updateConfig` rewrote the file. */
+    reloadConfig: () => queryClient.refetchQueries({ queryKey: [serverSDK.scope, "config"] }),
     project: projectApi,
     session,
     homeSessions,
@@ -849,4 +855,14 @@ export const { use: useServerSync, provider: ServerSyncProvider } = createSimple
 export function useQueryOptions() {
   const sync = useServerSync()
   return createMemo(() => sync().queryOptions)
+}
+
+/** A prompt joining the transcript or the agent finishing its reply: the thread's latest conversation. */
+function conversationTime(event: { type: string; data?: unknown }) {
+  if (event.type !== "session.next.prompted" && event.type !== "session.next.step.ended") return
+  const data = event.data as { sessionID?: unknown; timestamp?: unknown; finish?: unknown } | undefined
+  if (!data || typeof data.sessionID !== "string") return
+  if (event.type === "session.next.step.ended" && data.finish === "tool-calls") return
+  const time = typeof data.timestamp === "number" ? data.timestamp : Date.parse(String(data.timestamp))
+  return Number.isFinite(time) ? { sessionID: data.sessionID, time } : undefined
 }

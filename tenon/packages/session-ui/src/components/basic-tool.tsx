@@ -1,4 +1,5 @@
 import {
+  createContext,
   createEffect,
   createMemo,
   For,
@@ -10,6 +11,7 @@ import {
   Switch,
   type Accessor,
   type JSX,
+  useContext,
 } from "solid-js"
 import { useI18n } from "@tenon/ui/context/i18n"
 import { createStore } from "solid-js/store"
@@ -95,7 +97,11 @@ function scheduleFrameMount(fn: () => void) {
   return () => cancelAnimationFrame(frame)
 }
 
+/** The formatted time of the tool call a card belongs to, given by the tool part around it (#322). */
+export const ToolTimeContext = createContext<Accessor<string | undefined>>()
+
 export function BasicTool(props: BasicToolProps) {
+  const toolTime = useContext(ToolTimeContext)
   const [state, setState] = createStore({
     open: props.defaultOpen ?? false,
     ready: !props.defer && (props.defaultOpen ?? false),
@@ -228,6 +234,13 @@ export function BasicTool(props: BasicToolProps) {
           </Switch>
         </div>
       </div>
+      <Show when={!pending() && toolTime?.()}>
+        {(time) => (
+          <span data-slot="basic-tool-tool-duration" class="shrink-0 tabular-nums text-[12px] text-v2-text-text-muted">
+            {time()}
+          </span>
+        )}
+      </Show>
       <Show when={hasChildren() && !props.hideDetails && !props.locked && (!pending() || props.allowOpenWhilePending)}>
         <Collapsible.Arrow />
       </Show>

@@ -18,32 +18,9 @@ import { usePlatform } from "@/context/platform"
 import { sheetRows } from "./sheet-rows"
 import { LiveDocumentChip, LiveDocumentFollow, LiveDocumentTail, flashChangedBlocks } from "./live-document-view"
 
-/** File types the Workbench panel renders instead of showing their source or bytes. */
-export type ViewerKind = "markdown" | "csv" | "json" | "pdf" | "video" | "sheet" | "doc"
+import { viewerKind, type ViewerKind } from "./viewer-kind"
 
-const kinds: Record<string, ViewerKind> = {
-  md: "markdown",
-  markdown: "markdown",
-  mdx: "markdown",
-  csv: "csv",
-  tsv: "csv",
-  json: "json",
-  pdf: "pdf",
-  mp4: "video",
-  webm: "video",
-  mov: "video",
-  m4v: "video",
-  ogv: "video",
-  xlsx: "sheet",
-  xls: "sheet",
-  ods: "sheet",
-  docx: "doc",
-}
-
-export function viewerKind(path: string | undefined): ViewerKind | undefined {
-  const ext = path?.split(".").pop()?.toLowerCase()
-  return ext && Object.hasOwn(kinds, ext) ? kinds[ext] : undefined
-}
+export { viewerKind, type ViewerKind }
 
 function isAllowedDataMime(kind: ViewerKind, mimeType: string | undefined) {
   const mime = mimeType?.split(";")[0]?.trim().toLowerCase() ?? ""

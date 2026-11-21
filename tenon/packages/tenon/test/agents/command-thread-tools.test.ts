@@ -164,6 +164,47 @@ describe("Command Centre thread tools", () => {
     }),
   )
 
+  it.instance("threads_overview lists every Project's id, threads or not, for delegate_to_project's project_id", () =>
+    Effect.gen(function* () {
+      const { project, headers, call } = yield* setup
+      const empty = yield* request("/second-brain/projects", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ name: "Beta", outcome: "y" }),
+      }).pipe(Effect.flatMap(json<{ id: string }>))
+      const overview = (yield* call("threads_overview", {})).value as Overview & {
+        projects: { id: string; name: string; folder: string }[]
+      }
+      expect(overview.projects.map((item) => item.id).toSorted()).toEqual([project.id, empty.id].toSorted())
+      expect(overview.projects.find((item) => item.id === empty.id)).toMatchObject({ name: "Beta" })
+      expect(overview.threads.some((thread) => thread.projectId === empty.id)).toBe(false)
+    }),
+  )
+
+  it.instance("project_id takes a Project's id, or its exact name when no other Project has it", () =>
+    Effect.gen(function* () {
+      const { project, headers, command, alpha } = yield* setup
+      const folder = (id: string) => AgentAppTools.projectFolder({ sessionID: command.id }, id)
+      expect(yield* folder(project.id)).toMatchObject({ name: "Alpha" })
+      expect((yield* folder(" alpha "))?.directory).toBe((yield* folder(project.id))?.directory)
+      expect((yield* folder("alpha"))?.directory.toLowerCase()).toBe(path.resolve(alpha.directory).toLowerCase())
+      expect(yield* folder("Gamma")).toBeUndefined()
+      // Projects in two workspaces can share a name; then only the id tells them apart.
+      const second = yield* tmpdirScoped()
+      const twin = yield* request("/second-brain/projects", {
+        method: "POST",
+        headers: { ...headers, "x-opencode-directory": second },
+        body: JSON.stringify({ name: "alpha", outcome: "z" }),
+      }).pipe(Effect.flatMap(json<{ id: string; location?: { path?: string } }>))
+      const twinFolder = path.join(second, twin.location?.path ?? "projects/alpha")
+      yield* Effect.promise(() => mkdir(twinFolder, { recursive: true }))
+      yield* Session.use.create({ title: "Twin" }).pipe(provideInstanceEffect(twinFolder))
+      expect(yield* folder(twin.id)).toMatchObject({ name: "alpha" })
+      expect(yield* folder("Alpha")).toBeUndefined()
+      expect(yield* folder(project.id)).toMatchObject({ name: "Alpha" })
+    }),
+  )
+
   it.instance("thread_read returns a thread's latest messages as text", () =>
     Effect.gen(function* () {
       const { alpha, call } = yield* setup

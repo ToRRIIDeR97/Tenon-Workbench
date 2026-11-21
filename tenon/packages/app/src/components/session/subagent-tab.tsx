@@ -22,6 +22,8 @@ import {
   matchesFilter,
   splitResult,
   subagentCounts,
+  subagentModel,
+  subagentModelLabel,
   taskResult,
   threadSubagents,
   type SubagentFilter,
@@ -119,6 +121,13 @@ function AgentsList(props: { groups: SubagentGroup[]; onSelect: (partID: string)
     const id = taskSessionID(part)
     return id ? sync().session.get(id) : undefined
   }
+  const modelLabel = (item: ThreadSubagent) => {
+    const id = taskSessionID(item.part)
+    const child = id
+      ? (sync().data.message[id] ?? []).findLast((message): message is AssistantMessage => message.role === "assistant")
+      : undefined
+    return subagentModelLabel(subagentModel(item, child))
+  }
   const filters: SubagentFilter[] = ["all", "running", "failed"]
   const time = (createdAt: number | undefined) =>
     createdAt === undefined
@@ -182,6 +191,7 @@ function AgentsList(props: { groups: SubagentGroup[]; onSelect: (partID: string)
                         now={now()}
                         formatDuration={(ms) => formatTurnDuration(language, ms)}
                         tokens={laneTokens(item.part, childSession(item.part))}
+                        model={modelLabel(item)}
                         onOpen={() => props.onSelect(item.part.id)}
                       />
                     )}
@@ -271,10 +281,14 @@ function AgentDetail(props: {
     const id = childID()
     return id ? sync().session.get(id) : undefined
   })
-  const model = createMemo(() => {
-    const last = childMessages().findLast((message): message is AssistantMessage => message.role === "assistant")
-    return last?.modelID
-  })
+  const model = createMemo(() =>
+    subagentModelLabel(
+      subagentModel(
+        props.item,
+        childMessages().findLast((message): message is AssistantMessage => message.role === "assistant"),
+      ),
+    ),
+  )
   const tokens = () => laneTokens(part(), child())
   const cost = () => {
     const value = acp() ? acp()!.usage.cost : child()?.cost

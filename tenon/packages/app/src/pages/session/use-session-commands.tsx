@@ -9,7 +9,7 @@ import { usePermission } from "@/context/permission"
 import { usePrompt } from "@/context/prompt"
 import { useSDK } from "@/context/sdk"
 import { isCommandThread } from "@/features/command-centre/command-centre"
-import { useSettings } from "@/context/settings"
+import { compactionModel, useSettings } from "@/context/settings"
 import { useSync } from "@/context/sync"
 import { useTerminal } from "@/context/terminal"
 import { showToast } from "@/utils/toast"
@@ -21,7 +21,10 @@ import { Message, Part, UserMessage } from "@opencode-ai/sdk/v2"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { useSessionArchive } from "@/pages/session/session-archive"
 import { createSessionOwnership } from "./session-ownership"
-import { useLocal } from "@/context/local"
+import { useServerSDK } from "@/context/server-sdk"
+import { compactHarnessForServer } from "@/utils/server"
+import { Harness } from "@tenon/schema/harness"
+import type { HarnessSession } from "@/utils/session"
 
 export type SessionCommandContext = {
   navigateMessageByOffset: (offset: number) => void
@@ -40,6 +43,7 @@ const withCategory = (category: string) => {
 
 export const useSessionCommands = (actions: SessionCommandContext) => {
   const platform = usePlatform()
+  const serverSDK = useServerSDK()
   const command = useCommand()
   const dialog = useDialog()
   const file = useFile()
@@ -51,7 +55,6 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   const sync = useSync()
   const terminal = useTerminal()
   const layout = useLayout()
-  const local = useLocal()
   const { params, sessionKey, tabs, view } = useSessionLayout()
   const sessionOwnership = createSessionOwnership(sessionKey)
   const sessionArchive = useSessionArchive()
@@ -318,18 +321,18 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   const compact = async () => {
     const sessionID = params.id
     if (!sessionID) return
-
-    const model = local.model.current()
-    if (!model) {
-      showToast({
-        title: language.t("toast.model.none.title"),
-        description: language.t("toast.model.none.description"),
-      })
-      return
-    }
-
+    const info = sync().session.get(sessionID) as HarnessSession | undefined
+    const harness = info?.harnessInstanceID ?? Harness.OpenCode
+    // The server picks how: Claude Code and OpenCode run their own /compact, Codex compacts on its side, and the
+    // built-in agent and other harnesses get a summary from Tenon. Once a thread's prompt cache has gone cold,
+    // reloading its history costs as much as the first read, so a harness's cheaper compaction model does it instead.
+    const last = info?.time.updated ?? info?.time.created ?? Date.now()
+    const model =
+      harness === Harness.OpenCode
+        ? undefined
+        : compactionModel(settings.harnesses.compaction(harness), (Date.now() - last) / 60_000)
     try {
-      await sdk().api.session.compact({ sessionID, model: { providerID: model.provider.id, modelID: model.id } })
+      await compactHarnessForServer({ server: serverSDK().server.http, fetch: platform.fetch }, sessionID, model)
     } catch (error) {
       showToast({
         title: language.t("common.requestFailed"),

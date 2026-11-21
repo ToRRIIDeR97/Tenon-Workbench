@@ -64,16 +64,21 @@ platform exposes `dictation` (desktop); the web build has no mic.
   (optional `language`, an ISO 639 code; missing or `auto` detects),
   `stop`, `cancel`, `transcribe_file` (`path`, a PCM WAV file), each with an
   `id`. Events: `ready` (at launch and after a load), `level` (`rms`, about every
-  90 ms while recording), `partial` (`text`, the recording so far, while
-  recording), `final` (`id`, `text`), and `error` (`id` when it
+  90 ms while recording), `bands` (`values`, 24 frequency bands from 80 Hz to
+  6 kHz, 0 to 1, every 30 ms chunk, for the composer's voice wave; one
+  Hann-windowed Goertzel filter per bin in `audio.rs`), `partial` (`text`, the
+  recording so far, while recording), `final` (`id`, `text`), and `error` (`id` when it
   answers a request, `code`, `message`). Malformed lines and unknown types get
   `bad_request`; the engine keeps running. Stdout carries only events; native
   logs go to stderr, which the supervisor drains without logging.
 - **Supervisor.** `desktop/src/main/dictation.ts` (`createDictation`) spawns the
   engine on the first `start`, loads the active model, and maps events to
   `start({ language })`, `stop(): Promise<string>`, `cancel()`, `status()`,
-  `onLevel` and `onPartial` (only while recording). The mic shows the partial
-  text in a caption above it; the spoken language comes from Settings ›
+  `onLevel`, `onBands` and `onPartial` (only while recording; IPC
+  `dictation-level`, `dictation-bands`, `dictation-partial`). While recording,
+  the composer shows the live words (merged with `mergeCaption`, so the caption
+  only grows) and a 32-bar wave at the top of its own box (#328); the compact
+  composer keeps a floating caption above the mic; the spoken language comes from Settings ›
   Dictation (`dictation-language.ts`: by default English for an English app and
   detection for any other, so a speaker whose app language differs isn't
   translated; or the app's language, detection, or a chosen language). Every run
@@ -399,9 +404,24 @@ assume the session or draft databases can be reconstructed from those files.
 
 ### Projects and thread directories
 
+A Project's Tasks also list its repository's GitHub issues (#331,
+`app/src/features/second-brain/project-github-tasks.tsx`): every open issue is
+a task with the pull request that closes it (merged, checks failing, changes
+requested, in review, draft), and under All the issues closed in the last two
+weeks show as done. `POST /api/github/work` (location = the Project folder;
+`core/src/github/work.ts`) reads `git remote get-url origin` (or a repository
+the Project names, kept in the `project-github.v1` global key) and runs
+`gh issue list` and `gh pr list --json ...` with the user's own `gh` login,
+cached a minute per folder. Rows open on GitHub; without `gh`, signed out, or
+without a GitHub origin, the block says so. `gh` is found on PATH and the
+Windows install folders (`which`).
+
+
 A workspace's Projects are the subfolders of its `projects` folder (matched in
-any letter case, skipping hidden folders and legacy `project_<id>` card
-folders) and the absolute folders listed in `.tenon/workspace.json`. Each has a
+any letter case, skipping hidden folders, legacy `project_<id>` card
+folders, linked git worktrees (a `.git` file rather than a folder) and folders
+holding only such worktrees, which are another Project's working copies) and
+the absolute folders listed in `.tenon/workspace.json`. Each has a
 Project card whose `location.path` names the folder (workspace-relative, or
 absolute for a linked folder). `BrainProject.threadDirectory` resolves a
 Project's directory: that folder; otherwise the worktree of the Tenon project
@@ -701,7 +721,48 @@ assistant that spans workspaces, with its own threads, memory and routines.
   one with the harness and model from Settings › Command Centre. The list
   refreshes when the page opens and, debounced, on `session.created/updated/deleted`
   events for that folder, so archives, deletes and routine runs show up.
-- **Mission control.** The page also shows a board of every Project's threads
+- **The hub.** `/command` opens on the hub (`features/command-centre/hub-view.tsx`
+  `CommandHub`, its data worked out in the pure `hub-model.ts`), not on a thread.
+  A band names the Command Centre's harness and model (the newest Command
+  Centre thread's) and what is running; Needs you lists the waiting queue
+  (`createWaitingQueue`) with Allow and Deny for permissions; then a card per
+  Project (`hubCards`: outcome, next milestone and progress from
+  `useBrainProjects`, the harnesses working in it with the Command Centre's first
+  when it started one of its threads, and the newest running thread as the
+  card's last line). A card opens `?project=<id>` (`projectCrew`): the Project's
+  lead thread (`origin.lead`; for older Projects, the Command Centre thread that
+  last started work there), with its checklist as the plan,
+  then an agent card per thread (the lead's delegates included) that needs you, runs, or changed in the last day,
+  split by `crewGroups` into Working (needs you first, then running) above Finished
+  (harness logo and model label, thread title, the checklist step "n of m" from
+  `serverSync().session.todo`), and the day's Command Centre actions on those
+  threads. An agent opens a panel with its plan, latest reply, Open thread and
+  Stop. Chat is the composer docked at the foot: focusing it opens a sheet with
+  the latest exchange, and sending goes to the newest Command Centre thread
+  (`centre.send`), prefixed with the open Project. Cards and agents are listed by
+  id so a live update rewrites them in place. It reads only the sidebar's
+  groups, the synced run state and checklists: no polling.
+- **Command Centre threads.** A Command Centre thread opened from the hub, the
+  strip or the sidebar is the thread page (`pages/session.tsx`, which knows a Command Centre thread by
+  `isCommandThread`), with the Command Centre's chrome from
+  `features/command-centre/command-thread-chrome.tsx`: the title row reads
+  "Command Centre" with a menu of its threads and New thread (`centre.create()`,
+  an empty thread opened straight away); the header has the page's views
+  (`CommandViews`: Hub, Waiting on you, Workflows, Routines), where
+  Waiting on you and Workflows go to `/command?view=waiting|workflows`; and the
+  board sits beside the thread as a 380 px Mission panel (`CommandMissionPanel`,
+  shown on desktop, toggled and kept in `command.mission-panel`). A thread the
+  hub, a crew, the Mission panel, the thread menu or the strip opens carries
+  `commandBackState(<where it was>)` in the history state, so the thread header's
+  Back (`thread-back.ts` `threadBack`) steps back to that exact screen; a Command
+  Centre thread reached another way goes back to `/command`. The rail keeps
+  its Command Centre entry lit on those threads. Each turn's writes,
+  including the Command Centre's own actions (`project`, `thread`, `steer`,
+  `stop` `agent.write` events from `project_setup`, `thread_start`,
+  `thread_message` and `thread_stop`, which have no undo), show as one
+  Done-for-you list under the reply (`AgentWritesDone`), with Open going to
+  the Project or thread.
+- **The board.** The Mission panel shows a board of every Project's threads
   (`features/command-centre/mission-board-view.tsx`; the sort and grouping are the
   pure `mission-board.ts`). It adds no request and no polling: it reads the sidebar
   controller's thread groups (`useSidebarController().groups()`, built from the
@@ -738,7 +799,13 @@ assistant that spans workspaces, with its own threads, memory and routines.
   publishes that anchor through `command-strip-anchor.ts` and only the strip's
   own style changes, never a custom property on `<html>`, which would restyle
   the whole document on every frame of a column resize); open, a 640 px, 24 px-radius card
-  named "Command Centre" with the latest exchange (your last message,
+  named "Command Centre" that briefs first: the counts (running, needs you,
+  done today, from the board's `boardByState` via `command-briefing.ts`); the
+  oldest request waiting on you (`createWaitingQueue`), a permission answered
+  in place with Deny or Allow once (`api.permission.reply` through the thread's
+  folder), a question opened in its thread, "+N more" going to Waiting on you;
+  the two newest running threads with their checklist step and progress
+  (`todo` items; "+N more running" after them); then the latest exchange (your last message,
   `lastAskText`, and the reply drawn as Markdown, as the desktop widget draws
   it: capped at about five lines with a fade, "Show more" lets it grow and
   scroll inside the card; `lastReplyText` keeps the reply's line breaks for
@@ -747,7 +814,7 @@ assistant that spans workspaces, with its own threads, memory and routines.
   (`centre.send(text, latest.id)`); New thread makes the next send start one.
   The card and the page share the persisted draft (`composer.command`). When the
   shown thread waits on an approval or a question (`needsYou`), the card offers
-  "Review in thread"; it never answers approvals itself. Ctrl+J / Cmd+J
+  "Review in thread". Ctrl+J / Cmd+J
   (`commandCentre.strip.toggle`, `mod+j`) or a click opens it; Esc closes it. Height moves over 300 ms
   emphasized-decelerate when opening and 200 ms emphasized-accelerate when
   closing, with no motion under reduced motion. When the latest reply made
@@ -786,10 +853,14 @@ assistant that spans workspaces, with its own threads, memory and routines.
   `tor-feature-map-verification` and `tor-workflow`, then creates the Project
   card (a folder outside the workspace is also linked) and an empty vault
   timeline. A setup that fails before the card is written removes a folder it
-  created; after that the folder stays with its Project. Command Centre
-  sessions call it as the `project_setup` app tool.
+  created; after that the folder stays with its Project. Every thread can
+  call it as the `project_setup` app tool (`workspace` defaults to the
+  thread's own), then `thread_start` to open a root thread in that Project
+  (or `general`) on the caller's harness and model, with a first message
+  delivered the way `thread_message` sends one.
 - **Tools.** `AgentAppTools.list({ sessionID })` (synchronous) gives a
-  Command Centre thread the app tools plus `memory_search`, `project_setup`,
+  Command Centre thread the app tools (which include `project_setup` and
+  `thread_start`) plus `memory_search`,
   the thread tools (below) and, when `TENON_MAIL_URL` and `TENON_MAIL_TOKEN` are set, `mail_search`,
   `mail_read` and `mail_draft` (`tenon/src/agents/mail-tools.ts`, which posts
   JSON to the desktop's `/search`, `/thread` and `/draft` with the bearer
@@ -1044,7 +1115,41 @@ check, and one from the last 30 s is reused when a page opens again
 always ask. Picking a harness starts it on the model last used with it
 (`harness.models.v1`). In a thread, `createHarnessSwitchQueue`
 (`harness-switch.ts`) shows the pick at once and sends picks in order; a
-message sent meanwhile waits for the switch instead of being refused. The
+message sent meanwhile waits for the switch instead of being refused.
+`SessionV2.switchHarness` accepts a model or effort change on the same harness
+while the thread runs (the runner reads `harnessModel` when a turn starts, so it
+applies from the next turn); a switch to a different harness while one runs is
+refused with `OperationUnavailable`. Every view applies the server's
+`session.next.harness.switched` event to its cached session
+(`context/server-session.ts` `applyV2`), so the model pill names the model the
+next turn runs on even when the switch came from elsewhere.
+
+`/compact` posts `/api/session/:id/compact` with an optional `model`
+(`compactHarnessForServer`); `SessionV2.compact` refuses a running thread (503)
+and picks how by harness:
+
+- Claude Code and OpenCode over ACP (`NATIVE_COMPACT`), and any ACP agent that
+  reported a `compact` command (`HarnessRuntime.reportedCommands`): the harness's
+  own `/compact`, switched to the given model for that turn and back afterwards.
+- Codex: `SessionRunner.compact` → `HarnessRuntime.compact` → `codexCompact`,
+  which sends `thread/compact/start` and waits for that thread's `turn/completed`.
+  Codex compacts on the thread's own model.
+- The built-in agent: the runner's `SessionCompaction.compactAfterOverflow` with
+  reason `manual`.
+- Any other harness: `SessionCompaction.record` writes the summary as a one-off
+  prompt (`HarnessRuntime.complete`) on the given model, retrying on the thread's
+  own if that comes back empty. A `manual` `Compaction.Ended` drops the thread's
+  `harnessContinuations` (projector) and closes its runtimes
+  (`closeOnRevertCommit`), so the next turn opens a fresh native session whose
+  handoff carries the summary and the recent turns.
+
+Tenon-side compaction keeps the newest turns (`compaction.keep.tokens`, default
+8,000) verbatim, so a short thread answers "Nothing to compact yet". Settings →
+Harnesses → Compaction keeps a per-harness `{ model, coldMinutes }` (default 29;
+not offered for Codex or the built-in agent): a thread idle that long has lost
+its prompt cache, so `/compact` (`compactionModel`) uses the cheaper model. While
+a turn runs the model pill keeps model and effort usable (`harnessLocked` locks
+only the harness). The
 Command Centre's `createComposerHarness` reads the remembered list while its
 query is pending instead of suspending.
 
@@ -1278,6 +1383,12 @@ Other harness output is mapped onto the built-in views:
   (`codexInputItems`); an ACP agent gets local files as `resource_link` and,
   when it advertises `promptCapabilities.image`, pasted images as `image`
   blocks (`acpPromptBlocks`). Other attachments stay a text mention.
+- A folder dropped onto the composer from the file manager becomes an `@name`
+  directory mention (`application/x-directory`) carrying the path the desktop
+  shell reports for it (`sortDrop`, `folderMention` in
+  `session-ui/.../prompt-input/attachments.ts`); the built-in loop reads it as
+  a listing, as for any directory mention. A browser, which has no path for a
+  dropped folder, shows the unsupported-file toast.
 The child's updates are attached to the subagent call (`acp_subagent`) that
 started it:
 
@@ -1404,7 +1515,29 @@ thread folder's history. When an ACP session is reopened with
 (`replayedCost`), so the next turn records only its own cost.
 
 Each harness runtime has a turn gate: approvals asked during a turn are
-withdrawn and denied when the turn ends (`turnGate`). Codex's
+withdrawn and denied when the turn ends (`turnGate`). Between turns a request
+is denied at once, except while OpenCode subagents sent to the background are
+still out (`Session.backgroundWorking`): their requests go to the dock and wait,
+since a denial makes OpenCode cancel the subagent.
+
+OpenCode answers `session/prompt` as soon as it has sent subagents to the
+background, then takes up each result in a turn of its own on the parent, which
+it never sends over ACP. So an ACP turn with background subagents out (its own,
+or ones an earlier turn left) stays open after the prompt is answered
+(`followBackground` in `acp.ts`): every 3 seconds it reads the parent's newest
+messages with `opencode api GET /api/session/:id/message`
+(`openCodeMessageLookup`), turns each new completed reply into the ACP updates
+OpenCode would have sent live (`openCodeMessageUpdates`: reasoning, text,
+finished tool calls, and a subagent's `<subagent …>` notice as a short note)
+and parses them like any other. It ends once every child has reported and the
+agent is idle (`followProgress`), 30 seconds after the last report with nothing
+new, at the one-hour background limit, or when the agent process exits. A new
+message ends the wait without `session/cancel`, which would stop the subagents
+too; the next turn picks up the ones still out. Stop cancels the session,
+subagents included. A subagent counts as out until its notice is seen or the
+hour passes (`state.background`), not until another turn ends. The harness
+environment passes `XDG_STATE_HOME`, where OpenCode records its managed
+service, so `opencode api` reaches the same OpenCode as the agent. Codex's
 `item/tool/requestUserInput` goes through the same asker as `ask_user`, so the
 end of a turn withdraws it too. A refused ACP model
 switch ends the turn with an error naming the model; that turn, like a prompt
@@ -1495,18 +1628,85 @@ options considered are in [ADR-011](../adr/ADR-011-cross-harness-delegation.md).
   routes (`tenon/src/server/routes/instance/httpapi/server.ts`). It runs
   each task as a child Run: `SessionV2.create({ parentID, harnessInstanceID,
   harnessModel, location })` in the caller's location, then `prompt` with the
-  task text and `resume`. The task ID is the child's session ID, and the
+  task text (`framedTask`: who delegated it, the final-report rule, and scope
+  lines telling the delegate to read only what the task needs and skip
+  lead-agent workflow steps from instruction files while still following their
+  code style, safety, git and check rules) and `resume`. The task ID is the child's session ID, and the
   result is the child's last assistant reply (capped at 100,000 characters).
+- `project_lead` (`project_id`, `goal`, Command Centre threads only) gives a goal to the
+  Project's lead. `project_id` (here and in `delegate_to_project`) is a Project id from
+  `threads_overview`, or the Project's exact name (any case) when no Project in another workspace
+  shares it (`AgentAppTools.projectFolder`). The lead is one root thread in the Project's folder with `metadata.origin = { sessionID,
+  commandCentre: true, lead: true }`. The first goal creates it (on the given agent and model, else the
+  caller's) with `leadBrief`; later goals go to the same lead as `nextGoal`, steered in when it is
+  working, and its notices move to the Command Centre thread that gave the latest goal. Any Command
+  Centre thread may read, steer or stop a lead. The lead runs its own delegates with `delegate_task`
+  (child Runs under it), so the Command Centre runs Projects, not their agents.
+- Delegated threads (a `parentID`, or an `origin` that is neither a hand-off nor a lead) read
+  `DELEGATE.md` in place of each `AGENTS.md` that has one beside it, in the Tenon config folder or a
+  Project (`InstructionContext.Role`, set per thread by `SessionRunner.loadSystemContext`). The swap
+  covers the built-in loop and the `<tenon-context>` block harnesses get; Claude Code still loads its
+  own `CLAUDE.md`, so the delegate brief (`framedTask`) carries the scope rules too.
+- With `delegate_to_project` (`project_id`), the task runs in that Project instead: the app-tools
+  provider resolves the Project's thread folder (`HarnessAppTools.projectFolder`,
+  answered by `tenon/src/agents/app-tools.ts` `projectFolder` from the caller's
+  workspace; never the Command Centre folder), and the task is created as a
+  root Run there with `metadata.origin = { sessionID: caller, commandCentre }`
+  (`commandCentre` when the caller's folder is `.command-centre`). An unknown
+  Project fails the call and creates nothing. Ownership and the depth limit
+  follow `origin` as they follow the parent link (a visited set ends a cycle),
+  and an unattended routine's prompt refusal follows it too
+  (`command-threads.ts` `refusePrompts`). `thread_start` stamps the same
+  `origin` with `handOff: true`, which counts toward neither. `Session.Info.origin` exposes it; the renderer reads it from
+  that field or the legacy `metadata.origin` (`hub-model.ts` `sessionOrigin`),
+  and the home session index keeps it, with the harness, in the legacy
+  summary's `metadata`.
 
 Tools: `list_agents` (harness instances with models and reasoning efforts,
 the caller's own marked `current`), `delegate_task` (`agent`, `task`, optional
 `model`, `reasoning_effort`, `title`, `wait_seconds` up to 600, default 300),
-`task_result` and `cancel_task`. A task still running when `delegate_task`
-returns is collected with `task_result`. A delegated agent may delegate once
+`delegate_to_project` (the same plus a required `project_id`),
+`task_result`, `cancel_task` and `message_task` (`task_id`, `text`). Project
+placement is its own tool because Claude Code keeps the first copy of each
+tool's schema for the life of a session: a long-running lead never saw a
+`project_id` added to `delegate_task` later, while a new tool reaches it. The
+handler still accepts `project_id` on `delegate_task` from sessions that saw
+that schema. A task still running when `delegate_task`
+returns is collected with `task_result`; while it runs, `task_result` returns
+`progress` (minutes running, the task's checklist from `SessionTodo` and its
+latest note). `message_task` steers a running task (`delivery: "steer"`) and
+refuses one that has finished, since prompting it would start an untracked run.
+Every `CHECK_IN_MS` (12 minutes) a running task queues its caller a
+`[Tenon] Check-in on task_id …` notice, unless a call is waiting on the task or
+an earlier check-in for it is still queued. Timers stop when the task finishes
+and when the handler is uninstalled. When a task finishes and no
+`delegate_task` or `task_result` call is waiting on it (and the caller didn't
+cancel it), the handler queues the caller a `[Tenon]` notice naming the task
+and its outcome (`delivery: "queue"`, `delegation-tasks.ts` `notify`). The notice waits for a running
+turn to end and wakes an idle caller, so a lead that ended its turn while its
+workers ran carries on when they finish. The notice says the task finished,
+failed, was stopped (an interruption while the server runs: the caller is told
+not to restart it unless the user asks), or was interrupted because Tenon
+closed. The handler's release sets `closing` before the session runner
+interrupts the tasks (the runner is built beneath it, so it is released after),
+and those notices tell the caller to start the task again from its files. On
+start, after `wakeDelayMs` (5 seconds), the handler calls
+`SessionV2.wakeQueued` for threads whose next queued input is a `[Tenon]`
+notice: an advisory `SessionExecution.wake` that only drains the inbox, so the
+lead hears about the interrupted tasks without anyone prompting it. A message
+the user queued is left for the user. Tasks still running at shutdown are not
+resumed. A Command Centre thread finds `project_id` values in
+`threads_overview`'s `projects`, which lists every Project in the workspace,
+including ones with no threads. A task delegated without a Project runs in the
+Command Centre folder; the hub's band counts the running ones ("N tasks running
+outside a Project", `useCommandCentre().tasks`), and the Command Centre's
+own thread list leaves them out. A delegated agent may delegate once
 more (depth 2); a Run may have four tasks running at once; only the Run that
 started a task can read or stop it. Child Runs nest under the caller in the
 sidebar, and their approvals reach the caller's composer through the existing
-session request tree.
+session request tree. A Project-placed task lists with the Project's threads
+(with the Command Centre mark when the Command Centre started it) and asks
+for approvals in its own thread, which the Command Centre's Needs you lists.
 
 ### Questions from harnesses
 
@@ -1538,7 +1738,11 @@ answer that delegation is turned off.
   `tool_timeout_sec=660`, and the OpenCode harness gets
   `experimental.mcp_timeout: 660000` in its `OPENCODE_CONFIG_CONTENT` launch
   config (`HarnessSetup.openCodeLaunchEnv`) unless the user's global OpenCode
-  config sets one; its default is 60 s. An ACP agent the user added waits at
+  config sets one; its default is 60 s. Claude Code gets `MCP_TOOL_TIMEOUT` and
+  `CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT` of 660000 in its launch environment
+  (`HarnessSetup.claudeCodeLaunchEnv`) unless Tenon's own environment sets them:
+  without them it ends a call to an HTTP server after 60 s, and a silent one
+  sooner (a `project_lead` waiting on a busy lead failed at 30 s). An ACP agent the user added waits at
   most 50 s, below the MCP SDK's 60 s default. If the user hasn't answered, it
   returns a "still open" text; calling again with the
   same questions in the same turn keeps waiting without asking twice, and an
@@ -1696,6 +1900,56 @@ global event stream for `agent.write` and keeps the last 50 writes.
   (`/notes?page=`), the Project log (`/notes?project=…&tab=log`), the Project
   (`/notes?project=`) or the item's day (`/calendar?date=YYYY-MM-DD`). Neutral v2 tokens throughout; the accent is only the active dot.
 
+### Thread terminals
+
+Each thread has its own terminal tabs and its own panel toggle, also when
+several threads share a folder.
+
+- The renderer keys a thread's tabs by folder and session
+  (`getThreadTerminalCacheKey` in `app/src/context/terminal.tsx`) and persists
+  them per session (`Persist.serverSession(…, "terminal")`); a page with no
+  thread yet uses the folder's key. Whether the panel is open is per thread
+  too (`terminalOpened` in the layout's session view); its height stays
+  global. Tabs a folder's threads shared before this aren't carried over.
+- Opening the panel on a thread with no terminals starts one. Closing the
+  last tab closes the panel and starts nothing (before, the panel started a
+  replacement at once, so the Environment window's count never dropped).
+- A tab goes away when its PTY exits (`pty.exited`) or is removed anywhere
+  (`pty.deleted`), such as by another window or `terminal_stop`.
+- Agents start long-running commands in the thread's terminals with three app
+  tools in every thread outside the Command Centre
+  (`tenon/src/agents/terminal-tools.ts`): `terminal_start { command, title? }`
+  opens the user's shell in the thread's folder and types the one command
+  line into it, `terminal_read { terminalId?, lines? }` lists the thread's
+  agent terminals or returns one's last lines as plain text (escape sequences
+  dropped, at most 400 lines and 12,000 characters), and `terminal_stop`
+  removes it. A subagent's terminal belongs to its root thread. The PTY
+  carries that thread in `Pty.Info.sessionID`, which only the server sets
+  (`Pty.CreateOptions`; the HTTP create route drops it), and `Pty.output`
+  returns its retained buffer. At most 6 run per thread.
+- The renderer adds a thread's agent terminals to its tabs: on `pty.created`
+  while the thread is open (the panel opens without taking focus), and from
+  the PTY list when the thread loads (`agentTerminalTab`). The user's own tabs
+  carry no thread, so an agent never sees or reaches them.
+- The built-in loop asks the thread's `bash` permission for the command
+  (`HarnessAppTools.Tool.permission`); Codex and ACP agents apply their own MCP
+  tool policy, as for every app tool.
+
+### Thread documents
+
+The side panel's Documents section (`pages/session/documents-tab.tsx`, rail
+button after Files) lists the documents the thread's agent wrote, edited or
+linked, newest first with any being written on top. `threadDocuments`
+(`pages/session/documents.ts`) reads the thread's synced messages: `write` and
+`edit` calls (`liveWrites`), Markdown links to local files (`localLinkTarget`)
+and paths cited in inline code (`parseFileReference`). Only files the panel's
+viewer renders count (`viewerKind`: Markdown, CSV, JSON, PDF, video,
+spreadsheets, Word), and each path must resolve inside the thread's folder or
+be a plain absolute path outside it, as for file links. A row opens through the
+same `onFileReference` as a file link in the thread: a Files tab inside the
+folder, the read-only viewer or default app outside it. Nothing new is stored
+or read from disk to build the list.
+
 ### Harness model lists
 
 The picker shows the models each harness reports, not a list saved when the
@@ -1817,7 +2071,13 @@ Codex and ACP harnesses. The renderer's `HarnessUpdateNotifier` (mounted in the
 app shell) checks once per server connection. It shows a toast for each
 available update with Update and Later. Later hides that version until a newer
 one comes out (`harness-updates` global key). Settings → Harnesses shows the
-version, an update badge, and an Update button.
+version, an update badge, and an Update button. The toast, Settings and the
+harness pickers share one registry (`app/src/components/harness-upgrades.ts`):
+upgrades of different harnesses run at once, a second start of the same one
+joins the first, and Settings locks its actions per harness. While a listed
+harness is unavailable, the pickers ask for update statuses again (at most once
+a minute), and the composer's model pill offers Update in that harness's row,
+or shows the first line of its error (`harness-update-choice.ts`).
 
 `POST /api/harness/upgrade/:id` runs the detected installer's update with a
 5-minute timeout (`updateCommand`): `npm install --global --prefix <prefix>
@@ -1947,8 +2207,20 @@ scoped) returns `{ tenon, harnesses }`, assembled by `HarnessSkills.catalog`
     this server process.
 
 Only names, descriptions and paths leave the server, never skill content.
-Harness sections are read-only. Each Tenon row has a switch, plus Open file on
-a local desktop server, otherwise Copy path.
+Each Tenon row has a switch, plus Open file on a local desktop server,
+otherwise Copy path. A harness skill in a home or project skill folder has a
+switch too (#323); one in `/etc/codex/skills`, or a command an ACP agent only
+reported, stays read-only. Every harness loads a skill by the exact file name
+`SKILL.md`, so switching one off renames that file to `SKILL.md.disabled` in
+place and switching it on renames it back; the catalog lists both names, with
+`enabled` and `editable`. The row says so, and when another harness reads the
+same file (OpenCode also reads `~/.claude/skills`) it says the switch changes
+both. Threads already open keep the skill until their harness restarts.
+
+A harness skill's switch sends `{ name, enabled, harness }` to the same
+route. `HarnessSkills.switchSkill` scans that harness's folders again, finds the
+skill by name (the renderer never sends a path), and renames it; it never
+renames over an existing file.
 
 Switching a Tenon skill off calls `POST /api/skill/enabled` (`{ name,
 enabled }`), which `HarnessSkills.setEnabled` checks against `SkillV2.all()`
@@ -2097,6 +2369,37 @@ note preview keep `html` blocks as highlighted code.
   (`app/src/pages/session/design-canvas.tsx`, mounted in `SessionProviders`).
   Without a provider, or outside a saved desktop session, windows have no
   action buttons. Canvas state is in memory per session.
+
+### Viewer windows and Project artifacts
+
+A fenced block tagged `view` lists files the agent wants the user to see, one
+path (relative to the thread folder) or https URL per line
+(`ChatDisplay.viewGuidance` tells every agent). `session-ui/src/components/view-window.ts`
+parses it (`viewItems`: other URL schemes are dropped, at most 12 items) and
+`mountViewWindows` builds a window per file with Open and Pin to Project (both left
+out when the app can't place the file, `ViewSpace.available`); the markdown worker
+keeps the `language-view` class (`aliases`). The app draws each file through
+`ViewSpaceProvider` (`pages/session/file-reference.tsx`,
+`features/artifacts/view-renderer.ts`). A path is looked up in the thread's folder
+and then in every Project's thread folder (`locateView`), so a Command Centre
+thread can show and pin a Project's files. Images, video and audio play inline,
+PDFs open in a reader frame, `.glb`/`.gltf` models turn on a three.js stage
+loaded only when one is shown, and markdown, CSV and JSON show an excerpt. Files
+load through the desktop's `tenon-file://` URL when it serves them, else from the
+server's file read for that folder (base64, or a typed blob URL for text). A
+remote URL shows only as image, video or audio, and only after the user clicks
+"Load from <host>".
+
+Pinned files are the Project's artifacts (`features/artifacts/artifacts.ts`). A
+Project's list lives on its vault page `Artifacts.md` (`properties.artifacts`,
+with a readable list in the body), so it follows the vault and agents read it
+with `notes_read`; paths are relative to the Project's folder (`rebase`), so a
+worktree thread agrees with the rest. A folder outside every Project keeps its
+list on this machine (`artifacts.v1`). The list shows at the top of the Documents
+section and on the Canvas tab's Files board; a Command Centre thread's Mission
+panel has a Files view with every Project's pins. Each file shows in its viewer
+with a note field; Send notes puts the notes in the composer and sends them, as
+design notes do.
 
 ### File references in chat
 
@@ -2678,7 +2981,9 @@ From the 11 Nov feedback list ([triage](../product/FEEDBACK-2026-11-11.md)):
   `edit`/`delete`/`move` → `edit`, other tools → `acp_tool`). The modes can only
   answer requests the server raises, so the built-in agents' rules
   (`core/src/plugin/agent.ts`) ask for `bash`, `edit`, `webfetch`, `websearch`,
-  `mcp` and `acp_tool` in every folder; config rules can still allow them. Codex
+  `mcp` and `acp_tool` in every folder; config rules can still allow them. The
+  legacy in-process loop's agents (`tenon/src/agent/agent.ts`) ask `mcp` too,
+  and its MCP tool calls raise `mcp` for the server (`MCP.permission`). Codex
   runs sandboxed commands without asking anyone, so Ask covers its escalations
   and MCP calls, not every command.
 - **Thread environment.** `components/session/thread-environment.tsx` is an
@@ -2718,10 +3023,20 @@ From the 11 Nov feedback list ([triage](../product/FEEDBACK-2026-11-11.md)):
   `data:text/plain` attachment (like a skill) on a thread's first message and
   when the model changes. Settings › Model profiles adds, imports a `profile.md`,
   edits and switches them; "Build with an agent" only opens a draft.
-- **Settings.** Built-in harness (Providers and Models), MCP servers (the global
-  config's `mcp` entries: an Installed list of settings rows with switches, Suggested
-  common servers as rows added in one click (`mcpSuggestions`), and Custom server for a local
-  command or remote URL;
+- **Settings.** Built-in harness (Providers and Models), MCP servers (the one
+  place for MCP, #334: the global config's `mcp` entries as one list; each row
+  shows the live status for the open workspace (`serverSync().child(dir, { mcp:
+  true })`), the fix in the row (Sign in for `needs_auth`, Retry for a failed
+  server, both through `serverSync().mcp.toggle`, where the server opens the
+  OAuth page in the system browser), which harnesses receive it (`mcpReach`:
+  a name that isn't a bare key never leaves Tenon, an HTTP server reaches an ACP
+  agent only if that agent supports HTTP), and a switch; a row opens in place to
+  show what it runs and Remove (`DELETE /global/config/mcp/:name`,
+  `Config.removeGlobalMcp`, which keeps a jsonc file's comments). Suggested
+  common servers are rows added in one click (`mcpSuggestions`), and Custom
+  server is a typed form (`mcpEntryFromForm`): a command with each argument
+  kept whole, environment variables, folder and timeout; a URL with headers;
+  or a pasted JSON entry. The MCP dialog links here (Manage in Settings);
   `core/src/harness/forwarded-mcp.ts` passes the enabled ones to Codex as `-c`
   overrides and to ACP agents in `session/new`, so every harness sees them),
   Skills search and per-harness filters, a VS Code theme import
@@ -2850,11 +3165,39 @@ product) adds three tools to Review, Session, Canvas, agent and file tabs.
   `app/src/pages/session/browser-tab.tsx`). The user can select elements (an
   isolated-world picker returns selector, text, HTML and key styles), annotate a
   screenshot (draw, capture a region, add notes) and send it to the composer.
-  The view hides while annotating or while a dialog is open.
+  The view hides while annotating or while a dialog is open, and until a page
+  has committed: a fresh tab, a first load, and a failed one show the tab's own
+  state instead of a blank view. Main reports a failed main-frame load
+  (`did-fail-load`, except `ERR_ABORTED`), a crashed page process and a
+  rejected certificate as `error` in `browser-state`
+  (`desktop/src/main/browser-failure.ts`); the tab shows it with the address
+  and Retry (`browserStage` in `app/src/pages/session/browser-stage.ts`).
 - **Device tab.** Android emulators and devices through the SDK's `adb` and
   `emulator` on macOS and Windows; the iOS Simulator through `simctl` on macOS
   (`idb` for taps). The screen is polled as PNG frames; a click is a tap
   (`desktop/src/main/device.ts`, `app/src/pages/session/device-tab.tsx`).
+
+Computer use (#333) is per Project and off by default. A Project page's
+Computer use card switches it for the Project folder (`GET`/`POST
+/api/computer-use`, saved in `computer-use.json` in Tenon's config folder,
+`core/src/harness/computer-use.ts`). Tenon runs the Cua Driver (trycua, MIT)
+itself, `cua-driver mcp` as a child of the server, and proxies its tools
+(`core/src/harness/computer-proxy.ts`): ACP agents get them on the `tenon` MCP
+server as `computer_*`, and the built-in agent gets them in-process
+(`core/src/tool/computer-tools.ts`, registered when the folder's services start
+with computer use on). Every call checks the switch first, so switching off
+refuses the next action. Reading the screen (read-only tools, or names like
+`screenshot`, `list_*`, `get_*`) never asks; the first click or keystroke in a
+thread asks once (ask_user for ACP agents: Allow for this thread, Just this
+once, Don't allow; a `computer_use` permission card for the built-in agent).
+Each action shows a pill on screen ("Gemini is using your computer", Stop) from
+the desktop bridge (`computer_indicator`, `desktop/src/main/computer-indicator.ts`);
+the server holds `computer_watch` open while active, and Stop shuts the driver
+down at once and forgets every thread's grant. Codex and Claude Code keep their
+own computer use and never get it. The card shows the driver's install command when
+`cua-driver` isn't on PATH, and on macOS asks for `cua-driver permissions
+grant` when Accessibility or Screen Recording is missing (`cua-driver
+permissions status`); Windows needs no grant.
 
 Agents always have the browser and device tools (`browser_*`, `device_*`). They
 are listed by the `tenon` MCP server when the desktop has started its bridge

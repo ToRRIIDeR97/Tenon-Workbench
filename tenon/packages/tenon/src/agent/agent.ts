@@ -135,6 +135,9 @@ const layer = Layer.effect(
             "*.env.example": "allow",
           },
           tenon_write: "ask",
+          // A user's MCP server can reach outside the folder (send mail, post, open issues), so each call asks
+          // and the thread's mode answers, as for the V2 agents; an unattended routine refuses it.
+          mcp: "ask",
         })
 
         // Command Centre threads read untrusted mail, so what can act on it or send it out asks first. Each

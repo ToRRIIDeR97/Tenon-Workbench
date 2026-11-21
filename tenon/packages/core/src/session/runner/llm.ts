@@ -37,13 +37,14 @@ import { SessionEvent } from "../event"
 import { SessionHistory } from "../history"
 import { SessionInput } from "../input"
 import { SessionMessage } from "../message"
+import { InstructionContext } from "../../instruction-context"
 import { SessionSchema } from "../schema"
 import { SessionStore } from "../store"
 import { SessionTable } from "../sql"
 import { SessionTitle } from "../title"
 import { SessionTodo } from "../todo"
 import { SessionV1 } from "../../v1/session"
-import { type RunError, Service } from "./index"
+import { type CompactResult, type RunError, Service } from "./index"
 import { SessionRunnerModel } from "./model"
 import { createLLMEventPublisher } from "./publish-llm-event"
 import { toLLMMessages } from "./to-llm-message"
@@ -262,10 +263,20 @@ const layer = Layer.effect(
     const continueAfterOverflowCompaction = (step: number) =>
       new TurnTransitionError({ _tag: "ContinueAfterOverflowCompaction", step })
 
-    const loadSystemContext = (agent: AgentV2.Selection) =>
+    // A thread another one started for a step (a delegate or subagent) gets DELEGATE.md in place of AGENTS.md; a
+    // Project lead and a thread handed off to the user keep the lead's files.
+    const loadSystemContext = (agent: AgentV2.Selection, session: SessionSchema.Info) =>
       Effect.all([systemContext.load(), skillGuidance.load(agent), referenceGuidance.load()], {
         concurrency: "unbounded",
-      }).pipe(Effect.map(SystemContext.combine))
+      }).pipe(
+        Effect.map(SystemContext.combine),
+        Effect.provideService(
+          InstructionContext.Role,
+          session.parentID !== undefined || (session.origin && !session.origin.handOff && !session.origin.lead)
+            ? "delegate"
+            : "lead",
+        ),
+      )
 
     // Each running drain's title starter, so a turn can start the title as soon as it promotes the first message.
     const titleOnPromotion = new Map<SessionSchema.ID, Effect.Effect<void>>()
@@ -280,7 +291,7 @@ const layer = Layer.effect(
       if (session.location.directory !== location.directory || session.location.workspaceID !== location.workspaceID)
         return yield* Effect.interrupt
       const agent = yield* agents.select(session.agent)
-      const initialized = yield* SessionContextEpoch.initialize(db, loadSystemContext(agent), session.id)
+      const initialized = yield* SessionContextEpoch.initialize(db, loadSystemContext(agent, session), session.id)
       const toolFibers = yield* FiberSet.make<void, ToolOutputStore.Error>()
       let needsContinuation = false
       let currentStep = step
@@ -300,7 +311,7 @@ const layer = Layer.effect(
         if (title) yield* title
       }
       const system =
-        initialized ?? (yield* SessionContextEpoch.prepare(db, events, loadSystemContext(agent), session.id))
+        initialized ?? (yield* SessionContextEpoch.prepare(db, events, loadSystemContext(agent, session), session.id))
       const driver = harnesses.driver(session.harnessInstanceID)
       const usesHostModel = driver === Harness.OpenCodeDriver
       const model = usesHostModel
@@ -669,11 +680,102 @@ const layer = Layer.effect(
       )
     })
 
+    // `/compact` for a thread whose harness has no `/compact` command. Codex compacts on its own side. The built-in
+    // agent and any other harness compact on Tenon's: the older history becomes a summary (the other harnesses write
+    // it as a one-off prompt, on the cold-cache model when one is given), and a harness thread's next turn opens a
+    // fresh native session that gets the summary as its handoff (projector and HarnessRuntime close the old one).
+    const compact = Effect.fn("SessionRunner.compact")(
+      function* (input: { readonly sessionID: SessionSchema.ID; readonly model?: Harness.ModelSelection }) {
+        const session = yield* getSession(input.sessionID)
+        const driver = harnesses.driver(session.harnessInstanceID)
+        if (driver === Harness.AcpDriver && harnesses.reportedCommands(session.harnessInstanceID)?.some(isCompact))
+          return { status: "native" } as const
+        const agent = yield* agents.select(session.agent)
+        const system =
+          (yield* SessionContextEpoch.initialize(db, loadSystemContext(agent, session), session.id)) ??
+          (yield* SessionContextEpoch.prepare(db, events, loadSystemContext(agent, session), session.id))
+        const systemParts = [agent.info?.system, system.baseline]
+          .filter((part): part is string => part !== undefined && part.length > 0)
+          .map(SystemPart.make)
+        if (driver === Harness.CodexDriver)
+          return yield* harnesses
+            .compact({
+              instanceID: session.harnessInstanceID,
+              sessionID: session.id,
+              directory: session.location.directory,
+              request: LLM.request({
+                model: harnessRequestModel(session),
+                system: systemParts,
+                messages: [],
+                tools: [],
+              }),
+              model: session.harnessModel,
+              revision: session.harnessRevision ?? 0,
+            })
+            .pipe(
+              Effect.map((done): CompactResult => (done ? { status: "done" } : { status: "unavailable" })),
+              Effect.catch((error) => Effect.succeed({ status: "failed" as const, message: error.message })),
+            )
+        const entries = yield* SessionHistory.entriesForRunner(db, session.id, system.baselineSeq)
+        if (driver === Harness.OpenCodeDriver) {
+          const model = yield* models.resolve(session)
+          const done = yield* compaction.compactAfterOverflow({
+            sessionID: session.id,
+            entries,
+            model,
+            request: LLM.request({ model, system: systemParts, messages: [], tools: [] }),
+            reason: "manual",
+          })
+          return done ? ({ status: "done" } as const) : ({ status: "unavailable" } as const)
+        }
+        let failure: string | undefined
+        const summarizeOn = (prompt: string, model: Harness.ModelSelection | undefined) =>
+          harnesses
+            .complete({
+              instanceID: session.harnessInstanceID,
+              request: LLM.request({
+                model: harnessRequestModel(session),
+                messages: [Message.user(prompt)],
+                tools: [],
+              }),
+              model,
+            })
+            .pipe(
+              Effect.map((text) => text.trim() || undefined),
+              Effect.catch((error) =>
+                Effect.sync(() => {
+                  failure = error.message
+                  return undefined
+                }),
+              ),
+            )
+        const done = yield* SessionCompaction.record(events, {
+          sessionID: session.id,
+          entries,
+          reason: "manual",
+          // A cold-cache model the harness answers with nothing (Command Code's one-off Haiku did) falls back to the
+          // thread's own model, so the compaction still happens.
+          summarize: (prompt) =>
+            summarizeOn(prompt, input.model ?? session.harnessModel).pipe(
+              Effect.flatMap((summary) =>
+                summary || !input.model ? Effect.succeed(summary) : summarizeOn(prompt, session.harnessModel),
+              ),
+            ),
+        })
+        if (done) return { status: "done" } as const
+        return failure ? ({ status: "failed", message: failure } as const) : ({ status: "unavailable" } as const)
+      },
+      Effect.catch((error) => Effect.succeed({ status: "failed" as const, message: String(error) })),
+    )
+
     return Service.of({
       run,
+      compact,
     })
   }),
 )
+
+const isCompact = (command: { readonly name: string }) => command.name.replace(/^\//, "") === "compact"
 
 /** Local tool calls after the latest user message, oldest first, for the repeated-call guard. */
 const localToolCallsSinceLastUser = (context: ReadonlyArray<SessionMessage.Message>) =>

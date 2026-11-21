@@ -10,6 +10,11 @@ export type FileReference = {
   start?: number
   end?: number
   kind?: "folder" | "either"
+  /**
+   * An absolute path outside the thread's folder, as an agent that worked elsewhere cites it. `path` is then the
+   * full path with forward slashes, and the app reads it from its own folder instead of the thread's.
+   */
+  outside?: boolean
 }
 
 // `path`, `path:10`, `path:10-20`, `path:10:4` (column ignored), `path#L10`, `path#L10-L20`.
@@ -115,6 +120,26 @@ export function resolveFileReferencePath(input: string, directory: string) {
   const segments = relative.split("/").filter((segment) => segment !== "" && segment !== ".")
   if (segments.length === 0 || segments.includes("..")) return
   return segments.join("/")
+}
+
+/**
+ * Returns an absolute `input` that lies outside `directory` as a normalized absolute path (forward slashes, no
+ * `.` or empty segments), or undefined for anything else: a relative or home-relative path, any `..` segment, or
+ * a path of the other platform's form (a `/…` path in a Windows thread folder, a drive path in a POSIX one).
+ */
+export function outsideFileReferencePath(input: string, directory: string) {
+  if (!input || !directory || /[\u0000-\u001f]/.test(input)) return
+  if (resolveFileReferencePath(input, directory) !== undefined) return
+  const windows = /^[A-Za-z]:[\\/]/.test(directory) || directory.startsWith("\\\\")
+  const value = windows ? input.replaceAll("\\", "/") : input
+  const drive = /^[A-Za-z]:\//.exec(value)?.[0]
+  if (windows ? !drive : !value.startsWith("/")) return
+  const segments = value
+    .slice(drive ? 3 : 1)
+    .split("/")
+    .filter((segment) => segment !== "" && segment !== ".")
+  if (segments.length === 0 || segments.includes("..")) return
+  return (drive ?? "/") + segments.join("/")
 }
 
 /**

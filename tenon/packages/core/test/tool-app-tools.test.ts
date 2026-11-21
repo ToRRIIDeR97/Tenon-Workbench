@@ -153,4 +153,29 @@ describe("AppToolsTool", () => {
       }),
     )
   })
+
+  // A tool that runs a program (terminal_start) asks the thread's shell permission for that command instead.
+  it.live("asks a tool's own permission on the field it names", () => {
+    const terminal: HarnessAppTools.Tool = {
+      name: "terminal_start",
+      description: "Start a terminal",
+      inputSchema: { type: "object", properties: { command: { type: "string" } }, required: ["command"] },
+      permission: { action: "bash", field: "command" },
+    }
+    uninstall = HarnessAppTools.install({
+      catalog: [terminal],
+      list: () => [terminal],
+      call: async () => ({ terminalId: "pty_1" }),
+    })
+    return withRegistry((registry) =>
+      Effect.gen(function* () {
+        yield* executeTool(registry, {
+          sessionID,
+          ...toolIdentity,
+          call: { type: "tool-call", id: "call-3", name: "terminal_start", input: { command: "bun run dev" } },
+        })
+        expect(assertions.map((input) => [input.action, input.resources])).toEqual([["bash", ["bun run dev"]]])
+      }),
+    )
+  })
 })

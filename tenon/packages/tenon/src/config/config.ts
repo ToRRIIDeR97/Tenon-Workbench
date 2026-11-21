@@ -11,7 +11,7 @@ import fsNode from "fs/promises"
 import { Flag } from "@tenon/core/flag/flag"
 import { Auth } from "../auth"
 import { Env } from "../env"
-import { applyEdits, modify } from "jsonc-parser"
+import { applyEdits, findNodeAtLocation, modify, parseTree } from "jsonc-parser"
 import { InstallationLocal, InstallationVersion } from "@tenon/core/installation/version"
 import { existsSync } from "fs"
 import { Account } from "@/account/account"
@@ -145,6 +145,15 @@ export interface Interface {
   readonly getConsoleState: () => Effect.Effect<ConsoleState>
   readonly update: (config: Info) => Effect.Effect<void>
   readonly updateGlobal: (config: Info) => Effect.Effect<{ info: Info; changed: boolean }>
+  /** Deletes one MCP server from the global config file; a patch can only add or change keys (#334). */
+  readonly removeGlobalMcp: (name: string) => Effect.Effect<{ changed: boolean }>
+  /** Renames a server and/or removes some of its fields in the file, keeping everything else, secrets included. */
+  readonly editGlobalMcp: (
+    name: string,
+    edit: { rename?: string; clear?: ReadonlyArray<string> },
+  ) => Effect.Effect<{ changed: boolean; error?: string }>
+  /** A server's environment variable and header names (never values), which `/global/config` hides. */
+  readonly globalMcpSecretNames: (name: string) => Effect.Effect<{ environment: string[]; headers: string[] }>
   readonly invalidate: () => Effect.Effect<void>
   readonly directories: () => Effect.Effect<string[]>
   readonly waitForDependencies: () => Effect.Effect<void>
@@ -181,6 +190,14 @@ function patchJsonc(input: string, patch: unknown, path: string[] = []): string 
   }
 
   return Object.entries(patch).reduce((result, [key, value]) => patchJsonc(result, value, [...path, key]), input)
+}
+
+/** A json config without one MCP server, or undefined when it has none of that name. */
+function withoutMcp(input: string, file: string, name: string) {
+  const existing = ConfigParse.schema(ConfigV1.Info, ConfigParse.jsonc(input, file), file)
+  if (!existing.mcp || !(name in existing.mcp)) return undefined
+  const { [name]: _removed, ...rest } = existing.mcp
+  return JSON.stringify({ ...writable(existing), mcp: rest }, null, 2)
 }
 
 function writable(info: Info) {
@@ -769,12 +786,88 @@ const layer = Layer.effect(
       return { info: next, changed }
     })
 
+    const removeGlobalMcp = Effect.fn("Config.removeGlobalMcp")(function* (name: string) {
+      const file = globalConfigFile()
+      const before = yield* readConfigFile(file)
+      if (before === undefined) return { changed: false }
+      // jsonc keeps the user's comments and layout: only the server's own key is removed.
+      const updated = file.endsWith(".jsonc")
+        ? applyEdits(before, modify(before, ["mcp", name], undefined, {}))
+        : withoutMcp(before, file, name)
+      const changed = updated !== undefined && updated !== before
+      if (changed) {
+        yield* fs.writeFileString(file, updated).pipe(Effect.orDie)
+        yield* invalidate()
+      }
+      return { changed }
+    })
+
+    const rawGlobalMcp = Effect.fn("Config.rawGlobalMcp")(function* () {
+      const file = globalConfigFile()
+      const text = yield* readConfigFile(file)
+      if (text === undefined) return { file, text, mcp: {} as Record<string, Record<string, unknown>> }
+      const parsed = ConfigParse.jsonc(text, file) as { mcp?: Record<string, Record<string, unknown>> }
+      return { file, text, mcp: parsed?.mcp ?? {} }
+    })
+
+    const globalMcpSecretNames = Effect.fn("Config.globalMcpSecretNames")(function* (name: string) {
+      const entry = (yield* rawGlobalMcp()).mcp[name] ?? {}
+      const keys = (value: unknown) =>
+        typeof value === "object" && value !== null ? Object.keys(value as Record<string, unknown>) : []
+      return { environment: keys(entry.environment), headers: keys(entry.headers) }
+    })
+
+    const EDITABLE = new Set(["cwd", "timeout", "environment", "headers"])
+    const editGlobalMcp = Effect.fn("Config.editGlobalMcp")(function* (
+      name: string,
+      edit: { rename?: string; clear?: ReadonlyArray<string> },
+    ) {
+      const { file, text, mcp } = yield* rawGlobalMcp()
+      const entry = mcp[name]
+      if (text === undefined || !entry) return { changed: false, error: `No MCP server is named "${name}".` }
+      const rename = edit.rename?.trim()
+      if (rename && rename !== name && mcp[rename]) return { changed: false, error: `"${rename}" is already a server.` }
+      const clear = (edit.clear ?? []).filter((key) => EDITABLE.has(key))
+      const next = { ...entry }
+      for (const key of clear) delete next[key]
+      const target = rename && rename !== name ? rename : name
+      const updated = file.endsWith(".jsonc")
+        ? renameKey(
+            // One change at a time, each against the text the last one left, so the edits never overlap.
+            clear.reduce(
+              (current, key) => applyEdits(current, modify(current, ["mcp", name, key], undefined, {})),
+              text,
+            ),
+            name,
+            target,
+          )
+        : JSON.stringify(
+            {
+              ...writable(ConfigParse.schema(ConfigV1.Info, ConfigParse.jsonc(text, file), file)),
+              mcp: Object.fromEntries(
+                Object.entries(mcp).flatMap(([key, value]) => (key === name ? [[target, next]] : [[key, value]])),
+              ),
+            },
+            null,
+            2,
+          )
+      const changed = updated !== text
+      if (changed) {
+        yield* fs.writeFileString(file, updated).pipe(Effect.orDie)
+        yield* invalidate()
+      }
+      return { changed }
+    })
+
     return Service.of({
       get,
       getGlobal,
       getConsoleState,
       update,
       updateGlobal,
+      removeGlobalMcp,
+      editGlobalMcp,
+      globalMcpSecretNames,
       invalidate,
       directories,
       waitForDependencies,
@@ -789,5 +882,14 @@ export const node = LayerNode.make({
   layer: layer,
   deps: [FSUtil.node, Auth.node, Account.node, Env.node, Npm.node, httpClient],
 })
+
+/** Renames `mcp.<name>` by rewriting only its key, so the entry's comments and layout stay where they were. */
+function renameKey(text: string, name: string, target: string) {
+  if (target === name) return text
+  const tree = parseTree(text)
+  const key = tree ? findNodeAtLocation(tree, ["mcp", name])?.parent?.children?.[0] : undefined
+  if (!key) return text
+  return text.slice(0, key.offset) + JSON.stringify(target) + text.slice(key.offset + key.length)
+}
 
 export * as Config from "./config"
