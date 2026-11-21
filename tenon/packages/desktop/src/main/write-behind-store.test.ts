@@ -29,6 +29,24 @@ describe("write-behind store", () => {
     expect(disk.calls.read).toBe(1)
   })
 
+  test("stores have no prototype, so inherited names read as missing", () => {
+    const store = createWriteBehindStore(backend({ "a.dat": { k: "v" } }), 10)
+    expect(store.get("a.dat", "toString")).toBeUndefined()
+    expect(store.get("a.dat", "hasOwnProperty")).toBeUndefined()
+    store.clear("a.dat")
+    expect(store.get("a.dat", "constructor")).toBeUndefined()
+  })
+
+  test("a failing disk write doesn't throw out of flush", () => {
+    const disk = backend()
+    disk.write = () => {
+      throw new Error("disk full")
+    }
+    const store = createWriteBehindStore(disk, 10)
+    store.set("a.dat", "k", "v")
+    expect(() => store.flush()).not.toThrow()
+  })
+
   test("coalesces a burst of sets into one write", async () => {
     const disk = backend()
     const store = createWriteBehindStore(disk, 10)

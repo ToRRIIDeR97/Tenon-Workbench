@@ -42,6 +42,10 @@ describe("KnowledgeVault", () => {
     expect(KnowledgeVault.rootInside("C:\\dev\\acme-notes", ["C:\\dev\\acme"], path.win32)).toBe(false)
     expect(KnowledgeVault.rootInside("/Users/ana/Documents/Tenon", ["/Users/ana/dev/acme"], path.posix)).toBe(false)
     expect(KnowledgeVault.rootInside("/Users/ana/dev/acme/notes", ["/Users/ana/dev/acme"], path.posix)).toBe(true)
+    // A sibling whose name starts with two dots is not the folder's parent.
+    expect(KnowledgeVault.rootInside("/Users/ana/dev/acme/..notes", ["/Users/ana/dev/acme"], path.posix)).toBe(true)
+    expect(KnowledgeVault.rootInside("C:\\dev\\acme\\..notes", ["C:\\dev\\acme"], path.win32)).toBe(true)
+    expect(KnowledgeVault.rootInside("/Users/ana/dev", ["/Users/ana/dev/acme"], path.posix)).toBe(false)
     // posix paths keep their case.
     expect(KnowledgeVault.rootInside("/users/ana/dev/acme/notes", ["/Users/ana/dev/acme"], path.posix)).toBe(false)
   })

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { assertStoreName, isValidStoreName } from "./store-name"
+import { assertStoreKey, assertStoreName, isValidStoreName } from "./store-name"
 
 describe("store name validation", () => {
   test("accepts the store names the renderer uses", () => {
@@ -34,5 +34,13 @@ describe("store name validation", () => {
 
   test("assertStoreName throws without echoing the name", () => {
     expect(() => assertStoreName("../evil")).toThrow("Invalid store name")
+  })
+})
+
+describe("store key validation", () => {
+  test("accepts ordinary keys and refuses prototype keys and non-strings", () => {
+    expect(assertStoreKey("layout.page")).toBe("layout.page")
+    for (const key of ["__proto__", "constructor", "prototype", "", 1, null, undefined, { toString: () => "x" }])
+      expect(() => assertStoreKey(key)).toThrow("Invalid store key")
   })
 })

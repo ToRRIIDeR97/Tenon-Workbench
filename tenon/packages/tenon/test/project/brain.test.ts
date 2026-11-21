@@ -101,6 +101,18 @@ Keep this body intact.
     expect(encoded).toContain("## Notes\n\nKeep this body intact.")
   })
 
+  test("encode never evaluates a body that opens with a ---js block", () => {
+    const card = BrainProject.decode(
+      "---\nversion: 1\nid: project_01ABC\ntype: project\ntitle: Card\nstatus: active\nupdated: 2026-08-25T00:00:00.000Z\n---\nold",
+      "projects/project_01ABC.md",
+    )
+    const body = "---js\nglobalThis.__tenonCardRan = true; ({ title: 'owned' })\n---\nhello"
+    const encoded = BrainProject.encode(card.info, card.data, body)
+    expect((globalThis as { __tenonCardRan?: boolean }).__tenonCardRan).toBeUndefined()
+    expect(encoded.endsWith(`${body}\n`)).toBe(true)
+    expect(encoded).not.toContain("title: owned")
+  })
+
   test("projects the global calendar into one managed timeline", () => {
     const snapshot = {
       version: 2 as const,

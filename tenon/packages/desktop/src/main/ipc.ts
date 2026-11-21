@@ -26,7 +26,7 @@ import { assertAttachmentBudget, createPickedFileAuthorizations } from "./attach
 import { getStore, rendererStore, removeStoreFileIfEmpty } from "./store"
 import { VAULT_FOLDER_KEY } from "./store-keys"
 import { insideCodeFolder, moveVault, vaultFolder } from "./vault-folder"
-import { assertStoreName } from "./store-name"
+import { assertStoreKey, assertStoreName } from "./store-name"
 import {
   getPinchZoomEnabled,
   getWindowID,
@@ -303,11 +303,6 @@ export function registerIpcHandlers(deps: Deps) {
     if (!bundle) throw new Error("Invalid native translation bundle")
     deps.setNativeTranslations(bundle)
   })
-  const assertStoreKey = (key: unknown): string => {
-    if (typeof key !== "string" || key.length === 0) throw new Error("Invalid store key")
-    if (key === "__proto__" || key === "constructor" || key === "prototype") throw new Error("Invalid store key")
-    return key
-  }
   trustedHandle("store-get", (_event: IpcMainInvokeEvent, name: string, key: string) => {
     assertStoreName(name)
     const safeKey = assertStoreKey(key)

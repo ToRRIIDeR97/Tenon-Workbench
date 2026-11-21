@@ -262,6 +262,19 @@ describe("ACP harness", () => {
     expect(AcpHarness.openCodeUsageLookup({ run }, settings, "/w")).toBeFunction()
     expect(AcpHarness.openCodeUsageLookup({ run }, { ...settings, args: [] }, "/w")).toBeUndefined()
     expect(AcpHarness.openCodeUsageLookup({}, settings, "/w")).toBeUndefined()
+
+    // A session ID the agent reported is checked before it becomes part of an API path.
+    const paths: string[] = []
+    const record = (command: { args: ReadonlyArray<string> }) => {
+      paths.push(command.args.at(-1) ?? "")
+      return Effect.succeed({ stdout: Buffer.from(answer) })
+    }
+    const lookupUsage = AcpHarness.openCodeUsageLookup({ run: record as never }, settings, "/w")!
+    expect(await Effect.runPromise(lookupUsage("../../api/config"))).toBeUndefined()
+    expect(await Effect.runPromise(lookupUsage("ses_1?x=1"))).toBeUndefined()
+    expect(paths).toEqual([])
+    await Effect.runPromise(lookupUsage("ses_child"))
+    expect(paths).toEqual(["/api/session/ses_child"])
   })
 
   test("a subagent OpenCode sends to work in the background keeps later turns from counting as silent", () => {

@@ -34,6 +34,16 @@ describe("harness CLI install source", () => {
     })
   })
 
+  test("runs brew only from a Homebrew prefix, never a Cellar folder anywhere else", () => {
+    expect(HarnessUpdate.sourceFromPath("/usr/local/Cellar/opencode/1.2.3/bin/opencode")).toMatchObject({
+      method: "brew",
+      brew: "/usr/local/bin/brew",
+    })
+    // A download folder shaped like a Cellar would otherwise run <folder>/bin/brew.
+    expect(HarnessUpdate.sourceFromPath("/home/me/Downloads/x/Cellar/opencode/1.2.3/bin/opencode")).toBeUndefined()
+    expect(HarnessUpdate.sourceFromPath("/tmp/Caskroom/codex/0.50.0/codex")).toBeUndefined()
+  })
+
   test("leaves standalone binaries and package-manager internals alone", () => {
     expect(HarnessUpdate.sourceFromPath("/home/me/.opencode/bin/opencode")).toBeUndefined()
     expect(HarnessUpdate.sourceFromPath("/home/me/project/node_modules/.bin/agent")).toBeUndefined()
