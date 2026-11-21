@@ -1,7 +1,7 @@
 export * as InstructionContext from "./instruction-context"
 
-import { Array, Effect, Layer, Schema } from "effect"
-import { isAbsolute, join, relative, sep } from "path"
+import { Array, Context, Effect, Layer, Schema } from "effect"
+import { dirname, isAbsolute, join, relative, sep } from "path"
 import { FSUtil } from "./fs-util"
 import { Flag } from "./flag/flag"
 import { Global } from "./global"
@@ -18,6 +18,16 @@ class File extends Schema.Class<File>("InstructionContext.File")({
 }) {}
 
 const Files = Schema.Array(File)
+
+/**
+ * Who the instructions are for. A delegate (a thread another thread started to do one step) reads `DELEGATE.md` in
+ * place of each `AGENTS.md` that has one beside it, so lead-agent workflow rules don't make it onboard itself.
+ * The session runner sets it per thread; everything else gets the lead's files.
+ */
+export const Role = Context.Reference<"lead" | "delegate">("@tenon/InstructionContext/Role", {
+  defaultValue: () => "lead",
+})
+const DELEGATE_FILE = "DELEGATE.md"
 const key = SystemContext.Key.make("core/instructions")
 const readLimit = 256 * 1024
 
@@ -63,7 +73,19 @@ const layer = Layer.effectDiscard(
       // `fs.resolve` follows symlinks: a project AGENTS.md must really live inside the project.
       // WorkspaceInstructions applies the same check against the workspace or linked folder.
       const discovered = new Set(workspace ? found : found.filter((path) => FSUtil.contains(stop, path)))
-      const paths = Array.dedupe([yield* fs.resolve(join(global.config, "AGENTS.md")), ...discovered])
+      const agents = Array.dedupe([yield* fs.resolve(join(global.config, "AGENTS.md")), ...discovered])
+      // A delegate's DELEGATE.md must really sit beside the AGENTS.md it replaces, as that one must sit in the project.
+      const paths =
+        (yield* Role) === "lead"
+          ? agents
+          : yield* Effect.forEach(agents, (path) =>
+              Effect.gen(function* () {
+                const candidate = join(dirname(path), DELEGATE_FILE)
+                if (!(yield* fs.stat(candidate).pipe(Effect.orElseSucceed(() => undefined)))) return path
+                const resolved = yield* fs.resolve(candidate)
+                return FSUtil.contains(dirname(path), resolved) ? resolved : path
+              }),
+            )
       const files = yield* Effect.forEach(
         paths,
         (path) =>
@@ -76,7 +98,7 @@ const layer = Layer.effectDiscard(
           }),
         { concurrency: "unbounded" },
       )
-      if (files.some((file, index) => file === undefined && discovered.has(paths[index])))
+      if (files.some((file, index) => file === undefined && discovered.has(agents[index])))
         return SystemContext.unavailable
       return files.filter((file): file is File => file !== undefined)
     })

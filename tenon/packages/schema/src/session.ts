@@ -26,6 +26,11 @@ export const Origin = Schema.Struct({
    * delegation depth, and the starter can't read or stop it as a task. A delegated task leaves this out.
    */
   handOff: Schema.Boolean.pipe(optional),
+  /**
+   * The Project's lead: the one thread the Command Centre gives that Project's goals to (`project_lead`). It plans the
+   * work and hands steps to its own delegates, and any Command Centre thread may read, steer or stop it.
+   */
+  lead: Schema.Boolean.pipe(optional),
 }).annotate({ identifier: "SessionV2.Origin" })
 export interface Origin extends Schema.Schema.Type<typeof Origin> {}
 

@@ -37,6 +37,7 @@ import { SessionEvent } from "../event"
 import { SessionHistory } from "../history"
 import { SessionInput } from "../input"
 import { SessionMessage } from "../message"
+import { InstructionContext } from "../../instruction-context"
 import { SessionSchema } from "../schema"
 import { SessionStore } from "../store"
 import { SessionTable } from "../sql"
@@ -262,10 +263,20 @@ const layer = Layer.effect(
     const continueAfterOverflowCompaction = (step: number) =>
       new TurnTransitionError({ _tag: "ContinueAfterOverflowCompaction", step })
 
-    const loadSystemContext = (agent: AgentV2.Selection) =>
+    // A thread another one started for a step (a delegate or subagent) gets DELEGATE.md in place of AGENTS.md; a
+    // Project lead and a thread handed off to the user keep the lead's files.
+    const loadSystemContext = (agent: AgentV2.Selection, session: SessionSchema.Info) =>
       Effect.all([systemContext.load(), skillGuidance.load(agent), referenceGuidance.load()], {
         concurrency: "unbounded",
-      }).pipe(Effect.map(SystemContext.combine))
+      }).pipe(
+        Effect.map(SystemContext.combine),
+        Effect.provideService(
+          InstructionContext.Role,
+          session.parentID !== undefined || (session.origin && !session.origin.handOff && !session.origin.lead)
+            ? "delegate"
+            : "lead",
+        ),
+      )
 
     // Each running drain's title starter, so a turn can start the title as soon as it promotes the first message.
     const titleOnPromotion = new Map<SessionSchema.ID, Effect.Effect<void>>()
@@ -280,7 +291,7 @@ const layer = Layer.effect(
       if (session.location.directory !== location.directory || session.location.workspaceID !== location.workspaceID)
         return yield* Effect.interrupt
       const agent = yield* agents.select(session.agent)
-      const initialized = yield* SessionContextEpoch.initialize(db, loadSystemContext(agent), session.id)
+      const initialized = yield* SessionContextEpoch.initialize(db, loadSystemContext(agent, session), session.id)
       const toolFibers = yield* FiberSet.make<void, ToolOutputStore.Error>()
       let needsContinuation = false
       let currentStep = step
@@ -300,7 +311,7 @@ const layer = Layer.effect(
         if (title) yield* title
       }
       const system =
-        initialized ?? (yield* SessionContextEpoch.prepare(db, events, loadSystemContext(agent), session.id))
+        initialized ?? (yield* SessionContextEpoch.prepare(db, events, loadSystemContext(agent, session), session.id))
       const driver = harnesses.driver(session.harnessInstanceID)
       const usesHostModel = driver === Harness.OpenCodeDriver
       const model = usesHostModel

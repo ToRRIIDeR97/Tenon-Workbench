@@ -6,6 +6,7 @@ import { QuestionV2 } from "@tenon/core/question"
 import { SessionV2 } from "@tenon/core/session"
 
 const calls: Array<{ readonly sessionID: string; readonly input: HarnessDelegation.DelegateInput }> = []
+const leads: Array<{ readonly sessionID: string; readonly input: HarnessDelegation.LeadInput }> = []
 const handler: HarnessDelegation.Handler = {
   listAgents: async () => [{ id: "codex", name: "Codex", status: "available", current: false, models: [] }],
   delegate: async (sessionID, input) => {
@@ -15,6 +16,10 @@ const handler: HarnessDelegation.Handler = {
   result: async (_sessionID, taskID) => ({ taskID, agent: "codex", status: "running" }),
   cancel: async () => Promise.reject(new Error("No delegated task ses_x belongs to this thread.")),
   message: async (_sessionID, taskID) => ({ taskID, sent: true }),
+  lead: async (sessionID, input) => {
+    leads.push({ sessionID, input })
+    return { taskID: "ses_lead", agent: input.agent ?? "claude-code", status: "running" }
+  },
 }
 
 const parent = { sessionID: "ses_parent" }
@@ -69,6 +74,7 @@ describe("harness delegation MCP protocol", () => {
       "list_agents",
       "delegate_task",
       "delegate_to_project",
+      "project_lead",
       "task_result",
       "cancel_task",
       "message_task",
@@ -123,6 +129,25 @@ describe("harness delegation MCP protocol", () => {
     ])
   })
 
+  test("project_lead sends a goal to the Project's lead and needs a project and a goal", async () => {
+    expect(await call("project_lead", { goal: "Ship M6" })).toMatchObject({
+      result: { isError: true, content: [{ text: "project_lead needs a project_id and a goal." }] },
+    })
+    await call("project_lead", { project_id: "project_alpha", goal: "Ship M6", model: "opus", wait_seconds: 5 })
+    expect(leads.at(-1)).toEqual({
+      sessionID: "ses_parent",
+      input: {
+        projectId: "project_alpha",
+        goal: "Ship M6",
+        agent: undefined,
+        model: "opus",
+        reasoningEffort: undefined,
+        title: undefined,
+        waitSeconds: 5,
+      },
+    })
+  })
+
   test("reports missing arguments and handler failures as tool errors", async () => {
     expect(await call("delegate_task", { agent: "codex" })).toMatchObject({
       result: { isError: true, content: [{ text: "delegate_task needs an agent and a task." }] },
@@ -140,6 +165,7 @@ describe("harness delegation MCP protocol", () => {
       "list_agents",
       "delegate_task",
       "delegate_to_project",
+      "project_lead",
       "task_result",
       "cancel_task",
       "message_task",

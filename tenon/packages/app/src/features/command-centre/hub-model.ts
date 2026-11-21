@@ -4,7 +4,7 @@
  */
 
 /** The thread that started a session without being its parent: a delegated task placed in a Project. */
-export type Origin = { sessionID: string; commandCentre: boolean }
+export type Origin = { sessionID: string; commandCentre: boolean; lead?: boolean }
 export type TodoItem = { content: string; status: string }
 export type HarnessModelRef = { id: string; reasoningEffort?: string }
 export type ModelCatalogue = { models: ReadonlyArray<{ id: string; name: string }> }
@@ -21,6 +21,8 @@ export type HubThread = {
   waiting: number
   origin?: Origin
   todos?: ReadonlyArray<TodoItem>
+  /** The thread that started this one as its delegate (a Project lead's delegates run as its children). */
+  parentID?: string
 }
 export type HubProject = {
   id: string
@@ -49,6 +51,8 @@ export type HubCard = {
 }
 export type CrewAgent = {
   id: string
+  /** Started by the Project's lead. */
+  delegate?: boolean
   title: string
   harness: string
   model?: string
@@ -57,7 +61,18 @@ export type CrewAgent = {
   commandCentre: boolean
   updated: number
 }
-export type CrewLead = { id: string; title: string; harness: string; model?: string }
+/**
+ * Who leads a Project: its own lead thread (`project: true`), which the Command Centre gives goals to, or for older
+ * Projects without one, the Command Centre thread that last started work there.
+ */
+export type CrewLead = {
+  id: string
+  title: string
+  harness: string
+  model?: string
+  project: boolean
+  state?: HubThreadState
+}
 
 /** Idle threads stay in a Project's crew this long after their last change. */
 export const RECENT_MS = 24 * 60 * 60 * 1000
@@ -73,7 +88,11 @@ export function sessionOrigin(session: unknown): Origin | undefined {
   if (!isRecord(value)) return undefined
   if (typeof value.sessionID !== "string" || !value.sessionID || typeof value.commandCentre !== "boolean")
     return undefined
-  return { sessionID: value.sessionID, commandCentre: value.commandCentre }
+  return {
+    sessionID: value.sessionID,
+    commandCentre: value.commandCentre,
+    ...(value.lead === true ? { lead: true } : {}),
+  }
 }
 
 /**
@@ -172,8 +191,10 @@ export function projectCrew(input: {
   instances?: Readonly<Record<string, ModelCatalogue | undefined>>
 }): { lead?: CrewLead; agents: CrewAgent[] } {
   const sorted = newestFirst(input.threads)
+  const own = sorted.find((thread) => thread.origin?.lead === true && !thread.parentID)
   const started = sorted.find((thread) => thread.origin?.commandCentre === true)?.origin?.sessionID
-  const lead = started ? input.commandCentre.find((thread) => thread.id === started) : undefined
+  const legacy = own || !started ? undefined : input.commandCentre.find((thread) => thread.id === started)
+  const lead = own ?? legacy
   return {
     lead: lead
       ? {
@@ -181,12 +202,16 @@ export function projectCrew(input: {
           title: lead.title,
           harness: lead.harness,
           model: modelLabel(lead.model, input.instances?.[lead.harness]),
+          project: own !== undefined,
+          ...(own ? { state: own.state } : {}),
         }
       : undefined,
     agents: sorted
+      .filter((thread) => thread.id !== own?.id)
       .filter((thread) => thread.state !== "idle" || input.now - thread.updated <= RECENT_MS)
       .map((thread) => ({
         id: thread.id,
+        ...(own && thread.parentID === own.id ? { delegate: true } : {}),
         title: thread.title,
         harness: thread.harness,
         model: modelLabel(thread.model, input.instances?.[thread.harness]),

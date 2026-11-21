@@ -57,6 +57,17 @@ export interface DelegateInput {
   readonly waitSeconds: number
 }
 
+/** A goal for a Project's lead; the agent and model apply only when the lead is started. */
+export interface LeadInput {
+  readonly projectId: string
+  readonly goal: string
+  readonly agent?: string
+  readonly model?: string
+  readonly reasoningEffort?: string
+  readonly title?: string
+  readonly waitSeconds: number
+}
+
 export interface TaskResult {
   readonly taskID: string
   readonly agent: string
@@ -77,6 +88,8 @@ export interface TaskProgress {
 export interface Handler {
   readonly listAgents: (sessionID: string) => Promise<ReadonlyArray<Agent>>
   readonly delegate: (sessionID: string, input: DelegateInput) => Promise<TaskResult>
+  /** Gives a goal to the Project's lead thread, starting the lead on first use. */
+  readonly lead: (sessionID: string, input: LeadInput) => Promise<TaskResult>
   readonly result: (sessionID: string, taskID: string, waitSeconds: number) => Promise<TaskResult>
   readonly cancel: (sessionID: string, taskID: string) => Promise<TaskResult>
   /** Steers a running task with `text`, which it reads at its next safe point. */
@@ -247,6 +260,34 @@ export const TOOLS = [
         ...TASK_PROPERTIES,
       },
       required: ["project_id", "agent", "task"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "project_lead",
+    description:
+      "For the Command Centre: give a goal to a Project's lead agent. Each Project has one lead thread in its folder. Tenon starts it on first use (on agent and model if given, else your own) and sends every later goal to the same lead. The lead plans the work, hands steps to its own delegates, checks their work and reports back to you; you don't manage its delegates. Returns the lead's task_id: read it with task_result, steer it with message_task, stop it with cancel_task.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project_id: { type: "string", description: "Project ID from threads_overview's projects." },
+        goal: {
+          type: "string",
+          description:
+            "The outcome you want, the context the lead needs and what to report back. The lead can't see this conversation.",
+        },
+        agent: { type: "string", description: "Agent ID from list_agents for a new lead. Omit to use your own." },
+        model: { type: "string", description: "Model ID from list_agents for a new lead." },
+        reasoning_effort: { type: "string", description: "One of the model's reasoning efforts." },
+        title: { type: "string", description: "Title for a new lead thread." },
+        wait_seconds: {
+          type: "integer",
+          minimum: 0,
+          maximum: MAX_WAIT_SECONDS,
+          description: `How long to wait for the lead's report (default ${DEFAULT_WAIT_SECONDS}).`,
+        },
+      },
+      required: ["project_id", "goal"],
       additionalProperties: false,
     },
   },
@@ -426,6 +467,20 @@ function callTool(name: string, args: Record<string, unknown>, sessionID: string
       reasoningEffort: text(args.reasoning_effort),
       title: text(args.title),
       projectId,
+      waitSeconds: wait,
+    })
+  }
+  if (name === "project_lead") {
+    const projectId = text(args.project_id)
+    const goal = text(args.goal)
+    if (!projectId || !goal) return Promise.reject(new Error("project_lead needs a project_id and a goal."))
+    return handler.lead(sessionID, {
+      projectId,
+      goal,
+      agent: text(args.agent),
+      model: text(args.model),
+      reasoningEffort: text(args.reasoning_effort),
+      title: text(args.title),
       waitSeconds: wait,
     })
   }

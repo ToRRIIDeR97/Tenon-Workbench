@@ -287,7 +287,12 @@ export type SessionsListOutput = {
     readonly harnessInstanceID: string
     readonly harnessModel?: { readonly id: string; readonly reasoningEffort?: string; readonly serviceTier?: string }
     readonly harnessRevision?: number
-    readonly origin?: { readonly sessionID: string; readonly commandCentre: boolean; readonly handOff?: boolean }
+    readonly origin?: {
+      readonly sessionID: string
+      readonly commandCentre: boolean
+      readonly handOff?: boolean
+      readonly lead?: boolean
+    }
     readonly agent?: string
     readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string }
     readonly cost: number
@@ -406,7 +411,12 @@ export type SessionsCreateOutput = {
     readonly harnessInstanceID: string
     readonly harnessModel?: { readonly id: string; readonly reasoningEffort?: string; readonly serviceTier?: string }
     readonly harnessRevision?: number
-    readonly origin?: { readonly sessionID: string; readonly commandCentre: boolean; readonly handOff?: boolean }
+    readonly origin?: {
+      readonly sessionID: string
+      readonly commandCentre: boolean
+      readonly handOff?: boolean
+      readonly lead?: boolean
+    }
     readonly agent?: string
     readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string }
     readonly cost: number
@@ -456,7 +466,12 @@ export type SessionsForkOutput = {
     readonly harnessInstanceID: string
     readonly harnessModel?: { readonly id: string; readonly reasoningEffort?: string; readonly serviceTier?: string }
     readonly harnessRevision?: number
-    readonly origin?: { readonly sessionID: string; readonly commandCentre: boolean; readonly handOff?: boolean }
+    readonly origin?: {
+      readonly sessionID: string
+      readonly commandCentre: boolean
+      readonly handOff?: boolean
+      readonly lead?: boolean
+    }
     readonly agent?: string
     readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string }
     readonly cost: number
@@ -516,7 +531,12 @@ export type SessionsGetOutput = {
     readonly harnessInstanceID: string
     readonly harnessModel?: { readonly id: string; readonly reasoningEffort?: string; readonly serviceTier?: string }
     readonly harnessRevision?: number
-    readonly origin?: { readonly sessionID: string; readonly commandCentre: boolean; readonly handOff?: boolean }
+    readonly origin?: {
+      readonly sessionID: string
+      readonly commandCentre: boolean
+      readonly handOff?: boolean
+      readonly lead?: boolean
+    }
     readonly agent?: string
     readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string }
     readonly cost: number
