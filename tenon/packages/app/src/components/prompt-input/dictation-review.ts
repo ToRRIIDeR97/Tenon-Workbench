@@ -42,6 +42,23 @@ export function captionChanges(caption: string, final: string) {
  * undo stack where the browser has one. False, and nothing changed, once the user typed or moved on.
  */
 export function replaceBeforeCaret(inserted: string, replacement: string) {
+  // The Home and Command Centre composers are textareas; the thread's editor is contenteditable.
+  const field = document.activeElement
+  if (field instanceof HTMLTextAreaElement || field instanceof HTMLInputElement) {
+    const end = field.selectionStart ?? 0
+    if (
+      field.selectionEnd !== end ||
+      end < inserted.length ||
+      field.value.slice(end - inserted.length, end) !== inserted
+    )
+      return false
+    field.setSelectionRange(end - inserted.length, end)
+    if (typeof document.execCommand === "function" && document.execCommand("insertText", false, replacement))
+      return true
+    field.setRangeText(replacement, end - inserted.length, end, "end")
+    field.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: replacement }))
+    return true
+  }
   const selection = window.getSelection()
   if (!selection || selection.rangeCount === 0 || !selection.isCollapsed) return false
   const node = selection.anchorNode

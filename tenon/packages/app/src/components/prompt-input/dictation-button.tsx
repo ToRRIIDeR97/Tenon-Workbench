@@ -202,7 +202,13 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
             // restoreFocus places the caret on the next frame; put it back where the insert left it, then swap.
             requestAnimationFrame(() => {
               const selection = window.getSelection()
-              if (caret && caret.startContainer.isConnected && selection) {
+              // A textarea keeps its own caret; only the thread's contenteditable editor needs the range back.
+              if (
+                caret &&
+                caret.startContainer.nodeType === Node.TEXT_NODE &&
+                caret.startContainer.isConnected &&
+                selection
+              ) {
                 selection.removeAllRanges()
                 selection.addRange(caret)
               }

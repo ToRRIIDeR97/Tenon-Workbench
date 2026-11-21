@@ -63,3 +63,28 @@ describe("replaceBeforeCaret", () => {
     expect(element.textContent).toBe("Note: please send it right now and more")
   })
 })
+
+// AC-6 also covers the textarea composers (Home, the Command Centre page and card), not just the thread's editor.
+describe("replaceBeforeCaret in a textarea", () => {
+  const field = (text: string) => {
+    document.body.innerHTML = ""
+    const element = document.createElement("textarea")
+    element.value = text
+    document.body.append(element)
+    element.focus()
+    element.setSelectionRange(text.length, text.length)
+    return element
+  }
+
+  test("AC-6 swaps the just-inserted text for the caption", () => {
+    const element = field("Note: please send it right now")
+    expect(replaceBeforeCaret(" please send it right now", " please send it now")).toBe(true)
+    expect(element.value).toBe("Note: please send it now")
+  })
+
+  test("AC-6 changes nothing once the text before the caret is different", () => {
+    const element = field("Note: please send it right now and more")
+    expect(replaceBeforeCaret(" please send it right now", " please send it now")).toBe(false)
+    expect(element.value).toBe("Note: please send it right now and more")
+  })
+})
