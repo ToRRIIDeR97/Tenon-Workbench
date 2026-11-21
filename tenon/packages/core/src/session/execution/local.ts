@@ -33,6 +33,13 @@ const layer = Layer.effect(
       interrupt: coordinator.interrupt,
       resume: coordinator.run,
       wake: coordinator.wake,
+      compact: Effect.fnUntraced(function* (input) {
+        const session = yield* store.get(input.sessionID)
+        if (!session) return { status: "unavailable" } as const
+        return yield* SessionRunner.Service.use((runner) => runner.compact(input)).pipe(
+          Effect.provide(locations.get(session.location)),
+        )
+      }),
     })
   }),
 )

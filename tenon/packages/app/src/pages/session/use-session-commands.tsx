@@ -21,7 +21,6 @@ import { Message, Part, UserMessage } from "@opencode-ai/sdk/v2"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { useSessionArchive } from "@/pages/session/session-archive"
 import { createSessionOwnership } from "./session-ownership"
-import { useLocal } from "@/context/local"
 import { useServerSDK } from "@/context/server-sdk"
 import { compactHarnessForServer } from "@/utils/server"
 import { Harness } from "@tenon/schema/harness"
@@ -56,7 +55,6 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   const sync = useSync()
   const terminal = useTerminal()
   const layout = useLayout()
-  const local = useLocal()
   const { params, sessionKey, tabs, view } = useSessionLayout()
   const sessionOwnership = createSessionOwnership(sessionKey)
   const sessionArchive = useSessionArchive()
@@ -325,34 +323,16 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     if (!sessionID) return
     const info = sync().session.get(sessionID) as HarnessSession | undefined
     const harness = info?.harnessInstanceID ?? Harness.OpenCode
-
-    // A harness thread compacts with its own /compact. Once its prompt cache has gone cold, reloading the whole history
-    // into its model costs as much as the first read, so it compacts on the harness's cheaper compaction model instead.
-    if (harness !== Harness.OpenCode) {
-      const last = info?.time.updated ?? info?.time.created ?? Date.now()
-      const model = compactionModel(settings.harnesses.compaction(harness), (Date.now() - last) / 60_000)
-      try {
-        await compactHarnessForServer({ server: serverSDK().server.http, fetch: platform.fetch }, sessionID, model)
-      } catch (error) {
-        showToast({
-          title: language.t("common.requestFailed"),
-          description: error instanceof Error ? error.message : language.t("common.requestFailed"),
-        })
-      }
-      return
-    }
-
-    const model = local.model.current()
-    if (!model) {
-      showToast({
-        title: language.t("toast.model.none.title"),
-        description: language.t("toast.model.none.description"),
-      })
-      return
-    }
-
+    // The server picks how: Claude Code and OpenCode run their own /compact, Codex compacts on its side, and the
+    // built-in agent and other harnesses get a summary from Tenon. Once a thread's prompt cache has gone cold,
+    // reloading its history costs as much as the first read, so a harness's cheaper compaction model does it instead.
+    const last = info?.time.updated ?? info?.time.created ?? Date.now()
+    const model =
+      harness === Harness.OpenCode
+        ? undefined
+        : compactionModel(settings.harnesses.compaction(harness), (Date.now() - last) / 60_000)
     try {
-      await sdk().api.session.compact({ sessionID })
+      await compactHarnessForServer({ server: serverSDK().server.http, fetch: platform.fetch }, sessionID, model)
     } catch (error) {
       showToast({
         title: language.t("common.requestFailed"),

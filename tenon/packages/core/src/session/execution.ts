@@ -5,6 +5,7 @@ import { LayerNode } from "../effect/layer-node"
 import { Node } from "../effect/app-node"
 import { SessionRunner } from "./runner/index"
 import { SessionSchema } from "./schema"
+import type { Harness } from "@tenon/schema/harness"
 
 export interface Interface {
   /** Snapshots active execution owned by this process. */
@@ -15,6 +16,11 @@ export interface Interface {
   readonly wake: (sessionID: SessionSchema.ID) => Effect.Effect<void>
   /** Interrupt active work owned by this process. Idle interruption is a no-op. */
   readonly interrupt: (sessionID: SessionSchema.ID) => Effect.Effect<void>
+  /** Compacts an idle Session through the runner of its Location (`SessionRunner.compact`). */
+  readonly compact: (input: {
+    readonly sessionID: SessionSchema.ID
+    readonly model?: Harness.ModelSelection
+  }) => Effect.Effect<SessionRunner.CompactResult>
 }
 
 /** Routes execution from a Session ID to the runner owned by that Session's Location. */
@@ -30,5 +36,6 @@ export const noopLayer = Layer.succeed(
     resume: () => Effect.void,
     wake: () => Effect.void,
     interrupt: () => Effect.void,
+    compact: () => Effect.succeed({ status: "unavailable" } as const),
   }),
 )

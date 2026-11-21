@@ -618,7 +618,7 @@ const layer = Layer.effect(
       }),
       compact: Effect.fn("V2Session.compact")(function* (input) {
         const session = yield* result.get(input.sessionID)
-        if (!NATIVE_COMPACT.has(session.harnessInstanceID) || (yield* execution.active).has(input.sessionID))
+        if ((yield* execution.active).has(input.sessionID) || compacting.has(input.sessionID))
           return yield* new OperationUnavailableError({ operation: "compact" })
         const original = session.harnessModel
         const swap =
@@ -633,10 +633,9 @@ const layer = Layer.effect(
               model,
             })
           })
-        compacting.add(input.sessionID)
-        const failure = yield* Effect.gen(function* () {
+        // The harness runs its own compaction for `/compact`; the turn ends when the summary replaces the history.
+        const native = Effect.gen(function* () {
           if (swap) yield* switchTo(input.model)
-          // The harness runs its own compaction for the command; the turn ends when the summary replaces the history.
           yield* SessionInput.admit(db, events, {
             id: SessionMessage.ID.create(),
             sessionID: input.sessionID,
@@ -654,11 +653,22 @@ const layer = Layer.effect(
             .messages({ sessionID: input.sessionID, order: "desc", limit: 1 })
             .pipe(Effect.orElseSucceed(() => []))
           return reply?.type === "assistant" && reply.error ? reply.error.message : undefined
+          // A thread with no model of its own goes back to the harness default.
+        }).pipe(Effect.ensuring(swap ? switchTo(original).pipe(Effect.orDie) : Effect.void))
+        // While either path runs, messages sent to the thread queue instead of starting a turn beside it.
+        compacting.add(input.sessionID)
+        const outcome = yield* Effect.gen(function* () {
+          // Claude Code and OpenCode take `/compact` themselves; the runner compacts every other thread (Codex on its
+          // own side, the rest on Tenon's), or reports an ACP agent that turned out to take `/compact` too.
+          if (!NATIVE_COMPACT.has(session.harnessInstanceID)) {
+            const ran = yield* execution.compact({ sessionID: input.sessionID, model: input.model })
+            if (ran.status !== "native") return ran
+          }
+          const failure = yield* native
+          return failure ? { status: "failed" as const, message: failure } : { status: "done" as const }
         }).pipe(
           Effect.ensuring(
             Effect.gen(function* () {
-              // A thread with no model of its own goes back to the harness default.
-              if (swap) yield* switchTo(original).pipe(Effect.orDie)
               compacting.delete(input.sessionID)
               // Messages sent during the compaction were queued; they run now.
               if ((yield* SessionInput.listQueued(db, input.sessionID)).length > 0)
@@ -666,7 +676,9 @@ const layer = Layer.effect(
             }),
           ),
         )
-        if (failure) return yield* new CompactFailedError({ sessionID: input.sessionID, message: failure })
+        if (outcome.status === "failed")
+          return yield* new CompactFailedError({ sessionID: input.sessionID, message: outcome.message })
+        if (outcome.status === "unavailable") return yield* new OperationUnavailableError({ operation: "compact" })
       }),
       wait: Effect.fn("V2Session.wait")(function* (sessionID) {
         yield* result.get(sessionID)

@@ -321,7 +321,7 @@ export const makeSessionGroup = <I extends HttpApiMiddleware.AnyId, S>(sessionLo
             identifier: "v2.session.compact",
             summary: "Compact session",
             description:
-              "Compact a harness thread's conversation with the harness's own /compact (Claude Code, OpenCode over ACP), optionally on another model for the compaction only. Fails with 503 while the thread runs or for a harness without /compact.",
+              "Compact a thread's conversation: with the harness's own /compact (Claude Code, OpenCode, ACP agents that report it), Codex's thread compaction, or a summary written on Tenon's side for the built-in agent and other harnesses. `model` runs the compaction or summary on another model of the same harness. Fails with 503 while the thread runs, when there is nothing to compact yet, or with the harness's error.",
           }),
         ),
     )

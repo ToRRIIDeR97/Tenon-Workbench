@@ -40,6 +40,7 @@ const execution = Layer.succeed(
       Effect.sync(() => {
         wakeCalls.push(sessionID)
       }),
+    compact: () => Effect.succeed({ status: "unavailable" as const }),
   }),
 )
 const it = testEffect(

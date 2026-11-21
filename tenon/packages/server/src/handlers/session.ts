@@ -313,7 +313,7 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
               Effect.fail(
                 new ServiceUnavailableError({
                   message:
-                    "Compaction needs a Claude Code or OpenCode (ACP) thread that isn't running. Wait for the turn to finish.",
+                    "Nothing to compact yet, or the thread is running. Wait for the turn to finish and try again.",
                   service: `session.${error.operation}`,
                 }),
               ),

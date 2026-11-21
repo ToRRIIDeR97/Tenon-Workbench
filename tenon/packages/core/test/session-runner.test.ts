@@ -246,6 +246,7 @@ const execution = Layer.effect(
       resume: coordinator.run,
       wake: coordinator.wake,
       interrupt: coordinator.interrupt,
+      compact: (input) => sessionRunner.compact(input),
     })
   }),
 ).pipe(Layer.provide(runnerLayer))
@@ -1165,6 +1166,31 @@ describe("SessionRunnerLLM", () => {
         type: "compaction",
         summary: "## Objective\n- Preserve the updated task",
       })
+    }),
+  )
+
+  it.effect("/compact on a built-in agent thread summarizes the older turns on demand", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const session = yield* SessionV2.Service
+      response = fragmentFixture("text", "text-first", ["Earlier answer"]).completeEvents
+      // Longer than the 1,000 tokens kept verbatim, so there is an older part to summarize.
+      yield* session.prompt({
+        sessionID,
+        prompt: Prompt.make({ text: "Earlier question ".repeat(400) }),
+        resume: false,
+      })
+      yield* session.resume(sessionID)
+
+      requests.length = 0
+      responses = [fragmentFixture("text", "text-summary", ["## Objective\n- Keep the earlier task"]).completeEvents]
+      yield* session.compact({ sessionID })
+
+      // One summary request, nothing else: compaction doesn't start a turn.
+      expect(requests).toHaveLength(1)
+      expect(userTexts(requests[0])[0]).toContain("Earlier question")
+      const context = yield* (yield* SessionStore.Service).context(sessionID)
+      expect(context[0]).toMatchObject({ type: "compaction", summary: "## Objective\n- Keep the earlier task" })
     }),
   )
 
