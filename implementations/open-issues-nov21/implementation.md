@@ -56,6 +56,9 @@ Base: `main` at `3e6495df`. Branch: `claude/open-issues-nov21`. One agent wrote 
   and look-alike hosts don't count; `…/pull/12/files` counts as #12; owner/repo match ignores case.
 - **AC-11** `forLocation` attaches `thread: { id, title }` to those PRs, from the Project folder's own threads.
 - **AC-12** The GitHub task row shows "From <thread>" for its PR and opens that thread.
+- **AC-12b** (added in verification, loop-back to step 1) A PR that closes none of the listed issues is a row of its
+  own with its thread: open ones under Open, merged and closed ones under All. Without it a PR with no issue never
+  appeared on the Project page, so #331's "shows its PRs" and "a merged PR is traceable" failed for it.
 - **AC-13** Every package in `tenon/` is at the highest version satisfying `^current` that is at least 3 days old,
   except: patched packages, `@ai-sdk/google-vertex` (waits for patched `@ai-sdk/google`), `@tanstack/solid-query`
   (<5.100), `@solidjs/meta` (0.29.4), `@solid-primitives/storage` (4.3.x), `ghostty-web` (git), overrides, and

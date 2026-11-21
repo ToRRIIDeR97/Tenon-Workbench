@@ -120,9 +120,9 @@ function GithubTaskItem(props: { row: GithubTaskRow; open: (url: string) => void
   const pull = () => props.row.pulls.find((item) => item.state === "open") ?? props.row.pulls[0]
   const detail = () =>
     [
-      `#${props.row.number}`,
+      props.row.kind === "pull" ? "" : `#${props.row.number}`,
       pull()
-        ? props.row.done && pull()!.state === "merged"
+        ? props.row.kind === "issue" && props.row.done && pull()!.state === "merged"
           ? language.t("secondBrain.github.doneWhenMerged", { number: pull()!.number })
           : language.t("secondBrain.github.pull", { number: pull()!.number })
         : "",
@@ -134,7 +134,8 @@ function GithubTaskItem(props: { row: GithubTaskRow; open: (url: string) => void
     <li class="flex items-center">
       <button
         type="button"
-        data-github-issue={props.row.number}
+        data-github-issue={props.row.kind === "issue" ? props.row.number : undefined}
+        data-github-pull={props.row.kind === "pull" ? props.row.number : undefined}
         class="flex min-h-12 min-w-0 flex-1 items-center gap-3 px-4 py-1.5 text-left outline-none hover:bg-v2-overlay-simple-overlay-hover focus-visible:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)]"
         onClick={() => props.open(props.row.url)}
       >

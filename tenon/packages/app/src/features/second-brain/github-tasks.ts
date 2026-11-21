@@ -37,6 +37,8 @@ export type GithubWork =
 
 export type GithubTaskStatus = "merged" | "checks-failing" | "changes-requested" | "in-review" | "draft"
 export type GithubTaskRow = {
+  /** An issue (with the PRs that close it), or a PR that closes none of the listed issues. */
+  kind: "issue" | "pull"
   number: number
   title: string
   url: string
@@ -68,7 +70,7 @@ export function githubTaskRows(
       : issue.state === "open" || (show === "all" && !!issue.closedAt && now - Date.parse(issue.closedAt) <= RECENT_MS),
   )
   // Open first, newest change first; done issues after them.
-  return shown
+  const issueRows: GithubTaskRow[] = shown
     .toSorted(
       (a, b) =>
         Number(a.state === "closed") - Number(b.state === "closed") ||
@@ -78,6 +80,7 @@ export function githubTaskRows(
       const pulls = work.pulls.filter((pull) => pull.closes.includes(issue.number))
       const shownPull = pulls.find((pull) => pull.state === "open") ?? pulls[0]
       return {
+        kind: "issue" as const,
         number: issue.number,
         title: issue.title,
         url: issue.url,
@@ -88,6 +91,30 @@ export function githubTaskRows(
         ...(shownPull?.thread ? { thread: shownPull.thread } : {}),
       }
     })
+  // A PR that closes none of the listed issues has no issue to hang under, so it is a row of its own (#331): open
+  // ones always, merged and closed ones under All.
+  const listed = new Set(work.issues.map((issue) => issue.number))
+  const pullRows: GithubTaskRow[] = work.pulls
+    .filter((pull) => !pull.closes.some((number) => listed.has(number)))
+    .filter((pull) => pull.state === "open" || show === "all")
+    .toSorted((a, b) => Number(a.state !== "open") - Number(b.state !== "open") || b.number - a.number)
+    .map((pull) => ({
+      kind: "pull" as const,
+      number: pull.number,
+      title: pull.title,
+      url: pull.url,
+      author: "",
+      done: pull.state !== "open",
+      pulls: [pull],
+      status: taskStatus([pull]),
+      ...(pull.thread ? { thread: pull.thread } : {}),
+    }))
+  return [
+    ...issueRows.filter((row) => !row.done),
+    ...pullRows.filter((row) => !row.done),
+    ...issueRows.filter((row) => row.done),
+    ...pullRows.filter((row) => row.done),
+  ]
 }
 
 /** The one state that matters most for the task, from the PRs that close it. */

@@ -122,3 +122,42 @@ describe("AC-12 GitHub task rows and threads", () => {
     expect(view).toContain("secondBrain.github.fromThread")
   })
 })
+
+// #331 acceptance: the Project shows its PRs, and a merged PR leads back to its thread, even one that closes no issue.
+describe("AC-12b PRs that close no issue", () => {
+  const standalone = (number: number, state: "open" | "merged" | "closed", thread?: { id: string; title: string }) => ({
+    number,
+    title: `PR ${number}`,
+    url: `p${number}`,
+    state,
+    draft: false,
+    closes: [] as number[],
+    ...(thread ? { thread } : {}),
+  })
+
+  test("an open PR that closes no issue is a row of its own, with its thread", () => {
+    const rows = githubTaskRows(
+      { ...work, pulls: [...work.pulls, standalone(90, "open", { id: "ses_x", title: "X" })] },
+      "open",
+      now,
+    )
+    const row = rows.find((item) => item.number === 90)
+    expect(row).toMatchObject({ kind: "pull", done: false, status: "in-review", thread: { id: "ses_x", title: "X" } })
+    expect(rows.filter((item) => item.kind === "issue").map((item) => item.number)).toEqual([85, 84])
+  })
+
+  test("a merged one shows under All as done, not under Open", () => {
+    const merged = { ...work, pulls: [...work.pulls, standalone(91, "merged", { id: "ses_m", title: "M" })] }
+    expect(githubTaskRows(merged, "open", now).some((item) => item.number === 91)).toBe(false)
+    expect(githubTaskRows(merged, "all", now).find((item) => item.number === 91)).toMatchObject({
+      kind: "pull",
+      done: true,
+      status: "merged",
+      thread: { id: "ses_m", title: "M" },
+    })
+  })
+
+  test("a PR that closes a listed issue stays under that issue, not on its own", () => {
+    expect(githubTaskRows(work, "all", now).filter((item) => item.kind === "pull")).toEqual([])
+  })
+})

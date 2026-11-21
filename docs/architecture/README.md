@@ -420,7 +420,9 @@ cached a minute per folder. Each PR also names the thread that produced it:
 `core/src/github/threads.ts` reads the folder's threads' stored messages (v2
 `session_message`, v1 `part`) for `github.com/<repo>/pull/<n>` and takes the
 earliest thread to carry each URL (`gh pr create` prints it), read fresh on
-every request; the row's "From <thread>" button opens it. Rows open on GitHub;
+every request; the row's "From <thread>" button opens it. A PR that closes none
+of the listed issues is a row of its own (open ones always, merged and closed
+under All). Rows open on GitHub;
 without `gh`, signed out, or without a GitHub origin, the block says so. `gh`
 is found on PATH and the Windows install folders (`which`).
 
