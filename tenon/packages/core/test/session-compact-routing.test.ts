@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { DateTime, Effect, Layer, Stream } from "effect"
+import { DateTime, Effect, Fiber, Layer, Stream } from "effect"
 import { eq } from "drizzle-orm"
 import { Database } from "@tenon/core/database/database"
 import { AppNodeBuilder } from "@tenon/core/effect/app-node-builder"
@@ -26,6 +26,10 @@ import { testEffect } from "./lib/effect"
 
 const outcomes = new Map<string, SessionRunner.CompactResult>()
 const asked: Array<{ sessionID: string; model?: string }> = []
+const woken: string[] = []
+const gatedID = SessionV2.ID.create()
+let release: () => void = () => {}
+const gate = new Promise<void>((resolve) => (release = resolve))
 const projects = Layer.succeed(
   ProjectV2.Service,
   ProjectV2.Service.of({
@@ -39,13 +43,15 @@ const execution = Layer.succeed(
   SessionExecution.Service.of({
     active: Effect.succeed(new Set()),
     resume: () => Effect.void,
-    wake: () => Effect.void,
+    wake: (sessionID) => Effect.sync(() => void woken.push(sessionID)),
     interrupt: () => Effect.void,
     compact: (input) =>
-      Effect.sync(() => {
-        asked.push({ sessionID: input.sessionID, model: input.model?.id })
-        return outcomes.get(input.sessionID) ?? { status: "unavailable" }
-      }),
+      (input.sessionID === gatedID ? Effect.promise(() => gate) : Effect.void).pipe(
+        Effect.map(() => {
+          asked.push({ sessionID: input.sessionID, model: input.model?.id })
+          return outcomes.get(input.sessionID) ?? { status: "unavailable" as const }
+        }),
+      ),
   }),
 )
 const it = testEffect(
@@ -90,6 +96,22 @@ describe("SessionV2.compact routing", () => {
         { sessionID: custom.id, model: "haiku" },
         { sessionID: broken.id, model: undefined },
       ])
+    }),
+  )
+
+  it.live("a message sent during a Codex compaction waits for it, then runs", () =>
+    Effect.gen(function* () {
+      const session = yield* SessionV2.Service
+      yield* session.create({ id: gatedID, location, harnessInstanceID: Harness.Codex })
+      outcomes.set(gatedID, { status: "done" })
+      const running = yield* Effect.forkChild(session.compact({ sessionID: gatedID }))
+      yield* Effect.sleep("20 millis")
+      expect((yield* session.prompt({ sessionID: gatedID, prompt: { text: "Next?" } })).delivery).toBe("queue")
+      expect(yield* failure(session.compact({ sessionID: gatedID }))).toBe("unavailable")
+      expect(woken).not.toContain(gatedID)
+      release()
+      yield* Fiber.join(running)
+      expect(woken).toContain(gatedID)
     }),
   )
 

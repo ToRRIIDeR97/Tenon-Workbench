@@ -1,6 +1,6 @@
 export * as HarnessDelegationTasks from "./delegation-tasks"
 
-import { DateTime, Effect, Layer, Option, Schema } from "effect"
+import { DateTime, Effect, Layer, Option, Schema, Semaphore } from "effect"
 import { Harness } from "@tenon/schema/harness"
 import { HarnessRuntime } from "../harness"
 import { Location } from "../location"
@@ -265,15 +265,13 @@ export const layerWith = (options: { readonly checkInMs: number; readonly wakeDe
         })
       }
 
-      // A Project's lead: the newest thread in its folder marked as one.
+      // A Project's lead: the newest thread in its folder marked as one, found by that mark, not among recent threads.
       const findLead = (directory: string) =>
         sessions
-          .list({ directory: AbsolutePath.make(directory), order: "desc", limit: 200 })
-          .pipe(
-            Effect.map((items) =>
-              items.find((item) => item.origin?.lead === true && !item.parentID && !item.time.archived),
-            ),
-          )
+          .list({ directory: AbsolutePath.make(directory), lead: true, order: "desc", limit: 20 })
+          .pipe(Effect.map((items) => items.find((item) => !item.parentID && !item.time.archived)))
+      // Finding and starting a lead is one step at a time, so goals sent together can't start two leads.
+      const leadLock = Semaphore.makeUnsafe(1)
 
       const startLead = (session: SessionSchema.Info, directory: string, input: HarnessDelegation.LeadInput) =>
         Effect.gen(function* () {
@@ -389,19 +387,24 @@ export const layerWith = (options: { readonly checkInMs: number; readonly wakeDe
                   ),
                 )
               const project = yield* projectFolder(session, input.projectId)
-              const current = yield* findLead(project.directory)
-              const lead = current ?? (yield* startLead(session, project.directory, input))
-              const entry = running.get(lead.id)
-              // A lead still working takes the new goal at its next safe point; an idle one starts on it.
-              const busy = (entry !== undefined && !entry.finished) || (yield* sessions.active).has(lead.id)
-              yield* sessions.prompt({
-                sessionID: lead.id,
-                prompt: { text: current ? nextGoal(input.goal) : leadBrief(input.goal) },
-                ...(busy ? { delivery: "steer" as const } : {}),
-                resume: false,
-              })
-              if (entry !== undefined && !entry.finished) entry.parentID = session.id
-              else track(session.id, lead, lead.harnessInstanceID)
+              const lead = yield* leadLock.withPermit(
+                Effect.gen(function* () {
+                  const current = yield* findLead(project.directory)
+                  const lead = current ?? (yield* startLead(session, project.directory, input))
+                  const entry = running.get(lead.id)
+                  // A lead still working takes the new goal at its next safe point; an idle one starts on it.
+                  const busy = (entry !== undefined && !entry.finished) || (yield* sessions.active).has(lead.id)
+                  yield* sessions.prompt({
+                    sessionID: lead.id,
+                    prompt: { text: current ? nextGoal(input.goal) : leadBrief(input.goal) },
+                    ...(busy ? { delivery: "steer" as const } : {}),
+                    resume: false,
+                  })
+                  if (entry !== undefined && !entry.finished) entry.parentID = session.id
+                  else track(session.id, lead, lead.harnessInstanceID)
+                  return lead
+                }),
+              )
               return yield* settle(lead, input.waitSeconds)
             }),
           ),

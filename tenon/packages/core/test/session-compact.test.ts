@@ -1,5 +1,5 @@
 import { describe, expect } from "bun:test"
-import { Effect, Layer, Stream } from "effect"
+import { Effect, Fiber, Layer, Stream } from "effect"
 import { Database } from "@tenon/core/database/database"
 import { AppNodeBuilder } from "@tenon/core/effect/app-node-builder"
 import { LayerNode } from "@tenon/core/effect/layer-node"
@@ -19,7 +19,13 @@ import { testEffect } from "./lib/effect"
 // switches back: a cold thread's compaction reloads the whole history, so a cheaper model reads it.
 
 const busyID = SessionV2.ID.create()
+const failingID = SessionV2.ID.create()
+const gatedID = SessionV2.ID.create()
 const resumed: string[] = []
+const woken: string[] = []
+// The gated thread's compaction turn runs until the test releases it.
+let release: () => void = () => {}
+const gate = new Promise<void>((resolve) => (release = resolve))
 const projects = Layer.succeed(
   ProjectV2.Service,
   ProjectV2.Service.of({
@@ -32,8 +38,13 @@ const execution = Layer.succeed(
   SessionExecution.Service,
   SessionExecution.Service.of({
     active: Effect.sync(() => new Set([busyID])),
-    resume: (sessionID) => Effect.sync(() => void resumed.push(sessionID)),
-    wake: () => Effect.void,
+    resume: (sessionID) =>
+      sessionID === failingID
+        ? (Effect.fail(new Error("Claude Code is signed out.")) as never)
+        : sessionID === gatedID
+          ? Effect.promise(() => gate).pipe(Effect.tap(() => Effect.sync(() => void resumed.push(sessionID))))
+          : Effect.sync(() => void resumed.push(sessionID)),
+    wake: (sessionID) => Effect.sync(() => void woken.push(sessionID)),
     interrupt: () => Effect.void,
     compact: () => Effect.succeed({ status: "unavailable" as const }),
   }),
@@ -105,6 +116,34 @@ describe("SessionV2.compact", () => {
       expect(yield* operation(codex.id)).toBe("compact")
       expect(yield* operation(busy.id)).toBe("compact")
       expect((yield* session.get(busy.id)).harnessModel).toBeUndefined()
+    }),
+  )
+
+  it.effect("a compaction turn that fails reports the harness's reason and still switches back", () =>
+    Effect.gen(function* () {
+      const session = yield* SessionV2.Service
+      yield* session.create({ id: failingID, location, harnessInstanceID: Harness.ClaudeCode, harnessModel: opus })
+      const error = yield* session.compact({ sessionID: failingID, model: haiku }).pipe(Effect.flip)
+      expect(error).toBeInstanceOf(SessionV2.CompactFailedError)
+      expect((error as SessionV2.CompactFailedError).message).toContain("signed out")
+      expect((yield* session.get(failingID)).harnessModel).toEqual(opus)
+    }),
+  )
+
+  it.live("a message sent during a compaction waits for it, then runs", () =>
+    Effect.gen(function* () {
+      const session = yield* SessionV2.Service
+      yield* session.create({ id: gatedID, location, harnessInstanceID: Harness.ClaudeCode })
+      const running = yield* Effect.forkChild(session.compact({ sessionID: gatedID }))
+      yield* Effect.sleep("20 millis")
+      const admitted = yield* session.prompt({ sessionID: gatedID, prompt: { text: "And the scope?" } })
+      expect(admitted.delivery).toBe("queue")
+      expect(woken).not.toContain(gatedID)
+      release()
+      yield* Fiber.join(running)
+      expect(woken).toContain(gatedID)
+      const admittedNow = yield* session.prompt({ sessionID: gatedID, prompt: { text: "Thanks" } })
+      expect(admittedNow.delivery).toBe("steer")
     }),
   )
 })

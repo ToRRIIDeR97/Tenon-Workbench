@@ -528,6 +528,8 @@ const HarnessDetails: Component<{
 }
 
 // Codex compacts on its own side, always on the thread's model, so it has no compaction model to pick.
+const OWN_MODEL = "own"
+
 const numberClass =
   "h-8 w-20 rounded-full bg-v2-background-bg-layer-01 px-3 text-right text-[13px] font-[450] leading-5 text-v2-text-text-base shadow-[inset_0_0_0_1px_var(--v2-border-border-base)] outline-none transition-shadow duration-short ease-standard hover:shadow-[inset_0_0_0_1px_var(--v2-border-border-strong)] focus:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)]"
 
@@ -540,7 +542,8 @@ const HarnessCompaction: Component<{ entry: Harness.SettingsEntry; models: Reado
   const current = () => settings.harnesses.compaction(props.entry.id)
   const minutes = () => current()?.coldMinutes ?? DEFAULT_COLD_MINUTES
   const options = createMemo(() => [
-    { value: "", label: language.t("harness.settings.compaction.ownModel") },
+    // A real value: the select shows an empty-string option as no selection at all.
+    { value: OWN_MODEL, label: language.t("harness.settings.compaction.ownModel") },
     ...props.models.map((model) => ({ value: model.id, label: model.name })),
   ])
   const [draft, setDraft] = createSignal(String(minutes()))
@@ -556,7 +559,7 @@ const HarnessCompaction: Component<{ entry: Harness.SettingsEntry; models: Reado
             appearance="inline"
             data-action="harness-compaction-model"
             options={options()}
-            current={options().find((option) => option.value === (current()?.model ?? "")) ?? options()[0]}
+            current={options().find((option) => option.value === (current()?.model ?? OWN_MODEL)) ?? options()[0]}
             placement="bottom-end"
             gutter={6}
             value={(option) => option.value}
@@ -565,7 +568,7 @@ const HarnessCompaction: Component<{ entry: Harness.SettingsEntry; models: Reado
               option &&
               settings.harnesses.setCompaction(
                 props.entry.id,
-                option.value ? { model: option.value, coldMinutes: minutes() } : undefined,
+                option.value !== OWN_MODEL ? { model: option.value, coldMinutes: minutes() } : undefined,
               )
             }
           />
