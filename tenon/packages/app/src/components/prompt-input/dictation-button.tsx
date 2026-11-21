@@ -1,10 +1,11 @@
 import { useParams } from "@solidjs/router"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
-import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { createStore } from "solid-js/store"
-import { Index, onCleanup, Show, createEffect } from "solid-js"
+import { Index, onCleanup, Show } from "solid-js"
 import { Portal } from "solid-js/web"
+import { Presence } from "@tenon/ui/v2/presence"
+import { motionDuration, prefersReducedMotion } from "@tenon/ui/v2/motion"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import type { DictationFailure, DictationPlatform } from "@/context/platform"
 import { useLanguage } from "@/context/language"
@@ -14,39 +15,22 @@ import { dictationLanguage } from "./dictation-language"
 import { mergeCaption } from "./dictation-caption"
 import { captionChanges, dictationLanguageName, replaceBeforeCaret } from "./dictation-review"
 import { levelReading, voiceGain, waveBars } from "./dictation-wave"
+import { elapsedLabel, ghostLayer, type GhostLayer } from "./dictation-ghost"
+import "./dictation.css"
 
-/** Bars in the composer's voice wave. */
-const WAVE_BARS = 14
+/** Bars in the capsule's voice meter. */
+const METER_BARS = 7
 
 /**
- * Where the live words and the wave go: the top of the composer's box (#328, variant A), so they read as the
- * composer's own text. The compact composer has no room and keeps the floating caption.
+ * The composer's box (#328, variant E): the capsule floats over its top edge and the words go in at its caret. The
+ * compact composer has no room and keeps the floating caption.
  */
-function liveSlot(button: HTMLElement | undefined) {
-  const box =
+function composerBox(button: HTMLElement | undefined) {
+  return (
     button?.closest<HTMLElement>('[data-slot="prompt-input-box"]') ??
-    button?.closest<HTMLElement>('[data-component="composer-box"]:not([data-size="compact"])')
-  if (!box) return undefined
-  // The live row takes the toolbar's place while recording, at the toolbar's own height, so the composer keeps its
-  // size; the toolbar comes back when it ends.
-  const controls =
-    box.querySelector<HTMLElement>('[data-slot="prompt-input-controls-row"]') ??
-    box.querySelector<HTMLElement>('[data-slot="prompt-input-controls"]') ??
+    button?.closest<HTMLElement>('[data-component="composer-box"]:not([data-size="compact"])') ??
     undefined
-  const slot = document.createElement("div")
-  slot.dataset.slot = "dictation-live-slot"
-  if (controls && controls.parentElement) {
-    if (controls.offsetHeight > 0) slot.style.height = `${controls.offsetHeight}px`
-    controls.parentElement.insertBefore(slot, controls)
-    controls.style.display = "none"
-  } else box.append(slot)
-  return {
-    element: slot,
-    remove() {
-      slot.remove()
-      if (controls) controls.style.display = ""
-    },
-  }
+  )
 }
 
 // Toasts have a fixed height, so a long transcript would push Copy out of reach. Copy takes all of it.
@@ -72,10 +56,17 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
     language: undefined as string | undefined,
     // Where the live caption sits: above the mic, right-aligned to it (viewport pixels).
     anchor: undefined as { right: number; bottom: number } | undefined,
+    // Where the capsule sits: the bottom centre, just above the composer box (viewport pixels); undefined in the compact one.
+    capsule: undefined as { left: number; top: number } | undefined,
   })
   const place = () => {
     const rect = button?.getBoundingClientRect()
     if (rect) setState("anchor", { right: window.innerWidth - rect.right, bottom: window.innerHeight - rect.top + 8 })
+    // Just above the composer, clear of its folder tray and its first line of text.
+    const box = composerBox(button)
+    const tray = box?.parentElement?.querySelector<HTMLElement>(':scope > [data-slot="prompt-input-header"]')
+    const edge = (tray ?? box)?.getBoundingClientRect()
+    setState("capsule", edge ? { left: edge.left + edge.width / 2, top: edge.top - 8 } : undefined)
   }
   // The caption follows the mic if the window is resized or scrolled while recording.
   const follow = () => state.phase !== "idle" && place()
@@ -87,49 +78,34 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
   const offBands = props.dictation.onBands?.((values) => {
     if (state.phase === "recording") bands = values
   })
-  const [slot, setSlot] = createStore({ element: undefined as HTMLElement | undefined })
-  let placed: ReturnType<typeof liveSlot>
-  createEffect(() => {
-    const live = state.phase === "recording" || state.phase === "transcribing"
-    if (live && !slot.element) {
-      placed = liveSlot(button)
-      setSlot("element", placed?.element)
-    }
-    if (!live && slot.element) {
-      placed?.remove()
-      placed = undefined
-      setSlot("element", undefined)
-      bands = undefined
-    }
-  })
-  onCleanup(() => placed?.remove())
-  const drawWave = (canvas: HTMLCanvasElement) => {
+  // The words in progress, written at the composer's caret while recording.
+  let ghost: GhostLayer | undefined
+  const dropGhost = () => {
+    ghost?.remove()
+    ghost = undefined
+  }
+  onCleanup(dropGhost)
+  let started = 0
+  // While the final words firm up, a click on the mic waits: a new recording would write over them.
+  let settling = false
+  // The capsule's meter and timer, redrawn every frame while recording.
+  const runMeter = (meter: HTMLElement) => {
+    // Read on each frame: the ref runs before the bars and the capsule around it are in place.
+    const timer = () => meter.parentElement?.querySelector<HTMLElement>('[data-slot="dictation-capsule-timer"]')
     let bars: number[] = []
     let peak = 0
     let frame = 0
+    // Loudest in the middle, so the meter reads as one voice rather than a spectrum.
+    const order = [5, 3, 1, 0, 2, 4, 6]
     const draw = () => {
-      const context = canvas.getContext("2d")
-      // The backing store is resized only when the canvas's size changes, not every frame.
-      const width = Math.round(canvas.clientWidth * devicePixelRatio)
-      const height = Math.round(canvas.clientHeight * devicePixelRatio)
-      if (canvas.width !== width) canvas.width = width
-      if (canvas.height !== height) canvas.height = height
-      if (context && width > 0) {
-        const gained = voiceGain(bands ?? [levelReading(state.level)], peak)
-        peak = gained.peak
-        bars = bands ? waveBars(gained.values, bars, WAVE_BARS) : waveBars(undefined, bars, WAVE_BARS, gained.values[0])
-        context.clearRect(0, 0, width, height)
-        context.fillStyle = getComputedStyle(canvas).color
-        const gap = 2 * devicePixelRatio
-        const bar = (width - gap * (WAVE_BARS - 1)) / WAVE_BARS
-        bars.forEach((value, index) => {
-          const tall = Math.max(2 * devicePixelRatio, value * height)
-          context.globalAlpha = 0.35 + value * 0.65
-          context.beginPath()
-          context.roundRect(index * (bar + gap), (height - tall) / 2, bar, tall, bar / 2)
-          context.fill()
-        })
-      }
+      const gained = voiceGain(bands ?? [levelReading(state.level)], peak)
+      peak = gained.peak
+      bars = bands ? waveBars(gained.values, bars, METER_BARS) : waveBars(undefined, bars, METER_BARS, gained.values[0])
+      Array.from(meter.children as HTMLCollectionOf<HTMLElement>).forEach(
+        (span, index) => (span.style.transform = `scaleY(${0.14 + (bars[order[index]!] ?? 0) * 0.86})`),
+      )
+      const time = timer()
+      if (time) time.textContent = elapsedLabel(performance.now() - started)
       frame = requestAnimationFrame(draw)
     }
     frame = requestAnimationFrame(draw)
@@ -140,6 +116,7 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
     place()
     // The engine re-reads only its last 28 s; merging keeps the earlier words on screen (#328).
     setState("partial", (shown) => mergeCaption(shown, text))
+    ghost?.write(state.partial)
   })
   const offLimit = props.dictation.onLimit(() => {
     if (state.phase !== "recording") return
@@ -226,13 +203,26 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
 
   const finish = async () => {
     setState({ phase: "transcribing", level: 0 })
+    ghost?.pause()
     const shown = state.partial
     const result = await props.dictation.stop()
     setState({ phase: "idle", partial: "" })
+    bands = undefined
+    const here = () => !disposed && params.id === thread
+    if (result.error || !result.text || !here()) dropGhost()
     if (result.error?.code === "cancelled") return
     if (result.error) return report(result.error)
     if (!result.text) return
-    if (!disposed && params.id === thread)
+    if (ghost) {
+      // The final transcript firms up where the words were, then goes in as ordinary text.
+      ghost.settle(result.text)
+      const settle = prefersReducedMotion() ? 0 : motionDuration("long")
+      settling = true
+      if (settle > 0) await new Promise((done) => setTimeout(done, settle))
+      settling = false
+      dropGhost()
+    }
+    if (here())
       return insertAtCaret(result.text, props.restoreFocus, (inserted, caret) => review(shown, inserted, caret))
     // The composer is gone or shows another thread, and typing there could reach a note or the wrong draft.
     const text = result.text
@@ -251,7 +241,7 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
   }
 
   const toggle = async (clicks: number) => {
-    if (state.phase === "starting") return
+    if (state.phase === "starting" || settling) return
     // Gives up on a transcription that is taking too long; finish() ends quietly. The second click of
     // a double-click on stop is not a cancel: it would throw the recording away.
     if (state.phase === "transcribing") {
@@ -273,7 +263,11 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
         setState({ phase: "idle", level: 0 })
         return report(result.error)
       }
-      return setState("phase", "recording")
+      started = performance.now()
+      setState("phase", "recording")
+      const box = composerBox(button)
+      if (box) ghost = ghostLayer(box)
+      return
     }
     await finish()
   }
@@ -287,6 +281,7 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
       event.preventDefault()
       event.stopPropagation()
       setState({ phase: "idle", partial: "", level: 0 })
+      dropGhost()
       void props.dictation.cancel()
     },
     { capture: true },
@@ -295,11 +290,13 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
   const label = () =>
     state.phase === "transcribing"
       ? language.t("dictation.transcribing.cancel")
-      : language.t("dictation.action.dictate")
+      : state.phase === "recording"
+        ? language.t("dictation.live.stop")
+        : language.t("dictation.action.dictate")
+  const live = () => state.phase === "recording" || state.phase === "transcribing"
   return (
     <>
-      {/* While the live words show, the toolbar (and this button) is hidden, so its tooltip mustn't stay up. */}
-      <TooltipV2 placement="top" value={label()} inactive={!!slot.element}>
+      <TooltipV2 placement="top" value={label()}>
         <IconButtonV2
           ref={(element: HTMLElement) => (button = element)}
           type="button"
@@ -315,58 +312,84 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
           icon={<MicIcon level={state.phase === "recording" ? state.level : undefined} />}
         />
       </TooltipV2>
-      {/* Inside the composer, in one row the toolbar's height: a small wave that moves with the voice, the words so
-          far (italic and lighter, as they're still being transcribed; the newest stay in view) and Stop. */}
-      <Show when={slot.element}>
-        {(element) => (
-          <Portal mount={element()}>
+      {/* Over the composer's top edge, so the toolbar never changes: the time, a meter that moves with the voice, the
+          language it transcribes in and Stop; then "Finishing…" while the final pass runs. The words themselves go in
+          at the caret (dictation-ghost.ts). */}
+      <Show when={state.capsule}>
+        {(at) => (
+          <Portal>
             <div
-              data-component="dictation-live"
-              data-phase={state.phase}
-              role="status"
-              aria-live="polite"
-              aria-label={language.t("dictation.live.label")}
-              class="flex h-full items-center gap-3 pl-4 pr-2"
+              class="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-full"
+              style={{ left: `${at().left}px`, top: `${at().top}px` }}
             >
-              <canvas
-                ref={drawWave}
-                aria-hidden="true"
-                class="h-4 w-14 shrink-0 text-v2-icon-icon-accent"
-                classList={{ "opacity-40": state.phase === "transcribing" }}
-              />
-              {/* Right-to-left only for overflow: a long transcript clips at its start, the newest words stay. */}
-              <p
-                data-slot="dictation-live-words"
-                class="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left text-[14px] font-normal italic leading-5 text-v2-text-text-muted [direction:rtl]"
+              <Presence
+                when={live()}
+                class="pointer-events-auto"
+                enterClass="dictation-capsule-enter"
+                exitClass="dictation-capsule-exit"
               >
-                <bdi>
-                  <Show when={state.partial} fallback={language.t("dictation.live.listening")}>
-                    <Index each={state.partial.split(" ")}>
-                      {(word, index) => (
-                        <span class="animate-enter">
-                          {index > 0 ? " " : ""}
-                          {word()}
-                        </span>
-                      )}
-                    </Index>
+                <div
+                  data-component="dictation-capsule"
+                  data-phase={state.phase}
+                  role="status"
+                  aria-live="polite"
+                  aria-label={language.t("dictation.live.label")}
+                  class="flex h-9 items-center gap-2.5 rounded-full bg-v2-background-bg-contrast pl-3.5 pr-1 text-v2-text-text-contrast shadow-[0_10px_28px_-10px_rgb(0_0_0/0.45)]"
+                >
+                  <Show
+                    when={state.phase === "recording"}
+                    fallback={
+                      <span data-slot="dictation-capsule-swap" class="flex h-7 items-center gap-2 pr-2.5 text-[12px]">
+                        <span
+                          data-slot="dictation-spinner"
+                          aria-hidden="true"
+                          class="size-3.5 rounded-full border-2 border-current border-r-transparent"
+                        />
+                        {language.t("dictation.live.finishing")}
+                      </span>
+                    }
+                  >
+                    <span data-slot="dictation-capsule-timer" class="w-7 text-[12px] tabular-nums opacity-80">
+                      0:00
+                    </span>
+                    <span
+                      data-slot="dictation-meter"
+                      ref={runMeter}
+                      aria-hidden="true"
+                      class="flex h-[18px] items-center gap-0.5"
+                    >
+                      <Index each={Array.from({ length: METER_BARS })}>
+                        {() => <span class="block h-full w-[3px] rounded-full bg-current" />}
+                      </Index>
+                    </span>
+                    <span
+                      data-slot="dictation-live-language"
+                      title={language.t("dictation.live.language", {
+                        name: state.language ?? language.t("dictation.live.detect"),
+                      })}
+                      class="text-[11px] opacity-70"
+                    >
+                      {state.language ?? language.t("dictation.live.detect")}
+                    </span>
+                    <button
+                      type="button"
+                      data-action="dictation-stop"
+                      data-slot="dictation-capsule-stop"
+                      aria-label={language.t("dictation.live.stop")}
+                      class="grid size-7 place-items-center rounded-full"
+                      onClick={() => void finish()}
+                    >
+                      <StopIcon />
+                    </button>
                   </Show>
-                </bdi>
-              </p>
-              <LanguageChip name={state.language} />
-              <ButtonV2
-                size="small"
-                variant="contrast"
-                data-action="dictation-stop"
-                disabled={state.phase !== "recording"}
-                onClick={() => void finish()}
-              >
-                {language.t(state.phase === "transcribing" ? "dictation.live.finishing" : "dictation.live.stop")}
-              </ButtonV2>
+                  <span class="sr-only">{state.partial}</span>
+                </div>
+              </Presence>
             </div>
           </Portal>
         )}
       </Show>
-      <Show when={!slot.element && (state.phase === "recording" || state.phase === "transcribing") && state.anchor}>
+      <Show when={!state.capsule && live() && state.anchor}>
         {(anchor) => (
           <Portal>
             <div
@@ -419,6 +442,14 @@ function captionTail(text: string) {
   if (text.length <= CAPTION_CHARS) return text
   const tail = text.slice(-CAPTION_CHARS)
   return `…${tail.slice(tail.indexOf(" ") + 1)}`
+}
+
+function StopIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+      <rect x="4" y="4" width="8" height="8" rx="2" fill="currentColor" />
+    </svg>
+  )
 }
 
 /** A microphone glyph; `level` (0–1) fills it while recording. */

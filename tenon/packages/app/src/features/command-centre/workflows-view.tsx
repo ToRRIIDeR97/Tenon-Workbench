@@ -4,6 +4,7 @@ import { ButtonV2 } from "@tenon/ui/v2/button-v2"
 import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
 import { Icon } from "@tenon/ui/v2/icon"
 import { MenuV2 } from "@tenon/ui/v2/menu-v2"
+import { Reveal } from "@tenon/ui/v2/reveal"
 import { createMemo, For, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { HarnessIcon } from "@/components/harness-icon"
@@ -33,10 +34,20 @@ import { listHarnessesRemembered, rememberedHarnesses } from "@/utils/server"
 
 const chipClass =
   "flex h-7 min-w-0 max-w-full shrink-0 items-center gap-1.5 rounded-full bg-v2-background-bg-layer-02 px-2.5 text-[12px] text-v2-text-text-base transition-colors duration-short ease-standard hover:bg-v2-background-bg-layer-03 data-[expanded]:bg-v2-background-bg-layer-03 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus disabled:text-v2-text-text-disabled motion-reduce:transition-none"
-const fieldClass =
-  "w-full min-w-0 rounded-[12px] bg-v2-background-bg-layer-01 px-3 text-[13px] text-v2-text-text-base outline-none placeholder:text-v2-text-text-muted [box-shadow:inset_0_0_0_1px_var(--v2-border-border-base)] focus:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)]"
-const cardClass =
-  "flex flex-col gap-3 rounded-[16px] bg-v2-background-bg-base px-4 py-3 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]"
+// Text that reads as text until hovered or focused: names and descriptions edit in place, with no field border.
+const quietClass =
+  "min-w-0 rounded-[8px] bg-transparent px-1.5 -mx-1.5 text-v2-text-text-base outline-none transition-colors duration-short ease-standard placeholder:text-v2-text-text-muted hover:bg-v2-overlay-simple-overlay-hover focus:bg-v2-background-bg-layer-02 focus:[box-shadow:inset_0_0_0_1px_var(--v2-border-border-focus)] motion-reduce:transition-none"
+// A borderless field on a tonal fill, for the longer text a role unfolds to.
+const areaClass =
+  "w-full min-w-0 resize-y rounded-[12px] bg-v2-background-bg-layer-01 px-3 py-2 text-[13px] leading-5 text-v2-text-text-base outline-none placeholder:text-v2-text-text-muted focus:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)]"
+// One list surface with hairlines between its rows, as Settings lists are.
+const listClass =
+  "flex flex-col overflow-hidden rounded-[16px] bg-v2-background-bg-base shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]"
+// A number in a pill, with its label in front: the run limits.
+const limitClass =
+  "flex h-8 items-center gap-2 rounded-full bg-v2-background-bg-layer-02 pl-3 pr-1 text-[12px] text-v2-text-text-muted focus-within:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)]"
+const limitInputClass =
+  "h-6 w-20 min-w-0 rounded-full bg-v2-background-bg-base px-2 text-right text-[12px] tabular-nums text-v2-text-text-base outline-none placeholder:text-v2-text-text-muted [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
 const mays: RoleMay[] = ["direct", "edit", "read"]
 
 type Choice = { id: string; label: string; detail?: string; disabled?: boolean; icon?: Harness.Instance }
@@ -63,7 +74,8 @@ function PickChip(props: {
           <MenuV2.RadioGroup value={props.current} onChange={props.onPick}>
             <For each={props.choices}>
               {(choice) => (
-                <MenuV2.RadioItem value={choice.id} disabled={choice.disabled}>
+                // A choice closes the menu: it would otherwise cover the chips of the role below.
+                <MenuV2.RadioItem value={choice.id} disabled={choice.disabled} closeOnSelect>
                   <span class="flex min-w-0 items-center gap-2">
                     <Show when={choice.icon}>{(instance) => <HarnessIcon instance={instance()} />}</Show>
                     <span class="min-w-0 truncate">{choice.label}</span>
@@ -136,6 +148,8 @@ export function Workflows(props: {
     tried: false,
     starting: false,
     failed: false,
+    // The role unfolded to its job; one at a time.
+    open: undefined as string | undefined,
   })
   const list = createMemo(() => store.workflows())
   const run = createMemo(() => store.runs().find((item) => item.id === props.run))
@@ -179,11 +193,14 @@ export function Workflows(props: {
     update({ roles: workflow()?.roles.map((role) => (role.id === id ? { ...role, ...patch } : role)) ?? [] })
   const addRole = () => {
     const roles = workflow()?.roles ?? []
+    const id = workflowID("role")
+    // A new role opens, so its job can be written straight away.
+    setState("open", id)
     update({
       roles: [
         ...roles,
         {
-          id: workflowID("role"),
+          id,
           name: language.t("secondBrain.workflows.role.newName", { number: roles.length + 1 }),
           job: "",
           harnessID: "",
@@ -295,89 +312,132 @@ export function Workflows(props: {
       icon: item,
     }))
 
-  const RoleCard = (card: { id: string; number: number }) => (
-    <Show when={workflow()?.roles.find((role) => role.id === card.id)}>
+  // One row per role: its number, name, what it may do and what it runs on; the job shows on one line and unfolds to
+  // edit, with what the role may do spelled out.
+  const RoleRow = (row: { id: string; number: number }) => (
+    <Show when={workflow()?.roles.find((role) => role.id === row.id)}>
       {(role) => {
         const instance = () => harnesses()?.find((item) => item.id === role().harnessID)
         const external = () => !!instance() && instance()!.driver !== Harness.OpenCodeDriver
+        const open = () => state.open === role().id
+        const toggle = () => setState("open", open() ? undefined : role().id)
         const modelName = () =>
           instance()?.models.find((model) => model.id === role().modelID)?.name ??
           role().modelID ??
           language.t("secondBrain.workflows.role.modelDefault")
         return (
-          <li data-role={role().id} class={cardClass}>
-            <div class="flex min-w-0 items-center gap-2">
-              <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-v2-background-bg-layer-02 type-caption tabular-nums text-v2-text-text-base">
-                {card.number}
+          <li
+            data-role={role().id}
+            data-open={open() ? "" : undefined}
+            class="flex flex-col"
+            classList={{ "border-t border-v2-border-border-muted": row.number > 1 }}
+          >
+            <div class="flex min-w-0 items-start gap-3 py-3 pl-3.5 pr-2">
+              <span class="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-v2-background-bg-layer-02 type-caption tabular-nums text-v2-text-text-base">
+                {row.number}
               </span>
-              <input
-                class={`${fieldClass} h-8 [font-weight:600]`}
-                value={role().name}
-                aria-label={language.t("secondBrain.workflows.role.name", { number: card.number })}
-                onInput={(event) => updateRole(role().id, { name: event.currentTarget.value })}
-              />
-              <PickChip
-                action="workflow-role-may"
-                label={language.t("secondBrain.workflows.role.may", { name: role().name })}
-                value={language.t(`secondBrain.workflows.may.${role().may}`)}
-                current={role().may}
-                choices={mays.map((may) => ({ id: may, label: language.t(`secondBrain.workflows.may.${may}`) }))}
-                onPick={(id) => updateRole(role().id, { may: mays.find((may) => may === id) ?? role().may })}
-              />
+              <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+                <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
+                  <input
+                    class={`${quietClass} h-7 min-w-16 max-w-full [field-sizing:content] type-row-title [font-weight:600]`}
+                    value={role().name}
+                    aria-label={language.t("secondBrain.workflows.role.name", { number: row.number })}
+                    onInput={(event) => updateRole(role().id, { name: event.currentTarget.value })}
+                  />
+                  <PickChip
+                    action="workflow-role-may"
+                    label={language.t("secondBrain.workflows.role.may", { name: role().name })}
+                    value={language.t(`secondBrain.workflows.may.${role().may}`)}
+                    current={role().may}
+                    choices={mays.map((may) => ({ id: may, label: language.t(`secondBrain.workflows.may.${may}`) }))}
+                    onPick={(id) => updateRole(role().id, { may: mays.find((may) => may === id) ?? role().may })}
+                  />
+                  <span class="flex-1" />
+                  <PickChip
+                    action="workflow-role-harness"
+                    label={language.t("secondBrain.workflows.role.harness", { name: role().name })}
+                    value={
+                      instance()?.name ?? (role().harnessID || language.t("secondBrain.workflows.role.harnessNone"))
+                    }
+                    icon={instance()}
+                    current={role().harnessID}
+                    choices={harnessChoices()}
+                    // A new harness starts on its default model: the old one may not exist there.
+                    onPick={(id) => updateRole(role().id, { harnessID: id, modelID: undefined })}
+                  />
+                  <Show when={external()}>
+                    <PickChip
+                      action="workflow-role-model"
+                      label={language.t("secondBrain.workflows.role.model", { name: role().name })}
+                      value={modelName()}
+                      current={role().modelID ?? ""}
+                      choices={[
+                        { id: "", label: language.t("secondBrain.workflows.role.modelDefault") },
+                        ...(instance()?.models.map((model) => ({ id: model.id, label: model.name })) ?? []),
+                      ]}
+                      onPick={(id) => updateRole(role().id, { modelID: id || undefined })}
+                    />
+                  </Show>
+                </div>
+                <Show when={!open()}>
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    class="min-w-0 truncate text-left type-meta text-v2-text-text-muted"
+                    onClick={toggle}
+                  >
+                    {role().job || language.t("secondBrain.workflows.role.jobPlaceholder")}
+                  </button>
+                </Show>
+              </div>
               <IconButtonV2
                 variant="ghost-muted"
                 size="small"
-                icon={<Icon name="close" size="small" />}
-                data-action="workflow-remove-role"
-                aria-label={language.t("secondBrain.workflows.role.remove", { name: role().name })}
-                onClick={() => update({ roles: workflow()?.roles.filter((item) => item.id !== role().id) ?? [] })}
-              />
-            </div>
-            <textarea
-              class={`${fieldClass} resize-y py-2`}
-              rows={2}
-              value={role().job}
-              aria-label={language.t("secondBrain.workflows.role.job", { name: role().name })}
-              placeholder={language.t("secondBrain.workflows.role.jobPlaceholder")}
-              onInput={(event) => updateRole(role().id, { job: event.currentTarget.value })}
-            />
-            <div class="flex flex-wrap items-center gap-2">
-              <PickChip
-                action="workflow-role-harness"
-                label={language.t("secondBrain.workflows.role.harness", { name: role().name })}
-                value={instance()?.name ?? (role().harnessID || language.t("secondBrain.workflows.role.harnessNone"))}
-                icon={instance()}
-                current={role().harnessID}
-                choices={harnessChoices()}
-                // A new harness starts on its default model: the old one may not exist there.
-                onPick={(id) => updateRole(role().id, { harnessID: id, modelID: undefined })}
-              />
-              <Show
-                when={external()}
-                fallback={
-                  <Show when={role().harnessID}>
-                    <span class="type-meta text-v2-text-text-muted">
-                      {language.t("secondBrain.workflows.role.modelBuiltIn")}
-                    </span>
-                  </Show>
+                class="mt-0.5"
+                data-action="workflow-role-toggle"
+                aria-expanded={open()}
+                aria-label={language.t("secondBrain.workflows.role.details", { name: role().name })}
+                icon={
+                  <Icon
+                    name="chevron-down"
+                    size="small"
+                    class="transition-transform duration-medium ease-emphasized-decelerate motion-reduce:transition-none"
+                    classList={{ "rotate-180": open() }}
+                  />
                 }
-              >
-                <PickChip
-                  action="workflow-role-model"
-                  label={language.t("secondBrain.workflows.role.model", { name: role().name })}
-                  value={modelName()}
-                  current={role().modelID ?? ""}
-                  choices={[
-                    { id: "", label: language.t("secondBrain.workflows.role.modelDefault") },
-                    ...(instance()?.models.map((model) => ({ id: model.id, label: model.name })) ?? []),
-                  ]}
-                  onPick={(id) => updateRole(role().id, { modelID: id || undefined })}
-                />
-              </Show>
+                onClick={toggle}
+              />
             </div>
-            <p class="type-meta text-v2-text-text-muted">
-              {language.t(`secondBrain.workflows.may.${role().may}.line`)}
-            </p>
+            <Reveal open={open()} variant="even">
+              <div class="flex flex-col gap-2.5 pb-3.5 pl-[50px] pr-3.5">
+                <textarea
+                  class={areaClass}
+                  rows={3}
+                  value={role().job}
+                  aria-label={language.t("secondBrain.workflows.role.job", { name: role().name })}
+                  placeholder={language.t("secondBrain.workflows.role.jobPlaceholder")}
+                  onInput={(event) => updateRole(role().id, { job: event.currentTarget.value })}
+                />
+                <div class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+                  <p class="min-w-0 flex-1 type-meta text-v2-text-text-muted">
+                    {language.t(`secondBrain.workflows.may.${role().may}.line`)}
+                    <Show when={role().harnessID && !external()}>
+                      {" "}
+                      {language.t("secondBrain.workflows.role.modelBuiltIn")}
+                    </Show>
+                  </p>
+                  <ButtonV2
+                    size="small"
+                    variant="ghost"
+                    data-action="workflow-remove-role"
+                    aria-label={language.t("secondBrain.workflows.role.remove", { name: role().name })}
+                    onClick={() => update({ roles: workflow()?.roles.filter((item) => item.id !== role().id) ?? [] })}
+                  >
+                    {language.t("common.delete")}
+                  </ButtonV2>
+                </div>
+              </div>
+            </Reveal>
           </li>
         )
       }}
@@ -388,7 +448,7 @@ export function Workflows(props: {
     <section
       data-component="workflows"
       aria-labelledby="workflows-title"
-      class="grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-y-auto @[900px]:grid-cols-[minmax(240px,280px)_minmax(0,1fr)] @[900px]:overflow-hidden"
+      class="grid min-h-0 flex-1 grid-cols-1 grid-rows-[max-content_minmax(min(600px,85vh),1fr)] gap-2 overflow-y-auto @[900px]:grid-cols-[minmax(240px,280px)_minmax(0,1fr)] @[900px]:grid-rows-[minmax(0,1fr)] @[900px]:overflow-hidden"
     >
       <aside class="flex min-h-0 min-w-0 flex-col gap-2 rounded-[16px] bg-v2-background-bg-layer-01 p-4 @[900px]:overflow-y-auto">
         <h2 id="workflows-title" class="px-1 pb-1 type-section text-v2-text-text-base">
@@ -435,144 +495,113 @@ export function Workflows(props: {
           <WorkflowRunList ctrl={props.ctrl} selected={props.run} select={props.selectRun} />
         </div>
       </aside>
-      <div class="@container/main flex min-h-0 min-w-0 flex-col rounded-[16px] bg-v2-background-bg-layer-01 p-5 @[900px]:overflow-y-auto">
+      <div class="@container/main flex min-h-0 min-w-0 flex-col rounded-[16px] bg-v2-background-bg-layer-01 @[900px]:overflow-hidden">
         <Show
           when={run()}
           fallback={
             <Show when={workflow()}>
               {(current) => (
-                <div class="flex min-w-0 flex-col gap-5">
-                  <div class="flex min-w-0 flex-wrap items-start gap-3">
-                    <div class="flex min-w-0 flex-[1_1_320px] flex-col gap-1">
-                      <input
-                        class={`${fieldClass} h-10 type-toolbar-title`}
-                        value={current().name}
-                        aria-label={language.t("secondBrain.workflows.name")}
-                        onInput={(event) => update({ name: event.currentTarget.value })}
-                      />
-                      <input
-                        class={`${fieldClass} h-9`}
-                        value={current().description}
-                        aria-label={language.t("secondBrain.workflows.description")}
-                        placeholder={language.t("secondBrain.workflows.description")}
-                        onInput={(event) => update({ description: event.currentTarget.value })}
-                      />
-                    </div>
-                    <div class="flex shrink-0 flex-wrap items-center gap-2 pt-1">
-                      <ButtonV2 size="small" variant="outline" data-action="workflow-duplicate" onClick={duplicate}>
-                        {language.t("secondBrain.workflows.duplicate")}
-                      </ButtonV2>
-                      <Show when={!builtIn()}>
-                        <ButtonV2 size="small" variant="ghost" data-action="workflow-delete" onClick={remove}>
-                          {language.t("common.delete")}
-                        </ButtonV2>
-                      </Show>
-                      <ButtonV2
-                        size="small"
-                        variant="contrast"
-                        data-action="workflow-start"
-                        disabled={state.starting}
-                        onClick={start}
-                      >
-                        {language.t("secondBrain.workflows.start")}
-                      </ButtonV2>
-                    </div>
-                  </div>
-                  <section class="flex flex-col gap-3" aria-labelledby="workflow-roles-title">
-                    <h3 id="workflow-roles-title" class="px-1 type-section text-v2-text-text-base">
-                      {language.t("secondBrain.workflows.roles")}
-                    </h3>
-                    <ol class="grid grid-cols-1 gap-3 @[620px]/main:grid-cols-2 @[940px]/main:grid-cols-3">
-                      <For each={current().roles.map((role) => role.id)}>
-                        {(id, index) => <RoleCard id={id} number={index() + 1} />}
-                      </For>
-                    </ol>
-                    <div>
-                      <ButtonV2
-                        size="small"
-                        variant="ghost"
-                        icon="plus"
-                        data-action="workflow-add-role"
-                        onClick={addRole}
-                      >
-                        {language.t("secondBrain.workflows.role.add")}
-                      </ButtonV2>
-                    </div>
-                  </section>
-                  <section class="flex flex-col gap-3" aria-labelledby="workflow-run-title">
-                    <h3 id="workflow-run-title" class="px-1 type-section text-v2-text-text-base">
-                      {language.t("secondBrain.workflows.run")}
-                    </h3>
-                    <div class="grid grid-cols-1 gap-3 @[620px]/main:grid-cols-3">
-                      <div class={`${cardClass} !gap-1.5`}>
-                        <span class="type-caption text-v2-text-text-muted">
-                          {language.t("secondBrain.workflows.project")}
-                        </span>
-                        <div>
-                          <PickChip
-                            action="workflow-project"
-                            label={language.t("secondBrain.workflows.project")}
-                            value={project()?.name ?? language.t("secondBrain.workflows.project.choose")}
-                            current={state.project ?? ""}
-                            choices={projects().map((item) => ({ id: item.id, label: item.name }))}
-                            onPick={(id) => setState("project", id)}
-                          />
-                        </div>
+                <>
+                  <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto px-6 pb-6 pt-5">
+                    <div class="flex min-w-0 items-start gap-3">
+                      <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <input
+                          class={`${quietClass} h-8 w-full type-toolbar-title`}
+                          value={current().name}
+                          aria-label={language.t("secondBrain.workflows.name")}
+                          onInput={(event) => update({ name: event.currentTarget.value })}
+                        />
+                        <input
+                          class={`${quietClass} h-7 w-full type-meta !text-v2-text-text-muted`}
+                          value={current().description}
+                          aria-label={language.t("secondBrain.workflows.description")}
+                          placeholder={language.t("secondBrain.workflows.description")}
+                          onInput={(event) => update({ description: event.currentTarget.value })}
+                        />
                       </div>
-                      <label class={`${cardClass} !gap-1.5`}>
-                        <span class="type-caption text-v2-text-text-muted">
-                          {language.t("secondBrain.workflows.budget")}
-                        </span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.5"
-                          data-slot="workflow-budget"
-                          class={`${fieldClass} h-8 tabular-nums`}
-                          value={current().budgetUSD ?? ""}
-                          placeholder={language.t("secondBrain.workflows.budget.placeholder")}
-                          onInput={(event) =>
-                            update({
-                              budgetUSD:
-                                event.currentTarget.value === "" ? undefined : event.currentTarget.valueAsNumber,
-                            })
-                          }
-                        />
-                      </label>
-                      <label class={`${cardClass} !gap-1.5`}>
-                        <span class="type-caption text-v2-text-text-muted">
-                          {language.t("secondBrain.workflows.rounds")}
-                        </span>
-                        <input
-                          type="number"
-                          min="1"
-                          max={MAX_ROUNDS}
-                          step="1"
-                          data-slot="workflow-rounds"
-                          class={`${fieldClass} h-8 tabular-nums`}
-                          value={Number.isFinite(current().maxRounds) ? current().maxRounds : ""}
-                          onInput={(event) => update({ maxRounds: event.currentTarget.valueAsNumber })}
-                        />
-                      </label>
+                      <div class="flex shrink-0 items-center gap-1 pt-0.5">
+                        <ButtonV2 size="small" variant="ghost" data-action="workflow-duplicate" onClick={duplicate}>
+                          {language.t("secondBrain.workflows.duplicate")}
+                        </ButtonV2>
+                        <Show when={!builtIn()}>
+                          <ButtonV2 size="small" variant="ghost" data-action="workflow-delete" onClick={remove}>
+                            {language.t("common.delete")}
+                          </ButtonV2>
+                        </Show>
+                      </div>
                     </div>
-                    <label class="flex flex-col gap-1.5">
-                      <span class="px-1 type-caption text-v2-text-text-muted">
-                        {language.t("secondBrain.workflows.brief")}
-                      </span>
-                      <textarea
-                        data-slot="workflow-brief"
-                        class={`${fieldClass} resize-y py-2`}
-                        rows={4}
-                        value={state.brief}
-                        placeholder={language.t("secondBrain.workflows.brief.placeholder")}
-                        onInput={(event) => setState("brief", event.currentTarget.value)}
-                      />
-                    </label>
-                    <Show when={problems().length > 0}>
+                    <section class="flex flex-col gap-2" aria-labelledby="workflow-roles-title">
+                      <h3 id="workflow-roles-title" class="px-1 type-section text-v2-text-text-base">
+                        {language.t("secondBrain.workflows.roles")}
+                      </h3>
+                      <ol class={listClass}>
+                        <For each={current().roles.map((role) => role.id)}>
+                          {(id, index) => <RoleRow id={id} number={index() + 1} />}
+                        </For>
+                        <li classList={{ "border-t border-v2-border-border-muted": current().roles.length > 0 }}>
+                          <button
+                            type="button"
+                            data-action="workflow-add-role"
+                            class="flex w-full items-center gap-3 px-3.5 py-3 text-left type-row-title text-v2-text-text-muted transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
+                            onClick={addRole}
+                          >
+                            <span class="flex size-6 shrink-0 items-center justify-center">
+                              <Icon name="plus" size="small" />
+                            </span>
+                            {language.t("secondBrain.workflows.role.add")}
+                          </button>
+                        </li>
+                      </ol>
+                    </section>
+                    <section class="flex flex-col gap-2" aria-labelledby="workflow-run-title">
+                      <h3 id="workflow-run-title" class="px-1 type-section text-v2-text-text-base">
+                        {language.t("secondBrain.workflows.run")}
+                      </h3>
+                      <div class={`${listClass} !flex-row flex-wrap items-center gap-2 px-3.5 py-3`}>
+                        <p class="mr-auto min-w-0 basis-full type-meta text-v2-text-text-muted @[620px]/main:basis-auto">
+                          {language.t("secondBrain.workflows.limits.hint")}
+                        </p>
+                        <label class={limitClass}>
+                          {language.t("secondBrain.workflows.rounds")}
+                          <input
+                            type="number"
+                            min="1"
+                            max={MAX_ROUNDS}
+                            step="1"
+                            data-slot="workflow-rounds"
+                            class={limitInputClass}
+                            value={Number.isFinite(current().maxRounds) ? current().maxRounds : ""}
+                            onInput={(event) => update({ maxRounds: event.currentTarget.valueAsNumber })}
+                          />
+                        </label>
+                        <label class={limitClass}>
+                          {language.t("secondBrain.workflows.budget")}
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.5"
+                            data-slot="workflow-budget"
+                            class={limitInputClass}
+                            value={current().budgetUSD ?? ""}
+                            placeholder={language.t("secondBrain.workflows.budget.placeholder")}
+                            onInput={(event) =>
+                              update({
+                                budgetUSD:
+                                  event.currentTarget.value === "" ? undefined : event.currentTarget.valueAsNumber,
+                              })
+                            }
+                          />
+                        </label>
+                      </div>
+                    </section>
+                  </div>
+                  {/* The run stays docked under the setup: what's still missing, the brief, where it starts and Start. */}
+                  <div class="flex shrink-0 flex-col gap-2 border-t border-v2-border-border-muted px-6 pb-5 pt-3">
+                    <Reveal open={problems().length > 0} variant="line">
                       <ul
                         data-slot="workflow-problems"
                         aria-label={language.t("secondBrain.workflows.problems")}
-                        class="flex flex-col gap-0.5 px-1 type-meta"
+                        class="flex flex-wrap gap-x-4 gap-y-1 px-1 type-meta"
                         classList={{
                           "text-v2-text-text-critical": state.tried,
                           "text-v2-text-text-muted": !state.tried,
@@ -580,32 +609,73 @@ export function Workflows(props: {
                       >
                         <For each={problems()}>
                           {(problem) => (
-                            <li data-problem={problem} role={state.tried ? "alert" : undefined}>
+                            <li
+                              data-problem={problem}
+                              role={state.tried ? "alert" : undefined}
+                              class="flex min-w-0 items-center gap-1.5"
+                            >
+                              <span
+                                aria-hidden="true"
+                                class="size-3 shrink-0 rounded-full shadow-[inset_0_0_0_1.5px_currentColor] opacity-70"
+                              />
                               {problemText(problem)}
                             </li>
                           )}
                         </For>
                       </ul>
-                    </Show>
+                    </Reveal>
+                    <div class="flex flex-col rounded-[20px] bg-v2-background-bg-raised shadow-[0_0_0_1px_var(--v2-border-border-base),0_8px_24px_-12px_rgb(0_0_0/0.14)] transition-shadow duration-short ease-standard focus-within:shadow-[0_0_0_2px_var(--v2-border-border-focus),0_8px_24px_-12px_rgb(0_0_0/0.14)] motion-reduce:transition-none">
+                      <textarea
+                        data-slot="workflow-brief"
+                        class="max-h-40 min-h-11 w-full resize-none bg-transparent px-4 pt-3 text-[14px] leading-[22px] text-v2-text-text-base outline-none [field-sizing:content] placeholder:text-v2-text-text-faint"
+                        rows={1}
+                        value={state.brief}
+                        aria-label={language.t("secondBrain.workflows.brief")}
+                        placeholder={language.t("secondBrain.workflows.brief.placeholder")}
+                        onInput={(event) => setState("brief", event.currentTarget.value)}
+                      />
+                      <div class="flex min-w-0 items-center gap-2 pb-2 pl-3 pr-2 pt-1">
+                        <PickChip
+                          action="workflow-project"
+                          label={language.t("secondBrain.workflows.project")}
+                          value={project()?.name ?? language.t("secondBrain.workflows.project.choose")}
+                          current={state.project ?? ""}
+                          choices={projects().map((item) => ({ id: item.id, label: item.name }))}
+                          onPick={(id) => setState("project", id)}
+                        />
+                        <span class="flex-1" />
+                        <ButtonV2
+                          size="normal"
+                          variant="contrast"
+                          data-action="workflow-start"
+                          disabled={state.starting}
+                          onClick={start}
+                        >
+                          {language.t("secondBrain.workflows.start")}
+                        </ButtonV2>
+                      </div>
+                    </div>
                     <Show when={state.failed}>
                       <p role="alert" class="px-1 type-meta text-v2-text-text-critical">
                         {language.t("common.requestFailed")}
                       </p>
                     </Show>
-                  </section>
-                </div>
+                  </div>
+                </>
               )}
             </Show>
           }
         >
           {(selected) => (
-            <WorkflowRunView
-              run={selected()}
-              ctrl={props.ctrl}
-              open={props.open}
-              showProject={props.showProject}
-              removed={() => props.selectRun(undefined)}
-            />
+            <div class="min-h-0 flex-1 overflow-y-auto p-5">
+              <WorkflowRunView
+                run={selected()}
+                ctrl={props.ctrl}
+                open={props.open}
+                showProject={props.showProject}
+                removed={() => props.selectRun(undefined)}
+              />
+            </div>
           )}
         </Show>
       </div>

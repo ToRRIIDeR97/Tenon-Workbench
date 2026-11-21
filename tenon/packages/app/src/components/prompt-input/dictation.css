@@ -1,0 +1,132 @@
+/* Dictation while recording: a capsule above the composer and the words written in place (dictation-ghost.ts). */
+
+/* On the Presence wrapper: the capsule springs up out of the composer's top edge and drops back in. */
+.dictation-capsule-enter {
+  animation: dictation-capsule-in var(--v2-duration-medium) var(--v2-ease-spring) both;
+}
+
+.dictation-capsule-exit {
+  animation: dictation-capsule-out var(--v2-duration-exit) var(--v2-ease-emphasized-accelerate) both;
+}
+
+@keyframes dictation-capsule-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.6);
+  }
+}
+
+@keyframes dictation-capsule-out {
+  to {
+    opacity: 0;
+    transform: translateY(16px) scale(0.6);
+  }
+}
+
+[data-slot="dictation-capsule-swap"] {
+  animation: dictation-swap var(--v2-duration-swap-in) var(--v2-ease-emphasized-decelerate) both;
+}
+
+@keyframes dictation-swap {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+[data-slot="dictation-capsule-stop"] {
+  background: color-mix(in srgb, currentColor 16%, transparent);
+  transition: background-color var(--v2-duration-short) var(--v2-ease-standard);
+
+  &:hover {
+    background: color-mix(in srgb, currentColor 24%, transparent);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--v2-border-border-focus);
+    outline-offset: 2px;
+  }
+}
+
+[data-slot="dictation-meter"] > span {
+  transform: scaleY(0.14);
+}
+
+[data-slot="dictation-spinner"] {
+  animation: dictation-spin 700ms linear infinite;
+}
+
+@keyframes dictation-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* The words in progress: faint and italic, as they're still being transcribed. */
+[data-slot="dictation-ghost"] {
+  color: var(--v2-text-text-faint);
+  font-style: italic;
+
+  &[data-settled] {
+    /* The final transcript firms up from left to right. */
+    background: linear-gradient(90deg, var(--v2-text-text-base) 0 45%, var(--v2-text-text-faint) 55% 100%);
+    background-size: 240% 100%;
+    background-position: 100% 0;
+    background-clip: text;
+    color: transparent;
+    font-style: normal;
+    animation: dictation-settle var(--v2-duration-long) var(--v2-ease-standard) forwards;
+  }
+}
+
+@keyframes dictation-settle {
+  to {
+    background-position: 0 0;
+  }
+}
+
+[data-slot="dictation-ghost-word"] {
+  animation: dictation-word var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate) both;
+}
+
+@keyframes dictation-word {
+  from {
+    opacity: 0;
+  }
+}
+
+[data-slot="dictation-caret"] {
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: -0.15em;
+  border-radius: 1px;
+  background: var(--v2-icon-icon-accent);
+  animation: dictation-caret 1s steps(1) infinite;
+
+  &[data-paused] {
+    animation: none;
+    opacity: 0.4;
+  }
+}
+
+@keyframes dictation-caret {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dictation-capsule-enter,
+  .dictation-capsule-exit,
+  [data-slot="dictation-capsule-swap"],
+  [data-slot="dictation-ghost-word"],
+  [data-slot="dictation-ghost"][data-settled],
+  [data-slot="dictation-caret"] {
+    animation: none;
+  }
+  [data-slot="dictation-ghost"][data-settled] {
+    background: none;
+    color: var(--v2-text-text-base);
+  }
+}

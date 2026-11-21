@@ -303,11 +303,13 @@ folder as a workspace and selects it) and `tenon://new-session?directory=<path>&
   other threads, each with **Open**. **Workflows** lists saved role setups
   (such as Build and review: a director, an implementor and a reviewer) beside
   the selected one's editor, with **New workflow**; the editor has
-  **Duplicate**, **Delete** (not for a built-in) and **Start** by its name, and
-  each role card has a job, a harness and model from the
-  composer's list and what the role may do (direct, edit or read), followed by
-  **Start on** (a Project), an optional **Stop at $** budget, a round cap (1 to
-  10) and a **Brief for this run**. Start is refused, with the reasons listed under the brief, until every
+  **Duplicate** and **Delete** (not for a built-in) by its name, then the roles
+  as one list: each row has the role's name, what it may do (direct, edit or
+  read), a harness and model from the composer's list and its job on one line,
+  and unfolds to edit the job; under it **Run settings** holds the round cap
+  (1 to 10) and an optional **Stop at $** budget. The run is docked at the
+  bottom: a **Brief for this run** box with **Start on** (a Project) and
+  **Start**. Start is refused, with the reasons listed above the brief, until every
   role has a harness and the brief and Project are set; then it opens a director
   thread in that Project, sends it the generated brief and returns to Mission
   control. Under the saved workflows, **Runs** lists the started runs (newest
