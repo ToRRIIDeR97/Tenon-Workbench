@@ -265,16 +265,19 @@ export const make = (dependencies: Dependencies) => {
   const compactAfterOverflow = Effect.fn("SessionCompaction.compactAfterOverflow")(function* (
     input: Input & { readonly reason?: "auto" | "manual" },
   ) {
+    const reason = input.reason ?? "auto"
+    // An automatic compaction needs the model's context size; one the user asked for runs without it.
     const context = input.model.route.defaults.limits?.context
-    if (context === undefined || context <= 0) return false
+    const known = context !== undefined && context > 0
+    if (!known && reason === "auto") return false
     const output = input.request.generation?.maxTokens ?? input.model.route.defaults.limits?.output ?? 0
     const summaryOutput = Math.min(output || SUMMARY_OUTPUT_TOKENS, SUMMARY_OUTPUT_TOKENS)
     return yield* record(dependencies.events, {
       sessionID: input.sessionID,
       entries: input.entries,
-      reason: input.reason ?? "auto",
+      reason,
       keepTokens: config.tokens,
-      limit: context - summaryOutput,
+      limit: known ? context - summaryOutput : undefined,
       summarize: (prompt) => {
         const chunks: string[] = []
         let failed = false
