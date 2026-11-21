@@ -18,6 +18,8 @@ export interface SoundSettings {
   permissions: string
   errorsEnabled: boolean
   errors: string
+  /** 2 once the Soft set replaced the earlier Tenon defaults; see `migrateSounds`. */
+  defaults?: number
 }
 
 export type ThreadWidth = "narrow" | "medium" | "wide" | "full"
@@ -258,7 +260,26 @@ const defaultSettings: Settings = {
     permissions: "tenon-soft-attention",
     errorsEnabled: true,
     errors: "tenon-soft-error",
+    defaults: 2,
   },
+}
+
+// The sounds Tenon used before the Soft set, by setting.
+const EARLIER_SOUNDS = { agent: "tenon-done", permissions: "tenon-attention", errors: "tenon-error" } as const
+
+/**
+ * Settings are saved whole on first run, so a profile from before the Soft set holds the earlier defaults as if picked.
+ * Once per profile, a sound still on its earlier default moves to Soft; any other pick is kept, and a later pick of
+ * the earlier sound sticks, since the profile is then marked.
+ */
+export function migrateSounds(value: unknown) {
+  if (!value || typeof value !== "object" || !("sounds" in value)) return value
+  const sounds = value.sounds
+  if (!sounds || typeof sounds !== "object" || ("defaults" in sounds && sounds.defaults === 2)) return value
+  const next: Record<string, unknown> = { ...sounds, defaults: 2 }
+  for (const [key, earlier] of Object.entries(EARLIER_SOUNDS))
+    if (next[key] === earlier) next[key] = defaultSettings.sounds[key as keyof typeof EARLIER_SOUNDS]
+  return { ...value, sounds: next }
 }
 
 function withFallback<T>(read: () => T | undefined, fallback: T) {
@@ -270,7 +291,10 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
   gate: false,
   init: () => {
     const platform = usePlatform()
-    const [store, setStore, settingsInit, ready] = persisted("settings.v3", createStore<Settings>(defaultSettings))
+    const [store, setStore, settingsInit, ready] = persisted(
+      { key: "settings.v3", migrate: migrateSounds },
+      createStore<Settings>(defaultSettings),
+    )
     const [launch, setLaunch, , launchReady] = persisted(
       "app-version.v1",
       createStore<{ version?: string }>({ version: undefined }),

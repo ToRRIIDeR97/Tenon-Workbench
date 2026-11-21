@@ -411,6 +411,9 @@ editing audio files.
 - Under 0.8 s, a soft attack (no click), a fade to silence, and one peak level
   (-9 dBFS) across the set.
 - "Done" is off by default because it fires often; needs-you and error are on.
+- A profile from before the Soft set moves each sound still on the earlier
+  Tenon default to Soft, once (`migrateSounds` in `context/settings.tsx`);
+  sounds the user picked are kept.
 
 ## Accessibility
 
