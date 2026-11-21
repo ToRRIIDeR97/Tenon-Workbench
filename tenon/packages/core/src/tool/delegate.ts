@@ -25,11 +25,15 @@ const inputs = {
   list_agents: Schema.Struct({}),
   delegate_task: Schema.Struct(task),
   delegate_to_project: Schema.Struct({
-    project_id: Schema.String.annotate({ description: "Project ID from threads_overview's projects." }),
+    project_id: Schema.String.annotate({
+      description: "Project ID from threads_overview's projects (or the Project's exact name).",
+    }),
     ...task,
   }),
   project_lead: Schema.Struct({
-    project_id: Schema.String.annotate({ description: "Project ID from threads_overview's projects." }),
+    project_id: Schema.String.annotate({
+      description: "Project ID from threads_overview's projects (or the Project's exact name).",
+    }),
     goal: Schema.String.annotate({ description: "The outcome, the context the lead needs and what to report." }),
     agent: Schema.optional(Schema.String.annotate({ description: "Agent ID from list_agents for a new lead." })),
     model: Schema.optional(Schema.String.annotate({ description: "Model ID from list_agents for a new lead." })),

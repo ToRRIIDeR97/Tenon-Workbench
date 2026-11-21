@@ -246,9 +246,12 @@ const layer = Layer.effect(
       HarnessSetup.readOpenCodeUserConfig(),
     ]).pipe(
       Effect.map(([registry, keys, openCodeConfig]) =>
-        withOpenCodePermissions(
-          withSetupKeys(configuredInstances(entries, registry, global.config), keys),
-          HarnessSetup.openCodeLaunchEnv(openCodeConfig),
+        withClaudeCodeTimeouts(
+          withOpenCodePermissions(
+            withSetupKeys(configuredInstances(entries, registry, global.config), keys),
+            HarnessSetup.openCodeLaunchEnv(openCodeConfig),
+          ),
+          HarnessSetup.claudeCodeLaunchEnv(globalThis.process.env),
         ),
       ),
     )
@@ -608,8 +611,8 @@ const layer = Layer.effect(
         Effect.provideService(Scope.Scope, runtimeScope),
         Effect.provideService(Location.Service, location),
       )
-      // Tenon sets the MCP call timeout of the built-in agents (OpenCode's launch config; Claude Code's default is
-      // hours). Another agent's client may give up after 60 s, so its `ask_user` returns "still open" sooner.
+      // Tenon sets the MCP call timeout of the built-in agents (OpenCode's launch config, Claude Code's launch
+      // environment). Another agent's client may give up after 60 s, so its `ask_user` returns "still open" sooner.
       const longWait = instance.id === Harness.OpenCodeAcp || instance.id === Harness.ClaudeCode
       const delegation = yield* HarnessDelegation.endpoint(
         input.sessionID,
@@ -1383,6 +1386,15 @@ function withOpenCodePermissions(instances: ReadonlyArray<InstanceConfig>, env: 
     const current = isRecord(instance.config.env) ? instance.config.env : {}
     if (current.OPENCODE_CONFIG_CONTENT !== undefined) return instance
     return { ...instance, config: { ...instance.config, env: { ...current, ...env } } }
+  })
+}
+
+function withClaudeCodeTimeouts(instances: ReadonlyArray<InstanceConfig>, env: Record<string, string>) {
+  return instances.map((instance) => {
+    if (instance.id !== Harness.ClaudeCode || Object.keys(env).length === 0) return instance
+    const current = isRecord(instance.config.env) ? instance.config.env : {}
+    // A value set on the harness itself in Settings wins.
+    return { ...instance, config: { ...instance.config, env: { ...env, ...current } } }
   })
 }
 

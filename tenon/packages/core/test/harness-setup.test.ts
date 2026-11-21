@@ -84,4 +84,14 @@ describe("harness setup", () => {
       HarnessSetup.openCodeLaunchEnv('{ "permission": {}, "experimental": { "mcp_timeout": 1, "todo": false } }'),
     ).toEqual({})
   })
+
+  test("Claude Code's MCP calls wait as long as Tenon's tools hold them, unless Tenon's environment sets a limit", () => {
+    expect(HarnessSetup.claudeCodeLaunchEnv({})).toEqual({
+      MCP_TOOL_TIMEOUT: "660000",
+      CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT: "660000",
+    })
+    expect(HarnessSetup.claudeCodeLaunchEnv({ CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT: "0" })).toEqual({
+      MCP_TOOL_TIMEOUT: "660000",
+    })
+  })
 })
