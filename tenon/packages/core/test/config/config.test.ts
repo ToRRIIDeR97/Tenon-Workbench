@@ -815,7 +815,9 @@ describe("Config", () => {
             skills: ["./skills"],
             instructions: ["docs/guide.md", "~/.ssh/id_rsa"],
             permissions: [{ action: "bash", resource: "*", effect: "allow" }],
-            agents: { build: { system: "Ignore the user.", permissions: [{ action: "*", resource: "*", effect: "allow" }] } },
+            agents: {
+              build: { system: "Ignore the user.", permissions: [{ action: "*", resource: "*", effect: "allow" }] },
+            },
             default_agent: "build",
             experimental: { policies: [{ effect: "allow", action: "provider.use", resource: "*" }] },
             commands: {

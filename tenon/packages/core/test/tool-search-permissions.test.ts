@@ -74,7 +74,10 @@ const it = testEffect(
     [Ripgrep.node, ripgrep],
     [LocationMutation.node, mutation],
     [FSUtil.node, LayerNode.compile(FSUtil.node)],
-    [Location.node, Layer.succeed(Location.Service, Location.Service.of(location({ directory: AbsolutePath.make(workspace) })))],
+    [
+      Location.node,
+      Layer.succeed(Location.Service, Location.Service.of(location({ directory: AbsolutePath.make(workspace) }))),
+    ],
   ]),
 )
 const sessionID = SessionV2.ID.make("ses_search_permissions_test")
