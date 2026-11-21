@@ -58,9 +58,11 @@ describe("promptRoute", () => {
       harness: true,
     })
     // A built-in thread with the pill on another harness: the prompt stays built-in, on the Settings model.
-    expect(
-      promptRoute({ choice: { harnessID: claude }, defaults, thread: { harnessID: Harness.OpenCode } }),
-    ).toEqual({ harnessID: Harness.OpenCode, harness: false, model: defaults.model })
+    expect(promptRoute({ choice: { harnessID: claude }, defaults, thread: { harnessID: Harness.OpenCode } })).toEqual({
+      harnessID: Harness.OpenCode,
+      harness: false,
+      model: defaults.model,
+    })
     // A built-in thread with the pill on the built-in agent: the pill's model.
     expect(promptRoute({ choice: builtInChoice, defaults, thread: { harnessID: Harness.OpenCode } })).toEqual({
       harnessID: Harness.OpenCode,

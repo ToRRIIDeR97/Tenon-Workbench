@@ -60,7 +60,12 @@ export const mentions = Effect.fn("GithubThreads.mentions")(function* (directory
     .limit(ROW_LIMIT)
     .all()
   const v1 = yield* db
-    .select({ sessionID: SessionTable.id, title: SessionTable.title, time: PartTable.time_created, data: PartTable.data })
+    .select({
+      sessionID: SessionTable.id,
+      title: SessionTable.title,
+      time: PartTable.time_created,
+      data: PartTable.data,
+    })
     .from(PartTable)
     .innerJoin(SessionTable, eq(SessionTable.id, PartTable.session_id))
     .where(and(eq(SessionTable.directory, directory), sql`${PartTable.data} LIKE ${needle}`))

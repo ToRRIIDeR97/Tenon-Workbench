@@ -58,7 +58,13 @@ describe("GithubThreads.mentions", () => {
         .run()
       yield* db
         .insert(MessageTable)
-        .values({ id: "m_v1" as never, session_id: "ses_v1" as never, time_created: 100, time_updated: 100, data: {} as never })
+        .values({
+          id: "m_v1" as never,
+          session_id: "ses_v1" as never,
+          time_created: 100,
+          time_updated: 100,
+          data: {} as never,
+        })
         .run()
       yield* db
         .insert(PartTable)

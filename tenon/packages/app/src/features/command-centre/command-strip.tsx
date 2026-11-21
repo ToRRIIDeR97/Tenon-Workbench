@@ -27,19 +27,20 @@ import { commandStripAnchor, commandStripStyle } from "./command-strip-anchor"
 import { runsOnLabel, stripTarget } from "./command-strip-target"
 import { commandBackState } from "./thread-back"
 
+/** Recent threads the card's thread menu lists. */
+const THREAD_MENU = 8
+
 /**
  * The Command Centre card, a briefing. A handle just above the bottom edge of every page but the Command Centre;
  * Ctrl/Cmd+J or a click raises a 640px card named "Command Centre" with, in order: the counts (running, needs
  * you, done today); the oldest request waiting on you, answered right there (Allow, Deny) or opened (a question);
- * the running threads with their checklist step and progress; then the latest exchange (your last message and the
- * reply drawn as Markdown, capped at about five lines with "Show more"), Undo when that reply made a write, "Open full", and a composer that replies to the shown
- * thread (New thread starts a fresh one). An approval or question on that thread is answered in the thread, so the
- * card offers "Review in thread". The draft is the Command Centre page's. Esc hides it. The card rises and fades in
+ * the running threads with their checklist step and progress; then the shown thread's last exchange (your last
+ * message and the reply drawn as Markdown, capped at about five lines with "Show more"), Undo when that reply made a
+ * write, a thread menu (recent threads and New thread, #329), "Open full", and a composer that replies to the shown
+ * thread on its own harness, or starts a new one on the model pill's. An approval or question on that thread is
+ * answered in the thread, so the card offers "Review in thread". The draft is the Command Centre page's. Esc hides it. The card rises and fades in
  * over 300 ms emphasized-decelerate and drops out over 200 ms emphasized-accelerate; reduced motion snaps.
  */
-/** Recent threads the card's thread menu lists. */
-const THREAD_MENU = 8
-
 export function CommandStrip() {
   const language = useLanguage()
   const navigate = useNavigate()
@@ -64,7 +65,9 @@ export function CommandStrip() {
   })
   const settings = useSettings()
   // The thread the card shows and replies to, and what it runs on (#329).
-  const targetID = createMemo(() => stripTarget(state.fresh ? null : state.chosen, centre.threads(), centre.latest()?.id))
+  const targetID = createMemo(() =>
+    stripTarget(state.fresh ? null : state.chosen, centre.threads(), centre.latest()?.id),
+  )
   const target = () => centre.threads().find((thread) => thread.id === targetID())
   const lastReply = createMemo(() => centre.replyOf(targetID() ?? undefined))
   const lastAsk = createMemo(() => centre.askOf(targetID() ?? undefined))

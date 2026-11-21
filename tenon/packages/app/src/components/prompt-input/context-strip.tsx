@@ -115,10 +115,12 @@ export function ComposerContextRing(props: { context: ComposerContext; harness?:
           }}
           trigger={
             <span class="flex items-center justify-center">
-              <ProgressCircleV2 percentage={(() => {
-                const current = readout()
-                return current.kind === "share" ? current.percent : 0
-              })()} />
+              <ProgressCircleV2
+                percentage={(() => {
+                  const current = readout()
+                  return current.kind === "share" ? current.percent : 0
+                })()}
+              />
             </span>
           }
         >

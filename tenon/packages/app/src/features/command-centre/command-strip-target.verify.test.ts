@@ -12,12 +12,12 @@ describe("command card wiring", () => {
   test("AC-9 the card shows the pill for a new thread and the thread's harness for a reply", () => {
     expect(strip).toContain("<ComposerModelPill")
     expect(strip).toContain("createComposerHarness(")
-    expect(strip).toContain("data-slot=\"command-card-runs-on\"")
+    expect(strip).toContain('data-slot="command-card-runs-on"')
   })
 
   test("AC-9 the card switches the thread it replies to", () => {
     expect(strip).toContain("stripTarget(")
-    expect(strip).toContain("data-action=\"command-card-threads\"")
+    expect(strip).toContain('data-action="command-card-threads"')
   })
 
   test("AC-9 the card shows its shortcut", () => {

@@ -99,13 +99,15 @@ export function ProjectGithubTasks(props: {
             </Match>
           </Switch>
           <ul class="flex flex-col divide-y divide-v2-border-border-muted">
-            <For each={rows()}>{(row) => (
+            <For each={rows()}>
+              {(row) => (
                 <GithubTaskItem
                   row={row}
                   open={(url) => platform.openExternal(url)}
                   openThread={(id) => navigate(sessionHref(server.key, id))}
                 />
-              )}</For>
+              )}
+            </For>
           </ul>
         </div>
       )}

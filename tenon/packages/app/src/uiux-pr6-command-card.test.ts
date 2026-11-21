@@ -75,7 +75,9 @@ describe("replies and new threads", () => {
   test("the composer sends to the shown thread unless New thread was chosen", () => {
     const source = strip()
     expect(source).not.toMatch(/centre\.send\(text, null\)\)/)
-    expect(source).toMatch(/stripTarget\(state\.fresh \? null : state\.chosen, centre\.threads\(\), centre\.latest\(\)\?\.id\)/)
+    expect(source).toMatch(
+      /stripTarget\(state\.fresh \? null : state\.chosen, centre\.threads\(\), centre\.latest\(\)\?\.id\)/,
+    )
     expect(source).toMatch(/const id = targetID\(\)\s+const sent = await centre\.send\(\s+text,\s+id,/)
     expect(source).toMatch(/data-action="command-card-new"/)
   })

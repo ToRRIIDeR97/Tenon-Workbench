@@ -118,7 +118,7 @@ describe("AC-12 GitHub task rows and threads", () => {
 
   test("the task item opens the PR's thread", () => {
     const view = readFileSync(join(import.meta.dir, "project-github-tasks.tsx"), "utf8")
-    expect(view).toContain("data-action=\"github-task-thread\"")
+    expect(view).toContain('data-action="github-task-thread"')
     expect(view).toContain("secondBrain.github.fromThread")
   })
 })

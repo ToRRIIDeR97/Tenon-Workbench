@@ -43,7 +43,9 @@ export function runsOnLabel(input: {
   harnessID: string
   harnessModel?: { id: string }
   defaultModel?: string
-  instances: ReadonlyArray<{ id: string; name: string; models: ReadonlyArray<{ id: string; name: string }> }> | undefined
+  instances:
+    | ReadonlyArray<{ id: string; name: string; models: ReadonlyArray<{ id: string; name: string }> }>
+    | undefined
 }) {
   const instance = input.instances?.find((item) => item.id === input.harnessID)
   const harness = instance?.name ?? input.harnessID
