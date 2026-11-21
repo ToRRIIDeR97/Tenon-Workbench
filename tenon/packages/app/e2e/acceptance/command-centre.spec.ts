@@ -605,7 +605,13 @@ const roleCard = (page: Page, id: string) => workflows(page).locator(`[data-role
 const problems = (page: Page) => workflows(page).locator('[data-slot="workflow-problems"]')
 
 async function startWorkflows(page: Page, input: Parameters<typeof startBoard>[1] = {}) {
-  await startBoard(page, input)
+  await start(page, [], {
+    sessions: boardSessions(),
+    projectThreads: [boardProject],
+    sessionStatus: { ses_board_run: { type: "busy" } },
+    permissions: [boardPermission],
+    ...input,
+  })
   // The same harness list the composer offers.
   await page.route("**/api/harness?**", (route) =>
     route.fulfill({
@@ -618,7 +624,8 @@ async function startWorkflows(page: Page, input: Parameters<typeof startBoard>[1
       },
     }),
   )
-  await page.locator('[data-action="command-view"]', { hasText: "Workflows" }).click()
+  // The Command Centre opens on its hub; `?view=workflows` is how the app links straight to this view.
+  await page.goto("/command?view=workflows")
   await expect(workflows(page)).toBeVisible()
 }
 
@@ -638,8 +645,23 @@ test("AC-3.3 the Workflows view lists Build and review with a numbered card for 
     )
     .toEqual(["director", "implementor", "reviewer"])
   await expect(roleCard(page, "director").getByRole("textbox", { name: "Role 1 name" })).toHaveValue("Director")
+  // Each row shows its job on one line and unfolds, one at a time, to edit it and say what the role may do.
+  const unfold = async (id: string) => {
+    await roleCard(page, id).locator('[data-action="workflow-role-toggle"]').click()
+    await expect(roleCard(page, id).locator('[data-action="workflow-role-toggle"]')).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    )
+  }
+  await unfold("director")
   await expect(roleCard(page, "director")).toContainText("Starts and steers the other roles, and never edits files.")
+  await unfold("implementor")
   await expect(roleCard(page, "implementor")).toContainText("Edits files and runs commands inside the Project.")
+  await expect(roleCard(page, "director").locator('[data-action="workflow-role-toggle"]')).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  )
+  await unfold("reviewer")
   await expect(roleCard(page, "reviewer")).toContainText("Reads files and runs tests, and never edits files.")
   // The built-in workflow can be duplicated but not deleted.
   await expect(workflows(page).locator('[data-action="workflow-duplicate"]')).toBeVisible()
@@ -664,10 +686,10 @@ test("AC-3.3 Start is refused with a message while a role has no harness, and no
   await expect(problems(page).locator('[data-problem="role"]')).toHaveAttribute("role", "alert")
   await expect(workflows(page)).toBeVisible()
   expect(created).toEqual([])
-  await expect(page).toHaveURL(/\/command$/)
+  await expect(page).toHaveURL(/\/command\?view=workflows$/)
 })
 
-test("AC-3.4 Start creates a director thread in the Project's folder, sends the brief and shows the board", async ({
+test("AC-3.4 Start creates a director thread in the Project's folder, sends the brief and shows the hub", async ({
   page,
 }) => {
   const created: { sessionID: string; body: unknown }[] = []
@@ -686,7 +708,7 @@ test("AC-3.4 Start creates a director thread in the Project's folder, sends the 
   const field = workflows(page).locator('[data-slot="workflow-brief"]')
   await expect(problems(page).locator("[data-problem]")).toHaveCount(3)
 
-  // A radio choice leaves its menu open until the next menu opens, so each choice is looked up in its own menu.
+  // Each choice is looked up in its own menu, which closes once a choice is made.
   const choose = async (role: string, action: string, option: string) => {
     const trigger = roleCard(page, role).locator(`[data-action="${action}"]`)
     const label = await trigger.getAttribute("aria-label")
@@ -725,8 +747,8 @@ test("AC-3.4 Start creates a director thread in the Project's folder, sends the 
   expect(prompts[0]!.text).toContain("opus-5-5")
   expect(prompts[0]!.text.trimEnd().endsWith(brief)).toBe(true)
 
-  // The page stays on the Command Centre and shows the board.
-  await expect(mission(page)).toBeVisible()
+  // The page stays on the Command Centre and goes back to its hub.
+  await expect(page.locator('[data-component="command-hub"]')).toBeVisible()
   await expect(workflows(page)).toHaveCount(0)
   await expect(page).toHaveURL(/\/command$/)
   // The run is recorded for the run view, running and without rounds.

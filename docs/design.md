@@ -266,22 +266,43 @@ Use `[font-weight:N]` when a weight must differ from the role.
   click outside closes it only while empty. A sent reply puts each passage and
   its answer in an inset box (layer-02 on the layer-01 bubble; layer-03 on
   layer-02 in light) inside the user's bubble.
-- **Dictation** (`dictation-button.tsx`): while recording, one row takes the
-  composer toolbar's place at the toolbar's height, so the composer never
-  grows: a small accent wave (14 bars, 56×16px) that follows the voice, the
-  words heard so far in italic `text-muted` (they're still being transcribed;
-  a long transcript clips at its start so the newest words stay in view), and
-  a layer-02 chip naming the language it transcribes in ("Detect language"
-  when the model detects it), and a small contrast Stop. Escape throws the
-  recording away. The final transcript goes in at the caret as ordinary text;
-  when it differs from the words shown, a toast says how many words changed
-  with "Use what I saw".
+- **Dictation** (`dictation-button.tsx`, `dictation-ghost.ts`,
+  `dictation.css`): the composer's toolbar never changes while recording; the
+  mic stays pressed and its tooltip says Stop. A small contrast capsule
+  (`bg-contrast`, 36px pill) springs up out of the middle of the composer
+  box's top edge (`--v2-duration-medium`, spring) with the time (`m:ss`), a
+  7-bar meter that follows the voice (loudest in the middle), the language it
+  transcribes in ("Detect language" when the model detects it) and a round
+  Stop. The words heard so far appear in the composer itself, at the caret, in
+  italic `text-faint` with a blinking accent caret after them (each word fades
+  in); a copy of the editor holds them, so the draft isn't touched until the
+  end. On Stop the capsule swaps to a spinner and "Finishing…"; when the final
+  pass lands it drops back in (`--v2-duration-exit`) and the words firm up
+  from left to right to ordinary text over `--v2-duration-long` before going in
+  as typed text. Under reduced motion every step shows at once. Escape throws
+  the recording away. When the final text differs from the words shown, a
+  toast says how many words changed with "Use what I saw". The compact
+  composer has no room and keeps a floating caption above the mic.
 - **Computer use on screen** (`computer-indicator.ts`): while an agent acts on
   the desktop, a Tenon-blue (`--v2-blue-600`, `#3b5cf6`) glow frames the
   display (a 2px edge with a soft inner glow that breathes; steady under
   reduced motion) and lets every click through; the Stop pill sits above it
   at the bottom of the screen. Both go a few quiet seconds after the last
   action.
+- **Command Centre workflows** (`workflows-view.tsx`): the editor reads as
+  text, not a form. The workflow's name (15px semibold) and description
+  (12px muted) edit in place with no field border (hover overlay, focus ring).
+  The roles are one list surface (16px, `bg-base`, inset hairline, hairlines
+  between rows, like a Settings list): each row has a number, the name (edited
+  in place), the may chip, the harness and model chips on the right and the
+  job on one muted line; its chevron unfolds it (`Reveal`, even), one role at
+  a time, to a borderless job box on layer-01, the may line and Delete. A new
+  role opens unfolded. **Run settings** is one row of limit pills (label, then
+  a small number field). The run is docked under the setup, outside its
+  scroll: the missing items as a wrapping list of hollow circles (muted, then
+  critical after a refused Start), and a composer box (20px, raised) with the
+  brief, the Project chip and a contrast Start. Below 900px the list and editor
+  stack and the page scrolls, with the editor at least 600px tall.
 - **Command Centre hub** (`hub-view.tsx`): `/command` is a hub first and a
   chat second, so work can run on its own. A band (16px card) names the
   Command Centre's harness and model and what is running (agents in Projects,
