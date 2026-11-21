@@ -38,8 +38,10 @@ export function isInside(root: string, file: string, platform: NodeJS.Platform =
   return Boolean(rel) && !rel.startsWith("..") && !paths.isAbsolute(rel)
 }
 
-// Only binary viewer formats are eligible for tenon-file:// URLs (never .html, .svg, keys, etc.).
+// Only the binary formats the viewers show are eligible for tenon-file:// URLs: never markup (.html, .svg),
+// keys or other text, which the renderer reads through the server instead.
 const ALLOWED_VIEWER_EXTENSIONS = new Set([
+  // Workbench panel: PDF, video and Office files.
   ".pdf",
   ".mp4",
   ".webm",
@@ -50,6 +52,24 @@ const ALLOWED_VIEWER_EXTENSIONS = new Set([
   ".xls",
   ".ods",
   ".docx",
+  // Thread view windows: raster images, audio and 3D models.
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".webp",
+  ".avif",
+  ".bmp",
+  ".mp3",
+  ".wav",
+  ".ogg",
+  ".oga",
+  ".flac",
+  ".m4a",
+  ".aac",
+  ".opus",
+  ".glb",
+  ".gltf",
 ])
 
 export async function fileViewerURL(directory: string, path: string) {
