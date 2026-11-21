@@ -137,6 +137,10 @@ const platform: Platform = {
   setDefaultServer: writeDefaultServerUrl,
 }
 
+// Capture and strip any bootstrap auth_token synchronously before Sentry.init() or async work.
+const initialAuth = authFromToken(new URLSearchParams(location.search).get("auth_token"))
+clearAuthToken()
+
 if (import.meta.env.VITE_SENTRY_DSN) {
   Sentry.init({
     dsn: import.meta.env.VITE_SENTRY_DSN,
@@ -157,8 +161,7 @@ if (import.meta.env.VITE_SENTRY_DSN) {
 
 if (root instanceof HTMLElement) {
   void loadInitialLocale().then((locale) => {
-    const auth = authFromToken(new URLSearchParams(location.search).get("auth_token"))
-    clearAuthToken()
+    const auth = initialAuth
     const server: ServerConnection.Http = {
       type: "http",
       authToken: !!auth,

@@ -39,8 +39,10 @@ export function CalendarAutoSync() {
     if (!config.autoSync || !platform.googleCalendar || !layout.home.workspace()) return
     // A short delay keeps the first sync out of the way of startup work.
     const first = config.onOpen ? setTimeout(() => void run(), 5_000) : undefined
+    let disposed = false
     let timer: ReturnType<typeof setTimeout> | undefined
     const schedule = () => {
+      if (disposed) return
       timer = setTimeout(() => void run().finally(schedule), config.intervalMinutes * 60_000 * backoff)
     }
     schedule()
@@ -50,6 +52,7 @@ export function CalendarAutoSync() {
     }
     window.addEventListener("focus", focus)
     onCleanup(() => {
+      disposed = true
       clearTimeout(first)
       clearTimeout(timer)
       window.removeEventListener("focus", focus)

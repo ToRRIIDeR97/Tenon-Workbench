@@ -188,9 +188,11 @@ export function setupFileReferences(
       )
     }
     setTarget({ chip, reference: chipReference(chip) })
+    attachViewportListeners()
   }
   const hide = () => {
     clearTimers()
+    detachViewportListeners()
     setTarget(undefined)
   }
   const scheduleHide = () => {
@@ -254,15 +256,39 @@ export function setupFileReferences(
     }
   }
   // The timeline scrolls while replies stream, so follow the chip and only close once it is gone.
+  let viewportListening = false
+  let viewportFrame: number | undefined
   const onViewportChange = (event: Event) => {
     const chip = target()?.chip
     if (!chip || inPeek(event.target)) return
-    const rect = chip.getBoundingClientRect()
-    if (!chip.isConnected || rect.bottom < 0 || rect.top > window.innerHeight) {
-      hide()
-      return
+    if (viewportFrame !== undefined) return
+    viewportFrame = requestAnimationFrame(() => {
+      viewportFrame = undefined
+      const active = target()?.chip
+      if (!active) return
+      const rect = active.getBoundingClientRect()
+      if (!active.isConnected || rect.bottom < 0 || rect.top > window.innerHeight) {
+        hide()
+        return
+      }
+      setPlacement((count) => count + 1)
+    })
+  }
+  const attachViewportListeners = () => {
+    if (viewportListening) return
+    viewportListening = true
+    window.addEventListener("scroll", onViewportChange, { capture: true, passive: true })
+    window.addEventListener("resize", onViewportChange, { passive: true })
+  }
+  const detachViewportListeners = () => {
+    if (viewportFrame !== undefined) {
+      cancelAnimationFrame(viewportFrame)
+      viewportFrame = undefined
     }
-    setPlacement((count) => count + 1)
+    if (!viewportListening) return
+    viewportListening = false
+    window.removeEventListener("scroll", onViewportChange, { capture: true })
+    window.removeEventListener("resize", onViewportChange)
   }
 
   root.addEventListener("pointerover", onPointerOver)
@@ -271,19 +297,16 @@ export function setupFileReferences(
   root.addEventListener("focusout", onFocusOut)
   root.addEventListener("click", onClick)
   root.addEventListener("keydown", onKeyDown)
-  window.addEventListener("scroll", onViewportChange, true)
-  window.addEventListener("resize", onViewportChange)
 
   return () => {
     clearTimers()
+    detachViewportListeners()
     root.removeEventListener("pointerover", onPointerOver)
     root.removeEventListener("pointerout", onPointerOut)
     root.removeEventListener("focusin", onFocusIn)
     root.removeEventListener("focusout", onFocusOut)
     root.removeEventListener("click", onClick)
     root.removeEventListener("keydown", onKeyDown)
-    window.removeEventListener("scroll", onViewportChange, true)
-    window.removeEventListener("resize", onViewportChange)
     dispose?.()
     host?.remove()
   }

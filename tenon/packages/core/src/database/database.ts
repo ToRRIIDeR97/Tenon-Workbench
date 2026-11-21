@@ -30,6 +30,8 @@ const layer = (filename: string) =>
       // The driver opens the connection with the busy timeout and WAL journal mode already set.
       yield* db.run("PRAGMA synchronous = NORMAL")
       yield* db.run("PRAGMA cache_size = -64000")
+      yield* db.run("PRAGMA temp_store = MEMORY")
+      yield* db.run("PRAGMA mmap_size = 268435456")
       yield* db.run("PRAGMA foreign_keys = ON")
       yield* db.run("PRAGMA journal_size_limit = 67108864")
       yield* db.run("PRAGMA wal_checkpoint(PASSIVE)")

@@ -133,7 +133,7 @@ export function project(previous: Projection | undefined, text: string, live: bo
     }
   // The lexer rewrites line endings and drops repeated reference definitions, and definitions reach every block,
   // so either one means the blocks can't be taken from the text by offset.
-  if (text.includes("\r") || text.includes("]:")) return { text, blocks: stream(text, live) }
+  if (text.includes("\r") || /^[ \t]{0,3}\[[^\]]+\]:/m.test(text)) return { text, blocks: stream(text, live) }
   // Only the last line grows, so frozen blocks keep their bounds, except that a line can turn out to continue
   // the block before it ("1. a\n\n2" then ". b"). Lexing from that block gives the same blocks as the whole text.
   // A block's raw can differ from the text (the lexer ends some blockquotes with a newline), so check the offset.

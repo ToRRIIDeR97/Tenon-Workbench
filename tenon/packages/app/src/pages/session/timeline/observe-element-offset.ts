@@ -57,8 +57,14 @@ export function observeElementOffsetReconnectAware<TScrollElement extends Elemen
       startCheck()
     })
   })
-  // Session routes are replaced below persistent main; body is the fallback for isolated hosts.
-  observer.observe(root, { childList: true, subtree: true })
+  // Observe only the direct ancestor chain up to `root` without `subtree: true` so streaming
+  // mutations inside the timeline, terminal, or review panel do not wake this observer.
+  let ancestor: Node | null = element.parentNode
+  while (ancestor) {
+    observer.observe(ancestor, { childList: true })
+    if (ancestor === root) break
+    ancestor = ancestor.parentNode
+  }
 
   return () => {
     active = false

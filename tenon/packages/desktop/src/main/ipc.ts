@@ -9,7 +9,7 @@ import {
 import { browserHistory, captureBrowser, navigateBrowser, pickElement, showBrowser } from "./browser"
 import { fileViewerURL } from "./file-viewer"
 import { execFile } from "node:child_process"
-import { stat } from "node:fs/promises"
+import { realpath, stat } from "node:fs/promises"
 import { basename, isAbsolute, join } from "node:path"
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeImage, shell } from "electron"
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
@@ -296,10 +296,16 @@ export function registerIpcHandlers(deps: Deps) {
     if (!bundle) throw new Error("Invalid native translation bundle")
     deps.setNativeTranslations(bundle)
   })
+  const assertStoreKey = (key: unknown): string => {
+    if (typeof key !== "string" || key.length === 0) throw new Error("Invalid store key")
+    if (key === "__proto__" || key === "constructor" || key === "prototype") throw new Error("Invalid store key")
+    return key
+  }
   trustedHandle("store-get", (_event: IpcMainInvokeEvent, name: string, key: string) => {
     assertStoreName(name)
+    const safeKey = assertStoreKey(key)
     try {
-      const value = rendererStore.get(name, key)
+      const value = rendererStore.get(name, safeKey)
       if (value === undefined || value === null) return null
       return typeof value === "string" ? value : JSON.stringify(value)
     } catch {
@@ -308,11 +314,14 @@ export function registerIpcHandlers(deps: Deps) {
   })
   trustedHandle("store-set", (_event: IpcMainInvokeEvent, name: string, key: string, value: string) => {
     assertStoreName(name)
-    rendererStore.set(name, key, value)
+    const safeKey = assertStoreKey(key)
+    if (typeof value !== "string") throw new Error("Invalid store value")
+    rendererStore.set(name, safeKey, value)
   })
   trustedHandle("store-delete", (_event: IpcMainInvokeEvent, name: string, key: string) => {
     assertStoreName(name)
-    rendererStore.delete(name, key)
+    const safeKey = assertStoreKey(key)
+    rendererStore.delete(name, safeKey)
     void removeStoreFileIfEmpty(name)
   })
   trustedHandle("store-clear", (_event: IpcMainInvokeEvent, name: string) => {
@@ -500,8 +509,11 @@ export function registerIpcHandlers(deps: Deps) {
     if (app && (typeof app !== "string" || !isOpenWithApp(app))) throw new Error("Unknown application")
     const info = await stat(path)
     if (!app) {
-      // Same policy as local file links: an executable is revealed in the file manager, never run.
-      if (localFileAction(path, { isDirectory: info.isDirectory(), mode: info.mode }) === "reveal")
+      // Same policy as local file links: check both the requested path and its resolved target
+      // so a benign-looking symlink (e.g. notes.txt -> Payload.app) cannot launch an executable.
+      const real = await realpath(path).catch(() => undefined)
+      const meta = { isDirectory: info.isDirectory(), mode: info.mode }
+      if (!real || localFileAction(path, meta) === "reveal" || localFileAction(real, meta) === "reveal")
         return shell.showItemInFolder(path)
       return shell.openPath(path)
     }

@@ -987,7 +987,7 @@ export function createServerSession(
 
   const projectV2 = (reduction: V2SessionReduction) => {
     reduction.touched.forEach((messageID) => messageLoads.get(reduction.sessionID)?.touchedSource.add(messageID))
-    setData("session_message", reduction.sessionID, reconcile(reduction.messages))
+    setData("session_message", reduction.sessionID, reconcile(reduction.messages, { key: "id" }))
     if (reduction.touched.length === 0) return
 
     const touched = new Set(reduction.touched)

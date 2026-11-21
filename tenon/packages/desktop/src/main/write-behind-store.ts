@@ -19,7 +19,7 @@ export function createWriteBehindStore(backend: WriteBehindBackend, delay = 250)
   function data(name: string) {
     const cached = loaded.get(name)
     if (cached) return cached
-    const next = { ...backend.read(name) }
+    const next = Object.assign(Object.create(null) as Data, backend.read(name))
     loaded.set(name, next)
     return next
   }
@@ -29,7 +29,13 @@ export function createWriteBehindStore(backend: WriteBehindBackend, delay = 250)
     for (const item of names) {
       dirty.delete(item)
       const value = loaded.get(item)
-      if (value) backend.write(item, value)
+      if (value) {
+        try {
+          backend.write(item, value)
+        } catch {
+          // Keep main process alive if disk write or serialization fails.
+        }
+      }
     }
     if (dirty.size === 0 && timer) {
       clearTimeout(timer)
@@ -60,7 +66,7 @@ export function createWriteBehindStore(backend: WriteBehindBackend, delay = 250)
       flush(name)
     },
     clear(name: string) {
-      loaded.set(name, {})
+      loaded.set(name, Object.create(null) as Data)
       dirty.add(name)
       flush(name)
     },

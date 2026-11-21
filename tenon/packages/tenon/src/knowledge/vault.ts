@@ -186,7 +186,7 @@ export function rootInside(root: string, folders: ReadonlyArray<string>, api: pa
   const fold = (value: string) => (api === path.win32 ? value.toLowerCase() : value)
   return folders.some((folder) => {
     const relative = api.relative(fold(api.resolve(folder)), fold(api.resolve(root)))
-    return relative === "" || (!relative.startsWith("..") && !api.isAbsolute(relative))
+    return relative === "" || (relative !== ".." && !relative.startsWith(`..${api.sep}`) && !api.isAbsolute(relative))
   })
 }
 

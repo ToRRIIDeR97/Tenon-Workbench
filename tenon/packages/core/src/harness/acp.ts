@@ -1300,19 +1300,25 @@ export function openCodeUsageLookup(
   const at = settings.args.lastIndexOf("acp")
   const run = process.run
   if (at < 0 || !run) return undefined
-  return (sessionID) =>
-    run(
-      ChildProcess.make(settings.command, [...settings.args.slice(0, at), "api", "GET", `/api/session/${sessionID}`], {
-        cwd: directory,
-        env: harnessEnvironment(settings.env),
-        extendEnv: false,
-        stdin: "ignore",
-      }),
+  return (sessionID) => {
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(sessionID)) return Effect.succeed(undefined)
+    return run(
+      ChildProcess.make(
+        settings.command,
+        [...settings.args.slice(0, at), "api", "GET", `/api/session/${encodeURIComponent(sessionID)}`],
+        {
+          cwd: directory,
+          env: harnessEnvironment(settings.env),
+          extendEnv: false,
+          stdin: "ignore",
+        },
+      ),
       { timeout: "10 seconds", maxOutputBytes: 1_000_000 },
     ).pipe(
       Effect.map((result) => openCodeSessionUsage(result.stdout.toString())),
       Effect.catch(() => Effect.succeed(undefined)),
     )
+  }
 }
 
 /** The token totals of an OpenCode session from its server's `GET /api/session/:id` answer. */

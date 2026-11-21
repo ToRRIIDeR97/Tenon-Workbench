@@ -622,15 +622,35 @@ const linkableFolder = Effect.fnUntraced(function* (root: string, folder: string
   if (!path.isAbsolute(folder) || !(yield* fs.isDir(folder))) return "invalid_folder"
   const resolved = path.resolve(folder)
   const workspace = path.resolve(root)
-  if (isWithin(workspace, resolved) || isWithin(resolved, workspace)) return "overlaps_workspace"
-  if ([global.home, global.data].some((protectedFolder) => isWithin(resolved, path.resolve(protectedFolder))))
+  const resolvedReal = yield* fs.realPath(resolved).pipe(Effect.orElseSucceed(() => resolved))
+  const workspaceReal = yield* fs.realPath(workspace).pipe(Effect.orElseSucceed(() => workspace))
+  if (
+    isWithin(workspace, resolved) ||
+    isWithin(resolved, workspace) ||
+    isWithin(workspaceReal, resolvedReal) ||
+    isWithin(resolvedReal, workspaceReal)
+  )
+    return "overlaps_workspace"
+  const home = path.resolve(global.home)
+  const homeReal = yield* fs.realPath(home).pipe(Effect.orElseSucceed(() => home))
+  const data = path.resolve(global.data)
+  const dataReal = yield* fs.realPath(data).pipe(Effect.orElseSucceed(() => data))
+  if (
+    isWithin(resolved, home) ||
+    isWithin(resolvedReal, homeReal) ||
+    isWithin(resolved, data) ||
+    isWithin(data, resolved) ||
+    isWithin(resolvedReal, dataReal) ||
+    isWithin(dataReal, resolvedReal)
+  )
     return "protected_folder"
   return undefined
 })
 
 function isWithin(parent: string, child: string) {
-  const relative = path.relative(parent, child)
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))
+  const fold = (value: string) => (process.platform === "win32" ? value.toLowerCase() : value)
+  const relative = path.relative(fold(parent), fold(child))
+  return relative === "" || (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
 }
 
 /**
@@ -929,7 +949,7 @@ export function encode(info: Info, previous: Record<string, unknown>, body: stri
   setOptional(data, "next_milestone", info.nextMilestone)
   setOptional(data, "blocker", info.blocker)
   setOptional(data, "location", info.location)
-  return matter.stringify(body, data, {})
+  return matter.stringify({ content: body }, data, {})
 }
 
 function validate(info: Info) {

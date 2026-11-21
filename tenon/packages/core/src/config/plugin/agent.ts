@@ -59,17 +59,19 @@ export const Plugin = define({
       Effect.fn(function* (draft) {
         const documents = yield* Effect.forEach(yield* config.entries(), (entry) => {
           if (entry.type === "document") return Effect.succeed([entry])
+          if (entry.untrusted) return Effect.succeed([] as Config.Document[])
           return Effect.gen(function* () {
+            const realDir = yield* fs.realPath(entry.path).pipe(Effect.orElseSucceed(() => entry.path))
             const files = yield* discover(fs, entry.path)
             return yield* Effect.forEach(files, (file) =>
-              fs.readFileStringSafe(file.filepath).pipe(
-                Effect.map((content) => {
-                  const document = content ? decode(file, content) : undefined
-                  if (!document || !entry.project) return document
-                  return new Config.Document({ ...document, info: Config.limitPermissions(document.info) })
-                }),
-                Effect.catch(() => Effect.succeed(undefined)),
-              ),
+              Effect.gen(function* () {
+                const realFile = yield* fs.realPath(file.filepath).pipe(Effect.catch(() => Effect.succeed(undefined)))
+                if (!realFile || !FSUtil.contains(realDir, realFile)) return undefined
+                const content = yield* fs.readFileStringSafe(realFile)
+                const document = content ? decode(file, content) : undefined
+                if (!document || !entry.project) return document
+                return new Config.Document({ ...document, info: Config.limitPermissions(document.info) })
+              }).pipe(Effect.catch(() => Effect.succeed(undefined))),
             ).pipe(
               Effect.map((documents) =>
                 documents.filter((document): document is Config.Document => document !== undefined),

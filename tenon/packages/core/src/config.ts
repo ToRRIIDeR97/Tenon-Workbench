@@ -137,7 +137,20 @@ export function latest<K extends keyof Info>(entries: readonly Entry[], key: K):
     .findLast((entry) => entry.info[key] !== undefined)?.info[key]
 }
 
-const GATED = ["plugins", "mcp", "lsp", "formatter", "providers", "shell", "references", "skills"] as const
+const GATED = [
+  "plugins",
+  "mcp",
+  "lsp",
+  "formatter",
+  "providers",
+  "shell",
+  "references",
+  "skills",
+  "permissions",
+  "agents",
+  "default_agent",
+  "experimental",
+] as const
 
 /** Refuses project permission rules that widen `external_directory` or `.env` reads, even in an approved folder. */
 export function limitPermissions(info: Info) {
@@ -162,9 +175,15 @@ export function limitPermissions(info: Info) {
 function limitProject(info: Info, trusted: boolean) {
   const limited = limitPermissions(info)
   if (trusted) return limited
+  const commands = limited.commands
+    ? Object.fromEntries(
+        Object.entries(limited.commands).filter(([, command]) => !ConfigTrust.runsShell(command.template)),
+      )
+    : undefined
   return new Info({
     ...Object.fromEntries(Object.entries(limited).filter(([key]) => !GATED.some((item) => item === key))),
     ...(limited.instructions ? { instructions: limited.instructions.filter(ConfigTrust.localInstruction) } : {}),
+    ...(commands ? { commands } : {}),
   })
 }
 

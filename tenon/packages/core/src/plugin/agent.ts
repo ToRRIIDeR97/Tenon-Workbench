@@ -5,7 +5,6 @@ import { define } from "./internal"
 import { Effect } from "effect"
 import { AgentV2 } from "../agent"
 import { Global } from "../global"
-import { HarnessAppTools } from "../harness/app-tools"
 import { Location } from "../location"
 import { PermissionV2 } from "../permission"
 
@@ -119,11 +118,6 @@ export const Plugin = define({
       { action: "read", resource: "*.env.example", effect: "allow" },
       { action: "tenon_write", resource: "*", effect: "ask" },
     ]
-    // Command Centre threads read untrusted mail, so what can act on it or send it out asks first. Each agent
-    // lists only what it would otherwise allow: an ask must not widen a deny. Config rules still come after.
-    const commandCentre = path.basename(location.directory) === HarnessAppTools.COMMAND_CENTRE_FOLDER
-    const commandAsks = (...actions: string[]) =>
-      commandCentre ? actions.map((action): PermissionV2.Rule => ({ action, resource: "*", effect: "ask" })) : []
     // Commands, edits, the web and tools from MCP servers or other agents ask in every folder, so a thread's mode
     // decides: the app answers the card itself in Full auto (and edits in Auto-edit) and shows it in Ask. Allowing
     // them here instead approved everything before any card existed, whatever the mode said.
@@ -189,10 +183,11 @@ export const Plugin = define({
               { action: "*", resource: "*", effect: "deny" },
               { action: "grep", resource: "*", effect: "allow" },
               { action: "glob", resource: "*", effect: "allow" },
-              { action: "webfetch", resource: "*", effect: "allow" },
-              { action: "websearch", resource: "*", effect: "allow" },
               { action: "read", resource: "*", effect: "allow" },
-              ...commandAsks("webfetch", "websearch"),
+              { action: "read", resource: "*.env", effect: "ask" },
+              { action: "read", resource: "*.env.*", effect: "ask" },
+              { action: "read", resource: "*.env.example", effect: "allow" },
+              ...asks("webfetch", "websearch"),
             ],
             readonlyExternalDirectory,
           ),
