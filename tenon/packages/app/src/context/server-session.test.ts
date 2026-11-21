@@ -280,6 +280,31 @@ describe("server session", () => {
     expect(store.get("child")).toMatchObject({ directory: "/other", path: "pkg", projectID: "project" })
   })
 
+  test("applies the server's harness switch to session info, so the model pill follows it", () => {
+    const store = setup({}).store
+    store.remember({ ...session("child"), harnessInstanceID: "claude-code", harnessModel: { id: "haiku" } } as Session)
+
+    store.applyV2({
+      id: "evt_model",
+      created: 5,
+      type: "session.next.harness.switched",
+      data: { sessionID: "child", instanceID: "claude-code", model: { id: "opus", reasoningEffort: "medium" } },
+    } as unknown as OpenCodeEvent)
+    expect(store.get("child")).toMatchObject({
+      harnessInstanceID: "claude-code",
+      harnessModel: { id: "opus", reasoningEffort: "medium" },
+      harnessRevision: 0,
+    })
+
+    store.applyV2({
+      id: "evt_harness",
+      created: 6,
+      type: "session.next.harness.switched",
+      data: { sessionID: "child", instanceID: "codex" },
+    } as unknown as OpenCodeEvent)
+    expect(store.get("child")).toMatchObject({ harnessInstanceID: "codex", harnessRevision: 1 })
+  })
+
   test("drops the boundary message and everything after it when a rollback is committed", () => {
     const store = setup({ child: session("child") }).store
     store.remember(session("child"))

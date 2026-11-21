@@ -30,6 +30,9 @@ import {
 } from "@tenon/session-ui/message-part"
 import { DiffChanges } from "@tenon/ui/v2/diff-changes-v2"
 import { FileIcon } from "@tenon/ui/file-icon"
+import { Icon } from "@tenon/ui/v2/icon"
+import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
+import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { InlineInput } from "@tenon/ui/inline-input"
 import { SessionRetry } from "@tenon/session-ui/session-retry"
 import { isScrollKeyTarget, scrollKey, scrollKeyOwner, ScrollView } from "@tenon/ui/scroll-view"
@@ -262,6 +265,8 @@ export function MessageTimeline(props: {
   headerActions?: JSX.Element
   /** Shown in place of the thread's title (the Command Centre's title and thread switcher). */
   headerTitle?: JSX.Element
+  /** A Back button before the title, for a thread opened from the Command Centre. */
+  headerBack?: { label: string; onClick: () => void }
   userMessages: UserMessage[]
   anchor: (id: string) => string
   setRevealMessage?: (fn: (id: string) => void) => void
@@ -1354,6 +1359,20 @@ export function MessageTimeline(props: {
                 }}
               >
                 <div class="flex items-center min-w-0 flex-1 w-full">
+                  <Show when={props.headerBack}>
+                    {(back) => (
+                      <TooltipV2 placement="bottom" value={back().label}>
+                        <IconButtonV2
+                          type="button"
+                          variant="ghost-muted"
+                          data-action="thread-back"
+                          aria-label={back().label}
+                          icon={<Icon name="arrow-left" size="small" />}
+                          onClick={() => back().onClick()}
+                        />
+                      </TooltipV2>
+                    )}
+                  </Show>
                   {props.headerTitle}
                   <Show when={!props.headerTitle && parentID()}>
                     <button
