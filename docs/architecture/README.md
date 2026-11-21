@@ -76,9 +76,12 @@ platform exposes `dictation` (desktop); the web build has no mic.
   `start({ language })`, `stop(): Promise<string>`, `cancel()`, `status()`,
   `onLevel`, `onBands` and `onPartial` (only while recording; IPC
   `dictation-level`, `dictation-bands`, `dictation-partial`). While recording,
-  the composer shows the live words (merged with `mergeCaption`, so the caption
-  only grows), the language it transcribes in (`dictation-review.ts`: its name,
-  or "Detect language") and a 32-bar wave at the top of its own box (#328); when
+  the composer writes the live words in place at its caret (merged with
+  `mergeCaption`, so the caption only grows; `dictation-ghost.ts` lays a copy of
+  the editor over it, so the draft itself changes only when the final text is
+  inserted) and a capsule over the box's top edge shows the time, a voice meter,
+  the language it transcribes in (`dictation-review.ts`: its name, or "Detect
+  language") and Stop (#328); when
   the final pass differs from the caption, a toast says how many words changed
   (`captionChanges`) and "Use what I saw" swaps them back (`replaceBeforeCaret`,
   or copies them once the text has moved on); the compact

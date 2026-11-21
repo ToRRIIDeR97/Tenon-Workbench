@@ -39,18 +39,20 @@ describe("AC-16 the voice wave", () => {
     expect(levelReading(0.03)).toBeGreaterThan(0.4)
   })
 
-  test("the live words and the wave sit inside the composer's box", () => {
+  test("the capsule sits over the composer's box and its meter follows the bands", () => {
     const source = readFileSync(join(import.meta.dir, "dictation-button.tsx"), "utf8")
     expect(source).toContain('data-slot="prompt-input-box"')
     expect(source).toContain("onBands")
     expect(source).toContain("waveBars(")
+    expect(source).toContain('data-component="dictation-capsule"')
   })
 
-  test("the live row keeps the composer's size and shows the words in progress italic and lighter", () => {
+  test("the toolbar stays while recording and the words in progress are faint and italic", () => {
     const source = readFileSync(join(import.meta.dir, "dictation-button.tsx"), "utf8")
-    expect(source).toContain("slot.style.height = `${controls.offsetHeight}px`")
-    const words = source.slice(source.indexOf('data-slot="dictation-live-words"'))
-    expect(words.slice(0, 300)).toContain("italic")
-    expect(words.slice(0, 300)).toContain("text-v2-text-text-muted")
+    expect(source).not.toContain('controls.style.display = "none"')
+    const css = readFileSync(join(import.meta.dir, "dictation.css"), "utf8")
+    const ghost = css.slice(css.indexOf('[data-slot="dictation-ghost"] {'))
+    expect(ghost.slice(0, 200)).toContain("font-style: italic")
+    expect(ghost.slice(0, 200)).toContain("--v2-text-text-faint")
   })
 })
