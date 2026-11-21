@@ -65,6 +65,21 @@ describe("SessionV2.create", () => {
     }),
   )
 
+  it.effect("lists a folder's Project lead however many newer threads it has", () =>
+    Effect.gen(function* () {
+      const session = yield* SessionV2.Service
+      const plain = yield* session.create({ location })
+      const lead = yield* session.create({
+        location,
+        origin: { sessionID: plain.id, commandCentre: true, lead: true },
+      })
+      for (let index = 0; index < 250; index++) yield* session.create({ location })
+      const found = yield* session.list({ directory: location.directory, lead: true, order: "desc", limit: 5 })
+      expect(found.map((item) => item.id)).toEqual([lead.id])
+      expect((yield* session.get(lead.id)).origin).toEqual({ sessionID: plain.id, commandCentre: true, lead: true })
+    }),
+  )
+
   it.effect("creates a fresh projected session when the ID is omitted", () =>
     Effect.gen(function* () {
       const session = yield* SessionV2.Service

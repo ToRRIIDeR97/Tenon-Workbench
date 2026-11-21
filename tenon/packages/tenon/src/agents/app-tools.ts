@@ -335,7 +335,7 @@ export const COMMAND_TOOLS: ReadonlyArray<HarnessAppTools.Tool> = [
       name: "threads_overview",
       annotations: readOnly,
       description:
-        "List the workspace's Projects (id, name and folder, including Projects with no threads yet) and the root threads of every Project (and its General group), newest first, with title, Project, updated time and state: needs_you (waiting on the user), running or idle. Use a Project's id as delegate_to_project's project_id.",
+        "List the workspace's Projects (id, name and folder, including Projects with no threads yet) and the root threads of every Project (and its General group), newest first, with title, Project, updated time and state: needs_you (waiting on the user), running or idle. Use a Project's id as project_lead's or delegate_to_project's project_id.",
       inputSchema: {
         type: "object",
         properties: {
@@ -528,19 +528,31 @@ const known = (caller: { sessionID: string }) =>
   })
 
 /**
- * The folder Project `projectId`'s threads run in, as the caller's workspace sees it, for `delegate_to_project`'s
- * `project_id`. Undefined for an unknown Project, and for the Command Centre's own folder.
+ * The folder Project `projectId`'s threads run in, as the caller's workspace sees it, for `delegate_to_project`'s and
+ * `project_lead`'s `project_id`. Agents sometimes pass the Project's name, so an exact name (any case) that no other
+ * Project shares also works. Undefined for an unknown or ambiguous Project, and for the Command Centre's own folder.
  */
 export const projectFolder = (caller: { sessionID: string }, projectId: string) =>
   Effect.suspend((): Effect.Effect<HarnessAppTools.ProjectFolder | undefined> => {
     const context = state.context
     if (!context) return Effect.succeed(undefined)
     return Effect.gen(function* () {
-      const scope = (yield* isCommandSession(caller.sessionID))
-        ? yield* commandScope(caller.sessionID, { projectId })
-        : yield* scopeOf(caller.sessionID)
-      const folder = (yield* threadFolders(scope.workspace)).find((item) => item.project?.id === projectId)
-      if (!folder?.project || (yield* CommandMemory.isCommandDirectoryResolved(folder.directory))) return undefined
+      // A Command Centre thread sees every workspace; a name, which picks no workspace, is looked for in all of them.
+      const workspaces = (yield* isCommandSession(caller.sessionID))
+        ? yield* commandScope(caller.sessionID, { projectId }).pipe(
+            Effect.map((scope) => [scope.workspace]),
+            Effect.catch(() => workspaceCandidates()),
+          )
+        : [(yield* scopeOf(caller.sessionID)).workspace]
+      const folders = yield* Effect.filter((yield* Effect.forEach(workspaces, threadFolders)).flat(), (item) =>
+        item.project
+          ? CommandMemory.isCommandDirectoryResolved(item.directory).pipe(Effect.map((own) => !own))
+          : Effect.succeed(false),
+      )
+      const named = folders.filter((item) => item.project?.name.trim().toLowerCase() === projectId.trim().toLowerCase())
+      const folder =
+        folders.find((item) => item.project?.id === projectId) ?? (named.length === 1 ? named[0] : undefined)
+      if (!folder?.project) return undefined
       return { directory: folder.directory, name: folder.project.name }
     }).pipe(
       Effect.orElseSucceed(() => undefined),

@@ -90,34 +90,47 @@ export function CommandHub(props: {
     id
   const logo = (id: string, size = "size-4") => <HarnessIcon instance={{ id, name: harnessName(id) }} class={size} />
 
-  // Every Project's root threads as the hub reads them, from the sidebar's lists and the synced run state.
+  // Every Project's root threads as the hub reads them, from the sidebar's lists and the synced run state, plus the
+  // delegates of a Project's lead, which run as the lead's children.
   const threads = createMemo(() => {
     const data = serverSync().session.data
     const untitled = language.t("secondBrain.commandCentre.threads.untitled")
+    const hubThread = (
+      node: Parameters<typeof props.ctrl.subtreeState>[0],
+      parentID?: string,
+    ): HubThread & { directory: string } => {
+      const session = node.session
+      const who = sessionHarness(session, Harness.OpenCode)
+      const subtree = props.ctrl.subtreeState(node)
+      const waited = flattenThreads([node]).reduce((sum, item) => sum + needsYou(data, item.id), 0)
+      const waiting = waited > 0 ? waited : subtree === "approval" ? 1 : 0
+      const running = agentRunStatus(data.session_status[session.id], 0) === "running" || subtree === "running"
+      return {
+        id: session.id,
+        title: sessionTitle(session.title) || untitled,
+        harness: who.harness,
+        model: who.model,
+        updated: lastUpdate(session),
+        state: waiting > 0 ? "needs" : running ? "running" : "idle",
+        waiting,
+        origin: sessionOrigin(session),
+        todos: data.todo[session.id],
+        directory: session.directory,
+        ...(parentID ? { parentID } : {}),
+      }
+    }
     return Object.fromEntries(
-      props.ctrl.groups().projects.map((group) => [
-        String(group.project.id),
-        group.threads.map((node): HubThread & { directory: string } => {
-          const session = node.session
-          const who = sessionHarness(session, Harness.OpenCode)
-          const subtree = props.ctrl.subtreeState(node)
-          const waited = flattenThreads([node]).reduce((sum, item) => sum + needsYou(data, item.id), 0)
-          const waiting = waited > 0 ? waited : subtree === "approval" ? 1 : 0
-          const running = agentRunStatus(data.session_status[session.id], 0) === "running" || subtree === "running"
-          return {
-            id: session.id,
-            title: sessionTitle(session.title) || untitled,
-            harness: who.harness,
-            model: who.model,
-            updated: lastUpdate(session),
-            state: waiting > 0 ? "needs" : running ? "running" : "idle",
-            waiting,
-            origin: sessionOrigin(session),
-            todos: data.todo[session.id],
-            directory: session.directory,
-          }
-        }),
-      ]),
+      props.ctrl
+        .groups()
+        .projects.map((group) => [
+          String(group.project.id),
+          group.threads.flatMap((node) => [
+            hubThread(node),
+            ...(sessionOrigin(node.session)?.lead
+              ? node.children.map((child) => hubThread(child, node.session.id))
+              : []),
+          ]),
+        ]),
     )
   })
   const records = createMemo(() => new Map((projects.list() ?? []).map((record) => [record.id, record] as const)))
@@ -574,6 +587,8 @@ export function CommandHub(props: {
       {(value) => {
         const todos = () => serverSync().session.data.todo[value().id] ?? []
         const now = () => todoStep(todos())
+        // A Project's own lead reports its run state; an older Project's lead is a Command Centre thread.
+        const working = () => (value().project ? value().state === "running" : centre.working(value().id))
         return (
           <section data-component="hub-lead" class={`${CARD} animate-enter flex flex-col gap-3 px-[18px] py-4`}>
             <div class="flex items-center gap-2.5">
@@ -583,13 +598,11 @@ export function CommandHub(props: {
                 sub={[harnessName(value().harness), value().model].filter(Boolean).join(" · ")}
               />
               <span class="ml-auto flex items-center gap-1.5 type-caption text-v2-text-text-muted">
-                <Show when={centre.working(value().id)}>
+                <Show when={working()}>
                   <Dot />
                 </Show>
                 {language.t(
-                  centre.working(value().id)
-                    ? "secondBrain.commandCentre.hub.coordinating"
-                    : "secondBrain.commandCentre.hub.waiting",
+                  working() ? "secondBrain.commandCentre.hub.coordinating" : "secondBrain.commandCentre.hub.waiting",
                 )}
               </span>
               <ButtonV2 variant="ghost" size="small" onClick={() => props.open(value().id)}>

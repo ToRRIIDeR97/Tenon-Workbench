@@ -729,9 +729,10 @@ assistant that spans workspaces, with its own threads, memory and routines.
   Project (`hubCards`: outcome, next milestone and progress from
   `useBrainProjects`, the harnesses working in it with the Command Centre's first
   when it started one of its threads, and the newest running thread as the
-  card's last line). A card opens `?project=<id>` (`projectCrew`): the Command
-  Centre thread that last started work there, with its checklist as the plan,
-  then an agent card per thread that needs you, runs, or changed in the last day,
+  card's last line). A card opens `?project=<id>` (`projectCrew`): the Project's
+  lead thread (`origin.lead`; for older Projects, the Command Centre thread that
+  last started work there), with its checklist as the plan,
+  then an agent card per thread (the lead's delegates included) that needs you, runs, or changed in the last day,
   split by `crewGroups` into Working (needs you first, then running) above Finished
   (harness logo and model label, thread title, the checklist step "n of m" from
   `serverSync().session.todo`), and the day's Command Centre actions on those
@@ -1605,6 +1606,20 @@ options considered are in [ADR-011](../adr/ADR-011-cross-harness-delegation.md).
   lead-agent workflow steps from instruction files while still following their
   code style, safety, git and check rules) and `resume`. The task ID is the child's session ID, and the
   result is the child's last assistant reply (capped at 100,000 characters).
+- `project_lead` (`project_id`, `goal`, Command Centre threads only) gives a goal to the
+  Project's lead. `project_id` (here and in `delegate_to_project`) is a Project id from
+  `threads_overview`, or the Project's exact name (any case) when no Project in another workspace
+  shares it (`AgentAppTools.projectFolder`). The lead is one root thread in the Project's folder with `metadata.origin = { sessionID,
+  commandCentre: true, lead: true }`. The first goal creates it (on the given agent and model, else the
+  caller's) with `leadBrief`; later goals go to the same lead as `nextGoal`, steered in when it is
+  working, and its notices move to the Command Centre thread that gave the latest goal. Any Command
+  Centre thread may read, steer or stop a lead. The lead runs its own delegates with `delegate_task`
+  (child Runs under it), so the Command Centre runs Projects, not their agents.
+- Delegated threads (a `parentID`, or an `origin` that is neither a hand-off nor a lead) read
+  `DELEGATE.md` in place of each `AGENTS.md` that has one beside it, in the Tenon config folder or a
+  Project (`InstructionContext.Role`, set per thread by `SessionRunner.loadSystemContext`). The swap
+  covers the built-in loop and the `<tenon-context>` block harnesses get; Claude Code still loads its
+  own `CLAUDE.md`, so the delegate brief (`framedTask`) carries the scope rules too.
 - With `delegate_to_project` (`project_id`), the task runs in that Project instead: the app-tools
   provider resolves the Project's thread folder (`HarnessAppTools.projectFolder`,
   answered by `tenon/src/agents/app-tools.ts` `projectFolder` from the caller's
@@ -1696,7 +1711,11 @@ answer that delegation is turned off.
   `tool_timeout_sec=660`, and the OpenCode harness gets
   `experimental.mcp_timeout: 660000` in its `OPENCODE_CONFIG_CONTENT` launch
   config (`HarnessSetup.openCodeLaunchEnv`) unless the user's global OpenCode
-  config sets one; its default is 60 s. An ACP agent the user added waits at
+  config sets one; its default is 60 s. Claude Code gets `MCP_TOOL_TIMEOUT` and
+  `CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT` of 660000 in its launch environment
+  (`HarnessSetup.claudeCodeLaunchEnv`) unless Tenon's own environment sets them:
+  without them it ends a call to an HTTP server after 60 s, and a silent one
+  sooner (a `project_lead` waiting on a busy lead failed at 30 s). An ACP agent the user added waits at
   most 50 s, below the MCP SDK's 60 s default. If the user hasn't answered, it
   returns a "still open" text; calling again with the
   same questions in the same turn keeps waiting without asking twice, and an

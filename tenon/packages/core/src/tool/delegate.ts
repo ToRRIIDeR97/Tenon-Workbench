@@ -25,8 +25,21 @@ const inputs = {
   list_agents: Schema.Struct({}),
   delegate_task: Schema.Struct(task),
   delegate_to_project: Schema.Struct({
-    project_id: Schema.String.annotate({ description: "Project ID from threads_overview's projects." }),
+    project_id: Schema.String.annotate({
+      description: "Project ID from threads_overview's projects (or the Project's exact name).",
+    }),
     ...task,
+  }),
+  project_lead: Schema.Struct({
+    project_id: Schema.String.annotate({
+      description: "Project ID from threads_overview's projects (or the Project's exact name).",
+    }),
+    goal: Schema.String.annotate({ description: "The outcome, the context the lead needs and what to report." }),
+    agent: Schema.optional(Schema.String.annotate({ description: "Agent ID from list_agents for a new lead." })),
+    model: Schema.optional(Schema.String.annotate({ description: "Model ID from list_agents for a new lead." })),
+    reasoning_effort: Schema.optional(Schema.String),
+    title: Schema.optional(Schema.String),
+    wait_seconds: wait,
   }),
   task_result: Schema.Struct({ task_id: Schema.String, wait_seconds: wait }),
   cancel_task: Schema.Struct({ task_id: Schema.String }),
@@ -61,7 +74,7 @@ const layer = Layer.effectDiscard(
                       action: "delegate",
                       // A task placed in a Project names it, so the approval says where the work will run.
                       resources: [
-                        "agent" in input ? input.agent : "*",
+                        ("agent" in input ? input.agent : undefined) ?? "*",
                         ...("project_id" in input && input.project_id ? [`project:${input.project_id}`] : []),
                       ],
                       save: ["*"],

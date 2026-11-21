@@ -172,6 +172,21 @@ export function keyEnvironment(item: Recipe | undefined, stored: Keys[string] | 
 }
 
 /**
+ * Launch environment for the Claude Code harness: its MCP calls wait as long as Tenon's `tenon` tools hold them
+ * (`project_lead`, `task_result`, `ask_user`), like Codex's `tool_timeout_sec`. Claude Code gives a call to an HTTP
+ * server a minute in all and aborts one that stays silent for less, so a Command Centre waiting on a lead was told
+ * "The operation timed out." while the lead kept working. A value in Tenon's own environment wins and is inherited.
+ */
+export function claudeCodeLaunchEnv(inherited: Record<string, string | undefined>): Record<string, string> {
+  const limit = String((HarnessDelegation.MAX_WAIT_SECONDS + 60) * 1_000)
+  return Object.fromEntries(
+    ["MCP_TOOL_TIMEOUT", "CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT"]
+      .filter((name) => inherited[name] === undefined)
+      .map((name) => [name, limit]),
+  )
+}
+
+/**
  * Launch environment for the OpenCode harness, as inline config:
  * - it asks (through Tenon's approvals) before edits and shell commands. OpenCode's own default lets them run
  *   without asking; Codex runs with on-request approvals.

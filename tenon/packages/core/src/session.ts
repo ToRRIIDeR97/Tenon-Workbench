@@ -60,6 +60,8 @@ const ListInputBase = {
   limit: PositiveInt.pipe(Schema.optional),
   order: Schema.Literals(["asc", "desc"]).pipe(Schema.optional),
   anchor: ListAnchor.pipe(Schema.optional),
+  /** Only Project leads (`origin.lead`), however many other threads the folder has. */
+  lead: Schema.Boolean.pipe(Schema.optional),
 }
 
 const ListDirectoryInput = Schema.Struct({
@@ -272,7 +274,14 @@ const layer = Layer.effect(
             ...(input.harnessModel ? { harnessModel: input.harnessModel } : {}),
             harnessRevision: 0,
             ...(input.origin
-              ? { origin: { sessionID: input.origin.sessionID, commandCentre: input.origin.commandCentre } }
+              ? {
+                  origin: {
+                    sessionID: input.origin.sessionID,
+                    commandCentre: input.origin.commandCentre,
+                    ...(input.origin.handOff ? { handOff: true } : {}),
+                    ...(input.origin.lead ? { lead: true } : {}),
+                  },
+                }
               : {}),
           },
           agent: input.agent,
@@ -387,6 +396,7 @@ const layer = Layer.effect(
           )
         }
         if (input.search) conditions.push(like(SessionTable.title, `%${input.search}%`))
+        if (input.lead) conditions.push(sql`json_extract(${SessionTable.metadata}, '$.origin.lead') = 1`)
         if (input.anchor) {
           conditions.push(
             order === "asc"

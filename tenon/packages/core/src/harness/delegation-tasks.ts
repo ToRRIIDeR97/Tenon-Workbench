@@ -1,6 +1,6 @@
 export * as HarnessDelegationTasks from "./delegation-tasks"
 
-import { DateTime, Effect, Layer, Option, Schema } from "effect"
+import { DateTime, Effect, Layer, Option, Schema, Semaphore } from "effect"
 import { Harness } from "@tenon/schema/harness"
 import { HarnessRuntime } from "../harness"
 import { Location } from "../location"
@@ -23,7 +23,8 @@ const OUTPUT_LIMIT = 100_000
 const LATEST_LIMIT = 1_500
 
 interface Running {
-  readonly parentID: string
+  /** The thread that hears about the task; a Project lead's moves to the Command Centre thread that gave its latest goal. */
+  parentID: SessionSchema.ID
   readonly agent: string
   readonly title: string
   readonly started: number
@@ -88,15 +89,22 @@ export const layerWith = (options: { readonly checkInMs: number; readonly wakeDe
             .pipe(Effect.mapError(() => new Error("The delegating thread no longer exists.")))
         })
 
-      // Only the Run that started a task may read or stop it.
+      // Only the Run that started a task may read or stop it. A Project lead outlives the Command Centre thread that
+      // started it, so any Command Centre thread may.
       const owned = (sessionID: string, taskID: string) =>
         Effect.gen(function* () {
           const id = decodeID(taskID)
           const child = id ? yield* sessions.get(id).pipe(Effect.option) : Option.none()
-          if (Option.isNone(child) || starter(child.value) !== sessionID)
-            return yield* Effect.fail(new Error(`No delegated task ${taskID} belongs to this thread.`))
-          return child.value
+          if (Option.isSome(child) && starter(child.value) === sessionID) return child.value
+          if (Option.isSome(child) && child.value.origin?.lead && (yield* fromCommandCentre(sessionID)))
+            return child.value
+          return yield* Effect.fail(new Error(`No delegated task ${taskID} belongs to this thread.`))
         })
+      const fromCommandCentre = (sessionID: string) =>
+        caller(sessionID).pipe(
+          Effect.map((session) => HarnessAppTools.isCommandCentre(session.location.directory)),
+          Effect.orElseSucceed(() => false),
+        )
 
       const finalReply = (child: SessionSchema.Info, agent: string, error?: string) =>
         Effect.gen(function* () {
@@ -165,13 +173,13 @@ export const layerWith = (options: { readonly checkInMs: number; readonly wakeDe
 
       // While a task runs, the delegating thread hears from it on an interval so it can check the work and steer it.
       // A check-in still waiting for the thread (a long turn) isn't joined by another for the same task.
-      const checkIn = (parentID: SessionSchema.ID, child: SessionSchema.Info, entry: Running) =>
+      const checkIn = (child: SessionSchema.Info, entry: Running) =>
         Effect.gen(function* () {
           if (entry.finished || entry.cancelled || entry.waiting > 0) return
-          const pending = yield* sessions.queued(parentID)
+          const pending = yield* sessions.queued(entry.parentID)
           if (pending.some((input) => input.prompt.text.includes(checkInMarker(child.id)))) return
           yield* sessions.prompt({
-            sessionID: parentID,
+            sessionID: entry.parentID,
             prompt: { text: checkInNotice(entry.title, child.id, Math.floor((Date.now() - entry.started) / 60_000)) },
             delivery: "queue",
           })
@@ -199,6 +207,96 @@ export const layerWith = (options: { readonly checkInMs: number; readonly wakeDe
           })
           if (!outcome) return yield* stillRunning(child, agent, entry.started)
           return yield* finalReply(child, agent, outcome.error)
+        })
+
+      // The harness and model a task asks for, checked against what the workbench offers; `from` is the caller's own.
+      const pick = (
+        session: SessionSchema.Info,
+        input: { readonly agent: string; readonly model?: string; readonly reasoningEffort?: string },
+      ) =>
+        Effect.gen(function* () {
+          const instances = yield* harnesses(session)
+          const target = instances.find((instance) => instance.id === input.agent)
+          if (!target) return yield* Effect.fail(new Error(`Unknown agent ${input.agent}; call list_agents.`))
+          if (target.status !== "available")
+            return yield* Effect.fail(new Error(`${target.name} is not available: ${target.error ?? "not ready"}.`))
+          const model = input.model ? target.models.find((item) => item.id === input.model) : undefined
+          if (input.model && target.models.length > 0 && !model)
+            return yield* Effect.fail(new Error(`${target.name} has no model ${input.model}; call list_agents.`))
+          if (input.reasoningEffort && model && !model.reasoningEfforts.includes(input.reasoningEffort))
+            return yield* Effect.fail(
+              new Error(`${model.name} supports reasoning efforts: ${model.reasoningEfforts.join(", ") || "none"}.`),
+            )
+          return { target, from: instances.find((instance) => instance.id === session.harnessInstanceID) }
+        })
+
+      // Runs a task to the end of its work for `parentID`: check-ins while it runs, a notice when it ends.
+      const track = (parentID: SessionSchema.ID, child: SessionSchema.Info, agent: string) => {
+        const done: Promise<{ readonly error?: string }> = run(sessions.resume(child.id)).then(
+          () => ({}),
+          (cause) => ({ error: cause instanceof Error ? cause.message : String(cause) }),
+        )
+        const entry: Running = {
+          parentID,
+          agent,
+          title: child.title,
+          started: Date.now(),
+          done,
+          cancelled: false,
+          finished: false,
+          waiting: 0,
+        }
+        running.set(child.id, entry)
+        const timer = setInterval(() => void run(checkIn(child, entry)).catch(() => undefined), options.checkInMs)
+        timer.unref?.()
+        timers.add(timer)
+        void done.then((outcome) => {
+          clearInterval(timer)
+          timers.delete(timer)
+          entry.finished = true
+          // Kept a while so a late read still reports cancellation and errors; after that a read falls back to what
+          // the child recorded, as after a restart. A lead given a new goal meanwhile has a new entry, which stays.
+          setTimeout(() => {
+            if (running.get(child.id) === entry) running.delete(child.id)
+          }, FINISHED_RETENTION_MS).unref?.()
+          // Runs before a waiting call's own `done` handler, so `waiting` still counts it here.
+          if (entry.cancelled || entry.waiting > 0) return
+          void run(notify(entry.parentID, child, agent, outcome.error, closing)).catch(() => undefined)
+        })
+      }
+
+      // A Project's lead: the newest thread in its folder marked as one, found by that mark, not among recent threads.
+      const findLead = (directory: string) =>
+        sessions
+          .list({ directory: AbsolutePath.make(directory), lead: true, order: "desc", limit: 20 })
+          .pipe(Effect.map((items) => items.find((item) => !item.parentID && !item.time.archived)))
+      // Finding and starting a lead is one step at a time, so goals sent together can't start two leads.
+      const leadLock = Semaphore.makeUnsafe(1)
+
+      const startLead = (session: SessionSchema.Info, directory: string, input: HarnessDelegation.LeadInput) =>
+        Effect.gen(function* () {
+          // Without a choice the lead runs on the Command Centre's own harness and model.
+          const own = !input.agent && !input.model
+          const { target } = yield* pick(session, {
+            agent: input.agent ?? session.harnessInstanceID,
+            model: own ? undefined : input.model,
+            reasoningEffort: own ? undefined : input.reasoningEffort,
+          })
+          const harnessModel = own
+            ? session.harnessModel
+            : input.model
+              ? Harness.ModelSelection.make({
+                  id: input.model,
+                  ...(input.reasoningEffort ? { reasoningEffort: input.reasoningEffort } : {}),
+                })
+              : undefined
+          return yield* sessions.create({
+            origin: { sessionID: session.id, commandCentre: true, lead: true },
+            title: input.title?.slice(0, 120) ?? "Project lead",
+            harnessInstanceID: target.id,
+            ...(harnessModel ? { harnessModel } : {}),
+            location: Location.Ref.make({ directory: AbsolutePath.make(directory) }),
+          })
         })
 
       const handler: HarnessDelegation.Handler = {
@@ -242,23 +340,7 @@ export const layerWith = (options: { readonly checkInMs: number; readonly wakeDe
                 else starting.delete(sessionID)
               })
               const child = yield* Effect.gen(function* () {
-                const instances = yield* harnesses(session)
-                const target = instances.find((instance) => instance.id === input.agent)
-                if (!target) return yield* Effect.fail(new Error(`Unknown agent ${input.agent}; call list_agents.`))
-                if (target.status !== "available")
-                  return yield* Effect.fail(
-                    new Error(`${target.name} is not available: ${target.error ?? "not ready"}.`),
-                  )
-                const model = input.model ? target.models.find((item) => item.id === input.model) : undefined
-                if (input.model && target.models.length > 0 && !model)
-                  return yield* Effect.fail(new Error(`${target.name} has no model ${input.model}; call list_agents.`))
-                if (input.reasoningEffort && model && !model.reasoningEfforts.includes(input.reasoningEffort))
-                  return yield* Effect.fail(
-                    new Error(
-                      `${model.name} supports reasoning efforts: ${model.reasoningEfforts.join(", ") || "none"}.`,
-                    ),
-                  )
-                const from = instances.find((instance) => instance.id === session.harnessInstanceID)
+                const { target, from } = yield* pick(session, input)
                 const project = input.projectId ? yield* projectFolder(session, input.projectId) : undefined
                 const child = yield* sessions.create({
                   ...(project
@@ -288,41 +370,42 @@ export const layerWith = (options: { readonly checkInMs: number; readonly wakeDe
                   prompt: { text: framedTask(from?.name ?? "another agent", input.task) },
                   resume: false,
                 })
-                const done: Promise<{ readonly error?: string }> = run(sessions.resume(child.id)).then(
-                  () => ({}),
-                  (cause) => ({ error: cause instanceof Error ? cause.message : String(cause) }),
-                )
-                const entry: Running = {
-                  parentID: sessionID,
-                  agent: target.id,
-                  title: child.title,
-                  started: Date.now(),
-                  done,
-                  cancelled: false,
-                  finished: false,
-                  waiting: 0,
-                }
-                running.set(child.id, entry)
-                const timer = setInterval(
-                  () => void run(checkIn(session.id, child, entry)).catch(() => undefined),
-                  options.checkInMs,
-                )
-                timer.unref?.()
-                timers.add(timer)
-                void done.then((outcome) => {
-                  clearInterval(timer)
-                  timers.delete(timer)
-                  entry.finished = true
-                  // Kept a while so a late read still reports cancellation and errors; after that a read
-                  // falls back to what the child recorded, as after a restart.
-                  setTimeout(() => running.delete(child.id), FINISHED_RETENTION_MS).unref?.()
-                  // Runs before a waiting call's own `done` handler, so `waiting` still counts it here.
-                  if (entry.cancelled || entry.waiting > 0) return
-                  void run(notify(session.id, child, target.id, outcome.error, closing)).catch(() => undefined)
-                })
+                track(session.id, child, target.id)
                 return child
               }).pipe(Effect.ensuring(release))
               return yield* settle(child, input.waitSeconds)
+            }),
+          ),
+        lead: (sessionID, input) =>
+          run(
+            Effect.gen(function* () {
+              const session = yield* caller(sessionID)
+              if (!HarnessAppTools.isCommandCentre(session.location.directory))
+                return yield* Effect.fail(
+                  new Error(
+                    "Only the Command Centre gives goals to Project leads. Use delegate_task to hand off a step of your own work.",
+                  ),
+                )
+              const project = yield* projectFolder(session, input.projectId)
+              const lead = yield* leadLock.withPermit(
+                Effect.gen(function* () {
+                  const current = yield* findLead(project.directory)
+                  const lead = current ?? (yield* startLead(session, project.directory, input))
+                  const entry = running.get(lead.id)
+                  // A lead still working takes the new goal at its next safe point; an idle one starts on it.
+                  const busy = (entry !== undefined && !entry.finished) || (yield* sessions.active).has(lead.id)
+                  yield* sessions.prompt({
+                    sessionID: lead.id,
+                    prompt: { text: current ? nextGoal(input.goal) : leadBrief(input.goal) },
+                    ...(busy ? { delivery: "steer" as const } : {}),
+                    resume: false,
+                  })
+                  if (entry !== undefined && !entry.finished) entry.parentID = session.id
+                  else track(session.id, lead, lead.harnessInstanceID)
+                  return lead
+                }),
+              )
+              return yield* settle(lead, input.waitSeconds)
             }),
           ),
         result: (sessionID, taskID, waitSeconds) =>
@@ -389,7 +472,11 @@ function projectFolder(session: SessionSchema.Info, projectId: string) {
     Effect.flatMap((folder) =>
       folder
         ? Effect.succeed(folder)
-        : Effect.fail(new Error(`No Project ${projectId} is open to this thread; check the Project's id.`)),
+        : Effect.fail(
+            new Error(
+              `No Project "${projectId}" is open to this thread. Call threads_overview: it lists every Project with its id.`,
+            ),
+          ),
     ),
   )
 }
@@ -411,6 +498,40 @@ export function framedTask(from: string, task: string) {
     "- Still follow the instruction files' rules on code style, safety, git, and the checks to run for the files you change.",
     "",
     task,
+  ].join("\n")
+}
+
+/** A new lead's first prompt: its role, how to run the Project's work, and the goal. */
+export function leadBrief(goal: string) {
+  return [
+    "You are this Project's lead agent in Tenon Workbench. The Command Centre gave you this goal and sends later goals to",
+    "this same thread. It can't see your conversation, only your final reply.",
+    "",
+    "How to work:",
+    "- Plan the goal into steps. Do small steps yourself. Hand larger, self-contained steps to delegates with",
+    "  delegate_task (call list_agents first to pick an agent and model). Delegates run in this Project's folder as",
+    "  threads under yours and can't see this conversation: give each the goal, the files and what to report back.",
+    "- Up to four delegates run at once. Start them with a short wait_seconds and end your turn; Tenon tells you when",
+    "  each finishes. Read the report with task_result, check the work against the goal, then start the next step.",
+    "- When delegates need separate git worktrees, put them in .worktrees/<name> inside this folder and keep",
+    "  .worktrees/ in .gitignore.",
+    "- Ask the user only for a decision that is theirs: scope, direction, spending money, anything public or hard to undo.",
+    "- Finish with a complete report: what is done and verified, what is left, and any decision the user needs to make.",
+    "",
+    "Goal:",
+    "",
+    goal,
+  ].join("\n")
+}
+
+/** A later goal for a lead that already has this Project's history. */
+export function nextGoal(goal: string) {
+  return [
+    "New goal from the Command Centre:",
+    "",
+    goal,
+    "",
+    "Plan it alongside any work still open, and finish with a complete report as before.",
   ].join("\n")
 }
 
