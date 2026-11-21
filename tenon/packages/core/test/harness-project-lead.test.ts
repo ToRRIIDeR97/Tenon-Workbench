@@ -57,8 +57,12 @@ function fixture() {
         add({ ...input, id })
         return rows.get(id)!
       }),
-    list: (input: { directory: string }) =>
-      Effect.succeed([...rows.values()].filter((row) => row.location.directory === input.directory).toReversed()),
+    list: (input: { directory: string; lead?: boolean }) =>
+      Effect.succeed(
+        [...rows.values()]
+          .filter((row) => row.location.directory === input.directory && (!input.lead || row.origin?.lead === true))
+          .toReversed(),
+      ),
     prompt: (input: { sessionID: string; prompt: { text: string }; delivery?: string }) =>
       Effect.sync(
         () => void prompts.push({ sessionID: input.sessionID, text: input.prompt.text, delivery: input.delivery }),
@@ -178,6 +182,25 @@ test("a goal for a lead that is still working steers it instead of starting a se
         expect(second.taskID).toBe(first.taskID)
         expect([...world.rows.values()].filter((row) => row.origin?.lead)).toHaveLength(1)
         expect(world.prompts.findLast((prompt) => prompt.sessionID === first.taskID)?.delivery).toBe("steer")
+      }),
+    ),
+  )
+})
+
+test("goals sent together start one lead", async () => {
+  const world = fixture()
+  cleanup = world.uninstall
+  await Effect.runPromise(
+    Effect.scoped(
+      Effect.gen(function* () {
+        yield* Layer.build(world.layer)
+        const results = (yield* Effect.all([lead("ses_cc1", "Ship M6"), lead("ses_cc2", "Fix the HUD")], {
+          concurrency: "unbounded",
+        })) as HarnessDelegation.TaskResult[]
+        expect(new Set(results.map((result) => result.taskID)).size).toBe(1)
+        expect([...world.rows.values()].filter((row) => row.origin?.lead)).toHaveLength(1)
+        const goals = world.prompts.filter((prompt) => prompt.sessionID === results[0]!.taskID)
+        expect(goals).toHaveLength(2)
       }),
     ),
   )
