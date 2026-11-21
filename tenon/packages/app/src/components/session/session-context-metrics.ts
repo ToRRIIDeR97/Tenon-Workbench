@@ -36,6 +36,29 @@ type Context = {
   reported: boolean
 }
 
+/**
+ * What every context surface shows (the composer ring, its menu, the Context tab), so they can't disagree (#310):
+ * a share only when the context in use was reported and the window is known; tokens when it was reported without
+ * a window; "unreported" when the total is only the turn's tokens, never shown against the window.
+ */
+export type ContextReadout =
+  | { kind: "none" }
+  | { kind: "compacted" }
+  | { kind: "unreported"; tokens: number }
+  | { kind: "tokens"; tokens: number }
+  | { kind: "share"; tokens: number; limit: number; percent: number }
+
+export function contextReadout(
+  context: Pick<Context, "total" | "limit" | "usage" | "reported" | "compacted"> | undefined,
+): ContextReadout {
+  if (!context) return { kind: "none" }
+  if (context.compacted) return { kind: "compacted" }
+  if (context.total <= 0) return { kind: "none" }
+  if (!context.reported) return { kind: "unreported", tokens: context.total }
+  if (!context.limit || context.usage === null) return { kind: "tokens", tokens: context.total }
+  return { kind: "share", tokens: context.total, limit: context.limit, percent: context.usage }
+}
+
 const tokenTotal = (msg: AssistantMessage) => {
   return msg.tokens.input + msg.tokens.output + msg.tokens.reasoning + msg.tokens.cache.read + msg.tokens.cache.write
 }

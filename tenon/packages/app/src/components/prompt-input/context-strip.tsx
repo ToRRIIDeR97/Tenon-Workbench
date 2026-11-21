@@ -10,7 +10,7 @@ import { openSessionContext } from "@/components/session-context-usage"
 import { createSessionContextFormatter } from "@/components/session/session-context-format"
 import { PromptProjectSelector, createPromptProjectController } from "@/components/prompt-project-selector"
 import { createPromptProjectControls } from "@/pages/session/composer/session-composer-controls"
-import { getSessionContext } from "@/components/session/session-context-metrics"
+import { contextReadout, getSessionContext } from "@/components/session/session-context-metrics"
 import {
   getSessionTotals,
   getSubagentUsage,
@@ -82,14 +82,16 @@ export function ComposerContextRing(props: { context: ComposerContext; harness?:
   const [state, setState] = createStore({ open: false })
   const usage = createPlanUsage(() => state.open)
   const formatter = createMemo(() => createSessionContextFormatter(language.intl()))
+  // The ring, its menu and the Context tab read one readout (#310).
+  const readout = createMemo(() => contextReadout(props.context.context()))
   const label = () => {
-    const value = props.context.context()
-    if (!value) return ""
-    if (value.compacted) return language.t("secondBrain.contextStrip.ringCompacted")
-    if (!value.reported) return language.t("secondBrain.contextMenu.notReported")
-    if (value.usage === null)
-      return language.t("secondBrain.contextStrip.ringTokens", { count: formatter().number(value.total) })
-    return language.t("secondBrain.contextStrip.ring", { percent: formatter().percent(value.usage) })
+    const value = readout()
+    if (value.kind === "none") return ""
+    if (value.kind === "compacted") return language.t("secondBrain.contextStrip.ringCompacted")
+    if (value.kind === "unreported") return language.t("secondBrain.contextMenu.notReported")
+    if (value.kind === "tokens")
+      return language.t("secondBrain.contextStrip.ringTokens", { count: formatter().number(value.tokens) })
+    return language.t("secondBrain.contextStrip.ring", { percent: formatter().percent(value.percent) })
   }
   createEffect(() => !props.context.context() && setState("open", false))
 
@@ -113,7 +115,10 @@ export function ComposerContextRing(props: { context: ComposerContext; harness?:
           }}
           trigger={
             <span class="flex items-center justify-center">
-              <ProgressCircleV2 percentage={value().compacted ? 0 : (value().usage ?? 0)} />
+              <ProgressCircleV2 percentage={(() => {
+                const current = readout()
+                return current.kind === "share" ? current.percent : 0
+              })()} />
             </span>
           }
         >
@@ -197,6 +202,11 @@ function ContextMenu(props: {
   const usd = createMemo(() => new Intl.NumberFormat(language.intl(), { style: "currency", currency: "USD" }))
   const turn = createMemo(() => getTurnUsage(props.messages))
   const limit = () => props.context.limit || undefined
+  const readout = createMemo(() => contextReadout(props.context))
+  const share = () => {
+    const value = readout()
+    return value.kind === "share" ? value : undefined
+  }
   const percent = (value: number) => `${Math.round(value)}%`
   // Only the subagents still working: finished ones are in the Subagents tab, which the link opens.
   const running = createMemo(() => props.agents.filter((agent) => agent.running))
@@ -224,13 +234,13 @@ function ContextMenu(props: {
           }
         >
           <Show
-            when={props.context.reported && limit()}
+            when={share()}
             fallback={
               <>
                 <Row label={language.t("secondBrain.contextMenu.used")}>
                   {/* Without a live report the only figure is the turn's total over every model call, shown below. */}
                   <Show
-                    when={props.context.reported}
+                    when={readout().kind !== "unreported"}
                     fallback={
                       <span class="text-v2-text-text-muted">{language.t("secondBrain.contextMenu.notReported")}</span>
                     }
@@ -253,16 +263,16 @@ function ContextMenu(props: {
               </>
             }
           >
-            {(max) => (
+            {(value) => (
               <Row label={language.t("secondBrain.contextMenu.used")}>
                 <span class="truncate text-[12px] [font-weight:400] text-v2-text-text-muted">
                   {language.t("secondBrain.sessionTab.contextUsed", {
-                    used: formatter().number(props.context.total),
-                    limit: formatter().number(max()),
+                    used: formatter().number(value().tokens),
+                    limit: formatter().number(value().limit),
                   })}
                 </span>
-                <Meter value={props.context.usage ?? 0} />
-                <span class="w-[34px] text-right">{percent(props.context.usage ?? 0)}</span>
+                <Meter value={value().percent} />
+                <span class="w-[34px] text-right">{percent(value().percent)}</span>
               </Row>
             )}
           </Show>
