@@ -12,6 +12,7 @@ import { useSettings } from "@/context/settings"
 import { showToast } from "@/utils/toast"
 import { dictationLanguage } from "./dictation-language"
 import { mergeCaption } from "./dictation-caption"
+import { captionChanges, dictationLanguageName, replaceBeforeCaret } from "./dictation-review"
 import { levelReading, voiceGain, waveBars } from "./dictation-wave"
 
 /** Bars in the composer's voice wave. */
@@ -67,6 +68,8 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
     level: 0,
     // The words heard so far, while recording; the final transcript replaces them in the composer.
     partial: "",
+    // The spoken language this recording runs with, named for the caption; undefined while the model detects it.
+    language: undefined as string | undefined,
     // Where the live caption sits: above the mic, right-aligned to it (viewport pixels).
     anchor: undefined as { right: number; bottom: number } | undefined,
   })
@@ -184,14 +187,47 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
     })
   }
 
+  // The final pass reads the whole recording, so it can differ from the caption: say how much, and offer the words
+  // that were shown instead (#328).
+  const review = (shown: string, inserted: string, caret: Range | undefined) => {
+    const changed = captionChanges(shown, inserted)
+    if (changed === 0) return
+    showToast({
+      title: language.t(changed === 1 ? "dictation.revised.one" : "dictation.revised.other", { count: changed }),
+      actions: [
+        {
+          label: language.t("dictation.revised.useShown"),
+          onClick: () => {
+            props.restoreFocus()
+            // restoreFocus places the caret on the next frame; put it back where the insert left it, then swap.
+            requestAnimationFrame(() => {
+              const selection = window.getSelection()
+              if (caret && caret.startContainer.isConnected && selection) {
+                selection.removeAllRanges()
+                selection.addRange(caret)
+              }
+              const spaced = inserted.startsWith(" ") ? ` ${shown.trim()}` : shown.trim()
+              if (replaceBeforeCaret(inserted, spaced)) return
+              void navigator.clipboard.writeText(shown.trim())
+              showToast({ description: language.t("dictation.revised.copied") })
+            })
+          },
+        },
+        { label: language.t("common.dismiss"), onClick: "dismiss" },
+      ],
+    })
+  }
+
   const finish = async () => {
     setState({ phase: "transcribing", level: 0 })
+    const shown = state.partial
     const result = await props.dictation.stop()
     setState({ phase: "idle", partial: "" })
     if (result.error?.code === "cancelled") return
     if (result.error) return report(result.error)
     if (!result.text) return
-    if (!disposed && params.id === thread) return insertAtCaret(result.text, props.restoreFocus)
+    if (!disposed && params.id === thread)
+      return insertAtCaret(result.text, props.restoreFocus, (inserted, caret) => review(shown, inserted, caret))
     // The composer is gone or shows another thread, and typing there could reach a note or the wrong draft.
     const text = result.text
     showToast({
@@ -218,12 +254,11 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
     }
     if (state.phase === "idle") {
       thread = params.id
-      setState({ phase: "starting", partial: "" })
-      place()
       // A known spoken language: Whisper guessing it per recording sometimes answered in another language.
-      const result = await props.dictation.start({
-        language: dictationLanguage(settings.dictation.language(), language.intl()),
-      })
+      const spoken = dictationLanguage(settings.dictation.language(), language.intl())
+      setState({ phase: "starting", partial: "", language: dictationLanguageName(spoken, language.intl()) })
+      place()
+      const result = await props.dictation.start({ language: spoken })
       if (disposed) {
         if (!result.error) void props.dictation.cancel()
         return
@@ -311,6 +346,7 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
                   </Show>
                 </bdi>
               </p>
+              <LanguageChip name={state.language} />
               <ButtonV2
                 size="small"
                 variant="contrast"
@@ -346,11 +382,27 @@ export function PromptDictationButton(props: { dictation: DictationPlatform; res
                   {captionTail(state.partial)}
                 </Show>
               </span>
+              <LanguageChip name={state.language} />
             </div>
           </Portal>
         )}
       </Show>
     </>
+  )
+}
+
+/** The language this recording is transcribed in, so a wrong one shows before the text does (#328). */
+function LanguageChip(props: { name: string | undefined }) {
+  const language = useLanguage()
+  const text = () => props.name ?? language.t("dictation.live.detect")
+  return (
+    <span
+      data-slot="dictation-live-language"
+      title={language.t("dictation.live.language", { name: text() })}
+      class="shrink-0 rounded-full bg-v2-background-bg-layer-02 px-2 text-[11px] not-italic leading-5 text-v2-text-text-muted"
+    >
+      {text()}
+    </span>
   )
 }
 
@@ -385,7 +437,11 @@ export function MicIcon(props: { level?: number }) {
 }
 
 /** Focuses the composer at its saved caret and types the transcript there, spaced from the text before it. */
-function insertAtCaret(text: string, restoreFocus: () => void) {
+function insertAtCaret(
+  text: string,
+  restoreFocus: () => void,
+  inserted?: (spaced: string, caret: Range | undefined) => void,
+) {
   restoreFocus()
   // restoreFocus places the caret on the next frame; insert after it.
   requestAnimationFrame(() => {
@@ -393,17 +449,22 @@ function insertAtCaret(text: string, restoreFocus: () => void) {
     const node = selection?.anchorNode
     const before = node?.nodeType === Node.TEXT_NODE ? (node.textContent ?? "").slice(0, selection!.anchorOffset) : ""
     const spaced = before && !/\s$/.test(before) ? ` ${text}` : text
-    if (typeof document.execCommand === "function" && document.execCommand("insertText", false, spaced)) return
+    const done = () => {
+      const current = window.getSelection()
+      inserted?.(spaced, current && current.rangeCount > 0 ? current.getRangeAt(0).cloneRange() : undefined)
+    }
+    if (typeof document.execCommand === "function" && document.execCommand("insertText", false, spaced)) return done()
     const target = document.activeElement
     if (!(target instanceof HTMLElement) || !target.isContentEditable || !selection?.rangeCount) return
     const range = selection.getRangeAt(0)
     range.deleteContents()
-    const inserted = document.createTextNode(spaced)
-    range.insertNode(inserted)
-    range.setStartAfter(inserted)
+    const added = document.createTextNode(spaced)
+    range.insertNode(added)
+    range.setStartAfter(added)
     range.collapse(true)
     selection.removeAllRanges()
     selection.addRange(range)
     target.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: spaced }))
+    done()
   })
 }
