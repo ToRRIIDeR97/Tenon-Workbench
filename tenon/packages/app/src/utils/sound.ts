@@ -10,7 +10,17 @@ function getFiles() {
   return files
 }
 
+// Tenon's own sounds first, made by ui/script/sounds.ts: three families, each with done, attention and error.
 export const SOUND_OPTIONS = [
+  { id: "tenon-soft-done", label: "secondBrain.sound.softDone" },
+  { id: "tenon-soft-attention", label: "secondBrain.sound.softAttention" },
+  { id: "tenon-soft-error", label: "secondBrain.sound.softError" },
+  { id: "tenon-glass-done", label: "secondBrain.sound.glassDone" },
+  { id: "tenon-glass-attention", label: "secondBrain.sound.glassAttention" },
+  { id: "tenon-glass-error", label: "secondBrain.sound.glassError" },
+  { id: "tenon-pulse-done", label: "secondBrain.sound.pulseDone" },
+  { id: "tenon-pulse-attention", label: "secondBrain.sound.pulseAttention" },
+  { id: "tenon-pulse-error", label: "secondBrain.sound.pulseError" },
   { id: "tenon-done", label: "secondBrain.sound.tenonDone" },
   { id: "tenon-attention", label: "secondBrain.sound.tenonAttention" },
   { id: "tenon-error", label: "secondBrain.sound.tenonError" },
