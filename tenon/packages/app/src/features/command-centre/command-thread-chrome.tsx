@@ -16,6 +16,7 @@ import { createWaitingQueue } from "./agent-hands-view"
 import { useCommandCentre } from "./command-centre"
 import { createMissionThreads, MissionBoard } from "./mission-board-view"
 import { commandBackState } from "./thread-back"
+import { AllArtifactsBoard } from "@/features/artifacts/artifacts-view"
 
 export type CommandView = "board" | "waiting" | "workflows"
 
@@ -178,22 +179,50 @@ export function CommandMissionPanel() {
   const navigate = useNavigate()
   const location = useLocation()
   const server = useServer()
+  const language = useLanguage()
   const ctrl = useSidebarController()
   const board = createMissionThreads(ctrl)
+  // Board: every Project's threads. Files: every Project's pinned files, to review and send notes on from here.
+  const [view, setView] = createStore({ files: false })
   return (
     <aside
       data-component="command-mission-panel"
-      class="flex min-h-0 shrink-0 flex-col [&>*]:flex-1"
+      class="flex min-h-0 shrink-0 flex-col"
       style={{ width: `${MISSION_PANEL_WIDTH}px` }}
     >
-      <MissionBoard
-        ctrl={ctrl}
-        threads={board()}
-        open={(id) =>
-          navigate(sessionHref(server.key, id), { state: commandBackState(location.pathname + location.search) })
-        }
-        openRun={(run) => navigate(`/command?view=workflows&run=${encodeURIComponent(run)}`)}
-      />
+      <div class="flex shrink-0 px-3 pb-2 pt-1">
+        <SegmentedControlV2
+          aria-label={language.t("secondBrain.commandCentre.mission.view")}
+          value={view.files ? "files" : "board"}
+          onChange={(value) => value && setView("files", value === "files")}
+        >
+          <SegmentedControlItemV2 value="board" data-action="mission-board">
+            {language.t("secondBrain.commandCentre.mission.board")}
+          </SegmentedControlItemV2>
+          <SegmentedControlItemV2 value="files" data-action="mission-files">
+            {language.t("secondBrain.canvas.files")}
+          </SegmentedControlItemV2>
+        </SegmentedControlV2>
+      </div>
+      <div class="flex min-h-0 flex-1 flex-col [&>*]:flex-1">
+        <Show
+          when={view.files}
+          fallback={
+            <MissionBoard
+              ctrl={ctrl}
+              threads={board()}
+              open={(id) =>
+                navigate(sessionHref(server.key, id), {
+                  state: commandBackState(location.pathname + location.search),
+                })
+              }
+              openRun={(run) => navigate(`/command?view=workflows&run=${encodeURIComponent(run)}`)}
+            />
+          }
+        >
+          <AllArtifactsBoard />
+        </Show>
+      </div>
     </aside>
   )
 }

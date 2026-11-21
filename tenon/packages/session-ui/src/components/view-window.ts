@@ -40,11 +40,15 @@ export type ViewWindowLabels = {
 export type ViewSpace = {
   /** Draws `item` into `host`; returns a cleanup for when the window is replaced. */
   render: (host: HTMLElement, item: ViewItem) => void | (() => void)
+  /** Whether Open and Pin can act on the file; a path the app can't place shows neither. */
+  available?: (item: ViewItem) => boolean
   /** Opens the file in the thread's file viewer. */
   open?: (item: ViewItem) => void
   /** Adds the file to the Project's artifacts, or removes it. */
   pin?: (item: ViewItem) => void
   pinned?: (item: ViewItem) => boolean
+  /** Calls `change` whenever `item`'s pinned state changes (a list that loads late, a pin made elsewhere). */
+  watchPinned?: (item: ViewItem, change: (pinned: boolean) => void) => () => void
 }
 
 /** At most this many windows per block, so a long list can't flood the thread. */
@@ -165,15 +169,20 @@ function frame(item: ViewItem, labels: ViewWindowLabels, space: ViewSpace) {
   title.textContent = item.name
   title.title = item.src
   bar.appendChild(title)
-  if (space.open && !item.remote) bar.appendChild(button(labels.open, "open", () => space.open?.(item)))
-  if (space.pin && !item.remote) {
-    const pin = button(space.pinned?.(item) ? labels.pinned : labels.pin, "pin", () => {
+  const usable = !item.remote && (space.available?.(item) ?? true)
+  if (space.open && usable) bar.appendChild(button(labels.open, "open", () => space.open?.(item)))
+  let unwatch = () => {}
+  if (space.pin && usable) {
+    const show = (pinned: boolean) => {
+      pin.textContent = pinned ? labels.pinned : labels.pin
+      pin.setAttribute("aria-pressed", String(pinned))
+    }
+    const pin = button(labels.pin, "pin", () => {
       space.pin?.(item)
-      const now = space.pinned?.(item) ?? false
-      pin.textContent = now ? labels.pinned : labels.pin
-      pin.setAttribute("aria-pressed", String(now))
+      show(space.pinned?.(item) ?? false)
     })
-    pin.setAttribute("aria-pressed", String(space.pinned?.(item) ?? false))
+    show(space.pinned?.(item) ?? false)
+    unwatch = space.watchPinned?.(item, show) ?? unwatch
     bar.appendChild(pin)
   }
   element.appendChild(bar)
@@ -181,7 +190,13 @@ function frame(item: ViewItem, labels: ViewWindowLabels, space: ViewSpace) {
   body.dataset.slot = "view-window-body"
   element.appendChild(body)
   const cleanup = space.render(body, item)
-  return { element, cleanup: typeof cleanup === "function" ? cleanup : () => {} }
+  return {
+    element,
+    cleanup: () => {
+      unwatch()
+      if (typeof cleanup === "function") cleanup()
+    },
+  }
 }
 
 function button(label: string, action: string, onClick: () => void) {

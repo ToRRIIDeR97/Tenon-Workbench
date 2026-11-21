@@ -1428,15 +1428,17 @@ A ```view block names files for the user to look at. The agent's text is untrust
 
 - Each line is a path or an `https:` URL. `viewItems` drops every other scheme (`javascript:`, `data:`, `file:`,
   plain `http:`), and a block shows at most 12 files.
-- A path is read only inside the thread's folder (`resolveFileReferencePath`); a path outside it shows a notice and
-  is not read. Local files load through the desktop's `tenon-file://` handler (which applies its own inside-folder
-  check) or the server's file read for that folder.
-- A remote URL is loaded only as an image, video or audio element, never as a frame, so it can't run script. Loading
-  it does reach the URL's host, which then sees the request, as a Markdown image would.
+- A path is read only inside the thread's folder or a Project's thread folder (`resolveFileReferencePath` against
+  each); any other path shows a notice and is not read, and Open and Pin are left out. Local files load through the
+  desktop's `tenon-file://` handler (which applies its own inside-folder check) or the server's file read for that
+  folder.
+- A remote URL loads only when the user clicks "Load from <host>", and only as an image, video or audio element,
+  never a frame, so a thread can't make its host see that it was opened (the beacon the renderer's report-only
+  `img-src`/`media-src` policy is headed to block) and can't run script.
 - PDFs open in a frame of the local file (blob, data or `tenon-file:` URL). 3D models are parsed by three.js's glTF
   loader in the renderer; a malformed model fails to a notice.
-- Pinned artifacts store only paths and names, in this machine's app storage; notes go to the agent as ordinary
-  composer text the user sends.
+- A Project's pinned files are stored on its vault page `Artifacts.md` (paths and names only) and are data to
+  agents, like any note. Notes on them go to the agent as ordinary composer text the user sends.
 
 ## File references in chat
 

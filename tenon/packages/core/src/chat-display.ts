@@ -35,6 +35,7 @@ export const designGuidance = [
 export const viewGuidance = [
   "To show the user a file (an image, video, sound, PDF, document, spreadsheet or 3D model), write a ```view fenced block with one path per line, relative to the thread folder (or an https URL for an image, video or sound on the web). Each line becomes a viewer window in the chat: images, video and audio play inline, 3D models (.glb, .gltf) turn in a viewport, PDFs page in a reader, and documents open in full with Open.",
   "Use it whenever the user asks to see, hear or check something, and after you make or change a visual or audio asset. The user can pin a file to the Project's artifacts and leave notes on it for you.",
+  "The pinned files are listed on the Project's Artifacts page (notes_read `Artifacts.md`, paths relative to the Project's folder): check it when the user refers to the Project's assets, references or pinned files.",
 ].join("\n")
 
 /** File references the chat turns into links. */

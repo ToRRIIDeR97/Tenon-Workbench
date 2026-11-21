@@ -4,6 +4,8 @@ type Content = { content: string; encoding?: string; mimeType?: string; type?: s
 
 export type ViewRendererLabels = {
   loading: string
+  /** The button that loads a file from the web, with the host name. */
+  loadFrom: (host: string) => string
   missing: string
   outside: string
   noPreview: string
@@ -21,18 +23,17 @@ const EXCERPT_LINES = 40
  * file viewer renders them in full. 3D models load three.js only when one is shown.
  */
 export function createViewRenderer(input: {
-  directory: () => string
-  /** The path relative to the thread folder, or undefined for one outside it. */
-  relative: (src: string) => string | undefined
+  /** The folder and relative path a `view` line names: the thread's folder, or a Project's; undefined for neither. */
+  locate: (src: string) => { readonly directory: string; readonly path: string } | undefined
   fileURL?: (directory: string, path: string) => Promise<string | undefined>
-  read: (path: string) => Promise<Content>
+  read: (directory: string, path: string) => Promise<Content>
   labels: () => ViewRendererLabels
 }) {
   // A file the server read as text (a .gltf, a plain PDF) becomes a blob URL, freed with its window.
-  const urlFor = async (path: string, kind: ViewItem["kind"]) => {
-    const url = await input.fileURL?.(input.directory(), path).catch(() => undefined)
+  const urlFor = async (directory: string, path: string, kind: ViewItem["kind"]) => {
+    const url = await input.fileURL?.(directory, path).catch(() => undefined)
     if (url) return { url }
-    const read = await input.read(path).catch(() => undefined)
+    const read = await input.read(directory, path).catch(() => undefined)
     if (!read) return undefined
     if (read.encoding === "base64") return { url: `data:${read.mimeType ?? ""};base64,${read.content}` }
     const blob = URL.createObjectURL(new Blob([read.content], { type: read.mimeType || TEXT_TYPES[kind] || "" }))
@@ -49,16 +50,26 @@ export function createViewRenderer(input: {
     notice(labels.loading)
 
     const draw = async () => {
-      // Only an https URL is shown from the web, and only as media; anything else stays a link-free notice.
+      // Only an https URL is shown from the web, and only as media, and only when the user asks: loading it on sight
+      // would tell its host the thread was opened (the beacon the app's image policy is headed to block).
       if (item.remote) {
-        if (item.kind === "image") return host.replaceChildren(media("img", item.src, item.name))
-        if (item.kind === "video" || item.kind === "audio") return host.replaceChildren(media(item.kind, item.src))
-        return notice(labels.noPreview)
+        if (item.kind !== "image" && item.kind !== "video" && item.kind !== "audio") return notice(labels.noPreview)
+        const load = element("button", { type: "button", "data-action": "view-load-remote" })
+        load.textContent = labels.loadFrom(new URL(item.src).host)
+        load.addEventListener("click", () =>
+          host.replaceChildren(
+            item.kind === "image" ? media("img", item.src, item.name) : media(item.kind as "video" | "audio", item.src),
+          ),
+        )
+        const wrap = element("div", { "data-slot": "view-window-notice" })
+        wrap.append(load)
+        return host.replaceChildren(wrap)
       }
-      const path = input.relative(item.src)
-      if (!path) return notice(labels.outside)
+      const located = input.locate(item.src)
+      if (!located) return notice(labels.outside)
+      const { directory, path } = located
       if (item.kind === "markdown" || item.kind === "csv" || item.kind === "json" || item.kind === "file") {
-        const content = await input.read(path).catch(() => undefined)
+        const content = await input.read(directory, path).catch(() => undefined)
         if (!content) return notice(labels.missing)
         if (content.encoding === "base64" || content.type === "binary") return notice(labels.noPreview)
         const lines = content.content.split(/\r?\n/)
@@ -68,7 +79,7 @@ export function createViewRenderer(input: {
         )
       }
       if (item.kind === "sheet" || item.kind === "doc") return notice(labels.noPreview)
-      const found = await urlFor(path, item.kind)
+      const found = await urlFor(directory, path, item.kind)
       if (disposed) return found?.revoke?.()
       if (!found) return notice(labels.missing)
       const revoke = found.revoke

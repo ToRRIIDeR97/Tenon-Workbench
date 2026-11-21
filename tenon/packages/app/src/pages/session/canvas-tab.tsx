@@ -23,7 +23,7 @@ import { DesignBoard } from "@/pages/session/design-board"
 import { DesignFrame, LiveDesignFrame } from "@/pages/session/live-design-frame"
 import { useSDK } from "@/context/sdk"
 import { useArtifacts } from "@/features/artifacts/artifacts"
-import { ArtifactsBoard } from "@/features/artifacts/artifacts-view"
+import { ProjectArtifactsBoard } from "@/features/artifacts/artifacts-view"
 
 /**
  * The Canvas tab: the thread's designs, and the Project's pinned files to review with notes. With pinned files a
@@ -55,7 +55,7 @@ export function SessionCanvasTab() {
       </Show>
       <div class="min-h-0 flex-1">
         <Show when={files() && board.view === "files"} fallback={<DesignsBoard />}>
-          <ArtifactsBoard />
+          <ProjectArtifactsBoard />
         </Show>
       </div>
     </div>

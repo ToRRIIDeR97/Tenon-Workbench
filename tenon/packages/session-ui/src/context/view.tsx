@@ -8,6 +8,9 @@ export function ViewSpaceProvider(props: ParentProps<ViewSpace>) {
   // Getters, so the app can offer an action only where it works.
   const value: ViewSpace = {
     render: (host: HTMLElement, item: ViewItem) => props.render(host, item),
+    get available() {
+      return props.available
+    },
     get open() {
       return props.open
     },
@@ -16,6 +19,9 @@ export function ViewSpaceProvider(props: ParentProps<ViewSpace>) {
     },
     get pinned() {
       return props.pinned
+    },
+    get watchPinned() {
+      return props.watchPinned
     },
   }
   return <Context.Provider value={value}>{props.children}</Context.Provider>

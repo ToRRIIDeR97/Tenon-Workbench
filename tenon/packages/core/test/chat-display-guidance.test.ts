@@ -17,5 +17,6 @@ describe("ChatDisplay.abilities", () => {
     expect(text).toContain(ChatDisplay.viewGuidance)
     expect(text).toContain("```view")
     expect(text).toContain(".glb")
+    expect(text).toContain("Artifacts.md")
   })
 })

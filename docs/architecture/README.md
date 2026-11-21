@@ -2330,21 +2330,30 @@ A fenced block tagged `view` lists files the agent wants the user to see, one
 path (relative to the thread folder) or https URL per line
 (`ChatDisplay.viewGuidance` tells every agent). `session-ui/src/components/view-window.ts`
 parses it (`viewItems`: other URL schemes are dropped, at most 12 items) and
-`mountViewWindows` builds a window per file with Open and Pin to Project; the
-markdown worker keeps the `language-view` class (`aliases`). The app draws each
-file through `ViewSpaceProvider` (`pages/session/file-reference.tsx`,
-`features/artifacts/view-renderer.ts`): images, video and audio inline, PDFs in a
-reader frame, `.glb`/`.gltf` models on an orbiting three.js stage loaded only when
-one is shown, and a text excerpt for markdown, CSV and JSON. Files load through the
-desktop's `tenon-file://` URL when it serves them, else from the server's file
-read (base64, or a typed blob URL for text). Remote URLs show only as image,
-video or audio.
+`mountViewWindows` builds a window per file with Open and Pin to Project (both left
+out when the app can't place the file, `ViewSpace.available`); the markdown worker
+keeps the `language-view` class (`aliases`). The app draws each file through
+`ViewSpaceProvider` (`pages/session/file-reference.tsx`,
+`features/artifacts/view-renderer.ts`). A path is looked up in the thread's folder
+and then in every Project's thread folder (`locateView`), so a Command Centre
+thread can show and pin a Project's files. Images, video and audio play inline,
+PDFs open in a reader frame, `.glb`/`.gltf` models turn on a three.js stage
+loaded only when one is shown, and markdown, CSV and JSON show an excerpt. Files
+load through the desktop's `tenon-file://` URL when it serves them, else from the
+server's file read for that folder (base64, or a typed blob URL for text). A
+remote URL shows only as image, video or audio, and only after the user clicks
+"Load from <host>".
 
-Pinned files are the Project's artifacts (`features/artifacts/artifacts.ts`,
-kept per thread folder in `artifacts.v1` on this machine). They list at the top
-of the Documents section and on the Canvas tab's Files board, where each file
-shows in its viewer with a note field; Send notes puts the notes in the composer
-and sends them, as design notes do.
+Pinned files are the Project's artifacts (`features/artifacts/artifacts.ts`). A
+Project's list lives on its vault page `Artifacts.md` (`properties.artifacts`,
+with a readable list in the body), so it follows the vault and agents read it
+with `notes_read`; paths are relative to the Project's folder (`rebase`), so a
+worktree thread agrees with the rest. A folder outside every Project keeps its
+list on this machine (`artifacts.v1`). The list shows at the top of the Documents
+section and on the Canvas tab's Files board; a Command Centre thread's Mission
+panel has a Files view with every Project's pins. Each file shows in its viewer
+with a note field; Send notes puts the notes in the composer and sends them, as
+design notes do.
 
 ### File references in chat
 
