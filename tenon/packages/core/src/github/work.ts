@@ -33,6 +33,8 @@ export type Pull = {
   review?: "approved" | "changes" | "required"
   /** The issues this PR closes when it merges. */
   closes: number[]
+  /** When it merged, or closed without merging. */
+  closedAt?: string
   /** The Project thread whose messages first carry this PR's URL: the one that produced it. */
   thread?: { id: string; title: string }
 }
@@ -47,7 +49,8 @@ type Run = (command: string, args: string[], cwd: string) => Promise<string>
 
 const REPO = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}$/
 const ISSUE_FIELDS = "number,title,url,state,updatedAt,closedAt,labels,author"
-const PULL_FIELDS = "number,title,url,state,isDraft,mergedAt,reviewDecision,closingIssuesReferences,statusCheckRollup"
+const PULL_FIELDS =
+  "number,title,url,state,isDraft,mergedAt,closedAt,reviewDecision,closingIssuesReferences,statusCheckRollup"
 
 export const validRepo = (repo: string) => REPO.test(repo) && !repo.endsWith(".git")
 
@@ -242,6 +245,7 @@ function parsePulls(json: string): Pull[] {
         url: text(item.url),
         state: state === "MERGED" ? "merged" : state === "OPEN" ? "open" : "closed",
         draft: item.isDraft === true,
+        ...(text(item.mergedAt) || text(item.closedAt) ? { closedAt: text(item.mergedAt) || text(item.closedAt) } : {}),
         ...(checks.length === 0
           ? {}
           : {

@@ -20,6 +20,8 @@ export type GithubPull = {
   checks?: "passing" | "failing" | "pending"
   review?: "approved" | "changes" | "required"
   closes: ReadonlyArray<number>
+  /** When it merged or closed; a done PR shows under All for two weeks, as done issues do. */
+  closedAt?: string
   /** The Project thread that produced the PR (its messages first carry the URL). */
   thread?: { id: string; title: string }
 }
@@ -96,7 +98,10 @@ export function githubTaskRows(
   const listed = new Set(work.issues.map((issue) => issue.number))
   const pullRows: GithubTaskRow[] = work.pulls
     .filter((pull) => !pull.closes.some((number) => listed.has(number)))
-    .filter((pull) => pull.state === "open" || show === "all")
+    .filter(
+      (pull) =>
+        pull.state === "open" || (show === "all" && (!pull.closedAt || now - Date.parse(pull.closedAt) <= RECENT_MS)),
+    )
     .toSorted((a, b) => Number(a.state !== "open") - Number(b.state !== "open") || b.number - a.number)
     .map((pull) => ({
       kind: "pull" as const,

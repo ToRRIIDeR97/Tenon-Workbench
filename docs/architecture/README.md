@@ -422,7 +422,7 @@ cached a minute per folder. Each PR also names the thread that produced it:
 earliest thread to carry each URL (`gh pr create` prints it), read fresh on
 every request; the row's "From <thread>" button opens it. A PR that closes none
 of the listed issues is a row of its own (open ones always, merged and closed
-under All). Rows open on GitHub;
+under All for two weeks, like done issues). Rows open on GitHub;
 without `gh`, signed out, or without a GitHub origin, the block says so. `gh`
 is found on PATH and the Windows install folders (`which`).
 

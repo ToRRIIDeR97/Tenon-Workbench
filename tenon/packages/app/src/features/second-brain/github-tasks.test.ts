@@ -157,6 +157,14 @@ describe("AC-12b PRs that close no issue", () => {
     })
   })
 
+  test("like issues, done PRs show under All only for two weeks", () => {
+    const old = { ...standalone(92, "merged"), closedAt: "2026-10-01T00:00:00Z" }
+    const recent = { ...standalone(93, "merged"), closedAt: "2026-11-17T00:00:00Z" }
+    const rows = githubTaskRows({ ...work, pulls: [...work.pulls, old, recent] }, "all", now)
+    expect(rows.some((item) => item.number === 92)).toBe(false)
+    expect(rows.some((item) => item.number === 93)).toBe(true)
+  })
+
   test("a PR that closes a listed issue stays under that issue, not on its own", () => {
     expect(githubTaskRows(work, "all", now).filter((item) => item.kind === "pull")).toEqual([])
   })
