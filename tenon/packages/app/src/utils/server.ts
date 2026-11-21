@@ -657,6 +657,38 @@ export async function switchHarnessForServer(
   if (!response.ok) throw new Error(`Harness switch failed (${response.status}).`)
 }
 
+/**
+ * Compacts a harness thread with the harness's own /compact, on `model` for the compaction only when given. The server
+ * answers 503 with a reason while the thread runs or for a harness without /compact.
+ */
+export async function compactHarnessForServer(
+  input: { server: ServerConnection.HttpBase; fetch?: typeof globalThis.fetch },
+  sessionID: string,
+  model?: Harness.ModelSelection,
+) {
+  const response = await (input.fetch ?? globalThis.fetch)(
+    `${input.server.url.replace(/\/+$/, "")}/api/session/${encodeURIComponent(sessionID)}/compact`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(input.server.password
+          ? {
+              Authorization: `Basic ${authTokenFromCredentials({
+                username: input.server.username,
+                password: input.server.password,
+              })}`,
+            }
+          : {}),
+      },
+      body: JSON.stringify(model ? { model } : {}),
+    },
+  )
+  if (response.ok) return
+  const body = (await response.json().catch(() => undefined)) as { message?: string } | undefined
+  throw new Error(body?.message ?? `Compaction failed (${response.status}).`)
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }

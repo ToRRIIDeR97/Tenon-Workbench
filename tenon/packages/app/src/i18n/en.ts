@@ -2094,6 +2094,14 @@ export const dict = {
   "harness.settings.models.refresh": "Refresh models",
   "harness.settings.models.empty": "This harness reported no models.",
   "harness.settings.models.count": "{{shown}} of {{total}}",
+  "harness.settings.compaction": "Compaction",
+  "harness.settings.compaction.ownModel": "The thread's own model",
+  "harness.settings.compaction.model": "Compact cold threads with",
+  "harness.settings.compaction.model.description":
+    "After a thread sits idle, its prompt cache expires and /compact reloads the whole conversation into the model. A cheaper model does that read for less; the thread switches back once the summary is written.",
+  "harness.settings.compaction.cold": "Cold after (minutes)",
+  "harness.settings.compaction.cold.description":
+    "How long a thread sits idle before /compact uses the cheaper model. Claude's cache lasts 5 minutes by default and up to an hour.",
   "harness.settings.models.search": "Search models",
   "harness.settings.models.noMatch": "No models match your search.",
   "harness.settings.hostModels": "The default agent uses the models from the Built-in harness tab.",

@@ -13,6 +13,8 @@ export type PromptInputHarnessController = {
   /** True while any harness check runs or the current harness's models are still being listed. */
   checking?: () => boolean
   disabled?: () => boolean
+  /** While a turn runs: the model and effort can change (from the next turn), the harness can't. */
+  harnessLocked?: () => boolean
   /** Checks the harnesses again in the background; the shown list stays until the answer arrives. */
   revalidate?: () => void
   current: () => Harness.InstanceID

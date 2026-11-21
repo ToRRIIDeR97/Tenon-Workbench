@@ -401,7 +401,10 @@ export function PromptModelPill(props: {
                                   detail={harnessDetail(item)}
                                   title={item.error}
                                   selected={item.id === props.harness.current()}
-                                  disabled={updateChoice(item)?.disabled ?? item.status === "unavailable"}
+                                  disabled={
+                                    (updateChoice(item)?.disabled ?? item.status === "unavailable") ||
+                                    (props.harness.harnessLocked?.() === true && item.id !== props.harness.current())
+                                  }
                                   onSelect={() =>
                                     updateChoice(item)?.kind === "update"
                                       ? startUpdate(item)

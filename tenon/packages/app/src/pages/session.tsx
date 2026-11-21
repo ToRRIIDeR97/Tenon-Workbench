@@ -730,7 +730,8 @@ export default function Page() {
       current: () => (pick() ? pick()!.model : info()?.harnessModel),
       set: (model) => switchHarness(currentHarness(), model),
     },
-    disabled: () => (params.id ? sync().data.session_working(params.id) : false),
+    // While a turn runs the model and effort can still change; the server applies them from the next turn.
+    harnessLocked: () => (params.id ? sync().data.session_working(params.id) : false),
     fallbackUnavailable: false,
   })
   const isChildSession = createMemo(() => !!info()?.parentID)
