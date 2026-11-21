@@ -1,4 +1,4 @@
-import { createEffect, createSignal, on, onCleanup, type ParentProps } from "solid-js"
+import { createEffect, createRoot, createSignal, on, onCleanup, type ParentProps } from "solid-js"
 import { createMediaQuery } from "@solid-primitives/media"
 import { useDialog } from "@tenon/ui/context/dialog"
 import { motionDuration, prefersReducedMotion } from "@tenon/ui/v2/motion"
@@ -20,6 +20,9 @@ import { SESSION_OPEN_FILE_TAB } from "@/context/layout-tabs"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { OutsideFileDialog, outsideFileURL, useOutsideFileReader } from "@/pages/session/outside-file"
 import { showToast } from "@/utils/toast"
+import { ViewSpaceProvider } from "@tenon/session-ui/context/view"
+import { absoluteFrom, useArtifacts } from "@/features/artifacts/artifacts"
+import { createViewRenderer } from "@/features/artifacts/view-renderer"
 
 export type FileReveal = { directory: string; path: string; start?: number; end?: number; folder?: boolean }
 
@@ -240,8 +243,78 @@ export function SessionFileReferences(props: ParentProps) {
     onFileReference,
   } satisfies FileReferenceActions
 
+  // ```view windows: the agent shows the user a file in the thread; Pin keeps it in the Project's artifacts. A
+  // Command Centre thread's files live in the Projects' folders, so a path outside the thread's folder is looked up
+  // there and pinned to that Project.
+  const artifacts = useArtifacts()
+  const locateView = (src: string) => {
+    const path = resolveFileReferencePath(src, sdk().directory)
+    if (path) return { directory: sdk().directory, path, home: true }
+    // `../../projects/Alpha/art/x.png` from a Command Centre thread is the same file as its absolute path.
+    const full = absoluteFrom(sdk().directory, src)
+    for (const project of artifacts.projects() ?? []) {
+      const inside = resolveFileReferencePath(full, project.directory)
+      if (inside) return { directory: project.directory, path: inside, home: false }
+    }
+    return undefined
+  }
+  const renderView = createViewRenderer({
+    locate: locateView,
+    fileURL: platform.fileViewerURL ? (directory, path) => platform.fileViewerURL!(directory, path) : undefined,
+    read: async (directory, path) =>
+      directory === sdk().directory
+        ? (file.get(path)?.content ?? (await sdk().client.file.read({ path })).data)
+        : (await serverSDK().createClient({ directory, throwOnError: true }).file.read({ path })).data,
+    labels: () => ({
+      loading: language.t("secondBrain.view.loading"),
+      loadFrom: (host) => language.t("secondBrain.view.loadFrom", { host }),
+      missing: language.t("secondBrain.view.missing"),
+      outside: language.t("secondBrain.view.outside"),
+      noPreview: language.t("secondBrain.view.noPreview"),
+      modelFailed: language.t("secondBrain.view.modelFailed"),
+    }),
+  })
+
   // The right panel only exists on desktop widths; elsewhere references stay plain code.
   return (
-    <FileReferenceProvider value={() => (isDesktop() ? actions : undefined)}>{props.children}</FileReferenceProvider>
+    <ViewSpaceProvider
+      render={renderView}
+      available={(item) => locateView(item.src) !== undefined}
+      open={(item) => {
+        const found = locateView(item.src)
+        if (!found) return
+        // A file in another Project opens as a file outside this thread's folder.
+        if (found.home) return onFileReference({ path: found.path })
+        onFileReference({
+          path: `${found.directory.replaceAll("\\", "/").replace(/\/+$/, "")}/${found.path}`,
+          outside: true,
+        })
+      }}
+      pin={(item) => {
+        const found = locateView(item.src)
+        if (found) artifacts.toggle(found.directory, { ...item, src: found.path })
+      }}
+      pinned={(item) => {
+        const found = locateView(item.src)
+        return !!found && artifacts.has(found.directory, found.path)
+      }}
+      watchPinned={(item, change) =>
+        createRoot((dispose) => {
+          createEffect(
+            on(
+              () => {
+                const found = locateView(item.src)
+                return !!found && artifacts.has(found.directory, found.path)
+              },
+              change,
+              { defer: true },
+            ),
+          )
+          return dispose
+        })
+      }
+    >
+      <FileReferenceProvider value={() => (isDesktop() ? actions : undefined)}>{props.children}</FileReferenceProvider>
+    </ViewSpaceProvider>
   )
 }
