@@ -90,4 +90,53 @@ The #259 majors (AI SDK 7, Vite 8 + electron-vite 6, Sentry 11, Solid Router 2, 
 
 ## Completion evidence
 
-_Filled in after verification._
+Final code commit `1f3974b4` on `claude/open-issues-nov21` (base `3e6495df`). Checks ran in a short-path checkout:
+in the session worktree `bun install` can't link one package (Windows path length).
+
+| Part | Status | Evidence |
+| --- | --- | --- |
+| P1 #310 | Done | `session-context-readout(.verify).test.ts` 5 + 2 pass; ring, menu and tab read `contextReadout` |
+| P2 #328 | Done | `dictation-review(.verify).test.ts` 9 + 2 pass (contenteditable and textarea swaps) |
+| P3 #329 | Done | `command-strip-target(.verify).test.ts` 8 + 4 pass; live: card shows `Ctrl+J`, thread menu (2 threads + New thread), "Default agent" for a reply, the model pill for New thread |
+| P4 #331 | Done | `github-threads(.verify).test.ts` 5 pass (real SQLite, both stores); `github-tasks.test.ts` 12 pass; live: the Tenon-Workbench Project lists 6 open issues and, under All, merged PRs as their own rows |
+| P5 #259 | Done (minor/patch batch) | verifier: 224 pinned, 132 checked, 0 stale; `bun install --frozen-lockfile` ok; `bun audit` 8 → 6 advisories |
+
+- `bun run check`: passes on `1f3974b4`.
+- `bun run test:engine` on `a9b13064` (core unchanged since): 1504 pass, 3 fail — the known Windows-only failures
+  (git trees diff batch, harness key-file mode, symlinked AGENTS.md), also failing on `main`.
+- Tailwind 4.3: no class relies on the bare `transition` utility animating `visibility`.
+
+### Correction rounds
+
+1. Lint failed: `@tsconfig/bun` 1.0.12 adds `types: ["bun"]`, not installed at the root → held at 1.0.9.
+2. Formatting (Prettier) on new files.
+3. Reviewer read: `THREAD_MENU` sat between the card's doc comment and the component; doc updated.
+4. Live check: the compact `ComposerBox` dropped its `controls` slot, so the card's pill never rendered → fixed.
+5. Loop-back to step 1 (#331 acceptance): PRs that close no issue never appeared → AC-12b, own rows, two-week rule
+   with `closedAt` through core, protocol and client.
+6. Rating pass: "Use what I saw" only handled contenteditable; the Home/Command Centre composers are textareas → fixed.
+
+### Test changes after the freeze
+
+- `verification/dependencies.ts` held list: the P5 holds (patched-bound, prerelease pins, `@pierre/diffs`,
+  `@tsconfig/bun`), each with its reason; AC-13 amended to match.
+- `github-tasks.test.ts`: AC-12b cases added (loop-back); no existing assertion changed.
+- `dictation-review.test.ts`: textarea cases added to AC-6; no existing assertion changed.
+- `src/uiux-pr6-command-card.test.ts` (pre-existing, not frozen): three source checks pinned the newest-thread-only
+  card that #329 replaces; they now check the picked-thread wiring.
+- Prettier reflowed some frozen tests: whitespace, commas and quote style only.
+
+### Rating against this plan
+
+Round 1 (before the rating fixes): 8/10. The pill didn't render, PRs without an issue were invisible, and the
+textarea swap fell back to copying. Final: 10/10. Every criterion above has a passing test, the standard checks pass,
+and the card and GitHub rows were seen working live.
+
+### Not verified live
+
+- Dictation with a real microphone (language chip, revision toast): unit-tested only.
+- Ring/tab agreement on a real harness thread without a context report: unit-tested and wiring-checked.
+- "From <thread>" on a real PR: the test database has no thread citing a PR; covered by the SQLite test.
+- The P5 upgrades on macOS and Linux (only Windows here).
+
+One agent wrote the plan, the tests and the code.
