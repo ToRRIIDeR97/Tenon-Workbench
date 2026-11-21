@@ -36,7 +36,7 @@
       "@corvu/drawer": "0.2.4",
       "@types/node": "24.12.2",
       "@tsconfig/node24": "24.0.6",
-      "@tsconfig/bun": "1.0.12",
+      "@tsconfig/bun": "1.0.9",
       "@pierre/diffs": "1.2.10",
       "@solid-primitives/storage": "4.3.5",
       "@tailwindcss/vite": "4.3.5",
