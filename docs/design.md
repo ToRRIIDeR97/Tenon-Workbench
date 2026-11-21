@@ -404,7 +404,7 @@ Notification sounds are calm and short, like the motion. Tenon's own come from
 `bun script/sounds.ts` from `tenon/packages/ui` (needs ffmpeg) rather than
 editing audio files.
 
-- Three families (Glass, the default, Soft and Pulse), each with the same three
+- Three families (Soft, the default, Glass and Pulse), each with the same three
   phrases: **done** rises, **needs you** taps twice on one note, **error**
   falls. Error sits lowest and needs-you brightest, so they are told apart
   without looking.
