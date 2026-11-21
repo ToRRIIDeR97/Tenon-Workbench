@@ -60,21 +60,23 @@ describe("the card shows the exchange", () => {
   })
 
   test("the strip renders the ask above the reply", () => {
-    expect(strip()).toMatch(/centre\.lastAsk\(\)/)
+    expect(strip()).toMatch(/<Show when=\{lastAsk\(\)\}>/)
     expect(strip()).toMatch(/data-slot="command-card-ask"/)
     // The reply is drawn as Markdown under a height cap, never as a clamped line of source text.
-    expect(strip()).toMatch(/<Markdown text=\{centre\.lastReply\(\)\}/)
+    expect(strip()).toMatch(/<Markdown text=\{lastReply\(\)\}/)
     expect(strip()).toMatch(/data-action="command-card-reply-more"/)
     expect(strip()).not.toMatch(/line-clamp-3/)
   })
 })
 
 describe("replies and new threads", () => {
-  // AC-3: a send replies to the shown thread; New thread starts a fresh one.
+  // AC-3: a send replies to the shown thread; New thread starts a fresh one. Since #329 the shown thread is the one
+  // picked in the card's thread menu (the newest by default), so the send goes to `targetID()`.
   test("the composer sends to the shown thread unless New thread was chosen", () => {
     const source = strip()
     expect(source).not.toMatch(/centre\.send\(text, null\)\)/)
-    expect(source).toMatch(/centre\.send\(text, state\.fresh \? null : centre\.latest\(\)\?\.id\)/)
+    expect(source).toMatch(/stripTarget\(state\.fresh \? null : state\.chosen, centre\.threads\(\), centre\.latest\(\)\?\.id\)/)
+    expect(source).toMatch(/const id = targetID\(\)\s+const sent = await centre\.send\(\s+text,\s+id,/)
     expect(source).toMatch(/data-action="command-card-new"/)
   })
 
@@ -88,7 +90,7 @@ describe("replies and new threads", () => {
 describe("needs-you in the card", () => {
   // AC-5: an approval or question pending on the shown thread offers "Review in thread", which opens it.
   test("waiting shows a Review in thread action", () => {
-    expect(strip()).toMatch(/<Show when=\{centre\.waiting\(\)\}>[\s\S]{0,400}data-action="command-card-review"/)
+    expect(strip()).toMatch(/<Show when=\{waitingHere\(\)\}>[\s\S]{0,400}data-action="command-card-review"/)
     expect(read("app/src/i18n/en.ts")).toMatch(/"secondBrain\.commandCentre\.strip\.review": "Review in thread"/)
   })
 })
