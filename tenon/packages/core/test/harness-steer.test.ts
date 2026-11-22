@@ -30,7 +30,10 @@ process.stdin.on("data", (chunk) => {
         params: { sessionId: "s1", update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Working" } } },
       })
     }
-    if (message.method === "session/cancel") send({ id: prompt, result: { stopReason: "cancelled" } })
+    if (message.method === "session/cancel") {
+      if (process.argv[2]) require("fs").writeFileSync(process.argv[2], message.params.sessionId)
+      send({ id: prompt, result: { stopReason: "cancelled" } })
+    }
   }
 })
 `
@@ -135,15 +138,16 @@ it.effect("a turn with no steer signal is left alone", () =>
   }),
 )
 
-it.live("closing the runtime mid-turn ends the turn with an error instead of leaving it waiting", () =>
+it.live("closing the runtime mid-turn cancels the turn on the agent instead of abandoning it", () =>
   Effect.gen(function* () {
     const dir = yield* Effect.promise(() => fs.mkdtemp(path.join(os.tmpdir(), "tenon-acp-close-")))
     const script = path.join(dir, "agent.cjs")
+    const cancelled = path.join(dir, "cancelled.txt")
     yield* Effect.promise(() => Bun.write(script, agent))
     const process = yield* AppProcess.Service
     const scope = yield* Scope.make()
     const session = yield* AcpHarness.open(process, {
-      settings: { command: globalThis.process.execPath, args: [script], env: {}, models: [] },
+      settings: { command: globalThis.process.execPath, args: [script, cancelled], env: {}, models: [] },
       directory: dir,
       approve: () => Effect.succeed(false),
     }).pipe(Effect.provideService(Scope.Scope, scope))
@@ -152,6 +156,8 @@ it.live("closing the runtime mid-turn ends the turn with an error instead of lea
     yield* Effect.sleep("200 millis")
     yield* Scope.close(scope, Exit.void)
     const events = yield* Fiber.join(turn).pipe(Effect.timeout("5 seconds"))
-    expect(events.at(-1)).toMatchObject({ type: "finish", reason: "error" })
+    expect(events.at(-1)).toMatchObject({ type: "finish", reason: "stop" })
+    // The agent wrote it before answering, so its presence means the cancel reached the agent, not just the client.
+    expect(yield* Effect.promise(() => fs.readFile(cancelled, "utf8"))).toBe("s1")
   }).pipe(Effect.scoped),
 )
