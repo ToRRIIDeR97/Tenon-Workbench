@@ -440,16 +440,15 @@ allows `/usr/bin/security` (it does for entries Claude Code writes).
   the network. What it reads is the agent's own output and is rendered as
   untrusted model output, like the live ACP stream; it gives the agent no new
   ability, and the wait ends at the one-hour background limit.
-- **Leftover processes.** Harnesses run in their own process group. Each one's
-  PID, command and owning server PID are written to
-  `<state>/harness-pids/<pid>.json` and removed when it closes
+- **Leftover processes.** Each harness's PID, command and owning server PID are
+  written to `<state>/harness-pids/<pid>.json` and removed when it closes
   (`core/src/harness/pids.ts`). At the first location start of a server run,
   entries from earlier runs are read; a PID still running its recorded command
-  (checked with `ps`) has its process group sent `SIGTERM`, and the files are
-  removed. Entries owned by the running server are never touched. Windows only
-  removes the files: harnesses aren't detached there, and Codex, OpenCode and
-  Claude Code's adapter each exited on their closed stdin when the server was
-  killed outright (checked per CLI). A tool one of them started can outlive it.
+  (checked with `ps` on macOS and Linux, with PowerShell's `Get-CimInstance` on
+  Windows) is ended — its process group with `SIGTERM`, or its whole tree with
+  `taskkill /T` on Windows, so the agent's own server and the shells and dev
+  servers it started go with it. Entries owned by the running server are never
+  touched.
 - **Sign-in restarts.** When a setup read sees a harness change from signed
   out to signed in or API key, its open runtimes are closed and its cached
   checks cleared, so the next message starts a process with the new login.

@@ -8,7 +8,7 @@ import path from "path"
 /**
  * A ledger of running harness processes, one file per PID in the app's state folder. Harnesses are spawned in their
  * own process group (detached) so their whole tree can be stopped; when the app's server dies without running its
- * finalizers, those groups outlive it. The next start ends the ones still running the recorded command.
+ * finalizers, those processes outlive it. The next start ends the ones still running the recorded command.
  */
 let ledger: string | undefined
 // Every location layer configures the ledger, but only the first reap of a server run may end anything.
@@ -57,9 +57,9 @@ export async function reap(
 }
 
 /**
- * Reaps the ledger left by a previous run and clears it. Windows only clears it: harnesses aren't detached there, and
- * when the server is killed outright, Codex, OpenCode and Claude Code's adapter all exit on their closed stdin (checked
- * against each CLI). A tool one of them started can outlive it, but nothing can reach that once its parent is gone.
+ * Reaps the ledger left by a previous run and clears it. Posix signals the recorded PID's process group; Windows
+ * checks the PID with PowerShell and ends its tree with `taskkill /T`. Both act only while the PID still runs its
+ * recorded command, since a PID can be reused by an unrelated process.
  */
 export const reapLedger = Effect.promise(async () => {
   const directory = ledger
@@ -81,28 +81,54 @@ export const reapLedger = Effect.promise(async () => {
     .filter((entry): entry is Entry => !!entry && Number.isInteger(entry.pid) && typeof entry.command === "string")
     // This server's own harnesses are live; only those left by an earlier run are candidates.
     .filter((entry) => entry.owner !== process.pid)
-  const running = process.platform === "win32" ? async () => false : commandOf
-  const ended = await reap(entries, running, (pid) => {
-    // The PID leads its own process group, so the negative PID stops the harness and everything it started.
-    // A process that exited in the meantime throws ESRCH; there is nothing left to end then.
-    for (const target of [-pid, pid]) {
-      try {
-        process.kill(target, "SIGTERM")
-        return
-      } catch {}
-    }
-  })
+  const windows = process.platform === "win32"
+  const ended = await reap(entries, windows ? commandOfWindows : commandOf, windows ? killTree : killGroup)
   await Promise.all(
     entries.map((entry) => fs.rm(path.join(directory, `${entry.pid}.json`), { force: true }).catch(() => undefined)),
   )
   return ended
 })
 
-// A PID can be reused by an unrelated process, so it counts only while it still runs the recorded command.
+/** Whether a process line names the recorded command; a PID is acted on only while it does. */
+export function runsCommand(line: string, command: string, platform: NodeJS.Platform = process.platform) {
+  const name = (platform === "win32" ? path.win32 : path.posix).basename(command).toLowerCase()
+  return name.length > 0 && line.toLowerCase().includes(name)
+}
+
 function commandOf(pid: number, command: string) {
   return new Promise<boolean>((resolve) =>
     execFile("ps", ["-p", String(pid), "-o", "command="], { timeout: 2_000 }, (error, stdout) =>
-      resolve(!error && stdout.includes(path.basename(command))),
+      resolve(!error && runsCommand(stdout, command)),
     ),
   )
+}
+
+// Windows has no `ps`; its PowerShell reports the same command line for a process the user owns.
+function commandOfWindows(pid: number, command: string) {
+  const query = `(Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}").CommandLine`
+  return new Promise<boolean>((resolve) =>
+    execFile(
+      "powershell.exe",
+      ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", query],
+      { timeout: 5_000, windowsHide: true },
+      (error, stdout) => resolve(!error && runsCommand(stdout, command, "win32")),
+    ),
+  )
+}
+
+function killGroup(pid: number) {
+  // The PID leads its own process group, so the negative PID stops the harness and everything it started.
+  // A process that exited in the meantime throws ESRCH; there is nothing left to end then.
+  for (const target of [-pid, pid]) {
+    try {
+      process.kill(target, "SIGTERM")
+      return
+    } catch {}
+  }
+}
+
+// Harnesses are not detached on Windows, so their children (the agent's own server, the shells and dev servers the
+// agent started) only go with `taskkill /T`. A process that exited in the meantime makes taskkill exit non-zero.
+function killTree(pid: number) {
+  execFile("taskkill", ["/pid", String(pid), "/t", "/f"], { timeout: 5_000, windowsHide: true }, () => undefined)
 }

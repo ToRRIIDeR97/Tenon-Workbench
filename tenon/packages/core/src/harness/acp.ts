@@ -2,7 +2,7 @@ export * as AcpHarness from "./acp"
 
 import { LLMError, LLMEvent, TransportReason, type FinishReason } from "@tenon/llm"
 import { Harness } from "@tenon/schema/harness"
-import { Clock, Deferred, Effect, Exit, Option, Queue, Schema, Stream } from "effect"
+import { Clock, Deferred, Effect, Exit, Option, Queue, Schema, Scope, Stream } from "effect"
 import type { PlatformError } from "effect/PlatformError"
 import { ChildProcess } from "effect/process"
 import os from "os"
@@ -620,6 +620,24 @@ export const open = Effect.fn("AcpHarness.open")(function* (
             Effect.ensuring(Deferred.succeed(settled, undefined)),
             Effect.forkIn(scope),
           )
+        // Added after the request fiber, so closing the runtime runs this first, while the fiber can still answer.
+        // An agent killed mid-turn leaves its session busy in its own store, and the next start of that store's
+        // service can resume the old work; telling it to cancel lets the turn end properly instead.
+        yield* Scope.addFinalizer(
+          scope,
+          Effect.suspend(() => {
+            if (state.prompt !== settled) return Effect.void
+            return Deferred.isDone(settled).pipe(
+              Effect.flatMap((done) =>
+                done
+                  ? Effect.void
+                  : client
+                      .notify("session/cancel", { sessionId: session.sessionId })
+                      .pipe(Effect.andThen(Deferred.await(settled)), Effect.timeout("2 seconds"), Effect.ignore),
+              ),
+            )
+          }),
+        )
         // Set while the turn waits on background subagents (see `followBackground`); `reported` holds the ones
         // whose notice it saw.
         const follow = { active: false, leave: yield* Deferred.make<void>(), reported: new Set<string>() }

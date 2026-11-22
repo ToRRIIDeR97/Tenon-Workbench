@@ -1526,7 +1526,10 @@ one capped, redacted line from the end of its stderr (`watchExit`). A stdout
 line that isn't JSON is skipped and only its length logged; a JSON message of
 the wrong shape still ends the connection. A runtime idle for 30 minutes with no turn running is
 closed by a sweep that runs every minute (`idleRuntimeKeys`); its thread
-reconnects on the next message. ACP model discovery runs in
+reconnects on the next message. Closing a runtime whose turn is still open
+sends `session/cancel` first and waits up to two seconds for the agent to end
+the turn, so it isn't abandoned mid-flight for its own service to resume later.
+ACP model discovery runs in
 `<state>/harness-discovery`, so the sessions it opens don't land in the
 thread folder's history. When an ACP session is reopened with
 `session/load`, the last replayed `usage_update` cost is the baseline
