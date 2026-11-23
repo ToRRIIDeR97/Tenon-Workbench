@@ -210,7 +210,8 @@ export function PagesGrid(props: {
     "flex h-[72px] w-full flex-col gap-1 rounded-[12px] p-2.5 text-left transition-colors duration-short ease-standard motion-reduce:transition-none"
   return (
     <div class="flex flex-col gap-2">
-      <ul class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      {/* As many tiles as fit (at least 150px each), so a wide page shows more of them per row. */}
+      <ul class="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-2">
         <For each={props.pages}>
           {(page) => (
             <li class="min-w-0">

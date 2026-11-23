@@ -141,8 +141,10 @@ Use `[font-weight:N]` when a weight must differ from the role.
   five) as the Project page's own task rows in a full-width `bg-base` card.
   A new selection fades in (`ViewSwitch`). Below 1024px the list card is
   alone and a row opens its Project.
-- **Project page: one column.** A 760px column; once the page itself is
-  960px wide (a container query, so an open sidebar counts), a 120px section
+- **Project page: one column.** A column that grows with the page up to
+  1100px (so a wide window isn't mostly margin; long log lines stop at 80ch);
+  once the page itself is 960px wide (a container query, so an open sidebar
+  counts), a 120px section
   index sits beside it (pills: hover `overlay-hover`, the section in view
   `overlay-pressed`, the last section once the page's end is in view; it
   sticks while the page scrolls). The column opens on a 132px cover band (20px

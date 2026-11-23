@@ -188,10 +188,11 @@ export function ProjectView(props: {
 
   return (
     // One column (#project-home): the cover, tile and title with the milestone road, the numbers, then Tasks, Story,
-    // Pages and Settings. Once the page itself is 960px wide (a container query, so the sidebar counts), the section
-    // index sits in its own column beside the sections and sticks.
+    // Pages and Settings. The column grows with the page up to 1100px, so a wide window isn't mostly margin. Once the
+    // page itself is 960px wide (a container query, so the sidebar counts), the section index sits in its own column
+    // beside the sections and sticks.
     <div data-project-page={props.project.id} class="@container w-full">
-      <div class="mx-auto grid w-full max-w-[1060px] grid-cols-1 gap-x-10 gap-y-8 px-6 pb-12 pt-6 sm:px-10 @min-[960px]:grid-cols-[120px_minmax(0,760px)] @min-[960px]:justify-center">
+      <div class="mx-auto grid w-full max-w-[1340px] grid-cols-1 gap-x-10 gap-y-8 px-6 pb-12 pt-6 sm:px-10 @min-[960px]:grid-cols-[120px_minmax(0,1100px)] @min-[960px]:justify-center">
         <div class="flex min-w-0 flex-col gap-8 @min-[960px]:col-start-2">
           <ProjectCover />
           {/* The tile (64px) rides up over the cover's bottom edge: the 32px column gap plus most of the tile. */}
