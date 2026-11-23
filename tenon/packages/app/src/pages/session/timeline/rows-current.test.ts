@@ -322,4 +322,39 @@ describe("current session timeline rows", () => {
     const folded = Timeline.constructMessageRows(user, () => declined, [assistant], 0, true, "idle", true, true)
     expect(folded.flatMap((row) => (row._tag === "TurnSteps" ? [row.failed] : []))).toEqual([false, false])
   })
+
+  test("closes a harness's own /compact turn with a compaction divider once it ends", () => {
+    const user = { id: "msg_u", sessionID: "ses_1", role: "user", time: { created: 1 } } as UserMessage
+    const assistant = { id: "msg_a", sessionID: "ses_1", role: "assistant", time: { created: 2 } } as AssistantMessage
+    const prompt = { id: "p1", messageID: "msg_u", sessionID: "ses_1", type: "text", text: "/compact" } as Part
+    const think = {
+      id: "t1",
+      messageID: "msg_a",
+      sessionID: "ses_1",
+      type: "tool",
+      callID: "t1",
+      tool: "acp_think",
+      state: { status: "completed" },
+    } as Part
+    const parts = (messageID: string) => (messageID === "msg_u" ? [prompt] : [think])
+    const dividers = (rows: ReturnType<typeof Timeline.constructMessageRows>) =>
+      rows.flatMap((row) => (row._tag === "TurnDivider" ? [TimelineRow.key(row)] : []))
+
+    const done = Timeline.constructMessageRows(user, parts, [assistant], 0, true, "idle", true, true)
+    expect(done.map(TimelineRow.key).at(-1)).toBe("turn-divider:msg_u:compaction")
+    // Still running: nothing has been compacted yet.
+    expect(dividers(Timeline.constructMessageRows(user, parts, [assistant], 0, true, "busy", true, true))).toEqual([])
+    // A seen drop in context names the figures, once, at the end of the turn.
+    const observed = { harness: "claude-code", before: 90_000, after: 12_000 }
+    const seen = Timeline.constructMessageRows(user, parts, [assistant], 0, true, "idle", true, true, true, observed)
+    expect(dividers(seen)).toEqual(["turn-divider:msg_u:harness-compaction"])
+    // A failed /compact shows its error, not a divider.
+    const failed = { ...assistant, error: { name: "UnknownError", data: { message: "nope" } } } as AssistantMessage
+    expect(dividers(Timeline.constructMessageRows(user, parts, [failed], 0, true, "idle", true, true))).toEqual([])
+    // An ordinary prompt gets no divider.
+    const other = (messageID: string) => (messageID === "msg_u" ? [{ ...prompt, text: "/compact the CSS" }] : [think])
+    expect(
+      dividers(Timeline.constructMessageRows(user, other as never, [assistant], 0, true, "idle", true, true)),
+    ).toEqual([])
+  })
 })

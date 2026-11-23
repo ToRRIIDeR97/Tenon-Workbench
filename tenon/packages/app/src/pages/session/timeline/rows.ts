@@ -184,6 +184,10 @@ export namespace Timeline {
     const userParts = getMessageParts(userMessage.id)
     const comments = userParts.flatMap((p) => MessageComment.fromPart(p) ?? [])
     const compaction = userParts.some((p) => p.type === "compaction")
+    // Claude Code and OpenCode run their own compaction: Tenon sends them a plain "/compact" turn, which carries no
+    // compaction part, so the turn itself is the only sign it happened.
+    const texts = userParts.filter((p) => p.type === "text")
+    const nativeCompact = !compaction && texts.length === 1 && texts[0].text.trim() === "/compact"
     const interruptedMessageIndex = assistantMessages.findIndex((m) => m.error?.name === "MessageAbortedError")
     const interrupted = interruptedMessageIndex !== -1
     const latestError = assistantMessages.at(-1)?.error
@@ -226,7 +230,7 @@ export namespace Timeline {
         }),
       )
     }
-    if (observed && !compaction)
+    if (observed && !compaction && !nativeCompact)
       rows.push(
         new TimelineRow.TurnDivider({
           userMessageID: userMessage.id,
@@ -301,6 +305,17 @@ export namespace Timeline {
     }
 
     if (isActive && status === "retry") rows.push(new TimelineRow.Retry({ userMessageID: userMessage.id }))
+
+    // Once a harness's own /compact ends cleanly, the turn closes with the compaction divider instead of leaving
+    // "Completed" inside the folded tool call as the only sign; the drop in context, when seen, names the figures.
+    if (nativeCompact && !error && !interrupted && assistantMessages.length > 0 && (status === "idle" || !isActive))
+      rows.push(
+        new TimelineRow.TurnDivider(
+          observed
+            ? { userMessageID: userMessage.id, label: "harness-compaction", observed }
+            : { userMessageID: userMessage.id, label: "compaction" },
+        ),
+      )
 
     const diffs = uniqueSummaryDiffs(userMessage.summary?.diffs)
     if (diffs.length > 0 && (status === "idle" || !isActive)) {
