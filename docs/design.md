@@ -141,6 +141,41 @@ Use `[font-weight:N]` when a weight must differ from the role.
   five) as the Project page's own task rows in a full-width `bg-base` card.
   A new selection fades in (`ViewSwitch`). Below 1024px the list card is
   alone and a row opens its Project.
+- **Project page: one column.** A 760px column; once the page itself is
+  960px wide (a container query, so an open sidebar counts), a 120px section
+  index sits beside it (pills: hover `overlay-hover`, the section in view
+  `overlay-pressed`, the last section once the page's end is in view; it
+  sticks while the page scrolls). The column opens on a 132px cover band (20px
+  corners, `bg-layer-01`, hairline; a joinery pattern in `border-muted` fading
+  to the right) with the Project's 64px tile (its first letter in
+  `type-display` on the accent container, 18px corners) overlapping its bottom
+  edge and ringed in `bg-base`. Then the title row, the outcome, a set blocker
+  as the warning chip, and the milestone road: a 2px `bg-layer-03` line from a
+  small accent start dot, with the accent fill (a `scaleX` transform,
+  `--v2-duration-long`, emphasized-decelerate, drawing in on open) through
+  finished milestones and on toward the current one by its share of tasks
+  done. Done stops are filled with the accent, the current stop is an accent
+  ring (`aria-current="step"`), later stops are hollow (`border-strong`), with
+  titles and dates under them (a done stop's date reads "Done · planned …",
+  since no completion date is stored). The first, last and current stops always keep
+  labels; the others show once the road is 480px wide (past five milestones,
+  only next to the current one), and hidden labels stay readable to screen
+  readers. No milestones shows a dashed road with a Milestone button; while
+  the timeline loads the road's height is held. The numbers row is one 16px
+  card of four cells split by hairlines, two by two below 480px
+  (`type-display` numbers that count up over `--v2-duration-long`, captions
+  under them; the agents cell breathes while any run; the task cells show a dash,
+  read as "Not loaded", until the timeline loads or when it fails, and the road
+  is left out when the timeline fails). Sections follow 40px
+  apart, each a 13px semibold title with a small `type-caption` count pill
+  (`bg-layer-02`). Story hangs threads and log entries from a 2px
+  `border-muted` spine as 28px `bg-layer-02` nodes with an icon (terminal for
+  a thread, pencil for a log entry), each day its own list under a heading; a
+  running thread is semibold with the breathing dot, the next milestone sits
+  at the top as a hollow ◆ node, and only entries that arrive after the page
+  opened slide in. Threads show while the log loads; a failed log is one
+  critical line with Try again at the end. Under reduced motion the fill and
+  numbers show their end state at once.
 - **MCP servers:** built from the standard Settings parts only: an Installed
   section (settings card of rows: name, "Local · command" or "Remote · URL",
   switch), then a Suggested section of rows with an Add button. Adding flies the
@@ -417,6 +452,8 @@ app:
 - Animate only transform, opacity and colour. The virtualized timeline
   expands and collapses instantly.
 - Under `prefers-reduced-motion`, show the end state at once.
+- The one text animation: the Project page's numbers count up over
+  `--v2-duration-long` (JS, `motionDuration`); nothing else animates text.
 - JS that waits out a CSS animation reads the duration with `motionDuration`
   (`@tenon/ui/v2/motion`), which understands both `200ms` and the minified
   `.2s`; never `parseFloat` a duration token yourself.

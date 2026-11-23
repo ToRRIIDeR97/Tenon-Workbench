@@ -240,8 +240,8 @@ folder as a workspace and selects it) and `tenon://new-session?directory=<path>&
   Project**. Clicking a Project shows it in the detail card (name, outcome,
   ··· menu, **Start work**, status, progress, **Open project**, its open tasks
   as working task rows, next milestone, blocker, page and thread counts); a
-  double click, or a click below 1024px, opens it. A Project is one page, tasks on the left and context on
-  the right (stacked below 1100px):
+  double click, or a click below 1024px, opens it. A Project is one page, a single column with a section
+  index beside it once the page is 960px wide:
   - a header with the title, a status chip, a **···** menu (Pause/Resume,
     Archive with Undo, Save current state, Project settings) and **Start work**;
   - **Tasks** has an "Add a task" line with a date chip and a Task/Milestone
@@ -249,9 +249,13 @@ folder as a workspace and selects it) and `tenon://new-session?directory=<path>&
     listed before them (each heading shows its date and "n of m done"), with a
     checkbox, a status pill (a menu), a date chip and a row menu (Rename,
     Delete) per item, Undo after a tick or delete, and the timeline;
-  - the right rail holds **Progress** (progress, next milestone, blocker as a
-    warning chip), **Pages** with a **New page** tile, **Threads** with **New
-    thread**, and **Log**.
+  - above them, a cover with the Project's tile, the milestone road and a
+    numbers row (open tasks, done, agents working, pages); a set blocker shows
+    as a warning chip under the outcome;
+  - **Story** puts threads (with **New thread**) and the log on one timeline
+    by day, then **Pages** with a **New page** tile, then **Settings**
+    (Progress, with next milestone and blocker; Repository; Computer
+    use). A section index beside the column jumps between them.
 
   Dates, status and kind use the app's own popover, menu and switch, never
   native controls. A page opens full width, and Back returns to the Project.

@@ -587,19 +587,31 @@ to it.
   own task rows (`project-tasks.tsx`: ticking, status, due date, rename and delete save the timeline the same way),
   the next milestone, blocker, and page and thread counts. A click selects and a double click opens; narrower, a
   click opens as before.
-- A Project (`features/second-brain/project-view.tsx`) is one page: a header (title, status chip, a "···" menu with
-  Pause/Resume, Archive, Save current state and Project settings, and Start work), then two columns at 1100px and
-  wider (tasks, and a 300px context rail that stacks under them on narrower windows):
+- A Project (`features/second-brain/project-view.tsx`) is one 760px column: a cover band and the Project's tile, a
+  header (title, status chip, a "···" menu with Pause/Resume, Archive, Save current state and Project settings, and
+  Start work; the outcome; a set blocker as a warning chip that jumps to Settings), the milestone road, and the
+  numbers row (open and done tasks, agents working, pages), then the Tasks, Story, Pages and Settings sections. Once
+  the page is 960px wide (a container query) a sticky section index sits in its own column beside them. The road,
+  numbers and Story come from `project-home-model.ts` (`milestoneRoad`, `projectNumbers`, `projectStory`, pure and
+  unit-tested) and render through `project-home.tsx`:
   - Tasks: the "Add a task" line, then the timeline items with Open/All, grouped under milestones by list order
     (items carry no milestone link: a milestone heads the tasks after it, up to the next one; `milestoneGroups` in
     `notes-timeline.ts`). Each item has a checkbox, a status menu, a date chip and a row menu (Rename, Delete); a
     milestone row also shows "n of m done". The week grid follows. Every change saves the whole list through
     `PUT …/vault/timeline` with the loaded revision; ticking or deleting offers an Undo toast that rebuilds from the
     latest items;
-  - the rail (`project-rail.tsx`): Progress (manual progress, next milestone, and blocker, which reads as a warning
-    chip when set), Pages with a New page tile (`create: true` in this Project), Threads (the Project folder's
-    recent root threads, from the same `serverSync().child(folder)` lists the sidebar reads, and New thread), and
-    Log. An older `?section=settings` link scrolls to Progress.
+  - the milestone road: the timeline's milestones as stops along a road that starts before the first (stop i of n at
+    (i+1)/n; done when marked done or every task under it is; the first other one is current), filled through
+    finished milestones and on toward the current one by the share of its tasks done. With none, a dashed road
+    offers Milestone, which switches the add row to milestones;
+  - Story: the Project folder's recent root threads (from the same `serverSync().child(folder)` lists the sidebar
+    reads, with New thread) and the Project log on one spine, grouped by local day with running threads first, the
+    current milestone at the top, and the newest twelve entries before Show older. Days and entries carry stable
+    keys and are reconciled into a store, so updates change only what changed. Threads show while the log loads; a
+    failed log is one line with Try again;
+  - Pages (`project-rail.tsx`'s `PagesGrid`) with a New page tile (`create: true` in this Project), and Settings:
+    the Progress card (manual progress, next milestone and blocker, also `project-rail.tsx`), Repository and Computer
+    use. Older `?section=threads` and `?section=log` links (agent-write cards still use `log`) land on Story.
   - The Project's card lives in `project-details.tsx`'s `useProjectCard` (also home of the New Project form): one
     store for the Progress card and the Project settings dialog (name, outcome, instructions, tags), so Save
     current state sends every edit and its unsaved guard covers both. Renaming changes the card's name, not its
