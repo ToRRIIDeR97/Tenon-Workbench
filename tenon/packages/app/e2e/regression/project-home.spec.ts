@@ -201,15 +201,28 @@ test("an entry that arrives after the page opened slides in, once, and Show olde
   await expect(entering).toHaveCount(1)
 })
 
-test("on a wide window the column grows to use the room", async ({ page }, testInfo) => {
+test("on a wide window the page becomes a dashboard: full-bleed cover, side column and main column", async ({
+  page,
+}, testInfo) => {
   await page.setViewportSize({ width: 2000, height: 1100 })
   await setup(page, items, [note(1, "Started the one-column Project page.")])
   await page.goto("/projects?project=project_home")
-  const tasks = page.getByRole("region", { name: "Tasks" })
-  await expect(tasks).toBeVisible()
-  // The column caps at 1100px; on a 2000px window it reaches the cap rather than staying at its old 760px.
-  await expect.poll(() => tasks.evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThan(1000)
-  await expect(page.getByRole("navigation", { name: "Project sections" })).toBeVisible()
+  const projectPage = page.locator('[data-project-page="project_home"]')
+  const cover = projectPage.locator('[data-project-cover="bleed"]')
+  await expect(cover).toBeVisible()
+  await expect(projectPage.locator('[data-project-cover="band"]')).toBeHidden()
+  // The cover runs edge to edge across the page.
+  const width = (element: { getBoundingClientRect(): DOMRect }) => element.getBoundingClientRect().width
+  const pageWidth = await projectPage.evaluate(width)
+  await expect.poll(() => cover.evaluate(width)).toBe(pageWidth)
+  // Pages and Settings in the left column, Tasks and Story beside them; the index steps aside.
+  const left = (name: string) =>
+    page.getByRole("region", { name, exact: true }).evaluate((element) => element.getBoundingClientRect().left)
+  const tasksLeft = await left("Tasks")
+  expect(await left("Pages")).toBeLessThan(tasksLeft)
+  expect(await left("Settings")).toBeLessThan(tasksLeft)
+  expect(await left("Story")).toBe(tasksLeft)
+  await expect(page.getByRole("navigation", { name: "Project sections" })).toBeHidden()
   await page.screenshot({ path: testInfo.outputPath("project-home-wide.png") })
 })
 
