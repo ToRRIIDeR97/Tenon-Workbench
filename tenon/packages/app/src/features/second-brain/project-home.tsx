@@ -435,7 +435,7 @@ export function ProjectStory(props: {
             <Icon name="edit" size="small" class="text-v2-icon-icon-muted" />
           </span>
           <span class="flex min-w-0 flex-1 flex-col pt-1">
-            <span class="break-words type-meta text-v2-text-text-base">{item.text}</span>
+            <span class="max-w-[80ch] break-words type-meta text-v2-text-text-base">{item.text}</span>
             <span class="type-caption text-v2-text-text-muted">
               {item.dateOnly
                 ? language.t("secondBrain.project.story.logDay", { author: item.author })
