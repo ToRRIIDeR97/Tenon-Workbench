@@ -241,7 +241,9 @@ folder as a workspace and selects it) and `tenon://new-session?directory=<path>&
   ··· menu, **Start work**, status, progress, **Open project**, its open tasks
   as working task rows, next milestone, blocker, page and thread counts); a
   double click, or a click below 1024px, opens it. A Project is one page, a single column with a section
-  index beside it once the page is 960px wide:
+  index beside it once the page is 960px wide, and on a page 1400px wide a
+  dashboard (edge-to-edge cover; Pages and Settings on the left, Tasks and Story
+  on the right):
   - a header with the title, a status chip, a **···** menu (Pause/Resume,
     Archive with Undo, Save current state, Project settings) and **Start work**;
   - **Tasks** has an "Add a task" line with a date chip and a Task/Milestone

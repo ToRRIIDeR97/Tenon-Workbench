@@ -587,7 +587,8 @@ to it.
   own task rows (`project-tasks.tsx`: ticking, status, due date, rename and delete save the timeline the same way),
   the next milestone, blocker, and page and thread counts. A click selects and a double click opens; narrower, a
   click opens as before.
-- A Project (`features/second-brain/project-view.tsx`) is one column (growing with the page up to 1100px): a cover band and the Project's tile, a
+- A Project (`features/second-brain/project-view.tsx`) is one column (growing with the page up to 1100px; from a 1400px page a dashboard with an edge-to-edge cover, Pages
+  and Settings in a 360px left column and Tasks and Story beside them): a cover band and the Project's tile, a
   header (title, status chip, a "···" menu with Pause/Resume, Archive, Save current state and Project settings, and
   Start work; the outcome; a set blocker as a warning chip that jumps to Settings), the milestone road, and the
   numbers row (open and done tasks, agents working, pages), then the Tasks, Story, Pages and Settings sections. Once

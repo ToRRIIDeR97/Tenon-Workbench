@@ -187,16 +187,22 @@ export function ProjectView(props: {
   const sectionHeading = "flex min-h-8 flex-wrap items-center gap-x-3 gap-y-1"
 
   return (
-    // One column (#project-home): the cover, tile and title with the milestone road, the numbers, then Tasks, Story,
-    // Pages and Settings. The column grows with the page up to 1100px, so a wide window isn't mostly margin. Once the
-    // page itself is 960px wide (a container query, so the sidebar counts), the section index sits in its own column
-    // beside the sections and sticks.
+    // The Project page (#project-home), sized by the page itself (container queries, so an open sidebar counts):
+    // - narrow: one column: cover band, tile and title with the milestone road, the numbers, then Tasks, Story,
+    //   Pages and Settings;
+    // - from 960px: the same column (growing to 1100px) with the sticky section index beside it;
+    // - from 1400px, a dashboard: the cover runs edge to edge, the title, road and numbers span the page, and below
+    //   them Pages and Settings sit in a 360px column on the left with Tasks and Story beside them. Everything is in
+    //   view, so the index steps aside.
     <div data-project-page={props.project.id} class="@container w-full">
-      <div class="mx-auto grid w-full max-w-[1340px] grid-cols-1 gap-x-10 gap-y-8 px-6 pb-12 pt-6 sm:px-10 @min-[960px]:grid-cols-[120px_minmax(0,1100px)] @min-[960px]:justify-center">
-        <div class="flex min-w-0 flex-col gap-8 @min-[960px]:col-start-2">
-          <ProjectCover />
-          {/* The tile (64px) rides up over the cover's bottom edge: the 32px column gap plus most of the tile. */}
-          <header class="-mt-[68px] flex flex-col gap-2 px-1 animate-enter">
+      <ProjectCover bleed class="hidden @min-[1400px]:block" />
+      <div class="mx-auto grid w-full max-w-[1340px] grid-cols-1 gap-x-10 gap-y-8 px-6 pb-12 pt-6 sm:px-10 @min-[960px]:grid-cols-[120px_minmax(0,1100px)] @min-[960px]:justify-center @min-[1400px]:max-w-[1680px] @min-[1400px]:grid-cols-1 @min-[1400px]:px-14">
+        <div class="flex min-w-0 flex-col gap-8 @min-[960px]:col-start-2 @min-[1400px]:col-start-1">
+          <ProjectCover class="@min-[1400px]:hidden" />
+          {/* The tile (64px) rides up over the cover's bottom edge: the 32px column gap plus most of the tile. On
+              the wide page the cover sits above the padded grid, so the lift is the grid's top padding plus most
+              of the tile. */}
+          <header class="-mt-[68px] flex flex-col gap-2 px-1 animate-enter @min-[1400px]:-mt-[60px]">
             <ProjectTile name={props.project.name} />
             <div class="mt-1 flex flex-wrap items-center gap-3">
               <h1 class="min-w-0 break-words type-page-title text-v2-text-text-base">{props.project.name}</h1>
@@ -246,203 +252,215 @@ export function ProjectView(props: {
               projectId={projectId}
               sections={sections()}
               endId="project-sections-end"
-              class="sticky top-6 hidden self-start @min-[960px]:col-start-1 @min-[960px]:row-start-2 @min-[960px]:flex"
+              class="sticky top-6 hidden self-start @min-[960px]:col-start-1 @min-[960px]:row-start-2 @min-[960px]:flex @min-[1400px]:hidden"
             />
           )}
         </Show>
 
-        <div class="flex min-w-0 flex-col gap-10 @min-[960px]:col-start-2 @min-[960px]:row-start-2">
-          <section
-            id="project-tasks"
-            aria-labelledby="project-tasks-title"
-            class="flex min-w-0 scroll-mt-6 flex-col gap-3"
+        {/* Tasks and Story come first in the page's order (and on narrower pages); on the wide page they take the
+            right column and Pages and Settings the left. */}
+        <div class="flex min-w-0 flex-col gap-10 @min-[960px]:col-start-2 @min-[960px]:row-start-2 @min-[1400px]:col-start-1 @min-[1400px]:grid @min-[1400px]:grid-cols-[360px_minmax(0,1fr)] @min-[1400px]:items-start @min-[1400px]:gap-x-10">
+          <div
+            data-project-main
+            class="flex min-w-0 flex-col gap-10 @min-[1400px]:col-start-2 @min-[1400px]:row-start-1"
           >
-            <div class={sectionHeading}>
-              <h2 id="project-tasks-title" class="type-section text-v2-text-text-base">
-                {language.t("secondBrain.project.tasks")}
-              </h2>
-              <Show when={props.timeline.value}>
-                <SectionCount>
-                  {language.plural("secondBrain.project.count.open", numbers().open, { count: numbers().open })}
-                </SectionCount>
-                <span class="min-w-0 flex-1 truncate type-caption text-v2-text-text-muted">{progress()}</span>
-              </Show>
-              <SegmentedControlV2
-                class="!w-auto ml-auto"
-                aria-label={language.t("secondBrain.project.show")}
-                value={state.show}
-                onChange={(value) => value && setState("show", value === "all" ? "all" : "open")}
-              >
-                <SegmentedControlItemV2 value="open">
-                  {language.t("secondBrain.project.show.open")}
-                </SegmentedControlItemV2>
-                <SegmentedControlItemV2 value="all">
-                  {language.t("secondBrain.project.show.all")}
-                </SegmentedControlItemV2>
-              </SegmentedControlV2>
-            </div>
-            {loadedView(props.timeline, () => (
-              <div class="flex flex-col divide-y divide-v2-border-border-muted rounded-[16px] bg-v2-background-bg-layer-01 py-1 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]">
-                <form
-                  class="flex min-h-12 flex-wrap items-center gap-2 px-4 py-1.5"
-                  onSubmit={(event) => void add(event)}
+            <section
+              id="project-tasks"
+              aria-labelledby="project-tasks-title"
+              class="flex min-w-0 scroll-mt-6 flex-col gap-3"
+            >
+              <div class={sectionHeading}>
+                <h2 id="project-tasks-title" class="type-section text-v2-text-text-base">
+                  {language.t("secondBrain.project.tasks")}
+                </h2>
+                <Show when={props.timeline.value}>
+                  <SectionCount>
+                    {language.plural("secondBrain.project.count.open", numbers().open, { count: numbers().open })}
+                  </SectionCount>
+                  <span class="min-w-0 flex-1 truncate type-caption text-v2-text-text-muted">{progress()}</span>
+                </Show>
+                <SegmentedControlV2
+                  class="!w-auto ml-auto"
+                  aria-label={language.t("secondBrain.project.show")}
+                  value={state.show}
+                  onChange={(value) => value && setState("show", value === "all" ? "all" : "open")}
                 >
-                  <Icon name="plus" size="small" class="shrink-0 text-v2-icon-icon-muted" />
-                  <input
-                    ref={(element) => (addInput = element)}
-                    class="h-8 min-w-[180px] flex-1 bg-transparent text-[13px] text-v2-text-text-base outline-none placeholder:text-v2-text-text-faint"
-                    aria-label={language.t("secondBrain.project.addTask")}
-                    placeholder={language.t(
-                      state.draft.kind === "milestone"
-                        ? "secondBrain.project.addMilestoneHint"
-                        : "secondBrain.project.addTaskHint",
-                    )}
-                    maxLength={200}
-                    value={state.draft.title}
-                    onInput={(event) => setState("draft", "title", event.currentTarget.value)}
-                  />
-                  <DateChip
-                    value={state.draft.date}
-                    label={language.t("secondBrain.project.dueDate")}
-                    onChange={(date) => setState("draft", "date", date)}
-                  />
-                  <KindSwitch value={state.draft.kind} onChange={(kind) => setState("draft", "kind", kind)} />
-                </form>
-                <For each={groups()}>
-                  {(group) => (
-                    <div
-                      role="group"
-                      aria-label={group.milestone?.title ?? language.t("secondBrain.project.tasks")}
-                      data-milestone-group={group.milestone?.id ?? ""}
-                      class="flex flex-col divide-y divide-v2-border-border-muted"
-                    >
-                      <Show when={group.milestone}>
-                        {(milestone) => <ProjectTaskRow tasks={tasks} item={milestone()} group={group} />}
-                      </Show>
-                      <Show when={group.tasks.length > 0}>
-                        <ul class="flex flex-col divide-y divide-v2-border-border-muted">
-                          <For each={group.tasks}>
-                            {(task) => (
-                              <li>
-                                <ProjectTaskRow tasks={tasks} item={task} />
-                              </li>
-                            )}
-                          </For>
-                        </ul>
-                      </Show>
-                    </div>
-                  )}
-                </For>
-                {/* The linked repository's issues are tasks too (#331). */}
-                <ProjectGithubTasks
-                  projectId={props.project.id}
-                  folder={projectFolder()}
-                  show={state.show}
-                  linked={linkedIssueNumbers(items().map((item) => item.title))}
-                />
+                  <SegmentedControlItemV2 value="open">
+                    {language.t("secondBrain.project.show.open")}
+                  </SegmentedControlItemV2>
+                  <SegmentedControlItemV2 value="all">
+                    {language.t("secondBrain.project.show.all")}
+                  </SegmentedControlItemV2>
+                </SegmentedControlV2>
               </div>
-            ))}
-            <RevealShow when={tasks.state.error}>
-              {(error) => (
-                <p role="alert" class="px-1 type-caption text-v2-text-text-critical">
-                  {error()}
-                </p>
-              )}
-            </RevealShow>
-            <Show when={items().some((item) => item.start || item.end)}>
-              {/* Open hides done tasks here too, like the list above. */}
-              <TimelineGrid
-                items={items().filter(
-                  (item) => state.show === "all" || item.kind === "milestone" || item.status !== "done",
+              {loadedView(props.timeline, () => (
+                <div class="flex flex-col divide-y divide-v2-border-border-muted rounded-[16px] bg-v2-background-bg-layer-01 py-1 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]">
+                  <form
+                    class="flex min-h-12 flex-wrap items-center gap-2 px-4 py-1.5"
+                    onSubmit={(event) => void add(event)}
+                  >
+                    <Icon name="plus" size="small" class="shrink-0 text-v2-icon-icon-muted" />
+                    <input
+                      ref={(element) => (addInput = element)}
+                      class="h-8 min-w-[180px] flex-1 bg-transparent text-[13px] text-v2-text-text-base outline-none placeholder:text-v2-text-text-faint"
+                      aria-label={language.t("secondBrain.project.addTask")}
+                      placeholder={language.t(
+                        state.draft.kind === "milestone"
+                          ? "secondBrain.project.addMilestoneHint"
+                          : "secondBrain.project.addTaskHint",
+                      )}
+                      maxLength={200}
+                      value={state.draft.title}
+                      onInput={(event) => setState("draft", "title", event.currentTarget.value)}
+                    />
+                    <DateChip
+                      value={state.draft.date}
+                      label={language.t("secondBrain.project.dueDate")}
+                      onChange={(date) => setState("draft", "date", date)}
+                    />
+                    <KindSwitch value={state.draft.kind} onChange={(kind) => setState("draft", "kind", kind)} />
+                  </form>
+                  <For each={groups()}>
+                    {(group) => (
+                      <div
+                        role="group"
+                        aria-label={group.milestone?.title ?? language.t("secondBrain.project.tasks")}
+                        data-milestone-group={group.milestone?.id ?? ""}
+                        class="flex flex-col divide-y divide-v2-border-border-muted"
+                      >
+                        <Show when={group.milestone}>
+                          {(milestone) => <ProjectTaskRow tasks={tasks} item={milestone()} group={group} />}
+                        </Show>
+                        <Show when={group.tasks.length > 0}>
+                          <ul class="flex flex-col divide-y divide-v2-border-border-muted">
+                            <For each={group.tasks}>
+                              {(task) => (
+                                <li>
+                                  <ProjectTaskRow tasks={tasks} item={task} />
+                                </li>
+                              )}
+                            </For>
+                          </ul>
+                        </Show>
+                      </div>
+                    )}
+                  </For>
+                  {/* The linked repository's issues are tasks too (#331). */}
+                  <ProjectGithubTasks
+                    projectId={props.project.id}
+                    folder={projectFolder()}
+                    show={state.show}
+                    linked={linkedIssueNumbers(items().map((item) => item.title))}
+                  />
+                </div>
+              ))}
+              <RevealShow when={tasks.state.error}>
+                {(error) => (
+                  <p role="alert" class="px-1 type-caption text-v2-text-text-critical">
+                    {error()}
+                  </p>
                 )}
-                dateLabel={shortDate}
-              />
-            </Show>
-          </section>
-
-          <section
-            id="project-story"
-            aria-labelledby="project-story-title"
-            class="flex min-w-0 scroll-mt-6 flex-col gap-3"
-          >
-            <div class={sectionHeading}>
-              <h2 id="project-story-title" class="type-section text-v2-text-text-base">
-                {language.t("secondBrain.project.story")}
-              </h2>
-              <Show when={numbers().running > 0}>
-                <SectionCount>
-                  {language.plural("secondBrain.project.count.running", numbers().running, {
-                    count: numbers().running,
-                  })}
-                </SectionCount>
-              </Show>
-              <span class="flex-1" />
-              <ButtonV2
-                size="small"
-                variant="ghost"
-                icon="plus"
-                disabled={!props.onNewThread}
-                onClick={() => props.onNewThread?.()}
-              >
-                {language.t("secondBrain.project.newThread")}
-              </ButtonV2>
-            </div>
-            {/* Keyed: Story's state (what was there on open, Show older) belongs to one Project. */}
-            <Show when={props.project.id} keyed>
-              {(projectId) => (
-                <ProjectStory
-                  projectId={projectId}
-                  days={story()}
-                  next={road().current}
-                  log={props.log.failed ? "failed" : props.log.value ? "ready" : "loading"}
-                  onRetryLog={props.log.retry}
-                  now={now()}
-                  threadHref={props.threadHref}
+              </RevealShow>
+              <Show when={items().some((item) => item.start || item.end)}>
+                {/* Open hides done tasks here too, like the list above. */}
+                <TimelineGrid
+                  items={items().filter(
+                    (item) => state.show === "all" || item.kind === "milestone" || item.status !== "done",
+                  )}
                   dateLabel={shortDate}
                 />
-              )}
-            </Show>
-          </section>
+              </Show>
+            </section>
 
-          <section
-            id="project-pages"
-            aria-labelledby="project-pages-title"
-            class="flex min-w-0 scroll-mt-6 flex-col gap-3"
+            <section
+              id="project-story"
+              aria-labelledby="project-story-title"
+              class="flex min-w-0 scroll-mt-6 flex-col gap-3"
+            >
+              <div class={sectionHeading}>
+                <h2 id="project-story-title" class="type-section text-v2-text-text-base">
+                  {language.t("secondBrain.project.story")}
+                </h2>
+                <Show when={numbers().running > 0}>
+                  <SectionCount>
+                    {language.plural("secondBrain.project.count.running", numbers().running, {
+                      count: numbers().running,
+                    })}
+                  </SectionCount>
+                </Show>
+                <span class="flex-1" />
+                <ButtonV2
+                  size="small"
+                  variant="ghost"
+                  icon="plus"
+                  disabled={!props.onNewThread}
+                  onClick={() => props.onNewThread?.()}
+                >
+                  {language.t("secondBrain.project.newThread")}
+                </ButtonV2>
+              </div>
+              {/* Keyed: Story's state (what was there on open, Show older) belongs to one Project. */}
+              <Show when={props.project.id} keyed>
+                {(projectId) => (
+                  <ProjectStory
+                    projectId={projectId}
+                    days={story()}
+                    next={road().current}
+                    log={props.log.failed ? "failed" : props.log.value ? "ready" : "loading"}
+                    onRetryLog={props.log.retry}
+                    now={now()}
+                    threadHref={props.threadHref}
+                    dateLabel={shortDate}
+                  />
+                )}
+              </Show>
+            </section>
+          </div>
+
+          <div
+            data-project-side
+            class="flex min-w-0 flex-col gap-10 @min-[1400px]:col-start-1 @min-[1400px]:row-start-1"
           >
-            <div class={sectionHeading}>
-              <h2 id="project-pages-title" class="type-section text-v2-text-text-base">
-                {language.t("secondBrain.project.pages")}
-              </h2>
-              <SectionCount>{props.pages.length.toLocaleString(language.intl())}</SectionCount>
-            </div>
-            <PagesGrid
-              pages={props.pages}
-              pageHref={props.pageHref}
-              onPage={props.onPage}
-              onNewPage={props.onNewPage}
-              creatingPage={props.creatingPage}
-              pageError={props.pageError}
-              dateLabel={shortDate}
-            />
-          </section>
+            <section
+              id="project-pages"
+              aria-labelledby="project-pages-title"
+              class="flex min-w-0 scroll-mt-6 flex-col gap-3"
+            >
+              <div class={sectionHeading}>
+                <h2 id="project-pages-title" class="type-section text-v2-text-text-base">
+                  {language.t("secondBrain.project.pages")}
+                </h2>
+                <SectionCount>{props.pages.length.toLocaleString(language.intl())}</SectionCount>
+              </div>
+              <PagesGrid
+                pages={props.pages}
+                pageHref={props.pageHref}
+                onPage={props.onPage}
+                onNewPage={props.onNewPage}
+                creatingPage={props.creatingPage}
+                pageError={props.pageError}
+                dateLabel={shortDate}
+              />
+            </section>
 
-          {/* Settings: the Project's status (progress, next milestone, blocker), where its GitHub tasks come from, and
+            {/* Settings: the Project's status (progress, next milestone, blocker), where its GitHub tasks come from, and
             computer use. */}
-          <section
-            id="project-settings"
-            aria-labelledby="project-settings-title"
-            class="flex min-w-0 scroll-mt-6 flex-col gap-3"
-          >
-            <div class={sectionHeading}>
-              <h2 id="project-settings-title" class="type-section text-v2-text-text-base">
-                {language.t("secondBrain.project.settings")}
-              </h2>
-            </div>
-            <ProgressCard card={card} tasks={counts().percent === undefined ? undefined : counts()} />
-            <ProjectRepository folder={projectFolder()} />
-            <ProjectComputerUse folder={projectFolder()} />
-          </section>
-          <div id="project-sections-end" aria-hidden="true" class="h-px" />
+            <section
+              id="project-settings"
+              aria-labelledby="project-settings-title"
+              class="flex min-w-0 scroll-mt-6 flex-col gap-3"
+            >
+              <div class={sectionHeading}>
+                <h2 id="project-settings-title" class="type-section text-v2-text-text-base">
+                  {language.t("secondBrain.project.settings")}
+                </h2>
+              </div>
+              <ProgressCard card={card} tasks={counts().percent === undefined ? undefined : counts()} />
+              <ProjectRepository folder={projectFolder()} />
+              <ProjectComputerUse folder={projectFolder()} />
+            </section>
+          </div>
+          <div id="project-sections-end" aria-hidden="true" class="h-px @min-[1400px]:col-span-2" />
         </div>
       </div>
     </div>

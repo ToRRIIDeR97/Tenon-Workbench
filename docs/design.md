@@ -141,7 +141,13 @@ Use `[font-weight:N]` when a weight must differ from the role.
   five) as the Project page's own task rows in a full-width `bg-base` card.
   A new selection fades in (`ViewSwitch`). Below 1024px the list card is
   alone and a row opens its Project.
-- **Project page: one column.** A column that grows with the page up to
+- **Project page: one column, a dashboard when wide.** Once the page itself
+  is 1400px wide it becomes a dashboard, like a wide notes page: the cover
+  runs edge to edge across the page (200px, square, a bottom hairline), the
+  title, road and numbers span the page, and below them Pages and Settings sit
+  in a 360px column on the left with Tasks and Story in the wide column beside
+  them; the section index steps aside, since everything is in view. Narrower,
+  it is one column that grows with the page up to
   1100px (so a wide window isn't mostly margin; long log lines stop at 80ch);
   once the page itself is 960px wide (a container query, so an open sidebar
   counts), a 120px section

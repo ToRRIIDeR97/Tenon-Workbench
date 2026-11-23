@@ -31,13 +31,19 @@ import type {
 
 // Interlocking tenon joints in the muted border colour, faded to the right. The mask's white is luminance, not a
 // visible colour: it sets how much of the pattern shows, so it stays a literal rather than a theme token.
-export function ProjectCover() {
+// `bleed` is the wide page's cover: edge to edge across the page, square and taller, with a bottom hairline only.
+export function ProjectCover(props: { bleed?: boolean; class?: string }) {
   const id = createUniqueId()
   return (
     <div
       aria-hidden="true"
-      data-project-cover
-      class="relative h-[132px] overflow-hidden rounded-[20px] bg-v2-background-bg-layer-01 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)] animate-enter"
+      data-project-cover={props.bleed ? "bleed" : "band"}
+      classList={{
+        "relative overflow-hidden bg-v2-background-bg-layer-01 animate-enter": true,
+        "h-[132px] rounded-[20px] shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]": !props.bleed,
+        "h-[200px] shadow-[inset_0_-1px_0_var(--v2-border-border-muted)]": props.bleed,
+        [props.class ?? ""]: !!props.class,
+      }}
     >
       <svg class="absolute inset-0 size-full">
         <defs>
