@@ -7,13 +7,12 @@ import { createStore } from "solid-js/store"
 import { useLanguage } from "@/context/language"
 import { PageEmpty } from "@/components/page"
 import { focusWhenConnected } from "@/utils/focus-when-connected"
-import { getRelativeTime } from "@/utils/time"
-import type { LogEntry, VaultPageInfo } from "./client"
+import type { VaultPageInfo } from "./client"
 import { labelClass, type ProjectCard } from "./project-details"
 
 /**
- * The Project page's right rail: Progress (with next milestone and blocker), Pages, Threads and Log, each a card.
- * Every card is a labelled region, so links and older `?section=` jumps still find it by name or id.
+ * Parts of the Project page kept from its old rail: the Status card (progress, next milestone and blocker), which
+ * now heads the Settings section, and the Pages grid. Story replaced the Threads and Log cards.
  */
 
 export type Loaded<T> = { value?: T; loading: boolean; failed: boolean; retry: () => void }
@@ -55,17 +54,6 @@ export function loadedView<T>(source: Loaded<T>, view: (value: T) => JSX.Element
   )
 }
 
-function CardHeading(props: { id: string; title: string; actions?: JSX.Element }) {
-  return (
-    <div class="flex min-h-7 items-center gap-2">
-      <h2 id={props.id} class="min-w-0 flex-1 truncate type-section text-v2-text-text-base">
-        {props.title}
-      </h2>
-      {props.actions}
-    </div>
-  )
-}
-
 /**
  * Progress, next milestone and blocker; a set blocker reads as a warning chip until clicked. With tasks, progress is
  * done of total and read-only; without any, it is the manual slider, labelled as such.
@@ -76,7 +64,7 @@ export function ProgressCard(props: { card: ProjectCard; tasks?: { percent?: num
   const setState = props.card.setState
   const [local, setLocal] = createStore({ editingBlocker: false })
   return (
-    <section id="project-settings" aria-labelledby="project-progress-label" class={cardClass}>
+    <section id="project-status" aria-labelledby="project-progress-label" class={cardClass}>
       <Show
         when={props.tasks}
         fallback={
@@ -208,7 +196,7 @@ export function ProgressCard(props: { card: ProjectCard; tasks?: { percent?: num
   )
 }
 
-export function PagesCard(props: {
+export function PagesGrid(props: {
   pages: ReadonlyArray<VaultPageInfo>
   pageHref: (path: string) => string
   onPage: (path: string) => void
@@ -221,9 +209,8 @@ export function PagesCard(props: {
   const tile =
     "flex h-[72px] w-full flex-col gap-1 rounded-[12px] p-2.5 text-left transition-colors duration-short ease-standard motion-reduce:transition-none"
   return (
-    <section id="project-pages" aria-labelledby="project-pages-title" class={cardClass}>
-      <CardHeading id="project-pages-title" title={language.t("secondBrain.project.pages")} />
-      <ul class="grid grid-cols-2 gap-2">
+    <div class="flex flex-col gap-2">
+      <ul class="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <For each={props.pages}>
           {(page) => (
             <li class="min-w-0">
@@ -269,99 +256,6 @@ export function PagesCard(props: {
           </p>
         )}
       </RevealShow>
-    </section>
-  )
-}
-
-export function ThreadsCard(props: {
-  threads: ReadonlyArray<ProjectThread>
-  threadHref: (id: string) => string
-  onNewThread?: () => void
-}) {
-  const language = useLanguage()
-  return (
-    <section id="project-threads" aria-labelledby="project-threads-title" class={cardClass}>
-      <CardHeading
-        id="project-threads-title"
-        title={language.t("secondBrain.project.threads")}
-        actions={
-          <ButtonV2
-            size="small"
-            variant="ghost"
-            icon="plus"
-            disabled={!props.onNewThread}
-            onClick={() => props.onNewThread?.()}
-          >
-            {language.t("secondBrain.project.newThread")}
-          </ButtonV2>
-        }
-      />
-      <Show
-        when={props.threads.length > 0}
-        fallback={<p class="type-caption text-v2-text-text-muted">{language.t("secondBrain.project.threadsEmpty")}</p>}
-      >
-        <ul class="-mx-1 flex flex-col">
-          <For each={props.threads}>
-            {(thread) => (
-              <li>
-                <a
-                  href={props.threadHref(thread.id)}
-                  class="flex min-h-8 w-full min-w-0 items-center gap-2 rounded-[8px] px-1.5 transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
-                >
-                  <span
-                    aria-hidden="true"
-                    classList={{
-                      "size-1.5 shrink-0 rounded-full": true,
-                      "bg-v2-icon-icon-accent running-pulse": thread.running,
-                      "bg-v2-background-bg-layer-03": !thread.running,
-                    }}
-                  />
-                  <span class="min-w-0 flex-1 truncate type-meta text-v2-text-text-base">{thread.title}</span>
-                  <span class="shrink-0 type-caption text-v2-text-text-muted">
-                    {getRelativeTime(new Date(thread.updated).toISOString(), language.t)}
-                  </span>
-                </a>
-              </li>
-            )}
-          </For>
-        </ul>
-      </Show>
-    </section>
-  )
-}
-
-export function LogCard(props: { log: Loaded<ReadonlyArray<LogEntry>> }) {
-  const language = useLanguage()
-  return (
-    <section id="project-log" aria-labelledby="project-log-title" class={cardClass}>
-      <CardHeading id="project-log-title" title={language.t("secondBrain.project.log")} />
-      {loadedView(props.log, (entries) => (
-        <Show
-          when={entries.length > 0}
-          fallback={<p class="type-caption text-v2-text-text-muted">{language.t("secondBrain.vault.log.empty")}</p>}
-        >
-          <ol class="flex max-h-[360px] flex-col gap-2 overflow-y-auto">
-            <For each={entries}>
-              {(entry) => (
-                <li class="flex min-w-0 flex-col gap-0.5">
-                  <span class="flex min-w-0 items-baseline gap-2 type-caption text-v2-text-text-muted">
-                    <time datetime={entry.at} class="shrink-0 font-mono tabular-nums">
-                      {new Date(entry.at).toLocaleString(language.intl(), {
-                        day: "numeric",
-                        month: "short",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </time>
-                    <span class="min-w-0 truncate">{entry.author}</span>
-                  </span>
-                  <span class="break-words type-meta text-v2-text-text-base">{entry.text}</span>
-                </li>
-              )}
-            </For>
-          </ol>
-        </Show>
-      ))}
-    </section>
+    </div>
   )
 }

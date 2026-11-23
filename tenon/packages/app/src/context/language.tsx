@@ -57,6 +57,8 @@ type PluralKey =
   | "secondBrain.vault.moved"
   | "secondBrain.projects.detail.pages"
   | "secondBrain.projects.detail.threads"
+  | "secondBrain.project.count.open"
+  | "secondBrain.project.count.running"
   | "secondBrain.workflows.roleCount"
   | "secondBrain.permission.bash"
   | "secondBrain.permission.edit"

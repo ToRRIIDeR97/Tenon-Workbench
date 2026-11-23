@@ -1315,7 +1315,6 @@ export const dict = {
   "secondBrain.vault.table.start": "Inicio",
   "secondBrain.vault.table.end": "Fin",
   "secondBrain.vault.docs.empty": "Este proyecto aún no tiene páginas",
-  "secondBrain.vault.log.empty": "Aún no hay entradas en el registro",
   "secondBrain.vault.back": "Atrás",
   "secondBrain.vault.breadcrumb": "{{project}} / {{page}}",
   "secondBrain.vault.edited": "Editado {{time}}",

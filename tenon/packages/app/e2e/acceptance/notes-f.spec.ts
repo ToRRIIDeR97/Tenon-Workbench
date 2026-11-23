@@ -106,6 +106,9 @@ const open = async (page: Page, options?: Parameters<typeof mockVault>[1]) => {
   return writes
 }
 
+const projectHeader = (page: Page) =>
+  page.locator("header", { has: page.getByRole("heading", { name: "Acme API", level: 1 }) })
+
 test.use({ viewport: { width: 1360, height: 860 } })
 
 test("AC-4.1 the landing lists Projects and General pages, with no page tree", async ({ page }) => {
@@ -120,21 +123,24 @@ test("AC-4.1 the landing lists Projects and General pages, with no page tree", a
   await expect(page.getByRole("checkbox")).toHaveCount(2)
 })
 
-test("AC-4.2 a Project is one page: tasks beside its context and no tabs; an older tab= link scrolls to its section", async ({
+test("AC-4.2 a Project is one page: its sections in one column and no tabs; an older tab= link scrolls to its section", async ({
   page,
 }) => {
   await open(page)
   await page.goto(`/projects?project=${project.project.id}`)
-  for (const name of ["Tasks", "Progress", "Pages", "Threads", "Log"])
+  for (const name of ["Tasks", "Story", "Pages", "Settings", "Progress"])
     await expect(page.getByRole("region", { name, exact: true })).toBeVisible()
   await expect(page.getByRole("button", { name: "Start work", exact: true })).toBeVisible()
-  await expect(page.getByRole("button", { name: "Project actions", exact: true })).toBeVisible()
-  await expect(page.getByRole("tab")).toHaveCount(0)
+  // The sidebar's Project card has its own actions button; this is the page's, in the Project's header.
+  await expect(projectHeader(page).getByRole("button", { name: "Project actions", exact: true })).toBeVisible()
+  // The sidebar has its own grouping tabs; the Project page has none.
+  await expect(page.locator(`[data-project-page="${project.project.id}"]`).getByRole("tab")).toHaveCount(0)
+  // The log is part of Story now; an older `tab=log` link lands there.
   await page.goto(`/projects?project=${project.project.id}&tab=log`)
-  await expect(page.getByRole("region", { name: "Log" })).toBeInViewport()
+  await expect(page.getByRole("region", { name: "Story" })).toBeInViewport()
 })
 
-test("AC-4.3 the sections show the Project's tasks, timeline, pages and log", async ({ page }) => {
+test("AC-4.3 the sections show the Project's tasks, timeline, pages and log (in Story)", async ({ page }) => {
   await open(page)
   await page.goto(`/projects?project=${project.project.id}`)
   // Open shows what is not done; All adds the done task.
@@ -147,7 +153,7 @@ test("AC-4.3 the sections show the Project's tasks, timeline, pages and log", as
   await expect(pagesSection.getByRole("link", { name: /Auth redesign/ })).toBeVisible()
   await expect(pagesSection.getByRole("link", { name: /Billing notes/ })).toBeVisible()
   const texts = await page
-    .getByRole("region", { name: "Log" })
+    .getByRole("region", { name: "Story" })
     .getByText(/Token rotation finished|Moved Billing webhooks/)
     .allTextContents()
   expect(texts[0]).toContain("Token rotation finished")
@@ -235,7 +241,7 @@ test("merge AC-3 Settings holds the Project's card", async ({ page }) => {
   await open(page)
   await page.goto(`/projects?project=${project.project.id}&section=settings`)
   await expect(page.getByRole("region", { name: "Progress", exact: true })).toBeInViewport()
-  await page.getByRole("button", { name: "Project actions", exact: true }).click()
+  await projectHeader(page).getByRole("button", { name: "Project actions", exact: true }).click()
   await expect(page.getByRole("menuitem", { name: "Archive project", exact: true })).toBeVisible()
   await page.getByRole("menuitem", { name: "Project settings", exact: true }).click()
   await expect(page.getByRole("textbox", { name: "Project name", exact: true })).toHaveValue("Acme API")
