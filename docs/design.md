@@ -34,6 +34,23 @@ All tokens live in `tenon/packages/ui/src/v2/styles/theme.css` and
 | Colour   | `bg-v2-*`, `text-v2-text-*`, `border-v2-border-*`, `bg-v2-overlay-simple-overlay-*`, `v2-icon-*`; the theme resets Tailwind's default palette          |
 | Motion   | `--v2-duration-short` 150, `medium` 300, `long` 450, `exit` 200, `exit-small` 120, `swap-out` 100, `swap-in` 200; `--v2-ease-standard`, `-emphasized-decelerate`, `-emphasized-accelerate`, `-exit`, `-spring` |
 
+## Icons
+
+One pack, `tenon/packages/ui/src/v2/components/icon-pack.ts`, draws every
+glyph for both `Icon` components (`@tenon/ui/v2/icon` and `@tenon/ui/icon`);
+only the GitHub, Discord and MCP brand marks keep their own artwork.
+
+- 16-unit grid, live area 2–14, outline only: 1.25px stroke (kept at 1.25px
+  at every size), round caps and joins, 1.5–2 unit corners on boxes. Solid
+  fills are for dots and the stop square; "active" variants add an 18% tint.
+- One concept, one glyph: Command Centre is the target (`command-centre`),
+  Terminal the framed prompt (`terminal`), a shell command the bare prompt
+  (`console`), Harnesses the agent head (`harness`), MCP the plug (`plug`),
+  Skills the sparkle wand (`skills`), Mail the envelope, Model profiles the
+  card (`model-profile`), harness sync the two arrows (`sync`). Don't reuse a
+  glyph for a different destination; add one to the pack instead.
+- An unknown name renders as a plus, so add the glyph before using its name.
+
 ## Type
 
 Use the named roles in `tenon/packages/ui/src/styles/tailwind/utilities.css`,

@@ -113,7 +113,7 @@ export function PromptInputHarnessControls(props: { controller: PromptInputHarne
         footer={{ label: language.t("harness.settings.add"), onSelect: () => void addHarness() }}
         current={props.controller.current()}
         control="harness"
-        currentIcon={<Icon name="console" />}
+        currentIcon={<Icon name="harness" />}
         class={SELECT_CLASS}
         disabled={props.controller.loading() || props.controller.disabled?.() || !props.controller.instances()}
         onOpenChange={(open) => open && props.controller.revalidate?.()}

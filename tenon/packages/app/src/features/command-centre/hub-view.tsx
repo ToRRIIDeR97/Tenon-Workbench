@@ -683,7 +683,7 @@ export function CommandHub(props: {
               aria-label={language.t("secondBrain.sidebar.startedByCommandCentre")}
               title={language.t("secondBrain.sidebar.startedByCommandCentre")}
             >
-              <Icon name="console" size="small" />
+              <Icon name="command-centre" size="small" />
             </span>
           </Show>
         </div>
@@ -781,7 +781,7 @@ export function CommandHub(props: {
                     <span class="type-section text-v2-text-text-base">{value().title}</span>
                     <Show when={value().commandCentre}>
                       <span class="flex items-center gap-1 type-meta text-v2-text-text-muted">
-                        <Icon name="console" size="small" />
+                        <Icon name="command-centre" size="small" />
                         {language.t("secondBrain.sidebar.startedByCommandCentre")}
                       </span>
                     </Show>

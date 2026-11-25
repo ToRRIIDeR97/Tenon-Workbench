@@ -132,7 +132,7 @@ export function SecondBrainSidebar() {
     { id: "calendar", icon: "calendar" as const, label: language.t("secondBrain.sidebar.calendar"), href: "/calendar" },
     {
       id: "command",
-      icon: "console" as const,
+      icon: "command-centre" as const,
       label: language.t("secondBrain.sidebar.command"),
       href: "/command",
     },
@@ -1082,7 +1082,7 @@ function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; 
                     role="img"
                     aria-label={language.t("secondBrain.sidebar.startedByCommandCentre")}
                   >
-                    <Icon name="console" size="small" />
+                    <Icon name="command-centre" size="small" />
                   </span>
                 </TooltipV2>
               </Show>
