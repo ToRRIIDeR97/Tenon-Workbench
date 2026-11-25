@@ -74,6 +74,7 @@ export type HarnessSyncStatus = {
   error?: string
   warning?: string
   lastChecked?: string
+  standalone?: { running: boolean }
   pending?: { name: string; updatedBy: string; updatedAt: string }
   tools: HarnessSyncToolStatus[]
   skills: HarnessSyncSkillsReport

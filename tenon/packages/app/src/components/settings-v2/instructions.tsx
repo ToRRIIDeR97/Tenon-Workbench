@@ -392,6 +392,13 @@ function ConnectedView(props: ViewProps) {
         </ButtonV2>
       </div>
 
+      <Show when={props.status.standalone}>
+        {(standalone) => (
+          <p class="type-meta text-v2-text-text-muted" data-slot="harness-sync-standalone">
+            {standalone().running ? t("harness.sync.standalone.running") : t("harness.sync.standalone.closed")}
+          </p>
+        )}
+      </Show>
       <Show when={props.status.warning}>
         {(warning) => <p class="type-meta text-v2-state-fg-warning">{warning()}</p>}
       </Show>

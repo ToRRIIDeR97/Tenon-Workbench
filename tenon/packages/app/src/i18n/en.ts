@@ -1877,6 +1877,10 @@ export const dict = {
   "harness.sync.file.choose": "Choose another",
   "harness.sync.disconnect": "Disconnect",
   "harness.sync.disconnect.confirm": "Disconnect this computer? Harness files stay as they are.",
+  "harness.sync.standalone.running":
+    "Following the Harness Sync app on this computer. It is open, so it applies changes and Tenon shows them.",
+  "harness.sync.standalone.closed":
+    "Following the Harness Sync app on this computer. It is closed, so Tenon applies changes until it opens.",
   "harness.sync.device": "This computer",
   "harness.sync.device.detail": "Other computers see this name",
   "harness.sync.device.rename": "Rename",

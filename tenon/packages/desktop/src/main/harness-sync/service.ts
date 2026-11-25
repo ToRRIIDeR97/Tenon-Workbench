@@ -18,13 +18,22 @@ export type HarnessSyncDeps = {
   pickNewFile: () => Promise<string | undefined>
   pickExistingFile: () => Promise<string | undefined>
   changed: (notice?: { from: string; tools: number; skills: number }) => void
+  prepare?: () => Promise<void>
+  follow?: { running: () => Promise<boolean>; defaultDeviceName: string }
 }
 
 export function createHarnessSync(deps: HarnessSyncDeps) {
   const statePath = path.join(deps.dataDir, "state.json")
   const backups = path.join(deps.dataDir, "backups")
-  const runtime: { lastError?: string; stateWarning?: string; lastChecked?: string; pending?: string } = {}
-  let queue: Promise<unknown> = Promise.resolve()
+  const runtime: {
+    lastError?: string
+    stateWarning?: string
+    lastChecked?: string
+    pending?: string
+    appRunning?: boolean
+  } = {}
+  const computerName = (state: LocalState) => deviceName(state, deps.follow?.defaultDeviceName)
+  let queue: Promise<unknown> = (deps.prepare?.() ?? Promise.resolve()).catch(() => undefined)
   const gate = <T>(work: () => Promise<T>) => {
     const next = queue.then(work, work)
     queue = next.catch(() => undefined)
@@ -63,7 +72,7 @@ export function createHarnessSync(deps: HarnessSyncDeps) {
         )
       : undefined
     return {
-      deviceName: deviceName(state),
+      deviceName: computerName(state),
       ...(state.syncFile
         ? {
             syncFile: {
@@ -88,6 +97,7 @@ export function createHarnessSync(deps: HarnessSyncDeps) {
       ...(runtime.lastError ? { error: runtime.lastError } : {}),
       ...(runtime.stateWarning ? { warning: runtime.stateWarning } : {}),
       lastChecked: runtime.lastChecked,
+      ...(deps.follow ? { standalone: { running: runtime.appRunning === true } } : {}),
       ...(pending ? { pending } : {}),
       tools,
       skills,
@@ -146,7 +156,7 @@ export function createHarnessSync(deps: HarnessSyncDeps) {
       document.revision,
       { shared: document.shared, tools: document.tools, sharedSkills: document.sharedSkills },
       edits,
-      deviceName(state),
+      computerName(state),
     ).then(
       () => true,
       () => false,
@@ -167,7 +177,7 @@ export function createHarnessSync(deps: HarnessSyncDeps) {
   async function useThisComputer(file: string, seed: HarnessSyncToolID, expectedRevision?: number) {
     const current = (await load(file)).document
     const presets = await capture(current, deps.locations, seed)
-    await save(file, expectedRevision ?? current.revision, presets, {}, deviceName(await local()))
+    await save(file, expectedRevision ?? current.revision, presets, {}, computerName(await local()))
   }
 
   const tool = (value: unknown) => {
@@ -194,6 +204,12 @@ export function createHarnessSync(deps: HarnessSyncDeps) {
       return undefined
     }
     const full = worker.tick % FULL_CHECK_TICKS === 0
+    if (full && deps.follow) runtime.appRunning = await deps.follow.running().catch(() => false)
+    if (runtime.appRunning) {
+      worker.stamp = undefined
+      worker.seen.clear()
+      return undefined
+    }
     if (full) await uploadOutsideEdits(worker.seen)
     const stamp = await lstat(file).then(
       (info) => `${info.size}:${info.mtimeMs}`,
@@ -241,6 +257,7 @@ export function createHarnessSync(deps: HarnessSyncDeps) {
   return {
     start: schedule,
     testing: {
+      check: () => gate(check),
       upload: (seen: Map<string, string>) => gate(() => uploadOutsideEdits(seen)),
       refresh: (write: Write) => gate(() => refresh(write)),
     },
@@ -264,7 +281,7 @@ export function createHarnessSync(deps: HarnessSyncDeps) {
       if (!file) return null
       const shared = seedTool ? await readText(instructionsFile(deps.locations, seedTool)).then((t) => t ?? "") : ""
       return gate(async () => {
-        await create(file, shared, deviceName(await local()))
+        await create(file, shared, computerName(await local()))
         return connect(file)
       })
     },
@@ -311,7 +328,7 @@ export function createHarnessSync(deps: HarnessSyncDeps) {
         const state = await local()
         if (!state.syncFile) throw new Error("Connect a sync file first")
         const uploads = await readSkillSources(presets)
-        await save(state.syncFile, expectedRevision, presets, uploads, deviceName(state))
+        await save(state.syncFile, expectedRevision, presets, uploads, computerName(state))
         return applyForUser()
       }),
     setDeviceName: (value: unknown) =>

@@ -179,6 +179,22 @@ standalone app can keep running on other computers.
   and per skill copy; an unreadable file is renamed aside and reported. Nothing
   here is synced. Development builds accept `TENON_HARNESS_SYNC_SANDBOX=<folder>`
   so harness files and app data stay under that folder.
+- **Following the Harness Sync app.** When the standalone app is installed on
+  this computer (`harness-sync/standalone.ts`: its data folder
+  `app.harnesssync.desktop` exists in `%LOCALAPPDATA%` on Windows or
+  `~/Library/Application Support` on macOS, or its install does:
+  `<LocalAppData or Program Files>\Harness Sync\harness-sync.exe`,
+  `/Applications/Harness Sync.app`), Tenon uses that folder's `state.json` and
+  `backups/` instead of its own. Both apps then share one sync file
+  connection, computer name and set of applied hashes, so connecting,
+  disconnecting or renaming in either app changes both. At startup, if the
+  app has no sync file and Tenon does, Tenon copies its state there first
+  (`adoptState`). The computer name falls back to `COMPUTERNAME` or
+  `HOSTNAME`, as the app's does. Once a minute Tenon checks whether the app is
+  running (`tasklist` on Windows, `pgrep` on macOS); while it is, Tenon's
+  background check and automatic skill upload are paused and the app does that
+  work. Sync now, Save and joining still run in Tenon. Settings › Instructions
+  says which app is applying changes. The choice is made when Tenon starts.
 - **IPC.** `harness-sync-service.ts` creates the service with native dialogs;
   `ipc.ts` exposes thin `harness-sync-*` handlers that settle as `{ value }` or
   `{ error }`. The renderer passes harness IDs, presets, skill names and a
