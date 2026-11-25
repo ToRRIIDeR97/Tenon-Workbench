@@ -5,7 +5,7 @@ import { Icon } from "@tenon/ui/v2/icon"
 import { SegmentedControlItemV2, SegmentedControlV2 } from "@tenon/ui/v2/segmented-control-v2"
 import { createMemo, createResource, createSignal, For, onMount, Show } from "solid-js"
 import { HarnessIcon } from "@/components/harness-icon"
-import { PageEmpty, PageFrame, PageHeader, pageWideColumnClass } from "@/components/page"
+import { PageEmpty, PageFrame, PageHeader, pageDashboardColumnClass } from "@/components/page"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
@@ -115,10 +115,10 @@ export default function UsagePage() {
   }
 
   return (
-    <PageFrame labelledBy="usage-title">
+    <PageFrame labelledBy="usage-title" class="@container">
       <PageHeader
         id="usage-title"
-        column="wide"
+        column="dashboard"
         title={language.t("secondBrain.usage.title")}
         actions={
           <SegmentedControlV2
@@ -177,115 +177,128 @@ export default function UsagePage() {
               </Show>
             }
           >
-            <div class={pageWideColumnClass} data-component="usage-page" aria-busy={usage.loading}>
-              <section class="flex flex-col gap-3" aria-label={language.t("secondBrain.usage.composition")}>
-                <div class="flex flex-wrap items-end justify-between gap-x-6 gap-y-1">
-                  <p class="flex items-baseline gap-2.5">
-                    <span data-slot="usage-total" class="type-display text-v2-text-text-base tabular-nums">
-                      {tokens(total())}
-                    </span>
-                    <span class="type-body text-v2-text-text-muted">
-                      {language.t(`secondBrain.usage.summary.${range()}`)}
-                    </span>
-                  </p>
-                  <div class="text-right type-meta">
-                    <p class="text-v2-text-text-base tabular-nums">
-                      {language.t("secondBrain.usage.cost", { cost: formatCost(value().cost, locale()) })}
+            <div
+              class={`${pageDashboardColumnClass} grid gap-x-7 gap-y-6 @min-[900px]:grid-cols-[minmax(0,1fr)_minmax(0,1.08fr)] @min-[1400px]:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] @min-[1400px]:gap-x-12`}
+              data-component="usage-page"
+              aria-busy={usage.loading}
+            >
+              <div class="contents @min-[1400px]:flex @min-[1400px]:min-w-0 @min-[1400px]:flex-col @min-[1400px]:gap-6">
+                <section
+                  class="flex flex-col gap-3 @min-[900px]:col-span-2 @min-[1400px]:col-span-1"
+                  aria-label={language.t("secondBrain.usage.composition")}
+                >
+                  <div class="flex flex-wrap items-end justify-between gap-x-6 gap-y-1">
+                    <p class="flex items-baseline gap-2.5">
+                      <span data-slot="usage-total" class="type-display text-v2-text-text-base tabular-nums">
+                        {tokens(total())}
+                      </span>
+                      <span class="type-body text-v2-text-text-muted">
+                        {language.t(`secondBrain.usage.summary.${range()}`)}
+                      </span>
                     </p>
-                    <p class="text-v2-text-text-muted">{language.t("secondBrain.usage.costNote")}</p>
+                    <div class="text-right type-meta">
+                      <p class="text-v2-text-text-base tabular-nums">
+                        {language.t("secondBrain.usage.cost", { cost: formatCost(value().cost, locale()) })}
+                      </p>
+                      <p class="text-v2-text-text-muted">{language.t("secondBrain.usage.costNote")}</p>
+                    </div>
                   </div>
-                </div>
-                <div class="flex h-2.5 gap-0.5 overflow-hidden rounded-full" aria-hidden="true">
-                  <For each={composition(value().totals).filter((part) => part.share > 0)}>
-                    {(part, index) => (
-                      <span
-                        class={`block h-full shrink-0 origin-left ${grow}`}
-                        style={{
-                          width: `max(3px, calc(${part.share * 100}% - 2px))`,
-                          background: KIND_FILL[part.kind],
-                          transform: revealed() ? "scaleX(1)" : "scaleX(0)",
-                          "transition-delay": `${index() * 70 + 120}ms`,
-                        }}
-                      />
-                    )}
-                  </For>
-                </div>
-                <ul class="flex flex-wrap gap-x-5 gap-y-1.5 type-meta">
-                  <For each={composition(value().totals)}>
-                    {(part) => (
-                      <li class="flex items-center gap-1.5">
-                        <span class="size-2.5 shrink-0 rounded-[3px]" style={{ background: KIND_FILL[part.kind] }} />
-                        <span class="text-v2-text-text-muted">{kindLabel(part.kind)}</span>
-                        <span class="text-v2-text-text-base tabular-nums">{tokens(part.value)}</span>
-                      </li>
-                    )}
-                  </For>
-                </ul>
-              </section>
-
-              <section class="flex flex-col gap-2.5" aria-labelledby="usage-by-day">
-                <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
-                  <h2 id="usage-by-day" class="flex-1 type-section text-v2-text-text-base">
-                    {language.t("secondBrain.usage.byDay")}
-                  </h2>
-                  <span class="flex items-center gap-1.5 type-meta text-v2-text-text-muted">
-                    <span class="size-2.5 rounded-[3px]" style={{ background: KIND_FILL.input }} />
-                    {language.t("secondBrain.usage.day.fresh")}
-                  </span>
-                  <span class="flex items-center gap-1.5 type-meta text-v2-text-text-muted">
-                    <span class="size-2.5 rounded-[3px]" style={{ background: KIND_FILL.cacheRead }} />
-                    {language.t("secondBrain.usage.day.cached")}
-                  </span>
-                </div>
-                <div class="relative" onMouseLeave={() => setHovered(undefined)}>
-                  <div class="pointer-events-none absolute inset-0" aria-hidden="true">
-                    <For each={[1 / 3, 2 / 3, 1]}>
-                      {(line) => (
+                  <div class="flex h-2.5 gap-0.5 overflow-hidden rounded-full" aria-hidden="true">
+                    <For each={composition(value().totals).filter((part) => part.share > 0)}>
+                      {(part, index) => (
                         <span
-                          class="absolute inset-x-0 h-px bg-v2-border-border-muted"
-                          style={{ bottom: `${line * 100}%` }}
+                          class={`block h-full shrink-0 origin-left ${grow}`}
+                          style={{
+                            width: `max(3px, calc(${part.share * 100}% - 2px))`,
+                            background: KIND_FILL[part.kind],
+                            transform: revealed() ? "scaleX(1)" : "scaleX(0)",
+                            "transition-delay": `${index() * 70 + 120}ms`,
+                          }}
                         />
                       )}
                     </For>
                   </div>
-                  <ol class="relative flex h-32 items-end gap-1" aria-label={language.t("secondBrain.usage.byDay")}>
-                    <For each={bars()}>
-                      {(bar, index) => (
-                        <DayColumn
-                          bar={bar}
-                          index={index()}
-                          max={maxBar()}
-                          revealed={revealed()}
-                          dimmed={hovered() !== undefined && hovered() !== index()}
-                          label={`${dayLabel(bar.day)}: ${tokens(bar.total)}`}
-                          onHover={() => setHovered(index())}
-                        />
+                  <ul class="flex flex-wrap gap-x-5 gap-y-1.5 type-meta">
+                    <For each={composition(value().totals)}>
+                      {(part) => (
+                        <li class="flex items-center gap-1.5">
+                          <span class="size-2.5 shrink-0 rounded-[3px]" style={{ background: KIND_FILL[part.kind] }} />
+                          <span class="text-v2-text-text-muted">{kindLabel(part.kind)}</span>
+                          <span class="text-v2-text-text-base tabular-nums">{tokens(part.value)}</span>
+                        </li>
                       )}
                     </For>
-                  </ol>
-                  <Show when={hovered() !== undefined && bars()[hovered()!]}>
-                    {(bar) => (
-                      <div
-                        role="tooltip"
-                        class="pointer-events-none absolute top-0 z-10 w-52 rounded-[14px] bg-v2-background-bg-floating p-3 shadow-[var(--v2-elevation-floating)]"
-                        style={{
-                          left: `clamp(0px, calc(${((hovered()! + 0.5) / bars().length) * 100}% - 104px), calc(100% - 208px))`,
-                        }}
-                      >
-                        <p class="mb-1.5 type-section text-v2-text-text-base">{dayLabel(bar().day)}</p>
-                        <TipRow label={language.t("secondBrain.usage.day.total")} value={tokens(bar().total)} />
-                        <TipRow label={language.t("secondBrain.usage.day.fresh")} value={tokens(bar().fresh)} />
-                        <TipRow label={language.t("secondBrain.usage.day.cached")} value={tokens(bar().cached)} />
-                      </div>
-                    )}
-                  </Show>
-                </div>
-                <div class="flex justify-between type-meta text-v2-text-text-faint" aria-hidden="true">
-                  <For each={axis()}>{(bar) => <span>{dayLabel(bar.day)}</span>}</For>
-                </div>
-              </section>
+                  </ul>
+                </section>
 
-              <div class="grid gap-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.08fr)]">
+                <section
+                  class="flex flex-col gap-2.5 @min-[900px]:col-span-2 @min-[1400px]:col-span-1"
+                  aria-labelledby="usage-by-day"
+                >
+                  <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <h2 id="usage-by-day" class="flex-1 type-section text-v2-text-text-base">
+                      {language.t("secondBrain.usage.byDay")}
+                    </h2>
+                    <span class="flex items-center gap-1.5 type-meta text-v2-text-text-muted">
+                      <span class="size-2.5 rounded-[3px]" style={{ background: KIND_FILL.input }} />
+                      {language.t("secondBrain.usage.day.fresh")}
+                    </span>
+                    <span class="flex items-center gap-1.5 type-meta text-v2-text-text-muted">
+                      <span class="size-2.5 rounded-[3px]" style={{ background: KIND_FILL.cacheRead }} />
+                      {language.t("secondBrain.usage.day.cached")}
+                    </span>
+                  </div>
+                  <div class="relative" onMouseLeave={() => setHovered(undefined)}>
+                    <div class="pointer-events-none absolute inset-0" aria-hidden="true">
+                      <For each={[1 / 3, 2 / 3, 1]}>
+                        {(line) => (
+                          <span
+                            class="absolute inset-x-0 h-px bg-v2-border-border-muted"
+                            style={{ bottom: `${line * 100}%` }}
+                          />
+                        )}
+                      </For>
+                    </div>
+                    <ol
+                      class="relative flex h-32 items-end gap-1 @min-[1400px]:h-48"
+                      aria-label={language.t("secondBrain.usage.byDay")}
+                    >
+                      <For each={bars()}>
+                        {(bar, index) => (
+                          <DayColumn
+                            bar={bar}
+                            index={index()}
+                            max={maxBar()}
+                            revealed={revealed()}
+                            dimmed={hovered() !== undefined && hovered() !== index()}
+                            label={`${dayLabel(bar.day)}: ${tokens(bar.total)}`}
+                            onHover={() => setHovered(index())}
+                          />
+                        )}
+                      </For>
+                    </ol>
+                    <Show when={hovered() !== undefined && bars()[hovered()!]}>
+                      {(bar) => (
+                        <div
+                          role="tooltip"
+                          class="pointer-events-none absolute top-0 z-10 w-52 rounded-[14px] bg-v2-background-bg-floating p-3 shadow-[var(--v2-elevation-floating)]"
+                          style={{
+                            left: `clamp(0px, calc(${((hovered()! + 0.5) / bars().length) * 100}% - 104px), calc(100% - 208px))`,
+                          }}
+                        >
+                          <p class="mb-1.5 type-section text-v2-text-text-base">{dayLabel(bar().day)}</p>
+                          <TipRow label={language.t("secondBrain.usage.day.total")} value={tokens(bar().total)} />
+                          <TipRow label={language.t("secondBrain.usage.day.fresh")} value={tokens(bar().fresh)} />
+                          <TipRow label={language.t("secondBrain.usage.day.cached")} value={tokens(bar().cached)} />
+                        </div>
+                      )}
+                    </Show>
+                  </div>
+                  <div class="flex justify-between type-meta text-v2-text-text-faint" aria-hidden="true">
+                    <For each={axis()}>{(bar) => <span>{dayLabel(bar.day)}</span>}</For>
+                  </div>
+                </section>
+
                 <section class="flex min-w-0 flex-col gap-1.5" aria-labelledby="usage-by-harness">
                   <h2 id="usage-by-harness" class="type-section text-v2-text-text-base">
                     {language.t("secondBrain.usage.byHarness")}
@@ -374,34 +387,37 @@ export default function UsagePage() {
                     </table>
                   </div>
                 </section>
-
-                <section class="flex min-w-0 flex-col gap-1.5" aria-labelledby="usage-heaviest">
-                  <div class="flex items-center gap-2">
-                    <h2 id="usage-heaviest" class="flex-1 type-section text-v2-text-text-base">
-                      {language.t("secondBrain.usage.heaviest")}
-                    </h2>
-                    <span class="type-meta text-v2-text-text-muted">
-                      {language.plural("secondBrain.usage.threadCount", value().threads, { count: value().threads })}
-                      {" · "}
-                      {language.t("secondBrain.usage.heaviestNote")}
-                    </span>
-                  </div>
-                  <ul class="flex flex-col">
-                    <For each={value().heaviest}>
-                      {(thread) => (
-                        <ThreadRow
-                          thread={thread}
-                          open={open() === thread.id}
-                          onToggle={() => setOpen(open() === thread.id ? undefined : thread.id)}
-                          onOpen={openThread}
-                          harnessName={harnessName}
-                          tokens={tokens}
-                        />
-                      )}
-                    </For>
-                  </ul>
-                </section>
               </div>
+
+              <section
+                class="flex min-w-0 flex-col gap-1.5 @min-[1400px]:col-start-2 @min-[1400px]:row-start-1"
+                aria-labelledby="usage-heaviest"
+              >
+                <div class="flex items-center gap-2">
+                  <h2 id="usage-heaviest" class="flex-1 type-section text-v2-text-text-base">
+                    {language.t("secondBrain.usage.heaviest")}
+                  </h2>
+                  <span class="type-meta text-v2-text-text-muted">
+                    {language.plural("secondBrain.usage.threadCount", value().threads, { count: value().threads })}
+                    {" · "}
+                    {language.t("secondBrain.usage.heaviestNote")}
+                  </span>
+                </div>
+                <ul class="flex flex-col">
+                  <For each={value().heaviest}>
+                    {(thread) => (
+                      <ThreadRow
+                        thread={thread}
+                        open={open() === thread.id}
+                        onToggle={() => setOpen(open() === thread.id ? undefined : thread.id)}
+                        onOpen={openThread}
+                        harnessName={harnessName}
+                        tokens={tokens}
+                      />
+                    )}
+                  </For>
+                </ul>
+              </section>
             </div>
           </Show>
         )}

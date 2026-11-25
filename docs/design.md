@@ -159,6 +159,13 @@ Use `[font-weight:N]` when a weight must differ from the role.
   cross-fades over `--v2-duration-medium`), and Back plays it in reverse;
   under reduced motion, or if the transition can't start within 250ms, the
   page simply changes.
+- **Usage page: a dashboard when wide.** Up to 1400px of page it keeps the
+  1040px column: the total, its make-up and the day chart span it, with the
+  harness table and heaviest threads side by side once the page is 900px
+  wide. From 1400px (a container query, so an open sidebar counts) the column
+  grows to 1640px: the total, chart (192px tall) and harness table stack on
+  the left, and the heaviest threads (up to 12) take their own column on the
+  right (`PageHeader` `column="dashboard"`, `pageDashboardColumnClass`).
 - **Project page: one column, a dashboard when wide.** Once the page itself
   is 1400px wide it becomes a dashboard, like a wide notes page: the cover
   runs edge to edge across the page (200px, square, a bottom hairline), the

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { mkdtemp, readFile, rm } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { Effect } from "effect"
@@ -307,18 +307,71 @@ describe("TokenUsage.traceUnreported", () => {
     expect(asked[1]).toEqual(["ses_oneB"])
   })
 
-  test("a failing or slow trace leaves calls unreported instead of failing the page", async () => {
+  test("a failing trace leaves calls unreported and lets the next load try again", async () => {
     const file = await cacheFile()
-    const result = await Effect.runPromise(
+    const directories = new Map([["two", "/work"]])
+    const failed = await Effect.runPromise(
       TokenUsage.traceUnreported({
         rows: rows("two"),
-        directories: new Map([["two", "/work"]]),
+        directories,
         trace: () => Effect.die(new Error("opencode missing")),
         cacheFile: file,
         now: NOV_24,
       }),
     )
-    expect(result[0]?.subagents.map((call) => call.usage === undefined)).toEqual([true, true, false])
+    expect(failed[0]?.subagents.map((call) => call.usage === undefined)).toEqual([true, true, false])
+    const asked: string[] = []
+    await Effect.runPromise(
+      TokenUsage.traceUnreported({
+        rows: rows("two"),
+        directories,
+        trace: (refs) => {
+          asked.push(...refs.map((item) => item.id))
+          return Effect.succeed(new Map())
+        },
+        cacheFile: file,
+        now: NOV_24 + 1,
+      }),
+    )
+    expect(asked).toEqual(["ses_twoA", "ses_twoB"])
+  })
+
+  test("reads Claude Code subagents from their transcripts without the OpenCode trace", async () => {
+    const file = await cacheFile()
+    const config = path.dirname(file)
+    const directory = path.join(config, "Brain")
+    const folder = path.join(
+      config,
+      "projects",
+      HarnessSubagentTrace.claudeProjectFolder(directory),
+      "session",
+      "subagents",
+    )
+    await mkdir(folder, { recursive: true })
+    await writeFile(
+      path.join(folder, "agent-adee9c9e2d5264059.jsonl"),
+      JSON.stringify({ message: { id: "m1", usage: { input_tokens: 7, output_tokens: 3 } } }),
+    )
+    const result = await Effect.runPromise(
+      TokenUsage.traceUnreported({
+        rows: [
+          {
+            session: "c",
+            at: NOV_24,
+            harness: "claude-code",
+            tokens: tokens(1),
+            cost: 0,
+            subagents: [{ name: "general-purpose", output: "Done. agentId: adee9c9e2d5264059 (internal ID)" }],
+          },
+        ],
+        directories: new Map([["c", directory]]),
+        trace: () => Effect.die(new Error("not used")),
+        cacheFile: file,
+        claudeConfigDir: config,
+        now: NOV_24,
+      }),
+    )
+    expect(result[0]?.subagents[0]).toMatchObject({ source: "claude-transcript", usage: tokens(7, 3) })
   })
 
   test("summaries carry the traced source and drop the raw output", () => {

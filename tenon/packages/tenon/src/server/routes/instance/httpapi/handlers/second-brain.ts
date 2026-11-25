@@ -30,7 +30,6 @@ import { AbsolutePath } from "@tenon/core/schema"
 import { ProjectV2 } from "@tenon/core/project"
 import { Effect, Layer } from "effect"
 import { PlatformError } from "effect/PlatformError"
-import os from "node:os"
 import path from "node:path"
 import { HttpApiBuilder, HttpApiError } from "effect/http-api"
 import { InstanceHttpApi } from "../api"
@@ -311,16 +310,11 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
             since: Math.max(0, ctx.query.since ?? 0),
             offsetMinutes: ctx.query.offset ?? 0,
             trace: (refs) =>
-              Effect.gen(function* () {
-                const harness = yield* HarnessRuntime.Service
-                return yield* harness.subagentUsage(refs)
-              }).pipe(
-                Effect.provideService(Global.Service, Global.make()),
-                Effect.provide(
-                  locations.get(
-                    Location.Ref.make({ directory: AbsolutePath.make(refs[0]?.directory ?? os.homedir()) }),
-                  ),
-                ),
+              filesystem(
+                Effect.gen(function* () {
+                  const harness = yield* HarnessRuntime.Service
+                  return yield* harness.subagentUsage(refs)
+                }).pipe(Effect.provideService(Global.Service, Global.make())),
               ),
           }),
         ).pipe(failure("readUsage")),
