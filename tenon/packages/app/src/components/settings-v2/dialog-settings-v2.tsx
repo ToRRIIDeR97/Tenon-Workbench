@@ -100,12 +100,12 @@ export const DialogSettings: Component<{
                       {language.t("dictation.settings.tab")}
                     </TabsV2.Trigger>
                     <TabsV2.Trigger value="command-centre">
-                      <Icon name="console" />
+                      <Icon name="command-centre" />
                       {language.t("secondBrain.commandCentre.settings.tab")}
                     </TabsV2.Trigger>
                     <Show when={platform.mail}>
                       <TabsV2.Trigger value="accounts">
-                        <Icon name="link" />
+                        <Icon name="mail" />
                         {language.t("secondBrain.mail.settings.tab")}
                       </TabsV2.Trigger>
                     </Show>
@@ -124,25 +124,25 @@ export const DialogSettings: Component<{
                       {language.t("secondBrain.settings.tab.builtInHarness")}
                     </TabsV2.Trigger>
                     <TabsV2.Trigger value="harnesses">
-                      <Icon name="terminal" />
+                      <Icon name="harness" />
                       {language.t("harness.settings.title")}
                     </TabsV2.Trigger>
                     <Show when={platform.harnessSync}>
                       <TabsV2.Trigger value="instructions">
-                        <Icon name="edit" />
+                        <Icon name="sync" />
                         {language.t("harness.sync.tab")}
                       </TabsV2.Trigger>
                     </Show>
                     <TabsV2.Trigger value="skills">
-                      <Icon name="book" />
+                      <Icon name="skills" />
                       {language.t("secondBrain.skills.title")}
                     </TabsV2.Trigger>
                     <TabsV2.Trigger value="mcp">
-                      <Icon name="grid-plus" />
+                      <Icon name="plug" />
                       {language.t("secondBrain.mcp.title")}
                     </TabsV2.Trigger>
                     <TabsV2.Trigger value="model-profiles">
-                      <Icon name="pencil-line" />
+                      <Icon name="model-profile" />
                       {language.t("secondBrain.modelProfiles.title")}
                     </TabsV2.Trigger>
                   </div>
