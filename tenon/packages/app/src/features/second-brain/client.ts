@@ -75,6 +75,7 @@ export type ProjectRecord = {
   blocker?: string | null
   tags: ReadonlyArray<string>
   location?: { workspaceId?: string; displayPath: string; path?: string } | null
+  cover?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -188,6 +189,18 @@ export const updateProject = (client: Client, id: string, input: ProjectUpdate) 
     method: "PATCH",
     body: JSON.stringify(input),
   })
+
+export const readProjectCover = (client: Client, id: string) =>
+  request<{ dataUrl: string | null }>(client, `/second-brain/project/cover?id=${encodeURIComponent(id)}`)
+
+export const writeProjectCover = (client: Client, id: string, dataUrl: string) =>
+  request<ProjectRecord>(client, `/second-brain/project/cover?id=${encodeURIComponent(id)}`, {
+    method: "PUT",
+    body: JSON.stringify({ dataUrl }),
+  })
+
+export const removeProjectCover = (client: Client, id: string) =>
+  request<ProjectRecord>(client, `/second-brain/project/cover?id=${encodeURIComponent(id)}`, { method: "DELETE" })
 
 export const listProjectThreads = (client: Client) => request<ProjectThreads[]>(client, "/second-brain/project-threads")
 

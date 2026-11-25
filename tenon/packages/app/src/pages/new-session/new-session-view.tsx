@@ -43,6 +43,7 @@ export function NewSessionView(props: {
               <PromptInputV2Composer
                 controller={props.input}
                 harness={props.harness}
+                newThread
                 boxHeader={
                   <WhereRow project={props.project} workspace={props.workspace} onDone={props.input.restoreFocus} />
                 }

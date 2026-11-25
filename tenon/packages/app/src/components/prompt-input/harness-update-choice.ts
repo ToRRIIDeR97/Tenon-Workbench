@@ -3,21 +3,27 @@ import type { Harness } from "@tenon/schema/harness"
 export const UPDATE_CHECK_MS = 60_000
 
 export type HarnessUpdateChoice =
-  | { kind: "update"; latest: string | undefined; disabled: false }
   | { kind: "updating"; disabled: true }
   | { kind: "unavailable"; error: string | undefined; disabled: true }
 
+export type HarnessUpdateOffer = { latest: string } | undefined
+
 export function harnessUpdateChoice(
   instance: Pick<Harness.Instance, "status" | "error">,
-  update: Pick<Harness.UpdateStatus, "updateAvailable" | "method" | "latest" | "manual"> | undefined,
   upgrading: boolean,
 ): HarnessUpdateChoice | undefined {
   if (instance.status !== "unavailable") return undefined
   if (upgrading) return { kind: "updating", disabled: true }
-  if (update?.updateAvailable && update.method && !update.manual)
-    return { kind: "update", latest: update.latest, disabled: false }
   const error = instance.error?.split("\n")[0]?.trim()
   return { kind: "unavailable", error: error || undefined, disabled: true }
+}
+
+export function harnessUpdateOffer(
+  update: Pick<Harness.UpdateStatus, "updateAvailable" | "method" | "latest" | "manual"> | undefined,
+  upgrading: boolean,
+): HarnessUpdateOffer {
+  if (upgrading || !update?.updateAvailable || !update.method || update.manual) return undefined
+  return { latest: update.latest ?? "" }
 }
 
 export function shouldCheckHarnessUpdates(

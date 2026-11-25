@@ -341,6 +341,10 @@ export const DESKTOP_NATIVE_ENGLISH = {
   "secondBrain.desktop.unsaved.stay": "Stay",
   "secondBrain.desktop.computer.active": "{{harness}} is using your computer",
   "secondBrain.desktop.computer.stop": "Stop",
+  "secondBrain.desktop.tray.open": "Open Tenon Workbench",
+  "secondBrain.desktop.tray.quit": "Quit Tenon Workbench",
+  "secondBrain.desktop.tray.running": "Tenon Workbench is still running",
+  "secondBrain.desktop.tray.runningDetail": "Threads keep going in the background. Quit from the tray icon.",
 } as const
 
 export type DesktopNativeKey = keyof typeof DESKTOP_NATIVE_ENGLISH

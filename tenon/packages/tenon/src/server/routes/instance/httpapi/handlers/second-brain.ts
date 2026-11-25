@@ -196,6 +196,25 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
       )
     })
 
+    const readProjectCover = Effect.fn("SecondBrain.readProjectCover")(function* (ctx: { query: { id: string } }) {
+      return yield* filesystem(BrainProject.readCover(ctx.query.id)).pipe(failure("readProjectCover", ctx.query.id))
+    })
+
+    const writeProjectCover = Effect.fn("SecondBrain.writeProjectCover")(function* (ctx: {
+      query: { id: string }
+      payload: BrainProject.CoverInput
+    }) {
+      return yield* serialized(filesystem(BrainProject.writeCover(ctx.query.id, ctx.payload))).pipe(
+        failure("writeProjectCover", ctx.query.id),
+      )
+    })
+
+    const removeProjectCover = Effect.fn("SecondBrain.removeProjectCover")(function* (ctx: { query: { id: string } }) {
+      return yield* serialized(filesystem(BrainProject.removeCover(ctx.query.id))).pipe(
+        failure("removeProjectCover", ctx.query.id),
+      )
+    })
+
     const migrated = new Set<string>()
     const migrateFirst = (directory: string) => (opened: KnowledgeVault.Vault) => {
       const key = `${opened.directory}\n${directory}`
@@ -401,6 +420,9 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
       .handle("removeInstructions", removeInstructions)
       .handle("readProject", readProject)
       .handle("updateProject", updateProject)
+      .handle("readProjectCover", readProjectCover)
+      .handle("writeProjectCover", writeProjectCover)
+      .handle("removeProjectCover", removeProjectCover)
   }),
 ).pipe(Layer.provide(locationServiceMapLayer))
 

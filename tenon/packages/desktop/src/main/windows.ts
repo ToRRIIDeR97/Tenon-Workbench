@@ -56,6 +56,7 @@ protocol.registerSchemesAsPrivileged([
 ])
 
 let backgroundColor: string | undefined
+let hiddenToBackground: (() => void) | undefined
 let relaunchHandler = () => {
   setAppQuitting()
   rendererStore.flush()
@@ -99,6 +100,23 @@ export function setRelaunchHandler(handler: () => void) {
   relaunchHandler = handler
 }
 
+export function setHiddenToBackgroundHandler(handler: () => void) {
+  hiddenToBackground = handler
+}
+
+export function showMainWindows() {
+  const windows = mainWindows()
+  if (windows.length === 0) return restoreMainWindows()
+  windows.forEach((win) => {
+    if (win.webContents.isLoadingMainFrame()) return
+    if (win.isMinimized()) win.restore()
+    win.show()
+  })
+  const focused = getLastFocusedWindow()
+  ;(focused && windows.includes(focused) ? focused : windows[0])?.focus()
+  return windows
+}
+
 export function setAppQuitting(quitting = true) {
   registry.setQuitting(quitting)
   if (!quitting) unloadGuard.reset()
@@ -133,7 +151,7 @@ function iconsDir() {
   return app.isPackaged ? join(process.resourcesPath, "icons") : join(root, "../../resources/icons")
 }
 
-function iconPath() {
+export function iconPath() {
   const ext = process.platform === "win32" ? "ico" : "png"
   return join(iconsDir(), `icon.${ext}`)
 }
@@ -253,6 +271,13 @@ export function createMainWindow(id: string = randomUUID()) {
   registerWindow(win, id)
   wireFullscreen(win)
   loadWindow(win, "index.html")
+  win.on("close", (event) => {
+    const otherVisible = mainWindows().filter((other) => other !== win && other.isVisible()).length
+    if (!registry.hidesOnClose(otherVisible)) return
+    event.preventDefault()
+    win.hide()
+    hiddenToBackground?.()
+  })
   win.on("closed", () => {
     if (process.platform === "darwin" || mainWindows().length > 0) return
     BrowserWindow.getAllWindows().forEach((other) => other.destroy())

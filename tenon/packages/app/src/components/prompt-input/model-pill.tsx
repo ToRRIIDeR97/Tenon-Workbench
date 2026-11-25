@@ -13,7 +13,7 @@ import {
   type PromptInputHarnessController,
 } from "./harness-controls"
 import { harnessModelSlot } from "./harness-model-slot"
-import { harnessUpdateChoice } from "./harness-update-choice"
+import { harnessUpdateChoice, harnessUpdateOffer } from "./harness-update-choice"
 import { showToast } from "@/utils/toast"
 import { HarnessIcon } from "@/components/harness-icon"
 import { filterHarnessModels, searchableModelCount } from "./harness-choice"
@@ -129,12 +129,11 @@ export function PromptModelPill(props: {
     setState({ step: "summary", motion: "back" })
     focusSoon(`[data-step="${from}"]`)
   }
-  const updateChoice = (item: Harness.Instance) =>
-    harnessUpdateChoice(item, props.harness.update?.status(item.id), props.harness.update?.running(item.id) ?? false)
+  const upgrading = (item: Harness.Instance) => props.harness.update?.running(item.id) ?? false
+  const updateChoice = (item: Harness.Instance) => harnessUpdateChoice(item, upgrading(item))
   const harnessDetail = (item: Harness.Instance) => {
     const choice = updateChoice(item)
-    if (choice?.kind === "update") return language.t("harness.update.row", { latest: choice.latest ?? "" })
-    if (choice?.kind === "updating") return language.t("harness.settings.updating")
+    if (choice?.kind === "updating" || (!choice && upgrading(item))) return language.t("harness.settings.updating")
     if (choice?.kind === "unavailable") return choice.error ?? language.t("harness.unavailable")
     const key = harnessStatusKey(item)
     const update = props.harness.update?.status(item.id)
@@ -142,12 +141,8 @@ export function PromptModelPill(props: {
       return language.t("harness.slowStartUpdate", { latest: update.latest ?? "" })
     return key && language.t(key)
   }
-  const slowUpdate = (item: Harness.Instance) => {
-    const update = props.harness.update?.status(item.id)
-    return item.slowStart && update?.updateAvailable && update.method && !update.manual
-      ? (update.latest ?? "")
-      : undefined
-  }
+  const updateOffer = (item: Harness.Instance) =>
+    harnessUpdateOffer(props.harness.update?.status(item.id), upgrading(item))
   const startUpdate = (item: Harness.Instance) =>
     void props.harness.update?.run(item.id).then(
       (result) =>
@@ -373,28 +368,23 @@ export function PromptModelPill(props: {
                                     (updateChoice(item)?.disabled ?? item.status === "unavailable") ||
                                     (props.harness.harnessLocked?.() === true && item.id !== props.harness.current())
                                   }
-                                  onSelect={() =>
-                                    updateChoice(item)?.kind === "update"
-                                      ? startUpdate(item)
-                                      : pick(() => props.harness.select(Harness.InstanceID.make(item.id)))
-                                  }
+                                  onSelect={() => pick(() => props.harness.select(Harness.InstanceID.make(item.id)))}
                                 />
-                                <Show when={item.slowStart && slowUpdate(item) === undefined}>
+                                <Show when={item.status === "unavailable" || (item.slowStart && !updateOffer(item))}>
                                   <Choice
                                     label={language.t("harness.checkAgain", { name: item.name })}
                                     muted
                                     onSelect={() => props.harness.revalidate?.()}
                                   />
                                 </Show>
-                                <Show when={slowUpdate(item)}>
-                                  {(latest) => (
+                                <Show when={updateOffer(item)}>
+                                  {(offer) => (
                                     <Choice
                                       label={language.t("harness.slowStartUpdateRow", {
                                         name: item.name,
-                                        latest: latest(),
+                                        latest: offer().latest,
                                       })}
                                       muted
-                                      disabled={props.harness.update?.running(item.id) ?? false}
                                       onSelect={() => startUpdate(item)}
                                     />
                                   )}

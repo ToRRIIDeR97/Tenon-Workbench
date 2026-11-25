@@ -55,6 +55,7 @@ export const SecondBrainPaths = {
   calendar: "/second-brain/calendar",
   projects: "/second-brain/projects",
   project: "/second-brain/project",
+  projectCover: "/second-brain/project/cover",
   projectThreads: "/second-brain/project-threads",
   projectWorkspace: "/second-brain/projects/workspace",
   projectScan: "/second-brain/projects/scan",
@@ -159,6 +160,22 @@ export const SecondBrainApi = HttpApi.make("secondBrain").add(
         query: ProjectQuery,
         payload: BrainProject.UpdateInput,
         success: described(BrainProject.Info, "Project updated"),
+        error: errors,
+      }),
+      HttpApiEndpoint.get("readProjectCover", SecondBrainPaths.projectCover, {
+        query: ProjectQuery,
+        success: described(BrainProject.Cover, "The Project's cover image as a data URL, or null"),
+        error: errors,
+      }),
+      HttpApiEndpoint.put("writeProjectCover", SecondBrainPaths.projectCover, {
+        query: ProjectQuery,
+        payload: BrainProject.CoverInput,
+        success: described(BrainProject.Info, "Cover image saved"),
+        error: errors,
+      }),
+      HttpApiEndpoint.delete("removeProjectCover", SecondBrainPaths.projectCover, {
+        query: ProjectQuery,
+        success: described(BrainProject.Info, "Cover image removed"),
         error: errors,
       }),
       HttpApiEndpoint.get("readVault", SecondBrainPaths.vault, {

@@ -1,6 +1,6 @@
 import { type ModelProfile, profileFor } from "@/utils/model-profile"
 import { createStore, reconcile } from "solid-js/store"
-import { batch, createEffect, createMemo } from "solid-js"
+import { batch, createEffect, createMemo, createSignal } from "solid-js"
 import { createSimpleContext } from "@tenon/ui/context"
 import { persisted } from "@/utils/persist"
 import { usePlatform } from "@/context/platform"
@@ -126,7 +126,13 @@ export type HarnessChoice = {
 }
 export type HarnessDefaults = HarnessChoice & { mode: "fixed" | "last" }
 
-export function newThreadChoice(harnesses: { defaults?: HarnessDefaults; lastUsed?: HarnessChoice } | undefined) {
+const [runChoice, setRunChoice] = createSignal<HarnessChoice>()
+
+export function newThreadChoice(
+  harnesses: { defaults?: HarnessDefaults; lastUsed?: HarnessChoice } | undefined,
+  thisRun?: HarnessChoice,
+) {
+  if (thisRun) return thisRun
   const defaults = harnesses?.defaults
   if (!defaults) return harnesses?.lastUsed
   if (defaults.mode === "last") return harnesses?.lastUsed ?? defaults
@@ -499,8 +505,12 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         setDefaults(value: HarnessDefaults | undefined) {
           setStore("harnesses", (current) => ({ ...current, defaults: value }))
         },
-        newThreadChoice: () => newThreadChoice(store.harnesses),
+        newThreadChoice: () => newThreadChoice(store.harnesses, runChoice()),
         setLastUsed(value: HarnessChoice) {
+          setStore("harnesses", (current) => ({ ...current, lastUsed: value }))
+        },
+        setNewThreadChoice(value: HarnessChoice) {
+          setRunChoice({ ...value, ...(value.model ? { model: { ...value.model } } : {}) })
           setStore("harnesses", (current) => ({ ...current, lastUsed: value }))
         },
         hiddenModels: (instanceID: string) => store.harnesses?.hiddenModels?.[instanceID] ?? [],
