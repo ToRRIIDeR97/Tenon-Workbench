@@ -396,6 +396,58 @@ export const searchCommandMemory = (client: Client, search: string) =>
 export const listCommandActions = (client: Client, since: number) =>
   request<CommandAction[]>(client, `/command-centre/actions?since=${since}`)
 
+export type UsageTokens = {
+  input: number
+  output: number
+  reasoning: number
+  cacheRead: number
+  cacheWrite: number
+}
+export type UsageSubagent = {
+  name: string
+  description?: string
+  total?: number
+  source: "harness" | "opencode-session" | "claude-transcript" | "thread"
+  sessionID?: string
+}
+export type UsageThread = {
+  id: string
+  title: string
+  directory: string
+  harness: string
+  model?: string
+  total: number
+  main: number
+  cost: number
+  at: number
+  subagents: ReadonlyArray<UsageSubagent>
+  subagentCount: number
+  unreported: number
+}
+export type UsageHarness = {
+  harness: string
+  models: ReadonlyArray<string>
+  total: number
+  subagents: number
+  unreported: number
+  cost: number
+}
+export type UsageSummary = {
+  since: number
+  totals: UsageTokens
+  cost: number
+  threads: number
+  days: ReadonlyArray<{ day: string; fresh: number; cached: number }>
+  harnesses: ReadonlyArray<UsageHarness>
+  heaviest: ReadonlyArray<UsageThread>
+}
+
+export const readUsage = (client: Client, input: { since: number; offset: number }) =>
+  request<UsageSummary>(
+    client,
+    `/second-brain/usage?since=${Math.max(0, Math.floor(input.since))}&offset=${Math.trunc(input.offset)}`,
+  )
+
 export const compactCommandMemory = (client: Client, input: { days: number; model?: ModelChoice }) =>
   request<{ summarised: number; deleted: number }>(client, "/command-centre/memory/compact", {
     method: "POST",

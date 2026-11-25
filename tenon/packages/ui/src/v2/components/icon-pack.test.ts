@@ -18,6 +18,7 @@ describe("icon pack", () => {
       "book",
       "home",
       "calendar",
+      "activity",
       "settings-gear",
     ]
     const bodies = destinations.map((name) => glyphs[name])

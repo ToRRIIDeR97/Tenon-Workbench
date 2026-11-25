@@ -68,6 +68,11 @@ type PluralKey =
   | "secondBrain.permission.external"
   | "secondBrain.permission.other"
   | "secondBrain.permission.details"
+  | "secondBrain.usage.notReportedCount"
+  | "secondBrain.usage.subagentCount"
+  | "secondBrain.usage.unreportedSubagents"
+  | "secondBrain.usage.threadCount"
+  | "secondBrain.usage.moreSubagents"
   | `secondBrain.turnSteps.${StepKind}`
 type Source = { dict: Record<string, string> }
 

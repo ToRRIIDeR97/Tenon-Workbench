@@ -61,6 +61,7 @@ import { HarnessPids } from "./harness/pids"
 import { HarnessUpdate } from "./harness/update"
 import { ThreadReference } from "./session/thread-reference"
 import { HarnessUsage } from "./harness/usage"
+import { HarnessSubagentTrace } from "./harness/subagent-trace"
 import { harnessEnvironment } from "./harness/env"
 import { Location } from "./location"
 import { FSUtil } from "./fs-util"
@@ -104,6 +105,9 @@ export interface Interface {
   readonly updates: () => Effect.Effect<ReadonlyArray<Harness.UpdateStatus>>
   readonly upgrade: (id: string) => Effect.Effect<Harness.UpdateStatus, HarnessUpdate.UpdateError>
   readonly usage: () => Effect.Effect<ReadonlyArray<HarnessUsage.UsageReport>>
+  readonly subagentUsage: (
+    refs: ReadonlyArray<HarnessSubagentTrace.Ref>,
+  ) => Effect.Effect<ReadonlyMap<string, AcpHarness.AcpUsage>>
   readonly driver: (instanceID: Harness.InstanceID) => Harness.DriverKind | undefined
   readonly stream: (
     input: StreamInput & { readonly instanceID: Harness.InstanceID },
@@ -1090,6 +1094,35 @@ const layer = Layer.effect(
                 .filter((instance) => instance.enabled)
                 .map((instance) => ({ instanceID: instance.id, read: usageSource(instance, keys) })),
             ),
+          ),
+        ),
+      subagentUsage: (refs) =>
+        instances.pipe(
+          Effect.flatMap((current) => {
+            const openCode = current.find((instance) => instance.id === Harness.OpenCodeAcp)
+            const openCodeSettings = openCode ? AcpHarness.decodeSettings(openCode.config) : undefined
+            const claude = current.find((instance) => instance.id === Harness.ClaudeCode)
+            const claudeEnv = claude ? AcpHarness.decodeSettings(claude.config)?.env : undefined
+            const configDir = HarnessSubagentTrace.claudeConfigDir({ ...globalThis.process.env, ...claudeEnv })
+            const read = (item: HarnessSubagentTrace.Ref): Effect.Effect<AcpHarness.AcpUsage | undefined> => {
+              if (item.kind === "claude-agent")
+                return HarnessSubagentTrace.claudeAgentUsage({ configDir, directory: item.directory, agentId: item.id })
+              const lookup = openCodeSettings
+                ? AcpHarness.openCodeUsageLookup(process, openCodeSettings, item.directory)
+                : undefined
+              return lookup ? lookup(item.id) : Effect.succeed(undefined)
+            }
+            return Effect.forEach(
+              refs,
+              (item) => read(item).pipe(Effect.map((usage) => [HarnessSubagentTrace.key(item), usage] as const)),
+              { concurrency: 6 },
+            )
+          }),
+          Effect.map(
+            (found) =>
+              new Map(
+                found.flatMap(([id, usage]): Array<[string, AcpHarness.AcpUsage]> => (usage ? [[id, usage]] : [])),
+              ),
           ),
         ),
       reportedCommands: (id) => commands.get(id),

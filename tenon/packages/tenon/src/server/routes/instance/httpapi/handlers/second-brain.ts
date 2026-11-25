@@ -2,6 +2,7 @@ import { CommandActionLog } from "@/agents/command-action-log"
 import { CommandMemory } from "@/agents/command-memory"
 import { CommandThreads } from "@/agents/command-threads"
 import { Routines } from "@/agents/routines"
+import { TokenUsage } from "@/agents/token-usage"
 import { RoutinesScheduler } from "@/agents/routines-scheduler"
 import { InstanceState } from "@/effect/instance-state"
 import { EventV2Bridge } from "@/event-v2-bridge"
@@ -18,6 +19,7 @@ import { PlannerCalendarStore } from "@/planner/calendar-store"
 import { BrainProject } from "@/project/brain"
 import { Project } from "@/project/project"
 import { Database } from "@tenon/core/database/database"
+import { HarnessRuntime } from "@tenon/core/harness"
 import { KeyedMutex } from "@tenon/core/effect/keyed-mutex"
 import { FSUtil } from "@tenon/core/fs-util"
 import { Global } from "@tenon/core/global"
@@ -28,6 +30,7 @@ import { AbsolutePath } from "@tenon/core/schema"
 import { ProjectV2 } from "@tenon/core/project"
 import { Effect, Layer } from "effect"
 import { PlatformError } from "effect/PlatformError"
+import os from "node:os"
 import path from "node:path"
 import { HttpApiBuilder, HttpApiError } from "effect/http-api"
 import { InstanceHttpApi } from "../api"
@@ -301,6 +304,26 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
         (ctx.query.since === undefined ? CommandActionLog.read : CommandActionLog.readSince(ctx.query.since)).pipe(
           failure("listCommandActions"),
         ),
+      )
+      .handle("readUsage", (ctx) =>
+        commandServices(
+          TokenUsage.read({
+            since: Math.max(0, ctx.query.since ?? 0),
+            offsetMinutes: ctx.query.offset ?? 0,
+            trace: (refs) =>
+              Effect.gen(function* () {
+                const harness = yield* HarnessRuntime.Service
+                return yield* harness.subagentUsage(refs)
+              }).pipe(
+                Effect.provideService(Global.Service, Global.make()),
+                Effect.provide(
+                  locations.get(
+                    Location.Ref.make({ directory: AbsolutePath.make(refs[0]?.directory ?? os.homedir()) }),
+                  ),
+                ),
+              ),
+          }),
+        ).pipe(failure("readUsage")),
       )
       .handle("searchCommandMemory", (ctx) =>
         commandServices(CommandMemory.search(ctx.query.search ?? "")).pipe(failure("searchCommandMemory")),

@@ -197,7 +197,7 @@ standalone app can keep running on other computers.
 
 `tenon/packages/app/src/app.tsx` owns routing: `/`, `/projects` (Projects: the vault's page tree and every
 Project; `/notes…` redirects there with its query),
-`/calendar`, `/command` (Command Centre; `/activity` redirects there), `/routines`, `/projects/overview` (every Project's
+`/calendar`, `/command` (Command Centre; `/activity` redirects there), `/routines`, `/usage` (token usage), `/projects/overview` (every Project's
 notes and milestones, grouped by `features/second-brain/project-overview.ts`), the draft route
 `/new-thread?project=<id>&draftId=<id>` and server-scoped threads at
 `/server/<server>/session/<id>`. Old `/workspaces`, `/brain`, `/new-session`
@@ -1007,6 +1007,52 @@ assistant that spans workspaces, with its own threads, memory and routines.
 | `GET /command-centre/memory?search=` | `[{ sessionID?, text, at }]`, at most 20; summaries have no `sessionID` |
 | `GET /command-centre/actions?since=` | `[{ id, at, kind, sessionID, title, project?, text?, by }]`, newest first; the agent's logged messages and stops at or after `since` (ms) |
 | `POST /command-centre/memory/compact` | `{ days, model?: { providerID, modelID } }` → `{ summarised, deleted }` |
+
+### Token usage
+
+The rail's Usage item opens `/usage` (`app/src/pages/usage.tsx`): one total for
+7 days, 30 days or all time, what it was made of (input, output, reasoning,
+cache write, cache read), a column per day, a table by harness and the
+heaviest threads with their subagents. `GET /second-brain/usage?since=&offset=`
+(`tenon/src/agents/token-usage.ts`, `TokenUsage.read`) reads the profile
+database without writing to it and folds three sources:
+
+- **Main turns.** The `tokens` and `cost` of every assistant row in
+  `session_message` (harness threads) and `message` (older built-in threads).
+  The session table's `tokens_*` columns are not used: harness turns never
+  update them.
+- **Harness subagents.** Each `acp_subagent` tool in an assistant row carries
+  the subagent's usage in `provider.resultMetadata.acp.usage` (Claude Code
+  reports it on the result; for `opencode acp` Tenon reads the child session
+  with `opencode api GET /api/session/<id>`).
+- **Traced subagents.** When a call has no usage, the page traces it by its ID
+  (`core/src/harness/subagent-trace.ts`, `HarnessRuntime.subagentUsage`):
+  an OpenCode call's child session (`<subagent sessionID="ses_…">`, or
+  `(sessionID: ses_…)` for a background subagent) is asked again through the
+  official `opencode api GET /api/session/<id>`, and a Claude Code call's
+  `agentId` leads to its transcript,
+  `<CLAUDE_CONFIG_DIR or ~/.claude>/projects/<folder>/<session>/subagents/agent-<agentId>.jsonl`,
+  whose per-message usage is summed once per message id. Hits are cached in
+  `<Tenon data>/subagent-usage.json`; misses are retried after ten minutes;
+  the whole trace gives up after 20 seconds and leaves the rest "not
+  reported". Rows say where a traced number came from ("Read from the OpenCode
+  session", "Read from the Claude Code transcript"). Only calls with no ID or
+  no stored usage stay "not reported", never zero; Codex and Gemini report
+  none.
+- **Delegated threads.** A session with a `parent_id` folds into its root
+  thread as a subagent row (`source: "thread"`), so its tokens count once.
+
+Days are bucketed in the viewer's timezone (`offset`, minutes, from
+`Date.getTimezoneOffset()`). Cost is what each harness reports; plan sign-ins
+may report an API-equivalent figure. The response carries thread titles,
+folders, subagent names and their short descriptions, never prompts or
+message text. Pure aggregation (`TokenUsage.summarize`) is tested in
+`tenon/test/agents/token-usage.test.ts`; day filling and formatting in
+`app/src/features/usage/usage-model.test.ts`.
+
+| Route | Behaviour |
+| --- | --- |
+| `GET /second-brain/usage?since=&offset=` | `{ since, totals, cost, threads, days, harnesses, heaviest }`; usage at or after `since` (ms, `0` for all time) |
 
 ### Routines
 

@@ -1171,6 +1171,28 @@ is an assistant whose threads span workspaces.
   scheduler runs only in a listening server. Pages can be turned off with
   `enabled: false`.
 
+## Token usage
+
+`GET /second-brain/usage` (see [architecture](../architecture/README.md#token-usage))
+reads every thread in the profile database, across workspaces, with read-only
+queries. It returns counts, reported cost, thread titles and folders, and
+each subagent's name and short description. It never returns prompts, message
+text or tool output: the subagent query selects only `agent`, `description`
+and `usage` from each `acp_subagent` input, and a test checks a prompt does not
+reach the response. The route sits behind the same authorization middleware
+as the other second-brain routes, so only the local app reaches it.
+
+To fill in subagents that reported no usage, the server reads two local
+stores the harnesses own, read-only. It runs the configured OpenCode command
+as `opencode api GET /api/session/<id>` (the same lookup the ACP driver
+already makes), and it reads Claude Code's subagent transcript files under
+`CLAUDE_CONFIG_DIR` or `~/.claude/projects`. IDs come only from the stored
+tool result and must match `ses_[A-Za-z0-9_-]{1,128}` or `a[0-9a-f]{8,40}`, so
+they cannot name another path or command argument. From a transcript only the
+`usage` numbers are kept; message text is never returned or cached. The cache
+file `<Tenon data>/subagent-usage.json` holds token counts keyed by those IDs.
+Claude Code marks the `agentId` as internal, so the page never shows it.
+
 ## Email accounts
 
 Mail lives in the desktop main process (`desktop/src/main/mail/`; see
