@@ -28,12 +28,14 @@ export function PageFrame(
 
 export const pageColumnClass = "mx-auto flex w-full max-w-[720px] flex-col gap-6 px-6 pt-6 pb-10 sm:px-10"
 export const pageWideColumnClass = "mx-auto flex w-full max-w-[1040px] flex-col gap-6 px-6 pt-6 pb-10 sm:px-10"
+export const pageDashboardColumnClass =
+  "mx-auto w-full max-w-[1040px] px-6 pt-6 pb-10 sm:px-10 @min-[1400px]:max-w-none"
 
 export function PageHeader(props: {
   id?: string
   title: string
   crumb?: boolean
-  column?: "narrow" | "wide" | "split"
+  column?: "narrow" | "wide" | "split" | "dashboard"
   back?: { label: string; onClick: () => void }
   actions?: JSX.Element
 }) {
@@ -45,6 +47,7 @@ export function PageHeader(props: {
         "max-w-[720px]": props.column === "narrow",
         "max-w-[1040px]": props.column === "wide",
         "max-w-[1200px]": props.column === "split",
+        "max-w-[1040px] @min-[1400px]:max-w-none": props.column === "dashboard",
       }}
     >
       <Show when={props.back}>

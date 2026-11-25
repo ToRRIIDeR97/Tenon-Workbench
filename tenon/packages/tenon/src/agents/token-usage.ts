@@ -5,12 +5,12 @@ import { Global } from "@tenon/core/global"
 import { HarnessSubagentTrace } from "@tenon/core/harness/subagent-trace"
 import { MessageTable, SessionMessageTable, SessionTable } from "@tenon/core/session/sql"
 import { and, eq, gte, sql } from "drizzle-orm"
-import { Effect, Schema } from "effect"
+import { Cause, Effect, Schema } from "effect"
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 
 export const BUILT_IN = "opencode"
-export const THREAD_LIMIT = 8
+export const THREAD_LIMIT = 12
 export const SUBAGENT_LIMIT = 12
 export const TRACE_TIMEOUT = "20 seconds"
 export const TRACE_RETRY_MS = 10 * 60 * 1000
@@ -452,6 +452,7 @@ export const traceUnreported = Effect.fnUntraced(function* (input: {
   directories: ReadonlyMap<string, string>
   trace: Trace
   cacheFile: string
+  claudeConfigDir?: string
   now?: number
 }) {
   const now = input.now ?? Date.now()
@@ -472,23 +473,45 @@ export const traceUnreported = Effect.fnUntraced(function* (input: {
   const missing = [...refs].filter(
     ([key, item]) => !cached[key] && item.directory && now - (misses.get(key) ?? -Infinity) > TRACE_RETRY_MS,
   )
-  const found =
-    missing.length === 0
-      ? new Map<string, unknown>()
-      : yield* input.trace(missing.map(([, item]) => item)).pipe(
-          Effect.timeoutOrElse({
-            duration: TRACE_TIMEOUT,
-            orElse: () => Effect.succeed(new Map<string, unknown>()),
-          }),
-          Effect.catchCause(() => Effect.succeed(new Map<string, unknown>())),
-        )
+  const groups = [
+    { kind: "claude-agent" as const, read: claudeTrace(input.claudeConfigDir) },
+    { kind: "opencode-session" as const, read: input.trace },
+  ]
+  const results = yield* Effect.forEach(
+    groups,
+    (group) => {
+      const items = missing.filter(([, item]) => item.kind === group.kind).map(([, item]) => item)
+      if (items.length === 0) return Effect.succeed({ items, found: new Map<string, unknown>() })
+      return group.read(items).pipe(
+        Effect.map((found): ReadonlyMap<string, unknown> | undefined => found),
+        Effect.timeoutOrElse({
+          duration: TRACE_TIMEOUT,
+          orElse: () =>
+            Effect.logWarning("Subagent usage trace timed out", { kind: group.kind, count: items.length }).pipe(
+              Effect.as(undefined),
+            ),
+        }),
+        Effect.catchCause((cause) =>
+          Effect.logWarning("Subagent usage trace failed", {
+            kind: group.kind,
+            cause: Cause.pretty(cause).split("\n")[0],
+          }).pipe(Effect.as(undefined)),
+        ),
+        Effect.map((found) => ({ items, found })),
+      )
+    },
+    { concurrency: "unbounded" },
+  )
   const fresh = Object.fromEntries(
-    missing.flatMap(([key]) => {
-      const tokens = subagentTokens(found.get(key))
-      if (tokens) return [[key, tokens] as const]
-      misses.set(key, now)
-      return []
-    }),
+    results.flatMap((result) =>
+      result.items.flatMap((item) => {
+        const key = HarnessSubagentTrace.key(item)
+        const tokens = subagentTokens(result.found?.get(key))
+        if (tokens) return [[key, tokens] as const]
+        if (result.found) misses.set(key, now)
+        return []
+      }),
+    ),
   )
   if (Object.keys(fresh).length > 0) yield* Effect.promise(() => writeCache(input.cacheFile, { ...cached, ...fresh }))
   const known: Record<string, Tokens> = { ...cached, ...fresh }
@@ -502,6 +525,18 @@ export const traceUnreported = Effect.fnUntraced(function* (input: {
     }),
   }))
 })
+
+const claudeTrace =
+  (configDir = HarnessSubagentTrace.claudeConfigDir(process.env)): Trace =>
+  (refs) =>
+    Effect.forEach(
+      refs,
+      (item) =>
+        HarnessSubagentTrace.claudeAgentUsage({ configDir, directory: item.directory, agentId: item.id }).pipe(
+          Effect.map((usage) => [HarnessSubagentTrace.key(item), usage] as const),
+        ),
+      { concurrency: 6 },
+    ).pipe(Effect.map((found) => new Map(found)))
 
 async function readCache(file: string): Promise<Record<string, Tokens>> {
   const parsed = parse(await readFile(file, "utf8").catch(() => ""))

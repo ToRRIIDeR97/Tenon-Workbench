@@ -1034,8 +1034,12 @@ database without writing to it and folds three sources:
   `<CLAUDE_CONFIG_DIR or ~/.claude>/projects/<folder>/<session>/subagents/agent-<agentId>.jsonl`,
   whose per-message usage is summed once per message id. Hits are cached in
   `<Tenon data>/subagent-usage.json`; misses are retried after ten minutes;
-  the whole trace gives up after 20 seconds and leaves the rest "not
-  reported". Rows say where a traced number came from ("Read from the OpenCode
+  each kind gives up after 20 seconds and leaves the rest "not
+  reported". Claude Code transcripts are read directly; the OpenCode lookup
+  runs through the `HarnessRuntime` of the request's own folder (the same
+  location the second-brain file routes use). A failed or timed-out lookup is
+  logged as a warning (`Subagent usage trace failed` / `timed out`) and is
+  retried on the next load, not held for ten minutes. Rows say where a traced number came from ("Read from the OpenCode
   session", "Read from the Claude Code transcript"). Only calls with no ID or
   no stored usage stay "not reported", never zero; Codex and Gemini report
   none.
