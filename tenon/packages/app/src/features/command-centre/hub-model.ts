@@ -151,6 +151,46 @@ export function hubCards(input: {
     })
 }
 
+export type AtWorkAgent = {
+  id: string
+  project: { id: string; name: string }
+  title: string
+  harness: string
+  model?: string
+  state: "needs" | "running"
+  step?: { n: number; of: number; text: string }
+  updated: number
+}
+
+export function hubAtWork(input: {
+  projects: ReadonlyArray<{ id: string; name: string }>
+  threads: Readonly<Record<string, ReadonlyArray<HubThread> | undefined>>
+  instances?: Readonly<Record<string, ModelCatalogue | undefined>>
+}): AtWorkAgent[] {
+  const agents = input.projects.flatMap((project) =>
+    (input.threads[project.id] ?? []).flatMap((thread) =>
+      thread.state === "idle"
+        ? []
+        : [
+            {
+              id: thread.id,
+              project: { id: project.id, name: project.name },
+              title: thread.title,
+              harness: thread.harness,
+              model: modelLabel(thread.model, input.instances?.[thread.harness]),
+              state: thread.state,
+              step: todoStep(thread.todos),
+              updated: thread.updated,
+            } satisfies AtWorkAgent,
+          ],
+    ),
+  )
+  return [
+    ...newestFirst(agents.filter((agent) => agent.state === "needs")),
+    ...newestFirst(agents.filter((agent) => agent.state === "running")),
+  ]
+}
+
 export function projectCrew(input: {
   now: number
   threads: ReadonlyArray<HubThread>

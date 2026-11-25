@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import type { Harness } from "@tenon/schema/harness"
-import { harnessUpdateChoice, shouldCheckHarnessUpdates } from "./harness-update-choice"
+import { harnessUpdateChoice, harnessUpdateOffer, shouldCheckHarnessUpdates } from "./harness-update-choice"
 
 const instance = (input: Partial<Harness.Instance> = {}) =>
   ({
@@ -25,40 +25,31 @@ const update = (input: Partial<Harness.UpdateStatus> = {}) =>
     ...input,
   }) as unknown as Harness.UpdateStatus
 
-describe("AC-2 an unavailable harness offers its update where it fails", () => {
-  test("an unavailable harness with an update can be updated from the picker", () => {
+describe("a harness runs on the version that is installed; updating is an extra choice", () => {
+  test("an unavailable harness shows its own error, first line only, and is never turned into an update button", () => {
     expect(
-      harnessUpdateChoice(instance({ status: "unavailable", error: "handshake failed" }), update(), false),
-    ).toEqual({ kind: "update", latest: "0.52.0", disabled: false })
+      harnessUpdateChoice(instance({ status: "unavailable", error: "spawn codex ENOENT\n    at stack" }), false),
+    ).toEqual({ kind: "unavailable", error: "spawn codex ENOENT", disabled: true })
   })
 
   test("while it updates the row says so and can't be picked", () => {
-    expect(harnessUpdateChoice(instance({ status: "unavailable" }), update(), true)).toEqual({
+    expect(harnessUpdateChoice(instance({ status: "unavailable" }), true)).toEqual({
       kind: "updating",
       disabled: true,
     })
   })
 
-  test("an unavailable harness with no update shows its own error, first line only", () => {
-    expect(
-      harnessUpdateChoice(
-        instance({ status: "unavailable", error: "spawn codex ENOENT\n    at stack" }),
-        undefined,
-        false,
-      ),
-    ).toEqual({ kind: "unavailable", error: "spawn codex ENOENT", disabled: true })
+  test("an available harness stays selectable even when a newer version exists", () => {
+    expect(harnessUpdateChoice(instance(), false)).toBeUndefined()
+    expect(harnessUpdateOffer(update(), false)).toEqual({ latest: "0.52.0" })
   })
 
-  test("an update that must be installed by hand isn't offered as a button", () => {
-    expect(harnessUpdateChoice(instance({ status: "unavailable" }), update({ method: undefined }), false)).toEqual({
-      kind: "unavailable",
-      error: undefined,
-      disabled: true,
-    })
-  })
-
-  test("an available harness is left as it is", () => {
-    expect(harnessUpdateChoice(instance(), update(), false)).toBeUndefined()
+  test("the update is offered only when Tenon can run it", () => {
+    expect(harnessUpdateOffer(update({ method: undefined }), false)).toBeUndefined()
+    expect(harnessUpdateOffer(update({ manual: true }), false)).toBeUndefined()
+    expect(harnessUpdateOffer(update({ updateAvailable: false }), false)).toBeUndefined()
+    expect(harnessUpdateOffer(update(), true)).toBeUndefined()
+    expect(harnessUpdateOffer(undefined, false)).toBeUndefined()
   })
 })
 

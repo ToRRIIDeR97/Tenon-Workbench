@@ -32,7 +32,7 @@ reading of the code, not a runtime trace, except where a step says it was run.
 | --- | --- | --- |
 | Solid renderer | Routes, server connection and capability detection, compat API, Second Brain pages | `app/src/app.tsx`, `app/src/context/server-sdk.tsx`, `app/src/utils/server-compat.ts`, `app/src/features/second-brain/client.ts` |
 | Preload bridge | Exposes `window.api` through an allowlist of IPC wrappers | `desktop/src/preload/index.ts` |
-| Electron main | App lifecycle, windows (main windows and the desktop widget) and URL policy, IPC handlers, server launch, Google service, mail accounts and the mail loopback endpoint, drafts, dictation supervisor, harness sync | `desktop/src/main/index.ts`, `ipc.ts`, `windows.ts`, `widget.ts`, `server.ts`, `google-calendar.ts`, `mail/`, `draft-store.ts`, `dictation.ts`, `dictation-service.ts`, `harness-sync/`, `harness-sync-service.ts` |
+| Electron main | App lifecycle (closing the last window hides it; a tray icon reopens or quits on Windows), windows (main windows and the desktop widget) and URL policy, IPC handlers, server launch, Google service, mail accounts and the mail loopback endpoint, drafts, dictation supervisor, harness sync | `desktop/src/main/index.ts`, `ipc.ts`, `windows.ts`, `window-registry.ts`, `tray.ts`, `widget.ts`, `server.ts`, `google-calendar.ts`, `mail/`, `draft-store.ts`, `dictation.ts`, `dictation-service.ts`, `harness-sync/`, `harness-sync-service.ts` |
 | Dictation engine | Microphone capture, voice activity, local transcription; JSON lines on stdio | `dictation/src/main.rs`, `dictation/src/audio.rs` (Rust, `tenon-dictation`) |
 | HTTP API | Native `/api` routes plus legacy instance routes, with Basic auth and workspace routing | `server/src/handlers/`, `protocol/src/groups/`, `tenon/src/server/routes/instance/httpapi/` |
 | Second Brain domains | Notes and the Tenon vault (pages, Project timelines and logs, history, migration), project cards, local calendar, Command Centre memory and project setup, routines and their scheduler | `tenon/src/knowledge/vault.ts`, `tenon/src/project/brain.ts`, `tenon/src/planner/calendar.ts`, `tenon/src/agents/` |
@@ -110,7 +110,8 @@ Notes on the class view:
 - Permission requests exist only in memory. Saved permission rows are allow
   rules, scoped to a project. Values saved from a command or path are literal
   patterns (`[*]` and `[?]` stand for a literal `*` and `?`).
-- `BrainProject` and `VaultPage` are Markdown files. `CalendarSnapshot` is
+- `BrainProject` and `VaultPage` are Markdown files. A BrainProject may name a
+  `cover` image (`cover.png|jpg|gif|webp`) kept beside its card. `CalendarSnapshot` is
   one JSON file per location. None of them is stored in SQLite. A page
   write with a stale revision is refused.
 - `BrainProject.location.path` names the Project's folder (inside the
@@ -305,7 +306,7 @@ store (`KnowledgeVault.writeTimeline`, `appendLog`,
 | Tenon vault (pages, `timeline.json`, `log/<machine>.md`, `.history`, `.backups`) | Shared store | Component, Deployment, Trust boundaries, Activity: write; text in [README](README.md#tenon-vault) | `tenon/src/knowledge/vault.ts`, `tenon/src/server/routes/instance/httpapi/handlers/second-brain.ts` |
 | `vault-machine.json` (machine id, workspace → vault folder) | Shared store | Deployment; text in [README](README.md#tenon-vault) | `tenon/src/knowledge/vault.ts` (`open`, `machineRoots`, `currentWorkspaces`) |
 | Vault migration (copy, backup, remove originals) | Critical workflow | Text in [README](README.md#tenon-vault) | `tenon/src/knowledge/vault.ts` (`migrate`); triggered once per workspace by the Projects page (`app/src/pages/projects.tsx`, `migrateOnce`) |
-| Projects page over the vault (landing, a Project as one column with cover, milestone road, numbers and Tasks/Story/Pages/Settings, app-styled date/status/kind controls, New Project, page editing with revision checks, conflict-copy banner) | Subsystem | Text in [README](README.md#projects-page) | `app/src/pages/projects.tsx`, `app/src/features/second-brain/project-view.tsx`, `project-home.tsx`, `project-home-model.ts`, `project-rail.tsx`, `project-controls.tsx`, `project-details.tsx`, `notes-page.tsx`, `notes-timeline.ts`, `note-editor.tsx`, `unsaved-guard.tsx`, `page-versions.tsx`, `client.ts` (vault functions) |
+| Projects page over the vault (landing, a Project as one column with cover (optional cover image, Back), milestone road, numbers and Tasks/Story/Pages/Settings, app-styled date/status/kind controls, New Project, page editing with revision checks, conflict-copy banner) | Subsystem | Text in [README](README.md#projects-page) | `app/src/pages/projects.tsx`, `app/src/features/second-brain/project-view.tsx`, `project-home.tsx`, `project-home-model.ts`, `project-rail.tsx`, `project-controls.tsx`, `project-details.tsx`, `notes-page.tsx`, `notes-timeline.ts`, `note-editor.tsx`, `unsaved-guard.tsx`, `page-versions.tsx`, `project-cover-image.ts`, `client.ts` (vault functions), `tenon/src/project/brain.ts` (`readCover`, `writeCover`, `removeCover`) |
 | Vault folder choice (`TENON_VAULT_DIR`, `choose-vault-folder` IPC) | Subsystem | Deployment; text in [README](README.md#tenon-vault) | `desktop/src/main/vault-folder.ts`, `desktop/src/main/server.ts` (`preferAppEnv`), `desktop/src/main/ipc.ts` |
 | Profile SQLite (`tenon.db`) | Shared store | Component, Deployment, Class | `core/src/database/`, `core/src/event.ts` |
 | Snapshot repository | Shared store | Component, Class, Activity: prompt run | `core/src/snapshot.ts` |

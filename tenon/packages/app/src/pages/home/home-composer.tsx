@@ -120,6 +120,7 @@ function HomeComposerBody(props: { directory: string }) {
       <PromptInputV2Composer
         controller={draft.input}
         harness={draft.harness}
+        newThread
         boxHeader={
           <>
             <PromptProjectSelector controller={picker} placement="bottom-start" />

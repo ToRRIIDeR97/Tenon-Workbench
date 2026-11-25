@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { projectCrew, sessionHarness, sessionOrigin, type HubThread } from "./hub-model"
+import { hubAtWork, projectCrew, sessionHarness, sessionOrigin, type HubThread } from "./hub-model"
 
 describe("sessionHarness", () => {
   test("reads normalized fields first, then the legacy metadata", () => {
@@ -67,5 +67,44 @@ describe("projectCrew with a Project lead", () => {
       commandCentre: true,
       lead: true,
     })
+  })
+})
+
+describe("hubAtWork", () => {
+  const thread = (id: string, extra: Partial<HubThread> = {}): HubThread => ({
+    id,
+    title: id,
+    harness: "claude-code",
+    updated: 0,
+    state: "running",
+    waiting: 0,
+    ...extra,
+  })
+
+  test("lists agents running or waiting across Projects, waiting ones first, newest first, and skips idle threads", () => {
+    const agents = hubAtWork({
+      projects: [
+        { id: "acme", name: "Acme API" },
+        { id: "site", name: "Marketing site" },
+      ],
+      threads: {
+        acme: [
+          thread("old", { updated: 1 }),
+          thread("new", {
+            updated: 5,
+            model: { id: "opus-5.5", reasoningEffort: "medium" },
+            todos: [
+              { content: "Plan", status: "completed" },
+              { content: "Write middleware", status: "in_progress" },
+            ],
+          }),
+          thread("done", { state: "idle", updated: 9 }),
+        ],
+        site: [thread("ask", { state: "needs", harness: "codex", updated: 2 })],
+      },
+    })
+    expect(agents.map((agent) => agent.id)).toEqual(["ask", "new", "old"])
+    expect(agents[0]?.project).toEqual({ id: "site", name: "Marketing site" })
+    expect(agents[1]).toMatchObject({ model: "opus-5.5 · Medium", step: { n: 2, of: 2, text: "Write middleware" } })
   })
 })

@@ -102,6 +102,10 @@ const desktop = [
   "Stay",
   "{{harness}} használja a számítógépét",
   "Leállítás",
+  "Tenon Workbench megnyitása",
+  "Kilépés a Tenon Workbenchből",
+  "A Tenon Workbench továbbra is fut",
+  "A szálak a háttérben folytatódnak. Az értesítési terület ikonjáról léphet ki.",
 ]
 
 export const dict = {

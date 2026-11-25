@@ -581,12 +581,20 @@ to it.
   (pages with no known Project), with search (`GET …/vault/pages?search=`, plus Projects whose name or outcome
   matches), New page and New Project. The command palette finds the same Projects and pages for the sidebar's
   workspace: Projects filter in the renderer, and pages are searched on the server behind a 250 ms delay.
-  On a window 1024px or wider the landing is two cards: the list (300px), and the selected Project's detail
-  (`features/second-brain/project-detail.tsx`, summary in `project-preview-model.ts`) with its actions, Start work,
-  status, progress and Open project, its open tasks (its timeline, read once per selection) as the Project page's
-  own task rows (`project-tasks.tsx`: ticking, status, due date, rename and delete save the timeline the same way),
-  the next milestone, blocker, and page and thread counts. A click selects and a double click opens; narrower, a
-  click opens as before.
+  The landing shows the Projects as a grid of cover cards (`features/second-brain/project-cover-card.tsx`); a
+  click opens the Project. Cover images are read through `useProjectCoverImage` (`project-cover-cache.ts`), which
+  keeps up to 24 data URLs in memory keyed by workspace, Project and cover file, so the grid and the Project page
+  share one read and a new upload is stored there at once. `morphCover` wraps opening a Project and Back in
+  `document.startViewTransition`, naming the clicked cover and the page's cover band `project-cover` while it
+  runs; without view transitions, under reduced motion, or when the transition hasn't started within 250 ms, it
+  just navigates.
+- A Project's cover band holds a Back button (to `/projects`) and a Cover menu (Add, Change or Remove a cover
+  image). An image is read in the renderer, scaled to at most 2400px wide (WebP) when larger, and sent as a data URL
+  to `PUT /second-brain/project/cover?id=`; `BrainProject.writeCover` checks the type by its first bytes (PNG,
+  JPEG, GIF or WebP, at most 6 MB), writes `cover.<ext>` beside `project.md` in the Project's managed folder and
+  records it as `cover` in the card's front matter (a card whose `cover` names any other file reads as having
+  none). `GET` returns it as a data URL (`{ dataUrl: null }` without one) and `DELETE` removes file and field.
+  Without an image the band keeps the joinery pattern.
 - A Project (`features/second-brain/project-view.tsx`) is one column (growing with the page up to 1100px; from a 1400px page a dashboard with an edge-to-edge cover, Pages
   and Settings in a 360px left column and Tasks and Story beside them): a cover band and the Project's tile, a
   header (title, status chip, a "···" menu with Pause/Resume, Archive, Save current state and Project settings, and
@@ -751,11 +759,11 @@ assistant that spans workspaces, with its own threads, memory and routines.
   `CommandHub`, its data worked out in the pure `hub-model.ts`), not on a thread.
   A band names the Command Centre's harness and model (the newest Command
   Centre thread's) and what is running; Needs you lists the waiting queue
-  (`createWaitingQueue`) with Allow and Deny for permissions; then a card per
-  Project (`hubCards`: outcome, next milestone and progress from
-  `useBrainProjects`, the harnesses working in it with the Command Centre's first
-  when it started one of its threads, and the newest running thread as the
-  card's last line). A card opens `?project=<id>` (`projectCrew`): the Project's
+  (`createWaitingQueue`) with Allow and Deny for permissions; then At work, every
+  thread running or waiting across Projects (`hubAtWork`: waiting first, newest first, with harness, model label,
+  Project and checklist step), each opening its thread; then a row per Project (`hubCards`: outcome, next
+  milestone and progress from `useBrainProjects`, the harnesses working in it with the Command Centre's first when
+  it started one of its threads). A row opens `?project=<id>` (`projectCrew`): the Project's
   lead thread (`origin.lead`; for older Projects, the Command Centre thread that
   last started work there), with its checklist as the plan,
   then an agent card per thread (the lead's delegates included) that needs you, runs, or changed in the last day,
@@ -2110,8 +2118,11 @@ harness pickers share one registry (`app/src/components/harness-upgrades.ts`):
 upgrades of different harnesses run at once, a second start of the same one
 joins the first, and Settings locks its actions per harness. While a listed
 harness is unavailable, the pickers ask for update statuses again (at most once
-a minute), and the composer's model pill offers Update in that harness's row,
-or shows the first line of its error (`harness-update-choice.ts`).
+a minute). A harness always runs on the version that is installed: its row in
+the composer's model pill picks it as it is (or, when unavailable, shows the
+first line of its error with a "Check … again" row), and an available update is
+a separate "Update … to …" row under it, never the harness row itself
+(`harnessUpdateChoice` and `harnessUpdateOffer` in `harness-update-choice.ts`).
 
 `POST /api/harness/upgrade/:id` runs the detected installer's update with a
 5-minute timeout (`updateCommand`): `npm install --global --prefix <prefix>
@@ -2993,10 +3004,16 @@ and common dir in one process.
 Settings → Harnesses → "Default for new threads" stores
 `settings.v3` `harnesses.defaults` (`mode: "fixed" | "last"`, `harnessID`,
 `model`). `drafts.create` and Brain Home start new threads on it; with
-"Start from the last one I used", `harnesses.lastUsed` wins. It is written on
-each new thread's first send and on every harness, model or reasoning pick in a
-composer (`rememberingHarness` in `prompt-input/harness-choice.ts`, used by the
-thread composer and by Home and the Command Centre's `ComposerModelPill`). A reused empty draft takes the current default. The
+"Start from the last one I used", `harnesses.lastUsed` wins. Both give way,
+until the app quits, to the harness, model and reasoning picked on the most
+recent new thread in this run: `setNewThreadChoice` keeps it in memory (never
+in `settings.v3`) and `newThreadChoice` returns it first. Only new-thread
+composers record it (Home and the new-thread page pass `newThread` to
+`PromptInputV2Composer`, which wraps the controller in `rememberingHarness`);
+changing the model on an existing thread changes that thread only. The
+Command Centre's `ComposerModelPill` still writes `harnesses.lastUsed`. A
+reused empty draft takes the current choice. Closing the window keeps the app
+running in the background, so the choice lasts until Quit. The
 composer keeps its harness until a confirmed check says it is unavailable; a
 saved or remembered list never moves it.
 

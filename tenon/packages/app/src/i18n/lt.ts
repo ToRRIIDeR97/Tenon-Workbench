@@ -102,6 +102,10 @@ const desktop = [
   "Stay",
   "{{harness}} naudoja jūsų kompiuterį",
   "Sustabdyti",
+  "Atidaryti Tenon Workbench",
+  "Išeiti iš Tenon Workbench",
+  "Tenon Workbench vis dar veikia",
+  "Gijos toliau vykdomos fone. Išeiti galite per piktogramą pranešimų srityje.",
 ]
 
 export const dict = {

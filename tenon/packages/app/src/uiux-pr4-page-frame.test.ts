@@ -14,9 +14,7 @@ describe("page header", () => {
   })
 
   test("column pages use it", () => {
-    expect(read("app/src/pages/projects.tsx")).toMatch(
-      /<PageHeader[\s\S]{0,200}column=\{wide\(\) \? "split" : "narrow"\}/,
-    )
+    expect(read("app/src/pages/projects.tsx")).toMatch(/<PageHeader[\s\S]{0,200}column="split"/)
     const overview = read("app/src/pages/project-overview.tsx")
     expect(
       overview

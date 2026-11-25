@@ -88,4 +88,12 @@ describe("window registry", () => {
     expect(app.state.stored).toEqual(["b"])
     expect(app.cleaned).toEqual(["a"])
   })
+
+  test("hides the last visible window on close instead of closing it, unless the app is quitting", () => {
+    const app = setup()
+    expect(app.registry.hidesOnClose(0)).toBe(true)
+    expect(app.registry.hidesOnClose(1)).toBe(false)
+    app.registry.setQuitting()
+    expect(app.registry.hidesOnClose(0)).toBe(false)
+  })
 })

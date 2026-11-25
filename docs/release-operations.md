@@ -344,6 +344,13 @@ up again.
   anything stops, so the server stays up to save. Closing one window asks the
   same through `will-prevent-unload`. SIGINT, SIGTERM and Windows session end
   never prompt, because nobody can answer; those edits are lost.
+- Closing the last visible window hides it instead of quitting
+  (`hidesOnClose` in `window-registry.ts`), so threads keep running in the
+  background. On Windows a tray icon (`tray.ts`) reopens the window (click, or
+  Open Tenon Workbench) and quits it (Quit Tenon Workbench); the first hide in a
+  run shows a balloon saying so. On macOS the Dock icon reopens hidden windows
+  (`activate`). Quit (tray, menu, Cmd+Q), relaunch, update install and session
+  end set the quitting flag first, so they still close every window.
 - On quit, the app waits up to 8 s for the server to stop (it is killed after
   6 s), then exits.
 - Uncaught exceptions and unhandled rejections in the main process are written

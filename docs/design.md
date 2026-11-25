@@ -123,24 +123,25 @@ Use `[font-weight:N]` when a weight must differ from the role.
   other agent (`harness-logo.ts`). The model pill shows the logo of the
   harness that runs the model, not the model's maker, and Home's plan-usage
   rows lead with it too.
-- **Projects page: list and detail.** The page's column is 1200px wide
-  (`PageHeader column="split"`). Under the header (title, New page, New
-  Project), two cards 12px apart fill the page and scroll inside themselves,
-  both `bg-layer-01` with 16px corners and an inset muted hairline. The list
-  card (300px, 8px padding) holds the search box (10px corners), All
-  projects, one row per Project (name, its % on the right and a 4px bar
-  under it; 10px corners, 2px apart), the folded Archived and the General
-  pages. The selected Project has an accent-container pill that slides
-  between rows (`--v2-duration-medium`, emphasized-decelerate; no slide
-  under reduced motion). The detail card (22px padding) shows the Project's
-  name (20px semibold) and outcome with its ··· menu and Start work; its
-  status chip, "60% · 6 of 10 tasks" and Open project; a 4px bar; one row
-  (wrapping only when it must) with "Next milestone: … · due …", the blocker
-  callout (10px corners, `bg-layer-02`, warning icon) and, on the right,
-  "N pages · N threads · updated …" on one line; then its open tasks (up to
-  five) as the Project page's own task rows in a full-width `bg-base` card.
-  A new selection fades in (`ViewSwitch`). Below 1024px the list card is
-  alone and a row opens its Project.
+- **Projects page: covers.** The page's column is 1200px wide
+  (`PageHeader column="split"`) and scrolls as one page, with no inner
+  cards. Under the header (title, New page, New Project) sit the search box
+  (360px, 10px corners), then Projects: a count, All projects on the right,
+  and a grid of Projects by their covers (one column, two from a 620px page,
+  three from 960px; 24px across, 28px down). Each Project is its 132px cover
+  band (the image, or the joinery pattern) with the name, any Paused or
+  Archived word, the outcome, a 4px bar with its %, and a set next milestone
+  written under it; there is no box around the text. Hover tints the whole
+  item (`overlay-hover`, 18px corners) and grows the cover to 1.015; items
+  enter with a 40ms stagger. A last item, an empty hairline-ringed cover with
+  +, starts a New Project. Archived folds open (`Reveal`) into the same
+  grid; General pages are rows under it (720px). Search swaps the grid for
+  result rows. Opening a Project grows its cover into the Project page's
+  cover band (a view transition named `project-cover`,
+  `--v2-duration-long`, emphasized-decelerate; the rest of the page
+  cross-fades over `--v2-duration-medium`), and Back plays it in reverse;
+  under reduced motion, or if the transition can't start within 250ms, the
+  page simply changes.
 - **Project page: one column, a dashboard when wide.** Once the page itself
   is 1400px wide it becomes a dashboard, like a wide notes page: the cover
   runs edge to edge across the page (200px, square, a bottom hairline), the
@@ -154,8 +155,12 @@ Use `[font-weight:N]` when a weight must differ from the role.
   index sits beside it (pills: hover `overlay-hover`, the section in view
   `overlay-pressed`, the last section once the page's end is in view; it
   sticks while the page scrolls). The column opens on a 132px cover band (20px
-  corners, `bg-layer-01`, hairline; a joinery pattern in `border-muted` fading
-  to the right) with the Project's 64px tile (its first letter in
+  corners, `bg-layer-01`, hairline; the Project's cover image, cropped to
+  fill, or else a joinery pattern in `border-muted` fading to the right). On
+  the band, Back (a neutral icon button, top left) returns to Projects and a
+  small neutral Cover button (top right) opens Add, Change or Remove cover
+  image; both sit on `bg-base` with a hairline ring so they read over any
+  image. Below it comes the Project's 64px tile (its first letter in
   `type-display` on the accent container, 18px corners) overlapping its bottom
   edge and ringed in `bg-base`. Then the title row, the outcome, a set blocker
   as the warning chip, and the milestone road: a 2px `bg-layer-03` line from a
@@ -347,18 +352,20 @@ Use `[font-weight:N]` when a weight must differ from the role.
   brief, the Project chip and a contrast Start. Below 900px the list and editor
   stack and the page scrolls, with the editor at least 600px tall.
 - **Command Centre hub** (`hub-view.tsx`): `/command` is a hub first and a
-  chat second, so work can run on its own. A band (16px card) names the
-  Command Centre's harness and model and what is running (agents in Projects,
-  then "N tasks running outside a Project" for tasks it delegated without
-  one); Needs you rows
-  (layer-02, warning icon) answer permissions in place; then a card per
-  Project (16px, layer-01, inset hairline; three columns from 1180px, two from
-  760px): name (15px semibold) and outcome, the state on the right (warning
-  chip for Needs you, the running dot for Running, muted text otherwise), the
-  next milestone with % and a 4px bar, a stack of 24px harness-logo tiles
-  (who is working; the Command Centre's first) with "N working · N needs
-  you", and a hairline-topped last line: the newest running thread's logo,
-  title and time. Cards enter with a 40ms stagger. A card opens the Project
+  chat second, so work can run on its own, and it leads with work in
+  progress. A line with no card names the Command Centre's harness and model
+  and what is running (agents in Projects, then "N tasks running outside a
+  Project" for tasks it delegated without one); Needs you rows (layer-02,
+  warning icon) answer permissions in place; then **At work**, one row per
+  agent running or waiting across Projects (waiting first, newest first):
+  the harness logo on a 28px tile, the harness name, model and Project, the
+  thread title, and on the right (from 760px) the step "text · n of m" with
+  the running dot, or the warning and Needs you, over a 2px progress line; a
+  row opens its thread. **Projects** follow as one row each, split by
+  hairlines with no card: name and outcome, then (from 760px) the next
+  milestone when one is set, the stack of 24px harness-logo tiles (who is
+  working; the Command Centre's first), the state (warning chip, running dot
+  or muted text) and the %. Rows enter with a 40ms stagger. A row opens the Project
   (Back in the page header): the Command Centre's card leads (its logo and
   model, its thread title, "Now:" its current step, its checklist as the
   plan), then a card per agent: the harness logo on a 28px tile, the model as

@@ -45,10 +45,30 @@ export const Info = Schema.Struct({
   blocker: Schema.optional(Schema.NullOr(Schema.String)),
   tags: Schema.Array(Schema.String),
   location: Schema.optional(Schema.NullOr(ProjectLocation)),
+  cover: Schema.optional(Schema.NullOr(Schema.String)),
   createdAt: Schema.String,
   updatedAt: Schema.String,
 })
 export type Info = typeof Info.Type
+
+export const CoverInput = Schema.Struct({ dataUrl: Schema.String })
+export type CoverInput = typeof CoverInput.Type
+export const Cover = Schema.Struct({ dataUrl: Schema.NullOr(Schema.String) })
+export type Cover = typeof Cover.Type
+
+const coverLimit = 6 * 1024 * 1024
+const coverTypes = {
+  png: { mime: "image/png", magic: (bytes: Uint8Array) => startsWith(bytes, [0x89, 0x50, 0x4e, 0x47]) },
+  jpg: { mime: "image/jpeg", magic: (bytes: Uint8Array) => startsWith(bytes, [0xff, 0xd8, 0xff]) },
+  gif: { mime: "image/gif", magic: (bytes: Uint8Array) => startsWith(bytes, [0x47, 0x49, 0x46, 0x38]) },
+  webp: {
+    mime: "image/webp",
+    magic: (bytes: Uint8Array) =>
+      startsWith(bytes, [0x52, 0x49, 0x46, 0x46]) && startsWith(bytes.subarray(8), [0x57, 0x45, 0x42, 0x50]),
+  },
+} as const
+type CoverExtension = keyof typeof coverTypes
+const coverName = /^cover\.(png|jpg|gif|webp)$/
 
 export const CreateInput = Schema.Struct({
   name: Schema.String,
@@ -235,7 +255,10 @@ export const create = Effect.fn("BrainProject.create")(function* (input: CreateI
   return info
 })
 
-export const update = Effect.fn("BrainProject.update")(function* (id: string, input: UpdateInput) {
+export const update = Effect.fn("BrainProject.update")(function* (
+  id: string,
+  input: UpdateInput & { readonly cover?: string | null },
+) {
   const card = yield* readProjectCard(id)
   if (input.expectedUpdatedAt !== undefined && input.expectedUpdatedAt !== card.info.updatedAt) {
     return yield* new ConflictError({ reason: "stale" })
@@ -254,6 +277,7 @@ export const update = Effect.fn("BrainProject.update")(function* (id: string, in
         ...(input.blocker !== undefined ? { blocker: optional(input.blocker) } : {}),
         ...(input.tags !== undefined ? { tags: normalizeTags(input.tags) } : {}),
         ...(input.location !== undefined ? { location: normalizeLocation(input.location) } : {}),
+        ...(input.cover !== undefined ? { cover: optional(input.cover) } : {}),
         updatedAt: new Date().toISOString(),
       }),
     catch: (error) => (error instanceof InvalidError ? error : new InvalidError({ reason: "invalid_card" })),
@@ -281,6 +305,67 @@ export const update = Effect.fn("BrainProject.update")(function* (id: string, in
     )
   return info
 })
+
+export const readCover = Effect.fn("BrainProject.readCover")(function* (id: string) {
+  const info = yield* get(id)
+  const name = info.cover
+  if (!name) return { dataUrl: null } satisfies Cover
+  const mutation = yield* LocationMutation.Service
+  const fs = yield* FSUtil.Service
+  const target = yield* mutation.resolve({ path: `${info.folder}/${name}`, kind: "file" })
+  const bytes = yield* fs
+    .readFile(target.canonical)
+    .pipe(Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed(undefined)))
+  const type = coverTypes[name.slice("cover.".length) as CoverExtension]
+  if (!bytes || bytes.length > coverLimit || !type?.magic(bytes)) return { dataUrl: null } satisfies Cover
+  return { dataUrl: `data:${type.mime};base64,${Buffer.from(bytes).toString("base64")}` } satisfies Cover
+})
+
+export const writeCover = Effect.fn("BrainProject.writeCover")(function* (id: string, input: CoverInput) {
+  const image = yield* Effect.try({
+    try: () => parseCover(input.dataUrl),
+    catch: (error) => (error instanceof InvalidError ? error : new InvalidError({ reason: "invalid_cover" })),
+  })
+  const info = yield* get(id)
+  const name = `cover.${image.extension}`
+  const mutation = yield* LocationMutation.Service
+  const files = yield* FileMutation.Service
+  const target = yield* mutation.resolve({ path: `${info.folder}/${name}`, kind: "file" })
+  yield* files.write({ target, content: image.bytes })
+  if (info.cover && info.cover !== name) yield* removeCoverFile(info.folder, info.cover)
+  return yield* update(id, { cover: name })
+})
+
+export const removeCover = Effect.fn("BrainProject.removeCover")(function* (id: string) {
+  const info = yield* get(id)
+  if (!info.cover) return info
+  const next = yield* update(id, { cover: null })
+  yield* removeCoverFile(info.folder, info.cover)
+  return next
+})
+
+const removeCoverFile = Effect.fnUntraced(function* (folder: string, name: string) {
+  const mutation = yield* LocationMutation.Service
+  const files = yield* FileMutation.Service
+  const target = yield* mutation.resolve({ path: `${folder}/${name}`, kind: "file" })
+  yield* files.remove({ target }).pipe(Effect.ignore)
+})
+
+export function parseCover(dataUrl: string) {
+  const match = /^data:image\/(png|jpeg|gif|webp);base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl)
+  if (!match) throw new InvalidError({ reason: "invalid_cover" })
+  const extension: CoverExtension = match[1] === "jpeg" ? "jpg" : (match[1] as CoverExtension)
+  const encoded = match[2]!
+  if (encoded.length > Math.ceil((coverLimit * 4) / 3) + 4) throw new InvalidError({ reason: "cover_too_large" })
+  const bytes = new Uint8Array(Buffer.from(encoded, "base64"))
+  if (bytes.length === 0 || bytes.length > coverLimit) throw new InvalidError({ reason: "cover_too_large" })
+  if (!coverTypes[extension].magic(bytes)) throw new InvalidError({ reason: "invalid_cover" })
+  return { extension, bytes }
+}
+
+function startsWith(bytes: Uint8Array, prefix: ReadonlyArray<number>) {
+  return prefix.every((value, index) => bytes[index] === value)
+}
 
 export const ensureForWorkspace = Effect.fn("BrainProject.ensureForWorkspace")(function* (
   workspace: Workspace,
@@ -832,6 +917,7 @@ export function decode(source: string, path?: string): Card {
     blocker: data.blocker,
     tags: Array.isArray(data.tags) ? data.tags : [],
     location,
+    cover: typeof data.cover === "string" && coverName.test(data.cover) ? data.cover : undefined,
     createdAt: dateString(data.created_at ?? data.updated),
     updatedAt: dateString(data.updated_at ?? data.updated),
   }
@@ -864,6 +950,7 @@ export function encode(info: Info, previous: Record<string, unknown>, body: stri
   setOptional(data, "next_milestone", info.nextMilestone)
   setOptional(data, "blocker", info.blocker)
   setOptional(data, "location", info.location)
+  setOptional(data, "cover", info.cover)
   return Frontmatter.stringify(body, data)
 }
 
@@ -887,6 +974,7 @@ function validate(info: Info) {
     (!info.location.displayPath.trim() || !(info.location.workspaceId?.trim() || info.location.path?.trim()))
   )
     throw new InvalidError({ reason: "invalid_location" })
+  if (info.cover && !coverName.test(info.cover)) throw new InvalidError({ reason: "invalid_cover" })
   return info
 }
 
