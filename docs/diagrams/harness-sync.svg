@@ -87,9 +87,10 @@
 <text x="545" y="172" text-anchor="start" class="s">skills.ts: copies, backups</text>
 <text x="545" y="188" text-anchor="start" class="s">tools.ts: paths on macOS/Windows</text>
 <text x="545" y="204" text-anchor="start" class="s">state.ts: last applied hashes</text>
-<text x="545" y="220" text-anchor="start" class="s">ipc.ts: harness-sync-* handlers</text>
-<text x="545" y="236" text-anchor="start" class="s">harness-sync-service.ts:</text>
-<text x="545" y="252" text-anchor="start" class="s">native file dialogs</text>
+<text x="545" y="220" text-anchor="start" class="s">standalone.ts: follow the app</text>
+<text x="545" y="236" text-anchor="start" class="s">ipc.ts: harness-sync-* handlers</text>
+<text x="545" y="252" text-anchor="start" class="s">harness-sync-service.ts:</text>
+<text x="545" y="268" text-anchor="start" class="s">native file dialogs</text>
 <rect class="store" x="800" y="70" width="160" height="76" rx="6"/>
 <text x="810" y="88" text-anchor="start" class="t">Drive folder</text>
 <text x="810" y="104" text-anchor="start" class="s">harness-sync.json</text>
@@ -99,10 +100,11 @@
 <text x="810" y="199" text-anchor="start" class="s">CLAUDE.md, AGENTS.md,</text>
 <text x="810" y="215" text-anchor="start" class="s">GEMINI.md + skills/</text>
 <text x="810" y="231" text-anchor="start" class="s">for six harnesses</text>
-<rect class="store" x="800" y="276" width="160" height="76" rx="6"/>
+<rect class="store" x="800" y="276" width="160" height="92" rx="6"/>
 <text x="810" y="294" text-anchor="start" class="t">App data</text>
-<text x="810" y="310" text-anchor="start" class="s">userData/harness-sync/</text>
-<text x="810" y="326" text-anchor="start" class="s">state.json, backups/</text>
+<text x="810" y="310" text-anchor="start" class="s">userData/harness-sync/ or</text>
+<text x="810" y="326" text-anchor="start" class="s">app.harnesssync.desktop/</text>
+<text x="810" y="342" text-anchor="start" class="s">state.json, backups/</text>
 <rect class="ext" x="800" y="390" width="160" height="60" rx="6"/>
 <text x="810" y="408" text-anchor="start" class="t">Drive for desktop</text>
 <text x="810" y="424" text-anchor="start" class="s">sign-in, transport</text>

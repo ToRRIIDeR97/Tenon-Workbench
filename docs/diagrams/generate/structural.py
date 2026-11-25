@@ -73,10 +73,11 @@ def harness_sync():
     s.zone(520, 60, 250, 310, "Electron main (desktop/src/main)")
     s.box(535, 90, 220, 264, "harness-sync/", ["service.ts: one queue, 5 s check", "document.ts: sync file v5",
           "apply.ts: instruction files", "skills.ts: copies, backups", "tools.ts: paths on macOS/Windows",
-          "state.ts: last applied hashes", "ipc.ts: harness-sync-* handlers", "harness-sync-service.ts:", "native file dialogs"], cls="sub")
+          "state.ts: last applied hashes", "standalone.ts: follow the app", "ipc.ts: harness-sync-* handlers",
+          "harness-sync-service.ts:", "native file dialogs"], cls="sub")
     s.box(800, 70, 160, 76, "Drive folder", ["harness-sync.json", "+ conflict copies"], cls="store")
     s.box(800, 165, 160, 92, "Harness files", ["CLAUDE.md, AGENTS.md,", "GEMINI.md + skills/", "for six harnesses"], cls="store")
-    s.box(800, 276, 160, 76, "App data", ["userData/harness-sync/", "state.json, backups/"], cls="store")
+    s.box(800, 276, 160, 92, "App data", ["userData/harness-sync/ or", "app.harnesssync.desktop/", "state.json, backups/"], cls="store")
     s.box(800, 390, 160, 60, "Drive for desktop", ["sign-in, transport"], cls="ext")
     s.box(560, 390, 190, 60, "Other computers", ["Tenon or Harness Sync app"], cls="proc")
     s.edge([(255, 122), (300, 180)], "invoke", at=(282, 140))

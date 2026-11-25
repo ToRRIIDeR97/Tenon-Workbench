@@ -66,4 +66,5 @@ export async function loadState(file: string): Promise<{ state: LocalState; warn
 
 export const saveState = (file: string, state: LocalState) => writeAtomic(file, JSON.stringify(state, null, 2))
 
-export const deviceName = (state: LocalState) => state.deviceName ?? (os.hostname().trim() || "This computer")
+export const deviceName = (state: LocalState, fallback?: string) =>
+  state.deviceName ?? (fallback || os.hostname().trim() || "This computer")

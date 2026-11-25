@@ -2,15 +2,34 @@ import os from "node:os"
 import path from "node:path"
 import { app, BrowserWindow, dialog } from "electron"
 import { createHarnessSync } from "./harness-sync/service"
+import {
+  adoptState,
+  standaloneDeviceName,
+  standaloneInstalled,
+  standalonePaths,
+  standaloneRunning,
+} from "./harness-sync/standalone"
 import { locationsFromEnv, sandboxedLocations } from "./harness-sync/tools"
 
 export function createHarnessSyncService() {
   const sandbox = app.isPackaged ? undefined : process.env.TENON_HARNESS_SYNC_SANDBOX
   const owner = () => BrowserWindow.getFocusedWindow() ?? undefined
   const filters = [{ name: "Harness Sync file", extensions: ["json"] }]
+  const ownDir = sandbox ? path.join(sandbox, "app-data") : path.join(app.getPath("userData"), "harness-sync")
+  const standalone = sandbox ? undefined : standalonePaths(os.homedir(), process.env)
+  const follow = standalone && standaloneInstalled(standalone) ? standalone : undefined
   return createHarnessSync({
     locations: sandbox ? sandboxedLocations(path.join(sandbox, "home")) : locationsFromEnv(os.homedir(), process.env),
-    dataDir: sandbox ? path.join(sandbox, "app-data") : path.join(app.getPath("userData"), "harness-sync"),
+    dataDir: follow?.dataDir ?? ownDir,
+    ...(follow
+      ? {
+          prepare: () => adoptState(ownDir, follow.dataDir),
+          follow: {
+            running: () => standaloneRunning(follow.platform),
+            defaultDeviceName: standaloneDeviceName(process.env),
+          },
+        }
+      : {}),
     async pickNewFile() {
       const options = {
         title: "Save the sync file in a Google Drive folder",

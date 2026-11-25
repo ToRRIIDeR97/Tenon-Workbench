@@ -1366,6 +1366,13 @@ workspace, and those files become instructions for every harness.
 - **Writes.** Files are written through a flushed temporary sibling and
   renamed over the target. One queue serializes the background check and every
   action, and saves are compare-and-swap on the file's revision.
+- **Shared state with the standalone app.** When the Harness Sync app is
+  installed, Tenon reads and writes that app's `state.json` and `backups/`
+  under its fixed data folder (`app.harnesssync.desktop` in the per-user
+  application data folder). It is the same format with no secrets in it. The
+  path is fixed, never taken from the renderer or the sync file. To see
+  whether the app is running, Tenon starts `tasklist` or `pgrep` with fixed
+  arguments, a 5 second timeout and no shell.
 - **No secrets, no content in logs.** The sync file holds instructions and
   skill text only, no credentials. Nothing logs preset or skill content.
 - **Windows and macOS.** Paths are built with `path.win32` or `path.posix`
