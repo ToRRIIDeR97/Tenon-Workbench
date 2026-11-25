@@ -163,7 +163,7 @@ Use `[font-weight:N]` when a weight must differ from the role.
   1040px column: the total, its make-up and the day chart span it, with the
   harness table and heaviest threads side by side once the page is 900px
   wide. From 1400px (a container query, so an open sidebar counts) the column
-  grows to 1640px: the total, chart (192px tall) and harness table stack on
+  fills the page: the total, chart (192px tall) and harness table stack on
   the left, and the heaviest threads (up to 12) take their own column on the
   right (`PageHeader` `column="dashboard"`, `pageDashboardColumnClass`).
 - **Project page: one column, a dashboard when wide.** Once the page itself
