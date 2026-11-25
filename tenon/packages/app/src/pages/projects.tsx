@@ -768,6 +768,7 @@ ${path}`
                             project={item()}
                             directory={directory()}
                             onArchived={() => navigate("/projects")}
+                            onBack={() => navigate("/projects")}
                             section={section()}
                             timeline={{
                               value: settled(timeline),

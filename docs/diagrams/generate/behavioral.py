@@ -52,7 +52,7 @@ def classes():
                                               "AgentSwitched | ModelSwitched"], "union")
     klass(s, 540, 240, 230, "PermissionRequest", ["id per_…, sessionID", "action, resources[], save[]", "source? {messageID, callID}"], "in memory")
     klass(s, 800, 240, 240, "BrainProject", ["id project_<ULID>, name (unique)", "outcome, instructions", "status: active|paused|archived",
-                                            "progressPercent 0..100", "location? {path | workspaceId}", "card: .tenon/projects/<id>/",
+                                            "progressPercent 0..100", "location? {path | workspaceId}", "card, cover?: .tenon/projects/<id>/",
                                             "threadDirectory: path | worktree | card"])
     klass(s, 20, 470, 230, "SessionInput", ["id (= User message id)", "delivery: steer | queue", "admitted_seq, promoted_seq?"])
     klass(s, 280, 470, 230, "AssistantContent", ["Text | Reasoning | Tool", "Tool.state: ToolState", "snapshot {start, end, files}"])

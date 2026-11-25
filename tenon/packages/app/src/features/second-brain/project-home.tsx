@@ -24,19 +24,47 @@ import type {
   StoryEntry,
 } from "./project-home-model"
 
-export function ProjectCover(props: { bleed?: boolean; class?: string }) {
+export function ProjectCover(props: { bleed?: boolean; class?: string; image?: string; children?: JSX.Element }) {
   const id = createUniqueId()
   return (
     <div
-      aria-hidden="true"
       data-project-cover={props.bleed ? "bleed" : "band"}
+      data-project-cover-image={props.image ? "" : undefined}
       classList={{
         "relative overflow-hidden bg-v2-background-bg-layer-01 animate-enter": true,
-        "h-[132px] rounded-[20px] shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]": !props.bleed,
-        "h-[200px] shadow-[inset_0_-1px_0_var(--v2-border-border-muted)]": props.bleed,
+        "h-[132px] rounded-[20px]": !props.bleed,
+        "h-[200px]": props.bleed,
         [props.class ?? ""]: !!props.class,
       }}
     >
+      <Show when={props.image} fallback={<CoverPattern id={id} />}>
+        {(image) => (
+          <img
+            aria-hidden="true"
+            alt=""
+            src={image()}
+            draggable={false}
+            class="absolute inset-0 size-full object-cover animate-enter"
+          />
+        )}
+      </Show>
+      <span
+        aria-hidden="true"
+        classList={{
+          "pointer-events-none absolute inset-0": true,
+          "rounded-[20px] shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]": !props.bleed,
+          "shadow-[inset_0_-1px_0_var(--v2-border-border-muted)]": props.bleed,
+        }}
+      />
+      {props.children}
+    </div>
+  )
+}
+
+function CoverPattern(props: { id: string }) {
+  const id = props.id
+  return (
+    <div aria-hidden="true" class="absolute inset-0">
       <svg class="absolute inset-0 size-full">
         <defs>
           <pattern id={`${id}-joint`} width="56" height="56" patternUnits="userSpaceOnUse">

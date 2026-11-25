@@ -20,7 +20,16 @@ import { useServerSDK } from "@/context/server-sdk"
 import { focusWhenConnected } from "@/utils/focus-when-connected"
 import { pathKey } from "@/utils/path-key"
 import { showToast } from "@/utils/toast"
-import { createProject, SecondBrainRequestError, updateProject, type ProjectRecord, type ProjectStatus } from "./client"
+import {
+  createProject,
+  readProjectCover,
+  removeProjectCover,
+  SecondBrainRequestError,
+  updateProject,
+  writeProjectCover,
+  type ProjectRecord,
+  type ProjectStatus,
+} from "./client"
 import { useUnsavedGuard } from "./unsaved-guard"
 
 export function useProjectCard(props: { project: ProjectRecord; directory: string; onArchived: () => void }) {
@@ -134,7 +143,7 @@ export function useProjectCard(props: { project: ProjectRecord; directory: strin
     const updated = await project.update(before, { progressPercent: percent }).catch(() => undefined)
     if (!updated) synced.value = ""
   }
-  return { state, setState, dirty, save, discard, discardSettings, setStatus, syncProgress }
+  return { state, setState, dirty, save, discard, discardSettings, setStatus, syncProgress, cover: project.cover }
 }
 export type ProjectCard = ReturnType<typeof useProjectCard>
 
@@ -466,6 +475,12 @@ function useProjectActions(directory: () => string) {
       patch: Omit<Parameters<typeof updateProject>[2], "expectedUpdatedAt">,
       target = directory(),
     ) => updateProject(client(target), project.id, { expectedUpdatedAt: project.updatedAt, ...patch }).then(refresh),
+    cover: {
+      read: (project: ProjectRecord) => readProjectCover(client(directory()), project.id),
+      write: (project: ProjectRecord, dataUrl: string) =>
+        writeProjectCover(client(directory()), project.id, dataUrl).then(refresh),
+      remove: (project: ProjectRecord) => removeProjectCover(client(directory()), project.id).then(refresh),
+    },
   }
 }
 

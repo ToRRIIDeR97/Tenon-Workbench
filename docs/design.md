@@ -154,8 +154,12 @@ Use `[font-weight:N]` when a weight must differ from the role.
   index sits beside it (pills: hover `overlay-hover`, the section in view
   `overlay-pressed`, the last section once the page's end is in view; it
   sticks while the page scrolls). The column opens on a 132px cover band (20px
-  corners, `bg-layer-01`, hairline; a joinery pattern in `border-muted` fading
-  to the right) with the Project's 64px tile (its first letter in
+  corners, `bg-layer-01`, hairline; the Project's cover image, cropped to
+  fill, or else a joinery pattern in `border-muted` fading to the right). On
+  the band, Back (a neutral icon button, top left) returns to Projects and a
+  small neutral Cover button (top right) opens Add, Change or Remove cover
+  image; both sit on `bg-base` with a hairline ring so they read over any
+  image. Below it comes the Project's 64px tile (its first letter in
   `type-display` on the accent container, 18px corners) overlapping its bottom
   edge and ringed in `bg-base`. Then the title row, the outcome, a set blocker
   as the warning chip, and the milestone road: a 2px `bg-layer-03` line from a

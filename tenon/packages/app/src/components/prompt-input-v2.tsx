@@ -59,6 +59,7 @@ export type PromptInputV2ComposerProps = {
   class?: string
   controller: PromptInputV2ComposerController
   harness?: PromptInputHarnessController
+  newThread?: boolean
   borderUnderlay?: boolean
   trailing?: JSX.Element
   header?: JSX.Element
@@ -91,7 +92,9 @@ export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
       }),
   )
   const settings = useSettings()
-  const harness = () => props.harness && rememberingHarness(props.harness, settings.harnesses.setLastUsed)
+  const harness = () =>
+    props.harness &&
+    (props.newThread ? rememberingHarness(props.harness, settings.harnesses.setNewThreadChoice) : props.harness)
   const builtInLoop = () => {
     if (!props.harness) return true
     const id = props.harness.current()

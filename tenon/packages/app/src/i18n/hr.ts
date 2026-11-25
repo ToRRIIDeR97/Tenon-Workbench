@@ -102,6 +102,10 @@ const desktop = [
   "Stay",
   "{{harness}} koristi vaše računalo",
   "Zaustavi",
+  "Otvori Tenon Workbench",
+  "Izađi iz aplikacije Tenon Workbench",
+  "Tenon Workbench i dalje radi",
+  "Niti se nastavljaju izvoditi u pozadini. Izađite putem ikone u području obavijesti.",
 ]
 
 export const dict = {

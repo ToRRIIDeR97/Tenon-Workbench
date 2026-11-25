@@ -1,11 +1,16 @@
 import { ButtonV2 } from "@tenon/ui/v2/button-v2"
+import { IconButtonV2 } from "@tenon/ui/v2/icon-button-v2"
+import { MenuV2 } from "@tenon/ui/v2/menu-v2"
 import { prefersReducedMotion } from "@tenon/ui/v2/motion"
 import { Icon } from "@tenon/ui/v2/icon"
+import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { RevealShow } from "@tenon/ui/v2/reveal"
 import { SegmentedControlItemV2, SegmentedControlV2 } from "@tenon/ui/v2/segmented-control-v2"
-import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from "solid-js"
+import { createEffect, createMemo, createResource, createSignal, For, on, onCleanup, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLanguage } from "@/context/language"
+import { showToast } from "@/utils/toast"
+import { coverDataUrl } from "./project-cover-image"
 import type { LogEntry, ProjectRecord, Timeline, TimelineItem, VaultPageInfo } from "./client"
 import { milestoneGroups, timelineCounts, timelineLayout } from "./notes-timeline"
 import { DateChip, KindSwitch } from "./project-controls"
@@ -62,10 +67,93 @@ export function ProjectView(props: {
   threadHref: (id: string) => string
   onNewThread?: () => void
   onStartWork?: () => void
+  onBack?: () => void
   section?: ProjectSection
 }) {
   const language = useLanguage()
   const card = useProjectCard(props)
+  const [coverState, setCoverState] = createStore({ busy: false })
+  const [coverImage, coverImageActions] = createResource(
+    () => (props.project.cover ? `${props.project.id}\n${props.project.cover}` : undefined),
+    () =>
+      card.cover
+        .read(props.project)
+        .then((result) => result.dataUrl ?? undefined)
+        .catch(() => undefined),
+  )
+  const coverFailed = () => showToast({ variant: "error", title: language.t("secondBrain.project.cover.failed") })
+  const chooseCover = async (file: File) => {
+    setCoverState("busy", true)
+    const dataUrl = await coverDataUrl(file).catch(() => undefined)
+    const saved = dataUrl ? await card.cover.write(props.project, dataUrl).catch(() => undefined) : undefined
+    setCoverState("busy", false)
+    if (!saved || !dataUrl) return coverFailed()
+    coverImageActions.mutate(dataUrl)
+  }
+  const removeCover = async () => {
+    setCoverState("busy", true)
+    const removed = await card.cover.remove(props.project).catch(() => undefined)
+    setCoverState("busy", false)
+    if (!removed) return coverFailed()
+    coverImageActions.mutate(undefined)
+  }
+  let coverInput: HTMLInputElement | undefined
+  const coverControls = () => (
+    <div class="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-3">
+      <Show when={props.onBack} fallback={<span />}>
+        {(back) => (
+          <TooltipV2 value={language.t("secondBrain.projects.back")}>
+            <IconButtonV2
+              type="button"
+              variant="neutral"
+              data-project-back
+              class="!bg-v2-background-bg-base shadow-[0_0_0_1px_var(--v2-border-border-muted)]"
+              aria-label={language.t("secondBrain.projects.back")}
+              icon={<Icon name="arrow-left" />}
+              onClick={() => back()()}
+            />
+          </TooltipV2>
+        )}
+      </Show>
+      <MenuV2 gutter={4} modal={false} placement="bottom-end">
+        <MenuV2.Trigger
+          as={ButtonV2}
+          size="small"
+          variant="neutral"
+          icon="photo"
+          data-project-cover-menu
+          disabled={coverState.busy}
+          class="!bg-v2-background-bg-base shadow-[0_0_0_1px_var(--v2-border-border-muted)]"
+        >
+          {coverState.busy ? language.t("secondBrain.saving") : language.t("secondBrain.project.cover.menu")}
+        </MenuV2.Trigger>
+        <MenuV2.Portal>
+          <MenuV2.Content>
+            <MenuV2.Item onSelect={() => coverInput?.click()}>
+              {language.t(props.project.cover ? "secondBrain.project.cover.change" : "secondBrain.project.cover.add")}
+            </MenuV2.Item>
+            <Show when={props.project.cover}>
+              <MenuV2.Item onSelect={() => void removeCover()}>
+                {language.t("secondBrain.project.cover.remove")}
+              </MenuV2.Item>
+            </Show>
+          </MenuV2.Content>
+        </MenuV2.Portal>
+      </MenuV2>
+      <input
+        ref={coverInput}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        class="hidden"
+        data-project-cover-input
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0]
+          event.currentTarget.value = ""
+          if (file) void chooseCover(file)
+        }}
+      />
+    </div>
+  )
   const [state, setState] = createStore({
     show: "open" as "open" | "all",
     draft: { title: "", kind: "task" as TimelineItem["kind"], date: undefined as string | undefined },
@@ -163,10 +251,14 @@ export function ProjectView(props: {
 
   return (
     <div data-project-page={props.project.id} class="@container w-full">
-      <ProjectCover bleed class="hidden @min-[1400px]:block" />
+      <ProjectCover bleed class="hidden @min-[1400px]:block" image={coverImage.latest}>
+        {coverControls()}
+      </ProjectCover>
       <div class="mx-auto grid w-full max-w-[1340px] grid-cols-1 gap-x-10 gap-y-8 px-6 pb-12 pt-6 sm:px-10 @min-[960px]:grid-cols-[120px_minmax(0,1100px)] @min-[960px]:justify-center @min-[1400px]:max-w-[1680px] @min-[1400px]:grid-cols-1 @min-[1400px]:px-14">
         <div class="flex min-w-0 flex-col gap-8 @min-[960px]:col-start-2 @min-[1400px]:col-start-1">
-          <ProjectCover class="@min-[1400px]:hidden" />
+          <ProjectCover class="@min-[1400px]:hidden" image={coverImage.latest}>
+            {coverControls()}
+          </ProjectCover>
           <header class="-mt-[68px] flex flex-col gap-2 px-1 animate-enter @min-[1400px]:-mt-[60px]">
             <ProjectTile name={props.project.name} />
             <div class="mt-1 flex flex-wrap items-center gap-3">

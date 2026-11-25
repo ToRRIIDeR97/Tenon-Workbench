@@ -28,6 +28,7 @@ import { createMailService, startMailEndpoint } from "./mail/service"
 import { createHarnessSyncService } from "./harness-sync-service"
 import { exportDebugLogs, initCrashReporter, initLogging, sinceProcessStart, write as writeLog } from "./logging"
 import { createMenu } from "./menu"
+import { createBackgroundTray, refreshBackgroundTray } from "./tray"
 import {
   finishFirstLaunchOnboarding,
   initializeOldLayoutEligibility,
@@ -54,6 +55,7 @@ import {
   setDockIcon,
   skipUnloadPrompts,
   restoreMainWindows,
+  showMainWindows,
 } from "./windows"
 import { createWslServersController } from "./wsl/servers"
 import { registerWslIpcHandlers } from "./wsl/ipc"
@@ -463,7 +465,9 @@ const main = Effect.gen(function* () {
     recordStartupMilestone: (name, sinceNavigation) =>
       writeLog("main", "startup milestone", { name, sinceNavigation, sinceProcessStart: sinceProcessStart() }),
     setNativeTranslations: (bundle) => {
-      if (setNativeTranslations(bundle)) createMenu(menuDeps)
+      if (!setNativeTranslations(bundle)) return
+      createMenu(menuDeps)
+      refreshBackgroundTray()
     },
     dictation: createDictationService(),
     mail,
@@ -586,13 +590,13 @@ const main = Effect.gen(function* () {
     app.quit()
   })
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length > 0) return
-    restoreMainWindows()
+    showMainWindows()
   })
 
   const windows = restoreMainWindows()
   registerWidgetShortcut()
   if (windows.length) createMenu(menuDeps)
+  createBackgroundTray()
 
   const loaded = yield* Fiber.await(loadingTask)
   if (Exit.isFailure(loaded)) logger.error("loading task failed", Cause.pretty(loaded.cause))

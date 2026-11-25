@@ -76,6 +76,13 @@ select it) and start an unsent draft (a `new-session` prompt is placed in the co
 never sent). It never runs `git init`; only a folder the user picks in the
 folder dialog is initialized when empty.
 
+Project cover images (`PUT /second-brain/project/cover`) are accepted only as
+a PNG, JPEG, GIF or WebP data URL whose bytes start with that format's
+signature, at most 6 MB decoded (SVG is refused, so no script can ride in). The
+server picks the file name (`cover.<ext>` in the Project's managed folder);
+the renderer never names a path, and a hand-edited card whose `cover` names
+anything else is ignored.
+
 Markdown front matter in notes, Project cards, skills and agent configs is
 parsed through `Frontmatter.parse` (`tenon/packages/core/src/frontmatter.ts`),
 which refuses gray-matter's `---js` engine (it would `eval` the block) and any

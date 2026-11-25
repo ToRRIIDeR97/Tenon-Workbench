@@ -102,6 +102,10 @@ const desktop = [
   "Stay",
   "{{harness}} er að nota tölvuna þína",
   "Stöðva",
+  "Opna Tenon Workbench",
+  "Hætta í Tenon Workbench",
+  "Tenon Workbench er enn í gangi",
+  "Þræðir halda áfram í bakgrunni. Hættu með tákninu á tilkynningasvæðinu.",
 ]
 
 export const dict = {

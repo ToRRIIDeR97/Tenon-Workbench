@@ -68,6 +68,13 @@ describe("newThreadChoice", () => {
     const last = { ...fixed, mode: "last" as const }
     expect(newThreadChoice({ defaults: last })).toEqual(last)
   })
+
+  test("prefers the choice made on a new thread during this run over the saved default", () => {
+    const thisRun = { harnessID: "claude-code", model: { id: "opus-5.5", reasoningEffort: "medium" } }
+    expect(newThreadChoice({ defaults: fixed, lastUsed }, thisRun)).toEqual(thisRun)
+    expect(newThreadChoice(undefined, thisRun)).toEqual(thisRun)
+    expect(newThreadChoice({ defaults: fixed, lastUsed }, undefined)).toEqual(fixed)
+  })
 })
 
 describe("sound defaults", () => {
