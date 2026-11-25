@@ -37,11 +37,8 @@ type SessionFileViewProps = {
 
 const selectionSide = (range: SelectedLineRange) => range.endSide ?? range.side ?? "additions"
 
-// A file reference's code fades in (medium, as its animate-enter class) before it glides to the cited lines over
-// the long duration on the standard curve.
 const referenceFadeMs = () => motionDuration("medium")
 
-/** `--v2-ease-standard`, cubic-bezier(0.2, 0, 0, 1): solves x(u) = t by bisection and returns y(u). */
 function easeStandard(t: number) {
   const bezier = (u: number, a: number, b: number) => 3 * a * u * (1 - u) ** 2 + 3 * b * u ** 2 * (1 - u) + u ** 3
   const search = (low: number, high: number, depth: number): number => {
@@ -242,10 +239,6 @@ function SessionFileViewV2(props: { tab: string }) {
   })
   const contents = createMemo(() => state()?.content?.content ?? "")
 
-  // Live document: the agent's writes and edits of this file, from the session parts. A finished call is
-  // history (no live text, chip, reload or flash) unless this view saw it run, its reply is still in
-  // progress, or its message is newer than the newest one the view first knew (server times), so older
-  // messages paging in or a restored tab stay quiet.
   const writes = createSessionWrites()
   const newest = createViewNewest()
   const ran = new Set<string>()
@@ -264,15 +257,8 @@ function SessionFileViewV2(props: { tab: string }) {
   )
   const live = createMemo(() => tracked().findLast((write) => isWriting(write)) ?? tracked().at(-1))
   const writing = () => isWriting(live())
-  // The text before each call, for an edit's preview and for the flash when it finishes, is the text the
-  // pane showed when the call began, never one read after a reload (the watcher's or another call's)
-  // replaced it. A call first seen streaming begins then; one first seen running or finished may have
-  // changed the file already, so it began when the previous call on this file finished.
-  // Only texts some call can still ask for are kept: see `shownTexts`.
   const shown = shownTexts()
   const since = new Map<string, number>()
-  // Mark 0 until a call finishes: the first loaded text stays for a call that arrives already finished
-  // (a harness edit), even when the watcher reloaded the file with its change first.
   const finished = { mark: 0 }
   const handled = new Set<string>()
   const marks = () =>
@@ -288,9 +274,6 @@ function SessionFileViewV2(props: { tab: string }) {
     if (write.tool === "write") return write.content ?? ""
     return editPreview(before(write.callID) || contents(), write.oldString, write.newString)
   }
-  // When tracked calls finish, read the file from disk once for all of them (without waiting for the
-  // watcher, and never settling for a read that started before they finished) if any succeeded, and
-  // flash the blocks that changed since the first of them began.
   const [flash, setFlash] = createSignal<{ id: number; before: string; after: string }>()
   const reviewKey = createMemo(() => `${sessionKey()}\n${path() ?? ""}`)
   const [review, setReview] = createSignal<TrackedReview>()
@@ -307,8 +290,6 @@ function SessionFileViewV2(props: { tab: string }) {
     calls.forEach((write) => {
       if (!since.has(write.callID)) since.set(write.callID, write.status === "streaming" ? shown.mark() : finished.mark)
     })
-    // Tracked edits: the text before the first unreviewed agent call on this file is the review's base,
-    // held while changes stay unreviewed. Before the file has loaded, a running call tries again.
     calls.forEach((write) => {
       if (based.has(write.callID)) return
       const text = shown.at(since.get(write.callID) ?? finished.mark)
@@ -327,14 +308,10 @@ function SessionFileViewV2(props: { tab: string }) {
     if (saved.length === 0) return
     void file.load(p, { fresh: true }).then(() => {
       const after = untrack(contents)
-      // While another call streams the pane shows its live text, so there is nothing to flash yet.
       if (after !== prior && !untrack(writing)) setFlash({ id: (untrack(flash)?.id ?? 0) + 1, before: prior, after })
     })
   })
 
-  // Tracked edits in the Source view: the changes from the review's base to the file as loaded (or as an
-  // edit streams), each with Keep and Undo once the tool finished. Undo writes the file back through the
-  // server, which refuses it (409) if the file changed since the text it was computed from was read.
   const editing = () => {
     const write = live()
     return !!write && writing() && write.tool === "edit"
@@ -345,8 +322,6 @@ function SessionFileViewV2(props: { tab: string }) {
     if (!current || (writing() && !editing())) return []
     return trackedHunks(current.base, shownText())
   })
-  // Each change's key is its place in the base plus its lines, so Keep acts on one change even when
-  // another is identical, and stays put when a change above it is undone.
   const keys = createMemo(() => hunkKeys(hunks()))
   const kept = createMemo(() => {
     const reviewed = review()?.kept ?? new Set<string>()
@@ -379,7 +354,6 @@ function SessionFileViewV2(props: { tab: string }) {
     setBusy(false)
     return result.status
   }
-  // Last first, so each change's line positions still hold in the text it is applied to.
   const undo = async (list: readonly Hunk[]) => {
     const read = contents()
     const text = [...list].sort((a, b) => b.start - a.start).reduce((next, hunk) => revertHunk(next, hunk), read)
@@ -426,7 +400,6 @@ function SessionFileViewV2(props: { tab: string }) {
     if (file.ready()) return (file.selectedLines(p) as SelectedLineRange | undefined) ?? null
     return (getSessionHandoff(sessionKey())?.files[p] as SelectedLineRange | undefined) ?? null
   })
-  // While a file reference glides the viewer, restoring the saved scroll would pull it back.
   let gliding = false
   const scrollSync = createScrollSync({
     tab: () => props.tab,
@@ -605,10 +578,6 @@ function SessionFileViewV2(props: { tab: string }) {
     active: false,
   }
 
-  // A file reference from a reply, once the panel has arrived and the lines render: the code fades in
-  // where it is, glides to the lines, then selects and marks them. The selection gives the steady tint;
-  // the mark adds the gutter accent and the wipe-in highlight. A newer reveal re-runs this effect, and
-  // its cleanup stops the glide in flight, so a second click retargets from wherever the glide is.
   let viewport: HTMLDivElement | undefined
   const referenceRoot = () => viewport?.querySelector("diffs-container")?.shadowRoot
   const clearReferenceMarks = () =>
@@ -633,7 +602,6 @@ function SessionFileViewV2(props: { tab: string }) {
     const duration = motionDuration("long")
     let frame: number | undefined
     let timer: ReturnType<typeof setTimeout> | undefined
-    // Standard-curve scroll that starts once the code has faded in; reduced motion lands on the end state.
     const glide = (el: HTMLDivElement, to: number, delay: number, done: () => void) => {
       const run = () => {
         timer = undefined
@@ -660,7 +628,6 @@ function SessionFileViewV2(props: { tab: string }) {
       timer = undefined
       gliding = false
     }
-    // Scrolling, clicking or typing in the viewer takes over: the glide stops, and the lines are only selected.
     const takeOver = () => {
       stop()
       file.setSelectedLines(p, { start, end })
@@ -673,7 +640,6 @@ function SessionFileViewV2(props: { tab: string }) {
     }
     const mark = (root: ShadowRoot) => {
       view().setScroll(props.tab, { x: 0, y: viewport?.scrollTop ?? 0 })
-      // Selecting notifies the viewer's selection handler, which clears marks, so mark a frame later.
       file.setSelectedLines(p, { start, end })
       frame = requestAnimationFrame(() => {
         Array.from({ length: end - start + 1 }, (_, index) => start + index).forEach((number) =>
@@ -689,7 +655,6 @@ function SessionFileViewV2(props: { tab: string }) {
       const root = referenceRoot()
       const line = root?.querySelector(`[data-line="${start}"]`)
       if (!viewport || !root || !(line instanceof HTMLElement)) {
-        // Large files render lazily; glide near the line so the virtualizer renders it, then look again.
         if (count === 10 && viewport && root?.querySelector("[data-line]")) {
           glide(viewport, (start - 1) * 24, referenceFadeMs(), () => attempt(11))
           return
@@ -721,8 +686,6 @@ function SessionFileViewV2(props: { tab: string }) {
     scrollSync.queueRestore()
   })
 
-  // The skeleton shows from the first frame until the code has rendered (loading, then highlighting), and the
-  // code fades in as it replaces it; a fallback timer drops the skeleton if the viewer never reports a render.
   const [rendered, setRendered] = createSignal(false)
   createEffect(() => {
     if (!state()?.loaded || rendered()) return
@@ -734,7 +697,6 @@ function SessionFileViewV2(props: { tab: string }) {
     <div
       class="relative overflow-hidden pb-40"
       classList={{
-        // Not hidden before then: the viewer only renders its lines while it can be seen.
         "animate-enter": rendered(),
       }}
     >

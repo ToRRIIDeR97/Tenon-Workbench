@@ -332,7 +332,7 @@ describe("query keys", () => {
         calls.push(input)
         return {
           location: {},
-          data: [{ name: "review", template: "Review files" /* source: "command" as const */ }],
+          data: [{ name: "review", template: "Review files" }],
         }
       },
     } as unknown as CommandApi
@@ -340,7 +340,7 @@ describe("query keys", () => {
     const result = await loadCommands("/repo", api)
 
     expect(calls).toEqual([{ location: { directory: "/repo" } }])
-    expect(result).toEqual([{ name: "review", template: "Review files" /* source: "command" */ }])
+    expect(result).toEqual([{ name: "review", template: "Review files" }])
   })
 
   test("loads projects from the current endpoint", async () => {

@@ -6,10 +6,6 @@ export function isLoopback(hostname: string) {
   return loopback.has(hostname.toLowerCase()) || /^127(?:\.\d{1,3}){3}$/.test(hostname)
 }
 
-/**
- * An unauthenticated server gives anyone who can reach it file, shell and provider access,
- * so it may only listen on a loopback address. Set TENON_SERVER_PASSWORD to listen wider.
- */
 export function assertExposureAllowed(hostname: string, password: string | undefined) {
   if (isLoopback(hostname) || password) return
   throw new Error(
@@ -17,12 +13,6 @@ export function assertExposureAllowed(hostname: string, password: string | undef
   )
 }
 
-/**
- * Whether a server listening on the loopback `listening` address answers a request with this `Host`
- * header. A page on another site can point its own DNS name at 127.0.0.1 (DNS rebinding); its requests
- * then carry that name, so only loopback names and the listening hostname are accepted, on any port.
- * A request with no Host header can't come from a browser and is allowed.
- */
 export function isAllowedHost(host: string | undefined, listening: string) {
   if (!host) return true
   const hostname = URL.parse(`http://${host}`)?.hostname

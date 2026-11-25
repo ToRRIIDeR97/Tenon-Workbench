@@ -214,9 +214,6 @@ export function desktopNativePluralCategories(locale: DesktopNativeLocale) {
 }
 
 const SCRIPT_ALIASES: Record<string, string> = {
-  // ICU maximizes "pa-PK" to "pa-Aran-PK": CLDR's "Aran" is the Nastaliq Arabic
-  // variant of "Arab", so without this alias Punjabi never matches the
-  // "pa-Arab-PK" bundle (issue #48).
   Aran: "Arab",
 }
 
@@ -326,7 +323,6 @@ export const DESKTOP_NATIVE_ENGLISH = {
   "desktop.picker.error.notSelected": "File was not selected by the picker",
   "desktop.picker.error.sizeLimit": "Selected attachments exceed the {{limit}} MB limit",
 
-  // Appended last: some locales map translations to these keys by position.
   "secondBrain.desktop.deepLink.openProject": "Open this folder as a workspace?",
   "secondBrain.desktop.deepLink.openProject.detail":
     "A link asked Tenon Workbench to open:\n{{path}}\n\nContinue only if you opened this link yourself from a source you trust.",

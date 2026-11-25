@@ -1,7 +1,3 @@
-// Sucrase ships no type declarations for its parser entry points, which `unsupported-typescript.ts`
-// reads to find TypeScript syntax that its transform drops or emits as CommonJS. Only the members
-// used there are declared. The sucrase version is pinned in package.json.
-
 declare module "sucrase/dist/parser" {
   export interface SucraseToken {
     readonly type: number

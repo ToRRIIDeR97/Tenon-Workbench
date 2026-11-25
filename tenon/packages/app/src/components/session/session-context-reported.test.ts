@@ -16,7 +16,6 @@ const assistant = (input: { harness?: string; contextUsed?: number; contextWindo
     time: { created: 1 },
   }) as unknown as Message
 
-// AC-10: a turn total summed over every model call is not the context in use.
 describe("getSessionContext reported", () => {
   test("an external harness without a live context report is not reported", () => {
     const context = getSessionContext([assistant({ harness: "opencode-acp" })], [])
@@ -72,7 +71,6 @@ describe("latestSubagentContexts", () => {
   })
 })
 
-// #310: an alias model id still finds its window through the provider list.
 describe("getSessionContext alias model ids", () => {
   const live = { harness: "opencode-acp", contextUsed: 64_000 }
   const providers = [

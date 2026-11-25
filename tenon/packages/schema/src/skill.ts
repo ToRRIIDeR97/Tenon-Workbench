@@ -54,16 +54,13 @@ export const Source = Object.assign(
   },
 )
 
-/** A skill as the catalog lists it: where it lives, never its content. */
 export interface CatalogSkill extends Schema.Schema.Type<typeof CatalogSkill> {}
 export const CatalogSkill = Schema.Struct({
   name: Schema.String,
   description: Schema.String.pipe(optional),
   location: Schema.String.pipe(optional),
   scope: Schema.Literals(["global", "project"]),
-  /** False when switched off in Settings → Skills (a harness skill: its SKILL.md renamed). */
   enabled: Schema.Boolean.pipe(optional),
-  /** Harness skills: true when Tenon may switch it (its SKILL.md sits in a home or project folder). */
   editable: Schema.Boolean.pipe(optional),
 }).annotate({ identifier: "SkillV2.CatalogSkill" })
 
@@ -75,7 +72,6 @@ export const HarnessCatalog = Schema.Struct({
   skills: Schema.Array(CatalogSkill),
 }).annotate({ identifier: "SkillV2.HarnessCatalog" })
 
-/** Tenon's own skills, then each external harness's skills, read-only. */
 export interface Catalog extends Schema.Schema.Type<typeof Catalog> {}
 export const Catalog = Schema.Struct({
   tenon: Schema.Array(CatalogSkill),

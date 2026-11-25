@@ -28,21 +28,15 @@ export class Info extends Schema.Class<Info>("Credential.Info")({
 }) {}
 
 export interface Interface {
-  /** Returns every stored credential. */
   readonly all: () => Effect.Effect<Info[]>
-  /** Returns stored credentials belonging to one integration. */
   readonly list: (integrationID: Integration.ID) => Effect.Effect<Info[]>
-  /** Returns one stored credential by ID. */
   readonly get: (id: ID) => Effect.Effect<Info | undefined>
-  /** Replaces any credential for an integration and returns the new record. */
   readonly create: (input: {
     readonly integrationID: Integration.ID
     readonly value: Value
     readonly label?: string
   }) => Effect.Effect<Info>
-  /** Updates the label or secret value of a stored credential. */
   readonly update: (id: ID, updates: Partial<Pick<Info, "label" | "value">>) => Effect.Effect<void>
-  /** Removes a stored credential. */
   readonly remove: (id: ID) => Effect.Effect<void>
 }
 

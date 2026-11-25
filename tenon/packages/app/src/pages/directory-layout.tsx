@@ -40,7 +40,6 @@ export function DirectoryDataProvider(
   }
 
   createEffect(() => {
-    // A draft lives at /new-session?draftId=… and has no directory segment to normalize.
     if (props.draftID || props.server?.()) return
     const next = sync().data.path.directory
     if (!next || next === directory()) return
@@ -63,7 +62,6 @@ export function DirectoryDataProvider(
     onCleanup(() => serverSync().session.unpin(sessionID))
   })
 
-  // Opens the right panel's Agents tab on the subagent, or on the list without one. There is one Agents tab.
   const openSubagent = (input: { sessionID: string; partID?: string }) => {
     if (input.sessionID !== params.id) return
     const view = sessionLayout.view()

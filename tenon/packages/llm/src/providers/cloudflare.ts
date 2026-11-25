@@ -22,7 +22,6 @@ type GatewayURL = AtLeastOne<{
 export type AIGatewayOptions = GatewayURL &
   RouteDefaultsInput &
   ProviderAuthOption<"optional"> & {
-    /** Cloudflare AI Gateway authentication token. Sent as `cf-aig-authorization`. */
     readonly gatewayApiKey?: CloudflareSecret
   }
 

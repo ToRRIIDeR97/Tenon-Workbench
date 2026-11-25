@@ -44,12 +44,10 @@ import { DialogHarnessAssistant } from "./harness-assistant"
 import { DialogHarnessSetup } from "./harness-setup"
 import "./settings-v2.css"
 
-// Splits an arguments field on whitespace; quoted arguments with spaces aren't supported here.
 const splitArgs = (value: string) => value.split(/\s+/).filter(Boolean)
 
 export const SettingsHarnessesV2: Component<{
   directory: Accessor<string | undefined>
-  // The add dialog replaces Settings in the dialog stack; this reopens Settings on this tab.
   onBack: () => void
 }> = (props) => {
   const dialog = useDialog()
@@ -59,27 +57,17 @@ export const SettingsHarnessesV2: Component<{
   const serverSync = useServerSync()
   const queryClient = useQueryClient()
   const layout = useLayout()
-  // Harness settings are global; the routes only need some valid location, so fall back from the
-  // current tab to the open workspace, then the home directory.
   const directory = createMemo(
-    () =>
-      props.directory() ||
-      // The open workspace, never the raw selection: a removed workspace's folder may be gone (404).
-      layout.home.workspace() ||
-      serverSync().data.path.home ||
-      undefined,
+    () => props.directory() || layout.home.workspace() || serverSync().data.path.home || undefined,
   )
   const server = () => ({ server: serverSdk().server.http, fetch: platform.fetch })
   const [entries, { refetch }] = createResource(directory, (dir) => listHarnessSettings(server(), dir))
-  // Live models and CLI versions; a failed check just leaves those details out.
   const [instances, { mutate: setInstances }] = createResource(directory, (dir) =>
     listHarnessesForServer(server(), dir).catch(() => []),
   )
   const [updates, { mutate: setUpdates }] = createResource(directory, (dir) =>
     listHarnessUpdates(server(), dir).catch(() => []),
   )
-  // Plan limits, asked once when the tab opens; the server caches each harness's answer for a minute. The
-  // last known answer shows until the new one arrives, and stays if the request fails.
   const [usage] = createResource(
     directory,
     (dir) =>
@@ -96,7 +84,6 @@ export const SettingsHarnessesV2: Component<{
     selected: undefined as string | undefined,
     confirming: undefined as string | undefined,
   })
-  // One action per harness at a time; different harnesses (separate CLIs) update side by side (#320).
   const locks = createActionLocks()
   const upgrades = () => harnessUpgrades(server(), directory()!)
   const busy = (id: string) => locks.busy(id) || (!!directory() && upgrades().running(id))
@@ -135,7 +122,6 @@ export const SettingsHarnessesV2: Component<{
 
   const saved = (entry: Harness.SettingsEntry) => {
     changed()
-    // A new harness's models are listed in the background; ask for them now so its details aren't empty.
     setState("selected", entry.id)
     refreshModels(entry.id)
     showToast({
@@ -145,7 +131,6 @@ export const SettingsHarnessesV2: Component<{
     })
   }
 
-  // The assistant chat runs in a server-provided non-project folder so its session stays out of project lists.
   const openAssistant = () => {
     const dir = directory()
     if (!dir) return
@@ -175,7 +160,6 @@ export const SettingsHarnessesV2: Component<{
 
   const upgrade = (entry: Harness.SettingsEntry) =>
     run(entry.id, async () => {
-      // Shared with the update toast, so the two never upgrade the same CLI at once.
       const result = await upgrades().start(entry.id)
       setUpdates((current) => current?.map((item) => (item.id === result.id ? result : item)))
       setInstances(await refreshHarnesses(server(), directory()!, entry.id))
@@ -187,7 +171,6 @@ export const SettingsHarnessesV2: Component<{
     })
 
   const entryList = createMemo(() => [...builtIn(), ...registered()])
-  // An empty value titles each thread with its own agent; a disabled harness can't title anything.
   const titleOptions = createMemo(() => [
     { value: "", label: language.t("harness.settings.titleAgent.thread") },
     ...entryList()
@@ -198,7 +181,6 @@ export const SettingsHarnessesV2: Component<{
     run("title-agent", () =>
       setTitleAgent(server(), directory()!, value || undefined).then((id) => setTitleAgentValue(id)),
     )
-  // The first harness stays selected until the user picks another, or the selected one is removed.
   const selected = createMemo(() => entryList().find((entry) => entry.id === state.selected) ?? entryList()[0])
   const instance = (id: string) => instances.latest?.find((item) => item.id === id)
   const update = (id: string) => updates.latest?.find((item) => item.id === id)
@@ -275,7 +257,6 @@ export const SettingsHarnessesV2: Component<{
                         )}
                       </Show>
                     </span>
-                    {/* The fullest window only; the details pane lists every window with its reset time. */}
                     <Show when={entry.enabled && fullestWindow(usageReport(entry.id))}>
                       {(window) => (
                         <span
@@ -362,7 +343,6 @@ const harnessState = (entry: Harness.SettingsEntry, instance?: Harness.Instance)
   return "on"
 }
 
-// Installer names are product names, shown as they are in every language.
 const installerName: Record<NonNullable<Harness.UpdateStatus["method"]>, string> = {
   npm: "npm",
   bun: "Bun",
@@ -376,7 +356,6 @@ const installerName: Record<NonNullable<Harness.UpdateStatus["method"]>, string>
   self: "",
 }
 
-// Header, update, and model visibility for one harness. The in-process loop has no CLI or model list.
 const HarnessDetails: Component<{
   entry: Harness.SettingsEntry
   instance?: Harness.Instance
@@ -527,13 +506,11 @@ const HarnessDetails: Component<{
   )
 }
 
-// Codex compacts on its own side, always on the thread's model, so it has no compaction model to pick.
 const OWN_MODEL = "own"
 
 const numberClass =
   "h-8 w-20 rounded-full bg-v2-background-bg-layer-01 px-3 text-right text-[13px] font-[450] leading-5 text-v2-text-text-base shadow-[inset_0_0_0_1px_var(--v2-border-border-base)] outline-none transition-shadow duration-short ease-standard hover:shadow-[inset_0_0_0_1px_var(--v2-border-border-strong)] focus:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)]"
 
-// A cold thread's /compact reloads its whole history into the model; this picks a cheaper model for that case.
 const HarnessCompaction: Component<{ entry: Harness.SettingsEntry; models: ReadonlyArray<Harness.Model> }> = (
   props,
 ) => {
@@ -542,7 +519,6 @@ const HarnessCompaction: Component<{ entry: Harness.SettingsEntry; models: Reado
   const current = () => settings.harnesses.compaction(props.entry.id)
   const minutes = () => current()?.coldMinutes ?? DEFAULT_COLD_MINUTES
   const options = createMemo(() => [
-    // A real value: the select shows an empty-string option as no selection at all.
     { value: OWN_MODEL, label: language.t("harness.settings.compaction.ownModel") },
     ...props.models.map((model) => ({ value: model.id, label: model.name })),
   ])
@@ -587,7 +563,6 @@ const HarnessCompaction: Component<{ entry: Harness.SettingsEntry; models: Reado
               class={numberClass}
               aria-label={language.t("harness.settings.compaction.cold")}
               value={draft()}
-              // Saves on commit (Enter, the stepper or leaving the field), clamped to 1–1440 minutes.
               onInput={(event) => setDraft(event.currentTarget.value)}
               onChange={(event) => {
                 const value = Math.round(Number(event.currentTarget.value))
@@ -605,7 +580,6 @@ const HarnessCompaction: Component<{ entry: Harness.SettingsEntry; models: Reado
   )
 }
 
-// Models grouped by their provider prefix, so a whole provider (for example OpenRouter) can be hidden at once.
 const HarnessModels: Component<{ entry: Harness.SettingsEntry; models: ReadonlyArray<Harness.Model> }> = (props) => {
   const language = useLanguage()
   const settings = useSettings()
@@ -617,7 +591,6 @@ const HarnessModels: Component<{ entry: Harness.SettingsEntry; models: ReadonlyA
   const groups = createMemo(() =>
     Object.entries(Object.groupBy(props.models, (model) => modelProvider(model.id) ?? "")).map(([id, models]) => ({
       id,
-      // OpenCode names its models "Provider/Model"; the prefix is the readable provider name.
       name: models?.[0]?.name.includes("/") ? models[0].name.split("/")[0] : id,
       models: models ?? [],
     })),
@@ -629,7 +602,6 @@ const HarnessModels: Component<{ entry: Harness.SettingsEntry; models: ReadonlyA
     return props.models.filter((model) => `${model.id} ${model.name}`.toLowerCase().includes(query))
   })
 
-  // Inside a provider group the "Provider/" name prefix repeats the group, so it is dropped there.
   const modelSwitch = (model: Harness.Model, inGroup = false) => (
     <Switch
       size="small"
@@ -757,7 +729,6 @@ const DialogAddHarness: Component<{
     discovery?: Harness.Discovery
     verification?: Harness.Verification
   }>({ stage: "idle" })
-  // Save is allowed only for the exact command and arguments that passed the checklist.
   const key = () => JSON.stringify([command().trim(), splitArgs(args())])
   const rows = createMemo(() =>
     harnessChecklist({
@@ -773,7 +744,6 @@ const DialogAddHarness: Component<{
   const discovery = () =>
     check.key === key() && check.stage === "done" && checklistPassed(rows()) ? check.discovery : undefined
 
-  // Discovery first (handshake, session, models), then one real prompt; each step fills its rows as it ends.
   const test = () => {
     if (!command().trim() || busy()) return
     setBusy(true)
@@ -920,7 +890,6 @@ const DialogAddHarness: Component<{
   )
 }
 
-/** The OS the app runs on; the web build has no platform info, so it reads the browser's. */
 function osName(os: string | undefined) {
   const value =
     os ?? (/Windows/i.test(navigator.userAgent) ? "windows" : /Mac OS/i.test(navigator.userAgent) ? "macos" : "linux")
@@ -929,7 +898,6 @@ function osName(os: string | undefined) {
 
 const CHECK_MARK: Record<CheckStatus, string> = { pass: "✓", fail: "✕", warn: "!", waiting: "·", running: "…" }
 
-/** Which harness, model and reasoning new threads start with (settings.v3 `harnesses.defaults`). */
 function HarnessDefaults(props: {
   entries: ReadonlyArray<{ id: string; name: string }>
   instance: (id: string) => Harness.Instance | undefined
@@ -938,7 +906,6 @@ function HarnessDefaults(props: {
   const settings = useSettings()
   const defaults = () => settings.harnesses.defaults()
   const harnessID = () => defaults()?.harnessID ?? Harness.OpenCode
-  // With no saved default, new threads already start from the last one used (settings.tsx newThreadChoice).
   const last = () => (defaults()?.mode ?? "last") === "last"
   const save = (next: Partial<NonNullable<ReturnType<typeof defaults>>>) =>
     settings.harnesses.setDefaults({ mode: "fixed", harnessID: harnessID(), ...defaults(), ...next })

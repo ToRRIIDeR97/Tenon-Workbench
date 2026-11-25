@@ -8,7 +8,6 @@ import {
 } from "../../../../tenon/packages/session-ui/src/components/design-stream"
 import { DESIGN_CSP } from "../../../../tenon/packages/session-ui/src/components/design-fence"
 
-// AC-3: half-written markup is made safe to draw.
 describe("AC-3 partialDesignMarkup", () => {
   test("drops a trailing unfinished tag", () => {
     expect(partialDesignMarkup('<div class="a">Hi</div><sec')).toBe('<div class="a">Hi</div>')
@@ -26,7 +25,6 @@ describe("AC-3 partialDesignMarkup", () => {
   })
 })
 
-// AC-4: nothing draws until there is something to see.
 describe("AC-4 hasVisibleMarkup", () => {
   test.each([
     ["", false],
@@ -42,7 +40,6 @@ describe("AC-4 hasVisibleMarkup", () => {
   })
 })
 
-// AC-5: a frame update keeps the nodes it already drew and reports only new elements.
 describe("AC-5 morphChildren", () => {
   const tree = (html: string) => {
     const el = document.createElement("div")
@@ -66,7 +63,6 @@ describe("AC-5 morphChildren", () => {
   })
 })
 
-// AC-6: the live frame document applies a nonce-only script CSP before any script and speaks the frame protocol.
 describe("AC-6 liveDesignDocument", () => {
   const policy = (doc: string) => doc.match(/http-equiv="Content-Security-Policy" content="([^"]*)"/)?.[1] ?? ""
   test("CSP first, then the bootstrap that listens for frames from its parent", () => {

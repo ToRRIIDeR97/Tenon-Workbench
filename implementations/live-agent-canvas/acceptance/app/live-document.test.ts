@@ -9,7 +9,6 @@ const tool = (callID: string, name: string, status: string, input: Record<string
   state: { status, input },
 })
 
-// AC-15: the file operations the agent is making, live.
 describe("AC-15 liveWrites", () => {
   test("write and edit calls with a path, in order", () => {
     const writes = liveWrites([
@@ -25,14 +24,12 @@ describe("AC-15 liveWrites", () => {
   })
 })
 
-// AC-16: Markdown splits into blocks; a fenced code block stays whole.
 describe("AC-16 markdownBlocks", () => {
   test("blank lines separate blocks", () => {
     expect(markdownBlocks("# T\n\nOne\ntwo\n\n```js\na\n\nb\n```\n\n- x")).toEqual(["# T", "One\ntwo", "```js\na\n\nb\n```", "- x"])
   })
 })
 
-// AC-17: only blocks that changed flash, and a rewrite of most of the file flashes nothing.
 describe("AC-17 changedBlocks", () => {
   const before = "# Plan\n\n## Goals\n\nShip it.\n\n## Risks\n\nNone."
   test("one paragraph edited", () => {

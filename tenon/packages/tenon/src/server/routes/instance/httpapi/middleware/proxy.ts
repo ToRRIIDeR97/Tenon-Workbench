@@ -24,8 +24,6 @@ export function websocket(
       const outbound = yield* Socket.makeWebSocket(ProxyUtil.websocketTargetURL(target), {
         protocols: ProxyUtil.websocketProtocols(request.headers),
       }).pipe(
-        // The target's configured auth headers go on the upstream upgrade too, as they do for HTTP.
-        // Bun's and Node's (undici) WebSocket take headers in an options object; browsers don't.
         credentials && [...credentials.keys()].length > 0
           ? Effect.provideService(
               Socket.WebSocketConstructor,
@@ -104,13 +102,7 @@ export function http(
     headers.delete("content-encoding")
     headers.delete("content-length")
 
-    // An upstream 5xx from a remote workspace sandbox arrives here as an opaque
-    // status — its real cause (and log line) live only inside the sandbox. Buffer
-    // the small error body, log it locally so it shows up in the host's log, and
-    // forward it unchanged (preserving content-type so the client can still parse
-    // the structured error, e.g. its `ref`).
     if (response.status >= 500) {
-      // Streamed through like any other body; only its first 2,000 characters are kept for the log.
       const decoder = new TextDecoder()
       let head = ""
       const body = response.stream.pipe(

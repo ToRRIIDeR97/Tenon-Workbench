@@ -20,7 +20,6 @@ export interface Interface {
 
 export class Service extends Context.Service<Service, Interface>()("@tenon/v2/FileSystem/Search") {}
 
-/** How long `find` reuses one `rg --files` listing; short enough that new and removed files show up quickly. */
 export const LISTING_TTL = Duration.seconds(3)
 
 export const ripgrepLayer = Layer.effect(
@@ -29,7 +28,6 @@ export const ripgrepLayer = Layer.effect(
     const fs = yield* FSUtil.Service
     const location = yield* Location.Service
     const ripgrep = yield* Ripgrep.Service
-    // Scan at query time, but share one scan across the burst of per-keystroke queries.
     const listing = yield* Effect.cachedWithTTL(
       ripgrep.find({ cwd: location.directory, pattern: "*", limit: 100_000 }).pipe(
         Effect.orDie,

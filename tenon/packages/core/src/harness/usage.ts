@@ -6,12 +6,10 @@ import fs from "fs/promises"
 import os from "os"
 import path from "path"
 
-/** One usage window a harness's subscription reports, such as the 5-hour or weekly limit. */
 export interface UsageWindow {
   readonly id: string
   readonly label: string
   readonly usedPercent: number
-  /** Epoch milliseconds. */
   readonly resetsAt?: number
   readonly windowMinutes?: number
 }
@@ -33,13 +31,6 @@ const claudeWindows = [
   { id: "seven_day_sonnet", label: "Weekly (Sonnet)" },
 ] as const
 
-/**
- * Reads Anthropic's OAuth usage response: `{ five_hour: { utilization, resets_at } | null, seven_day: ..., ... }`.
- * Only the known windows are reported, in a fixed order: the response also carries internal keys with the same
- * shape that aren't meant for people. Per-model weekly limits that have no key of their own, such as Fable on Max
- * and Ultra plans, come from `limits[]` entries of kind `weekly_scoped` (checked against a live Max response,
- * 2026-11-12). Malformed input yields `[]`.
- */
 export function parseClaudeUsage(body: unknown): UsageWindow[] {
   if (!isRecord(body)) return []
   const windows: UsageWindow[] = claudeWindows.flatMap((window) => {
@@ -72,11 +63,6 @@ function resets(value: unknown) {
   return Number.isFinite(resetsAt) ? { resetsAt } : {}
 }
 
-/**
- * Reads the Codex app-server `account/rateLimits/read` result:
- * `{ rateLimits: { primary?: W | null, secondary?: W | null } }` with
- * `W = { usedPercent, windowDurationMins?, resetsAt? (epoch seconds) }`. Malformed input yields `[]`.
- */
 export function parseCodexRateLimits(body: unknown): UsageWindow[] {
   const limits = isRecord(body) && isRecord(body.rateLimits) ? body.rateLimits : undefined
   if (!limits) return []
@@ -99,13 +85,6 @@ export function parseCodexRateLimits(body: unknown): UsageWindow[] {
 
 type ClaudeToken = { readonly status: "valid"; readonly token: string } | { readonly status: "missing" | "expired" }
 
-/**
- * The Claude Code OAuth access token. On macOS without `CLAUDE_CONFIG_DIR`, Claude Code keeps its live sign-in in
- * the keychain entry `Claude Code-credentials` (account: the user name), so that is read first, with the system
- * `security` tool the way the CLI reads it. Otherwise, or when the keychain has no usable token, the token comes
- * from `$CLAUDE_CONFIG_DIR/.credentials.json` or `~/.claude/.credentials.json`. The token stays in the server
- * process: callers pass it only to the usage request, never to a response or a log.
- */
 export const readClaudeToken = (
   env: Readonly<Record<string, string | undefined>> = process.env,
   now = Date.now(),
@@ -121,7 +100,6 @@ export const readClaudeToken = (
     if (stored?.status === "valid") return stored
     const dir = env.CLAUDE_CONFIG_DIR || path.join(env.HOME ?? os.homedir(), ".claude")
     const file = claudeToken(await readCredentialFile(path.join(dir, ".credentials.json")), now)
-    // An expired keychain token says more than a missing file: the CLI refreshes it on its next run.
     return file.status === "missing" && stored ? stored : file
   })
 
@@ -132,7 +110,6 @@ function claudeToken(value: unknown, now: number): ClaudeToken {
   return { status: "valid", token: oauth.accessToken }
 }
 
-/** Reads Claude Code's keychain entry with `/usr/bin/security`; undefined when it is absent, too large or slow. */
 function readClaudeKeychain(account: string) {
   return new Promise<string | undefined>((resolve) => {
     execFile(
@@ -144,7 +121,6 @@ function readClaudeKeychain(account: string) {
   })
 }
 
-/** Asks Anthropic for the subscription usage behind a Claude Code OAuth token. */
 export const fetchClaudeUsage = (token: string, request: typeof fetch = fetch) =>
   Effect.tryPromise({
     try: async (signal): Promise<Result> => {
@@ -163,13 +139,6 @@ export const fetchClaudeUsage = (token: string, request: typeof fetch = fetch) =
     catch: () => new Error("Could not reach api.anthropic.com."),
   })
 
-/**
- * Claude Code usage under the rule every harness follows: a harness is signed out only when its provider rejects
- * the credential and nothing else shows a sign-in, or when no sign-in exists at all. A local token's expiry date is
- * not proof: the CLI refreshes tokens itself, and on macOS it keeps the live sign-in in the keychain, so
- * `.credentials.json` can be a stale leftover. Any token that can't be used falls back to `signedIn`, Claude Code's
- * own sign-in marker.
- */
 export const claudeUsage = (input: {
   readonly token: Effect.Effect<
     { readonly status: "valid"; readonly token: string } | { readonly status: "missing" | "expired" }
@@ -192,11 +161,6 @@ const openCodeGoWindows = [
   { key: "monthly", id: "monthly", label: "Monthly" },
 ] as const
 
-/**
- * Reads OpenCode Go's usage response: `{ usage: { rolling, weekly, monthly } }`, each `{ status, percent, resetsAt }`
- * with `percent` the share of that window's budget used. `resetsAt` may be an ISO instant or epoch seconds or
- * milliseconds. Missing windows are left out; malformed input yields `[]`.
- */
 export function parseOpenCodeGoUsage(body: unknown): UsageWindow[] {
   const usage = isRecord(body) && isRecord(body.usage) ? body.usage : undefined
   if (!usage) return []
@@ -222,11 +186,6 @@ export function parseOpenCodeGoUsage(body: unknown): UsageWindow[] {
   })
 }
 
-/**
- * The OpenCode Go API key from an OpenCode data folder's `auth.json` (`{ "opencode-go": { type: "api", key } }`):
- * the OpenCode CLI's folder for the OpenCode harness, the app's own for the built-in agent. The key stays in the
- * server process.
- */
 export const readOpenCodeGoKey = (dataDir: string) =>
   Effect.promise(async () => {
     const value = await readCredentialFile(path.join(dataDir, "auth.json"))
@@ -234,11 +193,6 @@ export const readOpenCodeGoKey = (dataDir: string) =>
     return entry && typeof entry.key === "string" && entry.key ? entry.key : undefined
   })
 
-/**
- * Asks OpenCode for the Go subscription's usage windows. `GET /zen/go/v1/usage` is not in OpenCode's documentation;
- * it reads the key only from a Bearer `Authorization` header. A 401 is a rejected or expired key, a 403 a key
- * without a Go subscription.
- */
 export const fetchOpenCodeGoUsage = (key: string, request: typeof fetch = fetch) =>
   Effect.tryPromise({
     try: async (signal): Promise<Result> => {
@@ -268,10 +222,6 @@ export const fetchOpenCodeGoUsage = (key: string, request: typeof fetch = fetch)
     catch: () => new Error("Could not reach opencode.ai."),
   })
 
-/**
- * The OpenCode key the built-in agent chats with, from Tenon's credential store: an `opencode-go` key first, then the
- * OpenCode (Zen) key, which carries a Go subscription too. The legacy `auth.json` can hold an older key.
- */
 export function openCodeGoKeyFrom(
   credentials: ReadonlyArray<{
     readonly integrationID: string
@@ -284,10 +234,6 @@ export function openCodeGoKeyFrom(
   return key("opencode-go") ?? key("opencode")
 }
 
-/**
- * OpenCode Go usage for an OpenCode data folder; without a Go key there is no plan to report. A `key` the caller
- * already holds (the built-in agent's stored credential) is used before the folder's `auth.json`.
- */
 export const openCodeGoUsage = (dataDir: string, request: typeof fetch = fetch, key?: string) =>
   (key ? Effect.succeed<string | undefined>(key) : readOpenCodeGoKey(dataDir)).pipe(
     Effect.flatMap(
@@ -301,11 +247,6 @@ const commandCodeWindows = [
   { key: "weekly", id: "weekly", label: "Weekly" },
 ] as const
 
-/**
- * Reads the `windowLimits` Command Code's own `/usage` overlay shows: `{ limited, fiveHour?, weekly? }` with each
- * window `{ used, cap, resetAt }` (`resetAt` in epoch ms, which the CLI compares with `Date.now()`). A plan
- * without window limits (`limited: false`) and a window without a positive cap yield no window.
- */
 export function parseCommandCodeUsage(body: unknown): UsageWindow[] {
   const limits = isRecord(body) && isRecord(body.windowLimits) ? body.windowLimits : undefined
   if (!limits || limits.limited === false) return []
@@ -324,10 +265,6 @@ export function parseCommandCodeUsage(body: unknown): UsageWindow[] {
   })
 }
 
-/**
- * The Command Code API key, found the way its CLI finds it: `COMMAND_CODE_API_KEY`, then `apiKey` in
- * `~/.commandcode/auth.json` (home from `HOME`, then `USERPROFILE`). The key stays in the server process.
- */
 export const readCommandCodeKey = (env: Readonly<Record<string, string | undefined>> = process.env) =>
   Effect.promise(async () => {
     const fromEnv = env.COMMAND_CODE_API_KEY?.trim()
@@ -337,11 +274,6 @@ export const readCommandCodeKey = (env: Readonly<Record<string, string | undefin
     return isRecord(value) && typeof value.apiKey === "string" && value.apiKey ? value.apiKey : undefined
   })
 
-/**
- * Asks Command Code for its plan windows the way its `/usage` overlay does: `/alpha/whoami?limits=1` names the
- * account's organization, then `/alpha/billing/credits` (with `orgId` when there is one) returns `windowLimits`.
- * These are undocumented `/alpha` routes. The key goes only in the `Authorization` header.
- */
 export const fetchCommandCodeUsage = (key: string, request: typeof fetch = fetch) =>
   Effect.tryPromise({
     try: async (signal): Promise<Result> => {
@@ -369,7 +301,6 @@ export const fetchCommandCodeUsage = (key: string, request: typeof fetch = fetch
     catch: () => new Error("Could not reach api.commandcode.ai."),
   })
 
-/** Whether an ACP command runs the Command Code CLI, by the names its npm package installs (`cmd` is left out: it is also Windows' shell). */
 export function isCommandCode(command: string | undefined) {
   if (!command) return false
   const name = path
@@ -379,10 +310,6 @@ export function isCommandCode(command: string | undefined) {
   return ["command-code", "commandcode", "cmdc"].includes(name) || /node_modules[\\/]command-code[\\/]/i.test(command)
 }
 
-/**
- * Caches each instance's report for `ttl` milliseconds and reads the rest in parallel, each bounded by `timeout`,
- * so one slow harness never holds up the others. A failed or timed-out read becomes an `error` report.
- */
 export function makeCache(options: { readonly ttl?: number; readonly timeout?: number } = {}) {
   const ttl = options.ttl ?? 60_000
   const timeout = options.timeout ?? 8_000
@@ -444,21 +371,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 const decodeJson = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Unknown))
 
-// Credential files are a few hundred bytes of JSON; anything bigger, or not a regular file, counts as missing.
 const MAX_CREDENTIAL_BYTES = 64 * 1024
-// Usage responses are small JSON documents; a larger or malformed body is reported as an error.
 const MAX_BODY_BYTES = 256 * 1024
 
 const badBody: Result = { status: "error", windows: [], reason: "Usage response was too large or not JSON." }
 
-/** Parses a small JSON credential file, reading at most `MAX_CREDENTIAL_BYTES`. Never throws. */
 async function readCredentialFile(file: string): Promise<unknown> {
   const handle = await fs.open(file, "r").catch(() => undefined)
   if (!handle) return undefined
   try {
     const stat = await handle.stat()
     if (!stat.isFile() || stat.size > MAX_CREDENTIAL_BYTES) return undefined
-    // The file can grow after the stat, so the read itself stops one byte past the cap.
     const buffer = Buffer.alloc(MAX_CREDENTIAL_BYTES + 1)
     const read = await handle.read(buffer, 0, buffer.length, 0)
     if (read.bytesRead > MAX_CREDENTIAL_BYTES) return undefined
@@ -470,7 +393,6 @@ async function readCredentialFile(file: string): Promise<unknown> {
   }
 }
 
-/** Reads and parses a JSON response body of at most `MAX_BODY_BYTES`; `undefined` when it is larger or invalid. */
 async function readBody(response: Response): Promise<{ readonly value: unknown } | undefined> {
   if (!response.body) return undefined
   const reader = response.body.getReader()

@@ -7,9 +7,6 @@ import semver from "semver"
 import { InstallationChannel, InstallationVersion } from "@tenon/core/installation/version"
 import { InstallationEvent } from "@tenon/schema/installation-event"
 
-// Tenon Workbench ships the runtime inside the desktop app, which owns updates.
-// This service keeps the upstream API shape but never checks or installs releases.
-
 export type Method = "curl" | "npm" | "yarn" | "pnpm" | "bun" | "brew" | "scoop" | "choco" | "unknown"
 
 export type ReleaseType = "patch" | "minor" | "major"

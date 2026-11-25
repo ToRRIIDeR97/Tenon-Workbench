@@ -19,11 +19,6 @@ class File extends Schema.Class<File>("InstructionContext.File")({
 
 const Files = Schema.Array(File)
 
-/**
- * Who the instructions are for. A delegate (a thread another thread started to do one step) reads `DELEGATE.md` in
- * place of each `AGENTS.md` that has one beside it, so lead-agent workflow rules don't make it onboard itself.
- * The session runner sets it per thread; everything else gets the lead's files.
- */
 export const Role = Context.Reference<"lead" | "delegate">("@tenon/InstructionContext/Role", {
   defaultValue: () => "lead",
 })
@@ -55,7 +50,6 @@ const layer = Layer.effectDiscard(
       const fromProject = relative(stop, start)
       const insideProject =
         fromProject === "" || (fromProject !== ".." && !fromProject.startsWith(`..${sep}`) && !isAbsolute(fromProject))
-      // In a Tenon workspace the project's AGENTS.md replaces the workspace one instead of stacking.
       const workspace = Flag.TENON_DISABLE_PROJECT_CONFIG
         ? undefined
         : yield* WorkspaceInstructions.resolve(start, global.data).pipe(Effect.provideService(FSUtil.Service, fs))
@@ -70,11 +64,8 @@ const layer = Layer.effectDiscard(
               })),
         fs.resolve,
       )
-      // `fs.resolve` follows symlinks: a project AGENTS.md must really live inside the project.
-      // WorkspaceInstructions applies the same check against the workspace or linked folder.
       const discovered = new Set(workspace ? found : found.filter((path) => FSUtil.contains(stop, path)))
       const agents = Array.dedupe([yield* fs.resolve(join(global.config, "AGENTS.md")), ...discovered])
-      // A delegate's DELEGATE.md must really sit beside the AGENTS.md it replaces, as that one must sit in the project.
       const paths =
         (yield* Role) === "lead"
           ? agents
@@ -90,7 +81,6 @@ const layer = Layer.effectDiscard(
         paths,
         (path) =>
           Effect.gen(function* () {
-            // An oversized file counts as unreadable rather than flooding every session's context.
             const stat = yield* fs.stat(path).pipe(Effect.orElseSucceed(() => undefined))
             if (stat && Number(stat.size) > readLimit) return undefined
             const content = yield* fs.readFileStringSafe(path)

@@ -329,10 +329,6 @@ export function createChildStoreManager(input: {
     if (childStore[0].status !== "loading") input.onMcp(directory, childStore[1])
   }
 
-  // Passive Home/project metadata reads must not initialize the directory.
-  // A real directory access enables these queries once for the store lifetime.
-  // TODO(v2): After Home switches to v2.project.list and root-filtered,
-  // updated-time v2.session.list, remove any Home-only passive child creation.
   function activate(key: DirectoryKey) {
     if (activeDirectories.has(key)) return
     activeDirectories.add(key)

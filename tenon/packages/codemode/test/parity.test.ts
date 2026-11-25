@@ -3,13 +3,6 @@ import { Effect } from "effect"
 import { CodeMode } from "../src/index.js"
 import { ToolRuntime } from "../src/tool-runtime.js"
 
-// Runs a CodeMode program with no host tools and returns the CodeMode.Result. These tests pin the
-// JS-parity behaviors for the "99% of ordinary defensive JavaScript just works" goal: cases where
-// a strict interpreter would throw but idiomatic JS yields undefined / succeeds.
-//
-// Note on the result boundary: this package normalizes a bare `undefined` result to `null` when
-// it crosses out of the sandbox (results are JSON data), so tests asserting an in-sandbox
-// `undefined` read check `=== undefined` inside the program and `null` at the boundary.
 const run = (code: string) => Effect.runPromise(CodeMode.execute({ code, tools: {} }))
 const value = async (code: string) => {
   const result = await run(code)
@@ -33,7 +26,6 @@ describe("H2: string property access reads as undefined (not a throw)", () => {
   })
 
   test("the real MCP pattern: result is a JSON string, defensive read falls through", async () => {
-    // me.result is a string; me.result?.login is undefined, so we fall back to the raw string.
     expect(await value(`const me = { result: '{"login":"x"}' }; return me.result?.login ?? me.result`)).toBe(
       '{"login":"x"}',
     )
@@ -110,7 +102,6 @@ describe("H1: NaN/Infinity flow as intermediates and normalize to null at the bo
     expect(await value(`return parseInt("abc") || 0`)).toBe(0)
     expect(await value(`const x = Number("abc"); return Number.isNaN(x) ? 0 : x`)).toBe(0)
     expect(await value(`const o = {}; o.count = (o.count || 0) + 1; return o.count`)).toBe(1)
-    // average of an empty list, guarded - the classic divide-by-zero that used to throw pre-guard
     expect(await value(`const a = []; return a.length ? a.reduce((s,x)=>s+x,0)/a.length : 0`)).toBe(0)
   })
 
@@ -118,7 +109,6 @@ describe("H1: NaN/Infinity flow as intermediates and normalize to null at the bo
     expect(await value(`return 5/0`)).toBeNull()
     expect(await value(`return 0/0`)).toBeNull()
     expect(await value(`return Math.max()`)).toBeNull()
-    // nested, too - normalization walks the returned structure
     expect(await value(`return { a: Number("x"), b: 2, c: [1/0] }`)).toEqual({ a: null, b: 2, c: [null] })
   })
 
@@ -127,12 +117,10 @@ describe("H1: NaN/Infinity flow as intermediates and normalize to null at the bo
     expect(await value(`return Infinity > 1e9`)).toBe(true)
     expect(await value(`return Number.isFinite(1/0)`)).toBe(false)
     expect(await value(`return [3,1,2].reduce((a,b)=>Math.max(a,b), -Infinity)`)).toBe(3)
-    // JSON.stringify inside the sandbox matches JS: non-finite serializes to null
     expect(await value(`return JSON.stringify({ x: Number("z") })`)).toBe('{"x":null}')
   })
 
   test("copyOut normalizes non-finite numbers to null (the shared return + tool-arg boundary)", () => {
-    // Tool-call arguments funnel through copyOut too, so this one function pins both boundaries.
     expect(ToolRuntime.copyOut(NaN)).toBeNull()
     expect(ToolRuntime.copyOut(Infinity)).toBeNull()
     expect(ToolRuntime.copyOut(-Infinity)).toBeNull()
@@ -185,8 +173,6 @@ describe("Error values and instanceof", () => {
   })
 
   test("caught failures carry the constructor name the real-JS failure would have", async () => {
-    // JSON.parse throws SyntaxError: name and specific-instanceof both carry through, and the
-    // message keeps the engine's position detail.
     expect(
       await value(`
       try { JSON.parse("{oops") } catch (e) {
@@ -342,9 +328,6 @@ describe("string methods: localeCompare, normalize, trim aliases", () => {
 })
 
 describe("compound assignment matches its binary operator", () => {
-  // `x op= y` must behave exactly like `x = x op y`, sharing the binary operator's coercion
-  // semantics (Dates string-coerce for `+` and use their time value for arithmetic; data
-  // objects/arrays coerce to their JS string form).
   const pair = async (compound: string, expanded: string) => {
     const [a, b] = await Promise.all([value(compound), value(expanded)])
     expect(a).toEqual(b)

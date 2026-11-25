@@ -9,10 +9,6 @@ import { z } from "zod/v4"
 import type { OpenAIResponsesInput, OpenAIResponsesReasoning } from "./openai-responses-api-types"
 import { localShellInputSchema, localShellOutputSchema } from "./tool/local-shell"
 
-/**
- * Check if a string is a file ID based on the given prefixes
- * Returns false if prefixes is undefined (disables file ID detection)
- */
 function isFileId(data: string, prefixes?: readonly string[]): boolean {
   if (!prefixes) return false
   return prefixes.some((prefix) => data.startsWith(prefix))
@@ -167,10 +163,8 @@ export async function convertToOpenAIResponsesInput({
               break
             }
 
-            // assistant tool result parts are from provider-executed tools:
             case "tool-result": {
               if (store) {
-                // use item references to refer to tool results from built-in tools
                 input.push({ type: "item_reference", id: part.toolCallId })
               } else {
                 warnings.push({
@@ -196,10 +190,8 @@ export async function convertToOpenAIResponsesInput({
 
                 if (store) {
                   if (reasoningMessage === undefined) {
-                    // use item references to refer to reasoning (single reference)
                     input.push({ type: "item_reference", id: reasoningId })
 
-                    // store unused reasoning message to mark id as used
                     reasoningMessages[reasoningId] = {
                       type: "reasoning",
                       id: reasoningId,

@@ -12,15 +12,9 @@ import { previewSummary } from "./project-preview-model"
 import { createProjectTasks, ProjectTaskRow } from "./project-tasks"
 import { ProjectStatusChip } from "./project-view"
 
-/**
- * The selected Project on the Projects page, in the detail card beside the list: name and outcome with its
- * actions and Start work, status and progress with Open project, a row with its next milestone, blocker, page and
- * thread counts, then its open tasks as the Project page's own task rows (they check off and edit the same way).
- */
 export function ProjectDetail(props: {
   project: ProjectRecord
   directory: string
-  /** This Project's timeline once loaded; another Project's while a reload is in flight is ignored. */
   timeline?: Timeline
   loading: boolean
   onSaveItems: (items: ReadonlyArray<TimelineItem>) => Promise<string>
@@ -37,8 +31,6 @@ export function ProjectDetail(props: {
   const summary = createMemo(() => previewSummary(props.project, items()))
   const counts = createMemo(() => timelineCounts(items()))
   const percent = () => counts().percent ?? props.project.progressPercent
-  // Like the Project page: the card's stored percent follows done of total tasks, so the list's bar agrees after
-  // a task is checked off here.
   createEffect(
     on(
       () => [props.loading || !props.timeline ? undefined : counts().percent, props.project.progressPercent] as const,
@@ -111,7 +103,6 @@ export function ProjectDetail(props: {
         />
       </div>
 
-      {/* The Project's context in one row over the tasks, so the task list keeps the card's full width. */}
       <div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
         <Show when={summary().next}>
           {(next) => (

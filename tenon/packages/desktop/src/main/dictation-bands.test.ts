@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { dictationBands } from "./dictation"
 
-// #328: the engine's frequency bands reach the renderer as plain numbers between 0 and 1.
 describe("AC-16 the engine's band events", () => {
   test("a bands event becomes its values, clamped", () => {
     expect(dictationBands({ type: "bands", values: [0, 0.5, 1.4, -0.2] })).toEqual([0, 0.5, 1, 0])

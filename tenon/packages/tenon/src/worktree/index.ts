@@ -112,10 +112,6 @@ function failedRemoves(...chunks: string[]) {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Effect service
-// ---------------------------------------------------------------------------
-
 export interface Interface {
   readonly makeWorktreeInfo: (options?: { name?: string; detached?: boolean }) => Effect.Effect<Info, Error>
   readonly createFromInfo: (info: Info, startCommand?: string) => Effect.Effect<void, Error>
@@ -393,7 +389,6 @@ const layer: Layer.Layer<
 
       const directory = yield* canonical(input.directory)
 
-      // Preserve the loaded path casing for the store cache; `directory` is lowercased on Windows.
       if (directory !== (yield* canonical(ctx.worktree))) yield* store.disposeDirectory(input.directory)
 
       const list = yield* git(["worktree", "list", "--porcelain"], { cwd: ctx.worktree })
@@ -413,7 +408,6 @@ const layer: Layer.Layer<
         return true
       }
 
-      // Git may return the original casing when a caller supplied a normalized Windows path.
       yield* store.disposeDirectory(entry.path)
       yield* stopFsmonitor(entry.path)
       const removed = yield* git(["worktree", "remove", "--force", entry.path], { cwd: ctx.worktree })

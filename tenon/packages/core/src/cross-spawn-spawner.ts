@@ -82,7 +82,6 @@ const flatten = (command: ChildProcess.Command) => {
   }
 }
 
-// Effect 4.1 lets command arguments and env values be `Redacted`.
 const unwrap = (value: string | Redacted.Redacted<string>): string =>
   Redacted.isRedacted(value) ? Redacted.value(value) : value
 
@@ -118,7 +117,6 @@ export const make = Effect.gen(function* () {
     return path.resolve(opts.cwd)
   })
 
-  // Children never receive the server credentials, even when they inherit the parent environment.
   const env = (opts: ChildProcess.CommandOptions) => {
     const own = opts.env === undefined ? undefined : Record.map(opts.env, (value) => value && unwrap(value))
     return ChildEnv.from(opts.extendEnv || !own ? { ...globalThis.process.env, ...own } : own)
@@ -302,8 +300,6 @@ export const make = Effect.gen(function* () {
       })
       proc.on("exit", (...args) => {
         exit = args
-        // A background child (`server &`) can hold the output pipes open long after this process
-        // exited. Wait briefly for the remaining output, then report the exit anyway.
         grace = setTimeout(() => finish(args), EXIT_GRACE_MS)
         grace.unref?.()
       })
@@ -417,7 +413,6 @@ export const make = Effect.gen(function* () {
               }
               const send = (s: NodeJS.Signals) =>
                 Effect.catch(killGroup(command, proc, s), () => killOne(command, proc, s)).pipe(
-                  // Killing a process that has already exited fails; there is nothing left to stop.
                   Effect.catch((error) =>
                     proc.exitCode !== null || proc.signalCode !== null ? Effect.void : Effect.fail(error),
                   ),

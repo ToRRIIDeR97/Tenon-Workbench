@@ -31,9 +31,6 @@ const request = LLM.request({
 describe("OpenAI Chat route", () => {
   it.effect("prepares OpenAI Chat payload", () =>
     Effect.gen(function* () {
-      // Pass the OpenAIChat payload type so `prepared.body` is statically
-      // typed to the route's native shape — the assertions below read field
-      // names without `unknown` casts.
       const prepared = yield* LLMClient.prepare<OpenAIChat.OpenAIChatBody>(request)
       const _typed: { readonly model: string; readonly stream: true } = prepared.body
 
@@ -656,9 +653,6 @@ describe("OpenAI Chat route", () => {
 
   it.effect("short-circuits the upstream stream when the consumer takes a prefix", () =>
     Effect.gen(function* () {
-      // The body has more chunks than we'll consume. If `Stream.take(1)` did
-      // not interrupt the upstream HTTP body the test would hang waiting for
-      // the rest of the stream to drain.
       const body = sseEvents(
         deltaChunk({ role: "assistant", content: "Hello" }),
         deltaChunk({ content: " world" }),

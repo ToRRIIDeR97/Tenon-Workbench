@@ -14,8 +14,6 @@ import { location } from "./fixture/location"
 import { testEffect } from "./lib/effect"
 import { executeTool, toolDefinitions, toolIdentity } from "./lib/tool"
 
-// AC-5.1: the in-process loop (the default OpenCode harness) gets the installed Tenon app tools.
-
 const sessionID = SessionV2.ID.make("ses_app_tools_inprocess")
 const assertions: PermissionV2.AssertInput[] = []
 const calls: unknown[] = []
@@ -88,7 +86,6 @@ const install = () => {
 const it = testEffect(Layer.empty)
 
 describe("AppToolsTool", () => {
-  // AC-7.6: Command Centre-only tools are registered only in the Command Centre's folder.
   it.live("registers each folder's own catalog", () => {
     const commandFolder = `${process.cwd()}/.command-centre`
     const memory: HarnessAppTools.Tool = {
@@ -148,13 +145,11 @@ describe("AppToolsTool", () => {
           ...toolIdentity,
           call: { type: "tool-call", id: "call-2", name: "notes_read", input: { path: "Plan.md" } },
         })
-        // Reads are not asked.
         expect(assertions).toHaveLength(1)
       }),
     )
   })
 
-  // A tool that runs a program (terminal_start) asks the thread's shell permission for that command instead.
   it.live("asks a tool's own permission on the field it names", () => {
     const terminal: HarnessAppTools.Tool = {
       name: "terminal_start",

@@ -1,4 +1,3 @@
-# Regenerate from the repository root: python3 docs/diagrams/generate/behavioral.py docs/diagrams
 import sys
 from svg import SVG, escape
 
@@ -65,7 +64,6 @@ def classes():
     klass(s, 280, 690, 230, "Task", ["id, title, dueDate?, scheduledDate?", "completedAt? (open if unset)", "projectId?, source, syncState"])
     klass(s, 540, 690, 230, "CalendarEvent", ["id, title, date, start?/end?", "projectId?, accountId? (Google)", "source: local | google, syncState"])
     klass(s, 800, 690, 240, "CalendarSnapshot", ["version 2, revision (ULID)", ".tenon/calendar-v1.json", "events ≤ 5000, tasks ≤ 5000"])
-    # agent runtime
     assoc(s, [(135, 179), (135, 240)], "1", "*", comp=True)
     assoc(s, [(250, 300), (280, 300)], "1", "*", comp=True)
     assoc(s, [(135, 351), (135, 470)], "1", "*", comp=True)
@@ -75,7 +73,6 @@ def classes():
     assoc(s, [(240, 351), (240, 445), (700, 445), (700, 470)], "*", "1", "bound via metadata")
     assoc(s, [(655, 84), (655, 74), (200, 74), (200, 84)], "*", "1", "saved per project", at=(560, 70))
     assoc(s, [(920, 84), (920, 64), (100, 64), (100, 84)], "1", "1", "resolves to", at=(700, 60))
-    # second brain
     assoc(s, [(920, 179), (920, 240)], "1", "*")
     assoc(s, [(920, 470), (920, 381)], "*", "*", "projectIds")
     assoc(s, [(1040, 130), (1052, 130), (1052, 530), (1040, 530)], "1", "*")
@@ -108,7 +105,6 @@ def activity_run():
     s.node(380, 716, 240, 44, "capture end snapshot", "publish step.ended")
     s.decision(cx, 792)
     s.final(cx, 860)
-    # side
     s.node(680, 203, 200, 34, "409 PromptConflictError", cls="sub")
     s.node(680, 301, 200, 34, "set pendingWake; return", cls="sub")
     s.node(60, 663, 220, 44, "ToolRegistry.settle", "PermissionV2.assert")
@@ -186,7 +182,6 @@ def activity_write():
     E([(cx, 708), (cx, 722)])
     E([(cx + 14, 736), (680, 736)], "[bytes changed]", at=(580, 730))
     err(736, "409 stale")
-    # create branch
     E([(cx - 14, 466), (150, 466), (150, 560)], "[create flag / no calendar file]", at=(270, 459))
     s.node(20, 560, 250, 44, "FileMutation.create (flag wx)", "validate + encode first")
     s.decision(150, 640)
@@ -194,7 +189,6 @@ def activity_write():
     E([(136, 640), (70, 640), (70, 690)], "[exists]", at=(100, 634))
     s.node(10, 690, 150, 30, "409 exists", cls="sub")
     E([(164, 640), (275, 640), (275, 790), (cx - 14, 790)], "[created]", at=(310, 784))
-    # merge + finish
     s.decision(cx, 790)
     E([(cx, 750), (cx, 776)], "[written]", at=(cx + 36, 768))
     E([(cx, 804), (cx, 822)])

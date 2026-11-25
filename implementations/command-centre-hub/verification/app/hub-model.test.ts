@@ -1,4 +1,3 @@
-// Run from tenon/packages/app: bun test --conditions=solid --preload ./happydom.ts ../../../Implementations/command-centre-hub/verification/app
 import { describe, expect, test } from "bun:test"
 import {
   hubCards,

@@ -17,17 +17,13 @@ export interface Lane {
   readonly steps: LaneStep[]
   readonly running: boolean
   readonly failed: boolean
-  /** The newest step still going, else the newest one, so the lane reads as "what it's doing now". */
   readonly current?: LaneStep
 }
 
 export const isSubagentPart = (part: Part): part is ToolPart => part.type === "tool" && stepOf(part).kind === "subagent"
 export const subagentRunning = (part: ToolPart) => part.state.status === "pending" || part.state.status === "running"
-// A running subagent with no new step for this long gets a "no activity" note: a harness that loses a subagent
-// (OpenCode can) never reports it finished, so the lane would otherwise look busy forever.
 export const QUIET_MS = 5 * 60_000
 
-/** How long a running lane has gone without a new step, once that passes QUIET_MS; else undefined. */
 export function laneQuiet(running: boolean, now: number, lastChange: number) {
   if (!running) return undefined
   const quiet = now - lastChange
@@ -36,14 +32,12 @@ export function laneQuiet(running: boolean, now: number, lastChange: number) {
 
 const stepGoing = (step: LaneStep) => step.status === "pending" || step.status === "in_progress"
 
-/** The child session a built-in `task` subagent runs in. */
 export function taskSessionID(part: ToolPart) {
   if (part.tool !== "task") return undefined
   const metadata = ("metadata" in part.state ? part.state.metadata : undefined) ?? {}
   return typeof metadata.sessionId === "string" && metadata.sessionId ? metadata.sessionId : undefined
 }
 
-/** One lane for a subagent call. Without ACP steps, `childSteps` can supply a `task` agent's own tool calls. */
 export function subagentLane(part: ToolPart, childSteps?: (part: ToolPart) => LaneStep[] | undefined): Lane {
   const acp = laneSteps(part.metadata?.acpSteps)
   const steps = acp.length > 0 ? acp : (childSteps?.(part) ?? [])
@@ -56,16 +50,10 @@ export function subagentLane(part: ToolPart, childSteps?: (part: ToolPart) => La
   }
 }
 
-/** Subagents started in the turn, with the steps an ACP harness reported for each one. */
 export function subagentLanes(parts: readonly Part[], childSteps?: (part: ToolPart) => LaneStep[] | undefined) {
   return parts.filter(isSubagentPart).map((part) => subagentLane(part, childSteps))
 }
 
-/**
- * `next`, or `previous` when it describes the same step. Every progress report from any subagent rebuilds every
- * lane's steps as new objects; keeping the old one for an unchanged step stops the other lanes from re-rendering
- * (and replaying their entry motion) when only one lane moved.
- */
 export function steadyStep(previous: LaneStep | undefined, next: LaneStep | undefined) {
   if (!next) return undefined
   if (previous && previous.tool === next.tool && previous.status === next.status && previous.title === next.title)
@@ -82,7 +70,6 @@ export function laneSteps(value: unknown): LaneStep[] {
   )
 }
 
-/** A child session's tool calls as lane steps, in ACP's status words. */
 export function childLaneSteps(parts: readonly Part[]): LaneStep[] {
   return parts.flatMap((part) => {
     if (part.type !== "tool") return []
@@ -97,7 +84,6 @@ export function childLaneSteps(parts: readonly Part[]): LaneStep[] {
   })
 }
 
-/** How long the subagent has run, or ran; undefined before it starts. */
 export function laneElapsed(part: ToolPart, now: number) {
   const state = part.state
   if (state.status === "pending") return undefined
@@ -105,7 +91,6 @@ export function laneElapsed(part: ToolPart, now: number) {
   return Math.max(0, (time.end ?? now) - time.start)
 }
 
-/** Tokens the subagent used, from the ACP report or the `task` child session; undefined when nothing reported. */
 export function laneTokens(part: ToolPart, child?: Pick<Session, "tokens">) {
   if (part.tool === "acp_subagent") {
     const usage = subagentDetail(part).usage
@@ -118,18 +103,11 @@ export function laneTokens(part: ToolPart, child?: Pick<Session, "tokens">) {
   return total > 0 ? total : undefined
 }
 
-/**
- * One subagent as a lane: its task as the name with the agent type as a tag, the step count and elapsed time, a
- * thin bar (indeterminate while it runs, full once it ends) and a line for what it's doing now or how it ended.
- * Shared by the turn card and the Agents tab.
- */
 export function SubagentLane(props: {
   lane: Lane
   now: number
-  /** Formatted duration, e.g. "1m 4s"; the caller owns the duration copy. */
   formatDuration: (ms: number | undefined) => string | undefined
   tokens?: number
-  /** The model and reasoning level, e.g. `sonnet · high` (`subagentModelLabel`). */
   model?: string
   onOpen?: () => void
   tabIndex?: number
@@ -141,7 +119,6 @@ export function SubagentLane(props: {
   const time = () => props.formatDuration(laneElapsed(props.lane.part, props.now))
   const status = () => (props.lane.failed ? "error" : props.lane.running ? "running" : "done")
   const error = () => (props.lane.part.state.status === "error" ? props.lane.part.state.error : undefined)
-  // This lane's step, as the same object until it really changes: the line below remounts only for its own lane.
   const current = createMemo<LaneStep | undefined>((previous) => steadyStep(previous, props.lane.current))
   const [lastChange, setLastChange] = createSignal(props.now)
   createEffect(
@@ -196,7 +173,6 @@ export function SubagentLane(props: {
       <div data-slot="turn-steps-lane-bar">
         <div data-slot="turn-steps-lane-fill" />
       </div>
-      {/* One fixed line: what the agent is doing now, then how it ended, so the lane keeps its height. */}
       <Show
         when={props.lane.running}
         fallback={

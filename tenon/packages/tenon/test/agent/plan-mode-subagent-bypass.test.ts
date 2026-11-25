@@ -22,10 +22,6 @@ function testAgent(input: {
   } satisfies Agent.Info
 }
 
-// `deriveSubagentSessionPermission` is imported from production. The test
-// exercises the actual helper that task.ts uses to build the subagent's
-// session permission, so any regression in that helper trips this test.
-
 it.instance("subagent permissions take precedence over parent agent restrictions", () =>
   Effect.gen(function* () {
     const planAgent = yield* Agent.use.get("plan")
@@ -33,9 +29,6 @@ it.instance("subagent permissions take precedence over parent agent restrictions
 
     expect(planAgent).toBeDefined()
     expect(generalAgent).toBeDefined()
-    // Sanity: the plan agent itself blocks edit. (Note: `write` and
-    // `apply_patch` route through the `edit` permission at the runtime
-    // tool layer — see Permission.disabled / EDIT_TOOLS.)
     expect(Permission.evaluate("edit", "/some/file.ts", planAgent!.permission).action).toBe("deny")
 
     const parentSessionPermission: PermissionV1.Ruleset = []
@@ -45,8 +38,6 @@ it.instance("subagent permissions take precedence over parent agent restrictions
       subagent: generalAgent!,
     })
 
-    // Mirror the runtime evaluation in session/prompt.ts (~line 410, 639):
-    //   ruleset: Permission.merge(agent.permission, session.permission ?? [])
     const effective = Permission.merge(generalAgent!.permission, subagentSessionPermission)
 
     expect(Permission.evaluate("edit", "/some/file.ts", effective).action).not.toBe("deny")

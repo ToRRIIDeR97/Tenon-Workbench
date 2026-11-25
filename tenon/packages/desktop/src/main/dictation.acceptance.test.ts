@@ -3,8 +3,6 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { createDictation, dictationPermissionHelp } from "./dictation"
 
-// P2 · Dictation (implementations/notes-command-centre/implementation.md)
-
 const engine = join(import.meta.dir, "fixtures", "fake-dictation-engine.mjs")
 const log = () => {}
 

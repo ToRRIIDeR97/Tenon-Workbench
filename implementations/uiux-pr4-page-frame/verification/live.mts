@@ -1,5 +1,3 @@
-// UI/UX PR4 verification: page title vs content left edges, and the Settings header's right edge.
-// Run from tenon/packages/app as e2e/.uiux-pr4.mts: node --experimental-strip-types e2e/.uiux-pr4.mts <outdir> <workspace>
 import { chromium } from "@playwright/test"
 
 const [OUT, WS] = [process.argv[2]!, process.argv[3]!]
@@ -18,7 +16,6 @@ if (await page.getByRole("button", { name: "Open folder" }).first().isVisible().
   await page.waitForTimeout(5000)
 }
 
-// V1: All projects: the h1 starts where the search field (first content) starts.
 await page.evaluate(() => history.pushState({}, "", "/projects/overview"))
 await page.evaluate(() => window.dispatchEvent(new PopStateEvent("popstate")))
 await page.waitForTimeout(3000)
@@ -27,12 +24,10 @@ const overview = await page.evaluate(() => {
   const search = document.querySelector('input[aria-label]')?.closest("label")?.getBoundingClientRect()
   return { title: title?.left, content: search?.left }
 })
-// The back button sits before the title; compare the header's own left edge instead when present.
 const header = await page.evaluate(() => document.querySelector("#project-overview-title")?.closest("header")?.getBoundingClientRect().left)
 check("V1 All projects header shares the content column", header !== undefined && overview.content !== undefined && Math.abs(header + 24 - overview.content) <= 1 || Math.abs((header ?? 0) + 40 - (overview.content ?? 0)) <= 1, { header, ...overview })
 await page.screenshot({ path: `${OUT}/v1-overview.png` })
 
-// V2: Settings: header actions end on the cards' right edge.
 await page.locator('button[aria-label="Settings"]').first().click()
 await page.waitForSelector("[role=tab]", { timeout: 30_000 })
 const servers = page.getByRole("tab", { name: "Servers", exact: true })

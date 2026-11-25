@@ -36,14 +36,6 @@ export const bind = <Args extends readonly unknown[], Result>(fn: (...args: Args
     )
 }
 
-/**
- * Bridge from Effect into a Promise-returning JS callback while preserving
- * `WorkspaceContext` AsyncLocalStorage for callback code that still reads it.
- * `InstanceRef` is captured for effects run through the returned bridge APIs;
- * plain JS callbacks that need it should receive the ref explicitly.
- *
- * Mirrors `Effect.promise` but restores workspace ALS first.
- */
 export const fromPromise = <T>(fn: () => Promise<T> | T): Effect.Effect<T> =>
   Effect.gen(function* () {
     const workspace = yield* WorkspaceRef

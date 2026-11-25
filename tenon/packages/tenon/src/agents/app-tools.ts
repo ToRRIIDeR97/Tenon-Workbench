@@ -37,43 +37,17 @@ import { MailTools } from "./mail-tools"
 import { Routines } from "./routines"
 import { AgentTerminalTools } from "./terminal-tools"
 
-/**
- * Tenon app tools for agents: notes in the vault, a Project's timeline and log, the workspace
- * calendar and tasks, and the thread list. They are served on the `tenon` MCP server
- * (`HarnessAppTools`), installed by `layer` at server start.
- *
- * Scope: a thread whose directory is a Project's thread directory is a Project thread. It reads
- * anything in its workspace but writes only its own Project's pages, timeline and log. Other threads
- * are workspace threads. Every write publishes `agent.write` (started, then done with an undo token)
- * on `GlobalBus`; `undo(token)` reverts it once, and only while nothing has changed it since.
- *
- * Command Centre threads (directory `<vault root>/.command-centre`) are not Project-scoped: they write
- * in any workspace (named by `workspace`, or found from `projectId`) and also get `memory_search`,
- * `project_setup`, the thread tools (`threads_overview`, `thread_read`, `thread_message`, `thread_stop`)
- * and, when the desktop provides the mail endpoint, the mail tools. Project and workspace threads never
- * get those. The thread tools reach only root threads of the workspace's Projects and its General group,
- * never another Command Centre thread or the caller's own; a message or a stop is logged
- * (`CommandActionLog`) for the Command Centre page. No tool answers a permission request or a question:
- * that stays with the user.
- *
- * Arguments and file content are data: nothing here interprets page text, and errors name the
- * reason without echoing content.
- */
-
 export type Result = { readonly isError: boolean; readonly value: unknown }
-// project, thread, steer and stop are the Command Centre's own actions: shown in the thread, with no undo.
 export type Kind = "note" | "tasks" | "calendar" | "timeline" | "email" | "project" | "thread" | "steer" | "stop"
 export type UndoResult = "undone" | "already_undone" | "stale" | "missing"
 
 const SEARCH_LIMIT = 50
 const PREVIEW_LIMIT = 4_000
 const THREAD_OVERVIEW_LIMIT = 200
-/** Threads listed per folder, and messages and characters `thread_read` returns. */
 const THREAD_FOLDER_LIMIT = 100
 const READ_MESSAGES = 40
 const READ_CHARS = 12_000
 const READ_MESSAGE_CHARS = 2_000
-/** The longest steering message `thread_message` sends; the Command Centre board's Steer has the same cap. */
 const STEER_LIMIT = 4_000
 const UNDO_LIMIT = 500
 const UNDO_TTL_MS = 24 * 60 * 60_000
@@ -302,7 +276,6 @@ const workspaceField = {
     "Absolute folder of the workspace to use. Optional when projectId names a Project, or when there is only one workspace.",
 }
 
-/** Command Centre threads pick a workspace per call. */
 const withWorkspace = (tool: HarnessAppTools.Tool): HarnessAppTools.Tool => ({
   ...tool,
   inputSchema: {
@@ -316,7 +289,6 @@ const threadIdField = {
   description: "A thread id (ses_…) from threads_overview.",
 }
 
-/** Tools only Command Centre threads get. */
 export const COMMAND_TOOLS: ReadonlyArray<HarnessAppTools.Tool> = [
   {
     name: "memory_search",
@@ -464,7 +436,6 @@ type Undo = { used: boolean; at: number; revert: Effect.Effect<void, unknown, Re
 const state: { context?: Context.Context<Requirements> } = {}
 const undos = new Map<string, Undo>()
 
-/** Threads known to run in the Command Centre's folder; filled from `session.created` and lookups. */
 const commandSessions = new Set<string>()
 GlobalBus.on("event", (event) => {
   const payload = event.payload as {
@@ -478,32 +449,20 @@ GlobalBus.on("event", (event) => {
   if (CommandMemory.isCommandDirectory(directory)) commandSessions.add(sessionID)
 })
 
-/** What every thread outside the Command Centre gets: the app tools and its own terminals. */
 const THREAD_TOOLS = [...TOOLS, ...AgentTerminalTools.TOOLS]
 
-/** Every tool any thread can get, for the in-process loop's registration. Calls still check `list`. */
 export const catalog = () => [
   ...TOOLS.map(withWorkspace),
   ...COMMAND_TOOLS,
   ...(MailTools.available() ? MailTools.TOOLS : []),
 ]
 
-/**
- * The in-process loop's tools for one folder: the Command Centre's folder gets the full catalog, every
- * other folder only the app tools (it can never run a Command Centre thread).
- */
 export const catalogFor = (directory: string) =>
   CommandMemory.isCommandDirectory(directory) ? catalog() : THREAD_TOOLS
 
-/**
- * The tools `sessionID` may use. Every thread gets the app tools; a Command Centre thread also gets
- * `memory_search`, `project_setup` and (with the desktop mail endpoint) the mail tools. Synchronous:
- * a thread the process hasn't seen yet counts as not a Command Centre thread until `known` looks it up.
- */
 export const list = (caller: { sessionID: string }): ReadonlyArray<HarnessAppTools.Tool> =>
   commandSessions.has(caller.sessionID) ? catalog() : THREAD_TOOLS
 
-/** Whether the thread runs in the Command Centre's folder, read from the session table. */
 const isCommandSession = (sessionID: string) =>
   Effect.gen(function* () {
     if (commandSessions.has(sessionID)) return true
@@ -515,7 +474,6 @@ const isCommandSession = (sessionID: string) =>
     return true
   })
 
-/** `list` after looking the thread up, for callers that can wait (the MCP endpoint and in-process loop). */
 const known = (caller: { sessionID: string }) =>
   Effect.suspend(() => {
     const context = state.context
@@ -527,17 +485,11 @@ const known = (caller: { sessionID: string }) =>
     )
   })
 
-/**
- * The folder Project `projectId`'s threads run in, as the caller's workspace sees it, for `delegate_to_project`'s and
- * `project_lead`'s `project_id`. Agents sometimes pass the Project's name, so an exact name (any case) that no other
- * Project shares also works. Undefined for an unknown or ambiguous Project, and for the Command Centre's own folder.
- */
 export const projectFolder = (caller: { sessionID: string }, projectId: string) =>
   Effect.suspend((): Effect.Effect<HarnessAppTools.ProjectFolder | undefined> => {
     const context = state.context
     if (!context) return Effect.succeed(undefined)
     return Effect.gen(function* () {
-      // A Command Centre thread sees every workspace; a name, which picks no workspace, is looked for in all of them.
       const workspaces = (yield* isCommandSession(caller.sessionID))
         ? yield* commandScope(caller.sessionID, { projectId }).pipe(
             Effect.map((scope) => [scope.workspace]),
@@ -560,7 +512,6 @@ export const projectFolder = (caller: { sessionID: string }, projectId: string) 
     )
   })
 
-/** Runs one app tool for the thread `sessionID`; failures are `{ isError: true, value: <message> }`. */
 export const call = (name: string, args: Record<string, unknown>, caller: HarnessAppTools.Caller) =>
   Effect.suspend((): Effect.Effect<Result> => {
     const context = state.context
@@ -577,7 +528,6 @@ export const call = (name: string, args: Record<string, unknown>, caller: Harnes
     )
   })
 
-/** Reverts the write `token` names, once, while what it wrote is still unchanged. */
 export const undo = (token: string) =>
   Effect.suspend((): Effect.Effect<UndoResult> => {
     const context = state.context
@@ -597,7 +547,6 @@ export const undo = (token: string) =>
     )
   })
 
-/** Installs the app tools on the `tenon` MCP server for the server's lifetime. */
 export const layer = Layer.effectDiscard(
   Effect.gen(function* () {
     const context = yield* Effect.context<Requirements>()
@@ -625,13 +574,9 @@ export const layer = Layer.effectDiscard(
   }),
 ).pipe(Layer.provide(locationServiceMapLayer))
 
-// ---- execution ----
-
 type Scope = {
   readonly session: Session.Info
-  /** The assistant message and tool call that made the write, when the harness knows them. */
   readonly origin?: { readonly messageID?: string; readonly callID?: string }
-  /** The workspace (Brain) directory whose vault and calendar the thread uses. */
   readonly workspace: string
   readonly project?: BrainProject.Info
   readonly command?: boolean
@@ -648,7 +593,6 @@ const execute = Effect.fnUntraced(function* (
     ...(caller.callID ? { callID: caller.callID } : {}),
   }
   const command = yield* isCommandSession(sessionID)
-  // The Command Centre reads untrusted mail, so it starts no programs: terminals belong to Project threads.
   if (AgentTerminalTools.isTerminalTool(name)) {
     if (command) return yield* new ToolError({ message: `${name} isn't available in the Command Centre.` })
     return yield* AgentTerminalTools.call(name, input, sessionID).pipe(
@@ -686,7 +630,6 @@ const execute = Effect.fnUntraced(function* (
   return yield* threadsList(scope, yield* parse(Args.threads_list))
 })
 
-/** A new Project in `workspace` (default: the calling thread's workspace), with its folder, git and docs. */
 const projectSetup = Effect.fnUntraced(function* (scope: Scope, args: typeof Args.project_setup.Type) {
   const workspace = args.workspace?.trim() || scope.workspace
   if (!path.isAbsolute(workspace) || !(yield* Effect.promise(() => isDirectory(workspace))))
@@ -715,10 +658,6 @@ const projectSetup = Effect.fnUntraced(function* (scope: Scope, args: typeof Arg
   return { projectId: result.project.id, name: result.project.name, folder: result.folder, files: result.files }
 })
 
-/**
- * A new root thread in one of the workspace's thread folders, on the caller's harness and model, given `prompt` as
- * its first message the way the thread's own composer would send it (not waited for: a turn can run for minutes).
- */
 const threadStart = Effect.fnUntraced(function* (scope: Scope, args: typeof Args.thread_start.Type) {
   const text = args.prompt.trim()
   if (!text) return yield* new ToolError({ message: "thread_start needs a prompt." })
@@ -750,8 +689,6 @@ const threadStart = Effect.fnUntraced(function* (scope: Scope, args: typeof Args
         }
       : {}),
     location: { directory: AbsolutePath.make(folder.directory) },
-    // The calling thread started this one (the Command Centre's threads show its mark) and handed it off: it isn't a
-    // delegated task, so it counts toward no delegation limit.
     origin: { sessionID: scope.session.id, commandCentre: scope.command === true, handOff: true },
   })
   const session = yield* sessions.get(SessionID.make(created.id))
@@ -775,7 +712,6 @@ const threadStart = Effect.fnUntraced(function* (scope: Scope, args: typeof Args
 })
 
 const notesSearch = Effect.fnUntraced(function* (scope: Scope, args: typeof Args.notes_search.Type) {
-  // Reading is workspace-wide: a Project thread may look at other Projects' pages.
   const pages = yield* inVault(scope, (vault) =>
     KnowledgeVault.listPages(vault, { project: args.projectId, search: args.query }),
   )
@@ -795,7 +731,6 @@ const notesRead = Effect.fnUntraced(function* (scope: Scope, args: typeof Args.n
 const notesWrite = Effect.fnUntraced(function* (scope: Scope, args: typeof Args.notes_write.Type) {
   const projectId = yield* writableProject(scope, "notes_write", args.projectId)
   if (!KnowledgeVault.isPagePath(args.path)) return yield* new ToolError({ message: "Invalid request: invalid_path" })
-  // A workspace thread reads repositories; it can't queue a routine for approval or pause an approved one.
   if (!projectId && !scope.command && Routines.isRoutinePath(args.path))
     return yield* new ToolError({ message: "notes_write can't change Routines/ outside the Command Centre." })
   const write = begin(scope, "note", targetName(scope), {
@@ -958,7 +893,6 @@ const tasksCreate = Effect.fnUntraced(function* (scope: Scope, args: typeof Args
       ...(scope.project ? { projectId: scope.project.id } : {}),
       createdAt: now,
       updatedAt: now,
-      // A Google task is queued like one made in the planner: a pending create the desktop outbox sends.
       ...(task.accountId
         ? {
             accountId: task.accountId,
@@ -973,7 +907,6 @@ const tasksCreate = Effect.fnUntraced(function* (scope: Scope, args: typeof Args
         : { source: "local" as const, syncState: "local" as const }),
     }
   })
-  // Tasks land in the planner, or in Google Tasks when every one names a Google account.
   const target = args.tasks.every((task) => task.accountId) ? "Google Tasks" : "Planner"
   const write = begin(scope, "tasks", target, {
     tasks: args.tasks.map((task) => ({ title: task.title, dueDate: task.dueDate })),
@@ -1000,8 +933,6 @@ const threadsList = Effect.fnUntraced(function* (scope: Scope, args: typeof Args
     threads: threads.map((thread) => ({ id: thread.id, title: thread.title, updatedAt: thread.time.updated })),
   }
 })
-
-// ---- Command Centre ----
 
 const decode = <S extends Schema.Decoder<unknown>>(name: string, schema: S, input: unknown) => {
   const decoded = Schema.decodeUnknownOption(schema)(input)
@@ -1050,7 +981,6 @@ const commandTool = Effect.fnUntraced(function* (
   const preview = { to: args.to, subject: args.subject, body: args.body }
   const write = begin({ session, origin }, "email", args.to, preview)
   const saved = yield* mail("/draft", args).pipe(write.guard)
-  // A saved draft has no undo here; the user deletes it in their mail client if unwanted.
   write.done(preview, undefined, {})
   return saved
 })
@@ -1060,10 +990,6 @@ const mail = (route: "/search" | "/thread" | "/draft", args: Record<string, unkn
     Effect.catchTag("MailTools.MailError", (error) => Effect.fail(new ToolError({ message: error.message }))),
   )
 
-/**
- * The workspace a Command Centre call works in: `workspace` when given, else the workspace holding
- * `projectId`, else the only workspace. Command Centre threads are never limited to one Project.
- */
 const commandScope = Effect.fnUntraced(function* (sessionID: string, input: Record<string, unknown>) {
   const sessions = yield* Session.Service
   const session = yield* sessions.get(SessionID.make(sessionID))
@@ -1091,10 +1017,6 @@ const commandScope = Effect.fnUntraced(function* (sessionID: string, input: Reco
   })
 })
 
-/**
- * Folders holding Project cards that this machine knows: Tenon projects, workspaces with a vault
- * folder, and the nearest workspace above recent threads' folders.
- */
 const workspaceCandidates = Effect.fnUntraced(function* () {
   const projects = yield* Project.Service
   const sessions = yield* Session.Service
@@ -1110,16 +1032,9 @@ const workspaceCandidates = Effect.fnUntraced(function* () {
   )
 })
 
-// ---- Command Centre thread tools ----
-
 type ThreadFolder = { readonly directory: string; readonly project?: BrainProject.Info }
 type ThreadTarget = { readonly session: Session.Info; readonly project?: BrainProject.Info }
 
-/**
- * The only folders the thread tools reach, which is the workspace boundary: each Project's thread folder
- * in the workspace, then the workspace itself (its General group). A thread outside them, in another
- * workspace or any Command Centre folder, is out of reach. A Project's folder wins when two name one folder.
- */
 const threadFolders = Effect.fnUntraced(function* (workspace: string) {
   const projects = yield* Project.Service
   const workspaces = asWorkspaces((yield* projects.list()).filter((project) => project.worktree !== "/"))
@@ -1143,11 +1058,6 @@ const threadFolders = Effect.fnUntraced(function* (workspace: string) {
   return folders.filter((folder) => !seen.has(key(folder.directory)) && seen.add(key(folder.directory)))
 })
 
-/**
- * Where each root thread stands. Waiting on the user means a permission request or question is pending
- * in the thread or one of its subagents; running means it, or a subagent, is working. Requests and runs
- * live per folder, so each folder is asked in its own context.
- */
 const threadStates = Effect.fnUntraced(function* (folders: ReadonlyArray<ThreadFolder>) {
   const sessions = yield* Session.Service
   const store = yield* InstanceStore.Service
@@ -1224,7 +1134,6 @@ const threadsOverview = Effect.fnUntraced(function* (scope: Scope, args: typeof 
   const stateOf = yield* threadStates(folders)
   return {
     workspace: scope.workspace,
-    // Every Project, threads or not: the only place a Command Centre thread finds the id `delegate_to_project` places by.
     projects: folders
       .flatMap((folder) => (folder.project ? [{ ...folder.project, folder: folder.directory }] : []))
       .filter((project, index, all) => all.findIndex((item) => item.id === project.id) === index)
@@ -1240,11 +1149,6 @@ const threadsOverview = Effect.fnUntraced(function* (scope: Scope, args: typeof 
   }
 })
 
-/**
- * The thread `threadId` names, once it passes the boundary: a root thread, not archived, in a folder of
- * this workspace's Projects or its General group, and neither another Command Centre thread nor the
- * caller's own. A refused thread is told nothing beyond the reason.
- */
 const projectThread = Effect.fnUntraced(function* (scope: Scope, tool: string, threadId: string) {
   if (threadId === scope.session.id)
     return yield* new ToolError({ message: `${tool} can't act on the Command Centre's own thread.` })
@@ -1270,7 +1174,6 @@ const threadRead = Effect.fnUntraced(function* (scope: Scope, args: typeof comma
   const messages = yield* modern
     .messages({ sessionID: target.session.id, limit, order: "desc" })
     .pipe(Effect.orElseSucceed((): SessionMessage.Message[] => []))
-  // A thread run by the built-in agent keeps its messages in the v1 tables.
   const items =
     messages.length > 0
       ? messages.toReversed().flatMap(messageItems)
@@ -1282,7 +1185,6 @@ const threadRead = Effect.fnUntraced(function* (scope: Scope, args: typeof comma
             .join("\n")
           return text.trim() ? [`${message.info.role.toUpperCase()}:\n${text}`] : []
         })
-  // The newest messages that fit, oldest first.
   const kept = items
     .map((item) => (item.length > READ_MESSAGE_CHARS ? `${item.slice(0, READ_MESSAGE_CHARS)}…` : item))
     .reduceRight(
@@ -1321,11 +1223,6 @@ const threadMessage = Effect.fnUntraced(function* (scope: Scope, args: typeof co
   return { sent: true, threadId: target.session.id, title: target.session.title }
 })
 
-/**
- * Sends `text` to the thread as a steering message, the way the thread's own page does: a harness thread
- * through the Session service, a built-in one through the prompt loop in the thread's folder (not waited
- * for: a turn can run for minutes).
- */
 const deliver = Effect.fnUntraced(function* (
   session: Session.Info,
   text: string,
@@ -1361,8 +1258,6 @@ const threadStop = Effect.fnUntraced(function* (scope: Scope, args: typeof comma
   const store = yield* InstanceStore.Service
   const prompts = yield* SessionPrompt.Service
   const modern = yield* SessionV2.Service
-  // The built-in loop is stopped in the thread's folder, a harness thread through the Session service.
-  // Each is a no-op for a thread the other one runs.
   yield* store.provide({ directory: target.session.directory }, prompts.cancel(target.session.id))
   yield* modern.interrupt(target.session.id)
   yield* logAction(scope, "stop", target)
@@ -1370,7 +1265,6 @@ const threadStop = Effect.fnUntraced(function* (scope: Scope, args: typeof comma
   return { stopped: true, threadId: target.session.id, title: target.session.title }
 })
 
-/** Records what the agent did for the Command Centre page. A log that can't be written never undoes the action. */
 const logAction = (scope: Scope, kind: "message" | "stop", target: ThreadTarget, text?: string) =>
   CommandActionLog.record({
     id: `act_${ulid()}`,
@@ -1387,14 +1281,6 @@ const logAction = (scope: Scope, kind: "message" | "stop", target: ThreadTarget,
     ),
   )
 
-// ---- writes: events and undo ----
-
-/**
- * Publishes `started` now; `done` registers the undo and publishes it. `guard` wraps the write so any
- * failure, defect or interruption before `done` publishes a failed `done` and never leaves the
- * preview open.
- */
-/** A write that is finished as soon as it starts, for actions with nothing to undo. */
 function announce(
   scope: Pick<Scope, "session" | "origin">,
   kind: Kind,
@@ -1454,7 +1340,6 @@ function remember(token: string, revert: Effect.Effect<void, unknown, Requiremen
   undos.set(token, { used: false, at: now, revert })
 }
 
-/** Read-modify-write of the workspace calendar, retried once when another save got there first. */
 const changeCalendar = (
   scope: Scope,
   change: (
@@ -1473,17 +1358,12 @@ const changeCalendar = (
   return attempt.pipe(Effect.catchTag("PlannerCalendarStore.ConflictError", () => attempt))
 }
 
-/** The events and tasks with `ids` as the save stored them, for undo to compare against. */
 function written(saved: PlannerCalendar.Snapshot, ids: ReadonlySet<string>) {
   return new Map(
     [...saved.events, ...saved.tasks].filter((item) => ids.has(item.id)).map((item) => [item.id, stable(item)]),
   )
 }
 
-/**
- * Undo of added events or tasks: removes them only while each is still exactly as written, like the
- * revision check for pages and timelines; an edit, a removal or a sync since then makes it stale.
- */
 const removeFromCalendar = (scope: Scope, items: ReadonlyMap<string, string>) =>
   changeCalendar(scope, (current) => {
     const present = [...current.events, ...current.tasks].filter((item) => items.has(item.id))
@@ -1494,7 +1374,6 @@ const removeFromCalendar = (scope: Scope, items: ReadonlyMap<string, string>) =>
     }
   })
 
-/** JSON with sorted keys and no undefined fields, so a re-read item compares equal to the saved one. */
 function stable(value: object) {
   return JSON.stringify(
     Object.fromEntries(
@@ -1505,9 +1384,6 @@ function stable(value: object) {
   )
 }
 
-// ---- scope ----
-
-/** The Project a write goes to, refused when a Project thread names another Project. */
 const writableProject = Effect.fnUntraced(function* (scope: Scope, tool: string, requested: string | undefined) {
   if (!scope.project) return requested
   if (requested !== undefined && requested !== scope.project.id)
@@ -1517,12 +1393,6 @@ const writableProject = Effect.fnUntraced(function* (scope: Scope, tool: string,
   return scope.project.id
 })
 
-/**
- * Which workspace and Project a thread belongs to. A Project thread runs in its Project's thread
- * directory, so the workspace is the folder whose Project cards name that directory: an ancestor of the
- * thread's folder, or a known workspace that links it from elsewhere. Only folders holding Project cards
- * (`.tenon/projects`) are opened.
- */
 const scopeOf = Effect.fnUntraced(function* (sessionID: string) {
   const sessions = yield* Session.Service
   const projects = yield* Project.Service
@@ -1533,8 +1403,6 @@ const scopeOf = Effect.fnUntraced(function* (sessionID: string) {
   const target = key(session.directory)
   const known = (yield* projects.list()).filter((project) => project.worktree !== "/")
   const ancestors = parents(canonicalDirectory(session.directory))
-  // Folders keep the spelling they arrived in (the vault keys a workspace by it); `key` only compares.
-  // Workspaces that aren't git repositories have no project record; the vault's machine map knows them.
   const opened = yield* KnowledgeVault.knownWorkspaces().pipe(
     Effect.provideService(Global.Service, Global.make()),
     Effect.orElseSucceed((): string[] => []),
@@ -1579,7 +1447,6 @@ const projectFor = Effect.fnUntraced(function* (
     Effect.gen(function* () {
       const cards = yield* BrainProject.list()
       const linked = yield* BrainProject.linkedFolders()
-      // Each card's folder is its own, so the checks can overlap; results keep the cards' order.
       return yield* Effect.forEach(
         cards,
         (card) =>
@@ -1593,9 +1460,6 @@ const projectFor = Effect.fnUntraced(function* (
   return found.find((item) => key(item.directory) === target)?.card
 })
 
-// ---- service plumbing ----
-
-/** Runs `effect` with the workspace's Location services, as the second-brain routes do. */
 const inDirectory = <A, E, R>(directory: string, effect: Effect.Effect<A, E, R>) =>
   Effect.gen(function* () {
     const locations = yield* LocationServiceMap.Service
@@ -1616,8 +1480,6 @@ const inVault = <A, E, R>(scope: Scope, run: (vault: KnowledgeVault.Vault) => Ef
       KnowledgeVault.open(KnowledgeVault.workspaceFor(context)).pipe(Effect.flatMap(run)),
     )
   })
-
-// ---- small helpers ----
 
 function errorText(error: unknown) {
   if (error instanceof ToolError) return error.message
@@ -1652,13 +1514,11 @@ function preview(text: string) {
   return text.length > PREVIEW_LIMIT ? `${text.slice(0, PREVIEW_LIMIT)}…` : text
 }
 
-/** One spelling per folder for comparisons; Windows paths compare without letter case. */
 function key(directory: string) {
   const value = canonicalDirectory(directory)
   return process.platform === "win32" ? value.toLowerCase() : value
 }
 
-/** Drops folders that name one already listed (same `key`), keeping the first spelling and the order. */
 export function distinctDirectories(directories: ReadonlyArray<string>) {
   const seen = new Map<string, string>()
   for (const directory of directories) {

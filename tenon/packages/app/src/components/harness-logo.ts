@@ -1,9 +1,6 @@
-// Which logo a harness shows (harness-icon.tsx), kept free of UI imports for tests.
-
 export type HarnessLogo =
   | { kind: "tenon" }
   | { kind: "provider"; id: string }
-  /** A harness whose maker has no provider icon: its own bundled mark (`assets/harness-logos`). */
   | { kind: "brand"; id: "antigravity" | "command-code" }
   | { kind: "letter"; letter: string }
 
@@ -19,7 +16,6 @@ const BRANDS: ReadonlyArray<[RegExp, "antigravity" | "command-code"]> = [
   [/command.?code/i, "command-code"],
 ]
 
-// A registered agent is known by what its name says it runs.
 const BY_NAME: ReadonlyArray<[RegExp, string]> = [
   [/claude/i, "anthropic"],
   [/codex|openai/i, "openai"],
@@ -27,10 +23,6 @@ const BY_NAME: ReadonlyArray<[RegExp, string]> = [
   [/opencode/i, "opencode"],
 ]
 
-/**
- * The built-in agent is Tenon's own loop, so it shows the Tenon mark; Codex, Claude Code and OpenCode show their
- * makers' logos; Antigravity and Command Code show their own marks. Any other agent shows its first letter.
- */
 export function harnessLogo(instance: { id: string; name: string }): HarnessLogo {
   const known = BY_ID[instance.id]
   if (known) return known

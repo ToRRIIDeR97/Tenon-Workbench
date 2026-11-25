@@ -1,8 +1,6 @@
 import { expect, test } from "@playwright/test"
 import { openApp, sidebar } from "./open-app"
 
-// P1 · S4 sidebar (implementations/notes-command-centre/implementation.md)
-
 const width = (page: import("@playwright/test").Page) =>
   sidebar(page).evaluate((element) => element.getBoundingClientRect().width)
 
@@ -20,11 +18,8 @@ test("AC-1.1 rail and panel share one outlined, neutral container", async ({ pag
   })
   expect(style.borderWidth).toBeGreaterThanOrEqual(1)
   expect(style.radius).toBeGreaterThan(0)
-  // The rail and the Projects panel are both inside the container.
   await expect(sidebar(page).locator("nav")).toHaveCount(1)
   await expect(sidebar(page).locator("aside")).toHaveCount(1)
-  // No accent tint: a color-mix with the accent container computes to `color(srgb …)`; neutral
-  // surfaces compute to plain rgb()/none.
   const backgrounds = await sidebar(page).evaluate((element) =>
     [element, ...element.querySelectorAll("aside, nav")].flatMap((node) => {
       const css = getComputedStyle(node)
@@ -48,7 +43,6 @@ test("AC-1.2 toggling animates the container between rail-only and rail plus pan
   expect(closing.property).toContain("width")
   expect(closing.duration).toContain("0.2s")
   expect(closing.easing).toContain("cubic-bezier(0.3, 0, 0.8, 0.15)")
-  // Rail-only: the left shell is the 64px rail strip.
   await expect.poll(() => width(page)).toBeLessThanOrEqual(72)
   expect(await width(page)).toBeGreaterThanOrEqual(60)
 
@@ -77,7 +71,6 @@ test("AC-1.4 rail destinations keep their order and Settings opens the dialog", 
   const ids = await sidebar(page)
     .locator("nav [data-sidebar-item]")
     .evaluateAll((items) => items.map((item) => item.getAttribute("data-sidebar-item")))
-  // AC-7.1 replaces Activity with Command Centre in PR4 (plan author update).
   expect(ids).toEqual(["overview", "projects", "calendar", "command", "settings"])
   await sidebar(page).locator('[data-sidebar-item="settings"]').click()
   await expect(page.locator('[data-component="dialog-v2"][data-variant="settings"]')).toBeVisible()

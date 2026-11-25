@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { GithubWork } from "@tenon/core/github/work"
 
-// #331: a Project's GitHub work, read through the user's own `gh` login.
 const issuesJson = JSON.stringify([
   {
     number: 84,

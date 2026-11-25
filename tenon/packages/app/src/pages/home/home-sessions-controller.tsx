@@ -68,7 +68,6 @@ export function createHomeSessionsController(home: HomeController) {
       enabled: !!ctx,
     }
   })
-  // Most session events leave this list as the same array; the memo stops them before the group and sort.
   const homeIndexSessions = createMemo(() => homeSessions().sessions(sessionLoad.data, sessionEventLoad.data))
   const indexedSessions = createMemo(() => retainHomeSessions(homeIndexSessions(), HOME_SESSION_LIMIT, Date.now()))
   const allRecords = createMemo(() =>

@@ -292,7 +292,6 @@ describe("SerializeAddon", () => {
       const line = term2.buffer.active.getLine(0)
       expect(line?.translateToString(true)).toBe("ALT")
 
-      // Ensure a cell beyond content isn't garbage
       const cellCode = line?.getCell(10)?.getCode()
       expect(cellCode === 0 || cellCode === 32).toBe(true)
     })

@@ -1,23 +1,13 @@
 import { createSignal, onCleanup, onMount, type Accessor } from "solid-js"
 
 export type SlidingIndicatorOptions = {
-  /** The positioned element the indicator is absolutely placed in. */
   container: () => HTMLElement | undefined
-  /** The element the indicator covers, found inside the container. */
   target: (container: HTMLElement) => HTMLElement | null | undefined
-  /** Prefix of the custom properties written on the container: `<prefix>-x`, `-y`, `-width`, `-height`. */
   property: string
-  /** Attributes whose change can move the selection. */
   attributes: string[]
-  /** Skips measuring for containers that keep a static highlight. */
   enabled?: (container: HTMLElement) => boolean
 }
 
-/**
- * One highlight that slides between the items of a group (tabs, segmented controls): the container measures
- * the selected item and writes its box as custom properties for CSS to place the indicator. Returns whether
- * the indicator is placed; until then, or while nothing is selected, the selected item draws its own fill.
- */
 export function createSlidingIndicator(options: SlidingIndicatorOptions): Accessor<boolean> {
   const [placed, setPlaced] = createSignal(false)
 
@@ -28,7 +18,6 @@ export function createSlidingIndicator(options: SlidingIndicatorOptions): Access
 
     const measure = () => {
       const target = options.target(element)
-      // Sum offsets up to the container: an item may sit in a positioned wrapper, such as a tooltip trigger.
       let x = 0
       let y = 0
       let node: HTMLElement | null = target ?? null

@@ -62,7 +62,6 @@ void window.api.updater.subscribe(setUpdaterState)
 
 const deepLinkEvent = "tenon:deep-link"
 
-// The desktop widget's window loads this renderer with `?surface=widget`.
 const surface = new URLSearchParams(location.search).get("surface") === "widget" ? "widget" : "app"
 
 type DesktopWindowState = {
@@ -89,7 +88,6 @@ function windowLastActiveUrlKey(windowID: string, prefix = "tenon") {
 function getLastActiveUrl(windowID: string) {
   if (typeof localStorage !== "object") return "/"
   try {
-    // Falls back to the key written before the rename.
     const value =
       localStorage.getItem(windowLastActiveUrlKey(windowID)) ??
       localStorage.getItem(windowLastActiveUrlKey(windowID, "opencode"))
@@ -226,7 +224,6 @@ const createPlatform = (windowState: DesktopWindowState): Platform => {
     browser: window.api.browser,
     device: window.api.device,
     async openPath(path: string, app?: string) {
-      // Main resolves the application name itself; never hand it a path.
       return window.api.openPath(path, app)
     },
     async revealPath(path: string) {
@@ -269,7 +266,6 @@ const createPlatform = (windowState: DesktopWindowState): Platform => {
     },
 
     restart: async () => {
-      // Before the server stops: staying with unsaved edits needs it to save them.
       if (!(await window.api.confirmQuit().catch(() => true))) return
       await window.api.killSidecar().catch(() => undefined)
       window.api.relaunch()
@@ -371,8 +367,6 @@ function DesktopRoot(props: { windowState: DesktopWindowState }) {
     return next satisfies Locale
   }
 
-  // Sidecar credentials resolve once the server passes its startup health check (or that wait times out);
-  // the window opens earlier and shows the splash until then.
   const [sidecar] = createResource(() => window.api.awaitInitialization())
 
   const [defaultServer] = createResource(() => platform.getDefaultServer?.())
@@ -385,7 +379,6 @@ function DesktopRoot(props: { windowState: DesktopWindowState }) {
   function Inner() {
     const cmd = useCommand()
     menuTrigger = (id) => cmd.trigger(id)
-    // The desktop widget's "Open in Tenon" asks a main window to show a route.
     const navigate = useNavigate()
     if (surface === "app") onCleanup(window.api.onNavigate((path) => navigate(path)))
 
@@ -395,7 +388,6 @@ function DesktopRoot(props: { windowState: DesktopWindowState }) {
       theme.themeId()
       theme.mode()
       const bg = getComputedStyle(document.documentElement).getPropertyValue("--background-base").trim()
-      // The widget's window stays transparent; only main windows take the theme's background.
       if (bg && surface === "app") {
         void window.api.setBackgroundColor(bg)
       }
@@ -440,7 +432,6 @@ function DesktopRoot(props: { windowState: DesktopWindowState }) {
               servers={servers()}
               router={router}
               surface={surface}
-              // The widget doesn't show first-launch onboarding, which is what resolves this.
               startup={surface === "widget" ? undefined : onboarding.promise}
               serverScoped={
                 <DesktopFirstLaunchOnboarding

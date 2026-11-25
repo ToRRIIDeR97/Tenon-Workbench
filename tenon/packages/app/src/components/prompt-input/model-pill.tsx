@@ -24,25 +24,10 @@ type Choice = { id: string; label: string }
 type Step = "summary" | "harness" | "model" | "effort" | "speed"
 type View = "model" | "effort"
 
-/**
- * One pill for what runs the prompt. Its panel is a drill-in stack: a summary row each for harness, model,
- * reasoning and speed (the last two only when the model offers them), and choosing a row slides to that choice's
- * full-width list, so long names never truncate. Picking returns to the summary; the back arrow, Left, Backspace
- * or Esc goes back without picking. The built-in loop picks its model from providers, so its model list offers that
- * picker; its reasoning is the model's variants.
- *
- * When the model offers reasoning levels the pill is two targets in one shape: the logo and model open the stack,
- * and the reasoning level opens just the reasoning list, where a pick applies and closes.
- */
 export function PromptModelPill(props: {
   harness: PromptInputHarnessController
   builtIn: boolean
-  /**
-   * The built-in loop's model name and the action that opens its provider model picker. Home has neither (it
-   * has no folder's providers loaded), so there the model is picked once the thread opens.
-   */
   builtInModel?: { name: string; choose: () => void }
-  /** The built-in loop's reasoning variants, "default" first. */
   builtInVariant?: {
     options: () => string[]
     current: () => string
@@ -78,7 +63,6 @@ export function PromptModelPill(props: {
       return options.length > 1 ? options.map((id) => ({ id, label: id === "default" ? defaultLabel() : id })) : []
     }
     const levels = view.model()?.reasoningEfforts ?? []
-    // Default names the level it stands for when the harness reports one, so the list and summary match the pill.
     const resolved = view.model()?.defaultReasoningEffort
     const fallback = resolved
       ? language.t("secondBrain.composer.modelPill.defaultResolved", { level: resolved })
@@ -102,9 +86,6 @@ export function PromptModelPill(props: {
       ? (props.builtInModel?.name ?? view.instance()?.name ?? "")
       : (view.model()?.name ?? view.instance()?.name ?? "")
 
-  // Always shown when the model offers levels. On default it is the level default resolves to when the harness
-  // reports one (Codex lists `defaultReasoningEffort`), else the word for default: ACP agents and the built-in
-  // loop's default variant don't say which level they use.
   const effortLabel = createMemo(() =>
     pillEffort({
       offered: efforts().length > 0,
@@ -114,7 +95,6 @@ export function PromptModelPill(props: {
     }),
   )
   const tierLabel = () => tiers().find((item) => item.id === tier() && item.id)?.label
-  // The model part: the model and its speed when that isn't the default. The reasoning part shows the level.
   const modelLabel = createMemo(() => modelPillLabel({ model: modelName(), tier: tierLabel() }))
   const label = createMemo(() => modelPillLabel({ model: modelName(), effort: effortLabel(), tier: tierLabel() }))
 
@@ -137,23 +117,18 @@ export function PromptModelPill(props: {
     ).filter((row): row is Exclude<typeof row, false> => !!row),
   )
 
-  // Focus follows the stack: into a list it lands on the current choice, back out on the row that opened it.
   const focusSoon = (selector: string) =>
     queueMicrotask(() => (panel?.querySelector<HTMLElement>(selector) ?? panel)?.focus({ preventScroll: true }))
   const go = (step: Exclude<Step, "summary">) => {
     setState({ step, motion: "forward", from: step, query: "" })
-    // A long model list opens on its search box; typing narrows it and the arrows move into the list.
     focusSoon(step === "model" && searchable() ? "[data-model-search]" : '[aria-checked="true"], [data-row]')
   }
   const back = () => {
-    // The reasoning list opened from its own part has no summary to return to.
     if (state.view === "effort") return close()
     const from = state.step
     setState({ step: "summary", motion: "back" })
     focusSoon(`[data-step="${from}"]`)
   }
-  // A harness that failed its check because its CLI is behind is updated from its row; the list is asked again
-  // once the upgrade lands, so it can be picked without reopening the app (#321).
   const updateChoice = (item: Harness.Instance) =>
     harnessUpdateChoice(item, props.harness.update?.status(item.id), props.harness.update?.running(item.id) ?? false)
   const harnessDetail = (item: Harness.Instance) => {
@@ -201,7 +176,6 @@ export function PromptModelPill(props: {
   }
 
   const onKeyDown = (event: KeyboardEvent) => {
-    // In the search box, Backspace and Left edit the text; Esc clears it before it goes back.
     const typing = event.target instanceof HTMLInputElement
     if (typing && ["Backspace", "ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return
     if (typing && event.key === "Escape" && state.query) {
@@ -240,10 +214,8 @@ export function PromptModelPill(props: {
     items[next]?.focus()
   }
 
-  // Which part of the pill opened the panel: the model part opens the summary stack, the reasoning part its list.
   const focusView = () => {
     if (state.view === "effort") return focusSoon('[aria-checked="true"], [data-row]')
-    // Focus goes to the panel itself, so no row shows a ring until the keyboard moves.
     queueMicrotask(() => panel?.focus({ preventScroll: true }))
   }
   const openPart = (view: View) => {
@@ -263,7 +235,6 @@ export function PromptModelPill(props: {
 
   return (
     <Popover open={state.open} onOpenChange={(open) => !open && close()} placement="top-start" gutter={6} modal={false}>
-      {/* One visual pill, two targets when the model offers reasoning levels; each part highlights on its own. */}
       <Popover.Anchor
         ref={anchor}
         data-component="prompt-model-pill"
@@ -285,7 +256,6 @@ export function PromptModelPill(props: {
             classList={{ "rounded-full pr-3": !reasoning(), "rounded-l-full pr-2": !!reasoning() }}
             onClick={() => openPart("model")}
           >
-            {/* The harness that runs the model, not the model's maker: DeepSeek on Codex shows Codex. */}
             <HarnessIcon instance={view.instance()} />
             <span class="min-w-0 truncate" title={modelName() !== label() ? label() || undefined : undefined}>
               {modelLabel() || language.t("harness.checking")}
@@ -328,7 +298,6 @@ export function PromptModelPill(props: {
         <Popover.Content
           data-component="popover-content"
           class="w-[clamp(300px,22vw,360px)] max-w-[calc(100vw-32px)] [&_[data-slot=popover-body]]:p-1.5"
-          // The pill's own parts open, switch and close the panel; a click on them is not a click outside.
           onInteractOutside={(event) => {
             if (event.target instanceof Node && anchor?.contains(event.target)) return event.preventDefault()
             pointerOutside = event.detail.originalEvent.type === "pointerdown"
@@ -337,7 +306,6 @@ export function PromptModelPill(props: {
             event.preventDefault()
             focusView()
           }}
-          // Focus returns to the part that opened the panel, unless the user clicked away.
           onCloseAutoFocus={(event: Event) => {
             event.preventDefault()
             if (!pointerOutside) (state.view === "effort" ? effortButton : modelButton)?.focus({ preventScroll: true })
@@ -411,7 +379,6 @@ export function PromptModelPill(props: {
                                       : pick(() => props.harness.select(Harness.InstanceID.make(item.id)))
                                   }
                                 />
-                                {/* A slow harness without a known update can be checked again from here. */}
                                 <Show when={item.slowStart && slowUpdate(item) === undefined}>
                                   <Choice
                                     label={language.t("harness.checkAgain", { name: item.name })}
@@ -419,7 +386,6 @@ export function PromptModelPill(props: {
                                     onSelect={() => props.harness.revalidate?.()}
                                   />
                                 </Show>
-                                {/* A slow start is often an outdated CLI: the update sits right under it. */}
                                 <Show when={slowUpdate(item)}>
                                   {(latest) => (
                                     <Choice
@@ -547,12 +513,10 @@ export function PromptModelPill(props: {
   )
 }
 
-// Rows show a ring only for keyboard focus; a pointer opening the panel never draws one.
 const ROW_CLASS =
   "flex w-full min-w-0 items-center gap-2.5 rounded-[12px] px-2.5 py-1.5 text-left transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover active:bg-v2-overlay-simple-overlay-pressed outline-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus disabled:text-v2-text-text-disabled disabled:hover:bg-transparent disabled:active:bg-transparent motion-reduce:transition-none"
 
 export function Choice(props: {
-  /** A leading logo or icon, such as a harness's. */
   icon?: JSX.Element
   label: string
   detail?: string

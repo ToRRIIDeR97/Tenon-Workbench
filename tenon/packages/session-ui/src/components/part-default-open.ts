@@ -19,8 +19,6 @@ function deletionOnly(part: ToolPart) {
 
 export function partDefaultOpen(part: PartType, shell = false, edit = false) {
   if (part.type !== "tool") return
-  // By step kind, so Codex and ACP commands and edits (`command_execution`, `acp_execute`, `acp_edit`, …) follow the
-  // settings too. Searches, reads and every other tool start closed.
   const kind = stepOf(part).kind
   if (kind === "run") return shell
   if (kind === "edit") {

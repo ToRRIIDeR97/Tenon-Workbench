@@ -6,7 +6,6 @@ import { Filesystem } from "@/util/filesystem"
 import { isRecord } from "@/util/record"
 import { Npm } from "@tenon/core/npm"
 
-// Old npm package names for plugins that are now built-in
 export const DEPRECATED_PLUGIN_PACKAGES = ["opencode-openai-codex-auth", "opencode-copilot-auth"]
 
 export function isDeprecatedPlugin(spec: string) {
@@ -223,8 +222,6 @@ export function readPluginId(id: unknown, spec: string) {
   return value
 }
 
-// Tenon has no terminal UI: a v1 module that only exports tui() has nothing to load. A module that
-// exports both loads its server() part and its tui() part is ignored.
 export function isTuiOnlyPlugin(mod: Record<string, unknown>) {
   const value = mod.default
   return isRecord(value) && "tui" in value && !("server" in value)

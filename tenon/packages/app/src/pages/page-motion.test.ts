@@ -34,7 +34,6 @@ describe("page motion key", () => {
     expect(routeSection("/new-session")).toBe("thread")
     expect(routeSection("/L3Byb2plY3Q/session")).toBe("thread")
     expect(routeSection("/L3Byb2plY3Q/session/ses_1")).toBe("thread")
-    // A deep link through a legacy session path reaches the thread view without a fade.
     const home = { section: "/", count: 0 }
     const legacy = nextPageMotionKey(home, "/L3Byb2plY3Q/session/ses_1")
     expect(nextPageMotionKey(legacy, "/server/abc/session/ses_1")).toBe(legacy)

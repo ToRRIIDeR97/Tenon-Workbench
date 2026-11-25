@@ -2,8 +2,6 @@ import { afterEach, describe, expect, test } from "bun:test"
 import path from "node:path"
 import { AgentAppTools } from "../../src/agents/app-tools"
 
-// AC-7.6 / AC-8.4: the in-process loop registers Command Centre-only tools only in the Command Centre's folder.
-
 const root = path.resolve("vault-root-for-catalog-test")
 const names = (directory: string) => AgentAppTools.catalogFor(directory).map((tool) => tool.name)
 
@@ -20,7 +18,6 @@ describe("AgentAppTools.catalogFor", () => {
     process.env.TENON_MAIL_TOKEN = "t"
     const project = names(path.resolve("some-workspace", "projects", "Acme"))
     expect(project).toContain("notes_write")
-    // Any thread can make a new Project and start a thread in it.
     expect(project).toContain("project_setup")
     expect(project).toContain("thread_start")
     for (const name of [
@@ -51,7 +48,6 @@ describe("AgentAppTools.catalogFor", () => {
 })
 
 describe("AgentAppTools names", () => {
-  // The threat model relies on this: nothing an agent can call approves, allows or answers a request.
   test("no tool answers a permission request or a question", () => {
     process.env.TENON_MAIL_URL = "http://127.0.0.1:9/mail"
     process.env.TENON_MAIL_TOKEN = "t"

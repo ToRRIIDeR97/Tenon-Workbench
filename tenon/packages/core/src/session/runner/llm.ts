@@ -61,57 +61,6 @@ const harnessRequestModel = (session: SessionSchema.Info) =>
     route: OpenAIChat.route,
   })
 
-/**
- * Runs one durable coding-agent Session until it settles.
- *
- * Keep this as orchestration over smaller collaborators rather than rebuilding the legacy
- * `SessionPrompt` monolith. Implement the unchecked items in small reviewed slices:
- *
- * - Session ownership and controls
- *   - [x] Coordinate one local active drain per Session; explicit resumes join and prompt wakeups coalesce.
- *   - [ ] Replace local ownership with durable multi-node ownership when clustered.
- *   - [ ] Mark busy, retrying, idle, interrupted, or terminal-failure status durably.
- *   - [ ] Honor interruption and reject stale work after runtime attachment replacement.
- *   - [x] Honor agent step limits, defaulting to DEFAULT_MAX_STEPS.
- *   - [x] Bound provider retries and repeated identical tool calls.
- *
- * - Runtime context assembly
- *   - Track V1 runtime-context parity canonically in `specs/v2/session.md`.
- *
- * - One provider turn
- *   - [x] Translate every projected V2 Session message variant into canonical
- *     `@tenon/llm` messages.
- *   - [ ] Resolve policy-filtered built-in, MCP, plugin, and structured-output tool definitions.
- *   - [x] Stream exactly one `llm.stream(request)` provider turn.
- *   - [x] Persist assistant text and usage events incrementally as they arrive.
- *   - [ ] Persist snapshots, patches, and retry notices incrementally as they arrive.
- *   - [x] Persist reasoning, provider errors, and tool-call events incrementally as they arrive.
- *
- * - Tool settlement and continuation
- *   - [x] Durably record each tool call before side effects begin.
- *   - [x] Authorize and execute recorded local calls through a core-owned registry hook.
- *   - [x] Persist typed success, failure, and provider-executed tool outcomes.
- *   - [x] Start each recorded local call eagerly and await all settlements before continuation.
- *   - [ ] Add scoped runtime context, progress updates, attachment normalization,
- *     plugins, and cancellation settlement.
- *   - [x] Reload projected history and start the next explicit provider turn after local tool results.
- *   - [x] Continue for durable user steering accepted during an active provider turn.
- *   - [ ] Continue for compaction or another continuation condition when required.
- *
- * - Post-run maintenance
- *   - [ ] Settle final status and expose durable output events to replayable consumers.
- *   - [ ] Coalesce streamed deltas and add covering projected-history indexes.
- *   - [x] Update the title in bounded background work.
- *   - [ ] Update summaries, compaction state, and cleanup in bounded background work.
- *
- * Use `llm.stream(request)` for each provider turn. Keep tool execution and continuation here.
- * Durable continuation recovery remains a separate future slice with an explicit retry policy.
- *
- * The current slice loads V2 history, translates it, resolves a model through a core service, and persists one
- * provider turn. Registry definitions are advertised, local tool calls are settled durably, and an
- * explicit loop starts the next provider turn after local settlement. Configured agent step limits bound the loop.
- */
-
 const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -165,8 +114,6 @@ const layer = Layer.effect(
       }
     })
 
-    // Title model for the in-process agent: the title agent's model, then the small model of the provider
-    // behind the session's own model (host sessions only) or else the catalog default, then that model itself.
     const titleModel = Effect.fn("SessionRunner.titleModel")(function* (
       session: SessionSchema.Info,
       agent: AgentV2.Info,
@@ -186,7 +133,6 @@ const layer = Layer.effect(
 
     const generateTitle = Effect.fn("SessionRunner.generateTitle")(function* (sessionID: SessionSchema.ID) {
       const session = yield* getSession(sessionID)
-      // Cheap checks first, so named and child sessions don't reload their history every run.
       if (session.parentID || !SessionTitle.isDefault(session.title)) return
       const users = (yield* getContext(sessionID)).filter(
         (message): message is SessionMessage.User => message.type === "user",
@@ -200,7 +146,6 @@ const layer = Layer.effect(
       if (!agent) return
       const system = agent.system ? [SystemPart.make(agent.system)] : []
       const messages = [Message.user(SessionTitle.prompt(users[0]))]
-      // The thread's own agent titles it, unless settings name a harness that is still known.
       const preferred = yield* harnesses.titleAgent()
       const instanceID = preferred && harnesses.driver(preferred) ? preferred : session.harnessInstanceID
       const text =
@@ -212,16 +157,13 @@ const layer = Layer.effect(
                 Stream.filter(LLMEvent.is.textDelta),
                 Stream.map((event) => event.text),
                 Stream.mkString,
-                // A stalled title call must not hold a fiber for the life of the runner.
                 Effect.timeout(TITLE_TIMEOUT),
               )
             })
-          : // An external agent starts a fresh process and session for the title, so it gets longer.
-            yield* harnesses
+          : yield* harnesses
               .complete({
                 instanceID,
                 request: LLM.request({ model: harnessRequestModel(session), system, messages, tools: [] }),
-                // The model only: a title doesn't need the thread's reasoning effort or service tier.
                 model:
                   instanceID === session.harnessInstanceID && session.harnessModel
                     ? { id: session.harnessModel.id }
@@ -230,7 +172,6 @@ const layer = Layer.effect(
               .pipe(Effect.timeout(HARNESS_TITLE_TIMEOUT))
       const title = SessionTitle.clean(text)
       if (!title) return
-      // Re-read so a rename made while the title was generating wins, and the snapshot is current.
       const row = yield* db.select().from(SessionTable).where(eq(SessionTable.id, sessionID)).get().pipe(Effect.orDie)
       if (!row || !SessionTitle.isDefault(row.title)) return
       yield* events.publish(SessionV1.Event.Updated, { sessionID, info: SessionTitle.renamed(row, title) })
@@ -239,7 +180,6 @@ const layer = Layer.effect(
     const awaitToolFibers = (fibers: FiberSet.FiberSet<void, ToolOutputStore.Error>) =>
       Effect.raceFirst(FiberSet.join(fibers), FiberSet.awaitEmpty(fibers))
 
-    // Match V1: declining a user prompt halts the loop instead of becoming model-facing tool output.
     const isUserDeclined = (cause: Cause.Cause<unknown>) =>
       cause.reasons.some(
         (reason) =>
@@ -248,9 +188,7 @@ const layer = Layer.effect(
       )
 
     type TurnTransition =
-      // Automatic compaction completed; rebuild the request from compacted history.
       | { readonly _tag: "ContinueAfterCompaction"; readonly step: number }
-      // Overflow compaction completed; rebuild once through the path without overflow recovery.
       | { readonly _tag: "ContinueAfterOverflowCompaction"; readonly step: number }
 
     class TurnTransitionError extends Error {
@@ -263,8 +201,6 @@ const layer = Layer.effect(
     const continueAfterOverflowCompaction = (step: number) =>
       new TurnTransitionError({ _tag: "ContinueAfterOverflowCompaction", step })
 
-    // A thread another one started for a step (a delegate or subagent) gets DELEGATE.md in place of AGENTS.md; a
-    // Project lead and a thread handed off to the user keep the lead's files.
     const loadSystemContext = (agent: AgentV2.Selection, session: SessionSchema.Info) =>
       Effect.all([systemContext.load(), skillGuidance.load(agent), referenceGuidance.load()], {
         concurrency: "unbounded",
@@ -278,7 +214,6 @@ const layer = Layer.effect(
         ),
       )
 
-    // Each running drain's title starter, so a turn can start the title as soon as it promotes the first message.
     const titleOnPromotion = new Map<SessionSchema.ID, Effect.Effect<void>>()
 
     const runTurnAttempt = Effect.fn("SessionRunner.runTurn")(function* (
@@ -302,11 +237,9 @@ const layer = Layer.effect(
         if (promotion === "queue") {
           promoted += Number(yield* SessionInput.promoteNextQueued(db, events, session.id))
           promoted += yield* SessionInput.promoteSteers(db, events, session.id, cutoff)
-          // The queued input was withdrawn after the runner saw it pending; there is nothing to answer.
           if (promoted === 0) return { needsContinuation: false, step: currentStep }
         }
         if (promoted > 0) currentStep = 1
-        // The first message is in the transcript now, so the title can start beside the turn.
         const title = promoted > 0 ? titleOnPromotion.get(session.id) : undefined
         if (title) yield* title
       }
@@ -316,8 +249,6 @@ const layer = Layer.effect(
       const usesHostModel = driver === Harness.OpenCodeDriver
       const model = usesHostModel
         ? yield* models.resolve(session).pipe(
-            // Resolution fails before the provider publisher exists; record a failed step so the
-            // Session shows the error instead of waiting for a reply that never starts.
             Effect.tapError((error) =>
               createLLMEventPublisher(events, {
                 sessionID: session.id,
@@ -370,7 +301,6 @@ const layer = Layer.effect(
       const publish = (event: LLMEvent, outputPaths: ReadonlyArray<string> = []) =>
         withPublication(publisher.publish(event, outputPaths))
       let overflowFailure: ProviderErrorEvent | undefined
-      // Suspended so each retry attempt opens a fresh provider stream.
       const providerStream = Stream.suspend(() =>
         harnesses.stream({
           instanceID: session.harnessInstanceID,
@@ -399,8 +329,6 @@ const layer = Layer.effect(
               }
             }
             yield* publish(event)
-            // A harness plan arrives as a todowrite call the agent ran itself (OpenCode's is `acp_other` titled
-            // todowrite); save it so the thread's task list shows it.
             if (event.type === "tool-call" && event.providerExecuted) {
               const todos = SessionTodo.planFromToolCall(event.name, event.input)
               if (todos) yield* todo.update({ sessionID: session.id, todos })
@@ -419,7 +347,6 @@ const layer = Layer.effect(
                 .slice(-(DOOM_LOOP_THRESHOLD - 1))
                 .every((call) => call.name === event.name && call.input === input)
             recentCalls.push({ name: event.name, input })
-            // Like V1, ask before running the same call a third time in a row; a denial becomes the tool result.
             const guard = repeated
               ? permissions
                   .assert({
@@ -478,13 +405,10 @@ const layer = Layer.effect(
         ),
         Effect.ensuring(withPublication(publisher.flush())),
       )
-      // Retry a failed provider call only while nothing was published for it, so a retry never
-      // duplicates assistant output. Harness drivers own their own transport and are not retried here.
       const runProvider = (attempt: number): typeof providerStream =>
         providerStream.pipe(
           Effect.catch((error) =>
             Effect.gen(function* () {
-              // An empty step that already finished cannot be replayed: the publisher records one step finish.
               const delay =
                 usesHostModel &&
                 !publisher.hasAssistantStarted() &&
@@ -527,7 +451,6 @@ const layer = Layer.effect(
             yield* withPublication(publisher.failUnsettledTools("Provider did not return a tool result", true))
             yield* withPublication(publisher.failAssistant(llmFailure.reason.message))
           }
-          // Defects and non-provider failures must still close the step, or the Session shows a reply that never ends.
           if (
             stream._tag === "Failure" &&
             !llmFailure &&
@@ -638,7 +561,6 @@ const layer = Layer.effect(
       let promotion: SessionInput.Delivery | undefined = hasSteer ? "steer" : hasQueue ? "queue" : undefined
       let shouldRun = input.force || hasSteer || hasQueue
       let titleStarted = false
-      // Runs beside the turn in the runner's scope; a failure only leaves the default title.
       const startTitle = Effect.suspend(() => {
         if (titleStarted) return Effect.void
         titleStarted = true
@@ -653,15 +575,12 @@ const layer = Layer.effect(
           Effect.asVoid,
         )
       })
-      // The title starts as soon as a turn promotes the first message (runTurnAttempt), beside the turn.
       titleOnPromotion.set(input.sessionID, startTitle)
       yield* Effect.gen(function* () {
         while (shouldRun) {
           let needsContinuation = true
           let step = 1
           while (needsContinuation) {
-            // Also once the turn ends however it ends, for a drain whose first message was promoted earlier:
-            // only the first user message is eligible, so a missed title would stay the default.
             const result = yield* runTurn(input.sessionID, promotion, step).pipe(Effect.ensuring(startTitle))
             needsContinuation = result.needsContinuation
             step = result.step + 1
@@ -680,10 +599,6 @@ const layer = Layer.effect(
       )
     })
 
-    // `/compact` for a thread whose harness has no `/compact` command. Codex compacts on its own side. The built-in
-    // agent and any other harness compact on Tenon's: the older history becomes a summary (the other harnesses write
-    // it as a one-off prompt, on the cold-cache model when one is given), and a harness thread's next turn opens a
-    // fresh native session that gets the summary as its handoff (projector and HarnessRuntime close the old one).
     const compact = Effect.fn("SessionRunner.compact")(
       function* (input: { readonly sessionID: SessionSchema.ID; readonly model?: Harness.ModelSelection }) {
         const session = yield* getSession(input.sessionID)
@@ -753,8 +668,6 @@ const layer = Layer.effect(
           sessionID: session.id,
           entries,
           reason: "manual",
-          // A cold-cache model the harness answers with nothing (Command Code's one-off Haiku did) falls back to the
-          // thread's own model, so the compaction still happens.
           summarize: (prompt) =>
             summarizeOn(prompt, input.model ?? session.harnessModel).pipe(
               Effect.flatMap((summary) =>
@@ -777,7 +690,6 @@ const layer = Layer.effect(
 
 const isCompact = (command: { readonly name: string }) => command.name.replace(/^\//, "") === "compact"
 
-/** Local tool calls after the latest user message, oldest first, for the repeated-call guard. */
 const localToolCallsSinceLastUser = (context: ReadonlyArray<SessionMessage.Message>) =>
   context
     .slice(context.findLastIndex((message) => message.type === "user") + 1)
@@ -798,11 +710,8 @@ const HARNESS_TITLE_TIMEOUT = "90 seconds"
 const PROVIDER_RETRY_LIMIT = 5
 const PROVIDER_RETRY_BASE_MS = 2_000
 const PROVIDER_RETRY_MAX_BACKOFF_MS = 30_000
-// A provider asking for a longer pause fails the turn instead of holding the Session busy; retry notices
-// are not surfaced in the UI yet, so keep each wait (and the five-attempt total) short.
 const PROVIDER_RETRY_MAX_WAIT_MS = 60_000
 
-/** Milliseconds to wait before retrying a failed provider call, or undefined when it must not be retried. */
 const providerRetryDelay = (error: unknown, attempt: number) => {
   if (!(error instanceof LLMError) || !error.retryable || attempt >= PROVIDER_RETRY_LIMIT) return undefined
   const backoff =

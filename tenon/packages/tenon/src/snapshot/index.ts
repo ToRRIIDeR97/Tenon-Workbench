@@ -101,7 +101,6 @@ const layer: Layer.Layer<Service, never, FSUtil.Service | AppProcess.Service | C
 
         const ignore = Effect.fnUntraced(function* (files: string[]) {
           if (!files.length) return new Set<string>()
-          // check-ignore treats a leading colon as pathspec magic but accepts and echoes a protective ./ prefix.
           const checkIgnorePaths = files.map((item) => (item.startsWith(":") ? `./${item}` : item))
           const check = yield* git(
             [
@@ -192,9 +191,6 @@ const layer: Layer.Layer<Service, never, FSUtil.Service | AppProcess.Service | C
           yield* fs.writeFileString(target, text ? `${text}\n` : "").pipe(Effect.orDie)
         })
 
-        // Reuse the hashes for the git storage between the original repo and snapshot
-        // on huge repos like chromium checkout the git add --all rebuilding the
-        // hashes can take minutes. By doing this we eliminating this at all
         const seed = Effect.fnUntraced(function* () {
           if (state.vcs !== "git") return
 
@@ -206,8 +202,6 @@ const layer: Layer.Layer<Service, never, FSUtil.Service | AppProcess.Service | C
           const source = commonDir.text.trim()
           if (!source || !(yield* exists(source))) return
 
-          // Share the source object database (and the source's own alternates,
-          // skipping any that no longer exist) so seeded blobs resolve.
           const sourceObjects = path.join(source, "objects")
           const chained = (yield* read(path.join(sourceObjects, "info", "alternates")))
             .split("\n")
@@ -224,8 +218,6 @@ const layer: Layer.Layer<Service, never, FSUtil.Service | AppProcess.Service | C
             .writeFileString(path.join(state.gitdir, "objects", "info", "alternates"), alternates.join("\n") + "\n")
             .pipe(Effect.orDie)
 
-          // Seed the index from the source repo so already-hashed entries are reused.
-          // Best-effort: a missing/incompatible index just falls back to a full add.
           const sourceIndex = path.join(source, "index")
           if (yield* exists(sourceIndex)) {
             yield* fs.copyFile(sourceIndex, path.join(state.gitdir, "index")).pipe(Effect.catch(() => Effect.void))
@@ -260,11 +252,8 @@ const layer: Layer.Layer<Service, never, FSUtil.Service | AppProcess.Service | C
           const all = Array.from(new Set([...tracked, ...untracked]))
           if (!all.length) return
 
-          // Resolve source-repo ignore rules against the exact candidate set.
-          // --no-index keeps this pattern-based even when a path is already tracked.
           const ignored = yield* ignore(all)
 
-          // Remove newly-ignored files from snapshot index to prevent re-adding
           if (ignored.size > 0) {
             const ignoredFiles = Array.from(ignored)
             yield* Effect.logInfo("removing gitignored files from snapshot", { count: ignoredFiles.length })
@@ -293,7 +282,6 @@ const layer: Layer.Layer<Service, never, FSUtil.Service | AppProcess.Service | C
           )
           const block = new Set(untracked.filter((item) => large.has(item)))
           yield* sync(Array.from(block))
-          // Stage only the allowed candidate paths so snapshot updates stay scoped.
           yield* stage(allow.filter((item) => !block.has(item)))
         })
 
@@ -329,7 +317,6 @@ const layer: Layer.Layer<Service, never, FSUtil.Service | AppProcess.Service | C
                 yield* git(["--git-dir", state.gitdir, "config", "core.longpaths", "true"])
                 yield* git(["--git-dir", state.gitdir, "config", "core.symlinks", "true"])
                 yield* git(["--git-dir", state.gitdir, "config", "core.fsmonitor", "false"])
-                // Tuning for very large worktrees so the first add stays bounded.
                 yield* git(["--git-dir", state.gitdir, "config", "feature.manyFiles", "true"])
                 yield* git(["--git-dir", state.gitdir, "config", "index.version", "4"])
                 yield* git(["--git-dir", state.gitdir, "config", "index.threads", "true"])
@@ -366,7 +353,6 @@ const layer: Layer.Layer<Service, never, FSUtil.Service | AppProcess.Service | C
                 .map((x) => x.trim())
                 .filter(Boolean)
 
-              // Hide ignored-file removals from the user-facing patch output.
               const ignored = yield* ignore(files)
 
               return {
@@ -448,7 +434,6 @@ const layer: Layer.Layer<Service, never, FSUtil.Service | AppProcess.Service | C
                 const first = ops[i]!
                 const run = [first]
                 let j = i + 1
-                // Only batch adjacent files when their paths cannot affect each other.
                 while (j < ops.length && run.length < 100) {
                   const next = ops[j]!
                   if (next.hash !== first.hash) break
@@ -724,7 +709,6 @@ const layer: Layer.Layer<Service, never, FSUtil.Service | AppProcess.Service | C
                   ]
                 })
 
-              // Hide ignored-file removals from the user-facing diff output.
               const ignored = yield* ignore(rows.map((r) => r.file))
               if (ignored.size > 0) {
                 const filtered = rows.filter((r) => !ignored.has(r.file))

@@ -19,14 +19,12 @@
     align-items: center;
     overflow-x: auto;
 
-    /* Hide scrollbar */
     scrollbar-width: none;
     -ms-overflow-style: none;
     &::-webkit-scrollbar {
       display: none;
     }
 
-    /* After element to fill remaining space */
     &::after {
       content: "";
       display: block;
@@ -49,12 +47,11 @@
     gap: 12px;
     color: var(--text-base);
 
-    /* text-14-medium */
     font-family: var(--font-family-sans);
     font-size: 14px;
     font-style: normal;
     font-weight: var(--font-weight-medium);
-    line-height: var(--line-height-large); /* 142.857% */
+    line-height: var(--line-height-large);
     letter-spacing: var(--letter-spacing-normal);
 
     white-space: nowrap;
@@ -123,7 +120,6 @@
     overflow-y: auto;
     flex: 1;
 
-    /* Hide scrollbar */
     scrollbar-width: none;
     -ms-overflow-style: none;
     &::-webkit-scrollbar {
@@ -239,10 +235,6 @@
         background-color: var(--surface-base-hover);
       }
 
-      /*
-        File tabs: use monochrome icon by default.
-        Full-color icon is shown on hover/selected.
-      */
       [data-slot="tabs-trigger"] {
         .tab-fileicon-color,
         .tab-fileicon-mono {
@@ -343,12 +335,11 @@
       border-bottom-color: transparent;
       gap: 4px;
 
-      /* text-14-regular */
       font-family: var(--font-family-sans);
       font-size: var(--font-size-base);
       font-style: normal;
       font-weight: var(--font-weight-regular);
-      line-height: var(--line-height-x-large); /* 171.429% */
+      line-height: var(--line-height-x-large);
       letter-spacing: var(--letter-spacing-normal);
 
       [data-slot="tabs-trigger"] {
@@ -388,9 +379,6 @@
         }
       }
     }
-
-    /* [data-slot="tabs-content"] { */
-    /* } */
   }
 
   &[data-variant="pill"][data-orientation="horizontal"] {
@@ -414,7 +402,6 @@
       background-color: transparent;
       gap: 0;
 
-      /* text-13-medium */
       font-family: var(--font-family-sans);
       font-size: var(--font-size-small);
       font-style: normal;
@@ -598,7 +585,6 @@
         border: none;
         border-radius: var(--radius-md);
 
-        /* text-14-medium */
         font-family: var(--font-family-sans);
         font-size: var(--font-size-base);
         font-weight: var(--font-weight-medium);
@@ -767,7 +753,6 @@ body[data-new-layout] #review-panel [data-component="tabs"][data-variant="normal
     }
   }
 
-  /* Preview/temporary tabs: beat trigger + .text-14-medium upright defaults */
   [data-slot="tabs-trigger"] .italic {
     font-style: italic !important;
     font-variation-settings: "slnt" -10 !important;
@@ -888,7 +873,6 @@ body[data-new-layout] #review-panel [data-component="tabs"] .session-review-v2-o
   flex-shrink: 0;
 }
 
-/* The variant rules above are more specific, so the reduced-motion override needs !important. */
 @media (prefers-reduced-motion: reduce) {
   [data-component="tabs"] [data-slot="tabs-trigger-wrapper"],
   [data-component="tabs"] [data-slot="tabs-trigger-wrapper"]::after {
@@ -896,7 +880,6 @@ body[data-new-layout] #review-panel [data-component="tabs"] .session-review-v2-o
   }
 }
 
-/* Keyboard focus rings the whole tab, inset because the tab list clips. Never on pointer focus. */
 [data-component="tabs"] [data-slot="tabs-trigger-wrapper"]:has([data-slot="tabs-trigger"]:focus-visible) {
   outline: 2px solid var(--v2-border-border-focus);
   outline-offset: -2px;

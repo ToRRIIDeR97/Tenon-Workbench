@@ -9,11 +9,6 @@ const count = (value: unknown) => (typeof value === "number" ? value : undefined
 const record = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {}
 
-/**
- * The file changes an edit step made, one per file, for the steps card to draw as diffs. Built-in edits carry
- * `metadata.filediff`, patches `metadata.files`, and a harness edit its old and new text; a write is a new file.
- * Counts the harness didn't report are taken from the diff itself.
- */
 export function editDiffs(part: ToolPart): ViewDiff[] {
   if (stepOf(part).kind !== "edit" || part.state.status !== "completed") return []
   const metadata = record(part.state.metadata)

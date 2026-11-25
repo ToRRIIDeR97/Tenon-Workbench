@@ -34,8 +34,6 @@ const providerMetadata = (value: unknown): ProviderMetadata | undefined => {
   return Object.keys(result).length === 0 ? undefined : result
 }
 
-// Stored AI SDK parts historically kept provider-owned continuation metadata in
-// `providerOptions`; native parts now use `providerMetadata` directly.
 const partProviderMetadata = (part: Record<string, unknown>) =>
   providerMetadata(part.providerMetadata) ?? providerMetadata(part.providerOptions)
 
@@ -172,8 +170,6 @@ export const model = (input: Provider.Model | RequestInput, headers?: Record<str
 
 export const request = (input: RequestInput) => {
   const converted = messages(input.messages)
-  // This is the only native adapter boundary that should construct canonical
-  // @tenon/llm request objects from Tenon's session/AI SDK-shaped data.
   return LLM.request({
     model: model(input, input.headers),
     system: [...(input.system ?? []).map(SystemPart.make), ...converted.system],

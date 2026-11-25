@@ -35,7 +35,6 @@ describe("HttpApi request body limit", () => {
   })
 
   test("rejects a body whose declared length exceeds the limit", async () => {
-    // A cross-origin client must see the 413, not a CORS failure.
     const response = await post(logBody("x".repeat(MAX_BODY_BYTES)), { origin: "http://localhost:3000" })
     await response.body?.cancel()
     expect(response.status).toBe(413)
@@ -50,7 +49,6 @@ describe("HttpApi request body limit", () => {
         controller.enqueue(new TextEncoder().encode('{"service":"s","level":"debug","message":"'))
       },
       pull(controller) {
-        // A valid JSON body, so only the size limit can reject it.
         if (sent.count++ <= MAX_BODY_BYTES / chunk.length) return controller.enqueue(chunk)
         controller.enqueue(new TextEncoder().encode('"}'))
         controller.close()

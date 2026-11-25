@@ -217,7 +217,6 @@ export const { use: useLanguage, provider: LanguageProvider } = createSimpleCont
     const direction = createMemo(() => layout.direction ?? localeDirection(locale()))
     const layoutLocale = createMemo(() => {
       if (!layout.direction) return intl()
-      // Kobalte derives menu direction from locale rather than accepting a direction override.
       return layout.direction === "rtl" ? "ar" : "en"
     })
 

@@ -6,7 +6,6 @@ import { ulid } from "ulid"
 const projectPattern = /^project_[0-9A-Z]+$/i
 const datePattern = /^\d{4}-\d{2}-\d{2}$/
 
-/** A YYYY-MM-DD string naming a day that exists (no 2024-02-31 or month 13). */
 export function realDate(value: string) {
   if (!datePattern.test(value)) return false
   const [year, month, day] = value.split("-").map(Number)
@@ -14,7 +13,6 @@ export function realDate(value: string) {
   return date.getUTCFullYear() === year && date.getUTCMonth() === month! - 1 && date.getUTCDate() === day
 }
 
-// Only writes are held to real dates: a stored document that already has one must stay readable.
 function requireRealDates(events: ReadonlyArray<Event>, tasks: ReadonlyArray<Task>) {
   for (const event of events) {
     if (!realDate(event.date)) throw new InvalidError({ reason: "invalid_date" })
@@ -42,7 +40,6 @@ export const Event = Schema.Struct({
   end: Schema.optional(Schema.String),
   details: Schema.optional(Schema.String),
   projectId: Schema.optional(Schema.String),
-  /** The Google account the provider item belongs to; absent on local items and pre-multi-account saves. */
   accountId: Schema.optional(Schema.String),
   providerId: Schema.optional(Schema.String),
   calendarId: Schema.optional(Schema.String),
@@ -111,7 +108,6 @@ export function decode(source: string | undefined): Snapshot {
   }
   if (!parsed || typeof parsed !== "object") throw new InvalidError({ reason: "invalid_document" })
   const input = parsed as { version?: unknown; revision?: unknown; events?: unknown; tasks?: unknown }
-  // A calendar from a newer build must not be read as v1 (or moved aside as damaged).
   if (typeof input.version === "number" && input.version > 2) throw new InvalidError({ reason: "unsupported_version" })
   const events = Array.isArray(input.events)
     ? input.events.map((event) => migrateEvent(event, input.version === 2))

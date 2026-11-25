@@ -118,7 +118,6 @@ describe("Home session parent links", () => {
     })
     const index = queryClient.getQueryData<HomeSessionIndex>(cache.indexKey)!
 
-    // A subagent working, an archived thread Home never listed, a deleted unknown thread.
     cache.apply(event("session.updated", legacy("child", "root"), 0).event)
     cache.apply(event("session.updated", legacy("old", undefined, 5), 0).event)
     cache.apply(event("session.deleted", legacy("gone"), 0).event)
@@ -150,7 +149,6 @@ describe("Home session parent links", () => {
     expect(now()).toBe(5_000)
     cache.touch("root", 10)
     expect(now()).toBe(5_000)
-    // A thread Home doesn't list (a subagent) is left alone.
     cache.touch("child", 9_000)
     expect(now()).toBe(5_000)
   })
@@ -163,7 +161,6 @@ describe("Home session parent links", () => {
     queryClient.setQueryData<HomeSessionIndex>(cache.indexKey, { sessions: [], eventSequence: 0, parents: {} })
     cache.apply(event("session.updated", legacy("unknown", undefined, 5), 0).event)
 
-    // A refetch, as after a reconnect: the cached index is not stale by itself.
     const fetching = queryClient.fetchQuery({ ...options, staleTime: 0 })
     const added = legacy("added")
     cache.apply(event("session.created", added, 0).event)

@@ -41,30 +41,18 @@ import {
 import { HarnessSyncSkills } from "./harness-sync-skills"
 import "./settings-v2.css"
 
-/**
- * Settings → Skills: on desktop, the skills synced between harnesses and computers first; then Tenon's skills,
- * which can be switched off, then each harness's skills, read-only.
- */
 export const SettingsSkillsV2: Component<{ directory: Accessor<string | undefined> }> = (props) => {
   const language = useLanguage()
   const platform = usePlatform()
   const serverSdk = useServerSDK()
   const serverSync = useServerSync()
   const layout = useLayout()
-  // Project skill folders depend on the location; outside a project, fall back like the Harnesses page.
   const directory = createMemo(
-    () =>
-      props.directory() ||
-      // The open workspace, never the raw selection: a removed workspace's folder may be gone (404).
-      layout.home.workspace() ||
-      serverSync().data.path.home ||
-      undefined,
+    () => props.directory() || layout.home.workspace() || serverSync().data.path.home || undefined,
   )
   const server = () => ({ server: serverSdk().server.http, fetch: platform.fetch })
   const [catalog, { refetch }] = createResource(directory, (dir) => listSkillCatalog(server(), dir).then(skillSections))
-  // One switch at a time per skill, so a slow save can't be overtaken by a second click.
   const [busy, setBusy] = createSignal<ReadonlySet<string>>(new Set())
-  // Saved switches apply on top of the loaded catalog, so rows (and keyboard focus) stay in place.
   const [saved, setSaved] = createSignal<Readonly<Record<string, boolean>>>({})
   const [filter, setFilter] = createStore({ query: "", section: "all" })
   const shown = createMemo(() => filterSections(catalog.latest ?? [], filter.query, filter.section))
@@ -84,7 +72,6 @@ export const SettingsSkillsV2: Component<{ directory: Accessor<string | undefine
     void setSkillEnabled(server(), dir, name, enabled, harness)
       .then((result) => {
         setSaved((current) => ({ ...current, [key]: result.enabled }))
-        // A renamed SKILL.md moves its path, and a shared file changes other harnesses' rows too.
         if (harness) void refetch()
       })
       .catch((error: unknown) =>
@@ -254,14 +241,10 @@ const SkillSectionView: Component<{
 
 const SkillRow: Component<{
   skill: CatalogSkill
-  /** Set when the row has a switch. */
   enabled: boolean | undefined
-  /** A harness's skill: switching renames its SKILL.md. */
   harness: boolean
-  /** Other harnesses that read this same SKILL.md. */
   shared: string[]
   openable: boolean
-  /** Other sections that list the same skill. */
   alsoIn: string[]
   busy: boolean
   onToggle: (enabled: boolean) => void
@@ -269,7 +252,6 @@ const SkillRow: Component<{
   const language = useLanguage()
   const platform = usePlatform()
   const server = useServer()
-  // Opening a path only makes sense when the server's files are on this machine.
   const canOpen = () => platform.platform === "desktop" && !!platform.openPath && server.isLocal()
 
   const failed = (error: unknown) =>
@@ -304,8 +286,6 @@ const SkillRow: Component<{
             {props.skill.description}
           </span>
         </Show>
-        {/* What the switch changes for a harness (#323): its SKILL.md is renamed, and a shared file changes the
-            other harnesses that read it too. */}
         <Show when={props.harness && props.enabled === false}>
           <span data-slot="settings-v2-row-description">{language.t("secondBrain.skills.harnessOff")}</span>
         </Show>
@@ -328,7 +308,6 @@ const SkillRow: Component<{
           )}
         </Show>
       </div>
-      {/* A harness skill Tenon can't switch says why, per row (#323). */}
       <Show when={props.harness && props.enabled === undefined}>
         <span class="shrink-0 rounded-full bg-v2-background-bg-layer-02 px-2 text-[11px] leading-5 text-v2-text-text-muted">
           {language.t(
@@ -402,7 +381,6 @@ function FilterChip(props: { label: string; count: number; selected: boolean; on
   )
 }
 
-// The v2 icon set has no lock glyph; this matches its 16px outline style.
 function LockIcon() {
   return (
     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">

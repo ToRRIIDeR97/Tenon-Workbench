@@ -1,13 +1,7 @@
-// How an attachment reaches a model that can or can't read it (#330). A model with the input gets the file itself.
-// A video for a model that only sees images becomes frame grids: frames taken evenly across the clip, tiled with a
-// timestamp on each. Audio a model can't hear, and legacy Office files, become a short stand-in that names the file;
-// office, OpenDocument, RTF and EPUB files are sent as their text, extracted here so no large file crosses the wire.
-
 export type ModelInputs = { image: boolean; video: boolean; audio: boolean; pdf: boolean }
 export type MediaPlan = "file" | "frames" | "standIn" | "text"
 export type DocumentKind = "docx" | "pptx" | "xlsx" | "odt" | "odp" | "ods" | "epub"
 
-/** What an unknown model (an external harness's) is assumed to read: images and PDF, as before. */
 export const DEFAULT_INPUTS: ModelInputs = { image: true, video: false, audio: false, pdf: true }
 
 const DOCUMENTS: Record<string, DocumentKind> = {
@@ -32,7 +26,6 @@ export function mediaPlan(mime: string, inputs: ModelInputs): MediaPlan {
   return "file"
 }
 
-/** The frame times (seconds) per grid and the grid's columns, by length, so a long video doesn't fill the context. */
 export function frameTimes(duration: number) {
   const { grids, perGrid, columns } =
     duration <= 15
@@ -50,7 +43,6 @@ export function frameTimes(duration: number) {
   }
 }
 
-/** The readable text of an office, OpenDocument or EPUB file (all ZIP archives of XML). */
 export async function documentText(bytes: Uint8Array, kind: DocumentKind) {
   const entries = readZip(bytes)
   const read = (name: string) => (entries.has(name) ? inflate(bytes, entries.get(name)!) : Promise.resolve(""))
@@ -73,14 +65,12 @@ export async function documentText(bytes: Uint8Array, kind: DocumentKind) {
   return paragraphs(await read("content.xml"), "text:p", undefined)
 }
 
-/** How many slides a PowerPoint or OpenDocument deck has, from its archive's entries. */
 export function slideCount(bytes: Uint8Array) {
   const names = [...readZip(bytes).keys()]
   const pptx = names.filter((name) => /^ppt\/slides\/slide\d+\.xml$/.test(name)).length
   return pptx || undefined
 }
 
-/** Plain text from RTF: groups like the font table and control words dropped, `\par` as a line break. */
 export function rtfText(rtf: string) {
   return rtf
     .replace(/\{\\(?:fonttbl|colortbl|stylesheet|info|\*)[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g, "")
@@ -97,7 +87,6 @@ export function rtfText(rtf: string) {
 
 type ZipEntry = { offset: number; compressed: number; method: number }
 
-// The central directory at the end of the archive lists every entry with its local header offset.
 function readZip(bytes: Uint8Array) {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
   const entries = new Map<string, ZipEntry>()
@@ -142,7 +131,6 @@ const entities = (text: string) =>
 
 const escapeTag = (tag: string) => tag.replace(":", "\\:")
 
-/** The text of each `paragraph` element, from its `run` elements (or all its text when `run` is undefined). */
 function paragraphs(xml: string, paragraph: string, run: string | undefined) {
   const pattern = new RegExp(`<${escapeTag(paragraph)}[\\s>][\\s\\S]*?</${escapeTag(paragraph)}>`, "g")
   return (xml.match(pattern) ?? [])

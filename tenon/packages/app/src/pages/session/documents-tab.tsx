@@ -10,10 +10,6 @@ import { useSessionLayout } from "@/pages/session/session-layout"
 import { PinnedArtifacts } from "@/features/artifacts/artifacts-view"
 import { useArtifacts } from "@/features/artifacts/artifacts"
 
-/**
- * The Documents section: what this thread's agent wrote or linked, each opening rendered in the Files viewer (or,
- * outside the thread's folder, the read-only viewer) through the same path as a file link in the thread.
- */
 export function SessionDocumentsTab() {
   const language = useLanguage()
   const sync = useSync()

@@ -13,9 +13,6 @@ import { effectCmd } from "../effect-cmd"
 
 type AgentMode = "all" | "primary" | "subagent"
 
-// Permission keys (not raw tool names). Multiple tools can map to a single
-// permission — e.g. write/edit/apply_patch all gate on `edit` — so we configure
-// agents at the permission level to match how the runtime actually enforces it.
 const AVAILABLE_PERMISSIONS = [
   "bash",
   "read",
@@ -83,7 +80,6 @@ const AgentCreateCommand = effectCmd({
 
       const project = ctx.project
 
-      // Determine scope/path
       let targetPath: string
       if (cliPath) {
         targetPath = path.join(cliPath, "agents")
@@ -111,7 +107,6 @@ const AgentCreateCommand = effectCmd({
         targetPath = path.join(scope === "global" ? Global.Path.config : path.join(ctx.worktree, ".tenon"), "agents")
       }
 
-      // Get description
       let description: string
       if (cliDescription) {
         description = cliDescription
@@ -125,7 +120,6 @@ const AgentCreateCommand = effectCmd({
         description = query
       }
 
-      // Generate agent
       const spinner = prompts.spinner()
       spinner.start("Generating agent configuration...")
       const model = args.model ? Provider.parseModel(args.model) : undefined
@@ -136,7 +130,6 @@ const AgentCreateCommand = effectCmd({
       })
       spinner.stop(`Agent ${generated.identifier} generated`)
 
-      // Select permissions to allow
       let selected: string[]
       if (perms !== undefined) {
         selected = perms ? perms.split(",").map((t) => t.trim()) : AVAILABLE_PERMISSIONS
@@ -153,7 +146,6 @@ const AgentCreateCommand = effectCmd({
         selected = result
       }
 
-      // Get mode
       let mode: AgentMode
       if (cliMode) {
         mode = cliMode
@@ -183,7 +175,6 @@ const AgentCreateCommand = effectCmd({
         mode = modeResult
       }
 
-      // Build permissions config — deny anything not explicitly selected.
       const permissions: Record<string, "deny"> = {}
       for (const permission of AVAILABLE_PERMISSIONS) {
         if (!selected.includes(permission)) {
@@ -191,7 +182,6 @@ const AgentCreateCommand = effectCmd({
         }
       }
 
-      // Build frontmatter
       const frontmatter: {
         description: string
         mode: AgentMode
@@ -204,8 +194,6 @@ const AgentCreateCommand = effectCmd({
         frontmatter.permission = permissions
       }
 
-      // Write file
-      // The generated prompt is model output: never parse it as front matter (a `---js` block would run).
       const content = Frontmatter.stringify(generated.systemPrompt, frontmatter)
       const filePath = path.join(targetPath, `${generated.identifier}.md`)
 

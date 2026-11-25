@@ -9,7 +9,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 ROOT = Path(sys.argv[1])
-SS = 4  # supersampling factor
+SS = 4
 
 BLUE = (0x3B, 0x5C, 0xF6)
 WHITE = (0xFF, 0xFF, 0xFF)
@@ -21,8 +21,6 @@ def mix(fg, bg, a):
     return tuple(round(f * a + b * (1 - a)) for f, b in zip(fg, bg))
 
 
-# The right half's two tabs sit in matching slots cut into the left half.
-# Each tab: centre y, tip x, half-width TAB; the slot leaves a GAP all round it.
 TABS = [(45, 47), (71, 43)]
 TAB = 4
 GAP = 4.5
@@ -36,11 +34,9 @@ def glyph(draw, s, ox, oy, tile, fg, knock):
     draw.rounded_rectangle([p(26, 28), p(58, 88)], r, fill=fg + (255,), corners=(True, False, False, True))
     slot = TAB + GAP
     for c, tip in TABS:
-        # Slot: stadium from the tab tip minus the gap, running past the seam so its mouth stays square.
         draw.rounded_rectangle([p(tip - GAP, c - slot), p(58 + 2 * slot, c + slot)], slot * s, fill=knock)
     draw.rounded_rectangle([p(64, 34), p(94, 92)], r, fill=right, corners=(False, True, True, False))
     for c, tip in TABS:
-        # Tab: stadium from its tip into the right half's body.
         draw.rounded_rectangle([p(tip, c - TAB), p(66 + 2 * TAB, c + TAB)], TAB * s, fill=right)
 
 
@@ -61,14 +57,12 @@ def render(size, tile, fg, kind="squircle"):
         s = n / 120 * 0.9
         glyph(d, s, n * 0.05, n * 0.05, tile, fg, knock)
     if kind == "mac":
-        # Big Sur grid: 824/1024 tile centred, so the Dock shows the expected inset.
         t = n * 824 / 1024
         o = (n - t) / 2
         s = t / 120
         d.rounded_rectangle([o, o, o + t, o + t], 32 * s, fill=tile + (255,))
         glyph(d, s, o, o, tile, fg, knock)
     if kind == "foreground":
-        # Android adaptive foreground: glyph inside the 66% safe zone, grooves cut to transparent.
         s = n / 120 * 0.66
         o = n * 0.17
         glyph(d, s, o, o, tile, fg, (0, 0, 0, 0))

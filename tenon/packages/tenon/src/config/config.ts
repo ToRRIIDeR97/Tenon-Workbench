@@ -39,23 +39,18 @@ import { ConfigVariable } from "./variable"
 import { Npm } from "@tenon/core/npm"
 import { withTransientReadRetry } from "@/util/effect-http-client"
 
-// Custom merge function that concatenates array fields instead of replacing them
-// Keep remeda's deep conditional merge type out of hot config-loading paths; TS profiling showed it dominates here.
 function mergeConfig(target: Info, source: Info): Info {
   return mergeDeep(target, source) as Info
 }
 
-// A folder's own config can't turn on auto-sharing or choose the share server.
 function withoutSharing(config: Info): Info {
   const { share: _share, autoshare: _autoshare, enterprise: _enterprise, ...rest } = config
   return rest
 }
 
 export type TrustStatus = {
-  /** The folder an approval would cover. */
   root: string
   trusted: boolean
-  /** What the folder asks for that stays off until it is approved. Empty when there is nothing to ask about. */
   withheld: string[]
 }
 
@@ -118,16 +113,12 @@ async function substituteWellKnownRemoteConfig(input: {
 async function resolveLoadedPlugins<T extends { plugin?: ConfigPluginV1.Spec[] }>(config: T, filepath: string) {
   if (!config.plugin) return config
   for (let i = 0; i < config.plugin.length; i++) {
-    // Normalize path-like plugin specs while we still know which config file declared them.
-    // This prevents `./plugin.ts` from being reinterpreted relative to some later merge location.
     config.plugin[i] = await ConfigPlugin.resolvePluginSpec(config.plugin[i], filepath)
   }
   return config
 }
 
 type Info = ConfigV1.Info & {
-  // plugin_origins is derived state, not a persisted config field. It keeps each winning plugin spec together
-  // with the file and scope it came from so later runtime code can make location-sensitive decisions.
   plugin_origins?: ConfigPlugin.Origin[]
 }
 
@@ -145,20 +136,16 @@ export interface Interface {
   readonly getConsoleState: () => Effect.Effect<ConsoleState>
   readonly update: (config: Info) => Effect.Effect<void>
   readonly updateGlobal: (config: Info) => Effect.Effect<{ info: Info; changed: boolean }>
-  /** Deletes one MCP server from the global config file; a patch can only add or change keys (#334). */
   readonly removeGlobalMcp: (name: string) => Effect.Effect<{ changed: boolean }>
-  /** Renames a server and/or removes some of its fields in the file, keeping everything else, secrets included. */
   readonly editGlobalMcp: (
     name: string,
     edit: { rename?: string; clear?: ReadonlyArray<string> },
   ) => Effect.Effect<{ changed: boolean; error?: string }>
-  /** A server's environment variable and header names (never values), which `/global/config` hides. */
   readonly globalMcpSecretNames: (name: string) => Effect.Effect<{ environment: string[]; headers: string[] }>
   readonly invalidate: () => Effect.Effect<void>
   readonly directories: () => Effect.Effect<string[]>
   readonly waitForDependencies: () => Effect.Effect<void>
   readonly trust: () => Effect.Effect<TrustStatus>
-  /** Adds the instance's folder to the trusted list. Callers reload the instance afterwards. */
   readonly approveFolder: () => Effect.Effect<void>
 }
 
@@ -167,7 +154,6 @@ export class Service extends Context.Service<Service, Interface>()("@tenon/Confi
 export const use = serviceUse(Service)
 
 function globalConfigFile() {
-  // Prefer an existing file (Tenon names first); a fresh install gets tenon.jsonc.
   const candidates = [
     ...ConfigNames.files.toReversed().flatMap((name) => [`${name}.jsonc`, `${name}.json`]),
     "config.json",
@@ -192,7 +178,6 @@ function patchJsonc(input: string, patch: unknown, path: string[] = []): string 
   return Object.entries(patch).reduce((result, [key, value]) => patchJsonc(result, value, [...path, key]), input)
 }
 
-/** A json config without one MCP server, or undefined when it has none of that name. */
 function withoutMcp(input: string, file: string, name: string) {
   const existing = ConfigParse.schema(ConfigV1.Info, ConfigParse.jsonc(input, file), file)
   if (!existing.mcp || !(name in existing.mcp)) return undefined
@@ -207,7 +192,6 @@ function writable(info: Info) {
 
 function writableGlobal(info: Info) {
   const next = writable(info)
-  // When a user changes config from a value back to default in the Desktop app, we don't want to leave a blank `"shell": "",` key
   if ("shell" in next && next.shell === "") return { ...next, shell: undefined }
   return next
 }
@@ -240,7 +224,6 @@ const layer = Layer.effect(
       const body = yield* response.text.pipe(
         Effect.catch((error) => Effect.die(new Error(`failed to read remote config from ${url}: ${String(error)}`))),
       )
-      // An auth proxy can answer with an HTML login page at HTTP 200 (passes filterStatusOk); treat it as a re-auth error, not a decode failure.
       const contentType = (response.headers["content-type"] ?? "").toLowerCase()
       if (contentType.includes("html") || /^\s*<!doctype|^\s*<html/i.test(body)) {
         return yield* Effect.die(new RemoteAuthError({ url: loginOrigin, remote: url }))
@@ -267,8 +250,6 @@ const layer = Layer.effect(
       if ("path" in options && options.untrusted) {
         if (!/\{(env|file):/.test(text)) return decode(text)
         options.untrusted()
-        // A value such as a number may be valid only once its variable expands. An error here would
-        // fail the folder before the app could ask, so the file waits for approval instead.
         return yield* Effect.try({ try: () => decode(text), catch: (cause) => cause }).pipe(
           Effect.orElseSucceed(() => ({}) as Info),
         )
@@ -306,8 +287,6 @@ const layer = Layer.effect(
 
     const loadGlobal = Effect.fnUntraced(function* (env?: Record<string, string>) {
       let result: Info = {}
-      // Seed the default global config with the schema for editor completion, but avoid writing when the user
-      // explicitly routes config through env-provided paths or content.
       if (!Flag.TENON_CONFIG && !Flag.TENON_CONFIG_DIR && !Flag.TENON_CONFIG_CONTENT) {
         const file = globalConfigFile()
         if (!existsSync(file)) {
@@ -385,7 +364,6 @@ const layer = Layer.effect(
         const approved = yield* readApproved()
         const withheld = new Set<string>()
 
-        // Until the folder is approved nothing in its config runs or reads a secret, and nothing is written back.
         const loadProject = Effect.fnUntraced(function* (filepath: string) {
           const trusted = ConfigTrust.covers(approved, filepath)
           const loaded = yield* loadFile(filepath, authEnv, trusted ? undefined : () => withheld.add("variables"))
@@ -403,17 +381,11 @@ const layer = Layer.effect(
 
         const mergePluginOrigins = Effect.fnUntraced(function* (
           source: string,
-          // mergePluginOrigins receives raw Specs from one config source, before provenance for this merge step
-          // is attached.
           list: ConfigPluginV1.Spec[] | undefined,
-          // Scope can be inferred from the source path, but some callers already know whether the config should
-          // behave as global or local and can pass that explicitly.
           kind?: ConfigPlugin.Scope,
         ) {
           if (!list?.length) return
           const hit = kind ?? (yield* pluginScopeForSource(source))
-          // Merge newly seen plugin origins with previously collected ones, then dedupe by plugin identity while
-          // keeping the winning source/scope metadata for downstream installs, writes, and diagnostics.
           const plugins = ConfigPlugin.deduplicatePluginOrigins([
             ...(result.plugin_origins ?? []),
             ...list.map((spec) => ({ spec, source, scope: hit })),
@@ -549,8 +521,6 @@ const layer = Layer.effect(
           const modes = yield* Effect.promise(() => ConfigAgent.loadMode(dir))
           result.agent = mergeDeep(result.agent ?? {}, user ? agents : ConfigTrust.agentsV1(agents))
           result.agent = mergeDeep(result.agent ?? {}, user ? modes : ConfigTrust.agentsV1(modes))
-          // Auto-discovered plugins under `.tenon/plugin(s)` (or `.opencode/plugin(s)`) are already local files, so ConfigPlugin.load
-          // returns normalized Specs and we only need to attach origin metadata here.
           const list = yield* Effect.promise(() => ConfigPlugin.load(dir))
           if (trusted) {
             yield* mergePluginOrigins(dir, list)
@@ -619,7 +589,6 @@ const layer = Layer.effect(
           }
         }
 
-        // macOS managed preferences (.mobileconfig deployed via MDM) override everything
         const managed = yield* Effect.promise(() => ConfigManaged.readManagedPreferences())
         if (managed) {
           result = mergeConfigConcatArrays(
@@ -683,8 +652,6 @@ const layer = Layer.effect(
 
         const root = ConfigTrust.root(ctx.directory, ctx.worktree)
         const trustedRoot = ConfigTrust.covers(approved, root)
-        // Skills in the folder's own `.claude` and `.agents` folders wait for approval too (the skill
-        // service skips them); the home copies are the user's own.
         if (!trustedRoot) {
           const homes = new Set(ConfigTrust.EXTERNAL_DIRS.map((name) => path.join(Global.Path.home, name)))
           const external = yield* fs
@@ -699,7 +666,6 @@ const layer = Layer.effect(
         }
         return {
           config: result,
-          // Custom tools and skills load from these folders, so an unapproved one stays out.
           directories: directories.filter((dir) => userDirectories.has(dir) || ConfigTrust.covers(approved, dir)),
           trust: { root, trusted: trustedRoot, withheld: Array.from(withheld) },
           deps,
@@ -790,7 +756,6 @@ const layer = Layer.effect(
       const file = globalConfigFile()
       const before = yield* readConfigFile(file)
       if (before === undefined) return { changed: false }
-      // jsonc keeps the user's comments and layout: only the server's own key is removed.
       const updated = file.endsWith(".jsonc")
         ? applyEdits(before, modify(before, ["mcp", name], undefined, {}))
         : withoutMcp(before, file, name)
@@ -833,7 +798,6 @@ const layer = Layer.effect(
       const target = rename && rename !== name ? rename : name
       const updated = file.endsWith(".jsonc")
         ? renameKey(
-            // One change at a time, each against the text the last one left, so the edits never overlap.
             clear.reduce(
               (current, key) => applyEdits(current, modify(current, ["mcp", name, key], undefined, {})),
               text,
@@ -883,7 +847,6 @@ export const node = LayerNode.make({
   deps: [FSUtil.node, Auth.node, Account.node, Env.node, Npm.node, httpClient],
 })
 
-/** Renames `mcp.<name>` by rewriting only its key, so the entry's comments and layout stay where they were. */
 function renameKey(text: string, name: string, target: string) {
   if (target === name) return text
   const tree = parseTree(text)

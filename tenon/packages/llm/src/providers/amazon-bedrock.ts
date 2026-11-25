@@ -10,9 +10,7 @@ export type Config = RouteDefaultsInput & {
   readonly apiKey?: string
   readonly headers?: Record<string, string>
   readonly credentials?: BedrockCredentials
-  /** AWS region. Defaults to `us-east-1` when neither this nor `credentials.region` is set. */
   readonly region?: string
-  /** Override the computed `https://bedrock-runtime.<region>.amazonaws.com` URL. */
   readonly baseURL?: string
 }
 export const routes = [BedrockConverse.route]

@@ -59,7 +59,6 @@ export class HttpOptions extends Schema.Class<HttpOptions>("LLM.HttpOptions")({
 export namespace HttpOptions {
   export type Input = HttpOptions | ConstructorParameters<typeof HttpOptions>[0]
 
-  /** Normalize HTTP option input into the canonical `HttpOptions` class. */
   export const make = (input: Input) => (input instanceof HttpOptions ? input : new HttpOptions(input))
 }
 
@@ -85,7 +84,6 @@ export class GenerationOptions extends Schema.Class<GenerationOptions>("LLM.Gene
 export namespace GenerationOptions {
   export type Input = GenerationOptions | ConstructorParameters<typeof GenerationOptions>[0]
 
-  /** Normalize generation option input into the canonical `GenerationOptions` class. */
   export const make = (input: Input = {}) => (input instanceof GenerationOptions ? input : new GenerationOptions(input))
 }
 
@@ -129,7 +127,6 @@ export class ModelLimits extends Schema.Class<ModelLimits>("LLM.ModelLimits")({
 export namespace ModelLimits {
   export type Input = ModelLimits | ConstructorParameters<typeof ModelLimits>[0]
 
-  /** Normalize model limit input into the canonical `ModelLimits` class. */
   export const make = (input: Input | undefined) =>
     input instanceof ModelLimits ? input : new ModelLimits(input ?? {})
 }
@@ -151,7 +148,6 @@ export namespace ModelDefaults {
         readonly http?: HttpOptions.Input
       }
 
-  /** Normalize selected-model request defaults without applying precedence. */
   export const make = (input: Input) => {
     if (input instanceof ModelDefaults) return input
     return new ModelDefaults({
@@ -173,7 +169,6 @@ export class ModelCompatibility extends Schema.Class<ModelCompatibility>("LLM.Mo
 export namespace ModelCompatibility {
   export type Input = ModelCompatibility | ConstructorParameters<typeof ModelCompatibility>[0]
 
-  /** Normalize model/upstream compatibility metadata without projecting requests. */
   export const make = (input: Input) => (input instanceof ModelCompatibility ? input : new ModelCompatibility(input))
 }
 
@@ -247,17 +242,6 @@ export class CacheHint extends Schema.Class<CacheHint>("LLM.CacheHint")({
   ttlSeconds: Schema.optional(Schema.Number),
 }) {}
 
-// Auto-placement policy for prompt caching. The protocol-neutral lowering step
-// reads this and injects `CacheHint`s at the configured boundaries; the
-// per-protocol body builders then translate those hints into wire markers as
-// usual. `"auto"` is the recommended default for agent loops — it places one
-// breakpoint at the last tool definition, one at the last system part, and one
-// at the latest user message. The combination of provider invalidation
-// hierarchy (tools → system → messages) and Anthropic/Bedrock's 20-block
-// lookback means three trailing breakpoints reliably cover the static prefix.
-//
-// Pass `"none"` to opt out entirely (the legacy behavior). Pass the granular
-// object form to override individual choices.
 export const CachePolicyObject = Schema.Struct({
   tools: Schema.optional(Schema.Boolean),
   system: Schema.optional(Schema.Boolean),

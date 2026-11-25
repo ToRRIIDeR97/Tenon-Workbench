@@ -1,11 +1,3 @@
-/**
- * Undoable actions shown as short-lived toasts.
- *
- * An action has already happened (archive, rename) or is deferred (delete).
- * Within `duration` the user can undo it from the toast or with `undoLatest()`.
- * When the window closes, `commit` runs; deferred actions do their real work there.
- * Nothing is persisted: if the app closes first, pending commits never run.
- */
 export type UndoAction = {
   title: string
   description?: string
@@ -15,12 +7,10 @@ export type UndoAction = {
 
 export type UndoQueueOptions = {
   duration?: number
-  /** Show the toast and return its id. `undo` runs the action's undo and settles it. */
   show: (action: UndoAction, undo: () => void) => number
   dismiss: (toastId: number) => void
   onChange?: (pending: number) => void
   onError?: (cause: unknown) => void
-  /** Run `run` after `ms`; returns a cancel function. */
   schedule?: (run: () => void, ms: number) => () => void
 }
 
@@ -66,12 +56,10 @@ export function createUndoQueue(options: UndoQueueOptions) {
       entry.cancel = schedule(() => settle(entry, "commit"), duration)
       options.onChange?.(entries.length)
     },
-    /** Undo the most recent pending action. Returns false when nothing is pending. */
     undoLatest() {
       const entry = entries.at(-1)
       return entry ? settle(entry, "undo") : false
     },
-    /** Commit every pending action now (e.g. on teardown). */
     flush() {
       while (entries[0]) settle(entries[0], "commit")
     },

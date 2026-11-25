@@ -202,7 +202,6 @@ export const McpAuthCommand = effectCmd({
 
     let serverName = args.name
     if (!serverName) {
-      // Build options with auth status
       const options = servers.map(([name, cfg]) => {
         const authStatus = auth[name]
         const icon = getAuthStatusIcon(authStatus)
@@ -238,7 +237,6 @@ export const McpAuthCommand = effectCmd({
       return
     }
 
-    // Check if already authenticated
     const authStatus = auth[serverName] ?? (yield* MCP.Service.use((mcp) => mcp.getAuthStatus(serverName)))
     if (authStatus === "authenticated") {
       const confirm = yield* Effect.promise(() =>
@@ -393,8 +391,6 @@ export const McpLogoutCommand = effectCmd({
 })
 
 async function resolveConfigPath(baseDir: string, global = false) {
-  // Check for existing config files (Tenon names before the pre-rename OpenCode ones, then the
-  // config directories when not global).
   const files = ConfigNames.files.toReversed().flatMap((name) => [`${name}.json`, `${name}.jsonc`])
   const candidates = [
     ...files.map((file) => path.join(baseDir, file)),
@@ -409,7 +405,6 @@ async function resolveConfigPath(baseDir: string, global = false) {
     }
   }
 
-  // Default to tenon.json if none exist
   return candidates[0]
 }
 
@@ -419,7 +414,6 @@ async function addMcpToConfig(name: string, mcpConfig: ConfigMCPV1.Info, configP
     text = await Filesystem.readText(configPath)
   }
 
-  // Use jsonc-parser to modify while preserving comments
   const edits = modify(text, ["mcp", name], mcpConfig, {
     formattingOptions: { tabSize: 2, insertSpaces: true },
   })
@@ -509,13 +503,11 @@ export const McpAddCommand = effectCmd({
 
       const project = ctx.project
 
-      // Resolve config paths eagerly for hints
       const [projectConfigPath, globalConfigPath] = await Promise.all([
         resolveConfigPath(ctx.worktree),
         resolveConfigPath(Global.Path.config, true),
       ])
 
-      // Determine scope
       let configPath = globalConfigPath
       if (project.vcs === "git") {
         const scopeResult = await prompts.select({
@@ -735,7 +727,6 @@ export const McpDebugCommand = effectCmd({
       const spinner = prompts.spinner()
       spinner.start("Testing connection...")
 
-      // Test basic HTTP connectivity first
       try {
         const response = await fetch(serverConfig.url, {
           method: "POST",
@@ -758,7 +749,6 @@ export const McpDebugCommand = effectCmd({
 
         spinner.stop(`HTTP response: ${response.status} ${response.statusText}`)
 
-        // Check for WWW-Authenticate header
         const wwwAuth = response.headers.get("www-authenticate")
         if (wwwAuth) {
           prompts.log.info(`WWW-Authenticate: ${wwwAuth}`)
@@ -767,7 +757,6 @@ export const McpDebugCommand = effectCmd({
         if (response.status === 401) {
           prompts.log.info("Initial unauthenticated check returned 401, so this server requires OAuth")
 
-          // Try to discover OAuth metadata
           const oauthConfig = typeof serverConfig.oauth === "object" ? serverConfig.oauth : undefined
           const authProvider = new McpOAuthProvider(
             serverName,
@@ -786,7 +775,6 @@ export const McpDebugCommand = effectCmd({
 
           prompts.log.info("Testing OAuth flow (without completing authorization)...")
 
-          // Try creating transport with auth provider to trigger discovery
           const transport = new StreamableHTTPClientTransport(new URL(serverConfig.url), {
             authProvider,
             requestInit: serverConfig.headers ? { headers: serverConfig.headers } : undefined,
@@ -804,7 +792,6 @@ export const McpDebugCommand = effectCmd({
             if (error instanceof UnauthorizedError) {
               prompts.log.info(`OAuth flow triggered: ${error.message}`)
 
-              // Check if dynamic registration would be attempted
               const clientInfo = await authProvider.clientInformation()
               if (clientInfo) {
                 prompts.log.info(`Client ID available: ${clientInfo.client_id}`)
@@ -823,9 +810,7 @@ export const McpDebugCommand = effectCmd({
             if (json.result?.serverInfo) {
               prompts.log.info(`Server info: ${JSON.stringify(json.result.serverInfo)}`)
             }
-          } catch {
-            // Not JSON, ignore
-          }
+          } catch {}
         } else {
           prompts.log.warn(`Unexpected status: ${response.status}`)
           const body = await response.text().catch(() => "")

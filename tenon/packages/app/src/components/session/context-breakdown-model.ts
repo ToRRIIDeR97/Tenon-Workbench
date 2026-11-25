@@ -3,12 +3,6 @@ import { estimateSessionContextBreakdown } from "./session-context-breakdown"
 
 export type ContextPartKey = "system" | "messages" | "tools" | "other" | "free"
 
-/**
- * What fills a thread's context window, for any harness: the reported tokens in use, split by an estimate from the
- * thread's own text (the system prompt Tenon sent, the messages, tool calls and their output), with the rest as
- * `other` (for Codex, Claude Code and other agents: their own instructions and tool definitions) and the unused
- * window as `free`. Shares are of the whole window. Empty when the window or the use is unknown.
- */
 export function contextBreakdown(args: {
   messages: Message[]
   parts: Record<string, Part[] | undefined>

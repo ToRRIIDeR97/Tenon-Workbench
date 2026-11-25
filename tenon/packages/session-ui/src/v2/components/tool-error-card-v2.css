@@ -62,7 +62,6 @@
     flex-shrink: 0;
     width: 16px;
     height: 16px;
-    /* Same timing as LoaderV2. */
     animation: tool-error-card-spin 900ms linear infinite;
     transform-origin: 50% 50%;
   }

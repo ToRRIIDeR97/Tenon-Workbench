@@ -77,7 +77,6 @@ export interface Interface {
 
 export class Service extends Context.Service<Service, Interface>()("@tenon/v2/SessionRunnerModel") {}
 
-/** Test or embedding seam for supplying a model resolver directly. */
 export const layerWith = (resolve: Interface["resolve"]) => Layer.succeed(Service, Service.of({ resolve }))
 
 const apiKey = (model: ModelV2.Info, credential?: Credential.Value) => {
@@ -169,7 +168,6 @@ export const fromCatalogModel = (
   )
 }
 
-// The resolved route has no field for prices, so they are kept beside it for step cost reporting.
 const prices = new WeakMap<Model, ReadonlyArray<typeof ModelV2.Cost.Type>>()
 export const pricing = (model: Model) => prices.get(model)
 
@@ -185,7 +183,6 @@ export const supported = (model: ModelV2.Info) =>
     model.api.package === "@ai-sdk/anthropic" ||
     (model.api.package === "@ai-sdk/openai-compatible" && model.api.url !== undefined))
 
-/** Resolves models from the catalog belonging to the current Location runtime. */
 export const locationLayer = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -193,14 +190,12 @@ export const locationLayer = Layer.effect(
     const integrations = yield* Integration.Service
     return Service.of({
       resolve: Effect.fn("SessionRunnerModel.resolve")(function* (session) {
-        // Location plugins populate and filter the catalog asynchronously during layer startup.
         const defaultModel = session.model ? undefined : yield* catalog.model.default()
         const selected = session.model
           ? yield* catalog.model.getAvailable(session.model.providerID, session.model.id)
           : defaultModel && supported(defaultModel)
             ? defaultModel
-            : // Skip models the provider has retired; they fail every request with HTTP 410.
-              (yield* catalog.model.available()).find((model) => model.status !== "deprecated" && supported(model))
+            : (yield* catalog.model.available()).find((model) => model.status !== "deprecated" && supported(model))
         if (!selected && session.model)
           return yield* new ModelUnavailableError({
             providerID: session.model.providerID,

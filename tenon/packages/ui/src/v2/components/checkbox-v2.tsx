@@ -7,7 +7,6 @@ export interface CheckboxV2Props extends ComponentProps<typeof Kobalte> {
   label: JSX.Element
   description?: JSX.Element
   hideLabel?: boolean
-  /** `round` is the task check used across Projects, Calendar and Home. */
   shape?: "round"
 }
 

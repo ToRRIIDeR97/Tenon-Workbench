@@ -6,12 +6,9 @@ export interface ResizeHandleProps extends Omit<JSX.HTMLAttributes<HTMLDivElemen
   size: number
   min: number
   max: number
-  /** Called at most once per animation frame while dragging, with the clamped size. */
   onResize: (size: number) => void
-  /** Called once when a drag ends without collapsing, or the handle unmounts mid-drag, with the final clamped size. */
   onResizeEnd?: (size: number) => void
   onCollapse?: () => void
-  /** Called while dragging when size crosses `collapseThreshold`. */
   onCollapseChange?: (collapsed: boolean) => void
   collapseThreshold?: number
 }
@@ -32,7 +29,6 @@ export function ResizeHandle(props: ResizeHandleProps) {
     "classList",
   ])
 
-  // Ends a drag still in progress when the handle unmounts, so no listener or frame outlives it.
   let release: (() => void) | undefined
   onCleanup(() => release?.())
 
@@ -56,7 +52,6 @@ export function ResizeHandle(props: ResizeHandleProps) {
     const onCollapseChange = local.onCollapseChange
     let current = startSize
     let collapsed = false
-    // Pointer moves arrive faster than frames; only the latest size per frame reaches `onResize`.
     let frame: number | undefined
     const clamped = () => Math.min(max, Math.max(min, current))
     const flush = () => {
@@ -97,8 +92,6 @@ export function ResizeHandle(props: ResizeHandleProps) {
       if (frame !== undefined) cancelAnimationFrame(frame)
     }
 
-    // Ends on the capture-phase pointerup, before window listeners (such as a parent's sizing state that
-    // re-enables width transitions) see it, so the last frame and the commit land without animating.
     const onMouseUp = () => {
       const pending = frame !== undefined
       detach()

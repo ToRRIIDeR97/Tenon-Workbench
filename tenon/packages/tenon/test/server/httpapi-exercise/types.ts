@@ -50,7 +50,6 @@ export type BackendApp = {
   request(input: string | URL | Request, init?: RequestInit): Response | Promise<Response>
 }
 
-/** Effect-native helpers available while setting up and asserting a scenario. */
 export type ScenarioContext = {
   directory: string | undefined
   headers: (extra?: Record<string, string>) => Record<string, string>
@@ -68,7 +67,6 @@ export type ScenarioContext = {
   tuiRequest: (request: { path: string; body: unknown }) => Effect.Effect<void>
 }
 
-/** Scenario context after `.seeded(...)`; `state` preserves the seed return type in the DSL. */
 export type SeededContext<S> = ScenarioContext & {
   state: S
 }

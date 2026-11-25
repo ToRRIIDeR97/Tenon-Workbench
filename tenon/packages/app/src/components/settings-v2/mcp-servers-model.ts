@@ -2,7 +2,6 @@ import type { McpLocalConfig, McpRemoteConfig } from "@opencode-ai/sdk/v2/client
 
 type Entry = McpLocalConfig | McpRemoteConfig
 
-/** A new server's config from the form: a command line split on spaces, or an http(s) URL. */
 export function mcpEntry(kind: "local" | "remote", target: string): Entry | undefined {
   const value = target.trim()
   if (!value) return undefined
@@ -12,7 +11,6 @@ export function mcpEntry(kind: "local" | "remote", target: string): Entry | unde
   return command.length > 0 ? { type: "local", command, enabled: true } : undefined
 }
 
-/** The configured servers, by name, with what each runs and whether it is on. Toggle-only entries are skipped. */
 export function mcpRows(config: Record<string, Entry | { enabled: boolean }> | undefined) {
   return Object.entries(config ?? {})
     .flatMap(([name, entry]) => {
@@ -35,7 +33,6 @@ export type McpSuggestion = {
   signIn: boolean
 }
 
-// Common servers offered as one-click adds. The remote ones ask the user to sign in once they connect.
 const SUGGESTIONS: ReadonlyArray<McpSuggestion> = [
   {
     id: "playwright",
@@ -48,7 +45,6 @@ const SUGGESTIONS: ReadonlyArray<McpSuggestion> = [
   { id: "sentry", entry: { type: "remote", url: "https://mcp.sentry.dev/mcp", enabled: true }, signIn: true },
 ]
 
-/** The suggestions not already configured, under their own name or as the same command or URL. */
 export function mcpSuggestions(config: Record<string, Entry | { enabled: boolean }> | undefined) {
   const installed = Object.entries(config ?? {})
   const target = (entry: Entry) => (entry.type === "local" ? entry.command.join(" ") : entry.url)
@@ -60,7 +56,6 @@ export function mcpSuggestions(config: Record<string, Entry | { enabled: boolean
   )
 }
 
-// Tenon's own delegation server and the bare TOML key rule Codex needs, mirroring `core/src/harness/forwarded-mcp.ts`.
 const RESERVED = "tenon"
 const BARE_KEY = /^[A-Za-z0-9_-]{1,64}$/
 
@@ -76,7 +71,6 @@ export type McpRowState =
   | { kind: "needs_auth"; action: "signin" }
   | { kind: "failed"; error: string; action: "retry" }
 
-/** What a row shows from the server's live status, with the fix it offers in the row itself (#334). */
 export function mcpRowState(status: LiveStatus | { status: string; error?: string } | undefined): McpRowState {
   if (!status) return { kind: "unknown" }
   if (status.status === "connected") return { kind: "connected" }
@@ -88,11 +82,6 @@ export function mcpRowState(status: LiveStatus | { status: string; error?: strin
   return { kind: "unknown" }
 }
 
-/**
- * Which harnesses a server reaches. The built-in agent gets every server that is on. External harnesses get it
- * through forwarding: never under the reserved name or a name that isn't a bare key; an HTTP server reaches an ACP
- * agent only if that agent supports HTTP MCP servers, which the agent reports only when it starts.
- */
 export function mcpReach(name: string, entry: Entry, harnesses: ReadonlyArray<{ name: string; driver: string }>) {
   const result = {
     receives: [] as string[],
@@ -124,7 +113,6 @@ export type McpForm =
   | { kind: "remote"; url: string; headers?: Pair[]; timeout?: string }
   | { kind: "json"; json: string }
 
-/** A server entry from the typed form: each argument as given (spaces kept), or a pasted JSON entry. */
 export function mcpEntryFromForm(form: McpForm): Entry | undefined {
   if (form.kind === "json") return pasted(form.json)
   const timeout = seconds(form.timeout)
@@ -155,7 +143,6 @@ export function mcpEntryFromForm(form: McpForm): Entry | undefined {
   }
 }
 
-/** Why a new server's name can't be used: empty, already taken, or Tenon's own reserved name. */
 export function mcpNameProblem(name: string, taken: ReadonlyArray<string>) {
   const value = name.trim()
   if (!value) return "empty" as const
@@ -169,7 +156,6 @@ function pairs(list: Pair[] | undefined) {
   return entries.length > 0 ? Object.fromEntries(entries) : undefined
 }
 
-// Seconds in the form, milliseconds in the config; undefined when empty, null when not a positive number.
 function seconds(value: string | undefined) {
   if (!value?.trim()) return undefined
   const number = Number(value)

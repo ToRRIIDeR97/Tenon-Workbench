@@ -1,4 +1,3 @@
-// Must run first: maps pre-rename OPENCODE_* variables to TENON_* before other modules read them.
 import "./legacy-env"
 import * as http from "node:http"
 import { constants, enableCompileCache, flushCompileCache } from "node:module"
@@ -133,7 +132,6 @@ function useEnvProxy() {
   }
 }
 
-// V8 code for the server bundle, so later launches skip parsing it. A failure only costs that saving.
 function useCompileCache(userDataPath: string) {
   try {
     const result = enableCompileCache(join(userDataPath, "compile-cache"))

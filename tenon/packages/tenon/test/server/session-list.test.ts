@@ -123,14 +123,11 @@ describe("session.list", () => {
 
         const created = yield* withSession({ title: "separator" }).pipe(provideInstance(dir))
 
-        // A forward-slash query (e.g. from the SDK/HTTP layer) must still find it —
-        // this is the regression: backslash-stored vs forward-slash-queried.
         const forwardIDs = (yield* SessionNs.Service.use((session) =>
           session.list({ directory: dir.replaceAll("\\", "/") }),
         )).map((session) => session.id)
         expect(forwardIDs).toContain(created.id)
 
-        // The native form must keep matching too.
         const nativeIDs = (yield* SessionNs.Service.use((session) => session.list({ directory: dir }))).map(
           (session) => session.id,
         )

@@ -4,14 +4,9 @@ import { Token } from "../util/token"
 import type { SessionMessage } from "./message"
 import type { FileAttachment } from "./prompt"
 
-// A prompt can reference another thread with an attachment whose URI is `tenon-thread://<sessionID>`
-// (`?full=1` for the whole thread instead of what it would send its own model). When the prompt is
-// admitted the reference becomes a text attachment holding that thread, so every harness and the
-// built-in loop read the same text without fetching anything later.
 export const scheme = "tenon-thread://"
 export const mime = "application/x-tenon-thread"
 
-// Token budgets for the rendered thread. A summary is usually a compaction checkpoint plus recent turns.
 const summaryBudget = 8_000
 const fullBudget = 24_000
 
@@ -26,10 +21,6 @@ export function uri(sessionID: string, full = false) {
   return `${scheme}${encodeURIComponent(sessionID)}${full ? "?full=1" : ""}`
 }
 
-/**
- * The referenced thread as an untrusted, budgeted text block. The first user message and the newest
- * messages are kept; older ones that don't fit are counted as omitted.
- */
 export function render(input: {
   readonly title: string
   readonly messages: ReadonlyArray<SessionMessage.Message>
@@ -38,7 +29,6 @@ export function render(input: {
   return renderItems({ title: input.title, items: input.messages.flatMap(renderMessage), full: input.full })
 }
 
-/** The same block from messages already rendered as "ROLE:" plus text, oldest first (the v1 session store). */
 export function renderItems(input: {
   readonly title: string
   readonly items: ReadonlyArray<string>
@@ -76,10 +66,6 @@ export function renderItems(input: {
   ].join("\n")
 }
 
-/**
- * A text attachment the model and every harness read inline (its URI is `data:text/plain`). The thread
- * MIME type only tells the app to show it as a thread.
- */
 export function attachment(input: { readonly title: string; readonly text: string }): FileAttachment {
   return {
     uri: `data:text/plain;base64,${Buffer.from(input.text, "utf8").toString("base64")}`,
@@ -89,7 +75,6 @@ export function attachment(input: { readonly title: string; readonly text: strin
   }
 }
 
-/** The text inside a `data:text/plain` attachment, for inlining. Other attachments return undefined. */
 export function inlineText(file: { readonly mime?: string; readonly uri?: string; readonly data?: unknown }) {
   const value = typeof file.data === "string" ? file.data : file.uri
   if (!value?.startsWith("data:text/plain")) return

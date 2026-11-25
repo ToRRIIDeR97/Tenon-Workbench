@@ -138,57 +138,36 @@ export type Draft = {
 }
 
 export interface Interface extends State.Transformable<Draft> {
-  /** Registers a scoped transform over the integration registry. */
-  /** Returns one integration with its methods and current connections. */
   readonly get: (id: ID) => Effect.Effect<Info | undefined>
-  /** Returns all integrations with their methods and current connections. */
   readonly list: () => Effect.Effect<Info[]>
   readonly connection: {
-    /** Returns the active connection for one integration. */
     readonly active: (id: ID) => Effect.Effect<IntegrationConnection.Info | undefined>
-    /** Resolves a connection into usable credential material. */
     readonly resolve: (
       connection: IntegrationConnection.Info,
     ) => Effect.Effect<Credential.Value | undefined, AuthorizationError>
-    /** Runs a key method and stores the resulting credential. */
     readonly key: (input: {
-      /** Integration receiving the credential. */
       readonly integrationID: ID
-      /** Secret entered by the user. */
       readonly key: string
-      /** User-facing label for the stored credential. */
       readonly label?: string
     }) => Effect.Effect<void, AuthorizationError>
-    /** Starts a stateful OAuth attempt. */
     readonly oauth: (input: {
-      /** Integration being authenticated. */
       readonly integrationID: ID
-      /** OAuth method selected by the caller. */
       readonly methodID: MethodID
-      /** Answers to the method's optional prompts. */
       readonly inputs: Inputs
-      /** User-facing label for the credential created on completion. */
       readonly label?: string
     }) => Effect.Effect<Attempt, AuthorizationError>
-    /** Updates a stored credential exposed as a connection. */
     readonly update: (
       credentialID: Credential.ID,
       updates: Partial<Pick<Credential.Info, "label">>,
     ) => Effect.Effect<void>
-    /** Removes a stored credential connection. */
     readonly remove: (credentialID: Credential.ID) => Effect.Effect<void>
   }
   readonly attempt: {
-    /** Returns the current state of an OAuth attempt. */
     readonly status: (attemptID: AttemptID) => Effect.Effect<AttemptStatus>
-    /** Completes the attempt and stores its credential. */
     readonly complete: (input: {
-      /** Opaque handle returned by `oauth`. */
       readonly attemptID: AttemptID
-      /** Authorization code required by attempts in code mode. */
       readonly code?: string
     }) => Effect.Effect<void, CodeRequiredError | AuthorizationError>
-    /** Cancels an attempt and releases its resources. */
     readonly cancel: (attemptID: AttemptID) => Effect.Effect<void>
   }
 }

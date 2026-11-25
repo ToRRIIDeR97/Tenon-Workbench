@@ -32,7 +32,6 @@ interface Config {
   readonly create?: boolean
   readonly readwrite?: boolean
   readonly disableWAL?: boolean
-  /** Busy timeout in milliseconds, set when the connection opens. */
   readonly timeout?: number
   readonly spanAttributes?: Record<string, unknown>
   readonly transformResultNames?: (str: string) => string
@@ -121,8 +120,6 @@ const make = (options: Config) =>
         }),
     })
 
-    // Mirrors @effect/sql-sqlite-* 4.1: the connection is leased through one semaphore, single statements borrow
-    // it without a scope, and a failed COMMIT is rolled back before the connection is reused.
     const { acquirer, borrower, isTransaction, onCommitFailure, transactionAcquirer } = Client.makeSqliteAcquirers({
       connection: Effect.succeed(connection),
       semaphore: yield* Semaphore.make(1),
@@ -139,8 +136,6 @@ const make = (options: Config) =>
         onCommitFailure,
         isTransaction,
         releaseSavepoint: (name) => `RELEASE SAVEPOINT ${name}`,
-        // Takes the write lock up front, so a transaction that writes after reading waits for busy_timeout
-        // instead of failing with SQLITE_BUSY. Drizzle's `{ behavior }` overrides it per transaction.
         beginTransaction: options.readonly === true ? "BEGIN" : "BEGIN IMMEDIATE",
         spanAttributes: [
           ...(options.spanAttributes ? Object.entries(options.spanAttributes) : []),
@@ -173,7 +168,6 @@ const nativeLayer = (config: Config) =>
         create: config.create ?? true,
       })
       yield* Effect.addFinalizer(() => Effect.sync(() => native.close()))
-      // Before WAL: switching the journal mode can itself wait on another connection's lock.
       if (config.timeout !== undefined) native.run(`PRAGMA busy_timeout = ${Math.trunc(config.timeout)};`)
       if (config.disableWAL !== true) native.run("PRAGMA journal_mode = WAL;")
       return native

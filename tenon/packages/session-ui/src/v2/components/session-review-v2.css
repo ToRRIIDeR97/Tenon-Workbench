@@ -25,7 +25,6 @@
   overflow: hidden;
 }
 
-/* A narrow panel floats the tree over the viewer, so the viewer keeps the full width. */
 [data-component="session-review-v2-sidebar-root"][data-overlay] {
   position: absolute;
   inset-block: 0;
@@ -55,12 +54,10 @@
 
 [data-component="session-review-v2-sidebar-root"]
   [data-slot="session-review-v2-sidebar"][data-transition]:not([data-resizing]) {
-  /* A panel-size change, like the side panel's own slide: medium + emphasized-decelerate. */
   transition:
     width var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate),
     border-inline-end-width var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate);
 
-  /* Closing: short + emphasized-accelerate. */
   &[aria-hidden="true"] {
     transition-duration: var(--v2-duration-short);
     transition-timing-function: var(--v2-ease-emphasized-accelerate);
@@ -246,9 +243,6 @@
   gap: 0px;
 }
 
-/* A zero basis lets a long title truncate instead of wrapping the toolbar; the floor keeps the
-   previous/next buttons visible. When both groups cannot fit, the segments move to a second line
-   instead of covering the buttons. */
 [data-component="session-review-v2"] .session-review-v2-toolbar-group--start {
   flex: 1 1 0;
   min-width: 80px;

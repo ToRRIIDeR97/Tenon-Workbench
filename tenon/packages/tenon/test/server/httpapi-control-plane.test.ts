@@ -25,14 +25,12 @@ const input = MoveSession.Input.make({
   moveChanges: true,
 })
 const called = Ref.makeUnsafe<MoveSession.Input | undefined>(undefined)
-// Sessions the mocked Session service reports as running.
 const running = new Set<string>()
 
 const apiLayer = HttpRouter.serve(
   HttpApiBuilder.layer(RootHttpApi).pipe(
     Layer.provide([controlHandlers, controlPlaneHandlers, globalHandlers]),
     Layer.provide([authorizationLayer, schemaErrorLayer]),
-    // Raw HttpApi routes expose an opaque handler context at the request boundary.
     // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
     HttpRouter.provideRequest(Layer.succeedContext(Context.empty() as Context.Context<unknown>)),
   ),

@@ -689,7 +689,6 @@ describe("SessionV2.prompt", () => {
 
       expect(yield* session.wakeQueued((input) => input.prompt.text.startsWith("[Tenon] "))).toBe(1)
       expect(wakeCalls).toEqual([sessionID])
-      // Waking drains the inbox later; nothing is promoted here.
       expect(yield* session.queued(sessionID)).toHaveLength(1)
 
       wakeCalls.length = 0

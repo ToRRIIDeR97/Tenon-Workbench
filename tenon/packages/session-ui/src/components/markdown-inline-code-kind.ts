@@ -1,5 +1,3 @@
-// One-off copy from GitHub Linguist languages.yml (e9fe3c9f230cd9220afcd057f75702de4d7700c9), plus common lockfile suffixes.
-// Normalized to lower-case; numeric manpage-style extensions are excluded so versions like `1.2` stay plain code.
 const pathExtensions = new Set([
   "a51",
   "abap",

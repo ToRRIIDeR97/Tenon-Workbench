@@ -1,9 +1,3 @@
-/**
- * Model-facing V2 exact-edit leaf. Relative paths resolve within the active
- * Location. Absolute paths inside that Location are accepted, while explicit
- * absolute external paths retain mutation capability through a separate
- * external_directory approval before edit approval.
- */
 export * as EditTool from "./edit"
 
 import { ToolFailure } from "@tenon/llm"
@@ -79,13 +73,6 @@ export const toModelOutput = (output: Output, oldString: string, newString: stri
     ...previewLines(newString, "+"),
     "```",
   ].join("\n")
-
-/** Deferred V2 edit behavior and UX integrations remain visible at the model-facing seam. */
-// TODO: Port V1 fuzzy correction strategies only after exact-edit behavior is established: line-trimmed matching, block-anchor fallback, indentation correction, and similarity-threshold review.
-// TODO: Add formatter integration after V2 formatter runtime exists.
-// TODO: Publish watcher/file-edit events after V2 watcher integration exists.
-// TODO: Add snapshots / undo after design exists.
-// TODO: Add LSP notification and diagnostics after V2 LSP runtime exists.
 
 const layer = Layer.effectDiscard(
   Effect.gen(function* () {

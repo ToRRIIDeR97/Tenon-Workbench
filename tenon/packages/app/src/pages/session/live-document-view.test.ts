@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test"
 import { changedBlocks } from "./live-document"
 import { blockOwners } from "./live-document-view"
 
-// Rendered elements as the Markdown renderer shows them: syntax gone, one element per paragraph or heading.
 const flashed = (before: string, after: string, rendered: string[]) => {
   const changed = new Set(changedBlocks(before, after))
   return blockOwners(rendered, after).flatMap((owner, index) => (changed.has(owner) ? [rendered[index]] : []))

@@ -26,78 +26,34 @@ export const imageGenerationOutputSchema = z.object({
 })
 
 type ImageGenerationArgs = {
-  /**
-   * Background type for the generated image. Default is 'auto'.
-   */
   background?: "auto" | "opaque" | "transparent"
 
-  /**
-   * Input fidelity for the generated image. Default is 'low'.
-   */
   inputFidelity?: "low" | "high"
 
-  /**
-   * Optional mask for inpainting.
-   * Contains image_url (string, optional) and file_id (string, optional).
-   */
   inputImageMask?: {
-    /**
-     * File ID for the mask image.
-     */
     fileId?: string
 
-    /**
-     * Base64-encoded mask image.
-     */
     imageUrl?: string
   }
 
-  /**
-   * The image generation model to use. Default: gpt-image-1.
-   */
   model?: string
 
-  /**
-   * Moderation level for the generated image. Default: auto.
-   */
   moderation?: "auto"
 
-  /**
-   * Compression level for the output image. Default: 100.
-   */
   outputCompression?: number
 
-  /**
-   * The output format of the generated image. One of png, webp, or jpeg.
-   * Default: png
-   */
   outputFormat?: "png" | "jpeg" | "webp"
 
-  /**
-   * Number of partial images to generate in streaming mode, from 0 (default value) to 3.
-   */
   partialImages?: number
 
-  /**
-   * The quality of the generated image.
-   * One of low, medium, high, or auto. Default: auto.
-   */
   quality?: "auto" | "low" | "medium" | "high"
 
-  /**
-   * The size of the generated image.
-   * One of 1024x1024, 1024x1536, 1536x1024, or auto.
-   * Default: auto.
-   */
   size?: "auto" | "1024x1024" | "1024x1536" | "1536x1024"
 }
 
 const imageGenerationToolFactory = createProviderToolFactoryWithOutputSchema<
   {},
   {
-    /**
-     * The generated image encoded in base64.
-     */
     result: string
   },
   ImageGenerationArgs
@@ -107,8 +63,6 @@ const imageGenerationToolFactory = createProviderToolFactoryWithOutputSchema<
   outputSchema: imageGenerationOutputSchema,
 })
 
-export const imageGeneration = (
-  args: ImageGenerationArgs = {}, // default
-) => {
+export const imageGeneration = (args: ImageGenerationArgs = {}) => {
   return imageGenerationToolFactory(args)
 }

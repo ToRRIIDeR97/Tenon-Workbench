@@ -345,7 +345,6 @@ function initialResult(text: string, key: string | undefined, projection: Projec
       if (block.mode === "code") return []
       const cacheKey = `${base}:${index}:${block.mode}`
       const cached = getCachedMarkdown(cacheKey)
-      // The hash covers `src`, which can change without `raw` (reference definitions arriving later).
       if (cached?.raw !== block.raw || cached.hash !== checksum(block.src)) return []
       return [{ key: `${owner}:${cacheKey}`, mode: block.mode, ...cached }]
     })
@@ -376,9 +375,7 @@ export function Markdown(
     streaming?: boolean
     class?: string
     classList?: Record<string, boolean>
-    /** Makes inline code that cites a file in the thread folder an interactive chip. */
     fileReferences?: FileReferenceActions
-    /** Renders ```html blocks as live, sandboxed designs; only assistant replies opt in, elsewhere they stay code. */
     designs?: boolean
   },
 ) {
@@ -398,7 +395,6 @@ export function Markdown(
   const owner = createUniqueId()
   const activeCodeKeys = new Set<string>()
   const completedCode = new Map<string, Extract<RenderedBlock, { mode: "code" }>>()
-  // Most blocks are unchanged between streamed updates, and comparing them is far cheaper than hashing.
   const hashes = new Map<string, { src: string; hash: string | undefined }>()
   const blockHash = (key: string, src: string) => {
     const known = hashes.get(key)
@@ -556,8 +552,6 @@ export function Markdown(
       disposeCopyButtons(child)
       child.remove()
     }
-    // Only replaced or morphed blocks need their buttons and SVG windows refreshed, unless the
-    // locale changed the copy labels; a streamed update would otherwise rescan the whole message.
     const relabel = appliedLabels?.copy !== labels.copy || appliedLabels?.copied !== labels.copied
     appliedLabels = labels
     const svgLabels = {
@@ -591,11 +585,9 @@ export function Markdown(
       mountSvgWindows(block, svgLabels)
       mountViewWindows(block, viewLabels, viewSpace)
       if (!local.designs) return
-      // ```html designs need their fence info string, which only the block's markdown source keeps.
       const raw = block === container ? local.text : content.find((item) => item.key === block.dataset.markdownKey)?.raw
       mountHtmlWindows(block, raw ?? local.text, designLabels, { space: designSpace, live: streamed })
     })
-    // Morphing strips chip attributes, so changed blocks are re-marked; a new folder re-marks all.
     const directory = local.fileReferences?.directory
     if (directory || referenceDirectory)
       (directory !== referenceDirectory ? [container] : changed).forEach((block) =>
@@ -670,7 +662,6 @@ function disposeCode(key: string) {
   disposeStreamingCode(key)
 }
 
-/** Brings the block at `index` up to date and returns its element when it was added, replaced or morphed. */
 function updateBlock(
   container: HTMLDivElement,
   index: number,
@@ -721,7 +712,6 @@ function updateBlock(
       return true
     },
   })
-  // Dispose any Solid copy-button roots still attached to the detached `next` tree.
   disposeCopyButtons(next)
   return current
 }

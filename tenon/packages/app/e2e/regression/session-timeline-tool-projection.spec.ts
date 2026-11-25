@@ -78,7 +78,6 @@ test("labels all web search provider variants", async ({ page }) => {
   ]
   await setupTimeline(page, { messages: [userMessage(), assistantMessage(parts)] })
 
-  // Parts render in ID order; the three completed searches fold into one "tools" summary row.
   const group = page.locator('[data-timeline-part-ids="prt_search_exa,prt_search_generic,prt_search_parallel"]')
   await expect(group.getByRole("button", { name: /^Ran 3 tool/ })).toBeVisible()
   await group.locator('[data-component="context-tool-group-trigger"]').click()

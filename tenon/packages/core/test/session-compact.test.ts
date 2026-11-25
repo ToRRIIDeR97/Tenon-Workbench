@@ -15,15 +15,11 @@ import { SessionStore } from "@tenon/core/session/store"
 import { Harness } from "@tenon/schema/harness"
 import { testEffect } from "./lib/effect"
 
-// /compact on a harness thread runs the harness's own compaction. Given a model, the thread compacts on it and then
-// switches back: a cold thread's compaction reloads the whole history, so a cheaper model reads it.
-
 const busyID = SessionV2.ID.create()
 const failingID = SessionV2.ID.create()
 const gatedID = SessionV2.ID.create()
 const resumed: string[] = []
 const woken: string[] = []
-// The gated thread's compaction turn runs until the test releases it.
 let release: () => void = () => {}
 const gate = new Promise<void>((resolve) => (release = resolve))
 const projects = Layer.succeed(

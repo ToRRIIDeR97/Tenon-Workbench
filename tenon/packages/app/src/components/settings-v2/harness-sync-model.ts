@@ -7,11 +7,8 @@ import type {
   HarnessSyncToolPreset,
 } from "@/harness-sync/types"
 
-// Pure helpers behind Settings › Instructions and the sync part of Settings › Skills, kept free of UI imports.
-
 export const MODES: ReadonlyArray<HarnessSyncMode> = ["shared", "append", "custom", "off"]
 
-/** The instance a harness's logo is looked up by (`harness-logo.ts`). */
 export const logoInstance: Record<HarnessSyncToolID, { id: string; name: string }> = {
   tenon: { id: "opencode", name: "Tenon" },
   claude: { id: "claude-code", name: "Claude Code" },
@@ -25,7 +22,6 @@ const DEFAULT_PRESET: HarnessSyncToolPreset = { mode: "shared", text: "" }
 
 export const toolPreset = (tools: HarnessSyncPresets["tools"], id: HarnessSyncToolID) => tools[id] ?? DEFAULT_PRESET
 
-/** The editable presets of a loaded sync file, with nothing staged for upload. */
 export const presetsOf = (document: HarnessSyncDocumentView): HarnessSyncPresets => ({
   shared: document.shared,
   tools: structuredClone(document.tools),
@@ -33,7 +29,6 @@ export const presetsOf = (document: HarnessSyncDocumentView): HarnessSyncPresets
   skillSources: {},
 })
 
-/** What a tool's instructions file will contain, matching the main process (always ends with a newline). */
 export function renderPreset(shared: string, tool: HarnessSyncToolPreset) {
   if (tool.mode === "off") return undefined
   const text =
@@ -49,7 +44,6 @@ export function renderPreset(shared: string, tool: HarnessSyncToolPreset) {
   return text === "" || text.endsWith("\n") ? text : `${text}\n`
 }
 
-/** How a tool's current file fits the shared preset, read the same way as making this computer the main one. */
 export function presetFromFile(shared: string, text: string): Pick<HarnessSyncToolPreset, "mode" | "text"> {
   const base = shared.trimEnd()
   if (!base) return { mode: "custom", text }
@@ -60,7 +54,6 @@ export function presetFromFile(shared: string, text: string): Pick<HarnessSyncTo
 
 export const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 
-/** True when the instruction parts of two presets differ (shared text, modes and texts). */
 export const instructionsChanged = (a: HarnessSyncPresets, b: HarnessSyncPresets) =>
   a.shared !== b.shared ||
   Object.keys({ ...a.tools, ...b.tools }).some((id) => {
@@ -69,7 +62,6 @@ export const instructionsChanged = (a: HarnessSyncPresets, b: HarnessSyncPresets
     return left.mode !== right.mode || left.text !== right.text
   })
 
-/** True when the skill parts differ: the shared set, each tool's skill mode and extras, or staged uploads. */
 export const skillsChanged = (a: HarnessSyncPresets, b: HarnessSyncPresets) =>
   !same(a.sharedSkills, b.sharedSkills) ||
   Object.keys(a.skillSources).length + Object.keys(b.skillSources).length > 0 ||
@@ -82,7 +74,6 @@ export const skillsChanged = (a: HarnessSyncPresets, b: HarnessSyncPresets) =>
     )
   })
 
-/** `draft` with only its instruction edits, on top of the saved presets: each tab saves its own part. */
 export const withInstructions = (saved: HarnessSyncPresets, draft: HarnessSyncPresets): HarnessSyncPresets => ({
   ...saved,
   shared: draft.shared,
@@ -97,7 +88,6 @@ export const withInstructions = (saved: HarnessSyncPresets, draft: HarnessSyncPr
   skillSources: {},
 })
 
-/** `draft` with only its skill edits, on top of the saved presets. */
 export const withSkills = (saved: HarnessSyncPresets, draft: HarnessSyncPresets): HarnessSyncPresets => ({
   ...saved,
   sharedSkills: draft.sharedSkills,
@@ -120,7 +110,6 @@ export const withSkills = (saved: HarnessSyncPresets, draft: HarnessSyncPresets)
   ),
 })
 
-/** Harnesses that receive the shared text: installed, with Shared or Shared + extra. */
 export const sharedUsers = (status: HarnessSyncStatus, draft: HarnessSyncPresets) =>
   status.tools
     .filter((tool) => tool.installed)
@@ -136,7 +125,6 @@ export type Headline =
   | { tone: "warn"; key: "waiting" }
   | { tone: "ok"; key: "synced"; at?: string; by?: string }
 
-/** One headline for the page: what the person most needs to know. */
 export function headline(status: HarnessSyncStatus): Headline {
   if (!status.syncFile) return { tone: "idle", key: "setup" }
   if (status.error) return { tone: "error", key: "unreadable", detail: status.error }
@@ -157,7 +145,6 @@ export function headline(status: HarnessSyncStatus): Headline {
   return { tone: "ok", key: "synced", at: status.document?.updatedAt, by: status.document?.updatedBy }
 }
 
-/** Skills on this computer that are not in the shared set yet, once each, with the harness that has them. */
 export function shareable(status: HarnessSyncStatus, draft: HarnessSyncPresets) {
   const seen = new Map<string, { name: string; description: string; tool: HarnessSyncToolID; files: number }>()
   status.skills.tools.forEach((group) =>
@@ -176,7 +163,6 @@ export function shareable(status: HarnessSyncStatus, draft: HarnessSyncPresets) 
   return [...seen.values()].toSorted((a, b) => a.name.localeCompare(b.name))
 }
 
-/** Copies changed outside Tenon, per skill, with the harnesses holding them: candidates for "Use this version". */
 export function editedSkills(status: HarnessSyncStatus) {
   return status.skills.tools.flatMap((group) =>
     group.skills

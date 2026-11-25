@@ -1,10 +1,6 @@
 import { expect, test } from "@playwright/test"
 import { brain, openApp } from "../acceptance/open-app"
 
-// implementations/harness-ux-batch-2, AC-1 and AC-3: Home's composer is the thread composer, Home stays usable while
-// the harness list is still being checked, sending from Home opens the new thread, and picking a Project carries the
-// text and harness to a new thread there.
-
 test.use({ viewport: { width: 1360, height: 860 } })
 
 const composer = (page: import("@playwright/test").Page) =>

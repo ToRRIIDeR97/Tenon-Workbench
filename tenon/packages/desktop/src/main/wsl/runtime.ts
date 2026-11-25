@@ -19,14 +19,6 @@ export type WslCommandResult = {
 
 export type RunWslOptions = {
   signal?: AbortSignal
-  /**
-   * Ceiling on how long we wait for the child process to exit. When the
-   * LXSS service or a specific distro wedges (e.g. Ubuntu-24.04 with a
-   * pending first-run prompt), `wsl.exe` never returns and any command
-   * that doesn't specify a timeout hangs the entire startup flow. Default
-   * is 20s — enough for slow cold-starts, short enough to fail fast on
-   * a wedge. Callers can override for longer-running jobs.
-   */
   timeoutMs?: number
 }
 
@@ -37,8 +29,6 @@ export function wslArgs(args: string[], distro?: string | null, user?: string | 
   return [...(distro ? ["-d", distro] : []), ...(user ? ["--user", user] : []), "--", ...args]
 }
 
-// Always the System32 copy: a bare name would also search the current directory (the user's home),
-// and the sidecar's wsl process receives the server password.
 export function wslExecutable() {
   return resolveSystem32Command("wsl.exe")
 }
@@ -63,17 +53,11 @@ function runCommand(command: string, args: string[], opts: RunWslOptions = {}) {
       signal: opts.signal,
     })
 
-    // Guard every wsl.exe invocation with a timeout. When the distro or
-    // the LXSS service is wedged (Ubuntu first-run state, Windows update
-    // pending, etc.) wsl.exe produces no output and never exits; without
-    // this the whole sidecar spawn flow stalls the app forever.
     const timeoutMs = opts.timeoutMs ?? DEFAULT_WSL_TIMEOUT_MS
     const timeoutId = setTimeout(() => {
       try {
         child.kill()
-      } catch {
-        /* ignore */
-      }
+      } catch {}
       reject(
         new Error(nativeT("desktop.wsl.error.commandTimeout", { command, args: args.join(" "), timeout: timeoutMs })),
       )
@@ -124,7 +108,6 @@ async function runInteractiveCommand(
   opts: RunWslOptions = {},
   defaultTimeoutMs: number,
 ) {
-  // A native module used only by interactive WSL commands, so it stays out of the startup graph.
   const pty = await import("@lydell/node-pty")
   return new Promise<WslCommandResult>((resolve, reject) => {
     const child = pty.spawn(command, args, {
@@ -148,9 +131,7 @@ async function runInteractiveCommand(
     const timeoutId = setTimeout(() => {
       try {
         child.kill()
-      } catch {
-        /* ignore */
-      }
+      } catch {}
       if (settled) return
       settled = true
       cleanup()
@@ -162,9 +143,7 @@ async function runInteractiveCommand(
     const abortHandler = () => {
       try {
         child.kill()
-      } catch {
-        /* ignore */
-      }
+      } catch {}
       if (settled) return
       settled = true
       cleanup()

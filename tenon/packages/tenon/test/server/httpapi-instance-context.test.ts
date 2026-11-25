@@ -276,11 +276,6 @@ describe("HttpApi instance context middleware", () => {
       yield* Project.use.fromDirectory(dir)
       yield* serveProbe()
 
-      // Reference a workspace id that is not registered locally. Without the
-      // configured env override, this would short-circuit to a 500
-      // MissingWorkspace response. With the env set, planRequest must skip the
-      // MissingWorkspace branch and fall through to Local with the configured
-      // workspace id.
       const unknownWorkspaceID = WorkspaceV2.ID.ascending()
       const response = yield* HttpClientRequest.get(`/probe?workspace=${unknownWorkspaceID}`).pipe(
         HttpClientRequest.setHeader("x-opencode-directory", dir),
@@ -308,10 +303,6 @@ describe("HttpApi instance context middleware", () => {
         type: "instance-context-fixed-workspace-control-plane",
         directory: workspaceDir,
       })
-      // /session is matched by isLocalWorkspaceRoute, so shouldStayOnControlPlane
-      // is true. Combined with the env override, the route must stay Local with
-      // the configured workspace id (not divert to the requested workspace's
-      // local directory).
       yield* serveProbe()
 
       const response = yield* HttpClientRequest.get(`/session?workspace=${workspace.id}`).pipe(

@@ -16,7 +16,6 @@ import {
 const Body = lazy(() => import("./status-popover-body").then((x) => ({ default: x.StatusPopoverBody })))
 const ServerBody = lazy(() => import("./status-popover-body").then((x) => ({ default: x.StatusPopoverServerBody })))
 
-// Loading the body before the first open keeps the popover from opening on the short fallback.
 const preloadBodies = () => {
   void Body.preload()
   void ServerBody.preload()
@@ -100,7 +99,6 @@ type StatusPopoverState = {
 }
 
 function StatusPopoverBody(props: { shown: boolean; children: JSX.Element }) {
-  // Stays through the popover's exit animation; the popover unmounts its content once that ends.
   const mounted = createMemo((previous: boolean) => previous || props.shown, false)
   return (
     <Show when={mounted()}>
@@ -148,7 +146,6 @@ function StatusPopoverView(props: { state: StatusPopoverState }) {
       }
       {...popoverProps}
     >
-      {/* Built once per opening: the state object changes with `shown`, which must not rebuild the body. */}
       {untrack(() => props.state.body())}
     </Popover>
   )

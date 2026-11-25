@@ -30,10 +30,6 @@ async function readJson<T>(p: string): Promise<T> {
   return JSON.parse(await fs.readFile(p, "utf8"))
 }
 
-// ---------------------------------------------------------------------------
-// Worker subprocess helpers
-// ---------------------------------------------------------------------------
-
 type Msg = {
   key: string
   dir: string
@@ -46,8 +42,6 @@ type Msg = {
 const root = path.join(import.meta.dir, "../..")
 const worker = path.join(import.meta.dir, "../fixture/effect-flock-worker.ts")
 
-// The worker imports Global; without NODE_ENV=test it would run the legacy storage migration against
-// the real home folders.
 const workerEnv = { ...process.env, NODE_ENV: "test" }
 
 function run(msg: Msg) {
@@ -101,10 +95,6 @@ async function waitForFile(file: string, timeout = 3_000) {
   throw new Error(`Timed out waiting for file: ${file}`)
 }
 
-// ---------------------------------------------------------------------------
-// Test layer
-// ---------------------------------------------------------------------------
-
 const testGlobal = Global.layerWith({
   home: os.homedir(),
   data: os.tmpdir(),
@@ -116,10 +106,6 @@ const testGlobal = Global.layerWith({
 })
 
 const testLayer = AppNodeBuilder.build(EffectFlock.node, [[Global.node, testGlobal]])
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe("util.effect-flock", () => {
   const it = testEffect(testLayer)
@@ -376,7 +362,6 @@ describe("util.effect-flock", () => {
           await waitForFile(ready, 5_000)
           await stopWorker(proc)
 
-          // Backdate lock files so they're past STALE_MS (60s)
           const lockDir = lock(dir, "eflock:crash")
           const old = new Date(Date.now() - 120_000)
           await fs.utimes(lockDir, old, old).catch(() => {})

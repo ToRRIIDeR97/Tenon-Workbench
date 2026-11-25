@@ -61,7 +61,6 @@ export const emptyDraft = (date = localDateKey(new Date()), projectId = ""): Cal
   outboxKey: "",
 })
 
-/** A draft of an existing event; `accountId` is the event's account, resolved by the page for older items. */
 export const eventDraft = (event: CalendarEvent, accountId: string | undefined): CalendarDraft => ({
   id: event.id,
   title: event.title,
@@ -107,19 +106,15 @@ export const fieldClass = "flex flex-col gap-1.5 type-meta text-v2-text-text-mut
 export const noteClass =
   "rounded-[12px] bg-v2-background-bg-base px-3 py-2 text-[12px] leading-5 text-v2-text-text-muted"
 
-/** Every editor field shares the TextInputV2 look: full width, 36px, layer-01 fill and base ring, pill shape. */
 export const controlClass = "!h-9 !w-full"
 
-/** Text areas match the fields at a 16px radius. */
 export const textareaClass = "!w-full !rounded-[16px]"
 
-/** A labelled DateChip restyled as a field; the chip's popover is portaled, so only the trigger matches. */
 export const dateFieldClass = `${fieldClass} [&_[data-slot=popover-trigger]]:!h-9 [&_[data-slot=popover-trigger]]:!w-full [&_[data-slot=popover-trigger]]:!bg-v2-background-bg-layer-01 [&_[data-slot=popover-trigger]]:!px-3 [&_[data-slot=popover-trigger]]:text-[13px] [&_[data-slot=popover-trigger]]:shadow-[inset_0_0_0_1px_var(--v2-border-border-base)] [&_[data-slot=popover-trigger]:hover]:shadow-[inset_0_0_0_1px_var(--v2-border-border-strong)]`
 
 export const timeInputClass =
   "h-9 w-full min-w-0 rounded-full border-0 bg-v2-background-bg-layer-01 px-3 text-[13px] text-v2-text-text-base shadow-[inset_0_0_0_1px_var(--v2-border-border-base)] outline-none transition-shadow duration-short ease-standard hover:shadow-[inset_0_0_0_1px_var(--v2-border-border-strong)] focus:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)] aria-[invalid]:shadow-[inset_0_0_0_1px_var(--v2-state-fg-danger)] motion-reduce:transition-none"
 
-/** The event editor. The page owns the draft and the store; `state` is read here so the form stays reactive. */
 export function CalendarEventForm(props: {
   state: {
     draft: CalendarDraft

@@ -106,7 +106,6 @@ describe("Auth", () => {
     }),
   )
 
-  // Windows has no POSIX mode bits; auth.json inherits the user profile's ACL there.
   it.instance("set writes an owner-only file and leaves no temp file", () =>
     Effect.gen(function* () {
       const auth = yield* Auth.Service
@@ -123,7 +122,6 @@ describe("Auth", () => {
     const errno = (code: string) => Object.assign(new Error(code), { code })
     expect(Auth.isLockedTarget({ _tag: "Busy", cause: errno("EBUSY") })).toBe(true)
     expect(Auth.isLockedTarget({ _tag: "PermissionDenied", cause: errno("EACCES") })).toBe(true)
-    // Effect leaves EPERM, which Windows returns for a file another process holds open, as Unknown.
     expect(Auth.isLockedTarget({ _tag: "Unknown", cause: errno("EPERM") })).toBe(true)
     expect(Auth.isLockedTarget({ _tag: "Unknown", cause: errno("EXDEV") })).toBe(false)
     expect(Auth.isLockedTarget({ _tag: "NotFound", cause: errno("ENOENT") })).toBe(false)

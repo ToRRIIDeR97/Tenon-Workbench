@@ -1,20 +1,5 @@
-// Branded HTML pages for local OAuth callback servers.
-//
-// These are served by the loopback HTTP servers that finish an OAuth exchange
-// (MCP, Codex/ChatGPT, xAI, Snowflake, DigitalOcean, ...). The functions return
-// a fully self-contained HTML string with no external assets, so they work
-// offline and drop into any transport (`res.end(...)`, Effect `response.end`,
-// etc.).
-//
-// The visual language mirrors the Tenon Workbench app: the design tokens are a curated
-// subset of the OC-2 semantic tokens in `packages/ui/src/styles/theme.css`, and
-// the wordmark is the same geometry as `packages/ui/src/components/logo.tsx`.
-// Keep this file in sync with those sources when the brand changes.
-
 export interface CallbackPageOptions {
-  /** Friendly integration name shown as a subtitle, e.g. "xAI", "Snowflake", "MCP". */
   provider?: string
-  /** Attempt to close the window shortly after success. Defaults to true. */
   autoClose?: boolean
 }
 
@@ -51,15 +36,10 @@ export function error(detail: string, options?: CallbackPageOptions) {
 }
 
 export interface BootstrapOptions {
-  /** Same-origin path the in-browser script POSTs the parsed callback to. */
   tokenPath: string
   provider?: string
 }
 
-// For flows where the credential arrives in the URL fragment (implicit grant),
-// the browser must relay it back to the loopback server. This renders a pending
-// page whose script reads the fragment, POSTs it to `tokenPath`, then resolves
-// to the success or error state in place.
 export function bootstrap(options: BootstrapOptions) {
   return renderDocument({
     title: "Finishing sign-in",
@@ -148,9 +128,6 @@ function escapeHtml(value: string) {
     .replaceAll("'", "&#39;")
 }
 
-// Curated subset of OC-2 tokens (packages/ui/src/styles/theme.css). Default is
-// light; dark applies via prefers-color-scheme. The [data-theme] selectors let a
-// host force a scheme without changing the default.
 const LIGHT_VARS = `
     --oc-bg: #f8f8f8;
     --oc-card: #fcfcfc;
@@ -251,7 +228,6 @@ const STYLES = `
   @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
 `
 
-// Tenon Workbench wordmark — same text mark as packages/ui/src/components/logo.tsx (Logo).
 const WORDMARK = `<svg class="wordmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 234 42" fill="none" aria-label="Tenon Workbench" role="img">
         <text x="0" y="32" textLength="234" lengthAdjust="spacingAndGlyphs" font-size="30" font-weight="600" fill="var(--oc-icon-base)">Tenon Workbench</text>
       </svg>`

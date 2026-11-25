@@ -4,7 +4,6 @@ import { join } from "node:path"
 import { setSkillEnabled } from "@/utils/server"
 import { sharedWith, skillSections, switchable } from "./skills-sections"
 
-// #323 (variant A): harness skills get a switch; the row says what switching changes for that harness.
 const sections = skillSections({
   tenon: [{ name: "notes", scope: "global", enabled: true }],
   harnesses: [

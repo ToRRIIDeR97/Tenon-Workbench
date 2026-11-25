@@ -113,7 +113,6 @@ describe("listHarnessesRemembered", () => {
     ok = false
     expect(await listHarnessesRemembered(input, "C:\\brain")).toMatchObject([{ id: Harness.Codex }])
     expect(rememberedHarnesses("http://localhost:4097", "C:\\brain")).toMatchObject([{ id: Harness.Codex }])
-    // Availability doesn't depend on the folder, so a new folder starts from the server's latest list.
     expect(rememberedHarnesses("http://localhost:4097", "C:\\other")).toMatchObject([{ id: Harness.Codex }])
     expect(rememberedHarnesses("http://localhost:4098", "C:\\other")).toBeUndefined()
     await expect(

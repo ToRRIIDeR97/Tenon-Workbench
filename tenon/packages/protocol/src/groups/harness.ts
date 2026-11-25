@@ -6,7 +6,6 @@ import { LocationQuery, locationQueryOpenApi } from "./location"
 
 const errorFields = { reason: Schema.String, message: Schema.String }
 
-// Each status gets its own error so the reason stays machine-readable for the Settings page.
 export class HarnessSettingsInvalidError extends Schema.TaggedError<HarnessSettingsInvalidError>()(
   "HarnessSettingsInvalidError",
   errorFields,

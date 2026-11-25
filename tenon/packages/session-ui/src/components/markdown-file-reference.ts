@@ -1,30 +1,15 @@
 import { hasPathExtension, hasPathFileName, inlineCodeKind } from "./markdown-inline-code-kind"
 
-/**
- * A file or folder cited in inline code, e.g. `core/src/harness.ts:1552-1556` or `notes/`. Lines are
- * 1-based and inclusive. `kind` is `folder` for a trailing slash and `either` for an extensionless path,
- * which the folder listing settles when the reference is hovered or opened; without it, the path names a file.
- */
 export type FileReference = {
   path: string
   start?: number
   end?: number
   kind?: "folder" | "either"
-  /**
-   * An absolute path outside the thread's folder, as an agent that worked elsewhere cites it. `path` is then the
-   * full path with forward slashes, and the app reads it from its own folder instead of the thread's.
-   */
   outside?: boolean
 }
 
-// `path`, `path:10`, `path:10-20`, `path:10:4` (column ignored), `path#L10`, `path#L10-L20`.
 const referencePattern = /^(.+?)(?::(\d{1,7})(?:-(\d{1,7})|:\d{1,7})?|#L(\d{1,7})(?:-L?(\d{1,7}))?)?$/
 
-/**
- * Parses inline code that cites a file, optionally with a line range, or a folder. A known extension or
- * file name marks a file and a trailing slash a folder. Any other path the classifier accepts has a slash
- * and no extension, so it may be either; a line range makes it a file. Dotted identifiers stay plain code.
- */
 export function parseFileReference(text: string): FileReference | undefined {
   const match = referencePattern.exec(localPath(text.trim()) ?? text.trim())
   if (!match) return
@@ -39,20 +24,14 @@ export function parseFileReference(text: string): FileReference | undefined {
   return { path, start, end: end >= start ? end : start }
 }
 
-/** A `file://` URL as a plain path, or undefined for anything else. Only local (hostless) URLs count. */
 function localPath(text: string) {
   if (!/^file:\/\//i.test(text) || !URL.canParse(text)) return
   const url = new URL(text)
   if (url.hostname) return
   const path = decodeURIComponent(url.pathname)
-  // `file:///C:/x` has the pathname `/C:/x`; the drive letter starts the Windows path.
   return /^\/[A-Za-z]:\//.test(path) ? path.slice(1) : path
 }
 
-/**
- * The file path a Markdown link points at when it targets a local file: a relative path (`report.docx`,
- * `docs/a.md#intro`) or a `file://` URL. Web, mail and other scheme links, and in-page `#anchors`, are not files.
- */
 export function localLinkTarget(href: string) {
   const value = href.trim()
   if (!value || value.startsWith("#") || value.startsWith("//")) return
@@ -69,10 +48,6 @@ export function localLinkTarget(href: string) {
 
 const citationPattern = /:{1,2}codex-file-citation\{([^}\n]*)\}/g
 
-/**
- * Rewrites Codex's file citation directives (`:codex-file-citation{path="…" line_range_start=… …}`, which only the
- * Codex app renders) as inline code, so they become file chips like any other cited path.
- */
 export function fileCitations(text: string) {
   if (!text.includes("codex-file-citation")) return text
   return text.replace(citationPattern, (whole, attributes: string) => {
@@ -90,11 +65,6 @@ export function fileCitations(text: string) {
   })
 }
 
-/**
- * The chip a parsed reference becomes. Files and trailing-slash folders are chips at once; an `either`
- * path only once the thread folder's listing names it (`type`), so `owner/repo`, `and/or` or
- * `application/json` stay plain code.
- */
 export function settleFileReference(
   reference: FileReference,
   type: "file" | "directory" | undefined,
@@ -104,12 +74,6 @@ export function settleFileReference(
   if (type === "file") return { path: reference.path }
 }
 
-/**
- * Returns `input` as a normalized path relative to `directory`, or undefined when it can leave it:
- * any `..` segment, a home-relative or Windows drive-relative path (`D:x.ts`, which resolves against
- * that drive's current folder), or an absolute path outside the directory.
- * Absolute paths inside the directory become relative.
- */
 export function resolveFileReferencePath(input: string, directory: string) {
   if (!input || !directory || /[\u0000-\u001f]/.test(input)) return
   if (input.startsWith("~") || /^[A-Za-z]:(?![\\/])/.test(input)) return
@@ -122,11 +86,6 @@ export function resolveFileReferencePath(input: string, directory: string) {
   return segments.join("/")
 }
 
-/**
- * Returns an absolute `input` that lies outside `directory` as a normalized absolute path (forward slashes, no
- * `.` or empty segments), or undefined for anything else: a relative or home-relative path, any `..` segment, or
- * a path of the other platform's form (a `/…` path in a Windows thread folder, a drive path in a POSIX one).
- */
 export function outsideFileReferencePath(input: string, directory: string) {
   if (!input || !directory || /[\u0000-\u001f]/.test(input)) return
   if (resolveFileReferencePath(input, directory) !== undefined) return
@@ -142,10 +101,6 @@ export function outsideFileReferencePath(input: string, directory: string) {
   return (drive ?? "/") + segments.join("/")
 }
 
-/**
- * A listed entry's path in the form `resolveFileReferencePath` returns: forward slashes and no trailing slash. The
- * server lists folders as `name/`, so comparing without this misses every folder.
- */
 export function listedEntryPath(path: string) {
   return path.replaceAll("\\", "/").replace(/\/+$/, "")
 }
@@ -156,14 +111,12 @@ function absolute(path: string) {
 
 function inside(path: string, directory: string, windows: boolean) {
   const root = (windows ? directory.replaceAll("\\", "/") : directory).replace(/\/+$/, "")
-  // Windows paths compare case-insensitively; slice the original so the relative path keeps its case.
   const canon = (value: string) => (windows ? value.toLowerCase() : value)
   if (!root) return path.slice(1)
   if (!canon(path).startsWith(canon(root) + "/")) return
   return path.slice(root.length + 1)
 }
 
-/** `L27`, or `L27–29` for a range. */
 export function fileReferenceRangeLabel(reference: Pick<FileReference, "start" | "end">) {
   if (!reference.start) return ""
   if (!reference.end || reference.end === reference.start) return `L${reference.start}`

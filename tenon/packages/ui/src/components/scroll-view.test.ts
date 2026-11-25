@@ -83,8 +83,6 @@ describe("scrollTopFromThumbPointer", () => {
       scrollHeight: 8_000,
       thumbHeight: 40,
     }
-    // track usable = 400 - 16 - 40 = 344; thumbTop = 400 - 100 - 8 = 292
-    // maxScroll = 8000 - 800 = 7200 → 292/344 * 7200
     expect(scrollTopFromThumbPointer(input)).toBeCloseTo((292 / 344) * 7200)
   })
 })

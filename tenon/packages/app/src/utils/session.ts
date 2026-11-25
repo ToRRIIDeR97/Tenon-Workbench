@@ -11,7 +11,6 @@ export type HarnessSession = Session & {
 
 export function normalizeSessionInfo(input: SessionInfo | Session): HarnessSession {
   if (!("location" in input)) {
-    // v1 `session.updated` events carry the harness only inside `metadata`.
     const current = input as Session & Partial<HarnessSession>
     const metadata = input.metadata ?? {}
     return {
@@ -23,7 +22,6 @@ export function normalizeSessionInfo(input: SessionInfo | Session): HarnessSessi
         (typeof metadata.harnessRevision === "number" ? metadata.harnessRevision : undefined),
     }
   }
-  // The vendored client predates these fields; `time.pinned` mirrors `metadata.pinned` on the legacy shape.
   const current = input as SessionInfo & {
     time: SessionInfo["time"] & { pinned?: number }
     harnessInstanceID?: string
@@ -51,7 +49,6 @@ export function normalizeSessionInfo(input: SessionInfo | Session): HarnessSessi
     harnessRevision: current.harnessRevision,
     version: "",
     time: input.time,
-    // The legacy shape keeps both in `metadata`; `origin` marks a thread another one started (the Command Centre).
     metadata:
       current.time.pinned === undefined && current.origin === undefined
         ? undefined
@@ -63,7 +60,6 @@ export function normalizeSessionInfo(input: SessionInfo | Session): HarnessSessi
       messageID: input.revert.messageID,
       partID: input.revert.partID,
       snapshot: input.revert.snapshot,
-      // empty when the rewind left files untouched ("Messages only")
       diff: current.revert?.files?.map((file) => file.patch).join(""),
     },
   } as HarnessSession
@@ -82,13 +78,10 @@ function metadataModel(value: unknown): Harness.ModelSelection | undefined {
   return { id: value.id, reasoningEffort: text("reasoningEffort"), serviceTier: text("serviceTier") }
 }
 
-// Whether moving a staged rollback's boundary restores files: a messages-only rewind (empty diff) never
-// does; undefined leaves the choice to the server.
 export function revertRestoresFiles(revert: { diff?: string } | undefined) {
   return revert?.diff === undefined ? undefined : revert.diff.length > 0
 }
 
-// Pin time in epoch ms, stored by the server in `metadata.pinned`.
 export function sessionPinnedAt(session: Pick<Session, "metadata">) {
   const pinned = session.metadata?.pinned
   return typeof pinned === "number" ? pinned : undefined

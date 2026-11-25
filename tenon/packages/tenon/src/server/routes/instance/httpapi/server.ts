@@ -133,12 +133,6 @@ const cors = (corsOptions?: CorsOptions) =>
     { global: true },
   )
 
-// Route tree:
-// - rootApiRoutes: typed /global/* and control routes; auth is declared by RootHttpApi.
-// - eventApiRoutes: typed SSE route with instance routing context and its existing API contract.
-// - ptyConnectApiRoutes: typed WebSocket upgrade route with ticket-aware auth.
-// - instanceApiRoutes: remaining typed instance routes.
-// - uiRoute: raw catch-all fallback; auth is router middleware so public static assets can bypass it.
 const authOnlyRouterLayer = authorizationRouterMiddleware.layer.pipe(Layer.provide(ServerAuth.Config.layer))
 const httpApiAuthLayer = authorizationLayer.pipe(Layer.provide(ServerAuth.Config.layer))
 const ptyConnectHttpApiAuthLayer = ptyConnectAuthorizationLayer.pipe(Layer.provide(ServerAuth.Config.layer))
@@ -187,11 +181,6 @@ const serverRoutes = HttpApiBuilder.layer(Api).pipe(
   Layer.provide([serverHttpApiAuthLayer, v2SchemaErrorLayer]),
 )
 
-// `OpenApi.fromApi` is non-trivial; defer until /doc is actually hit so
-// processes that never serve it (CLI, scripts) don't pay at module load.
-// `HttpServerResponse.jsonUnsafe` runs JSON.stringify eagerly, so caching
-// the response also caches the serialized body — every /doc request reuses
-// the same Uint8Array instead of re-stringifying the spec.
 const docResponse = lazy(() => HttpServerResponse.jsonUnsafe(OpenApi.fromApi(PublicApi)))
 
 const docRoute = HttpRouter.use((router) => router.add("GET", "/doc", () => Effect.succeed(docResponse()))).pipe(
@@ -276,8 +265,6 @@ const app = LayerNode.group([
 
 export function createRoutes(
   corsOptions?: CorsOptions,
-  // A listening server also runs background schedules (routines); the in-process routes tests use do not.
-  // `hostname` is the address a listener binds; a loopback one turns on the Host and Origin guard.
   options: { background?: boolean; hostname?: string } = {},
 ): Layer.Layer<never, EffectConfig.ConfigError, RouteRequirements> {
   const locationServiceMapV2 = buildLocationServiceMap()
@@ -301,7 +288,6 @@ export function createRoutes(
       fenceLayer,
       hostGuard(options.hostname, corsOptions),
       cors(corsOptions),
-      // After cors: the first global middleware registered is outermost, so a 413 still gets CORS headers.
       bodyLimitLayer,
       AppNodeBuilderV1.build(MoveSession.node, [[LocationServiceMap.node, locationServiceMapV2]]),
       HttpServer.layerServices,
@@ -319,10 +305,6 @@ export function createRoutes(
     Layer.provide(locationServiceMapV2),
 
     Layer.provide(AppNodeBuilderV1.build(app)),
-    // Must stay last: layers provided later in this pipe build beneath earlier ones,
-    // so Observability must come after every service graph. Otherwise eagerly forked
-    // fibers (e.g. the ModelsDev background refresh) capture Effect's default stdout
-    // logger and corrupt the TUI (#34730).
     Layer.provideMerge(Observability.layer),
   )
 }

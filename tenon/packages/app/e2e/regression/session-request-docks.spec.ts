@@ -49,7 +49,6 @@ test("shows a pending question dock", async ({ page }) => {
   await question.getByRole("button", { name: "Minimize question" }).click()
   await expect(question).toBeVisible()
   await expect(question.getByText("Which implementation should be used?")).toBeVisible()
-  // The hint folds away (0fr row, opacity 0, aria-hidden) rather than leaving the DOM.
   const hintFold = question.locator('div[aria-hidden]:has(> div > [data-slot="question-hint"])')
   await expect(hintFold).toHaveAttribute("aria-hidden", "true")
   await expect(hintFold).toHaveCSS("opacity", "0")

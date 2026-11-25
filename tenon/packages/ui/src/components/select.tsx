@@ -75,7 +75,6 @@ export function Select<T>(props: SelectProps<T> & Omit<ButtonProps, "children">)
     const result = pipe(
       local.options,
       groupBy((x) => (local.groupBy ? local.groupBy(x) : "")),
-      // mapValues((x) => x.sort((a, b) => a.title.localeCompare(b.title))),
       entries(),
       map(([k, v]) => ({ category: k, options: v })),
     )

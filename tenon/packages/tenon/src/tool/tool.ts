@@ -12,15 +12,8 @@ interface Metadata {
   [key: string]: any
 }
 
-// TODO: remove this hack
 export type DynamicDescription = (agent: Agent.Info) => Effect.Effect<string>
 
-/**
- * Raised when the LLM calls a tool with arguments that fail the parameter
- * schema. This is the canonical "rewrite the input" tool error: the typed
- * error class makes it matchable upstream, and its `message` getter produces
- * the model-facing prose that the AI SDK feeds back as the tool result.
- */
 export class InvalidArgumentsError extends Schema.TaggedError<InvalidArgumentsError>()("ToolInvalidArgumentsError", {
   tool: Schema.String,
   detail: Schema.String,
@@ -102,9 +95,6 @@ function wrap<Parameters extends Schema.Decoder<unknown>, Result extends Metadat
   return () =>
     Effect.gen(function* () {
       const toolInfo = typeof init === "function" ? { ...(yield* init()) } : { ...init }
-      // Compile the parser closure once per tool init; `decodeUnknownEffect`
-      // allocates a new closure per call, so hoisting avoids re-closing it for
-      // every LLM tool invocation.
       const decode = Schema.decodeUnknownEffect(toolInfo.parameters)
       const execute = toolInfo.execute
       toolInfo.execute = (args, ctx) => {

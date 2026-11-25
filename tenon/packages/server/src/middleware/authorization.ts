@@ -48,9 +48,6 @@ export const authorizationLayer = Layer.effect(
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest
         const url = new URL(request.url, "http://localhost")
-        // Browsers cannot set headers on WebSocket upgrades, so a ticketed PTY connect skips
-        // credential checks. The ticket (not consumed here) and Origin are checked before routing;
-        // the connect handler consumes the ticket against its full scope.
         if (hasPtyConnectTicketURL(url)) {
           const ptyID = url.pathname.split("/")[3] ?? ""
           const allowed =

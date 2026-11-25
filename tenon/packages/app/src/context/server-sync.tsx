@@ -185,10 +185,6 @@ export function snapshotSessionStatuses(session: Pick<ServerSession, "data">) {
   )
 }
 
-// A reconnected stream may have missed status events, so a "working" Session can be idle by now.
-// Sessions absent from the fresh active list become idle; active ones that look idle become busy.
-// `before` is the snapshot taken when the request started: a status that changed since then came
-// from a newer event than the response, so it is left alone.
 export function reconcileActiveSessionStatuses(
   session: Pick<ServerSession, "data" | "set">,
   active: SessionActiveOutput | Record<string, SessionStatus>,
@@ -210,8 +206,6 @@ export function reconcileActiveSessionStatuses(
   })
 }
 
-// The first `server.connected` belongs to the initial bootstrap; every later one is a reconnect
-// after a gap in the event stream. `global.disposed` also invalidates everything loaded so far.
 export function createResyncTracker() {
   let connected = false
   return (eventType: string) => {
@@ -441,7 +435,6 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
     },
   })
 
-  // `force` reloads an already loaded list at its retained size, e.g. after a reconnect.
   async function loadSessions(directory: string, options?: { limit?: number; force?: boolean }) {
     const key = directoryKey(directory)
     const pending = sessionLoads.get(key)
@@ -587,7 +580,6 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
   }
 
   const resyncNeeded = createResyncTracker()
-  // One resync at a time; a reconnect during a run queues exactly one more.
   let resyncRun: Promise<unknown> | undefined
   let resyncAgain = false
   const resync = () => {
@@ -600,7 +592,6 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
       activeSessionsQuery.refetch().then((result) => {
         if (result.isSuccess) reconcileActiveSessionStatuses(session, result.data, before)
       }),
-      // Deletes, archives and renames missed while disconnected only show up in a fresh list.
       ...[...sessionMeta.keys()].map((key) => loadSessions(key, { force: true })),
     ]).finally(() => {
       resyncRun = undefined
@@ -681,7 +672,6 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
     children.mark(key)
     if (
       moved !== undefined ||
-      // event.current?.type === "session.archived" ||
       event.current?.type === "session.forked" ||
       eventType === "command.updated" ||
       eventType === "config.updated" ||
@@ -725,8 +715,6 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
   })
 
   onMount(() => {
-    // A hidden window (loaded or reloaded while minimized) runs no animation frames, so waiting for one would leave
-    // it without live events until it is shown.
     if (typeof requestAnimationFrame === "function" && !document.hidden) {
       eventFrame = requestAnimationFrame(() => {
         eventFrame = undefined
@@ -757,8 +745,6 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
     mutationFn: (config: Config) => serverSDK.client.global.config.update({ config }),
     onSuccess: () => {
       bootstrap.refetch()
-      // Invalidate all provider queries so newly configured custom providers
-      // appear immediately in the available provider list across all directories.
       queryClient.invalidateQueries({ queryKey: [serverSDK.scope, null, "providers"] })
       queryClient.invalidateQueries({
         predicate: (query) => query.queryKey[0] === serverSDK.scope && query.queryKey[2] === "providers",
@@ -780,9 +766,7 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
     disableMcp: children.disableMcp,
     queryOptions: queryOptionsApi,
     refreshProviders,
-    // bootstrap,
     updateConfig: updateConfigMutation.mutateAsync,
-    /** Reads the global config again, after a route other than `updateConfig` rewrote the file. */
     reloadConfig: () => queryClient.refetchQueries({ queryKey: [serverSDK.scope, "config"] }),
     project: projectApi,
     session,
@@ -837,8 +821,6 @@ export type ServerSync = ReturnType<typeof createServerSyncContext>
 
 export const { use: useServerSync, provider: ServerSyncProvider } = createSimpleContext({
   name: "ServerSync",
-  // Returns an accessor so the resolved server can change reactively without
-  // re-instantiating the subtree (mirrors useServerSDK).
   init: (props: { server?: Accessor<ServerConnection.Any | undefined> }) => {
     const global = useGlobal()
     const language = useLanguage()
@@ -857,7 +839,6 @@ export function useQueryOptions() {
   return createMemo(() => sync().queryOptions)
 }
 
-/** A prompt joining the transcript or the agent finishing its reply: the thread's latest conversation. */
 function conversationTime(event: { type: string; data?: unknown }) {
   if (event.type !== "session.next.prompted" && event.type !== "session.next.step.ended") return
   const data = event.data as { sessionID?: unknown; timestamp?: unknown; finish?: unknown } | undefined

@@ -4,16 +4,8 @@ import { LoaderV2 } from "@tenon/ui/v2/loader-v2"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { children, Show, type JSX, type ParentProps } from "solid-js"
 
-/**
- * The card every page sits on: 16px corners, bg-base and a hairline ring, inside a `titlebar-inset-top` frame so
- * it starts 8px below the title bar like the left shell beside it.
- */
 export const pagePanelClass = "rounded-[16px] bg-v2-background-bg-base shadow-[0_0_0_1px_var(--v2-border-border-muted)]"
 
-/**
- * Full-height page: one panel that scrolls. `scroll={false}` keeps the panel fixed for pages whose
- * columns scroll on their own. Pages with their own layout use `pagePanelClass`.
- */
 export function PageFrame(
   props: ParentProps<{ labelledBy?: string; label?: string; scroll?: boolean; class?: string }>,
 ) {
@@ -34,22 +26,13 @@ export function PageFrame(
   )
 }
 
-/** The page's content column: 720px for lists and forms, 1040px for overviews and notes. */
 export const pageColumnClass = "mx-auto flex w-full max-w-[720px] flex-col gap-6 px-6 pt-6 pb-10 sm:px-10"
 export const pageWideColumnClass = "mx-auto flex w-full max-w-[1040px] flex-col gap-6 px-6 pt-6 pb-10 sm:px-10"
 
-/**
- * Page title with optional back button and trailing actions. Pages carry no subtitle: the title names the page.
- * `crumb` shows the title as a muted breadcrumb instead of the h1, for pages whose heading sits in the body.
- */
 export function PageHeader(props: {
   id?: string
   title: string
   crumb?: boolean
-  /**
-   * Puts the header in the page's content column, so the title starts on the content's left edge. `split` is the
-   * 1200px column of a list beside a detail (the Projects page).
-   */
   column?: "narrow" | "wide" | "split"
   back?: { label: string; onClick: () => void }
   actions?: JSX.Element
@@ -97,7 +80,6 @@ export function PageHeader(props: {
   )
 }
 
-/** A titled group of rows. A title with `onTitle` doubles as the link to the full view. */
 export function PageSection(
   props: ParentProps<{ id?: string; title: string; onTitle?: () => void; actions?: JSX.Element; class?: string }>,
 ) {
@@ -123,11 +105,6 @@ export function PageSection(
   )
 }
 
-/**
- * The one empty, loading and error block: centred near the top of the space the view would fill, with a title
- * (type-row-title, 600), a muted body (type-body) and at most one pill action. `loading` puts a spinner before the title; `error` marks it
- * as an alert and pairs with a plain-language body and an outline "Try again" action, never a raw error code.
- */
 export function PageEmpty(
   props: ParentProps<{ title?: string; loading?: boolean; error?: boolean; action?: JSX.Element; class?: string }>,
 ) {
@@ -155,6 +132,5 @@ export function PageEmpty(
   )
 }
 
-/** Shared list-row look: an 8px-radius row with hover, pressed and focus states. */
 export const pageRowClass =
   "flex w-full min-w-0 items-center gap-3 rounded-[8px] px-3 py-2 text-left transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover active:bg-v2-overlay-simple-overlay-pressed focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"

@@ -22,7 +22,6 @@ export function createUpdaterController(input: {
   backend: UpdaterBackend
   persistence: UpdaterPersistence
   stop: () => Promise<void>
-  /** Asked before anything stops; false keeps the app running (unsaved edits the person chose to stay with). */
   confirm?: () => boolean
   log?: (message: string, data?: object) => void
 }) {

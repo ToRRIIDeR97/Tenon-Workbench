@@ -2,13 +2,6 @@ import { app, globalShortcut, type BrowserWindow } from "electron"
 import { write as writeLog } from "./logging"
 import { createMainWindow, createWidgetWindow, getLastFocusedWindow, mainWindows, resizeWidgetWindow } from "./windows"
 
-/**
- * The desktop widget's lifecycle: one window, created on first show and reused. A global shortcut and the
- * "Desktop widget" command toggle it; its own close button hides it. "Open in Tenon" brings a main window forward
- * (opening one if none is left) and navigates it.
- *
- * The shortcut is the first of these that no other app holds: launchers often take Ctrl+Alt+Space.
- */
 export const WIDGET_SHORTCUTS = ["CommandOrControl+Alt+Space", "CommandOrControl+Alt+W"]
 
 let widget: BrowserWindow | undefined
@@ -42,7 +35,6 @@ export function resizeWidget(height: number) {
   if (widget && !widget.isDestroyed()) resizeWidgetWindow(widget, height)
 }
 
-/** Brings a main window forward on `path` (an app route such as a thread's), opening one when none is left. */
 export function openInApp(path: string) {
   if (!path.startsWith("/") || path.startsWith("//")) return
   const focused = getLastFocusedWindow()

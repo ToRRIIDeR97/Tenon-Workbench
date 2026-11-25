@@ -1,12 +1,7 @@
-// What the Projects page's detail card shows for a Project (project-detail.tsx), kept free of UI imports for tests.
 import type { ProjectRecord, TimelineItem } from "./client"
 
 const OPEN_TASKS = 5
 
-/**
- * The next milestone (the Project's own `nextMilestone`, else its first unfinished milestone item and that item's
- * date), the open tasks with the ones in progress first, and how many tasks are done.
- */
 export function previewSummary(record: Pick<ProjectRecord, "nextMilestone">, items: ReadonlyArray<TimelineItem>) {
   const milestone = items.find((item) => item.kind === "milestone" && item.status !== "done")
   const named = record.nextMilestone?.trim()

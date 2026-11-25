@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { documentText, frameTimes, mediaPlan, rtfText } from "./attachment-media"
 
-// #330 (variant A + video frames): how each attachment reaches a model that can or can't read it.
 const imageOnly = { image: true, video: false, audio: false, pdf: true }
 
 describe("AC-17 what is sent for each kind", () => {
@@ -53,7 +52,6 @@ describe("AC-17 frames by length", () => {
   })
 })
 
-// A ZIP with stored (uncompressed) entries, the smallest valid archive for the reader.
 function zip(files: Record<string, string>) {
   const encoder = new TextEncoder()
   const chunks: Uint8Array[] = []

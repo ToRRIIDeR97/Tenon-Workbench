@@ -51,7 +51,6 @@ export interface PromptInputProps {
   newSessionHarness?: Harness.InstanceID
   newSessionHarnessModel?: Harness.ModelSelection
   harnessDriver?: Harness.DriverKind
-  /** Resolves once a harness switch in flight has reached the server; a send waits for it. */
   harnessSettled?: () => Promise<unknown> | undefined
 
   onNewSessionWorktreeReset?: () => void

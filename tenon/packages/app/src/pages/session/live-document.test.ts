@@ -7,7 +7,6 @@ describe("shownTexts", () => {
     shown.show("", [])
     shown.show("plan", [])
     const written = shown.mark()
-    // The watcher reloads the file with the edit before the edit's finished event arrives.
     shown.show("plan, edited", [written])
     expect(shown.at(written)).toBe("plan")
   })
@@ -44,7 +43,6 @@ describe("shownTexts", () => {
   })
 
   test("first finished-only edit after a watcher reload flashes against the first loaded text", () => {
-    // The view keeps mark 0 until a call finishes; the harness edit arrives finished, so it began at 0.
     const shown = shownTexts()
     const plan = "# Plan\n\nShip it.\n\nOne.\n\nTwo.\n\nThree."
     const edited = plan.replace("Ship it.", "Ship it soon.")

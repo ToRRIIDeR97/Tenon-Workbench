@@ -21,7 +21,6 @@ export const AccountStateTable = sqliteTable("account_state", {
   active_org_id: text().$type<AccountV2.OrgID>(),
 })
 
-// LEGACY
 export const ControlAccountTable = sqliteTable(
   "control_account",
   {

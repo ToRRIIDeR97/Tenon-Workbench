@@ -5,7 +5,6 @@ import { createStore } from "solid-js/store"
 import { tooltipOpenDelay } from "./tooltip-delay"
 import "./tooltip-v2.css"
 
-// Shared by every TooltipV2 so moving between triggers right after one closes skips the delay.
 let lastClosedAt: number | undefined
 
 export interface TooltipV2Props extends Omit<ComponentProps<typeof KobalteTooltip>, "openDelay" | "skipDelayDuration"> {
@@ -89,7 +88,6 @@ export function TooltipV2(props: TooltipV2Props) {
         <KobalteTooltip
           gutter={4}
           {...others}
-          // Read when the pointer enters, so the skip window is checked at that moment.
           openDelay={tooltipOpenDelay(lastClosedAt, Date.now())}
           skipDelayDuration={0}
           closeDelay={0}
@@ -99,7 +97,6 @@ export function TooltipV2(props: TooltipV2Props) {
             if (local.forceOpen) return
             if (open && sync()) return
             if (state.block && open) return
-            // A press on the trigger only suppresses the reopen that follows it; a close request always goes through.
             if (justClickedTrigger) {
               justClickedTrigger = false
               if (open) return
@@ -159,7 +156,6 @@ export interface PathTooltipProps extends Omit<TooltipV2Props, "value"> {
   path: string
 }
 
-// Name on the first line, the full path below it in muted monospace.
 export function PathTooltip(props: PathTooltipProps) {
   const [local, others] = splitProps(props, ["name", "path"])
   return (

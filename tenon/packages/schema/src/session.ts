@@ -16,20 +16,10 @@ export type ID = SessionID
 
 export const Event = SessionEvent
 
-/** The thread that started a session without being its parent: a delegated task placed in a Project. */
 export const Origin = Schema.Struct({
   sessionID: Schema.String,
-  /** Whether that thread runs in the Command Centre's folder. */
   commandCentre: Schema.Boolean,
-  /**
-   * Started with `thread_start` and handed off: the thread is the user's, so it doesn't count toward the starter's
-   * delegation depth, and the starter can't read or stop it as a task. A delegated task leaves this out.
-   */
   handOff: Schema.Boolean.pipe(optional),
-  /**
-   * The Project's lead: the one thread the Command Centre gives that Project's goals to (`project_lead`). It plans the
-   * work and hands steps to its own delegates, and any Command Centre thread may read, steer or stop it.
-   */
   lead: Schema.Boolean.pipe(optional),
 }).annotate({ identifier: "SessionV2.Origin" })
 export interface Origin extends Schema.Schema.Type<typeof Origin> {}
@@ -59,7 +49,6 @@ export const Info = Schema.Struct({
     created: DateTimeUtcFromMillis,
     updated: DateTimeUtcFromMillis,
     archived: DateTimeUtcFromMillis.pipe(optional),
-    // Derived from `metadata.pinned`; set through the session update endpoint.
     pinned: DateTimeUtcFromMillis.pipe(optional),
   }),
   title: Schema.String,

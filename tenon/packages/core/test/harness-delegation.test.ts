@@ -33,7 +33,6 @@ const toolNames = (answer: unknown) =>
   (answer as { result: { tools: { name: string }[] } }).result.tools.map((tool) => tool.name)
 const text = (answer: unknown) => (answer as { result: { content: { text: string }[] } }).result.content[0].text
 
-// A fake asker: answers with `next` and records what it was asked.
 const asked: Array<{ readonly questions: ReadonlyArray<QuestionV2.Prompt>; readonly waitSeconds: number }> = []
 const asking = (next: HarnessAskUser.Outcome): HarnessDelegation.Caller => ({
   sessionID: "ses_parent",

@@ -1,6 +1,3 @@
-// Not part of the test suite (the name doesn't match *.test.ts). Run it on purpose, from packages/tenon:
-//   bun test ./test/acceptance/command-memory.bench.ts --timeout 600000
-// It times Command Centre memory search over many threads and the workspace-folder de-duplication.
 import { afterEach, describe, expect, test as bunTest } from "bun:test"
 import path from "node:path"
 import { Effect, Layer } from "effect"
@@ -123,7 +120,6 @@ describe("Command Centre bench", () => {
 
   bunTest("workspace folder de-duplication at n=1000", () => {
     const key = (directory: string) => canonicalDirectory(directory)
-    // 200 recent threads, each with its ancestor folders: mostly repeats, as in workspaceCandidates.
     const input = Array.from({ length: 200 }, (_, index) =>
       path.resolve("bench-root", "workspaces", `w${index % 20}`, "projects", `p${index}`),
     ).flatMap((directory) => [

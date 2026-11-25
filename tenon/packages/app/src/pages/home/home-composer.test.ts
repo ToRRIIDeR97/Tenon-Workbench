@@ -2,9 +2,6 @@ import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
-// Acceptance tests for implementations/harness-ux-batch-2 (AC-1, AC-3), by inspection: Home's composer is the
-// thread composer, and no composer waits behind a "Checking harnesses…" Suspense fallback.
-
 const src = join(import.meta.dir, "..", "..")
 const read = (path: string) => readFileSync(join(src, path), "utf8")
 

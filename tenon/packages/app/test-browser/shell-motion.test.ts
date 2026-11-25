@@ -21,14 +21,12 @@ describe("focusWhenConnected", () => {
 describe("createFreshItems", () => {
   test("treats the first non-empty render as seen, then marks only later ids", async () => {
     const check = createFreshItems()
-    // The list mounted empty; its query resolves later and renders every row in one pass.
     await Promise.resolve()
     expect(check("first")).toBe(false)
     expect(check("second")).toBe(false)
     await Promise.resolve()
     expect(check("first")).toBe(false)
     expect(check("later")).toBe(true)
-    // A rebuilt list recreates the row; it does not enter again.
     expect(check("later")).toBe(false)
   })
 })

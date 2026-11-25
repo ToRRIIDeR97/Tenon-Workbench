@@ -4,7 +4,6 @@ type Content = { content: string; encoding?: string; mimeType?: string; type?: s
 
 export type ViewRendererLabels = {
   loading: string
-  /** The button that loads a file from the web, with the host name. */
   loadFrom: (host: string) => string
   missing: string
   outside: string
@@ -14,22 +13,14 @@ export type ViewRendererLabels = {
 
 const TEXT_TYPES: Partial<Record<ViewItem["kind"], string>> = { model: "model/gltf+json", pdf: "application/pdf" }
 
-/** Lines of a text file shown in its window; Open shows the rest. */
 const EXCERPT_LINES = 40
 
-/**
- * Draws a ```view window's file. Media and PDFs load through the desktop's `tenon-file://` URL when there is one,
- * else from the base64 the server read. Text shows an excerpt; sheets and Word documents say to open them, where the
- * file viewer renders them in full. 3D models load three.js only when one is shown.
- */
 export function createViewRenderer(input: {
-  /** The folder and relative path a `view` line names: the thread's folder, or a Project's; undefined for neither. */
   locate: (src: string) => { readonly directory: string; readonly path: string } | undefined
   fileURL?: (directory: string, path: string) => Promise<string | undefined>
   read: (directory: string, path: string) => Promise<Content>
   labels: () => ViewRendererLabels
 }) {
-  // A file the server read as text (a .gltf, a plain PDF) becomes a blob URL, freed with its window.
   const urlFor = async (directory: string, path: string, kind: ViewItem["kind"]) => {
     const url = await input.fileURL?.(directory, path).catch(() => undefined)
     if (url) return { url }
@@ -50,8 +41,6 @@ export function createViewRenderer(input: {
     notice(labels.loading)
 
     const draw = async () => {
-      // Only an https URL is shown from the web, and only as media, and only when the user asks: loading it on sight
-      // would tell its host the thread was opened (the beacon the app's image policy is headed to block).
       if (item.remote) {
         if (item.kind !== "image" && item.kind !== "video" && item.kind !== "audio") return notice(labels.noPreview)
         const load = element("button", { type: "button", "data-action": "view-load-remote" })
@@ -131,10 +120,6 @@ function element(tag: string, attrs: Record<string, string>, text?: string) {
   return el
 }
 
-/**
- * A glTF/GLB model on a turntable: orbit with the mouse, zoom with the wheel. three.js is loaded on first use. Returns
- * a cleanup that stops the loop and frees the GPU resources.
- */
 async function renderModel(stage: HTMLElement, url: string) {
   const [THREE, { GLTFLoader }, { OrbitControls }] = await Promise.all([
     import("three"),
@@ -160,7 +145,6 @@ async function renderModel(stage: HTMLElement, url: string) {
 
   const gltf = await new GLTFLoader().loadAsync(url)
   scene.add(gltf.scene)
-  // Frame the model: centre it and back the camera off to fit its bounding sphere.
   const box = new THREE.Box3().setFromObject(gltf.scene)
   const sphere = box.getBoundingSphere(new THREE.Sphere())
   const radius = sphere.radius || 1

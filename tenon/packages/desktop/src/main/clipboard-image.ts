@@ -9,8 +9,6 @@ type Deps = {
 
 const PNG = "image/png"
 
-// Electron 44 replaced `clipboard.readImage()` with the W3C-style `clipboard.read()`. The renderer always
-// receives PNG bytes, as before: a PNG entry is passed through, any other image type is re-encoded.
 export async function readClipboardImage(deps: Deps): Promise<ClipboardImage | null> {
   const items = await deps.clipboard.read()
   const item =

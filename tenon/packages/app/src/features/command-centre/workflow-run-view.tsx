@@ -12,17 +12,13 @@ const cardClass =
   "flex min-w-0 flex-col gap-1.5 rounded-[16px] bg-v2-background-bg-base px-4 py-3 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]"
 const chipClass = "flex h-6 shrink-0 items-center gap-1.5 rounded-full px-2.5 type-caption"
 
-/** The highest round the run has reported, 0 before its first report. */
 export const currentRound = (run: WorkflowRun) => run.rounds.reduce((most, round) => Math.max(most, round.n), 0)
 
-/** The approved round, for a finished run. */
 const approvedRound = (run: WorkflowRun) => run.rounds.find((round) => round.outcome === "approved")?.n ?? 0
 
-/** Newest first. */
 export const newestRuns = (runs: ReadonlyArray<WorkflowRun>) =>
   runs.toSorted((left, right) => right.startedAt - left.startedAt)
 
-/** The words of a run's status; the running one carries the round. */
 export function useRunStatusText() {
   const language = useLanguage()
   return (run: WorkflowRun) => {
@@ -34,10 +30,6 @@ export function useRunStatusText() {
   }
 }
 
-/**
- * The Workflows view's list of runs, newest first: what each is (workflow and Project) and how it stands. A run
- * opens in the run view.
- */
 export function WorkflowRunList(props: { ctrl: SidebarController; selected?: string; select: (id: string) => void }) {
   const language = useLanguage()
   const store = useWorkflows()
@@ -97,11 +89,6 @@ export function WorkflowRunList(props: { ctrl: SidebarController; selected?: str
   )
 }
 
-/**
- * One run: its Project and workflow, the director thread's title, its status with Pause and Stop (Resume for a
- * paused run), the stop condition, rounds and spend against their limits, one block per round with each role's
- * latest entry, and links to the threads. The limits are enforced by the tracker while the app is open.
- */
 export function WorkflowRunView(props: {
   run: WorkflowRun
   ctrl: SidebarController
@@ -122,13 +109,11 @@ export function WorkflowRunView(props: {
     language.t("secondBrain.commandCentre.threads.untitled")
   const usage = createMemo(() => store.usage(props.run))
   const spend = () => usage().spent
-  // A budget with no cost reported by any thread cannot be enforced: 0 would read as "nothing spent".
   const unreported = () => props.run.budgetUSD !== undefined && !usage().reported
   const round = () => currentRound(props.run)
   const active = () => props.run.status === "running" || props.run.status === "paused"
   const warn = () => props.run.status === "over-budget" || props.run.status === "out-of-rounds"
 
-  // One request at a time; a failure shows the request-failed message and leaves the run as it was.
   const act = (request: (run: WorkflowRun) => Promise<unknown>) => {
     if (state.busy) return
     setState({ busy: true, failed: false })

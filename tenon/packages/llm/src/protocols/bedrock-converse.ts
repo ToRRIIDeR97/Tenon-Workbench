@@ -30,9 +30,6 @@ const ADAPTER = "bedrock-converse"
 
 export type { Credentials as BedrockCredentials } from "./utils/bedrock-auth"
 
-// =============================================================================
-// Request Body Schema
-// =============================================================================
 const BedrockTextBlock = Schema.Struct({
   text: Schema.String,
 })
@@ -151,10 +148,6 @@ const BedrockUsageSchema = Schema.Struct({
 })
 type BedrockUsageSchema = Schema.Schema.Type<typeof BedrockUsageSchema>
 
-// Streaming event shape — the AWS event stream wraps each JSON payload by its
-// `:event-type` header (e.g. `messageStart`, `contentBlockDelta`). We
-// reconstruct that wrapping in `decodeFrames` below so the event schema can
-// stay a plain discriminated record.
 const BedrockEvent = Schema.Struct({
   messageStart: Schema.optional(Schema.Struct({ role: Schema.String })),
   contentBlockStart: Schema.optional(
@@ -205,9 +198,6 @@ const BedrockEvent = Schema.Struct({
 })
 type BedrockEvent = Schema.Schema.Type<typeof BedrockEvent>
 
-// =============================================================================
-// Request Lowering
-// =============================================================================
 const lowerToolSpec = (tool: ToolDefinition, inputSchema: JsonSchema): BedrockToolSpec => ({
   toolSpec: {
     name: tool.name,
@@ -378,8 +368,6 @@ const lowerMessages = Effect.fn("BedrockConverse.lowerMessages")(function* (
   return messages
 })
 
-// System prompts share the cache-point convention: emit the text block, then
-// optionally a positional `cachePoint` marker.
 const lowerSystem = (
   breakpoints: BedrockCache.Breakpoints,
   system: ReadonlyArray<LLMRequest["system"][number]>,
@@ -388,8 +376,6 @@ const lowerSystem = (
 const fromRequest = Effect.fn("BedrockConverse.fromRequest")(function* (request: LLMRequest) {
   const toolChoice = request.toolChoice ? yield* lowerToolChoice(request.toolChoice) : undefined
   const generation = request.generation
-  // Bedrock-Claude shares Anthropic's 4-breakpoint cap. Spend the budget in
-  // tools → system → messages order to favour the highest-impact prefixes.
   const breakpoints = BedrockCache.breakpoints()
   const toolConfig =
     request.tools.length > 0 && request.toolChoice?.type !== "none"
@@ -419,15 +405,10 @@ const fromRequest = Effect.fn("BedrockConverse.fromRequest")(function* (request:
             stopSequences: generation?.stop,
           },
     toolConfig,
-    // Converse's base inferenceConfig has no topK; Anthropic/Nova accept it
-    // as a model-specific field, so it goes through additionalModelRequestFields.
     additionalModelRequestFields: generation?.topK === undefined ? undefined : { top_k: generation.topK },
   }
 })
 
-// =============================================================================
-// Stream Parsing
-// =============================================================================
 const mapFinishReason = (reason: string): FinishReason => {
   if (reason === "end_turn" || reason === "stop_sequence") return "stop"
   if (reason === "max_tokens") return "length"
@@ -436,10 +417,6 @@ const mapFinishReason = (reason: string): FinishReason => {
   return "unknown"
 }
 
-// AWS Bedrock Converse reports `inputTokens` (inclusive total) with
-// `cacheReadInputTokens` and `cacheWriteInputTokens` as subsets. Pass
-// the total through and derive the non-cached breakdown. Bedrock does
-// not break reasoning out of `outputTokens` for any current model.
 const mapUsage = (usage: BedrockUsageSchema | undefined): Usage | undefined => {
   if (!usage) return undefined
   const cacheTotal = (usage.cacheReadInputTokens ?? 0) + (usage.cacheWriteInputTokens ?? 0)
@@ -457,9 +434,6 @@ const mapUsage = (usage: BedrockUsageSchema | undefined): Usage | undefined => {
 
 interface ParserState {
   readonly tools: ToolStream.State<number>
-  // Bedrock splits the finish into `messageStop` (carries `stopReason`) and
-  // `metadata` (carries usage). Hold the terminal event in state so `onHalt`
-  // can emit exactly one finish after both chunks have had a chance to arrive.
   readonly pendingFinish: { readonly reason: FinishReason; readonly usage?: Usage } | undefined
   readonly hasToolCalls: boolean
   readonly lifecycle: Lifecycle.State
@@ -628,13 +602,6 @@ const onHalt = (state: ParserState): ReadonlyArray<LLMEvent> =>
       })()
     : []
 
-// =============================================================================
-// Protocol And Bedrock Route
-// =============================================================================
-/**
- * The Bedrock Converse protocol — request body construction, body schema, and
- * the streaming-event state machine.
- */
 export const protocol = Protocol.make({
   id: ADAPTER,
   body: {
@@ -659,9 +626,6 @@ export const route = Route.make({
   id: ADAPTER,
   provider: "bedrock",
   protocol,
-  // Bedrock's URL embeds the region in the route endpoint host and the
-  // validated modelId in the path. We read the validated body so the URL
-  // matches the body that gets signed.
   endpoint: Endpoint.path<BedrockConverseBody>(
     ({ body }) => `/model/${encodeURIComponent(body.modelId)}/converse-stream`,
   ),

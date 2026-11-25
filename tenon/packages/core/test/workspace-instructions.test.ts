@@ -49,7 +49,6 @@ describe("WorkspaceInstructions.resolve", () => {
     expect(await run(linked, tmp.path)).toEqual([path.join(root, "AGENTS.md")])
     await write(path.join(linked, "AGENTS.md"))
     expect(await run(linked, tmp.path)).toEqual([path.join(linked, "AGENTS.md")])
-    // An AGENTS.md above the linked folder is not part of the project.
     await write(path.join(tmp.path, "elsewhere", "AGENTS.md"))
     await fs.rm(path.join(linked, "AGENTS.md"))
     expect(await run(linked, tmp.path)).toEqual([path.join(root, "AGENTS.md")])

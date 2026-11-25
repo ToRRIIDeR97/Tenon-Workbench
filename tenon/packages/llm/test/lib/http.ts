@@ -43,26 +43,13 @@ export const runtimeLayer = (layer: Layer.Layer<HttpClient.HttpClient>): Layer.L
 
 const SSE_HEADERS = { "content-type": "text/event-stream" } as const
 
-/**
- * Layer that returns a single fixed response body. Use for stream-parser
- * fixture tests where the request shape is irrelevant. The body type widens
- * to whatever `Response` accepts so binary fixtures (`Uint8Array`,
- * `ReadableStream`, etc.) flow through without casts.
- */
 export const fixedResponse = (
   body: ConstructorParameters<typeof Response>[0],
   init: ResponseInit = { headers: SSE_HEADERS },
 ) => runtimeLayer(handlerLayer((input) => Effect.succeed(input.respond(body, init))))
 
-/**
- * Layer that builds a response per request. Useful for echo servers.
- */
 export const dynamicResponse = (handler: Handler) => runtimeLayer(handlerLayer(handler))
 
-/**
- * Layer that emits the supplied SSE chunks and then aborts mid-stream. Used to
- * exercise transport errors that surface during parsing.
- */
 export const truncatedStream = (chunks: ReadonlyArray<string>) =>
   dynamicResponse((input) =>
     Effect.sync(() => {
@@ -77,11 +64,6 @@ export const truncatedStream = (chunks: ReadonlyArray<string>) =>
     }),
   )
 
-/**
- * Layer that returns successive bodies on each request. Useful for scripting
- * multi-step model exchanges (e.g. tool-call loops). The last body in the
- * array is reused if the test makes more requests than scripted.
- */
 export const scriptedResponses = (bodies: ReadonlyArray<string>, init: ResponseInit = { headers: SSE_HEADERS }) => {
   if (bodies.length === 0) throw new Error("scriptedResponses requires at least one body")
   return Layer.unwrap(

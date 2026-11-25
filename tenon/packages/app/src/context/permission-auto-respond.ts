@@ -59,13 +59,8 @@ export function sessionAutoAccept(
     .find((item): item is boolean => item !== undefined)
 }
 
-/** Ask: every request waits. Auto-edit: file edits run. Full auto: everything inside the folder runs. */
 export type PermissionMode = "ask" | "edit" | "full"
 
-/**
- * The mode for a session: its own choice or its nearest parent's (a subagent follows its thread), else the
- * folder's. Full auto wins over auto-edit.
- */
 export function permissionMode(
   stores: { full: Record<string, boolean>; edit: Record<string, boolean> },
   session: { id: string; parentID?: string }[],
@@ -77,7 +72,6 @@ export function permissionMode(
   return "ask"
 }
 
-/** Whether a mode answers a request without asking. Reaching outside the folder always asks. */
 export function modeAllows(mode: PermissionMode, permission: { permission: string }) {
   if (permission.permission === "external_directory") return false
   if (mode === "full") return true

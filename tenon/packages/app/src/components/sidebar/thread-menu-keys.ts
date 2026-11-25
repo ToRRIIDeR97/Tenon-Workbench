@@ -1,6 +1,5 @@
 export type ThreadMenuAction = "rename" | "pin" | "fork" | "export" | "archive" | "delete"
 
-/** The single key each thread-menu item shows as its hint. Export has none. */
 export const THREAD_MENU_KEYS = { rename: "r", pin: "p", fork: "f", archive: "a", delete: "delete" } as const
 
 const ACTION_BY_KEY: Partial<Record<string, ThreadMenuAction>> = {
@@ -12,10 +11,6 @@ const ACTION_BY_KEY: Partial<Record<string, ThreadMenuAction>> = {
   backspace: "delete",
 }
 
-/**
- * The thread-menu item a key press runs while that menu has focus: R, P, F, A, or Delete/Backspace.
- * Presses with Ctrl, Alt or Meta, repeats, and IME composition run nothing.
- */
 export function threadMenuAction(
   event: Pick<KeyboardEvent, "key" | "ctrlKey" | "altKey" | "metaKey" | "repeat" | "isComposing">,
 ) {

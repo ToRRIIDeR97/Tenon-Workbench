@@ -9,8 +9,6 @@ import {
 } from "./index"
 import { imapOptions } from "./imap-client"
 
-// P8 · Email (implementations/notes-command-centre/implementation.md, AC-8.1 … AC-8.3)
-
 type Call = { url: string; method: string; body?: string }
 const b64url = (text: string) => Buffer.from(text, "utf8").toString("base64url")
 

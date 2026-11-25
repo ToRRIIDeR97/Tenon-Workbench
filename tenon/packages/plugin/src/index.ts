@@ -99,7 +99,6 @@ export type AuthHook = {
               message: string
               placeholder?: string
               validate?: (value: string) => string | undefined
-              /** @deprecated Use `when` instead */
               condition?: (inputs: Record<string, string>) => boolean
               when?: Rule
             }
@@ -112,7 +111,6 @@ export type AuthHook = {
                 value: string
                 hint?: string
               }>
-              /** @deprecated Use `when` instead */
               condition?: (inputs: Record<string, string>) => boolean
               when?: Rule
             }
@@ -129,7 +127,6 @@ export type AuthHook = {
               message: string
               placeholder?: string
               validate?: (value: string) => string | undefined
-              /** @deprecated Use `when` instead */
               condition?: (inputs: Record<string, string>) => boolean
               when?: Rule
             }
@@ -142,7 +139,6 @@ export type AuthHook = {
                 value: string
                 hint?: string
               }>
-              /** @deprecated Use `when` instead */
               condition?: (inputs: Record<string, string>) => boolean
               when?: Rule
             }
@@ -216,7 +212,6 @@ export type ProviderHook = {
   models?: (provider: ProviderV2, ctx: ProviderHookContext) => Promise<Record<string, ModelV2>>
 }
 
-/** @deprecated Use AuthOAuthResult instead. */
 export type AuthOuathResult = AuthOAuthResult
 
 export interface Hooks {
@@ -228,9 +223,6 @@ export interface Hooks {
   }
   auth?: AuthHook
   provider?: ProviderHook
-  /**
-   * Called when a new message is received
-   */
   "chat.message"?: (
     input: {
       sessionID: string
@@ -241,9 +233,6 @@ export interface Hooks {
     },
     output: { message: UserMessage; parts: Part[] },
   ) => Promise<void>
-  /**
-   * Modify parameters sent to LLM
-   */
   "chat.params"?: (
     input: { sessionID: string; agent: string; model: Model; provider: ProviderContext; message: UserMessage },
     output: {
@@ -295,24 +284,10 @@ export interface Hooks {
     },
   ) => Promise<void>
   "experimental.provider.small_model"?: (input: { provider: ProviderV2 }, output: { model?: ModelV2 }) => Promise<void>
-  /**
-   * Called before session compaction starts. Allows plugins to customize
-   * the compaction prompt.
-   *
-   * - `context`: Additional context strings appended to the default prompt
-   * - `prompt`: If set, replaces the default compaction prompt entirely
-   */
   "experimental.session.compacting"?: (
     input: { sessionID: string },
     output: { context: string[]; prompt?: string },
   ) => Promise<void>
-  /**
-   * Called after compaction succeeds and before a synthetic user
-   * auto-continue message is added.
-   *
-   * - `enabled`: Defaults to `true`. Set to `false` to skip the synthetic
-   *   user "continue" turn.
-   */
   "experimental.compaction.autocontinue"?: (
     input: {
       sessionID: string
@@ -328,8 +303,5 @@ export interface Hooks {
     input: { sessionID: string; messageID: string; partID: string },
     output: { text: string },
   ) => Promise<void>
-  /**
-   * Modify tool definitions (description and parameters) sent to LLM
-   */
   "tool.definition"?: (input: { toolID: string }, output: { description: string; parameters: any }) => Promise<void>
 }

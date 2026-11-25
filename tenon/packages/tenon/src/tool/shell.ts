@@ -26,7 +26,6 @@ import { BashArity } from "@/permission/arity"
 export { Parameters } from "./shell/prompt"
 
 const MAX_METADATA_LENGTH = 30_000
-// Each metadata update is a durable part write, so streamed output is coalesced per call.
 const METADATA_INTERVAL_MS = 250
 const CWD = new Set(["cd", "chdir", "popd", "pushd", "push-location", "set-location"])
 const FILES = new Set([
@@ -39,9 +38,6 @@ const FILES = new Set([
   "chmod",
   "chown",
   "cat",
-  // Leave PowerShell aliases out for now. Common ones like cat/cp/mv/rm/mkdir
-  // already hit the entries above, and alias normalization should happen in one
-  // place later so we do not risk double-prompting.
   "get-content",
   "set-content",
   "add-content",
@@ -477,8 +473,6 @@ export const ShellTool = Tool.define(
 
       let dirty = false
       let flushed = 0
-      // The ticker and the reader both flush: one permit keeps writes in order so an older output
-      // never lands last, and uninterruptible keeps scope close from dropping a flush that cleared `dirty`.
       const flushLock = Semaphore.makeUnsafe(1)
       const flush = Effect.uninterruptible(
         flushLock.withPermits(1)(
@@ -507,7 +501,6 @@ export const ShellTool = Tool.define(
           yield* Effect.addFinalizer(closeSink)
           const handle = yield* spawner.spawn(cmd(input.shell, input.command, input.cwd, input.env))
 
-          // Trailing flush for output that arrives inside the interval and is followed by silence.
           yield* Effect.forkScoped(
             Effect.forever(Effect.sleep(`${METADATA_INTERVAL_MS} millis`).pipe(Effect.andThen(flush))),
           )

@@ -26,9 +26,6 @@ const configLayer = TestConfig.layer({
   directories: () => InstanceState.directory.pipe(Effect.map((dir) => [path.join(dir, ".opencode")])),
 })
 
-// Fake Plugin.Service that returns a single plugin whose `tool` map contains
-// one definition with `args: undefined`. Used to exercise the plugin entry
-// point of `fromPlugin` for the #27451 / #27630 regression.
 const brokenPluginLayer = Layer.succeed(
   Plugin.Service,
   Plugin.Service.of({
@@ -222,12 +219,6 @@ describe("tool.registry", () => {
     }),
   )
 
-  // Regression for #27451 / #27630: a custom tool that omits `args` must not
-  // crash registry initialization with
-  // `Object.entries requires that input parameter not be null or undefined`.
-  // Pre-1.14.49 the code path was `z.object(def.args)`, and `z.object(undefined)`
-  // silently produced an empty schema — so the tool registered as no-args.
-  // Preserve that tolerance.
   it.instance("tolerates a custom tool exporting null/undefined args (no-args fallback)", () =>
     Effect.gen(function* () {
       const test = yield* TestInstance
@@ -249,8 +240,6 @@ describe("tool.registry", () => {
 
       const registry = yield* ToolRegistry.Service
       const ids = yield* registry.ids()
-      // Built-in tools must still load — a single malformed custom tool must
-      // not poison the whole registry.
       expect(ids).toContain("read")
       const loaded = (yield* registry.all()).find((t) => t.id === "noargs")
       if (!loaded) throw new Error("noargs tool was not loaded")
@@ -258,12 +247,6 @@ describe("tool.registry", () => {
     }),
   )
 
-  // Same regression, plugin entry point. The original reports (#27451, #27630)
-  // came in through `plugin.list()` — `oh-my-opencode` was registering a tool
-  // with `args: undefined` and crashing every message submit. The file-scan
-  // and plugin-list loops both funnel through `fromPlugin`, but covering both
-  // entry points means a future refactor that splits them won't silently lose
-  // protection.
   withBrokenPlugin.instance("tolerates a plugin tool registered with null/undefined args", () =>
     Effect.gen(function* () {
       const registry = yield* ToolRegistry.Service

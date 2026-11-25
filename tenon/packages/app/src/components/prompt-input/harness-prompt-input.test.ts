@@ -20,7 +20,6 @@ const dataText = (uri: string) => {
   return header.endsWith(";base64") ? Buffer.from(body, "base64").toString("utf8") : decodeURIComponent(body)
 }
 
-// AC-1: the visible message is what the user typed; a skill's instructions travel as a hidden text attachment.
 describe("harnessPromptInput", () => {
   const prompt: Prompt = [{ type: "text", content: "fix ", start: 0, end: 4 }, skill("review", 4)]
   const { requestParts } = buildRequestParts({

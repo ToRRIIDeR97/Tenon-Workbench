@@ -8,7 +8,6 @@ import { createSignal } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Persist, persisted } from "@/utils/persist"
 
-/** Side panel width (px) below which the review/file tree turns into an overlay. */
 export const REVIEW_SIDEBAR_OVERLAY_WIDTH = 560
 
 export function createReviewPanelV2State() {
@@ -20,11 +19,7 @@ export function createReviewPanelV2State() {
       expandMode: "collapse" as SessionReviewExpandMode,
     }),
   )
-  // The filter is transient by design: a persisted filter would silently hide
-  // files after a reload.
   const [filter, setFilter] = createSignal("")
-  // Below REVIEW_SIDEBAR_OVERLAY_WIDTH the file tree would squeeze the viewer to a sliver, so it collapses and
-  // opens as an overlay instead; the persisted open state is left alone for when the panel is wide again.
   const [panel, setPanel] = createStore({ narrow: false, overlay: false })
   const narrow = () => panel.narrow
 

@@ -10,13 +10,7 @@ import { MAX_SYNC_FILE_BYTES, hash, readText, writeAtomic, nowRfc3339 } from "./
 import { type Skill, validateSkill, validSkillName } from "./skill-files"
 import { findTool } from "./tools"
 
-// The `harness-sync.json` format shared with the standalone Harness Sync app (version 5). Tools absent from
-// `tools` use the shared preset. Tenon's own preset is stored under a top-level `tenon` key instead of `tools`,
-// because the standalone app refuses unknown tool IDs but ignores unknown top-level keys. It drops them when it
-// saves, so Tenon then falls back to the shared preset and skill set.
-
 export const VERSION = 5
-/** Version 3 (no skills) and 4 (every skill shared, per-tool on/off) files are migrated on read. */
 const OLDEST_VERSION = 3
 const MODES: ReadonlyArray<HarnessSyncMode> = ["shared", "append", "custom", "off"]
 
@@ -27,9 +21,7 @@ export type SyncDocument = {
   updatedBy: string
   shared: string
   tools: Partial<Record<HarnessSyncToolID, HarnessSyncToolPreset>>
-  /** Skills every tool in `shared` or `append` skill mode gets. */
   sharedSkills: string[]
-  /** The content of every skill referenced by `sharedSkills` or a tool's `skillExtras`. */
   skills: Record<string, Skill>
 }
 
@@ -37,7 +29,6 @@ const DEFAULT_PRESET: HarnessSyncToolPreset = { mode: "shared", text: "" }
 
 export const preset = (document: SyncDocument, id: HarnessSyncToolID) => document.tools[id] ?? DEFAULT_PRESET
 
-/** The text a tool's instructions file should contain, or undefined when unmanaged. Always ends with a newline. */
 export function render(document: SyncDocument, id: HarnessSyncToolID) {
   const tool = preset(document, id)
   if (tool.mode === "off") return undefined
@@ -54,7 +45,6 @@ export function render(document: SyncDocument, id: HarnessSyncToolID) {
   return text === "" || text.endsWith("\n") ? text : `${text}\n`
 }
 
-/** The skills a tool's skills folder should hold, by name, or undefined when its skills are unmanaged. */
 export function skillSet(document: SyncDocument, id: HarnessSyncToolID) {
   const tool = document.tools[id]
   const extras = tool?.skillExtras ?? []
@@ -98,7 +88,6 @@ function toolPreset(value: unknown, id: string): HarnessSyncToolPreset {
   }
 }
 
-/** Reads the tool presets, the shared ones under `tools` and Tenon's own under `tenon`. */
 function toolPresets(tools: unknown, tenon: unknown) {
   if (tools !== undefined && !isRecord(tools)) throw new Error("The tool presets are malformed")
   const entries = Object.entries(tools ?? {}).map(([id, value]) => {
@@ -132,7 +121,6 @@ function skillLibrary(value: unknown): Record<string, Skill> {
   )
 }
 
-/** Version 4 shared every skill with every tool unless the tool's `skills` switch was off. */
 function migrateV4(value: Record<string, unknown>): Record<string, unknown> {
   const tools = isRecord(value.tools) ? value.tools : {}
   return {
@@ -190,7 +178,6 @@ export function parse(content: string): SyncDocument {
 const sortedRecord = <T>(record: Record<string, T>) =>
   Object.fromEntries(Object.entries(record).toSorted(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
 
-/** The file's JSON, with keys in the order the standalone app writes them so both produce the same bytes. */
 export function serialize(document: SyncDocument) {
   const { tenon, ...tools } = document.tools
   const out = {
@@ -219,13 +206,11 @@ async function read(file: string) {
   return text
 }
 
-/** Loads the document and the hash of its exact bytes. */
 export async function load(file: string) {
   const content = await read(file)
   return { document: parse(content), hash: hash(content) }
 }
 
-/** The hash `load` would return, without parsing. */
 export const readHash = (file: string) => read(file).then(hash)
 
 async function write(file: string, document: SyncDocument) {
@@ -267,11 +252,6 @@ const unique = (names: string[]) => [...new Set(names)]
 const isDefault = (tool: HarnessSyncToolPreset) =>
   tool.mode === "shared" && tool.text === "" && (tool.skillMode ?? "shared") === "shared" && !tool.skillExtras?.length
 
-/**
- * Saves new presets if the file is still at `expectedRevision`. `uploads` are skills read from this computer; they
- * replace library entries of the same name. Every referenced skill must then be in the library, and unreferenced
- * entries are dropped.
- */
 export async function save(
   file: string,
   expectedRevision: number,
@@ -320,7 +300,6 @@ export async function save(
   return document
 }
 
-/** Copies Google Drive made beside the sync file after conflicting edits, such as `harness-sync (1).json`. */
 export async function conflictCopies(file: string) {
   const name = path.basename(file)
   const stem = path.basename(file, path.extname(file))
@@ -336,7 +315,6 @@ export async function conflictCopies(file: string) {
     .toSorted()
 }
 
-/** Checks presets from the renderer, which are untrusted: known tools, known modes, strings only. */
 export function parsePresets(value: unknown): HarnessSyncPresets {
   if (!isRecord(value) || typeof value.shared !== "string") throw new Error("The presets are malformed")
   const tools = toolPresets(

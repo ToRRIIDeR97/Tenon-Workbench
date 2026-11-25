@@ -32,8 +32,6 @@ export const workspaceHandlers = HttpApiBuilder.group(InstanceHttpApi, "workspac
         })
         .pipe(
           Effect.catchCause((cause) => {
-            // Plugin throws surface as defects (because EffectBridge.fromPromise uses Effect.promise),
-            // bypassing Effect.mapError. Walk the cause to surface the real error to the client.
             const die = cause.reasons.find(Cause.isDieReason)
             const fail = cause.reasons.find(Cause.isFailReason)
             const reason: unknown = die?.defect ?? fail?.error

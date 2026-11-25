@@ -1,4 +1,3 @@
-// Must run first: maps pre-rename OPENCODE_* variables to TENON_* before other modules read them.
 import "./legacy-env"
 import { blockBrowserOrigin, startBrowserBridge } from "./browser"
 import { registerFileViewerProtocol } from "./file-viewer"
@@ -65,7 +64,6 @@ import { renameLegacyStoreFiles } from "./store-rename"
 import { bundledCliPath, startBackgroundCli } from "./background-cli"
 import { nativeT, setNativeTranslations } from "./native-translations"
 
-// Everything imported above has finished loading here, so this is the cost of the static import graph.
 const modulesLoadedAt = Date.now()
 
 const APP_NAMES: Record<string, string> = {
@@ -73,8 +71,6 @@ const APP_NAMES: Record<string, string> = {
   beta: "Tenon Workbench Beta",
   prod: "Tenon Workbench",
 }
-// Tenon Workbench's own identity. The former `ai.opencode.desktop*` IDs belong to upstream OpenCode
-// Desktop; only the dev channel ever shipped under one of them (see migrateUserData below).
 const APP_IDS: Record<string, string> = {
   dev: "io.github.torriider97.tenonworkbench.dev",
   beta: "io.github.torriider97.tenonworkbench.beta",
@@ -82,14 +78,9 @@ const APP_IDS: Record<string, string> = {
 }
 const LEGACY_DEV_APP_ID = "ai.opencode.desktop.dev"
 const TEST_ONBOARDING = process.env.TENON_TEST_ONBOARDING === "1"
-// The opt-in v2 sidecar is upstream's `opencode-cli` background service. Only dev-channel builds made
-// with TENON_BUNDLE_CLI=1 carry that CLI, and the service is meant to outlive the app
-// (`opencode-cli service stop` ends it).
 const SIDECAR_V2_REQUESTED = process.env.TENON_SIDECAR_V2 === "1"
 const jsCallStackFeature = "DocumentPolicyIncludeJSCallStacksInCrashReports"
-// Covers the sidecar's own graceful stop (6 s) before it is killed.
 const QUIT_STOP_TIMEOUT = 8_000
-// Clears the first window's load, because importing electron-updater blocks this process.
 const UPDATER_START_DELAY = 5_000
 
 let logger: ReturnType<typeof initLogging>
@@ -100,7 +91,6 @@ const deepLinkSenders = new WeakSet<WebContents>()
 
 function useEnvProxy() {
   try {
-    // Electron 41.2 runs Node 24.14.1; latest @types/node@24 is 24.12.2.
     ;(http as any).setGlobalProxyFromEnv()
   } catch (error) {
     logger.warn("failed to load proxy environment", error)
@@ -112,8 +102,6 @@ function emitDeepLinks(urls: string[]) {
   deepLinks.emit(urls, win ? { id: win.webContents.id, send: (next) => sendDeepLinks(win, next) } : undefined)
 }
 
-// Any app or web page can open a tenon:// link, so each one is validated here and confirmed
-// by the user with the exact folder before the renderer sees it. Links are confirmed one at a time.
 let deepLinkConfirmations = Promise.resolve()
 function receiveDeepLinks(urls: string[], source: string) {
   for (const value of urls) {
@@ -136,7 +124,6 @@ function receiveDeepLinks(urls: string[], source: string) {
 }
 
 async function confirmDeepLink(link: DeepLink) {
-  // macOS can deliver open-url before the app is ready, when dialogs cannot open yet.
   await app.whenReady()
   const options = {
     type: "question" as const,
@@ -164,8 +151,6 @@ function consumeInitialDeepLinks(sender: WebContents) {
   const id = sender.id
   if (!deepLinkSenders.has(sender)) {
     deepLinkSenders.add(sender)
-    // Only a full main-frame load drops the renderer's deep-link listener;
-    // in-app pushState and hash navigations keep it.
     sender.on("did-start-navigation", (details) => {
       if (details.isMainFrame && !details.isSameDocument) deepLinks.forget(id)
     })
@@ -199,10 +184,6 @@ function isPortFree(hostname: string, port: number) {
   })
 }
 
-/**
- * Binds the sidecar's port while the sidecar is down, so another local process can't take it and receive the
- * renderers' credential (#164). Connections are dropped at once. Resolves to the release.
- */
 function holdPort(hostname: string, port: number) {
   return new Promise<() => Promise<void>>((resolve, reject) => {
     const socket = createServer((connection) => connection.destroy())
@@ -241,7 +222,6 @@ function ensureLoopbackNoProxy() {
 const main = Effect.gen(function* () {
   contextMenu({ showSaveImageAs: true, showLookUpSelection: false, showSearchWithGoogle: false })
 
-  // on macOS apps run in `/` which can cause issues with ripgrep
   try {
     process.chdir(homedir())
   } catch {}
@@ -249,8 +229,6 @@ const main = Effect.gen(function* () {
   process.env.TENON_DISABLE_EMBEDDED_WEB_UI = "true"
 
   const channel = app.isPackaged ? CHANNEL : "dev"
-  // An unpackaged run (`bun run dev`) gets its own ID, so its settings, window state and single-instance lock
-  // never touch an installed dev build's, and both can run side by side.
   const appId = app.isPackaged ? APP_IDS[channel] : `${APP_IDS.dev}.local`
   const onboardingTestRoot = ((): string | undefined => {
     if (!TEST_ONBOARDING) return
@@ -272,13 +250,10 @@ const main = Effect.gen(function* () {
   app.setAppUserModelId(appId)
   app.setPath("userData", userData)
   if (onboardingTestRoot) app.setPath("sessionData", join(onboardingTestRoot, "session"))
-  // The lock is keyed by userData. A second instance only hands its argv (deep links) to the first
-  // instance, so it quits before migrating data, opening logs or starting the crash reporter.
   if (!app.requestSingleInstanceLock()) {
     app.quit()
     return
   }
-  // Beta and prod never shipped under the old IDs, so their old folders are upstream's and stay unread.
   const userDataMigration = (() => {
     if (onboardingTestRoot) return
     try {
@@ -287,11 +262,9 @@ const main = Effect.gen(function* () {
         userData,
       )
     } catch (error) {
-      // No marker is written, so the copy is retried on the next start.
       return error instanceof Error ? error : new Error(String(error))
     }
   })()
-  // After the dev-channel copy above and before anything opens a store.
   const storeRename = (() => {
     try {
       return renameLegacyStoreFiles(app.getPath("userData"))
@@ -357,7 +330,6 @@ const main = Effect.gen(function* () {
   app.commandLine.appendSwitch("enable-features", features ? `${jsCallStackFeature},${features}` : jsCallStackFeature)
   if (!app.isPackaged) app.commandLine.appendSwitch("remote-debugging-port", "9222")
 
-  // Probes the login shell in the background; the sidecar env waits for it below.
   const shellEnv = preferAppEnv(app.getPath("userData"))
 
   app.on("second-instance", (_event: Event, argv: string[]) => {
@@ -375,18 +347,14 @@ const main = Effect.gen(function* () {
     receiveDeepLinks([url], "open-url")
   })
 
-  // A link that starts the app arrives in this process's own argv on Windows and Linux (macOS uses
-  // open-url). It waits in the deep-link queue until a window subscribes.
   if (process.platform !== "darwin") {
     const urls = process.argv.filter((arg) => arg.startsWith(`${DEEP_LINK_SCHEME}://`))
     if (urls.length) receiveDeepLinks(urls, "argv")
   }
 
-  // The first quit waits (bounded) for the sidecar to stop, then quits again.
   let quitStop: Promise<void> | undefined
   let quitStopped = false
   app.on("before-quit", (event) => {
-    // Asked first: a page that refused the quit after this point would be left without its server.
     if (!confirmQuit()) {
       setAppQuitting(false)
       event.preventDefault()
@@ -539,10 +507,6 @@ const main = Effect.gen(function* () {
     const fixedPort = Number.isNaN(parsedPort) ? undefined : parsedPort
     const hostname = "127.0.0.1"
     const password = randomUUID()
-    // Restarts after a crash reuse the port and password, so renderers reconnect to the same URL.
-    // Agents reach the Workbench browser through this bridge; the server process gets its address.
-    // The server's mail tools (Command Centre only) reach the accounts through the mail endpoint.
-    // Both listen on their own loopback port, so they start side by side.
     const [bridge, mailEndpoint] = yield* Effect.promise(() =>
       Promise.all([
         startBrowserBridge().catch((error: unknown) => {
@@ -555,7 +519,6 @@ const main = Effect.gen(function* () {
         }),
       ]),
     )
-    // Passed to the server only: in this process's env, every later child (editors, terminals) would inherit them.
     const bridgeEnv = {
       ...(bridge && { TENON_BROWSER_URL: bridge.url, TENON_BROWSER_TOKEN: bridge.token }),
       ...(mailEndpoint && { TENON_MAIL_URL: mailEndpoint.url, TENON_MAIL_TOKEN: mailEndpoint.token }),
@@ -579,10 +542,7 @@ const main = Effect.gen(function* () {
     let port = fixedPort ?? (yield* Effect.promise(() => freePort(hostname)))
     logger.log("spawning sidecar", { url: `http://${hostname}:${port}` })
     let sidecar = startSidecar(port)
-    // Set before the start is awaited, so quitting during startup stops the child.
     server = sidecar
-    // The picked port is free only until the sidecar binds it. If another process took it in
-    // between, pick a new one instead of failing the launch.
     for (let attempt = 1; ; attempt++) {
       const failure = yield* Effect.promise(() =>
         sidecar.initial.ready.then(
@@ -600,7 +560,6 @@ const main = Effect.gen(function* () {
     }
     const url = `http://${hostname}:${port}`
 
-    // Windows are already open; renderers keep their splash until the server answers (or this times out).
     yield* Effect.tryPromise({ try: (signal) => sidecar.initial.waitHealthy(signal), catch: (error) => error }).pipe(
       Effect.timeout("30 seconds"),
       Effect.catch((e) =>
@@ -622,7 +581,6 @@ const main = Effect.gen(function* () {
     logger.log("loading task finished")
   }).pipe(forwardInitializationFailure(serverReady), Effect.forkChild)
 
-  // Windows open while the server starts; the renderer shows its splash until awaitInitialization resolves.
   app.on("window-all-closed", () => {
     if (process.platform === "darwin") return
     app.quit()
@@ -644,7 +602,6 @@ const main = Effect.gen(function* () {
   app.once("will-quit", () => clearTimeout(updaterStart))
 })
 
-// A startup failure would otherwise leave the app running with no window and nothing in the log.
 Effect.runFork(
   main.pipe(Effect.catchCause((cause) => Effect.sync(() => logger.error("app startup failed", Cause.pretty(cause))))),
 )

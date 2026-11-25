@@ -16,11 +16,6 @@ type Picked = NonNullable<Awaited<ReturnType<NonNullable<ReturnType<typeof usePl
 type Point = { x: number; y: number }
 type Note = Point & { text: string }
 
-/**
- * The Workbench panel's browser. The page itself is a native view main lays over `stage`; this tab
- * keeps it in place, and draws the annotation layer over a screenshot while annotating. Agents use
- * the same browser through the tenon MCP server; what they do shows here.
- */
 export function SessionBrowserTab() {
   const language = useLanguage()
   const platform = usePlatform()
@@ -50,13 +45,10 @@ export function SessionBrowserTab() {
   let stageEl: HTMLDivElement | undefined
   let canvas: HTMLCanvasElement | undefined
 
-  // The native view sits above the DOM, so it hides while annotating or while a dialog is open.
   const [covered, setCovered] = createSignal(false)
   const place = () => {
     if (!browser || !stageEl) return
     const rect = stageEl.getBoundingClientRect()
-    // Until a page commits (or after one failed) the native view would paint a blank white panel over the
-    // tab's own empty, loading or error state (#325).
     const hidden = annotate.active || covered() || stage() !== "page" || rect.width < 2 || rect.height < 2
     void browser.show(hidden ? undefined : { x: rect.left, y: rect.top, width: rect.width, height: rect.height })
   }
@@ -73,7 +65,6 @@ export function SessionBrowserTab() {
     window.addEventListener("resize", place)
     const offState = browser.onState((state) => {
       const shown = stage()
-      // An absent error means none: a merge would otherwise keep the last one.
       setPage({ ...state, error: state.error, committed: state.committed })
       if (document.activeElement?.id !== "browser-address") setAddress(state.error?.url || state.url)
       if (stage() !== shown) place()
@@ -143,7 +134,6 @@ export function SessionBrowserTab() {
   }
   const up = () => (drawing = undefined)
 
-  // Flattens the screenshot and the drawing (cropped to the region, if any) into one PNG.
   const flatten = async () => {
     const image = new Image()
     image.src = annotate.shot
@@ -319,7 +309,6 @@ export function SessionBrowserTab() {
             </span>
           </TooltipV2>
         </div>
-        {/* Fixed white: pages without their own background expect a white canvas, in either theme. */}
         <div
           ref={stageEl}
           class="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-v2-border-border-base bg-[#fff]"

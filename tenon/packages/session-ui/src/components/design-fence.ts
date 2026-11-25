@@ -1,33 +1,16 @@
 import { checksum } from "@tenon/core/util/encode"
 import { designInspectScript } from "./design-inspect"
 
-/**
- * Agent-authored designs: ```html fenced blocks in chat.
- *
- * `html` alone is a small design shown inline in the thread; an info string with the word `canvas`
- * (```html canvas title="Name") is a large design shown as an artboard in the Canvas tab. The page
- * is untrusted model output: it only ever runs inside an iframe with `sandbox="allow-scripts"`
- * (opaque origin, no navigation, popups, forms or modals) whose srcdoc starts with a CSP that blocks
- * every network load.
- */
-
 export type DesignInfo = { title?: string; canvas: boolean }
 
 export type DesignFence = DesignInfo & { source: string; closed: boolean }
 
 export type Design = { id: string; title?: string; source: string; canvas: boolean }
 
-/**
- * A design on the Canvas tab. `key` stays the same from its first streamed token to its close:
- * `<part id>:<fence index>` for a fence, the call ID for a `write`. While it streams `id` is the key;
- * once closed a fence's `id` is its `designID`.
- */
 export type CanvasDesign = Design & { key: string; streaming?: boolean }
 
-/** Larger pages show a notice instead of rendering. */
 export const MAX_DESIGN_BYTES = 512 * 1024
 
-/** The only sandbox token a design frame gets. Never add allow-same-origin, navigation, popups, forms or modals. */
 export const DESIGN_SANDBOX = "allow-scripts"
 
 export const DESIGN_CSP =
@@ -37,7 +20,6 @@ const MAX_TITLE = 120
 const fence = /^([ \t]*)(`{3,}|~{3,})(.*)$/
 const attribute = /([A-Za-z][\w-]*)=(?:"((?:[^"\\]|\\.)*)"|'([^']*)'|(\S+))|(\S+)/g
 
-/** Reads `canvas` and `title="…"` from the words after `html` in a fence info string. */
 export function designInfo(info: string): DesignInfo {
   const rest = info.trim().replace(/^\S+/, "")
   const words = [...rest.matchAll(attribute)]
@@ -49,12 +31,10 @@ export function designInfo(info: string): DesignInfo {
   }
 }
 
-/** Whether a fence info string opens an html design block. */
 export function isDesignInfo(info: string) {
   return info.trim().split(/\s+/, 1)[0] === "html"
 }
 
-/** Every ```html fence in a markdown text, in order; an unclosed last fence is still streaming. */
 export function designFences(text: string): DesignFence[] {
   const lines = text.split(/\r?\n/)
   const result: DesignFence[] = []
@@ -72,7 +52,6 @@ export function designFences(text: string): DesignFence[] {
     }
     const match = line.match(fence)
     if (!match) continue
-    // A backtick fence's info string can't contain backticks (CommonMark), so ```x``` is inline code.
     if (match[2].startsWith("`") && match[3].includes("`")) continue
     open = { mark: match[2], indent: match[1].length, info: match[3], body: [] }
   }
@@ -81,30 +60,15 @@ export function designFences(text: string): DesignFence[] {
   return result
 }
 
-/** Stable identity of a design across the thread, the inline window and the Canvas tab. */
 export function designID(source: string) {
   return checksum(source.trimEnd()) ?? "empty"
 }
 
 export function designTooLarge(source: string) {
-  // UTF-16 length is a lower bound on the UTF-8 size; skip encoding when that alone is over the cap.
   if (source.length > MAX_DESIGN_BYTES) return true
   return new TextEncoder().encode(source).length > MAX_DESIGN_BYTES
 }
 
-/**
- * The srcdoc for a design frame. The CSP meta is the first thing in <head>, so no tag in the page
- * can load anything before it applies; the page's own doctype, <html> and <head> tags that follow
- * are ignored or merged by the HTML parser, and its head elements still land in this head.
- * DNS prefetch is turned off and the WebRTC guard runs before any page script, because the CSP
- * covers neither. `autosize` adds a script that reports the content height to the parent (a bare number).
- * With `nonce`, scripts may run only when they carry that nonce (Tenon's own, never the page's inline
- * scripts, handlers or javascript: URLs); the guard and autosize scripts get it.
- */
-/**
- * A design's page for its sandboxed frame. `inspect` adds the element picker the canvas uses for notes (#326); it
- * stays idle until the app switches inspect on.
- */
 export function designDocument(
   source: string,
   options: { autosize?: boolean; nonce?: string; inspect?: boolean } = {},
@@ -126,11 +90,6 @@ export function designDocument(
   ].join("")
 }
 
-/**
- * The app's overlay pill scrollbar (`ui/src/styles/base.css`) for the frame, which can't read the app's styles: a
- * 4px pill in a 12px gutter, no track or arrows, brighter on hover. A neutral grey reads on light and dark designs.
- * It comes before the design's own styles, so a design that styles its scrollbar still wins.
- */
 const frameScrollbar =
   "<style>::-webkit-scrollbar{width:12px;height:12px;background:transparent}" +
   "::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent}" +
@@ -140,11 +99,6 @@ const frameScrollbar =
   ":hover::-webkit-scrollbar-thumb,::-webkit-scrollbar-thumb:hover,::-webkit-scrollbar-thumb:active{" +
   "background-color:rgb(128 128 128/.6)}</style>"
 
-/**
- * Removes the WebRTC constructors from the frame's window for good, so the page can't open a peer
- * connection whose STUN/TURN (ICE) lookups would leak data. Defence in depth only: a page can still
- * reach them through a nested frame it creates; Electron main also turns off non-proxied WebRTC UDP.
- */
 const webrtcGuardScript =
   '<script>["RTCPeerConnection","webkitRTCPeerConnection","RTCDataChannel"].forEach((name)=>' +
   "Object.defineProperty(window,name,{value:undefined,writable:false,configurable:false}))</script>"
@@ -154,12 +108,6 @@ const autosizeScript =
   "if(h!==last){last=h;parent.postMessage(h,'*')}};addEventListener('load',send);" +
   "new ResizeObserver(send).observe(document.documentElement)})()</script>"
 
-/**
- * Every canvas design of a thread in message order, plus the inline designs the user pinned to the
- * Canvas tab. Only assistant text parts count; repeated pages keep their first position.
- * `scan` lets callers cache fence parsing per part while a reply streams. With `streaming`, a canvas
- * fence that is still open is included too, marked `streaming`.
- */
 export function collectDesigns(
   messages: readonly { id: string; role: string }[],
   parts: Readonly<Record<string, readonly { id: string; type: string; text?: string }[] | undefined>>,
@@ -190,10 +138,6 @@ export function collectDesigns(
     })
 }
 
-/**
- * Canvas designs the agent writes as files: every `write` call of an assistant message to an `.html`
- * or `.htm` file, keyed by its call ID and live while the call is pending or running.
- */
 export function collectToolDesigns(
   messages: readonly { id: string; role: string }[],
   parts: Readonly<Record<string, readonly ToolPartLike[] | undefined>>,

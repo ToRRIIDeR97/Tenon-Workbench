@@ -19,15 +19,8 @@ import { Tool } from "../src/tool"
 
 export const weatherToolName = "get_weather"
 
-// A deterministic system prompt long enough to clear every supported provider's
-// minimum cacheable-prefix threshold (Anthropic Haiku 3.5: 2048 tokens; Anthropic
-// Opus/Haiku 4.5: 4096 tokens; OpenAI/Gemini/Bedrock: lower). Built by repeating
-// a fixed sentence — the cassette replays bit-for-bit, so the exact text matters
-// only when re-recording with `RECORD=true`.
 export const LARGE_CACHEABLE_SYSTEM = (() => {
   const sentence = "You are a concise, factual assistant. Answer precisely and avoid filler. Cite numbers when known. "
-  // ~100 chars per sentence × 250 repeats ≈ 25,000 chars ≈ 5k+ tokens, safely
-  // above every provider's threshold.
   return sentence.repeat(250)
 })()
 
@@ -269,9 +262,6 @@ const assertAssistantToolCall = (response: LLMResponse, expected: NonNullable<As
   ])
 }
 
-// The generated golden scenarios only model one assistant shape at a time:
-// encrypted reasoning + text, text, or tool call. Keep mixed interleavings in
-// focused protocol tests where event order can be asserted directly.
 const assistantMessageFromResponse = (response: LLMResponse, step: AssistantStep) => {
   const content: ContentPart[] = []
   if (step.reasoning === "openai-encrypted") {
@@ -365,9 +355,6 @@ const runImageScenario = (context: GoldenScenarioContext) =>
     ])
   })
 
-// Reproduces a tool-result image round trip: a tool returns image bytes, and
-// the next model turn must receive provider-native image content instead of a
-// JSON-stringified base64 blob.
 const screenshotToolName = "read_screenshot"
 const runImageToolResultScenario = (context: GoldenScenarioContext) =>
   Effect.gen(function* () {

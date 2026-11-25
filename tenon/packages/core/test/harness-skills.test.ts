@@ -49,7 +49,6 @@ describe("HarnessSkills.scan", () => {
     await fs.mkdir(path.join(repo, ".git"), { recursive: true })
     await write(path.join(repo, ".agents/skills/root-skill/SKILL.md"), "---\nname: root-skill\n---\nBody\n")
     await write(path.join(nested, ".agents/skills/app-skill/SKILL.md"), "---\nname: app-skill\n---\nBody\n")
-    // Above the repository root: not part of the project.
     await write(path.join(root, ".agents/skills/outside/SKILL.md"), "---\nname: outside\n---\nBody\n")
     const empty = path.join(root, "empty-home")
     const result = await Effect.runPromise(

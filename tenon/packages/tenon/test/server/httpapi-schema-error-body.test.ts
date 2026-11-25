@@ -47,8 +47,6 @@ const seedCorruptStepFinishPart = Effect.gen(function* () {
     cost: 0,
     tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
   })
-  // Schema.Finite still rejects NaN at encode: exact mirror of the corrupt row
-  // that broke the user's session in the OMO/Windows bug.
   const { db } = yield* Database.Service
   yield* db
     .update(PartTable)
@@ -58,7 +56,7 @@ const seedCorruptStepFinishPart = Effect.gen(function* () {
         reason: "stop",
         cost: 0,
         tokens: { input: 0, output: NaN, reasoning: 0, cache: { read: 0, write: 0 } },
-      } as never, // drizzle's .set() can't narrow the discriminated union
+      } as never,
     })
     .where(eq(PartTable.id, partID))
     .run()
@@ -96,7 +94,6 @@ describe("schema-rejection wire shape", () => {
     () =>
       Effect.gen(function* () {
         const test = yield* TestInstance
-        // /find/file?limit=999999 violates the limit constraint check.
         const url = `/find/file?query=foo&limit=999999&directory=${encodeURIComponent(test.directory)}`
         const res = yield* requestInDirectory(url, test.directory)
         const body = yield* text(res)
@@ -123,9 +120,6 @@ describe("schema-rejection wire shape", () => {
 
   it.instance(
     "rejected request body never echoes back unbounded — message is capped",
-    // Defense against DoS-amplification + secret-echo: Effect's Issue formatter
-    // dumps the rejected `actual` verbatim. A multi-MB invalid array would
-    // become a multi-MB 400 response and log line. Cap kicks in around 1KB.
     () =>
       Effect.gen(function* () {
         const test = yield* TestInstance
@@ -137,7 +131,6 @@ describe("schema-rejection wire shape", () => {
         })
         const body = yield* text(res)
         expect(res.status).toBe(400)
-        // 1 KB cap + small JSON envelope ≈ <2 KB — never tens of KB.
         expect(body.length).toBeLessThan(2 * 1024)
         const parsed = JSON.parse(body)
         expect(parsed.data.message).not.toContain(huge)
@@ -158,7 +151,6 @@ describe("schema-rejection wire shape", () => {
         expect(res.headers["content-type"] ?? "").toContain("application/json")
         const parsed = JSON.parse(body)
         expect(parsed).toMatchObject({ name: "BadRequest", data: { kind: "Body" } })
-        // Field path in data.message — what made this PR worth shipping.
         expect(parsed.data.message).toMatch(/output/)
       }),
     { config: { formatter: false, lsp: false } },

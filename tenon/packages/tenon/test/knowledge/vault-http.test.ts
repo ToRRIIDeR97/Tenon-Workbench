@@ -28,8 +28,6 @@ import { resetDatabase } from "../fixture/db"
 import { disposeAllInstances, TestInstance, tmpdirScoped } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 
-// Vault behaviour beyond the P3 acceptance tests: Project-relative paths, reserved folders, symlink escapes.
-
 const noopBootstrapLayer = Layer.succeed(
   InstanceBootstrapService.Service,
   InstanceBootstrapService.Service.of({ run: Effect.void }),
@@ -109,7 +107,6 @@ describe("vault routes", () => {
         Effect.flatMap(json<ReadonlyArray<{ revision: string }>>),
       )
       expect(versions).toHaveLength(1)
-      // A Project's log folder stays reserved, as it is for writes.
       yield* put(headers, "Note.md", { body: "x", projectId: project.id, create: true })
       expect((yield* remove("Acme API/log/entry.md", "any")).status).toBe(400)
     }),
@@ -184,7 +181,6 @@ describe("vault routes", () => {
     Effect.gen(function* () {
       const { headers, folder } = yield* setup
       const outside = yield* tmpdirScoped()
-      // A junction needs no privileges on Windows; elsewhere it is an ordinary directory symlink.
       yield* Effect.promise(() => symlink(outside, path.join(folder, "Escape"), "junction"))
       const response = yield* put(headers, "Escape/x.md", { body: "x", create: true })
       expect(response.status).toBe(400)
@@ -227,7 +223,6 @@ describe("vault routes", () => {
       const response = yield* request("/second-brain/vault/migrate", { method: "POST", headers })
       expect(response.status).toBe(400)
       expect(yield* Effect.promise(() => readdir(outside))).toEqual([])
-      // Nothing is removed unless the backup succeeded.
       expect(yield* Effect.promise(() => readdir(path.join(test.directory, "notes")))).toEqual(["loose.md"])
     }),
   )
@@ -256,7 +251,6 @@ describe("vault routes", () => {
       expect(yield* list()).toEqual(["One"])
       expect(yield* list("?search=alpha")).toEqual(["One"])
 
-      // Same size and time: the cached title and search text stand. A changed time reads the file again.
       const time = (yield* Effect.promise(() => stat(file))).mtime
       const source = yield* Effect.promise(() => readFile(file, "utf8"))
       yield* Effect.promise(() => writeFile(file, source.replace("One", "Two").replace("alpha", "gamma")))
@@ -265,8 +259,6 @@ describe("vault routes", () => {
       yield* Effect.promise(() => utimes(file, time, new Date(time.getTime() + 5_000)))
       expect(yield* list("?search=gamma")).toEqual(["Two"])
 
-      // A link to the same bytes and time out of the vault: the cached entry must not be served. Glob doesn't
-      // walk into linked folders, so only a file link reaches the cache; Windows may refuse to make one.
       const outside = path.join(yield* tmpdirScoped(), "Cached.md")
       yield* Effect.promise(() => cp(file, outside, { preserveTimestamps: true }))
       yield* Effect.promise(() => rm(file))
@@ -295,14 +287,12 @@ describe("vault routes", () => {
       expect(yield* Effect.promise(() => readdir(root))).toEqual([path.basename(folder)])
       yield* Effect.promise(() => writeFile(id, good))
 
-      // The same rule for a Project: a broken project.json is not "no folder yet".
       yield* Effect.promise(() => writeFile(path.join(folder, "Acme API", "project.json"), "{ half synced"))
       const write = yield* put(headers, "Next.md", { body: "x", projectId: project.id, create: true })
       expect(write.status).toBe(400)
       expect(yield* write.text).toContain("vault_unavailable: Acme API/project.json")
       expect(yield* Effect.promise(() => readdir(folder))).not.toContain("Acme API (2)")
 
-      // A folder the user really deleted lists clean, so it comes back.
       yield* Effect.promise(() => rm(folder, { recursive: true }))
       yield* vault().pipe(Effect.flatMap(json))
       expect(yield* Effect.promise(() => readdir(root))).toEqual([path.basename(folder)])

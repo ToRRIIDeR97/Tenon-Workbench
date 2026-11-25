@@ -1,6 +1,3 @@
-// Independent verification tests for the harness settings HTTP routes.
-// Run from tenon/packages/tenon:
-//   bun test --timeout 30000 ../../../Implementations/harness-settings-page/verification/routes.verify.test.ts
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import fs from "node:fs/promises"
 import path from "node:path"

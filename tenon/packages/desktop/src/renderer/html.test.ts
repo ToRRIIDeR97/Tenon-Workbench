@@ -9,13 +9,6 @@ const root = resolve(dir, "../..")
 
 const html = async (name: string) => Bun.file(join(dir, name)).text()
 
-/**
- * Packaged Electron windows load renderer HTML via the privileged `oc://`
- * protocol. Root-relative asset paths like `src="/foo.js"` would resolve from
- * the protocol origin root instead of relative to the current HTML entrypoint.
- *
- * All local resource references must use relative paths (`./`).
- */
 describe("electron renderer html", () => {
   for (const name of ["index.html"]) {
     describe(name, () => {
@@ -50,12 +43,6 @@ test("the build inlines the theme preload into the desktop page", async () => {
   expect(built).not.toContain("./oc-theme-preload.js")
 })
 
-/**
- * Vite resolves `publicDir` relative to `root`, not the config file.
- * This test reads the actual values from electron.vite.config.ts to catch
- * regressions where the publicDir path no longer resolves correctly
- * after the renderer root is accounted for.
- */
 describe("electron vite publicDir", () => {
   test("configured publicDir resolves to a directory with oc-theme-preload.js", async () => {
     const config = await Bun.file(join(root, "electron.vite.config.ts")).text()

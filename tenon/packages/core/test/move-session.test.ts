@@ -67,7 +67,6 @@ describe("MoveSession", () => {
       const moved = abs(yield* Effect.promise(() => fs.realpath(destination)))
       yield* Effect.promise(() => fs.writeFile(path.join(source, "tracked.txt"), "changed\n"))
       yield* Effect.promise(() => fs.writeFile(path.join(source, "untracked.txt"), "new\n"))
-      // Staged changes are part of the captured patch, so they move too.
       yield* Effect.promise(() => fs.writeFile(path.join(source, "staged.txt"), "staged\n"))
       yield* Effect.promise(() => $`git add staged.txt`.cwd(source).quiet())
 
@@ -228,7 +227,6 @@ describe("MoveSession", () => {
         "initial\n",
       )
       expect(yield* Effect.promise(() => Bun.file(path.join(sourceDirectory, "untracked.txt")).exists())).toBe(false)
-      // Staged edits move with the rest (#150): the source is back at HEAD for this file, not still staged.
       expect(yield* Effect.promise(() => fs.readFile(path.join(sourceDirectory, "staged.txt"), "utf8"))).toBe(
         "initial\n",
       )

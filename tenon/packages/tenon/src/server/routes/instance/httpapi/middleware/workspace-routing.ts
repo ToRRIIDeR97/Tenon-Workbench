@@ -15,11 +15,6 @@ import { HttpApiMiddleware } from "effect/http-api"
 import * as Socket from "effect/socket/Socket"
 import { InvalidRequestError } from "../errors"
 
-// Query fields this middleware reads from the URL. Spread into every
-// endpoint query schema in groups that apply WorkspaceRoutingMiddleware,
-// otherwise HttpApi rejects requests carrying these params with 400.
-// HttpApiMiddleware in effect-smol cannot declare query params today —
-// remove this once upstream supports middleware-declared query schemas.
 export const WorkspaceRoutingQueryFields = {
   directory: Schema.optional(Schema.String),
   workspace: Schema.optional(Schema.String),
@@ -87,7 +82,6 @@ function defaultDirectory(request: HttpServerRequest.HttpServerRequest, url: URL
   return (
     url.searchParams.get("directory") ||
     request.headers["x-tenon-directory"] ||
-    // OpenCode protocol name, still sent by the app and SDK (they also talk to upstream servers).
     request.headers["x-opencode-directory"] ||
     process.cwd()
   )
@@ -233,7 +227,6 @@ function routeHttpApiWorkspace<E>(
   return Effect.gen(function* () {
     const request = yield* HttpServerRequest.HttpServerRequest
     const sessionID = getWorkspaceRouteSessionID(requestURL(request))
-    // Routing needs only the Session's placement, so read those columns instead of the whole Session.
     const session = sessionID
       ? yield* db
           .select({ directory: SessionTable.directory, workspaceID: SessionTable.workspace_id })

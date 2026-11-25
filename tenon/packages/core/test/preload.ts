@@ -11,7 +11,6 @@ process.env.TENON_DB = ":memory:"
 process.env.TENON_MODELS_PATH = path.join(import.meta.dir, "plugin", "fixtures", "models-dev.json")
 process.env.TENON_DISABLE_MODELS_FETCH = "true"
 
-// Test folders live under the temp folder. A test of the gate itself empties this list.
 const { Global } = await import("@tenon/core/global")
 const { ConfigTrust } = await import("@tenon/core/config/trust")
 await fs.writeFile(ConfigTrust.file(Global.Path.data), JSON.stringify([await fs.realpath(os.tmpdir())]))

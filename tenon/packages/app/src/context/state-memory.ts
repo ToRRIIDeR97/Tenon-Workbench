@@ -5,11 +5,6 @@ type Entry = {
   dispose: VoidFunction
 }
 
-/**
- * Keeps reactive state (for example prompt sessions) alive across route remounts.
- * Keys are evicted least-recently-used first once `limit` keys are held; evicted
- * state is rebuilt from its persisted copy on next use.
- */
 export function createStateMemory(owner: Owner | null, limit = Number.POSITIVE_INFINITY) {
   const entries = new Map<string, Map<string, Entry>>()
 

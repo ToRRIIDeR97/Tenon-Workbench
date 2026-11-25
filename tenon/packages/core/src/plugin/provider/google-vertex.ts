@@ -3,8 +3,6 @@ import { define } from "../internal"
 import { ProviderV2 } from "../../provider"
 
 function resolveProject(options: Record<string, any>) {
-  // models.dev advertises GOOGLE_VERTEX_PROJECT for Vertex, while Google SDKs
-  // and ADC examples commonly use the broader Google Cloud project aliases.
   return (
     options.project ??
     process.env.GOOGLE_VERTEX_PROJECT ??
@@ -30,8 +28,6 @@ function vertexEndpoint(location: string) {
 }
 
 function replaceVertexVars(value: string, project: string | undefined, location: string) {
-  // Vertex OpenAI-compatible endpoints are stored as templates in the catalog;
-  // expand them after provider config/env project and location have been resolved.
   return value
     .replaceAll("${GOOGLE_VERTEX_PROJECT}", project ?? "${GOOGLE_VERTEX_PROJECT}")
     .replaceAll("${GOOGLE_VERTEX_LOCATION}", location)
@@ -39,8 +35,6 @@ function replaceVertexVars(value: string, project: string | undefined, location:
 }
 
 function authFetch(fetchWithRuntimeOptions?: unknown) {
-  // Native Vertex SDKs handle ADC internally. OpenAI-compatible Vertex endpoints
-  // do not, so inject a Google access token into their fetch path.
   return async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
     const { GoogleAuth } = await import("google-auth-library")
     const auth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] })
@@ -153,8 +147,6 @@ export const GoogleVertexAnthropicPlugin = define({
           ...evt.options,
           project,
           location,
-          // Continental multi-regions (eu, us) require Regional Endpoint Platform
-          // domains; the default {region}-aiplatform.googleapis.com does not resolve.
           ...((location === "eu" || location === "us") && project && !evt.options.baseURL
             ? {
                 baseURL: `https://aiplatform.${location}.rep.googleapis.com/v1/projects/${project}/locations/${location}/publishers/anthropic/models`,

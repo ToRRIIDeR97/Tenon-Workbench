@@ -6,30 +6,17 @@ import { PromptDictationButton } from "@/components/prompt-input/dictation-butto
 import { composerKeySends, type ComposerController } from "@/components/prompt-input/composer-controller"
 import { usePlatform } from "@/context/platform"
 
-/**
- * The composer for Home, the Command Centre page and the command strip: a text box that grows with its
- * text, Enter to send (Shift+Enter for a new line), dictation when the platform has it, and a send button.
- * `large` and `medium` stack the text above a control row; `compact` keeps everything on one line.
- * Thread composers use `PromptInputV2Composer`, which adds attachments, history and skills. With `onExpand`, the box
- * hands off to that composer: its + button, or typing a / or @ trigger, moves the text there.
- */
 export function ComposerBox(props: {
   controller: ComposerController
-  /** The text box's accessible name. */
   label: string
   placeholder: string
-  /** The send button's accessible name and tooltip. */
   sendLabel: string
   size?: "large" | "medium" | "compact"
-  /** A row above the text, such as Home's folder and branch. */
   header?: JSX.Element
-  /** Controls at the start of the bottom row, such as the model pill. */
   controls?: JSX.Element
-  /** Moves the text to the full composer. Needs `expandLabel`. */
   onExpand?: (text: string) => void
   expandLabel?: string
   ref?: (element: HTMLTextAreaElement) => void
-  /** Handles a key in the text box before the box does (Enter sends); return true when it took the key. */
   onKeyDown?: (event: KeyboardEvent) => boolean
   class?: string
 }) {
@@ -105,7 +92,6 @@ export function ComposerBox(props: {
           void props.controller.send()
         }}
       />
-      {/* Compact keeps one line: the controls (a model pill, say) sit just before the actions. */}
       <Show
         when={size() !== "compact"}
         fallback={

@@ -34,7 +34,6 @@ test("cancelling a transcription settles stop, and repeated cancels are not cras
   process.env.FAKE_DICTATION_HANG_STOP = "1"
   const dictation = createDictation({ command: process.execPath, args: [engine], log: () => {} })
   try {
-    // One more round than the restart limit allows crashes.
     for (let round = 0; round < 6; round++) {
       await dictation.start()
       const stopped = dictation.stop()

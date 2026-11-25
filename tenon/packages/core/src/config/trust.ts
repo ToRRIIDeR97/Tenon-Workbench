@@ -5,10 +5,8 @@ import { Wildcard } from "../util/wildcard"
 import type { ConfigPermissionV1 } from "../v1/config/permission"
 import type { ConfigV1 } from "../v1/config/config"
 
-/** The approved folders, one JSON array in the data folder. The user adds to it from the app's prompt only. */
 export const file = (data: string) => path.join(data, "trusted-folders.json")
 
-/** Anything unreadable reads as an empty list, so a damaged file leaves the gate shut. */
 export function parse(text: string | undefined) {
   if (!text) return []
   try {
@@ -20,7 +18,6 @@ export function parse(text: string | undefined) {
   }
 }
 
-/** Whether `target` is an approved folder or inside one. `path.relative` handles Windows case and separators. */
 export function covers(approved: readonly string[], target: string, paths: path.PlatformPath = path) {
   return approved.some((folder) => {
     const relative = paths.relative(folder, target)
@@ -30,7 +27,6 @@ export function covers(approved: readonly string[], target: string, paths: path.
   })
 }
 
-/** The folder one approval covers: the repository, or the opened folder when there is no repository. */
 export const root = (directory: string, worktree: string) => (worktree === "/" ? directory : worktree)
 
 export const add = (approved: readonly string[], folder: string) =>
@@ -38,17 +34,14 @@ export const add = (approved: readonly string[], folder: string) =>
 
 const ENV_FILES = [".env", ".env.local", ".env.development", ".env.production", ".env.staging", ".env.test"]
 
-/** Whether one project permission rule would widen `external_directory` or reads of `.env` files. */
 export function loosens(action: string, resource: string, effect: string) {
   if (effect !== "allow") return false
   if (Wildcard.match("external_directory", action)) return true
   if (!Wildcard.match("read", action)) return false
-  // A pattern that ends in a wildcard or names env could reach a `.env` file wherever it is.
   const name = resource.split(/[\\/]/).at(-1) ?? ""
   return /env/i.test(resource) || /[*?]$/.test(resource) || ENV_FILES.some((file) => Wildcard.match(file, name))
 }
 
-/** Local instructions stay; absolute, home and parent paths could read a secret into the prompt. */
 export function localInstruction(item: string) {
   if (item.startsWith("https://") || item.startsWith("http://")) return true
   return !(
@@ -72,7 +65,6 @@ function permissionV1(permission: ConfigPermissionV1.Info) {
   return Object.fromEntries(entries) as ConfigPermissionV1.Info
 }
 
-/** Refuses loosening entries in the markdown and JSON agents a project defines. */
 export function agentsV1<T extends { permission?: ConfigPermissionV1.Info }>(agents: Record<string, T | undefined>) {
   return Object.fromEntries(
     Object.entries(agents).map(([name, agent]) => [
@@ -82,14 +74,11 @@ export function agentsV1<T extends { permission?: ConfigPermissionV1.Info }>(age
   ) as Record<string, T>
 }
 
-/** Other harnesses' folders whose `skills/` load too; the project's copies wait for approval. */
 export const EXTERNAL_DIRS = [".claude", ".agents"] as const
 export const EXTERNAL_SKILLS = "skills/**/SKILL.md"
 
-/** A command template with a `` !`line` `` block runs that line in a shell, without asking, each time the command is used. */
 export const runsShell = (template: string) => /!`[^`]+`/.test(template)
 
-/** Keeps the project commands that only send text; ones that run a shell line wait for approval. */
 export function commandsV1<T extends { template: string }>(commands: Record<string, T>) {
   const kept = Object.entries(commands).filter(([, command]) => !runsShell(command.template))
   return {
@@ -110,10 +99,6 @@ const GATED_V1 = [
   "skills",
 ] as const
 
-/**
- * What a project file may contribute. `withheld` names what stays off until the folder is approved;
- * permission entries that widen `external_directory` or `.env` reads are refused even after approval.
- */
 export function projectV1<T extends ConfigV1.Info>(config: T, trusted: boolean) {
   const limited = {
     ...config,

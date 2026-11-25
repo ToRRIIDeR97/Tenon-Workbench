@@ -5,10 +5,7 @@ import { readCalendar, writeCalendar, type CalendarSnapshot, type PlannerTask } 
 
 type Client = Parameters<typeof readCalendar>[0]
 
-// One Google call at a time across the Calendar page and the background sync; the main process
-// rejects overlapping calls with `google_operation_busy`.
 const [busy, setBusy] = createSignal(false)
-// Bumped after each sync writes the calendar, so an open Calendar page reloads it.
 const [version, setVersion] = createSignal(0)
 const [lastSynced, setLastSynced] = createSignal<number>()
 export const calendarSync = { busy, version, lastSynced }
@@ -33,11 +30,6 @@ export const providerTask = (task: GoogleTaskProviderTask, local?: PlannerTask):
   syncState: "synced",
 })
 
-/**
- * A Google task an agent created through the Tenon app tools (`tasks_create` with an `accountId`): a
- * pending create the server saved with an `agent:` outbox key. The planner queues its own creates in
- * the desktop outbox when it saves them; these were saved by the server, so no outbox has them yet.
- */
 export const isQueuedAgentTask = (task: PlannerTask) =>
   task.source === "google" &&
   task.outboxKind === "create" &&
@@ -45,11 +37,6 @@ export const isQueuedAgentTask = (task: PlannerTask) =>
   Boolean(task.providerId?.startsWith("pending:")) &&
   Boolean(task.accountId)
 
-/**
- * Hands queued agent tasks to the desktop outbox, keyed by their outbox key so a repeat is idempotent,
- * and returns the calendar with each sent task in its provider form. A task the outbox refuses (no
- * write access for its account) stays queued for a later sync.
- */
 export async function dispatchQueuedTasks(google: GoogleCalendarPlatform, current: CalendarSnapshot) {
   const queued = current.tasks.filter(isQueuedAgentTask)
   const sent = new Map<string, PlannerTask>()
@@ -84,11 +71,6 @@ export async function dispatchQueuedTasks(google: GoogleCalendarPlatform, curren
   return { current: { ...current, tasks: current.tasks.map((task) => sent.get(task.id) ?? task) }, created }
 }
 
-/**
- * Pulls every connected Google account and merges the result into the folder's calendar.
- * `current` is the calendar the caller shows; when omitted it is read from the server first.
- * Returns undefined when another Google call is already running.
- */
 export async function syncGoogleCalendar(input: {
   google: GoogleCalendarPlatform
   client: Client
@@ -100,7 +82,6 @@ export async function syncGoogleCalendar(input: {
     const pulled = await input.google.sync()
     const dispatched = await dispatchQueuedTasks(input.google, input.current ?? (await readCalendar(input.client)))
     const current = dispatched.current
-    // Tasks sent just now count as pulled, so the merge below keeps them in their provider form.
     const pulledKeys = new Set(pulled.tasks.map((task) => `${task.accountId}:${task.taskListId}:${task.providerId}`))
     const result = {
       ...pulled,
@@ -111,12 +92,9 @@ export async function syncGoogleCalendar(input: {
         ),
       ],
     }
-    // Items saved before multiple accounts carry no account. They came from the one account then
-    // connected, which the desktop migration keeps first in the list.
     const accountOf = (accountId: string | undefined) => accountId ?? result.connection.accounts[0]?.id
     const synced = new Set(result.syncedAccounts)
     const connected = new Set(result.connection.accounts.map((account) => account.id))
-    // A connected account that failed this sync keeps its items; disconnected accounts lose theirs.
     const failed = (account: string | undefined) => Boolean(account && connected.has(account) && !synced.has(account))
     const kept = (accountId: string | undefined) => failed(accountOf(accountId))
     const settled = new Map(result.settled.map((write) => [write.idempotencyKey, write.providerId]))
@@ -131,7 +109,6 @@ export async function syncGoogleCalendar(input: {
     const localByProvider = new Map(
       current.tasks
         .filter((task) => task.source === "google" && task.providerId && task.taskListId)
-        // A create that has since finished is known by Google's ID, which keeps its Project and schedule.
         .map((task) => {
           const providerId = settled.get(task.outboxKey ?? "") ?? task.providerId
           return [taskKey({ ...task, providerId }), task] as const

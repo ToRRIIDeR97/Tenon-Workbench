@@ -6,11 +6,6 @@ type Lineage = { session: { id: string; directory: string } }
 
 const lineageOf = (id: string): Lineage => ({ session: { id, directory: `/dir/${id}` } })
 
-// Fake sync lineage store: peek reads a reactive cache, resolve returns a
-// deferred promise the test settles or fails explicitly. The lineage memo is
-// live (read below), so it recomputes eagerly on cache/status writes — throws
-// surface at the write site, which is also where the enclosing ErrorBoundary
-// would see them in the app. Assertions wrap write + read to cover both.
 function createFixture(initial: Record<string, Lineage> = {}) {
   const [cache, setCache] = createSignal(initial)
   const deferred = new Map<string, PromiseWithResolvers<unknown>>()
@@ -32,8 +27,6 @@ function createFixture(initial: Record<string, Lineage> = {}) {
     },
     fail(id: string, error: unknown) {
       deferred.get(id)?.reject(error)
-      // The real store does not cache failures: the inflight request entry is
-      // dropped on rejection so the next resolve retries (server-session.ts).
       deferred.delete(id)
     },
     remove(id: string) {
@@ -44,8 +37,6 @@ function createFixture(initial: Record<string, Lineage> = {}) {
   }
 }
 
-// Two microtask ticks: one for the resolve promise handed back by the fixture,
-// one for the .then/.catch chain inside createSessionLineage.
 const flush = async () => {
   await Promise.resolve()
   await Promise.resolve()
@@ -71,9 +62,6 @@ test("resolves an uncached session and exposes its lineage", async () => {
   })
 })
 
-// Session tabs on the same server share one route instance, so navigating to
-// another session changes the id in place; resolution must follow it instead
-// of reporting the new session as missing.
 test("re-resolves when navigating to an uncached session without a remount", async () => {
   await createRoot(async (dispose) => {
     const fixture = createFixture({ ses_a: lineageOf("ses_a") })
@@ -97,8 +85,6 @@ test("re-resolves when navigating to an uncached session without a remount", asy
   })
 })
 
-// A late failure from a session the user already navigated away from must not
-// poison the currently viewed session.
 test("ignores a stale resolution failure after the target changes", async () => {
   await createRoot(async (dispose) => {
     const fixture = createFixture()
@@ -148,9 +134,6 @@ test("returning to a pruned session re-resolves instead of throwing not found", 
   })
 })
 
-// A resolution that fails while its session is unfocused must not leave a
-// poisoned status behind: revisiting that session retries cleanly instead of
-// rethrowing the stale failure before the retry can start.
 test("revisiting a session whose resolution failed while unfocused retries cleanly", async () => {
   await createRoot(async (dispose) => {
     const fixture = createFixture()
@@ -176,9 +159,6 @@ test("revisiting a session whose resolution failed while unfocused retries clean
   })
 })
 
-// The lineage accessor is reactive: replacing the sync store (for example after
-// the server context is rebuilt) must gate out the old store's status and
-// re-resolve against the new one instead of fabricating a not-found.
 test("re-resolves against a replaced lineage store", async () => {
   await createRoot(async (dispose) => {
     const first = createFixture()
@@ -206,8 +186,6 @@ test("re-resolves against a replaced lineage store", async () => {
   })
 })
 
-// The viewed session is pinned in the cache, so disappearing after settlement
-// means it was deleted; the boundary must show the not found fallback.
 test("throws not found when the settled session is deleted", async () => {
   await createRoot(async (dispose) => {
     const fixture = createFixture()

@@ -22,8 +22,6 @@ const seedCassetteDirectory = (directory: string, name: string, interactions: Re
     ),
   )
 
-// Reads frames until the socket closes, as `socket.runRaw` did before Effect 4.1.
-// A normal close (1000) ends the run; any other close fails it.
 const runSocket = <E = never, R = never>(
   socket: Socket.Socket,
   handler: (message: string | Uint8Array) => Effect.Effect<unknown, E, R> | void,
@@ -246,7 +244,6 @@ describe("http-recorder", () => {
   test("records WebSocket frames in observed client/server order", async () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "http-recorder-websocket-"))
     const response = JSON.stringify({ type: "response.completed", token: "server-secret" })
-    // The fake server answers the client frame once, then closes normally.
     const frames = await Effect.runPromise(Queue.unbounded<string>())
     const upstream = Socket.make({
       reader: Effect.succeed({
@@ -391,8 +388,6 @@ describe("http-recorder", () => {
       },
     ])
 
-    // The reader hands over every frame up to the next client frame in one pull,
-    // so a consumer may process them concurrently.
     const batch = await Effect.runPromise(
       Effect.gen(function* () {
         const socket = yield* Socket.Socket
@@ -642,7 +637,6 @@ describe("http-recorder", () => {
       fetch: () => new Response('{"reply":"recorded"}', { headers: { "content-type": "application/json" } }),
     })
     const url = `http://127.0.0.1:${server.port}/echo`
-    // CI=true forces replay; clear it so we exercise the local-dev auto-record path.
     const previous = process.env.CI
     delete process.env.CI
     try {

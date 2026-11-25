@@ -99,7 +99,6 @@ describe("BackgroundJob", () => {
       yield* Scope.close(scope, Exit.void)
 
       yield* Deferred.await(interrupted).pipe(Effect.timeout("1 second"))
-      // The abandoned in-memory registry is not a durable observation channel.
       expect((yield* jobs.get(job.id))?.status).toBe("running")
     }),
   )

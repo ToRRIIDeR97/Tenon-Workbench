@@ -14,7 +14,6 @@ import { canSymlink, tmpdir } from "../fixture/fixture"
 import { PlannerCalendar } from "../../src/planner/calendar"
 import { BrainProject } from "../../src/project/brain"
 
-/** Real file mutations except `create`, which always reports the target as existing. */
 const failingCreateLayer = Layer.succeed(
   FileMutation.Service,
   FileMutation.Service.of({
@@ -273,7 +272,6 @@ describe("BrainProject workspace threads", () => {
       kind: "workspace",
       directory: "/work/a",
     })
-    // A Workspace the server no longer knows falls back to the Project folder.
     expect(await run(tmp.path, BrainProject.threadDirectory(linked, []))).toMatchObject({
       kind: "folder",
       directory: path.join(tmp.path, linked.folder),
@@ -325,7 +323,6 @@ describe("BrainProject workspace threads", () => {
     const projects = path.join(tmp.path, "projects")
     mkdirSync(projects)
     const count = 1_001
-    // The oldest card also sorts first by path, so a cap applied before sorting would keep it.
     Array.from({ length: count }, (_, index) => {
       const id = `project_${String(index).padStart(5, "0")}`
       writeFileSync(
@@ -360,10 +357,8 @@ describe("BrainProject workspace threads", () => {
 
     await sync("rev_1", "Kickoff")
     expect(timeline(alpha.id)).toMatchObject({ revision: "rev_1", events: [{ id: "event_a" }] })
-    // Beta's slice is still empty, as create wrote it, so its file is left untouched.
     expect(timeline(beta.id)).toMatchObject({ revision: "", events: [] })
 
-    // Only the global revision changed: nothing is rewritten.
     await sync("rev_2", "Kickoff")
     expect(timeline(alpha.id).revision).toBe("rev_1")
 
@@ -377,7 +372,6 @@ describe("BrainProject workspace threads", () => {
     const alpha = await run(tmp.path, BrainProject.create({ name: "Alpha", outcome: "A" }))
     const beta = await run(tmp.path, BrainProject.create({ name: "Beta", outcome: "B" }))
     const file = (id: string) => path.join(tmp.path, ".tenon", "projects", id, "timeline", "calendar.json")
-    // A hand-damaged timeline is rewritten by a full sync, so leaving it proves Beta was skipped.
     writeFileSync(file(beta.id), "damaged")
     const event = {
       id: "event_a",
@@ -392,10 +386,8 @@ describe("BrainProject workspace threads", () => {
     await run(tmp.path, BrainProject.syncTimelines(next, previous))
     expect(PlannerCalendar.decode(readFileSync(file(alpha.id), "utf8")).events).toHaveLength(1)
     expect(readFileSync(file(beta.id), "utf8")).toBe("damaged")
-    // Moving the event away from Alpha still rewrites Alpha's timeline.
     await run(tmp.path, BrainProject.syncTimelines({ ...previous, revision: "rev_3" }, next))
     expect(PlannerCalendar.decode(readFileSync(file(alpha.id), "utf8")).events).toHaveLength(0)
-    // Without a previous calendar every timeline is checked.
     await run(tmp.path, BrainProject.syncTimelines({ ...previous, revision: "rev_4" }))
     expect(readFileSync(file(beta.id), "utf8")).not.toBe("damaged")
   })
@@ -405,7 +397,6 @@ describe("BrainProject workspace threads", () => {
     const alpha = await run(tmp.path, BrainProject.create({ name: "Alpha", outcome: "A" }))
     await run(tmp.path, BrainProject.create({ name: "Beta", outcome: "B" }))
     let cardReads = 0
-    // Real file access, counting reads of Project cards.
     const counting = Layer.effect(
       FSUtil.Service,
       Effect.gen(function* () {
@@ -437,14 +428,11 @@ describe("BrainProject workspace threads", () => {
     expect(await counted(BrainProject.list())).toHaveLength(2)
     const first = cardReads
     expect(await counted(BrainProject.list())).toHaveLength(2)
-    // Both cards are unchanged, so the second list reads neither of them.
     expect(cardReads).toBe(first)
 
-    // A save of the card is seen by the next list, even within the same millisecond.
     await counted(BrainProject.update(alpha.id, { progressPercent: 40 }))
     expect((await counted(BrainProject.list())).find((project) => project.id === alpha.id)?.progressPercent).toBe(40)
 
-    // A calendar save with no Project items reads no cards at all.
     const before = cardReads
     const empty = { version: 2 as const, revision: "rev_1", events: [], tasks: [] }
     await counted(BrainProject.syncTimelines({ ...empty, revision: "rev_2" }, empty))
@@ -509,7 +497,6 @@ describe("BrainProject project folders", () => {
     >,
   ) => run(directory, data, Effect.exit(effect))
 
-  /** The user's layout: `Projects/` (capital P) with plain folders, plus noise that is not a project. */
   const workspace = (root: string) => {
     for (const folder of [
       "Projects/Alpha",
@@ -535,7 +522,6 @@ describe("BrainProject project folders", () => {
       kind: "project",
       directory: path.join(tmp.path, "Projects", "Alpha- v2-"),
     })
-    // The scanned "Taken" folder is claimed, so a Project whose name maps to it gets a suffix.
     const scanned = (await run(root, data, BrainProject.list())).find((project) => project.name === "Taken")!
     await run(root, data, BrainProject.update(scanned.id, { name: "Old" }))
     const taken = await run(root, data, BrainProject.create({ name: "Taken", outcome: "Ship it" }))
@@ -559,7 +545,6 @@ describe("BrainProject project folders", () => {
       kind: "project",
       directory: path.join(root, "Projects", "Alpha"),
     })
-    // The project folders themselves are untouched; cards live under .tenon.
     expect(readdirSync(path.join(root, "Projects", "Alpha"))).toEqual([])
   })
 
@@ -573,11 +558,9 @@ describe("BrainProject project folders", () => {
       mkdirSync(folder, { recursive: true })
       writeFileSync(path.join(folder, ".git"), `gitdir: ${path.join(projects, "Game", ".git", "worktrees", "x")}\n`)
     }
-    // What agents made next to the Project: a folder of worktrees, and one worktree on its own.
     worktree(path.join(projects, "game-worktrees", "netcode"))
     worktree(path.join(projects, "game-worktrees", "terrain"))
     worktree(path.join(projects, "game-hotfix"))
-    // A folder of plain files is still a Project, and so is one mixing a worktree with a real folder.
     mkdirSync(path.join(projects, "game-art", "arms"), { recursive: true })
     worktree(path.join(projects, "Mixed", "copy"))
     mkdirSync(path.join(projects, "Mixed", "docs"), { recursive: true })
@@ -621,7 +604,6 @@ describe("BrainProject project folders", () => {
     expect(JSON.parse(readFileSync(path.join(data, "workspace-links.json"), "utf8"))).toEqual({})
   })
 
-  // AC-3: adding a folder that was removed before brings its Project back to the sidebar.
   test("linking a folder again makes its archived card active", async () => {
     await using tmp = await tmpdir()
     const root = path.join(tmp.path, "Brain")

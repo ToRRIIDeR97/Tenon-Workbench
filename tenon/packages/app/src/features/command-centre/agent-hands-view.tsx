@@ -18,7 +18,6 @@ import { listCommandActions, type CommandAction } from "@/features/second-brain/
 import { permissionSummary } from "@/pages/session/composer/permission-summary"
 import { getRelativeTime } from "@/utils/time"
 
-/** A queue item with the root thread it belongs to and the request itself, for what it asks and how to answer. */
 export type WaitingRequest = {
   item: QueueItem
   root: MissionThread
@@ -26,19 +25,13 @@ export type WaitingRequest = {
   question?: QuestionRequest
 }
 
-// Commands or paths shown before "Show N more", as in the thread's own approval card.
 const VISIBLE = 3
 
-/**
- * Every pending permission and question of the board's threads, subagents included, oldest first. It reads the
- * synced run data the thread pages and the board already read, so it adds no request.
- */
 export function createWaitingQueue(ctrl: SidebarController, threads: () => MissionThread[]) {
   const serverSync = useServerSync()
   return createMemo<WaitingRequest[]>(() => {
     const data = serverSync().session.data
     const roots = new Map(threads().map((thread) => [thread.id, thread]))
-    // Parents come from the synced store, then from the sidebar's index links, as the board's Needs you does.
     const links = ctrl.parentLinks()
     const owned = [...new Set([...Object.keys(data.permission), ...Object.keys(data.question)])].flatMap((id) => {
       const root = rootThread(id, roots, (child) => serverSync().session.get(child)?.parentID, links)
@@ -65,11 +58,6 @@ export function createWaitingQueue(ctrl: SidebarController, threads: () => Missi
 
 const startOfToday = () => new Date().setHours(0, 0, 0, 0)
 
-/**
- * The Command Centre's "Waiting on you" view. Left: every request waiting on the user across the Projects, with
- * the answer buttons, and what may run without asking per Project. Right: what the Command Centre agent did to
- * other threads today. The user's own answers, Steer and Stop never appear in that log.
- */
 export function AgentHands(props: { ctrl: SidebarController; queue: WaitingRequest[]; open: (id: string) => void }) {
   const language = useLanguage()
   const layout = useLayout()
@@ -96,7 +84,6 @@ export function AgentHands(props: { ctrl: SidebarController; queue: WaitingReque
         () => ({ items: [] as CommandAction[], failed: true }),
       ),
   )
-  // The log changes when a Command Centre thread acts, so read it again when one starts or ends a turn. No timer.
   createEffect(
     on(
       () =>
@@ -112,7 +99,6 @@ export function AgentHands(props: { ctrl: SidebarController; queue: WaitingReque
   const time = createMemo(() => new Intl.DateTimeFormat(language.locale(), { timeStyle: "short" }))
   const ago = (ms: number) => getRelativeTime(new Date(ms).toISOString(), language.t)
 
-  // The thread's own folder routes the reply, as it does from the thread's page.
   const answer = (entry: WaitingRequest, reply: "once" | "always" | "reject") => {
     if (state.busy) return
     setState({ busy: entry.item.requestID, failed: undefined })
@@ -278,7 +264,6 @@ export function AgentHands(props: { ctrl: SidebarController; queue: WaitingReque
             }
           >
             <ul class="flex flex-col gap-3">
-              {/* By request ID: a sync update rewrites a card in place instead of rebuilding the list. */}
               <For each={waiting().map((entry) => entry.item.requestID)}>
                 {(id) => (
                   <Show when={waiting().find((entry) => entry.item.requestID === id)}>

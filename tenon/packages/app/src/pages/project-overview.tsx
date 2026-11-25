@@ -28,7 +28,6 @@ const statusKey = {
   archived: "secondBrain.projects.filter.archived",
 } as const
 
-/** Every Project's upcoming work and recent notes on one page, for the workspace the sidebar has selected. */
 export default function ProjectOverviewPage() {
   const language = useLanguage()
   const layout = useLayout()
@@ -39,17 +38,13 @@ export default function ProjectOverviewPage() {
   const [state, setState] = createStore({ filter: "" })
   const client = (directory: string) => ({ server: serverSDK().server, fetch: platform.fetch, target: { directory } })
 
-  // The sidebar workspace switcher owns this choice; every read below follows it. All three are shared and
-  // cached, so a revisit paints at once.
   const brainDirectory = () => layout.home.workspace() ?? ""
   const source = () => brainDirectory() || undefined
   const projects = useBrainProjects()
   const vault = useVaultPages(source)
   const calendar = createCalendarResource(source, client)
 
-  // With no workspace nothing loads, and the calendar has no snapshot to wait for.
   const loading = () => !!source() && (projects.loading() || vault.loading() || calendar.loading())
-  // A failed calendar refresh keeps its last snapshot, which is still worth showing.
   const calendarFailed = () => !calendar.snapshot() && !!calendar.error()
   const failed = () => projects.failed() || !!vault.error() || calendarFailed()
   const retry = () => {
@@ -73,7 +68,6 @@ export default function ProjectOverviewPage() {
   const visible = createMemo(() => filterProjectOverview(groups(), state.filter))
 
   const dateFormat = createMemo(() => new Intl.DateTimeFormat(language.locale(), { month: "short", day: "numeric" }))
-  // Calendar dates are local `YYYY-MM-DD` keys; noon keeps them on the same day in every time zone.
   const formatDate = (date: string) => {
     const [year, month, day] = date.split("-").map(Number)
     if (!year || !month || !day) return date

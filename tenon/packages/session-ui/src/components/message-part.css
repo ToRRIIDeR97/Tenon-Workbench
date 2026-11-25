@@ -60,7 +60,6 @@
       width: 58px;
       height: 46px;
 
-      /* inset box-shadows do not paint over <img> content, so the hairline is an overlay */
       &::after {
         content: "";
         position: absolute;
@@ -459,7 +458,6 @@
   }
 
   [data-slot="message-part-title-filename"] {
-    /* No text-transform - preserve original filename casing */
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -530,7 +528,6 @@
     overflow: hidden;
   }
 
-  /* Hide scrollbar */
   scrollbar-width: none;
   -ms-overflow-style: none;
 
@@ -821,7 +818,6 @@
   gap: 0;
   min-height: 0;
   max-height: var(--question-prompt-max-height, 100dvh);
-  /* The approval card's shell, so the two docks that take the composer's place read as siblings. */
   border-radius: var(--v2-radius-xl);
   background-color: var(--v2-background-bg-base);
   box-shadow: inset 0 0 0 1px var(--v2-border-border-muted);
@@ -993,7 +989,6 @@
     width: 16px;
     height: 16px;
     padding: 2px;
-    /* Same corner as CheckboxV2's 16px box; the scale's 8px would make it a circle like the radio. */
     border-radius: 4px;
     border: 1.5px solid var(--v2-border-border-control);
     display: inline-flex;
@@ -1103,7 +1098,6 @@
       color: var(--v2-text-text-faint);
     }
 
-    /* No ring of its own: the option card around it is the field (below), and the caret shows where you type. */
     &:focus-visible {
       outline: none;
     }
@@ -1113,9 +1107,6 @@
     }
   }
 
-  /* While you write your own answer, the option's edge firms to a soft accent hairline instead of a second box
-     appearing around the text inside an already highlighted card. */
-  /* Full focus colour, so keyboard users see it on the tinted (picked) card too: one edge, not a box inside a box. */
   [data-slot="question-option"][data-custom="true"]:focus-within {
     box-shadow: inset 0 0 0 1.5px var(--v2-border-border-focus);
     transition: box-shadow var(--v2-duration-short) var(--v2-ease-standard);
@@ -1137,7 +1128,6 @@
   }
 }
 
-/* One surface: the shell and the footer tray inside the question card draw nothing of their own. */
 [data-component="dock-prompt"][data-kind="question"] > [data-dock-surface] {
   background-color: transparent;
   box-shadow: none;
@@ -1225,8 +1215,6 @@
   }
 }
 
-/* Tool file diffs are tonal 16px cards with a 1px muted edge: one card per file. The radii are !important because
-   the shared ui accordion rounds first/last items with higher-specificity :first-child/:last-child rules. */
 [data-component="accordion"][data-scope="apply-patch"] {
   gap: 4px;
 
@@ -1250,7 +1238,6 @@
   [data-slot="accordion-item"] [data-slot="accordion-header"] [data-slot="accordion-trigger"] {
     border: none;
     border-radius: var(--v2-radius-lg) !important;
-    /* Opaque so the diff does not show through the sticky header. */
     background-color: var(--v2-background-bg-layer-01) !important;
 
     &:hover:not([data-disabled]) {
@@ -1420,7 +1407,6 @@ body[data-new-layout] [data-component="user-message"] {
   }
 }
 
-/* A reply to passages (selection-reply.tsx): each passage and the user's answer share an inset box in the bubble. */
 [data-component="user-message"] [data-slot="user-message-text"][data-replies] {
   display: flex;
   flex-direction: column;

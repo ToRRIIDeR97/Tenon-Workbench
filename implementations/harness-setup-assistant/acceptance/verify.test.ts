@@ -1,8 +1,3 @@
-// Functional-test (verify) checks for the harness setup assistant.
-// Core: from tenon/packages/core
-//   bun test ../../../Implementations/harness-setup-assistant/acceptance/verify.test.ts -t core
-// Route: from tenon/packages/tenon
-//   bun test --timeout 30000 ../../../Implementations/harness-setup-assistant/acceptance/verify.test.ts -t route
 import { afterEach, describe, expect, test } from "bun:test";
 import os from "node:os";
 import path from "node:path";
@@ -11,7 +6,6 @@ import { LayerNode } from "../../../tenon/packages/core/src/effect/layer-node";
 import { AppProcess } from "../../../tenon/packages/core/src/process";
 import { HarnessRegistry } from "../../../tenon/packages/core/src/harness/registry";
 
-// Reuses the deterministic agent from the settings-page package: every prompt replies `model:<current>`.
 const fixture = path.resolve(
   import.meta.dir,
   "../../harness-settings-page/fixtures/fake-acp-agent.ts",

@@ -157,8 +157,6 @@ describe("createServerProjects", () => {
       const [store, setStore] = createStore({ projects: {}, lastProject: {}, recentlyClosed: {} })
       const projects = createServerProjects({ scope, store, setStore })
 
-      // Closing 6 projects keeps all 6 in the store even though only 5 are displayed;
-      // this prevents display-filtered entries from evicting still-visible ones.
       for (const dir of ["/1", "/2", "/3", "/4", "/5", "/6"]) {
         projects.open(dir)
         projects.close(dir)

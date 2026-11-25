@@ -190,7 +190,6 @@
   gap: 2px;
 }
 
-/* Selectable rows: 16px corners, hover overlay, accent container when checked. */
 .settings-v2-wsl-distro-row {
   box-sizing: border-box;
   width: 100%;

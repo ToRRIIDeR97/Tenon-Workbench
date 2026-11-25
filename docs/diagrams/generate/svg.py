@@ -1,4 +1,3 @@
-# Shared SVG helpers for docs/diagrams. Output is script-free and follows prefers-color-scheme.
 """Tiny SVG builder for the docs/diagrams set. Script-free, theme-aware output."""
 from xml.sax.saxutils import escape
 
@@ -123,7 +122,6 @@ class SVG:
     def raw(self, s):
         self.parts.append(s)
 
-    # activity / state primitives
     def start(self, x, y):
         self.raw(f'<circle class="dot" cx="{x}" cy="{y}" r="8"/>')
 
@@ -141,7 +139,6 @@ class SVG:
         else:
             self.text(x + w / 2, y + h / 2 + 4, s, "", "middle")
 
-    # sequence primitives
     def lifelines(self, parts, top, bottom, w=150):
         for name, x, stereo in parts:
             self.box(x - w / 2, top, w, 44 if stereo else 30, name, [stereo] if stereo else [], cls="box", center=True)

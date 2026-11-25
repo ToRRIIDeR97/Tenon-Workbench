@@ -5,7 +5,6 @@ import "./switch-v2.css"
 
 export interface SwitchProps extends ParentProps<ComponentProps<typeof Kobalte>> {
   hideLabel?: boolean
-  /** `small` is the compact track for dense popover and dialog rows. */
   size?: "normal" | "small"
 }
 

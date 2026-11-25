@@ -4,11 +4,6 @@ import { app, BrowserWindow, dialog } from "electron"
 import { createHarnessSync } from "./harness-sync/service"
 import { locationsFromEnv, sandboxedLocations } from "./harness-sync/tools"
 
-/**
- * Harness sync for the desktop app: state and backups in app data, sync files chosen in native dialogs, and changes
- * broadcast to every window. Development builds accept `TENON_HARNESS_SYNC_SANDBOX=<folder>`, which puts harness
- * files under `<folder>/home` and app data under `<folder>/app-data`, so testing never touches real harness files.
- */
 export function createHarnessSyncService() {
   const sandbox = app.isPackaged ? undefined : process.env.TENON_HARNESS_SYNC_SANDBOX
   const owner = () => BrowserWindow.getFocusedWindow() ?? undefined

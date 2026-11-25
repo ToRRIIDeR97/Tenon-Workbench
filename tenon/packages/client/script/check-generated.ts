@@ -1,5 +1,3 @@
-// `git diff` misses new files. `git status` is no substitute: under core.autocrlf it reports
-// regenerated LF files as modified even when their content is unchanged.
 import { $ } from "bun"
 
 const dirs = ["src/generated", "src/generated-effect"]

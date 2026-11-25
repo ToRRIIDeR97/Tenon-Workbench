@@ -45,7 +45,6 @@ export function createV2SessionReducer() {
     }
     if (eventType === "session.next.prompt.admitted" || eventType === "session.next.prompted") {
       const current = event as unknown as NextPromptEvent
-      // Queued prompts stay out of the transcript until the runner promotes them (session.next.prompted).
       if (eventType === "session.next.prompt.admitted" && current.data.delivery === "queue") return
       const created =
         typeof current.data.timestamp === "number" ? current.data.timestamp : Date.parse(current.data.timestamp)
@@ -305,7 +304,6 @@ export function createV2SessionReducer() {
           ...tool,
           executed: event.data.executed,
           providerState: event.data.state,
-          // structured: {}, content: []
           state: { status: "running", input: event.data.input, metadata: {} },
           time: { ...tool.time, ran: event.created },
         }))
@@ -314,7 +312,6 @@ export function createV2SessionReducer() {
           tool.state.status === "running"
             ? {
                 ...tool,
-                // state: { ...tool.state, structured: event.data.structured, content: event.data.content },
                 state: { ...tool.state, metadata: event.data.metadata },
               }
             : tool,
@@ -329,10 +326,8 @@ export function createV2SessionReducer() {
             state: {
               status: "completed",
               input: tool.state.input,
-              // structured: event.data.structured,
               metadata: event.data.metadata,
               content: event.data.content,
-              // result: event.data.result,
             },
             time: { ...tool.time, completed: event.created },
           }
@@ -347,11 +342,9 @@ export function createV2SessionReducer() {
             state: {
               status: "error",
               input: typeof tool.state.input === "string" ? {} : tool.state.input,
-              // structured: tool.state.status === "running" ? tool.state.structured : {},
               metadata: event.data.metadata ?? (tool.state.status === "running" ? tool.state.metadata : {}),
               content: event.data.content,
               error: event.data.error,
-              // result: event.data.result,
             },
             time: { ...tool.time, completed: event.created },
           }
@@ -452,9 +445,6 @@ export function createV2SessionReducer() {
   }
 }
 
-// The runner publishes `session.next.*` events, which the vendored client types predate. These cases mirror
-// core's message-updater, writing the shapes `normalizeSessionMessages` reads, so steps render as they stream
-// instead of only when `session.next.step.ended` reloads the message.
 type NextData = {
   timestamp: number
   assistantMessageID: string
@@ -484,7 +474,6 @@ type NextEvent = { type: string; metadata?: Assistant["metadata"]; data: NextDat
 type Tool = Extract<Assistant["content"][number], { type: "tool" }>
 type LooseTool = Tool & { provider?: NextData["provider"] }
 
-/** The context window and context in use a harness reported, leaving out what it didn't. */
 const harnessContext = (data: NextData) => ({
   ...(data.contextWindow === undefined ? {} : { contextWindow: data.contextWindow }),
   ...(data.contextUsed === undefined ? {} : { contextUsed: data.contextUsed }),

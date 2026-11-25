@@ -12,7 +12,6 @@
   border-radius: var(--radius-md);
   padding: var(--card-pad-y) var(--card-pad-r) var(--card-pad-y) var(--card-pad-l);
 
-  /* text-14-regular */
   font-family: var(--font-family-sans);
   font-size: var(--font-size-base);
   font-style: normal;

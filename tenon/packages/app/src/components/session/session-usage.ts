@@ -4,14 +4,11 @@ import { subagentDetail } from "./subagent-detail"
 
 type Tokens = NonNullable<Session["tokens"]>
 
-/** The latest turn's totals: every assistant message since the last user message. */
 export function getTurnUsage(messages: Message[]) {
   const start = messages.findLastIndex((message) => message.role === "user")
   return getSessionUsage(messages.slice(start + 1))
 }
 
-// Sums the loaded assistant messages, optionally for one harness. Unlike getSessionContext, which reads the
-// last message, this adds every message; a thread that hasn't loaded its whole history sums only part of it.
 export function getSessionUsage(messages: Message[], options?: { harness?: string }) {
   const counted = messages.filter(
     (message): message is AssistantMessage =>
@@ -22,7 +19,6 @@ export function getSessionUsage(messages: Message[], options?: { harness?: strin
   )
   const sum = (pick: (message: AssistantMessage) => number) =>
     counted.reduce((total, message) => total + pick(message), 0)
-  // A cost of 0 (or a missing field) means the harness did not report one.
   const reported = counted.filter((message) => typeof message.cost === "number" && message.cost > 0)
   return usageOf(
     {
@@ -38,20 +34,11 @@ export function getSessionUsage(messages: Message[], options?: { harness?: strin
   )
 }
 
-/**
- * Whole-session totals from the session info the server keeps up to date; the loaded messages' sum only when the
- * info carries none.
- */
 export function getSessionTotals(info: Pick<Session, "tokens" | "cost"> | undefined, messages: Message[]) {
   if (!info?.tokens) return getSessionUsage(messages)
   return usageOf(info.tokens, info.cost && info.cost > 0 ? info.cost : getSessionUsage(messages).cost)
 }
 
-/**
- * What the thread's subagents spent, apart from the parent's context: each ACP subagent's reported usage, plus a
- * built-in `task` child session's totals when its session info is already in the client's cache. `missing` counts
- * the `task` children whose totals aren't loaded, so they're left out.
- */
 export function getSubagentUsage(
   messages: Message[],
   parts: (messageID: string) => Part[],
@@ -114,11 +101,6 @@ function usageOf(tokens: Tokens, cost: number | undefined) {
   }
 }
 
-/**
- * The latest turn's subagents with the context each one is using, for the context menu's per-agent list. An ACP
- * subagent's figure is what its harness reported; a `task` agent's comes from its child session's last step.
- * `used` is undefined when nothing was reported.
- */
 export function latestSubagentContexts(
   messages: Message[],
   parts: (messageID: string) => Part[],

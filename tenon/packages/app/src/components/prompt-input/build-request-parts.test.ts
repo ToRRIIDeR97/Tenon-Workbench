@@ -24,7 +24,6 @@ describe("buildRequestParts", () => {
   })
 
   test("turns skill chips into synthetic instructions instead of files", () => {
-    // "missing" stands for a harness's own skill: no content here, so the harness is asked to load it.
     const skill = (name: string, start: number) => ({
       type: "file" as const,
       path: name,
@@ -254,18 +253,14 @@ describe("buildRequestParts", () => {
       text: "@src\\foo.ts",
       messageID: "msg_win_1",
       sessionID: "ses_win_1",
-      sessionDirectory: "D:\\projects\\myapp", // Windows path
+      sessionDirectory: "D:\\projects\\myapp",
     })
 
-    // Should create valid file URLs
     const filePart = result.requestParts.find((part) => part.type === "file")
     expect(filePart).toBeDefined()
     if (filePart?.type === "file") {
-      // URL should be parseable
       expect(() => new URL(filePart.url)).not.toThrow()
-      // Should not have encoded backslashes in wrong place
       expect(filePart.url).not.toContain("%5C")
-      // Should have normalized to forward slashes
       expect(filePart.url).toContain("/src/foo.ts")
     }
   })
@@ -280,17 +275,14 @@ describe("buildRequestParts", () => {
       text: "@file#name.txt",
       messageID: "msg_win_2",
       sessionID: "ses_win_2",
-      sessionDirectory: "C:\\Users\\test\\Documents", // Windows path
+      sessionDirectory: "C:\\Users\\test\\Documents",
     })
 
     const filePart = result.requestParts.find((part) => part.type === "file")
     expect(filePart).toBeDefined()
     if (filePart?.type === "file") {
-      // URL should be parseable
       expect(() => new URL(filePart.url)).not.toThrow()
-      // Special chars should be encoded
       expect(filePart.url).toContain("file%23name.txt")
-      // Should have Windows drive letter properly encoded
       expect(filePart.url).toMatch(/file:\/\/\/[A-Z]:/)
     }
   })
@@ -311,9 +303,7 @@ describe("buildRequestParts", () => {
     const filePart = result.requestParts.find((part) => part.type === "file")
     expect(filePart).toBeDefined()
     if (filePart?.type === "file") {
-      // URL should be parseable
       expect(() => new URL(filePart.url)).not.toThrow()
-      // Should be a normal Unix path
       expect(filePart.url).toBe("file:///home/user/project/src/app.ts")
     }
   })
@@ -334,9 +324,7 @@ describe("buildRequestParts", () => {
     const filePart = result.requestParts.find((part) => part.type === "file")
     expect(filePart).toBeDefined()
     if (filePart?.type === "file") {
-      // URL should be parseable
       expect(() => new URL(filePart.url)).not.toThrow()
-      // Should be a normal Unix path
       expect(filePart.url).toBe("file:///Users/kelvin/Projects/opencode/README.md")
     }
   })
@@ -360,11 +348,10 @@ describe("buildRequestParts", () => {
     const fileParts = result.requestParts.filter((part) => part.type === "file")
     expect(fileParts).toHaveLength(2)
 
-    // All file URLs should be valid
     fileParts.forEach((part) => {
       if (part.type === "file") {
         expect(() => new URL(part.url)).not.toThrow()
-        expect(part.url).not.toContain("%5C") // No encoded backslashes
+        expect(part.url).not.toContain("%5C")
       }
     })
   })
@@ -387,7 +374,6 @@ describe("buildRequestParts", () => {
     const filePart = result.requestParts.find((part) => part.type === "file")
     expect(filePart).toBeDefined()
     if (filePart?.type === "file") {
-      // Should handle absolute path that differs from sessionDirectory
       expect(() => new URL(filePart.url)).not.toThrow()
       expect(filePart.url).toContain("/D:/other/project/file.ts")
     }
@@ -418,11 +404,8 @@ describe("buildRequestParts", () => {
     const filePart = result.requestParts.find((part) => part.type === "file")
     expect(filePart).toBeDefined()
     if (filePart?.type === "file") {
-      // Should have query parameters
       expect(filePart.url).toContain("?start=10&end=20")
-      // Should be valid URL
       expect(() => new URL(filePart.url)).not.toThrow()
-      // Query params should parse correctly
       const url = new URL(filePart.url)
       expect(url.searchParams.get("start")).toBe("10")
       expect(url.searchParams.get("end")).toBe("20")
@@ -447,9 +430,7 @@ describe("buildRequestParts", () => {
     const filePart = result.requestParts.find((part) => part.type === "file")
     expect(filePart).toBeDefined()
     if (filePart?.type === "file") {
-      // Should be valid URL
       expect(() => new URL(filePart.url)).not.toThrow()
-      // Should preserve .. segments (backend normalizes)
       expect(filePart.url).toContain("/..")
     }
   })

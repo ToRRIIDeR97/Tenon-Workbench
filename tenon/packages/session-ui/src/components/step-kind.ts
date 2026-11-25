@@ -1,7 +1,6 @@
 import type { Part, ToolPart } from "@opencode-ai/sdk/v2"
 import type { IconProps } from "@tenon/ui/icon"
 
-/** What a tool call did, independent of which harness named it. */
 export type StepKind =
   | "read"
   | "search"
@@ -19,7 +18,6 @@ export type Step = { kind: StepKind; target?: string }
 
 export type TurnSteps = {
   counts: Partial<Record<StepKind, number>>
-  /** Errored steps the agent caused; a call the user declined is counted in `declined` instead. */
   failed: number
   declined: number
   running: number
@@ -28,7 +26,6 @@ export type TurnSteps = {
 
 type Options = { mcpServers?: readonly string[] }
 
-// Built-in, Codex app-server (`command_execution`, …) and ACP (`acp_<kind>`) names.
 const KINDS: Record<string, StepKind> = {
   read: "read",
   acp_read: "read",
@@ -62,7 +59,6 @@ const KINDS: Record<string, StepKind> = {
   question: "question",
 }
 
-// Kinds share an icon and a verb whichever harness ran the step; kinds are never colour-coded.
 const ICONS: Record<StepKind, IconProps["name"]> = {
   read: "glasses",
   search: "magnifying-glass-menu",
@@ -77,7 +73,6 @@ const ICONS: Record<StepKind, IconProps["name"]> = {
   other: "mcp",
 }
 
-// Subagent rows show the agent name when the caller knows it; this is the fallback.
 const VERBS: Record<StepKind, string> = {
   read: "secondBrain.step.read",
   search: "secondBrain.step.searched",
@@ -96,20 +91,14 @@ export function stepOf(part: ToolPart, options?: Options): Step {
   return toolStep(part.tool, part.state.input, options)
 }
 
-/** `stepOf` for callers that hold a tool name and input rather than a part. */
 export function toolStep(tool: string, input: Record<string, unknown> | undefined, options?: Options): Step {
-  // An ACP agent reports Tenon's `ask_user` (and its own question tools) under a generic kind; the questions mark it.
   const kind = KINDS[tool] ?? (Array.isArray(input?.questions) ? "question" : undefined)
   if (kind) return withTarget(kind, targetOf(kind, input ?? {}))
-  // MCP tools are named `sanitize(server) + "_" + tool` (tenon/src/mcp/catalog.ts), so match on the sanitized name.
   const server = options?.mcpServers?.find((name) => tool.startsWith(`${sanitize(name)}_`))
   if (server) return { kind: "mcp", target: `${server} · ${tool.slice(sanitize(server).length + 1)}` }
-  // Other ACP tools arrive as `acp_<kind>`; the agent's title names the actual tool.
   return { kind: "other", target: (tool.startsWith("acp_") ? text(input?.title) : undefined) ?? tool }
 }
 
-/** i18n key for a step's verb, e.g. "Read", "Ran" or "Running". */
-// Present-tense verbs for steps still in progress; kinds without one keep their regular verb.
 const RUNNING_VERBS: Partial<Record<StepKind, string>> = {
   read: "secondBrain.step.reading",
   search: "secondBrain.step.searching",
@@ -141,7 +130,6 @@ export function summarizeTurn(
     return acc
   }, {})
   const declined = tools.filter(isDeclined).length
-  // A call cut short by Stop is the user's choice too, so it isn't a failure either.
   const failed = tools.filter((part) => part.state.status === "error" && !isStopped(part)).length - declined
   const running = tools.filter((part) => part.state.status === "pending" || part.state.status === "running").length
   const durationMs =
@@ -151,11 +139,8 @@ export function summarizeTurn(
     : { counts, failed, declined, running, durationMs }
 }
 
-// A declined permission reaches the part only as an errored call with the harness's wording: Tenon's own tools
-// (core/src/v1/permission.ts, core/src/tool/tool.ts) and Claude Code over ACP. No structured flag survives.
 const DECLINED = [/The user rejected permission to use this specific tool call/i, /The user declined this tool call/i]
 
-/** Whether the user declined this tool call's permission, which is the user's choice rather than a failure. */
 export function isDeclined(part: ToolPart) {
   const state = part.state
   if (state.status !== "error" || blockedBy(part)) return false
@@ -164,10 +149,6 @@ export function isDeclined(part: ToolPart) {
 
 export type Blocked = { reason: "rules" | "error"; action: string }
 
-/**
- * Why Tenon refused this call's permission without asking the user, when it did: a deny rule or a failed check.
- * The harness still reports it as declined, so core tags the result (`markBlocked` in core/src/harness.ts).
- */
 export function blockedBy(part: ToolPart): Blocked | undefined {
   if (part.state.status !== "error") return undefined
   const blocked = part.state.metadata?.blocked
@@ -178,18 +159,12 @@ export function blockedBy(part: ToolPart): Blocked | undefined {
   return { reason, action }
 }
 
-// Core's runner fails a call left running when the turn is interrupted with this wording (runner/llm.ts).
 const STOPPED = "Tool execution interrupted"
 
-/** Whether this call was cut short because the turn was stopped, rather than failing on its own. */
 export function isStopped(part: ToolPart) {
   return part.state.status === "error" && part.state.error === STOPPED
 }
 
-/**
- * A subagent's display name and type tag, from its tool input. The name is the task's description without a
- * trailing " (@type subagent)"; callers fall back to the tag, then a generic "Agent".
- */
 export function subagentName(input: Record<string, unknown> | undefined): { name?: string; tag?: string } {
   const description = typeof input?.description === "string" ? input.description : ""
   const name = description.replace(/\s*\(@[^)]+ subagent\)\s*$/, "").trim() || undefined
@@ -237,7 +212,6 @@ function command(value: unknown) {
   return text(value)
 }
 
-/** Codex `fileChange` lists changes as an array of `{ path }` or an object keyed by path. */
 function firstChange(changes: unknown) {
   if (Array.isArray(changes)) {
     const first = changes.find((item) => typeof item === "object" && item !== null && "path" in item)

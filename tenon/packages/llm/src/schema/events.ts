@@ -4,50 +4,6 @@ import { ModelSchema } from "./options"
 import { Message, ToolCallPart, ToolOutput, ToolResultPart, ToolResultValue, type ContentPart } from "./messages"
 import { ProviderFailureClassification } from "./errors"
 
-/**
- * Token usage reported by an LLM provider.
- *
- * **Inclusive totals** (match AI SDK / OpenAI / LangChain convention — a
- * reader from any of those ecosystems sees the number they expect):
- *
- * - `inputTokens` — total prompt tokens, *including* cached reads/writes.
- * - `outputTokens` — total output tokens, *including* reasoning.
- * - `totalTokens` — provider-supplied total, or `inputTokens + outputTokens`.
- *
- * **Non-overlapping breakdown** (every field is independently meaningful;
- * consumers never have to subtract):
- *
- * - `nonCachedInputTokens` — the "fresh" portion of the prompt.
- * - `cacheReadInputTokens` — input tokens served from cache.
- * - `cacheWriteInputTokens` — input tokens written to cache.
- * - `reasoningTokens` — subset of `outputTokens` spent on hidden reasoning.
- *
- * **Invariant**: `nonCachedInputTokens + cacheReadInputTokens +
- * cacheWriteInputTokens = inputTokens`, and `reasoningTokens ≤ outputTokens`.
- * Each protocol mapper computes whichever side it doesn't get natively,
- * with `Math.max(0, …)` clamping for defense against provider bugs. Because
- * every breakdown field is stored independently, downstream consumers can
- * read whatever they need (cost-by-category, context-pressure, AI-SDK-style
- * inclusive total) without ever subtracting — eliminating the underflow
- * class of bug where a clamped difference would silently store the wrong
- * value.
- *
- * **Semantics by provider**:
- *
- * - OpenAI Chat / Responses / Gemini / Bedrock: provider reports inclusive
- *   `inputTokens` and an inclusive `outputTokens`; mapper subtracts to
- *   derive the breakdown.
- * - Anthropic: provider reports the breakdown natively (`input_tokens` is
- *   non-cached only); mapper sums to derive the inclusive `inputTokens`.
- *   Anthropic does *not* break extended-thinking out of `output_tokens`, so
- *   `reasoningTokens` is `undefined` and `outputTokens` carries the
- *   combined total — a documented limitation of the Anthropic API.
- *
- * `providerMetadata` always carries the provider's raw usage payload —
- * keyed by provider name (`{ openai: ... }`, `{ anthropic: ... }`, etc.)
- * — for fields we don't normalize and for billing-level audit trails.
- * Matches the same escape-hatch field on `LLMEvent`.
- */
 export class Usage extends Schema.Class<Usage>("LLM.Usage")({
   inputTokens: Schema.optional(Schema.Number),
   outputTokens: Schema.optional(Schema.Number),
@@ -58,12 +14,6 @@ export class Usage extends Schema.Class<Usage>("LLM.Usage")({
   totalTokens: Schema.optional(Schema.Number),
   providerMetadata: Schema.optional(ProviderMetadata),
 }) {
-  /**
-   * Visible output tokens — `outputTokens` minus `reasoningTokens`, clamped
-   * to zero. The one place subtraction happens in this contract; the clamp
-   * means a provider reporting `reasoningTokens > outputTokens` produces a
-   * harmless zero rather than a negative that crashes downstream schemas.
-   */
   get visibleOutputTokens() {
     return Math.max(0, (this.outputTokens ?? 0) - (this.reasoningTokens ?? 0))
   }
@@ -159,10 +109,6 @@ export const ToolCall = Schema.Struct({
 }).annotate({ identifier: "LLM.Event.ToolCall" })
 export type ToolCall = Schema.Schema.Type<typeof ToolCall>
 
-/**
- * Checkpoint for a provider-executed tool that is still running, such as a harness subagent
- * reporting the steps it has taken so far. Replaces the previous checkpoint for the call.
- */
 export const ToolProgress = Schema.Struct({
   type: Schema.tag("tool-progress"),
   id: ToolCallID,
@@ -201,7 +147,6 @@ export const StepFinish = Schema.Struct({
 }).annotate({ identifier: "LLM.Event.StepFinish" })
 export type StepFinish = Schema.Schema.Type<typeof StepFinish>
 
-/** Running usage of the step in progress, for drivers that report it before the step finishes. */
 export const StepUsage = Schema.Struct({
   type: Schema.tag("step-usage"),
   usage: Usage,
@@ -254,11 +199,6 @@ type WithUsage<Event extends { readonly usage?: Usage }> = Omit<Event, "type" | 
 const contentBlockID = (value: ContentBlockID | string) => ContentBlockID.make(value)
 const toolCallID = (value: ToolCallID | string) => ToolCallID.make(value)
 
-/**
- * camelCase aliases for `LLMEvent.guards` (provided by `Schema.toTaggedUnion`).
- * Lets consumers write `events.filter(LLMEvent.is.toolCall)` instead of
- * `events.filter(LLMEvent.guards["tool-call"])`.
- */
 export const LLMEvent = Object.assign(llmEventTagged, {
   stepStart: StepStart.make,
   textStart: (input: WithID<TextStart, ContentBlockID>) => TextStart.make({ ...input, id: contentBlockID(input.id) }),
@@ -328,16 +268,6 @@ export class PreparedRequest extends Schema.Class<PreparedRequest>("LLM.Prepared
   metadata: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
 }) {}
 
-/**
- * A `PreparedRequest` whose `body` is typed as `Body`. Use with the generic
- * on `LLMClient.prepare<Body>(...)` when the caller knows which route their
- * request will resolve to and wants its native shape statically exposed
- * (debug UIs, request previews, plan rendering).
- *
- * The runtime body is identical — the route still emits `body: unknown` — so
- * this is a type-level assertion the caller makes about what they expect to
- * find. The prepare runtime does not validate the assertion.
- */
 export type PreparedRequestOf<Body> = Omit<PreparedRequest, "body"> & {
   readonly body: Body
 }
@@ -589,17 +519,14 @@ export class LLMResponse extends Schema.Class<LLMResponse>("LLM.Response")({
   usage: Schema.optional(Usage),
   finishReason: FinishReason,
 }) {
-  /** Concatenated assistant text assembled from streamed `text-delta` events. */
   get text() {
     return responseText(this.events)
   }
 
-  /** Concatenated reasoning text assembled from streamed `reasoning-delta` events. */
   get reasoning() {
     return responseReasoning(this.events)
   }
 
-  /** Completed tool calls emitted by the provider. */
   get toolCalls() {
     return this.events.filter(LLMEvent.is.toolCall)
   }
@@ -609,13 +536,10 @@ export namespace LLMResponse {
   export type State = ResponseState
   export type Output = LLMResponse | { readonly events: ReadonlyArray<LLMEvent>; readonly usage?: Usage }
 
-  /** Initial reducer state for assembling one provider attempt. */
   export const empty = emptyResponseState
 
-  /** Purely fold one provider-neutral event into the attempt assembly state. */
   export const reduce = reduceResponseState
 
-  /** Return a completed response only after a terminal finish or provider error. */
   export const complete = (state: State): LLMResponse | undefined =>
     state.finishReason === undefined
       ? undefined
@@ -626,18 +550,13 @@ export namespace LLMResponse {
           finishReason: state.finishReason,
         })
 
-  /** Convenience reducer for callers that already have a collected event list. */
   export const fromEvents = (events: ReadonlyArray<LLMEvent>) => complete(events.reduce(reduce, empty()))
 
-  /** Concatenate assistant text from a response or collected event list. */
   export const text = (response: Output) => responseText(response.events)
 
-  /** Return response usage, falling back to the latest usage-bearing event. */
   export const usage = (response: Output) => response.usage ?? responseUsage(response.events)
 
-  /** Return completed tool calls from a response or collected event list. */
   export const toolCalls = (response: Output) => response.events.filter(LLMEvent.is.toolCall)
 
-  /** Concatenate reasoning text from a response or collected event list. */
   export const reasoning = (response: Output) => responseReasoning(response.events)
 }

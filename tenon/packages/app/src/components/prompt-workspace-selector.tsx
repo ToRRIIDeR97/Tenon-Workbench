@@ -12,7 +12,6 @@ import { useServerSDK } from "@/context/server-sdk"
 import { listBranches, switchBranch } from "@/utils/server"
 import { showToast } from "@/utils/toast"
 
-/** Worktree on/off. On creates a git worktree for the thread; an existing one picked elsewhere also reads as on. */
 export function PromptWorktreeSwitch(props: {
   value: string
   projectRoot: string
@@ -41,7 +40,6 @@ export function PromptWorktreeSwitch(props: {
   )
 }
 
-/** The folder's current branch, or that the folder isn't a git repository. */
 export function PromptGitStatus(props: { branch?: string; noGit?: boolean }) {
   const language = useLanguage()
   const label = () => {
@@ -68,14 +66,8 @@ export function PromptGitStatus(props: { branch?: string; noGit?: boolean }) {
   )
 }
 
-// Each folder's last branch list, so a picker opened again (or in another composer) shows it at once.
 const knownBranches = new Map<string, string[]>()
 
-/**
- * The folder's branch as a picker: opening it lists the local branches, and choosing one switches the folder to it.
- * Git refuses a switch that would lose local changes; its reason shows as a toast. With no branches the list is
- * empty, and a folder outside git shows that instead of a picker.
- */
 export function PromptBranchPicker(props: { directory: string; branch?: string; noGit?: boolean }) {
   const language = useLanguage()
   const platform = usePlatform()
@@ -87,8 +79,6 @@ export function PromptBranchPicker(props: { directory: string; branch?: string; 
     switching?: string
   }>({ open: false, branches: knownBranches.get(props.directory), failed: false })
   const server = () => ({ server: serverSDK().server.http, fetch: platform.fetch })
-  // Fetched as soon as the picker shows and again on each open; the last list stays up meanwhile, so opening never
-  // flashes a loading row and the rows update in place when the answer differs.
   const load = () => {
     const directory = props.directory
     listBranches(server(), directory).then(

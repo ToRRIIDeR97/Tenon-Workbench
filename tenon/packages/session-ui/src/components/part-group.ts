@@ -2,7 +2,6 @@ import type { Part as PartType, ToolPart } from "@opencode-ai/sdk/v2"
 import { stepOf } from "./step-kind"
 
 const CONTEXT_GROUP_TOOLS = new Set(["read", "glob", "grep", "list"])
-// File changes, questions and subagents stay visible as their own rows.
 const UNGROUPED_TOOLS = new Set([
   "edit",
   "write",
@@ -36,7 +35,6 @@ export function isContextGroupTool(part: PartType): part is ToolPart {
   return part.type === "tool" && CONTEXT_GROUP_TOOLS.has(part.tool)
 }
 
-/** A finished tool call that may be folded into a collapsed "tools" summary row. */
 export function isCollapsibleTool(part: PartType): part is ToolPart {
   return part.type === "tool" && part.state.status === "completed" && !UNGROUPED_TOOLS.has(part.tool)
 }
@@ -65,13 +63,6 @@ export function sameGroups(a: readonly PartGroup[] | undefined, b: readonly Part
   return a.every((item, i) => sameGroup(item, b[i]!))
 }
 
-/**
- * Groups renderable parts into timeline rows.
- * - Runs of 2+ completed, non-file-changing tools that include a non-context tool become a "tools" group.
- * - Remaining runs of read/glob/grep/list (any status) keep the existing "context" group.
- * - Everything else (text, edits, questions, errors, running tools) stays a single "part".
- * Group keys use the first part ID so a growing run keeps its row while streaming.
- */
 export function groupParts(parts: { messageID: string; part: PartType }[]) {
   const tools = new Map<number, number>()
   for (let i = 0; i < parts.length; ) {

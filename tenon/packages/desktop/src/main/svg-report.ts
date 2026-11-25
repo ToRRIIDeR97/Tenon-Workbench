@@ -1,5 +1,3 @@
-// What render_svg tells the agent about a rendered diagram (svg-render.ts measures it).
-
 export type Issue = { readonly kind: "overlap" | "overflow" | "clipped" | "small"; readonly message: string }
 export type Inspection = {
   readonly width: number

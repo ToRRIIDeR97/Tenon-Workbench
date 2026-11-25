@@ -1,4 +1,3 @@
-/** A mono 16-bit PCM WAV file for the dictation engine's `transcribe_file` (#330). */
 export function wavBytes(samples: Float32Array, rate: number) {
   const buffer = Buffer.alloc(44 + samples.length * 2)
   buffer.write("RIFF", 0)

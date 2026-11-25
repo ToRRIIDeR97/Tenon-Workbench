@@ -195,8 +195,6 @@ const Share = Schema.Struct({
   url: Schema.String,
 })
 
-// Legacy HTTP accepted negative values here. Keep archive timestamps permissive
-// while excluding non-finite values that cannot round-trip through JSON.
 export const ArchivedTimestamp = Schema.Finite
 
 const Time = Schema.Struct({
@@ -314,7 +312,6 @@ export type GlobalListInput = {
   directory?: string
   roots?: boolean
   start?: number
-  // A bare number is the legacy time_updated-only cursor, which skips sessions that tie on time_updated.
   cursor?: number | GlobalCursor
   search?: string
   limit?: number
@@ -329,7 +326,6 @@ export const globalCursor = {
   encode(input: GlobalCursor) {
     return Buffer.from(JSON.stringify(input)).toString("base64url")
   },
-  /** Accepts the opaque (time_updated, id) cursor and the legacy numeric time_updated cursor; throws when invalid. */
   decode(input: string): number | GlobalCursor {
     if (/^\d+$/.test(input)) return Number(input)
     return decodeGlobalCursor(Buffer.from(input, "base64url").toString("utf8"))
@@ -363,8 +359,6 @@ export const getUsage = (input: { model: Provider.Model; usage: Usage; metadata?
     Number(
       input.usage.cacheWriteInputTokens ??
         input.metadata?.["anthropic"]?.["cacheCreationInputTokens"] ??
-        // google-vertex-anthropic returns metadata under "vertex" key
-        // (AnthropicMessagesLanguageModel custom provider key from 'vertex.anthropic.messages')
         input.metadata?.["vertex"]?.["cacheCreationInputTokens"] ??
         // @ts-expect-error
         input.metadata?.["bedrock"]?.["usage"]?.["cacheWriteInputTokens"] ??
@@ -374,9 +368,6 @@ export const getUsage = (input: { model: Provider.Model; usage: Usage; metadata?
     ),
   )
 
-  // AI SDK v6 normalized inputTokens to include cached tokens across all providers
-  // (including Anthropic/Bedrock which previously excluded them). Always subtract cache
-  // tokens to get the non-cached input count for separate cost calculation.
   const adjustedInputTokens = safe(inputTokens - cacheReadInputTokens - cacheWriteInputTokens)
 
   const total = input.usage.totalTokens
@@ -411,8 +402,6 @@ export const getUsage = (input: { model: Provider.Model; usage: Usage; metadata?
               .add(new Decimal(tokens.output).mul(finite(costInfo?.output ?? 0)).div(1_000_000))
               .add(new Decimal(tokens.cache.read).mul(finite(costInfo?.cache?.read ?? 0)).div(1_000_000))
               .add(new Decimal(tokens.cache.write).mul(finite(costInfo?.cache?.write ?? 0)).div(1_000_000))
-              // TODO: update models.dev to have better pricing model, for now:
-              // charge reasoning tokens at the same rate as output tokens
               .add(new Decimal(tokens.reasoning).mul(finite(costInfo?.output ?? 0)).div(1_000_000))
               .toNumber(),
           ),
@@ -481,7 +470,6 @@ export interface Interface {
     field: string
     delta: string
   }) => Effect.Effect<void>
-  /** Finds the first message matching the predicate, searching newest-first. */
   readonly findMessage: (
     sessionID: SessionID,
     predicate: (msg: SessionV1.WithParts) => boolean,
@@ -631,8 +619,6 @@ const layer: Layer.Layer<
     const remove: Interface["remove"] = Effect.fnUntraced(function* (sessionID: SessionID) {
       const session = yield* get(sessionID)
       try {
-        // `remove` needs to work in all cases, such as broken sessions that
-        // run cleanup without instance state.
         const hasInstance = yield* InstanceState.directory.pipe(
           Effect.as(true),
           Effect.catchCause(() => Effect.succeed(false)),
@@ -783,7 +769,6 @@ const layer: Layer.Layer<
       yield* patch(input.sessionID, { time: { archived: input.time } }).pipe(Effect.orDie)
     })
 
-    // Pins live in `metadata.pinned` (epoch ms) so they survive restarts without a schema migration.
     const setPinned = Effect.fn("Session.setPinned")(function* (input: { sessionID: SessionID; pinned: boolean }) {
       const current = yield* get(input.sessionID).pipe(Effect.orDie)
       const { pinned: _, ...rest } = current.metadata ?? {}
@@ -918,7 +903,6 @@ const layer: Layer.Layer<
       yield* events.publish(MessageV2.Event.PartDelta, input)
     })
 
-    /** Finds the first message matching the predicate, searching newest-first. */
     const findMessage: Interface["findMessage"] = Effect.fn("Session.findMessage")(function* (sessionID, predicate) {
       const size = 50
       let before: string | undefined
@@ -1001,7 +985,6 @@ function listByProject(
   }
   if (input.path !== undefined) {
     if (input.path) {
-      // Stored paths always use forward slashes (see sessionPath); Windows callers may not.
       const filterPath = input.path.replaceAll("\\", "/")
       const conds = [
         eq(SessionTable.path, filterPath),

@@ -23,7 +23,6 @@ export type SessionFileBrowserState = {
   sidebarTransition: () => boolean
   resizeSidebar: (width: number) => void
   toggleSidebar: () => void
-  /** The panel is narrow: the tree floats over the file instead of sitting beside it. */
   narrow?: () => boolean
   closeOverlay?: () => void
 }
@@ -81,10 +80,6 @@ export function SessionFileBrowserTab(props: {
   const title = createMemo(() => displayName(project() ?? { worktree: sdk().directory }))
   const optionID = (path: string) => `${resultsID}-option-${files().indexOf(path)}`
 
-  // A file reference opened from a reply shows the tree beside the file, so its row can be revealed.
-  // A folder reference is the tree's to finish: it is selected, glided to and expanded once the panel
-  // has arrived, and stays selected until a file is. Each reveal is a new object, so clicking the same
-  // folder again glides, flashes and expands it again.
   const [folder, setFolder] = createSignal<{ path: string }>()
   const revealed = () => (panelSettled() ? folder() : undefined)
   createEffect(
@@ -106,7 +101,6 @@ export function SessionFileBrowserTab(props: {
     ),
   )
 
-  // In a narrow panel the tree floats over the file; opening one puts it away.
   const select = (path: string) => {
     props.onSelect(path)
     props.state.closeOverlay?.()
@@ -129,8 +123,6 @@ export function SessionFileBrowserTab(props: {
     })
   }
 
-  // Keep the sidebar outside Kobalte Tabs.Content: a morphing content value
-  // unmounts the whole panel on every file-tab switch and resets sidebar scroll.
   return (
     <SessionFilePanelV2
       toolbar={false}

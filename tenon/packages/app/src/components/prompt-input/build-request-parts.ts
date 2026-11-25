@@ -9,9 +9,7 @@ import { createQuoteMetadata, formatQuoteNote } from "@tenon/session-ui/quote-no
 import { SKILL_REFERENCE_MIME, promptSkills, skillInstruction } from "@/utils/skill-reference"
 import { profileInstruction } from "@/utils/model-profile"
 
-/** Marks a synthetic text part that carries a skill chip's instructions. */
 const SKILL_PART_KEY = "tenonSkill"
-/** Marks a synthetic text part that carries a model profile's rules. */
 const PROFILE_PART_KEY = "tenonProfile"
 
 type PromptRequestPart = (TextPartInput | FilePartInput | AgentPartInput) & { id: string }
@@ -43,9 +41,7 @@ type BuildRequestPartsInput = {
   messageID: string
   sessionID: string
   sessionDirectory: string
-  /** A Tenon skill's instructions by name; undefined for a skill the harness loads itself. */
   skill?: (name: string) => string | undefined
-  /** A model profile to send with this message, hidden from the thread like a skill. */
   profile?: { model: string; rules: string }
 }
 
@@ -69,7 +65,6 @@ const parseCommentMentions = (comment: string) => {
   })
 }
 
-// Skill chips are file mentions too, but they go out as instructions, never as files.
 const isFileAttachment = (part: Prompt[number]): part is FileAttachmentPart =>
   part.type === "file" && part.mime !== SKILL_REFERENCE_MIME
 const isAgentAttachment = (part: Prompt[number]): part is AgentPart => part.type === "agent"
@@ -269,7 +264,6 @@ export function buildRequestParts(input: BuildRequestPartsInput) {
 
 type HarnessFile = { uri: string; name?: string; mention?: { start: number; end: number; text: string } }
 
-/** A hidden part's attachment name: "<skill> skill" or "<model> profile"; undefined for any other part. */
 const skillPartName = (part: PromptRequestPart) => {
   if (part.type !== "text" || !part.synthetic) return
   const skill = part.metadata?.[SKILL_PART_KEY]
@@ -278,12 +272,6 @@ const skillPartName = (part: PromptRequestPart) => {
   return typeof profile === "string" ? `${profile} profile` : undefined
 }
 
-/**
- * The prompt for the v2 and harness route, which has no hidden parts: the text is what the user wrote (plus quote
- * and comment notes, as before), and each skill's instructions go as a `data:text/plain` attachment. Every harness
- * and the built-in loop read such an attachment inline, so the skill still applies while the thread shows a chip
- * instead of the skill's whole body.
- */
 export function harnessPromptInput(requestParts: ReadonlyArray<PromptRequestPart>) {
   return {
     text: requestParts

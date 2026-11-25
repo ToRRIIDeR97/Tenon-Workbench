@@ -1,5 +1,3 @@
-// UI/UX PR2 verification: measures rendered control sizes in the running dev app (http://localhost:4445).
-// Run from tenon/packages/app as e2e/.uiux-pr2.mts: node --experimental-strip-types e2e/.uiux-pr2.mts <outdir> <workspace>
 import { chromium } from "@playwright/test"
 
 const [OUT, WS] = [process.argv[2]!, process.argv[3]!]
@@ -24,13 +22,11 @@ if (await page.getByRole("button", { name: "Open folder" }).first().isVisible().
   await page.waitForTimeout(5000)
 }
 
-// V1: tokens resolve.
 const tokens = await page.evaluate(() =>
   ["--v2-control-sm", "--v2-control-md", "--v2-control-lg"].map((name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim()),
 )
 check("V1 control tokens 28/36/44", tokens.join(",") === "28px,36px,44px", tokens)
 
-// V3: thread composer row.
 await press(page.locator('button[aria-label="Start in a project"]').first())
 await page.waitForTimeout(400)
 const alpha = page.getByRole("menuitem", { name: "Alpha" })
@@ -49,7 +45,6 @@ const row = await page.evaluate(() => {
 check("V3 composer row 32px", row.attach === 32 && row.send === 32 && row.mode === 32, row)
 await page.screenshot({ path: `${OUT}/v3-composer-row.png`, clip: { x: 300, y: 380, width: 1140, height: 260 } })
 
-// V4: Skills search.
 await page.locator('button[aria-label="Settings"]').first().click()
 await page.waitForSelector("[role=tab]", { timeout: 30_000 })
 const skills = page.getByRole("tab", { name: "Skills", exact: true })

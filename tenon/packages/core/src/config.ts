@@ -123,9 +123,7 @@ export class Document extends Schema.Class<Document>("Config.Document")({
 export class Directory extends Schema.Class<Directory>("Config.Directory")({
   type: Schema.Literal("directory"),
   path: AbsolutePath,
-  /** A folder found by walking up from the opened folder, not the user's own config. */
   project: Schema.Boolean.pipe(Schema.optional),
-  /** A project folder the user hasn't approved: its plugins and skills stay off. */
   untrusted: Schema.Boolean.pipe(Schema.optional),
 }) {}
 
@@ -152,7 +150,6 @@ const GATED = [
   "experimental",
 ] as const
 
-/** Refuses project permission rules that widen `external_directory` or `.env` reads, even in an approved folder. */
 export function limitPermissions(info: Info) {
   const allowed = (rules: Permission.Ruleset) =>
     rules.filter((rule) => !ConfigTrust.loosens(rule.action, rule.resource, rule.effect))
@@ -188,7 +185,6 @@ function limitProject(info: Info, trusted: boolean) {
 }
 
 export interface Interface {
-  /** Returns location config documents and supplemental directories from lowest to highest priority. */
   readonly entries: () => Effect.Effect<Entry[]>
 }
 
@@ -205,7 +201,6 @@ const layer = Layer.effect(
     const decodeOptions = { errors: "all", onExcessProperty: "ignore" } as const
     const decodeInfoUnordered = Schema.decodeUnknownOption(Info, decodeOptions)
     const decodeV1InfoUnordered = Schema.decodeUnknownOption(ConfigV1.Info, decodeOptions)
-    // Keep the user's key order: permission rules are ordered by precedence.
     const decodeInfo = (input: unknown) =>
       decodeInfoUnordered(input).pipe(Option.map((info) => withInputOrder(input, info)))
     const decodeV1Info = (input: unknown) =>
@@ -228,7 +223,6 @@ const layer = Layer.effect(
       return new Document({ type: "document", path: filepath, info })
     })
 
-    // Read fresh for each location: an approval reopens the location.
     const approved = ConfigTrust.parse(
       yield* fs.readFileStringSafe(ConfigTrust.file(global.data)).pipe(Effect.orElseSucceed(() => undefined)),
     )
@@ -256,14 +250,11 @@ const layer = Layer.effect(
     })
 
     const globalDirectory = AbsolutePath.make(global.config)
-    // A folder with no repository walks up past the home folder, and `~/.tenon` is the user's own.
     const userDirectories = new Set<string>([
       global.config,
       ...ConfigNames.directories.map((name) => path.join(global.home, name)),
     ])
     const locationIsGlobal = path.resolve(location.directory) === path.resolve(global.config)
-    // Read configuration once when this location opens. Later calls reuse these
-    // values until the location is reopened.
     const discovered = locationIsGlobal
       ? []
       : yield* fs
@@ -280,8 +271,6 @@ const layer = Layer.effect(
         .toReversed()
         .map((directory) => AbsolutePath.make(directory)),
     ]
-    // A config closer to the opened directory should win over one higher up.
-    // Search starts nearby, so reverse the results before applying them.
     const directPaths = discovered.filter((item) => !ConfigNames.isDirectory(path.basename(item))).toReversed()
     const direct = yield* Effect.forEach(directPaths, loadProjectFile).pipe(
       Effect.orDie,
@@ -290,11 +279,7 @@ const layer = Layer.effect(
     const supplementary = yield* Effect.forEach(directories, (directory) =>
       loadDirectory(directory, !userDirectories.has(directory)),
     ).pipe(Effect.orDie)
-    // Apply general settings first and more specific settings last:
-    // global config, project files, then `.tenon` (or legacy `.opencode`) files.
     const configs = [...(supplementary[0] ?? []), ...direct, ...supplementary.slice(1).flat()]
-    // Rules use the opposite order so a user-global rule can override a
-    // repository rule. Statement order inside each file stays unchanged.
     yield* policy.load(
       configs
         .filter((config): config is Document => config.type === "document")

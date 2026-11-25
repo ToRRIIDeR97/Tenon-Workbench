@@ -1,9 +1,9 @@
 export type HexColor = `#${string}`
 
 export interface OklchColor {
-  l: number // Lightness 0-1
-  c: number // Chroma 0-0.4+
-  h: number // Hue 0-360
+  l: number
+  c: number
+  h: number
 }
 
 export interface ThemeSeedColors {

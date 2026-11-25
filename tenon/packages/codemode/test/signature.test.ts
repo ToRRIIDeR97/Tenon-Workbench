@@ -3,8 +3,6 @@ import { Effect, Schema } from "effect"
 import { CodeMode, Tool } from "../src/index.js"
 import { inputTypeScript, jsonSchemaToTypeScript, outputTypeScript } from "../src/tool-schema.js"
 
-// A raw JSON Schema tool in the shape an MCP adapter produces: render-only input schema
-// whose property descriptions and constraints must surface as JSDoc in pretty signatures.
 const listIssues = Tool.make({
   description: "List issues in a repository",
   input: {
@@ -21,7 +19,6 @@ const listIssues = Tool.make({
   run: () => Effect.succeed("[]"),
 })
 
-// An Effect Schema tool whose field annotations must flow through the emitted JSON Schema.
 const lookupOrder = Tool.make({
   description: "Look up an order",
   input: Schema.Struct({
@@ -216,9 +213,6 @@ describe("pretty signature rendering", () => {
 })
 
 describe("non-identifier property names render as quoted keys", () => {
-  // MCP-style schemas routinely carry property names that are not bare TS identifiers
-  // (`foo-bar`, `@type`, dotted names); the rendered signature must quote them so the
-  // model sees a valid TypeScript object type. Bare identifiers stay unquoted.
   const rawSchema = {
     type: "object",
     properties: {

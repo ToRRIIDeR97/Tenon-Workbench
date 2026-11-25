@@ -3,13 +3,6 @@ export * as MailTools from "./mail-tools"
 import type { HarnessAppTools } from "@tenon/core/harness/app-tools"
 import { Effect, Schema } from "effect"
 
-/**
- * Mail tools for Command Centre threads. The desktop main process owns the accounts and serves a loopback
- * endpoint (`desktop/src/main/mail/service.ts`); its URL and bearer token reach this process as
- * `TENON_MAIL_URL` and `TENON_MAIL_TOKEN`. Without both the tools don't exist. There is no send tool:
- * `mail_draft` saves a draft the user sends from their own mail client.
- */
-
 const accountField = { type: "string", description: "An account id or address; omit for the first account." }
 const readOnly = { readOnlyHint: true }
 const answerLimit = 200_000
@@ -72,7 +65,6 @@ export class MailError extends Schema.TaggedError<MailError>()("MailTools.MailEr
   message: Schema.String,
 }) {}
 
-/** The endpoint when the desktop provided one. */
 export function endpoint() {
   const url = process.env.TENON_MAIL_URL?.trim()
   const token = process.env.TENON_MAIL_TOKEN?.trim()
@@ -83,7 +75,6 @@ export const available = () => endpoint() !== undefined
 
 export const isMailTool = (name: string) => TOOLS.some((tool) => tool.name === name)
 
-/** POST `body` as JSON to the endpoint's `route` (`/search`, `/thread`, `/draft`) and return its JSON answer. */
 export const request = (route: "/search" | "/thread" | "/draft", body: Record<string, unknown>) =>
   Effect.gen(function* () {
     const target = endpoint()
@@ -113,11 +104,6 @@ export const request = (route: "/search" | "/thread" | "/draft", body: Record<st
     return capText(value, { left: answerLimit })
   })
 
-/**
- * Cap the answer's text at `answerLimit` characters in all, after parsing: a long thread keeps its
- * structure, ids and subjects (strings of 200 characters or fewer stay whole) and its first messages whole;
- * later message text is cut short.
- */
 function capText(value: unknown, budget: { left: number }): unknown {
   if (typeof value === "string") {
     if (value.length <= Math.max(budget.left, 200)) {

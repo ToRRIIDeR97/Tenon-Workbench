@@ -34,10 +34,6 @@ export function createAutoScroll(options: AutoScrollOptions) {
     return el.scrollHeight - el.clientHeight > 1
   }
 
-  // Browsers can dispatch scroll events asynchronously. If new content arrives
-  // between us calling `scrollTo()` and the subsequent `scroll` event firing,
-  // the handler can see a non-zero `distanceFromBottom` and incorrectly assume
-  // the user scrolled.
   const markAuto = (el: HTMLElement) => {
     auto = {
       top: Math.max(0, el.scrollHeight - el.clientHeight),
@@ -72,7 +68,6 @@ export function createAutoScroll(options: AutoScrollOptions) {
       return
     }
 
-    // `scrollTop` assignment bypasses any CSS `scroll-behavior: smooth`.
     el.scrollTop = el.scrollHeight
   }
 
@@ -92,8 +87,6 @@ export function createAutoScroll(options: AutoScrollOptions) {
       return
     }
 
-    // For auto-following content we prefer immediate updates to avoid
-    // visible "catch up" animations while content is still settling.
     scrollToBottomNow("auto")
   }
 
@@ -112,9 +105,6 @@ export function createAutoScroll(options: AutoScrollOptions) {
 
   const handleWheel = (e: WheelEvent) => {
     if (e.deltaY >= 0) return
-    // If the user is scrolling within a nested scrollable region (tool output,
-    // code block, etc), don't treat it as leaving the "follow bottom" mode.
-    // Those regions opt in via `data-scrollable`.
     const el = store.scrollRef
     const target = e.target instanceof Element ? e.target : undefined
     const nested = target?.closest("[data-scrollable]")
@@ -136,7 +126,6 @@ export function createAutoScroll(options: AutoScrollOptions) {
       return
     }
 
-    // Ignore scroll events triggered by our own scrollToBottom calls.
     if (!store.userScrolled && isAuto(el)) {
       scrollToBottom(false)
       return
@@ -173,8 +162,6 @@ export function createAutoScroll(options: AutoScrollOptions) {
     () => store.contentRef,
     () => {
       const el = store.scrollRef
-      // A detached or hidden scroller (a Suspense boundary pulling it out for a frame) has no
-      // layout; it says nothing about whether the user's position can scroll.
       if (el && el.clientHeight === 0) return
       if (el && !canScroll(el)) {
         if (store.userScrolled) setStore("userScrolled", false)
@@ -182,9 +169,6 @@ export function createAutoScroll(options: AutoScrollOptions) {
       }
       if (!active()) return
       if (store.userScrolled) return
-      // ResizeObserver fires after layout, before paint.
-      // Keep the bottom locked in the same frame to avoid visible
-      // "jump up then catch up" artifacts while streaming content.
       scrollToBottom(false)
     },
   )
@@ -208,8 +192,6 @@ export function createAutoScroll(options: AutoScrollOptions) {
   )
 
   createEffect(() => {
-    // Track `userScrolled` even before `scrollRef` is attached, so we can
-    // update overflow anchoring once the element exists.
     store.userScrolled
     const el = store.scrollRef
     if (!el) return

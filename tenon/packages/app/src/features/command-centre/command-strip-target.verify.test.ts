@@ -2,8 +2,6 @@ import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import path from "node:path"
 
-// Verification for #329 (plan author's check): the card wires the pill, the thread switcher and the shortcut, and
-// `send()` routes through `promptRoute`.
 const read = (file: string) => readFileSync(path.join(import.meta.dir, file), "utf8")
 
 describe("command card wiring", () => {

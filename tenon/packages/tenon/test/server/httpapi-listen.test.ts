@@ -113,7 +113,6 @@ async function openSocket(url: URL) {
 }
 
 async function expectSocketRejected(url: URL, init?: { headers?: Record<string, string> }) {
-  // Bun's WebSocket accepts an init object with headers; standard DOM types don't reflect that.
   const Ctor = WebSocket as unknown as new (url: URL, init?: { headers?: Record<string, string> }) => WebSocket
   const ws = new Ctor(url, init)
   await withTimeout(
@@ -278,7 +277,6 @@ describe("HttpApi Server.listen", () => {
 
   test("a loopback listener refuses foreign Host and Origin headers", async () => {
     const listener = await startListener()
-    // node:http, because fetch derives Host from the URL.
     const status = (headers: Record<string, string>) =>
       new Promise<number>((resolve, reject) => {
         http
@@ -420,8 +418,6 @@ describe("HttpApi Server.listen", () => {
       expect((await requestTicket(listener, info.id, tmp.path, { ticketHeader: false })).status).toBe(403)
       expect((await requestTicket(listener, info.id, tmp.path, { origin: "https://evil.example" })).status).toBe(403)
 
-      // Regression for #25698: minting without a directory uses the server cwd
-      // and cannot find a PTY registered in a project directory.
       const ambiguous = await fetch(new URL(PtyPaths.connectToken.replace(":ptyID", info.id), listener.url), {
         method: "POST",
         headers: { authorization: authorization(), "x-opencode-ticket": "1" },

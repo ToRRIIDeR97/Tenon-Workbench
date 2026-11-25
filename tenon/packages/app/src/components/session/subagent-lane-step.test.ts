@@ -1,9 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { steadyStep } from "./subagent-lane"
 
-// Acceptance test for implementations/harness-ux-batch-2 (AC-11, added mid-run): a subagent lane's "doing now"
-// line changes only when that lane's own step changes, not whenever any subagent reports progress.
-
 describe("AC-11 steadyStep", () => {
   test("an equal step rebuilt from new progress keeps the previous object", () => {
     const before = { tool: "acp_execute", status: "in_progress", title: "bun test" }

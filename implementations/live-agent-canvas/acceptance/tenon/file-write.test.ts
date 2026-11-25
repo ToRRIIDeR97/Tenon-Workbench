@@ -7,7 +7,6 @@ import { FilePaths } from "../../../../tenon/packages/tenon/src/server/routes/in
 import { resetDatabase } from "../../../../tenon/packages/tenon/test/fixture/db"
 import { disposeAllInstances, tmpdir } from "../../../../tenon/packages/tenon/test/fixture/fixture"
 
-// Bare package names do not resolve from implementations/: load effect as the tenon package sees it.
 const effect = createRequire(path.resolve(import.meta.dir, "../../../../tenon/packages/tenon/package.json"))("effect")
 const context = effect.Context.empty()
 const sha = (text: string) => createHash("sha256").update(text).digest("hex")
@@ -28,7 +27,6 @@ afterEach(async () => {
   await resetDatabase()
 })
 
-// AC-23: writing an existing workspace file needs the hash of the text the app last read.
 describe("AC-23 file write", () => {
   test("writes when the hash matches and keeps the file's outer whitespace", async () => {
     await using tmp = await tmpdir({ git: true })

@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { pickerSkills } from "./skill-reference"
 
-// AC-2: one entry per skill name in the "/" picker, Tenon's own first.
 describe("pickerSkills", () => {
   const catalog = {
     tenon: [

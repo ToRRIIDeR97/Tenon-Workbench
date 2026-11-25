@@ -60,10 +60,6 @@ export namespace Timeline {
     }
   }
 
-  /**
-   * What a turn's rows read from its assistant parts. A streamed character almost never changes it, so
-   * the rows only rebuild when it does. `thinking` is whether the turn is active and busy.
-   */
   export function turnPartsSignature(
     assistantMessages: AssistantMessage[],
     getMessageParts: (messageID: string) => Part[],
@@ -84,7 +80,6 @@ export namespace Timeline {
     return signature
   }
 
-  /** Groups messages into turns. It reads messages only, so streamed parts don't re-run it. */
   export function constructSessionTurns(
     messages: SessionMessageInfo[],
     getMessage: (messageID: string) => UserMessage | AssistantMessage | undefined,
@@ -169,13 +164,9 @@ export namespace Timeline {
     showReasoning: boolean,
     status: SessionStatus["type"],
     isActive: boolean,
-    // v2 renders comments inside the user message attachments row instead of a strip row
     inlineComments: boolean,
-    // A user-run shell command shows its output directly instead of folding it as an agent step.
     foldSteps = true,
-    // A harness that compacted inside its own process before this turn, seen from its context reports (#332).
     observed?: { harness: string; before: number; after: number },
-    // Messages before a Tenon compaction, which its summary stands for (#332).
     summarised?: number,
   ) {
     const rows: TimelineRow.TimelineRow[] = []
@@ -184,8 +175,6 @@ export namespace Timeline {
     const userParts = getMessageParts(userMessage.id)
     const comments = userParts.flatMap((p) => MessageComment.fromPart(p) ?? [])
     const compaction = userParts.some((p) => p.type === "compaction")
-    // Claude Code and OpenCode run their own compaction: Tenon sends them a plain "/compact" turn, which carries no
-    // compaction part, so the turn itself is the only sign it happened.
     const texts = userParts.filter((p) => p.type === "text")
     const nativeCompact = !compaction && texts.length === 1 && texts[0].text.trim() === "/compact"
     const interruptedMessageIndex = assistantMessages.findIndex((m) => m.error?.name === "MessageAbortedError")
@@ -240,7 +229,6 @@ export namespace Timeline {
       )
 
     let assistantGroupIndex = 0
-    // Cards are numbered across the turn: an interrupt or an update from the agent between steps starts a new one.
     let card = 0
     segments.forEach((refs, segment) => {
       if (segment > 0)
@@ -255,19 +243,15 @@ export namespace Timeline {
         const type = group.type === "part" ? partByID.get(group.ref.partID)?.type : "tool"
         return { group, step: foldSteps && (type === "tool" || type === "reasoning") }
       })
-      // A run of tool and reasoning groups folds under one TurnSteps card; text and other parts stay visible in
-      // order and close the card, so the steps after an update to the user start a fresh one.
       groups.forEach(({ group, step }, index) => {
         if (step && !groups[index - 1]?.step) {
           const end = groups.findIndex((item, at) => at > index && !item.step)
           const run = groups.slice(index, end === -1 ? undefined : end)
           const steps = run.flatMap((item) => (item.group.type === "part" ? [item.group.ref] : item.group.refs))
-          // A call the user declined or stopped isn't a failure, so it doesn't hold the card open.
           const failed = steps.some((ref) => {
             const part = partByID.get(ref.partID)
             return part?.type === "tool" && part.state.status === "error" && !isDeclined(part) && !isStopped(part)
           })
-          // Text after the run settles it only once every step has finished: a shell still running stays open.
           const running = steps.some((ref) => {
             const part = partByID.get(ref.partID)
             return part?.type === "tool" && (part.state.status === "pending" || part.state.status === "running")
@@ -306,8 +290,6 @@ export namespace Timeline {
 
     if (isActive && status === "retry") rows.push(new TimelineRow.Retry({ userMessageID: userMessage.id }))
 
-    // Once a harness's own /compact ends cleanly, the turn closes with the compaction divider instead of leaving
-    // "Completed" inside the folded tool call as the only sign; the drop in context, when seen, names the figures.
     if (nativeCompact && !error && !interrupted && assistantMessages.length > 0 && (status === "idle" || !isActive))
       rows.push(
         new TimelineRow.TurnDivider(
@@ -336,7 +318,6 @@ export namespace Timeline {
         new TimelineRow.Error({
           userMessageID: userMessage.id,
           text,
-          // Core reports a model whose API the runtime can't drive as raw text; the row shows friendly copy instead.
           ...(/^Unsupported API for [^\s/]+\/\S+: \S+$/.test(text) ? { unsupportedModel: true as const } : {}),
         }),
       )

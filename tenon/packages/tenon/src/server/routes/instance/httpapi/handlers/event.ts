@@ -28,10 +28,6 @@ function eventResponse(events: EventV2.Interface) {
   return Effect.gen(function* () {
     const instance = yield* InstanceState.context
     const workspaceID = yield* InstanceState.workspaceID
-    // Listener registration is eager, so events published after this point cannot
-    // be lost while the HTTP body fiber is starting or emitting server.connected.
-    // A subscriber that falls `subscriberCapacity` events behind is disconnected;
-    // clients resync on the `server.connected` event of their next connection.
     const queue = yield* Queue.dropping<EventV2.Payload, EventV2.SubscriberOverflowError>(subscriberCapacity)
     const unsubscribe = yield* events.listen((event) => {
       if (event.location?.directory !== instance.directory) return Effect.void

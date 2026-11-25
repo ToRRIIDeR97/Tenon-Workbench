@@ -40,7 +40,6 @@ import { Effect, Fiber, Layer, Stream } from "effect"
 import * as TestClock from "effect/testing/TestClock"
 import { testEffect } from "./lib/effect"
 
-// Title calls go through the LLM client; turn replies come from the harness runtime, so the two never mix.
 const titleRequests: LLMRequest[] = []
 let titleReply = "<think>naming</think>\nFix login redirect\n"
 let titleFails = false
@@ -86,7 +85,6 @@ const turn = [
 ]
 const harnessID = Harness.InstanceID.make("fake-acp")
 const otherHarnessID = Harness.InstanceID.make("other-acp")
-// One-off title prompts sent to a harness, with the harness that answered.
 const harnessTitles: Array<HarnessRuntime.CompleteInput & { readonly instanceID: Harness.InstanceID }> = []
 let preferredTitleAgent: Harness.InstanceID | undefined
 const harnesses = Layer.mock(HarnessRuntime.Service, {
@@ -239,7 +237,6 @@ const ask = (text: string) =>
     yield* session.resume(sessionID)
   })
 
-// The title runs in a background fiber; let it finish before reading the stored title.
 const settle = Effect.gen(function* () {
   for (let index = 0; index < 200; index++) yield* Effect.yieldNow
 })
@@ -375,8 +372,6 @@ describe("session runner titles", () => {
     }),
   )
 
-  // AC-8 (implementations/harness-ux-batch-2): the title starts once the first message is taken, not when the
-  // turn ends. This test used to assert no title request while the turn ran; the user asked for the opposite.
   it.effect("titles a session while its first turn is still running, and stopping it keeps one title", () =>
     Effect.gen(function* () {
       yield* setup()

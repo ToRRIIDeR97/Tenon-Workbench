@@ -22,7 +22,6 @@ export function SettingsCalendarV2() {
   const serverSDK = useServerSDK()
   const [status, { refetch }] = createResource(() => platform.googleCalendar?.status())
   const [error, setError] = createSignal("")
-  // Re-renders "Synced N min ago" every half minute.
   const [now, setNow] = createSignal(Date.now())
   const tick = setInterval(() => setNow(Date.now()), 30_000)
   onCleanup(() => clearInterval(tick))

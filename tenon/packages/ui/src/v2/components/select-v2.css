@@ -1,16 +1,12 @@
 @import "./menu-v2.css";
 
-/* Above modal dialogs (z-index 50); matches legacy select-content. */
 [data-popper-positioner]:has([data-slot="select-v2-content"]) {
   z-index: 60;
 }
 
-/* Dropdown surface (Type=menu): overrides shared menu-v2 layout for selects only. Radius, enter/exit
-   motion and the reduced-motion guard come from menu-v2.css so selects and menus move the same way. */
 [data-component="menu-v2-content"][data-slot="select-v2-content"] {
   padding: 0;
   min-width: 160px;
-  /* A wide trigger (a form field) keeps its list as wide as itself; Kobalte sets the anchor width. */
   max-width: max(23rem, var(--kb-popper-anchor-width, 0px));
   overflow: hidden;
   z-index: 60;
@@ -20,7 +16,6 @@
   transform-origin: var(--kb-select-content-transform-origin, top center);
 }
 
-/* Trigger shell — aligned with text-input-v2 */
 [data-component="select-v2"] {
   box-sizing: border-box;
   display: flex;
@@ -160,7 +155,6 @@
   transform: rotate(0deg);
 }
 
-/* Compact trigger for settings rows and similar inline contexts. */
 [data-component="select-v2"][data-appearance="inline"] {
   width: fit-content;
   max-width: 100%;
@@ -193,7 +187,6 @@
   background: var(--v2-overlay-simple-overlay-pressed);
 }
 
-/* Inline triggers stay edgeless: no field edge on hover or click focus, a ring only for keyboard focus. */
 [data-component="select-v2"][data-appearance="inline"]:not([data-invalid]):not(:has(:focus-visible)) {
   box-shadow: none;
 }
@@ -213,7 +206,6 @@
   padding: 0;
 }
 
-/* Listbox inside menu surface */
 [data-component="menu-v2-content"][data-slot="select-v2-content"] [data-slot="select-v2-listbox"] {
   box-sizing: border-box;
   display: flex;
@@ -255,7 +247,6 @@
   --menu-v2-hover: var(--v2-overlay-simple-overlay-hover);
 }
 
-/* Listbox uses data-selected; menu item CSS uses data-checked — mirror the accent container */
 [data-slot="select-v2-listbox"] [data-component="menu-v2-item"][data-selected] {
   background-color: var(--v2-background-bg-accent-container);
 }
@@ -283,7 +274,6 @@
   visibility: hidden;
 }
 
-/* Material 3 shape: pill triggers, rounded menus. */
 [data-component="select-v2"],
 [data-component="select-v2"][data-appearance="inline"] {
   border-radius: var(--v2-radius-full);

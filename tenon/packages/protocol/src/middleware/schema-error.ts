@@ -10,11 +10,6 @@ export class SchemaErrorMiddleware extends HttpApiMiddleware.Service<SchemaError
 const ISSUE_LIMIT = 20
 const KEY_LIMIT = 64
 
-/**
- * Describe a schema rejection for logs by issue tag and path only. Effect's
- * formatted message embeds the rejected value, which can be an API key or note
- * text, so it must not reach the log file.
- */
 export function issueSummary(issue: SchemaIssue.Issue): string {
   const collect = (issue: SchemaIssue.Issue, path: ReadonlyArray<PropertyKey>): Array<string> => {
     if (issue._tag === "Pointer") return collect(issue.issue, [...path, ...issue.path])

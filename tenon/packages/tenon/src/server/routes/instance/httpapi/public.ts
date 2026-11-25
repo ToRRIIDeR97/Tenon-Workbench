@@ -53,9 +53,6 @@ type OpenApiResponse = {
   content?: Record<string, { schema?: OpenApiSchema }>
 }
 
-// Query schemas describe decoded Effect values, but the generated SDK needs the
-// public call shape. These keep SDK callers passing numbers/booleans while the
-// server still decodes string query params at runtime.
 const QueryParameterSchemas: Record<string, OpenApiSchema> = {
   "GET /experimental/session start": { type: "number" },
   "GET /experimental/session roots": QueryBooleanOpenApi,
@@ -83,19 +80,10 @@ const LegacyComponentDescriptions: Record<string, string> = {
 function matchLegacyOpenApi(input: Record<string, unknown>) {
   const spec = input as OpenApiSpec
 
-  // Effect's multi-document JSON Schema deduplicator can produce self-referencing
-  // component schemas (e.g. `{"$ref":"#/components/schemas/X"}` as the definition
-  // of X itself) when the same AST node appears both as a standalone endpoint
-  // payload and inside an annotated union arm. Resolve these by inlining the
-  // actual schema from any parent union that references them.
   fixSelfReferencingComponents(spec)
 
-  // Effect 4.1 names the encoded side of a class schema `XEncoded` and numbers clashing names `X_1`.
   restoreComponentNames(spec)
 
-  // Effect's Schema.optional emits `anyOf: [T, {type:"null"}]` in OpenAPI,
-  // but the legacy SDK expected plain `T` for optional fields. Strip null
-  // from all component schemas so both request and response types match.
   for (const [name, schema] of Object.entries(spec.components?.schemas ?? {})) {
     spec.components!.schemas![name] = stripOptionalNull(structuredClone(schema))
   }
@@ -104,8 +92,6 @@ function matchLegacyOpenApi(input: Record<string, unknown>) {
   applyLegacySchemaOverrides(spec)
   normalizeComponentDescriptions(spec)
   addLegacyErrorSchemas(spec)
-  // The SDK generator numbers clashing type names in component order. Effect 4.1 lists dotted event names
-  // (`Event.tui.prompt.append`) first; keep them after the plain names, as Effect 4.0 did.
   if (spec.components?.schemas) spec.components.schemas = dottedNamesLast(spec.components.schemas)
   delete spec.components?.securitySchemes
 
@@ -115,15 +101,10 @@ function matchLegacyOpenApi(input: Record<string, unknown>) {
       if (!operation) continue
       const isV2Api = isV2ApiPath(path)
       if (operation.requestBody) {
-        // The legacy OpenAPI surface never marked request bodies as required.
-        // Keep that SDK surface stable while the HttpApi spec is tightened.
         if (!isV2Api) delete operation.requestBody.required
         const body = operation.requestBody.content?.["application/json"]
         if (body?.schema) body.schema = stripOptionalNull(structuredClone(body.schema))
         if (path === "/experimental/workspace" && method === "post") {
-          // Workspace creation fields `branch` and `extra` are Schema.NullOr —
-          // genuinely nullable, not just optional. Re-add the null that the
-          // component-level strip above removed.
           const ref = operation.requestBody.content?.["application/json"]?.schema?.$ref?.replace(
             "#/components/schemas/",
             "",
@@ -135,7 +116,6 @@ function matchLegacyOpenApi(input: Record<string, unknown>) {
           if (properties?.extra) properties.extra = { anyOf: [properties.extra, { type: "null" }] }
         }
         if (path === "/session/{sessionID}" && method === "patch") {
-          // `time.archived: null` unarchives a session; keep that null in the SDK.
           const time = body?.schema?.properties?.time
           if (time?.properties?.archived) time.properties.archived = nullable(time.properties.archived)
         }
@@ -156,17 +136,12 @@ function matchLegacyOpenApi(input: Record<string, unknown>) {
         }
       }
       if (!isV2Api) {
-        // Auth is still runtime middleware outside the legacy public OpenAPI
-        // metadata, so the legacy SDK should not expose auth schemes or
-        // generated 401 error unions.
         delete operation.security
         delete operation.responses?.["401"]
         normalizeLegacyErrorResponses(operation)
       }
       normalizeLegacyOperation(operation, path, method)
       if ((path === "/event" || path === "/global/event" || path === "/api/event") && method === "get") {
-        // HttpApi has no first-class SSE response schema, and these handlers are
-        // raw/streaming routes. Document the actual wire protocol explicitly.
         operation.responses!["200"] = {
           description: "Event stream",
           content: {
@@ -239,12 +214,6 @@ function dottedNamesLast(schemas: Record<string, OpenApiSchema>) {
   )
 }
 
-/**
- * Restores the component names Effect 4.0 produced, which the published SDK's type names come from:
- * `XEncoded` (and `XEncoded_1`) becomes `X` and `X_1` becomes `X1`. A name that is taken gets the next
- * free number, as Effect 4.0 did; `collapseDuplicateComponents` later merges numbered copies equal to
- * the original.
- */
 function restoreComponentNames(spec: OpenApiSpec) {
   const schemas = spec.components?.schemas
   if (!schemas) return
@@ -252,7 +221,6 @@ function restoreComponentNames(spec: OpenApiSpec) {
     const match = /^(.+?)(Encoded)?(?:_(\d+))?$/.exec(name)
     if (!match || (match[2] === undefined && match[3] === undefined)) continue
     const base = match[1]
-    // `XEncoded_1` can exist without `XEncoded`, so an encoded name tries `X` first.
     let next = match[2] !== undefined || match[3] === undefined ? base : `${base}${match[3]}`
     for (let index = 1; next in schemas; index++) next = `${base}${index}`
     schemas[next] = schemas[name]
@@ -457,14 +425,6 @@ function legacyErrorResponse(description: string, name: "BadRequestError" | "Not
   }
 }
 
-/**
- * Fix component schemas that are self-referencing `$ref`s — an Effect OpenAPI
- * generation bug where annotated union arms that share AST nodes with other
- * endpoints produce `{"$ref":"#/components/schemas/X"}` as the definition of X.
- *
- * Resolves by finding the actual schema from a parent union's `anyOf`/`oneOf`
- * that references the broken component, then inlining that schema.
- */
 function fixSelfReferencingComponents(spec: OpenApiSpec) {
   const schemas = spec.components?.schemas
   if (!schemas) return
@@ -473,26 +433,12 @@ function fixSelfReferencingComponents(spec: OpenApiSpec) {
     if (schema.$ref === `#/components/schemas/${name}`) selfRefs.add(name)
   }
   if (selfRefs.size === 0) return
-  // Find a parent union component whose anyOf/oneOf contains a $ref to the
-  // broken component — that parent was generated correctly and holds the inline
-  // schema we need.
   for (const [, schema] of Object.entries(schemas)) {
     for (const member of schema.anyOf ?? schema.oneOf ?? []) {
       const ref = member.$ref?.replace("#/components/schemas/", "")
       if (!ref || !selfRefs.has(ref)) continue
-      // This member's $ref points to a self-referencing component. The member
-      // itself is just {$ref:...}, so the actual schema must be resolved from
-      // the union. Since the union component was generated before the
-      // deduplicator broke things, the inline version lives elsewhere. Generate
-      // a fresh spec without the transform to get the correct schema.
-      // Simpler approach: look through all paths for an endpoint that uses this
-      // schema as a payload (it would have been expanded by the ref-expansion
-      // logic above if we ran after that, but we run before). Instead, just
-      // delete the broken component — if it's referenced via $ref elsewhere,
-      // the ref expansion in the request body loop will inline it anyway.
     }
   }
-  // Simplest fix: generate the raw spec (without transform) to get correct schemas
   const raw: OpenApiSpec = OpenApi.fromApi(TenonHttpApi)
   const rawSchemas = raw.components?.schemas
   if (!rawSchemas) return
@@ -501,7 +447,6 @@ function fixSelfReferencingComponents(spec: OpenApiSpec) {
   }
 }
 
-/** Strip `{type:"null"}` arms that Effect's `Schema.optional` adds to OpenAPI unions. */
 function stripOptionalNull(schema: OpenApiSchema): OpenApiSchema {
   if (schema.allOf?.length === 1) {
     const [constraint] = schema.allOf
@@ -543,7 +488,6 @@ function isEmptyObjectUnion(schema: OpenApiSchema) {
   return options?.length === 2 && options.some(isBareObjectSchema) && options.some(isBareArraySchema)
 }
 
-// Effect 4.1 emits an empty Schema.Struct({}) as `{ not: { type: "null" } }`; 4.0 emitted the object/array union.
 function isEmptyStruct(schema: OpenApiSchema) {
   const not = schema.not
   return schema.type === undefined && not !== undefined && Object.keys(not).length === 1 && not.type === "null"

@@ -12,7 +12,6 @@ export function requireServerKey(segment: string | undefined) {
   return key
 }
 
-/** The server key a `/server/:serverKey/...` segment names, or undefined when the segment is malformed. */
 export function parseServerKey(segment: string | undefined) {
   const key = decode64(segment)
   if (!key || base64Encode(key) !== segment) return

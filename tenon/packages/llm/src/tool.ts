@@ -7,11 +7,6 @@ import type {
 } from "./schema"
 import { ToolDefinition, ToolFailure, ToolOutput } from "./schema"
 
-/**
- * Schema constraint for tool parameters / success values: no decoding or
- * encoding services are allowed. Tools should be self-contained — anything
- * beyond pure data conversion belongs in the handler closure.
- */
 export type ToolSchema<T> = Schema.Codec<T, any, never, never>
 export interface ToolExecuteContext {
   readonly id: ToolCallPart["id"]
@@ -33,18 +28,6 @@ export type ToolToModelOutput<Parameters extends ToolSchema<any>, Success extend
   input: ToolModelOutputInput<Schema.Schema.Type<Parameters>, Success["Encoded"]>,
 ) => ReadonlyArray<ToolContent>
 
-/**
- * A type-safe LLM tool. Each tool bundles its own description, parameter
- * Schema and success Schema. The execute handler is optional: omit it when you
- * only want to expose a tool schema to the model and handle tool calls outside
- * this package.
- *
- * Errors must be expressed as `ToolFailure`. Unmapped errors and defects fail
- * the stream.
- *
- * Internally each tool also carries memoized codecs and a precomputed
- * `ToolDefinition` so callers do not rebuild them per invocation.
- */
 export interface Tool<Parameters extends ToolSchema<any>, Success extends ToolSchema<any>> {
   readonly description: string
   readonly parameters: Parameters
@@ -52,19 +35,14 @@ export interface Tool<Parameters extends ToolSchema<any>, Success extends ToolSc
   readonly execute?: ToolExecute<Parameters, Success>
   readonly toModelOutput?: ToolToModelOutput<Parameters, Success>
   readonly toStructuredOutput?: (output: Success["Encoded"]) => unknown
-  /** @internal */
   readonly _decode: (input: unknown) => Effect.Effect<Schema.Schema.Type<Parameters>, Schema.SchemaError>
-  /** @internal */
   readonly _encode: (value: Schema.Schema.Type<Success>) => Effect.Effect<unknown, Schema.SchemaError>
-  /** @internal */
   readonly _project: (
     parameters: Schema.Schema.Type<Parameters>,
     callID: ToolCallPart["id"],
     output: unknown,
   ) => ToolOutputType
-  /** @internal */
   readonly _legacyResult: boolean
-  /** @internal */
   readonly _definition: ToolDefinitionClass
 }
 
@@ -99,37 +77,6 @@ type DynamicToolConfig = {
   readonly toStructuredOutput?: (output: unknown) => unknown
 }
 
-/**
- * Constructs a tool. Two input modes:
- *
- * 1. **Typed** — pass Effect `parameters` and `success` Schemas; inputs and
- *    outputs are statically typed and decoded/encoded automatically.
- *
- *    ```ts
- *    Tool.make({
- *      description: "Get current weather",
- *      parameters: Schema.Struct({ city: Schema.String }),
- *      success: Schema.Struct({ temperature: Schema.Number }),
- *      execute: ({ city }) => Effect.succeed({ temperature: 22 }),
- *    })
- *    ```
- *
- * 2. **Dynamic** — pass raw JSON Schema as `jsonSchema`. Use this when the
- *    schema comes from an external source (MCP server, plugin manifest,
- *    dynamic config) and is not known at compile time. Inputs are typed as
- *    `unknown`; the handler is responsible for any validation it needs.
- *
- *    ```ts
- *    Tool.make({
- *      description: "Look something up",
- *      jsonSchema: { type: "object", properties: { ... } },
- *      execute: (params) => Effect.succeed(...),
- *    })
- *    ```
- *
- * In both modes the produced tool flows through `toDefinitions(...)`
- * identically.
- */
 export function make<Parameters extends ToolSchema<any>, Success extends ToolSchema<any>>(config: {
   readonly description: string
   readonly parameters: Parameters
@@ -205,19 +152,8 @@ export function make(config: TypedToolConfig | DynamicToolConfig): AnyTool {
   }
 }
 
-/**
- * A record of named tools. The record key becomes the tool name on the wire.
- */
 export type Tools = Record<string, AnyTool>
 
-/**
- * Convert a tools record into the `ToolDefinition[]` shape that
- * `LLMRequest.tools` expects.
- *
- * Tool names come from the record keys, so the per-tool cached
- * `_definition` is rebuilt with the correct name here. The JSON Schema body
- * is reused.
- */
 export const toDefinitions = (tools: Tools): ReadonlyArray<ToolDefinitionClass> =>
   Object.entries(tools).map(
     ([name, item]) =>
@@ -230,7 +166,6 @@ export const toDefinitions = (tools: Tools): ReadonlyArray<ToolDefinitionClass> 
   )
 
 const toJsonSchema = (schema: Schema.Top): JsonSchema.JsonSchema => {
-  // Effect 4.1 leaves objects open by default; keep the closed (additionalProperties: false) output.
   const document = Schema.toJsonSchemaDocument(schema, { onExcessProperty: "error" })
   const result =
     Object.keys(document.definitions).length === 0
@@ -242,11 +177,6 @@ const toJsonSchema = (schema: Schema.Top): JsonSchema.JsonSchema => {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
-/**
- * Effect 4.1 emits an empty `Schema.Struct({})` as `{ not: { type: "null" } }` (any non-nullish value).
- * Tool providers need an object schema for tool parameters, so rewrite those nodes, at any depth, as an
- * object with no properties. `additionalProperties` is set when given (closed tool schemas use `false`).
- */
 export const emptyStructsAsObjects = (value: unknown, options: { additionalProperties?: boolean } = {}): unknown => {
   if (Array.isArray(value)) return value.map((item) => emptyStructsAsObjects(item, options))
   if (!isRecord(value)) return value
@@ -261,7 +191,6 @@ export const emptyStructsAsObjects = (value: unknown, options: { additionalPrope
   return Object.fromEntries(
     Object.entries(value).map(([key, item]) => [
       key,
-      // Keyed by property or definition name, so the map itself is never a schema.
       schemaMaps.has(key) && isRecord(item)
         ? Object.fromEntries(Object.entries(item).map(([name, entry]) => [name, emptyStructsAsObjects(entry, options)]))
         : emptyStructsAsObjects(item, options),

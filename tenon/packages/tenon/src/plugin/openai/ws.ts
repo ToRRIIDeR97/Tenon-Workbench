@@ -1,6 +1,3 @@
-// Low-level OpenAI Responses WebSocket protocol helpers. Session pooling,
-// fallback, and continuation state intentionally live above this file.
-
 import WebSocket from "ws"
 import { APICallError } from "ai"
 import { ProviderError } from "@/provider/error"
@@ -82,7 +79,6 @@ export function connectResponsesWebSocket(options: ConnectResponsesWebSocketOpti
     }
     delete headers["content-length"]
 
-    // Bun does not apply HTTP(S)_PROXY to WebSockets unless the proxy is supplied explicitly.
     const proxy =
       typeof Bun === "undefined"
         ? undefined

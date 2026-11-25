@@ -45,14 +45,12 @@ export type NoteEditorLabels = Partial<{
 export type NoteEditorProps = {
   value: string
   onOpenNote?: (path: string) => void
-  /** Turns the note into the Markdown the preview renders, e.g. resolving note links. */
   preview?: (text: string) => string
   onChange: (value: string) => void
   onSave: () => void | Promise<void>
   loading?: boolean
   commandLabel?: (id: NoteEditorCommand) => string
   labels?: NoteEditorLabels
-  /** Shown in the toolbar while fullscreen, e.g. the saved state and Save, which the page header covers otherwise. */
   fullscreenActions?: JSX.Element
 }
 
@@ -75,7 +73,6 @@ const defaults: Required<NoteEditorLabels> = {
   placeholder: "Write Markdown, or type / at the start of a line for commands...",
 }
 
-// Compact glyphs for the circular formatting buttons; the tooltip and aria-label carry the full name.
 const glyph: Partial<Record<NoteEditorCommand, string>> = {
   h1: "H1",
   h2: "H2",
@@ -103,10 +100,8 @@ const toolbarCommands = noteEditorCommands.filter((command) =>
 )
 const insertCommands = noteEditorCommands.filter((command) => !toolbarCommands.includes(command))
 
-// Formatting shortcuts, registered as commands so they win over global ones (mod+b toggles the sidebar elsewhere).
 const shortcuts: Partial<Record<NoteEditorCommand, string>> = { bold: "mod+b", italic: "mod+i" }
 
-// Typing in split mode re-renders the preview once the writer pauses instead of on every key.
 const SPLIT_PREVIEW_DELAY_MS = 150
 
 export function NoteEditor(props: NoteEditorProps) {
@@ -121,7 +116,6 @@ export function NoteEditor(props: NoteEditorProps) {
   const [fullscreen, setFullscreen] = createSignal(false)
   const [insertOpen, setInsertOpen] = createSignal(false)
   const [slash, setSlash] = createSignal<SlashCommandRange>()
-  // The slash menu keeps its last query while it fades out.
   const menuSlash = createMemo<SlashCommandRange | undefined>((previous) => slash() ?? previous)
   const [activeCommand, setActiveCommand] = createSignal(0)
   let editor: HTMLTextAreaElement | undefined
@@ -155,7 +149,6 @@ export function NoteEditor(props: NoteEditorProps) {
     setActiveCommand(0)
   })
 
-  // Split mode trails the text by a short pause; preview mode, and any switch out of split, shows it at once.
   const [previewSource, setPreviewSource] = createSignal(props.value)
   const schedulePreview = debounce((value: string) => setPreviewSource(value), SPLIT_PREVIEW_DELAY_MS)
   createEffect(() => {
@@ -165,7 +158,6 @@ export function NoteEditor(props: NoteEditorProps) {
     setPreviewSource(value)
   })
   onCleanup(() => schedulePreview.clear())
-  // Read only by the preview pane, so write mode never builds it.
   const previewText = () => {
     const source = previewSource()
     return props.preview ? props.preview(source) : source
@@ -206,7 +198,6 @@ export function NoteEditor(props: NoteEditorProps) {
           title: commandLabel(item),
           keybind,
           hidden: true,
-          // Only while typing in this editor; elsewhere the key keeps its global meaning.
           when: (event: KeyboardEvent) => !!editor && event.target === editor,
           onSelect: () => run(item.id),
         },
@@ -214,7 +205,6 @@ export function NoteEditor(props: NoteEditorProps) {
     }),
   )
 
-  // A pane or the toolbar that a mode change shows fades in; one shown by loading a note does not.
   const switching = { current: false }
   const enterOnSwitch = (element: HTMLElement) => {
     if (switching.current) replayAnimation(element)
@@ -304,7 +294,6 @@ export function NoteEditor(props: NoteEditorProps) {
   }
 
   let surface: HTMLElement | undefined
-  // Entering and leaving fullscreen fades the editor in at its new size.
   createEffect(on(fullscreen, () => replayAnimation(surface), { defer: true }))
 
   return (
@@ -569,7 +558,6 @@ export function NoteEditor(props: NoteEditorProps) {
                 const link = event.target instanceof Element ? event.target.closest("a") : null
                 if (!props.onOpenNote || !link) return
                 const url = new URL(link.href)
-                // `/notes` is the pre-merge form of the same link.
                 if (
                   url.origin !== window.location.origin ||
                   (url.pathname !== "/projects" && url.pathname !== "/notes")

@@ -9,10 +9,6 @@ import { NpmConfig } from "../npm-config"
 import type { AppProcess } from "../process"
 import { which } from "../util/which"
 
-// Where a harness CLI was installed from, read from the real path of its executable (and, for an npm
-// shim, the file it points at). Each source knows how to read its versions and build its update
-// command, on macOS and Windows alike. A CLI with no recognised source falls back to its own updater
-// when it has one (`claude update`), and otherwise shows the user how to update it.
 export type Source =
   | {
       readonly method: "npm" | "bun" | "pnpm"
@@ -35,7 +31,6 @@ export type Source =
       readonly method: "self"
       readonly bin: string
       readonly args: ReadonlyArray<string>
-      /** The npm package the same CLI is published as, for its latest version. */
       readonly packageName?: string
     }
 
@@ -46,9 +41,7 @@ export interface Check {
   readonly latest?: string
   readonly updateAvailable: boolean
   readonly method?: Method
-  /** The command that updates the CLI, shown when the app can't run it (`manual`). */
   readonly command?: string
-  /** The update needs the user (an elevated prompt), so the app shows the command instead. */
   readonly manual?: boolean
   readonly error?: string
 }
@@ -59,26 +52,17 @@ export class UpdateError extends Schema.TaggedError<UpdateError>()("HarnessUpdat
 }) {}
 
 const checkTTL = 6 * 60 * 60 * 1000
-// A check that couldn't reach the registry is retried sooner, so one offline start doesn't hide updates for hours.
 const failedCheckTTL = 10 * 60 * 1000
 const packageName = /^(@[a-z0-9][a-z0-9._~-]*\/)?[a-z0-9][a-z0-9._~-]*$/
 const simpleName = /^[A-Za-z0-9][A-Za-z0-9@._+-]*$/
-// Latest-version lookups are network calls, so one result per executable is reused for a few hours.
 const checks = new Map<string, { readonly expires: number; readonly check: Check }>()
 
-// CLIs that update themselves, by executable name. Used when no package manager owns the install
-// (the standalone installers on macOS and Windows). Their npm package gives the latest version.
 const selfUpdaters: Record<string, { readonly args: ReadonlyArray<string>; readonly packageName: string }> = {
   claude: { args: ["update"], packageName: "@anthropic-ai/claude-code" },
   codex: { args: ["update"], packageName: "@openai/codex" },
   opencode: { args: ["upgrade"], packageName: "opencode-ai" },
 }
 
-/**
- * Reads the install source from an executable's resolved path. `expected` is the npm package the command comes
- * from, when known: on Windows npm installs a global command as a `.cmd`/`.ps1` shim beside `node_modules`, so the
- * resolved path never passes through the package folder.
- */
 export function sourceFromPath(file: string, expected?: string): Source | undefined {
   const normalized = file.replaceAll("\\", "/")
   const slash = normalized.lastIndexOf("/")
@@ -99,7 +83,6 @@ export function sourceFromPath(file: string, expected?: string): Source | undefi
       version: cellar[4]!.replace(/_\d+$/, ""),
     }
   }
-  // WinGet keeps portable installs in Packages\<PackageId>_<source name>_<hash>\; its Links folder points there.
   const winget = normalized.match(/\/Microsoft\/WinGet\/Packages\/([^/]+?)_[^/_]+_[^/_]+\//i)
   if (winget && simpleName.test(winget[1]!)) return { method: "winget", id: winget[1]! }
   const scoop = normalized.match(/^(.*\/scoop)\/apps\/([^/]+)\/([^/]+)\//i)
@@ -124,15 +107,11 @@ export function sourceFromPath(file: string, expected?: string): Source | undefi
   if (!name || !packageName.test(name)) return
   const packageDir = `${root}/node_modules/${name}`
   if (root.endsWith("/.bun/install/global")) return { method: "bun", packageName: name, packageDir, prefix: root }
-  // pnpm globals live in <pnpm home>/global/<layout version>/node_modules, on macOS and Windows.
   if (/\/pnpm\/global\/\d+$/i.test(root)) return { method: "pnpm", packageName: name, packageDir, prefix: root }
-  // Unix globals live in <prefix>/lib/node_modules; Windows globals in %APPDATA%\npm\node_modules or
-  // next to node.exe in a "nodejs" folder.
   if (root.endsWith("/lib")) return { method: "npm", packageName: name, packageDir, prefix: root.slice(0, -4) }
   if (/\/(npm|nodejs)$/i.test(root)) return { method: "npm", packageName: name, packageDir, prefix: root }
 }
 
-/** The package a Windows npm/pnpm shim (`.cmd`, `.ps1`, or the extensionless sh script) launches. */
 export function shimTarget(shim: string, text: string) {
   const match = text.match(/node_modules[\\/]((?:@[^\\/"'\s]+[\\/])?[^\\/"'\s]+)[\\/]/)
   if (!match) return
@@ -140,7 +119,6 @@ export function shimTarget(shim: string, text: string) {
   return packageName.test(name) ? path.join(path.dirname(shim), "node_modules", name, "package.json") : undefined
 }
 
-/** True when `latest` is a newer dotted version than `current`. Pre-release tags are ignored. */
 export function newer(latest: string, current: string) {
   const parse = (value: string) =>
     value
@@ -166,7 +144,6 @@ export const resolve = (command: string, expected?: string) =>
     return { path: real, source }
   })
 
-// A shim names the package it starts; its real path is the shim itself, outside node_modules.
 async function fromShim(file: string) {
   if (!/\.(cmd|ps1)$|^[^.]+$/i.test(path.basename(file))) return
   const text = await fs.readFile(file, "utf8").catch(() => undefined)
@@ -208,7 +185,6 @@ export const check = Effect.fn("HarnessUpdate.check")(function* (
       method: source.method,
       command: plan.display,
       manual: plan.manual || undefined,
-      // A CLI that updates itself without a known latest version offers the update; running it is the check.
       updateAvailable: source.method === "self" && !latest ? true : !!version && !!latest && newer(latest, version),
     } satisfies Check
   }).pipe(
@@ -228,7 +204,6 @@ export const check = Effect.fn("HarnessUpdate.check")(function* (
   return result
 })
 
-/** Runs the installer that owns the CLI. The command is derived here, never from the caller. */
 export const upgrade = Effect.fn("HarnessUpdate.upgrade")(function* (
   process: Pick<AppProcess.Interface, "run">,
   command: string,
@@ -268,7 +243,6 @@ export const upgrade = Effect.fn("HarnessUpdate.upgrade")(function* (
   checks.delete(resolved.path)
 })
 
-/** Updates a companion CLI (Claude Code's `claude` beside its ACP adapter) with its own updater, if installed. */
 export const upgradeCompanion = Effect.fn("HarnessUpdate.upgradeCompanion")(function* (
   process: Pick<AppProcess.Interface, "run">,
   command: string,
@@ -284,7 +258,6 @@ export const upgradeCompanion = Effect.fn("HarnessUpdate.upgradeCompanion")(func
   checks.delete(resolved.path)
 })
 
-/** The program and arguments that update a source, and how to show them to the user. */
 export function updateCommand(source: Source): {
   readonly bin: string
   readonly args: ReadonlyArray<string>
@@ -318,7 +291,6 @@ export function updateCommand(source: Source): {
       ])
     case "scoop":
       return plan("scoop", ["update", source.name])
-    // Chocolatey writes under ProgramData, which needs an elevated prompt the app can't answer.
     case "choco":
       return plan("choco", ["upgrade", source.name, "-y"], true)
     case "pipx":
@@ -365,7 +337,6 @@ function latestVersion(
           maxOutputBytes: 1_000_000,
         })
         .pipe(Effect.map((result) => result.stdout.toString().match(/^Version:\s*(\S+)/m)?.[1]))
-    // Scoop's buckets are local manifests, refreshed by `scoop update`; no network call here.
     case "scoop":
       return Effect.promise(() => scoopManifestVersion(source.root, source.name))
     case "pipx":

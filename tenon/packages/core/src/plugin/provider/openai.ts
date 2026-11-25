@@ -165,8 +165,6 @@ export const OpenAIPlugin = define({
           if (item.provider.api.package !== "@ai-sdk/openai") continue
           if (!item.models.has(ModelV2.ID.make("gpt-5-chat-latest"))) continue
           evt.model.update(item.provider.id, ModelV2.ID.make("gpt-5-chat-latest"), (model) => {
-            // OpenAIPlugin sends OpenAI models through Responses; this alias is a
-            // chat-completions-only model, so hide it only from OpenAI's catalog.
             model.enabled = false
           })
         }

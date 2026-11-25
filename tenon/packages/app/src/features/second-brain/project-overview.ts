@@ -8,9 +8,7 @@ import type {
 
 export type OverviewItem = { kind: "event" | "task"; id: string; title: string; date?: string; source: CalendarSource }
 export type OverviewGroup = {
-  /** Undefined for the workspace group. */
   projectId?: string
-  /** The Project name; "" for the workspace group, which the UI labels. */
   name: string
   status?: ProjectStatus
   nextMilestone?: string
@@ -18,10 +16,6 @@ export type OverviewGroup = {
   items: OverviewItem[]
 }
 
-/**
- * Every Project's notes and upcoming work, one group per Project in the given order, then a workspace group for
- * notes and calendar items that belong to no known Project. `today` is a local `YYYY-MM-DD` key.
- */
 export function groupProjectOverview(input: {
   projects: ReadonlyArray<ProjectRecord>
   notes: ReadonlyArray<NoteSummary>
@@ -82,10 +76,6 @@ export function groupProjectOverview(input: {
   ]
 }
 
-/**
- * Narrow groups to notes and items whose title contains `query`, ignoring case. A Project whose name matches keeps
- * all its content; a group with no match left is dropped.
- */
 export function filterProjectOverview(groups: ReadonlyArray<OverviewGroup>, query: string): OverviewGroup[] {
   const needle = query.trim().toLocaleLowerCase()
   if (!needle) return [...groups]

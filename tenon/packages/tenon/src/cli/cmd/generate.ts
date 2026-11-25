@@ -31,8 +31,6 @@ export const GenerateCommand = {
     }
     const raw = JSON.stringify(specs, null, 2)
 
-    // Format through prettier so output is byte-identical to committed file
-    // regardless of whether ./script/format.ts runs afterward.
     const prettier = await import("prettier")
     const babel = await import("prettier/plugins/babel")
     const estree = await import("prettier/plugins/estree")
@@ -43,7 +41,6 @@ export const GenerateCommand = {
       printWidth: 120,
     })
 
-    // Wait for stdout to finish writing before process.exit() is called
     await new Promise<void>((resolve, reject) => {
       process.stdout.write(json, (err) => {
         if (err) reject(err)

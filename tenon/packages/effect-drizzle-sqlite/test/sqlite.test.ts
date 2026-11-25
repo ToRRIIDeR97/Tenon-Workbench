@@ -156,8 +156,6 @@ test("transaction behavior picks the BEGIN statement", async () => {
         const db = yield* EffectDrizzleSqlite.makeWithDefaults()
         yield* db.run(sql`pragma busy_timeout = 0`)
 
-        // Another connection holds the write lock: a deferred transaction can still read, but
-        // an immediate one, and the client's default BEGIN IMMEDIATE, cannot start.
         expect(yield* db.transaction((tx) => tx.select().from(users), { behavior: "deferred" })).toEqual([])
         for (const transaction of [
           db.transaction((tx) => tx.select().from(users), { behavior: "immediate" }),

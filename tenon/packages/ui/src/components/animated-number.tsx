@@ -2,7 +2,6 @@ import { For, Index, createEffect, createMemo, on, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
 
 const TRACK = Array.from({ length: 30 }, (_, index) => index % 10)
-// Fallback for --tool-motion-odometer-ms (--v2-duration-long), the same as the CSS fallback.
 const DURATION = 450
 
 function normalize(value: number) {
@@ -24,7 +23,6 @@ function Digit(props: { value: number; direction: 1 | -1 }) {
   const animating = () => state.animating
   let last = props.value
   let fallback: ReturnType<typeof setTimeout> | undefined
-  // Brings the strip back to its middle copy so the offset never runs past the 30 cells.
   const settle = () => {
     clearTimeout(fallback)
     fallback = undefined
@@ -47,7 +45,6 @@ function Digit(props: { value: number; direction: 1 | -1 }) {
 
         setState("animating", true)
         setState("step", (value) => value + delta)
-        // transitionend never fires for a 0ms transition (reduced motion) or while the element is hidden.
         if (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches) return settle()
         clearTimeout(fallback)
         fallback = setTimeout(settle, DURATION * 2)

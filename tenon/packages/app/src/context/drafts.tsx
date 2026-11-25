@@ -12,13 +12,10 @@ import { ServerConnection, useServer } from "./server"
 import { createStateMemory } from "./state-memory"
 import { useSettings } from "./settings"
 
-/** An unsent thread: the composer state lives in the draft store, keyed by `draftID`. */
 export type Draft = {
   draftID: string
   server: ServerConnection.Key
-  /** Directory the thread will run in (the Project's thread directory). */
   directory: string
-  /** Second Brain Project the thread belongs to, when known. */
   projectID?: string
   worktree?: string
 }
@@ -34,9 +31,7 @@ export const draftHref = (draft: Pick<Draft, "draftID" | "projectID">) => {
   return `${NEW_THREAD_PATH}?${search.toString()}`
 }
 
-/** Memory key for per-draft reactive state such as the prompt session. */
 export const draftStateKey = (draftID: string) => `draft:${draftID}`
-/** Memory key for per-thread reactive state such as the prompt session. */
 export const sessionStateKey = (server: ServerConnection.Key, sessionID: string) => `session:${server}\n${sessionID}`
 
 const LEGACY_TAB_KEYS = ["tabs", "tabs.recent", "tabs.info", "tabs.closed"]
@@ -61,16 +56,11 @@ function parseDraft(value: unknown, fallback?: ServerConnection.Key): Draft | un
   }
 }
 
-/** Validate persisted drafts, dropping malformed entries. */
 export function migrateDrafts(value: unknown): Draft[] {
   if (!Array.isArray(value)) return []
   return value.flatMap((item) => parseDraft(item) ?? [])
 }
 
-/**
- * Pull unsent drafts out of the retired per-window tab list so they survive the
- * removal of the tab strip. Session tabs are dropped; the sidebar lists threads.
- */
 export function draftsFromLegacyTabs(value: unknown, fallback: ServerConnection.Key): Draft[] {
   if (!Array.isArray(value)) return []
   return value.flatMap((item) => {
@@ -79,7 +69,6 @@ export function draftsFromLegacyTabs(value: unknown, fallback: ServerConnection.
   })
 }
 
-/** A Home draft sends on arrival only with the harness it was started with, and only while that harness is available. */
 export function canSendOnOpen(
   requested: Harness.InstanceID | undefined,
   instance: Pick<Harness.Instance, "id" | "status"> | undefined,
@@ -109,7 +98,6 @@ export const { use: useDrafts, provider: DraftsProvider } = createSimpleContext(
       { ...Persist.window("drafts"), migrate: migrateDrafts },
       createStore<Draft[]>([]),
     )
-    // One-time upgrade: import drafts from the retired tab strip, then delete its keys.
     const [legacyTabs, , , legacyReady] = persisted(Persist.window("tabs"), createStore<unknown[]>([]))
     let legacyImported = false
     createEffect(() => {
@@ -134,7 +122,6 @@ export const { use: useDrafts, provider: DraftsProvider } = createSimpleContext(
       removeDraftPersisted(draftID)
     }
 
-    // Drop drafts whose server was removed from the server list.
     createEffect(() => {
       if (!ready()) return
       const servers = new Set(server.list.map(ServerConnection.key))
@@ -143,19 +130,16 @@ export const { use: useDrafts, provider: DraftsProvider } = createSimpleContext(
       }
     })
 
-    // Drafts started from Home send on arrival. Kept in memory only, so a reload never re-sends.
     const pendingSend = new Map<string, Harness.InstanceID | undefined>()
 
     const isActive = (draftID: string) => location.pathname === NEW_THREAD_PATH && location.query.draftId === draftID
 
-    // No text and no attached context: reusing or dropping the draft loses nothing.
     const isEmpty = async (draftID: string) => {
       const session = memory.ensure(draftStateKey(draftID), "prompt", () => createDraftPromptSession(draftID))
       await session.ready.promise
       return !session.dirty() && session.context.items().length === 0
     }
 
-    // Every New thread used to leave a draft behind; drop the empty ones once per launch.
     let pruned = false
     createEffect(() => {
       if (pruned || !ready()) return
@@ -182,7 +166,6 @@ export const { use: useDrafts, provider: DraftsProvider } = createSimpleContext(
         harnessInstanceID?: Harness.InstanceID,
         options?: { send?: boolean; harnessModel?: Harness.ModelSelection },
       ) {
-        // A plain New thread reopens an empty draft for the same place instead of adding another.
         if (!prompt?.trim() && !model && !harnessInstanceID && !options) {
           for (const existing of [...store].reverse()) {
             const same =
@@ -191,7 +174,6 @@ export const { use: useDrafts, provider: DraftsProvider } = createSimpleContext(
               existing.projectID === input.projectID &&
               existing.worktree === input.worktree
             if (!same || !(await isEmpty(existing.draftID))) continue
-            // A reused empty draft follows the current default, which may have changed since it was made.
             const choice = settings.harnesses.newThreadChoice()
             if (choice) {
               const session = memory.ensure(draftStateKey(existing.draftID), "prompt", () =>
@@ -204,7 +186,6 @@ export const { use: useDrafts, provider: DraftsProvider } = createSimpleContext(
             return existing
           }
         }
-        // A new thread starts on the harness chosen in Settings › Harnesses, unless the caller picked one.
         if (!harnessInstanceID) {
           const choice = settings.harnesses.newThreadChoice()
           if (choice) {
@@ -232,7 +213,6 @@ export const { use: useDrafts, provider: DraftsProvider } = createSimpleContext(
         })
         return draft
       },
-      /** Consumes the send-on-open request for a draft. Returns the harness it was started with. */
       takeSend(draftID: string) {
         if (!pendingSend.has(draftID)) return
         const harnessInstanceID = pendingSend.get(draftID)
@@ -245,7 +225,6 @@ export const { use: useDrafts, provider: DraftsProvider } = createSimpleContext(
           produce((draft) => Object.assign(draft, patch)),
         )
       },
-      /** Replace a sent draft with its new thread; navigates to it when the draft is on screen. */
       promote(draftID: string, session: { server: ServerConnection.Key; sessionID: string }) {
         const active = isActive(draftID)
         void startTransition(() => {
@@ -264,7 +243,6 @@ export const { use: useDrafts, provider: DraftsProvider } = createSimpleContext(
         for (const draft of store.filter((item) => item.server === key)) removeDraft(draft.draftID)
         if (server.key === key) navigate("/")
       },
-      /** Reactive state kept across route remounts, keyed by `draftStateKey` or `sessionStateKey`. */
       state<T>(key: string, name: string, init: () => T) {
         return memory.ensure(key, name, init)
       },

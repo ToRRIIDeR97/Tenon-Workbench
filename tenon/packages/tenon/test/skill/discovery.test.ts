@@ -38,7 +38,6 @@ beforeAll(async () => {
       }
       if (url.pathname === "/mutable/mutable/old.md") return new Response("old reference")
 
-      // route /.well-known/skills/* to the fixture directory
       if (url.pathname.startsWith("/.well-known/skills/")) {
         const filePath = url.pathname.replace("/.well-known/skills/", "")
         const fullPath = path.join(fixturePath, filePath)
@@ -101,7 +100,6 @@ describe("Discovery.pull", () => {
 
   it.live("returns empty array for non-json response", () =>
     Effect.gen(function* () {
-      // any url not explicitly handled in server returns 404 text "Not Found"
       const discovery = yield* Discovery.Service
       const dirs = yield* discovery.pull(`http://localhost:${server.port}/some-other-path/`)
       expect(dirs).toEqual([])
@@ -113,13 +111,11 @@ describe("Discovery.pull", () => {
       const fsys = yield* FSUtil.Service
       const discovery = yield* Discovery.Service
       const dirs = yield* discovery.pull(CLOUDFLARE_SKILLS_URL)
-      // find a skill dir that should have reference files (e.g. agents-sdk)
       const agentsSdk = dirs.find((d) => d.endsWith(path.sep + "agents-sdk"))
       expect(agentsSdk).toBeDefined()
       if (agentsSdk) {
         const refs = path.join(agentsSdk, "references")
         expect(yield* fsys.existsSafe(path.join(agentsSdk, "SKILL.md"))).toBe(true)
-        // agents-sdk has reference files per the index
         const refDir = yield* Effect.promise(() =>
           Array.fromAsync(new Bun.Glob("**/*.md").scan({ cwd: refs, onlyFiles: true })),
         )
@@ -130,23 +126,19 @@ describe("Discovery.pull", () => {
 
   it.live("caches downloaded files on second pull", () =>
     Effect.gen(function* () {
-      // clear dir and downloadCount
       yield* Effect.promise(() => rm(cacheDir, { recursive: true, force: true }))
       downloadCount = 0
       const discovery = yield* Discovery.Service
 
-      // first pull to populate cache
       const first = yield* discovery.pull(CLOUDFLARE_SKILLS_URL)
       expect(first.length).toBeGreaterThan(0)
       const firstCount = downloadCount
       expect(firstCount).toBeGreaterThan(0)
 
-      // second pull should return same results from cache
       const second = yield* discovery.pull(CLOUDFLARE_SKILLS_URL)
       expect(second.length).toBe(first.length)
       expect(second.sort()).toEqual(first.sort())
 
-      // second pull should NOT increment download count
       expect(downloadCount).toBe(firstCount)
     }),
   )

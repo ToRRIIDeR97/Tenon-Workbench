@@ -233,10 +233,6 @@ const boot = Effect.fn("test.boot")(function* () {
   return { processors, session, provider }
 })
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
 it.live("session.processor effect tests capture llm input cleanly", () =>
   provideTmpdirServer(
     ({ dir, llm }) =>

@@ -77,16 +77,7 @@ export class NotFoundError extends Schema.TaggedError<NotFoundError>()("Project.
   projectID: ProjectV2.ID,
 }) {}
 
-// ---------------------------------------------------------------------------
-// Effect service
-// ---------------------------------------------------------------------------
-
 export interface Interface {
-  /**
-   * Per-instance setup. Subscribes to the `/init` slash command for the
-   * current instance and stamps the project's initialized timestamp when it
-   * fires. Subscription lifetime is tied to the per-instance state scope.
-   */
   readonly init: () => Effect.Effect<void>
   readonly fromDirectory: (directory: string) => Effect.Effect<{ project: Info; sandbox: string }>
   readonly discover: (input: Info) => Effect.Effect<void>
@@ -104,8 +95,6 @@ export class Service extends Context.Service<Service, Interface>()("@tenon/Proje
 
 type GitResult = { code: number; text: string; stderr: string }
 
-// Icon discovery skips dependency, VCS and build output folders, which can hold many thousands of files.
-// Dot folders are already skipped because the glob does not match dot paths.
 const iconIgnore = ["**/node_modules/**", "**/.git/**", "**/dist/**", "**/build/**", "**/out/**", "**/.next/**"]
 const iconMissLimit = 1_000
 
@@ -174,10 +163,6 @@ const layer = Layer.effect(
                   .run()
               }
 
-              // Project directories may be shared across distinct
-              // checkouts which have diverged. Clear the directory
-              // list and rely on it being re-populated to ensure
-              // accuracy
               yield* d.delete(ProjectDirectoryTable).where(eq(ProjectDirectoryTable.project_id, oldID)).run()
 
               yield* d
@@ -190,8 +175,6 @@ const layer = Layer.effect(
                 .set({ project_id: newID })
                 .where(eq(WorkspaceTable.project_id, oldID))
                 .run()
-              // Saved "always allow" rules would cascade away with the old row. A rule the new
-              // project already has stays put, violates the unique index, and is dropped with it.
               yield* d.run(
                 sql`UPDATE OR IGNORE ${PermissionTable} SET project_id = ${newID} WHERE project_id = ${oldID}`,
               )
@@ -227,7 +210,6 @@ const layer = Layer.effect(
       const data = yield* projectV2.resolve(AbsolutePath.make(directory))
       const worktree = data.id === ProjectV2.ID.make("global") && !data.vcs ? "/" : data.directory
 
-      // Phase 2: upsert
       const projectID = ProjectV2.ID.make(data.id)
       yield* migrateProjectId(data.previous ? ProjectV2.ID.make(data.previous) : undefined, projectID)
       const row = yield* db.select().from(ProjectTable).where(eq(ProjectTable.id, projectID)).get().pipe(Effect.orDie)
@@ -326,7 +308,6 @@ const layer = Layer.effect(
       if (input.icon?.override) return
       if (input.icon?.url) return
 
-      // A worktree already searched without a match is not walked again in this run.
       if (iconMisses.has(input.worktree)) return
 
       const matches = yield* fs

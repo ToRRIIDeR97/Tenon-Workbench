@@ -85,8 +85,6 @@ type FramedTimelineRow = Exclude<TimelineRow.TimelineRow, { _tag: "TurnGap" }>
 type TimelineRowByTag<T extends TimelineRow.TimelineRow["_tag"]> = Extract<TimelineRow.TimelineRow, { _tag: T }>
 
 const timelineFallbackItemSize = 60
-// Matches the TurnSteps row: a 36px summary button plus 8px bottom padding.
-// The folded card's 36px header, plus 12px above it after earlier text and 8px below when it ends its run of the turn.
 const turnStepsRowSize = (row: TimelineRow.TurnSteps) =>
   36 + (row.previousAssistantPart ? 12 : 0) + (row.settled ? 0 : 8)
 const timelineCache = new Map<string, { measurements: VirtualItem[]; toolOpen: Record<string, boolean | undefined> }>()
@@ -257,15 +255,11 @@ export function MessageTimeline(props: {
   onHistoryScroll: () => void
   onAutoScrollInteraction: (event: MouseEvent) => void
   shouldAnchorBottom: () => boolean
-  /** Stops following the bottom, as a scroll up does; called when the user opens or closes a turn's steps. */
   onPauseFollow?: () => void
   centered: boolean
   setContentRef: (el: HTMLDivElement) => void
-  /** Extra controls in the thread header, before the "…" menu (the Environment button). */
   headerActions?: JSX.Element
-  /** Shown in place of the thread's title (the Command Centre's title and thread switcher). */
   headerTitle?: JSX.Element
-  /** A Back button before the title, for a thread opened from the Command Centre. */
   headerBack?: { label: string; onClick: () => void }
   userMessages: UserMessage[]
   anchor: (id: string) => string
@@ -277,7 +271,6 @@ export function MessageTimeline(props: {
 
   const navigate = useNavigate()
   const sdk = useSDK()
-  // A Command Centre thread lists its turn's actions as one Done-for-you list instead of a card per write.
   const commandThread = createMemo(() => isCommandThread(sdk().directory))
   const serverSDK = useServerSDK()
   const sync = useSync()
@@ -353,9 +346,6 @@ export function MessageTimeline(props: {
   })
   const showHeader = createMemo(() => !!(titleValue() || parentID()))
   const [toolOpen, setToolOpen] = createStore<Record<string, boolean | undefined>>(cached?.toolOpen ?? {})
-  // A user toggle wins. Otherwise a card only opens on its own when the user asked for expanded steps (Settings ›
-  // General "Expand shell/edit tool parts"): then it stays open while its steps stream in, and folds unless a step
-  // failed. With both off it stays folded, showing a one-line ticker of the current step while working.
   const turnStepsOpen = (row: TimelineRow.TurnSteps) =>
     toolOpen[`turn:${row.userMessageID}:${row.segment}`] ??
     ((settings.general.shellToolPartsExpanded() || settings.general.editToolPartsExpanded()) &&
@@ -368,7 +358,6 @@ export function MessageTimeline(props: {
     status: sessionStatus,
     showReasoningSummaries: settings.general.showReasoningSummaries,
     inlineComments: () => true,
-    // The TurnSteps card draws its own steps when open, so the step rows never show in the list.
     folded: () => true,
   })
   const activeMessageID = projection.activeMessageID
@@ -380,9 +369,6 @@ export function MessageTimeline(props: {
   const timelineRowByKey = projection.rowByKey
   const timelineRows = projection.rows
 
-  // Agent writes (W5) by turn: a write's assistant message answers the user message whose turn shows it.
-  // An external harness names no message, so its writes go to the turn that was running when they arrived.
-  // Writes without a loaded turn go after the last turn.
   const agentWrites = useAgentWrites()
   const writesByTurn = createMemo(() => {
     const id = sessionID()
@@ -406,7 +392,6 @@ export function MessageTimeline(props: {
     }
     return { turns, loose }
   })
-  /** The writes a row shows below itself: its turn's, when it is the turn's last row. */
   const rowWrites = (row: FramedTimelineRow) => {
     const writes = writesByTurn().turns.get(row.userMessageID)
     if (!writes) return undefined
@@ -486,13 +471,11 @@ export function MessageTimeline(props: {
     observeElementOffset: observeElementOffsetReconnectAware,
     initialOffset: () => (props.shouldAnchorBottom() ? Number.MAX_SAFE_INTEGER : 0),
     initialMeasurementsCache: initialMeasurements,
-    // A turn-steps header has a fixed height; estimating it exactly keeps the rows below it from shifting on mount.
     estimateSize: (index) => {
       const row = timelineRows()[index]
       return row?._tag === "TurnSteps" ? turnStepsRowSize(row) : timelineFallbackItemSize
     },
     scrollToFn: (offset, options, instance) => {
-      // Expose the computed range before core writes an anchor correction so the browser does not clamp it to the old height.
       if (virtualContent) virtualContent.style.height = `${instance.getTotalSize()}px`
       elementScroll(offset, options, instance)
     },
@@ -500,14 +483,11 @@ export function MessageTimeline(props: {
       const rows = timelineRows()
       return (index: number) => {
         const row = rows[index]
-        // ResizeObserver can report a removed element after its row has left the projection.
         if (!row) return `removed:${index}`
         return TimelineRow.key(row)
       }
     },
     anchorTo: "end",
-    // New rows pull the view to the end only while the timeline follows the bottom; virtual-core alone would follow
-    // anyone within `scrollEndThreshold` of it, including someone who scrolled up to read.
     get followOnAppend() {
       return props.shouldAnchorBottom()
     },
@@ -528,10 +508,6 @@ export function MessageTimeline(props: {
     },
   })
   const resizeItem = virtualizer.resizeItem
-  // Opening or closing a card is reading, like scrolling up: stop following the bottom, so the card grows below
-  // its header instead of shoving the thread above it out from under the cursor. Scrolling to the bottom resumes.
-  // The card keeps the clicked row in place itself; the list's own scroll correction for rows above the visible
-  // range would jump the view for a frame first, so it waits until the card has settled.
   let toggledAt = -Infinity
   const holdBottom = () => {
     toggledAt = performance.now()
@@ -567,11 +543,6 @@ export function MessageTimeline(props: {
         })
       })
     }
-    // Within 80px of the end, an end-anchored list scrolls by whatever a row grew (virtual-core's `wasAtEnd`),
-    // whatever `shouldAdjustScrollPositionOnItemSizeChange` says. It only keeps the end while the timeline follows
-    // the bottom: someone reading just above it shouldn't be dragged down by each new step, and a card the user
-    // toggled grows in place.
-    // One owner per resize: the end anchor and one scroll to the end while following, neither just after a toggle.
     const { holdEnd, scrollToEnd } = resizeAnchoring({
       following: props.shouldAnchorBottom(),
       sinceToggleMs: performance.now() - toggledAt,
@@ -825,7 +796,6 @@ export function MessageTimeline(props: {
     return message?.role === "user" ? message.time.created : undefined
   }
 
-  // Tenon's compaction summary, opened from its divider (#332): the summary reply's text in that turn.
   const [summaryOpen, setSummaryOpen] = createStore<Record<string, boolean>>({})
   const summaryText = (userMessageID: string) => {
     const summary = (assistantMessagesByParent().get(userMessageID) ?? []).find(
@@ -876,7 +846,6 @@ export function MessageTimeline(props: {
     })
     const groupOpenKey = () => `context:${row().group.key}`
 
-    // Accessors, so a card follows its part when a whole-message write rebuilds the part objects (#311).
     const renderPart = (part: Accessor<PartType>, message: Accessor<MessageType>) => {
       const defaultOpen = () =>
         partDefaultOpen(part(), settings.general.shellToolPartsExpanded(), settings.general.editToolPartsExpanded())
@@ -968,7 +937,6 @@ export function MessageTimeline(props: {
         <div data-component="session-turn" class="min-w-0 w-full relative" style={{ height: "auto" }}>
           {input.children}
         </div>
-        {/* The turn's agent writes, after its last row; the virtual row's measurement observer picks up their growth. */}
         <Show when={rowWrites(input.row())}>
           {(writes) =>
             commandThread() ? <AgentWritesDone writes={writes()} /> : <AgentWritesInline writes={writes()} />
@@ -1058,7 +1026,6 @@ export function MessageTimeline(props: {
                 <MessageDivider
                   label={(() => {
                     const row = turnDividerRow()
-                    // Seen, not reported: the harness compacted in its own process, and the figures say how we know.
                     if (row.label === "harness-compaction" && row.observed)
                       return language.t("secondBrain.timeline.harnessCompaction", {
                         harness:
@@ -1109,8 +1076,6 @@ export function MessageTimeline(props: {
         const assistantPartRow = row as Accessor<TimelineRowByTag<"AssistantPart">>
         return (
           <TimelineRowFrame row={assistantPartRow}>
-            {/* After a card or earlier text the row's own gap spaces it, so the text part drops its top margin; the
-                turn's first text keeps it as the space below the user's message. */}
             <div
               data-slot="session-turn-message-container"
               class="w-full px-4 md:px-5"
@@ -1134,15 +1099,11 @@ export function MessageTimeline(props: {
             return part ? [part] : []
           }),
         )
-        // Every card times the whole turn from message times, like the turn footer, so the duration doesn't depend on
-        // which parts are visible. A card the turn has moved past shows its duration once the turn ends.
         const working = () => workingTurn(turnStepsRow().userMessageID)
-        // A card with nothing to show (reasoning without text) isn't drawn once the turn has finished.
         const visible = () =>
           working() || hasVisibleSteps(parts(), (part) => readPartText(data.store.part_text_accum_delta, part))
         return (
           <TimelineRowFrame row={turnStepsRow}>
-            {/* Text after the card brings its own gap; a card that ends the turn keeps one below it. */}
             <div
               data-slot="session-turn-message-container"
               class="w-full px-4 md:px-5"
@@ -1276,7 +1237,6 @@ export function MessageTimeline(props: {
           width: "100%",
           height: `${item().size}px`,
           overflow: "clip",
-          // Rounded virtual measurements can otherwise clip a framed row's outer paint.
           "overflow-clip-margin": row()._tag === "TurnGap" ? undefined : "0.5px",
         }}
       >
@@ -1479,7 +1439,6 @@ export function MessageTimeline(props: {
             />
           </Show>
         </div>
-        {/* Writes (W5) this thread's agent made without a known turn, after the last turn. */}
         <Show
           when={commandThread()}
           fallback={<AgentWritesInline writes={writesByTurn().loose} centered={props.centered} />}
@@ -1507,7 +1466,6 @@ const HARNESS_NAMES: Record<string, string> = {
   "command-code": "Command Code",
 }
 
-/** Tokens as the divider shows them: 182k, 41k, 900. */
 function compactTokens(value: number) {
   return value >= 1000 ? `${Math.round(value / 1000)}k` : String(value)
 }

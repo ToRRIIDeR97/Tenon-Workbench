@@ -32,11 +32,6 @@ function remoteProjectID(remote: string) {
   return ProjectV2.ID.make(Hash.fast(`git-remote:${remote}`))
 }
 
-/**
- * Creates a mock ChildProcessSpawner layer that intercepts git subcommands
- * matching `failArg` and returns exit code 128, while delegating everything
- * else to the real CrossSpawnSpawner.
- */
 function mockGitFailure(failArg: string) {
   return Layer.effect(
     ChildProcessSpawner.ChildProcessSpawner,
@@ -267,7 +262,6 @@ describe("Project.fromDirectory git failure paths", () => {
       const tmp = yield* tmpdirScoped()
       yield* Effect.promise(() => $`git init`.cwd(tmp).quiet())
 
-      // rev-list fails because HEAD doesn't exist yet: this is the natural scenario.
       const result = yield* project.fromDirectory(tmp)
       expect(result.project.vcs).toBe("git")
       expect(result.project.id).toBe(ProjectV2.ID.global)
@@ -370,7 +364,6 @@ describe("Project.fromDirectory with worktrees", () => {
       const project = yield* Project.Service
       const tmp = yield* tmpdirScoped({ git: true })
 
-      // Create a bare remote, push, then clone into a second directory
       const bare = tmp + "-bare"
       const clone = tmp + "-clone"
       yield* Effect.addFinalizer(() =>
@@ -487,7 +480,6 @@ describe("Project.discover", () => {
       yield* project.discover(result.project)
       expect((yield* project.get(result.project.id))!.icon).toBeUndefined()
 
-      // The worktree was searched without a match, so a favicon added later waits for the next run.
       yield* Effect.promise(() => Bun.write(path.join(tmp, "favicon.png"), pngData))
       yield* project.discover(result.project)
       expect((yield* project.get(result.project.id))!.icon).toBeUndefined()

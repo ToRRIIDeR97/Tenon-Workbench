@@ -10,11 +10,6 @@ import type { PromptModel } from "@/context/prompt"
 import { SDKProvider, useSDK } from "@/context/sdk"
 import { useProviders } from "@/hooks/use-providers"
 
-/**
- * The model pill for a composer outside a folder's providers (Home, the Command Centre). For the built-in agent it
- * mounts the folder's own model selection here: the same one a new thread in that folder starts from. It reports
- * the model and reasoning so the page can start the thread with them.
- */
 export function FolderModelPill(props: {
   directory: string
   harness: PromptInputHarnessController

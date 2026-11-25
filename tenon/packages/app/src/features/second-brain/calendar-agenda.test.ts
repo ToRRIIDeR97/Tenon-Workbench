@@ -1,9 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { scheduleBounds } from "./calendar-domain"
 
-// Acceptance test for implementations/harness-ux-batch-2 (AC-10): the agenda lists today and later, not days
-// that have passed.
-
 describe("AC-10 scheduleBounds", () => {
   const week = { start: "2026-11-16", end: "2026-11-22" }
 

@@ -17,22 +17,6 @@ import path from "node:path"
 import { ulid } from "ulid"
 import { BrainProject } from "../project/brain"
 
-/**
- * The Tenon vault: one machine-wide folder of readable Markdown, outside every code folder.
- *
- *   <root>/<Workspace>/workspace.json            { version, id, name, repository? }  (no machine paths)
- *   <root>/<Workspace>/<page>.md                 workspace pages
- *   <root>/<Workspace>/<Project>/project.json    { version, id, name }
- *   <root>/<Workspace>/<Project>/<page>.md       Project pages
- *   <root>/<Workspace>/<Project>/timeline.json   { version, items }
- *   <root>/<Workspace>/<Project>/log/<machine>.md  one append-only file per machine
- *   <root>/<Workspace>/.history/<page>/<epoch>-<hash>.md  earlier versions of a page
- *   <root>/.backups/<timestamp>/<Workspace>/...  originals copied in by a migration
- *
- * Which vault folder belongs to which workspace directory, and this machine's id, live in the app data
- * folder (`vault-machine.json`), never in the vault, so a synced vault carries no absolute paths.
- */
-
 const maxBytes = 5 * 1024 * 1024
 const smallFileLimit = 64 * 1024
 const pageLimit = 1_000
@@ -45,19 +29,11 @@ const projectPattern = /^project_[0-9A-Z]+$/i
 const revisionPattern = /^\d{13}-[0-9a-f]{16}$/
 const reservedKeys = new Set(["id", "title", "updated_at"])
 const conflictPattern = /conflicted copy|\(conflict|\.sync-conflict-/i
-/**
- * OneDrive keeps both copies of a clash by adding the machine name, `Plan-DESKTOP-ABC123.md` or
- * `Plan-LAPTOP-9F2K1.md` (Windows default names are upper case), sometimes with a counter (`-2`).
- */
 const oneDriveConflict = /-(?:DESKTOP|LAPTOP)-[A-Z0-9]{4,}(?:-\d+)?(?=\.[^.]+$|$)/
 const isConflictCopy = (name: string) => conflictPattern.test(name) || oneDriveConflict.test(name)
 const sameName = (left: string, right: string) => left.toLowerCase() === right.toLowerCase()
 const utf8 = new TextDecoder("utf-8", { ignoreBOM: true })
 const locks = KeyedMutex.makeUnsafe<string>()
-/**
- * Folder and page names as compared, never as stored: a synced Mac folder can arrive in NFD while a typed
- * path is NFC, and existing files keep the spelling they have on disk.
- */
 const foldName = (value: string) => value.normalize("NFC").toLowerCase()
 
 export const WorkspaceInfo = Schema.Struct({ id: Schema.String, name: Schema.String, folder: Schema.String })
@@ -68,7 +44,6 @@ export const Properties = Schema.Record(Schema.String, Schema.Unknown)
 
 export const PageInfo = Schema.Struct({
   id: Schema.String,
-  /** Relative to the workspace's vault folder, with `/` separators. */
   path: Schema.String,
   title: Schema.String,
   projectId: Schema.NullOr(Schema.String),
@@ -83,9 +58,7 @@ export type Page = typeof Page.Type
 export const PageWriteInput = Schema.Struct({
   body: Schema.String,
   title: Schema.optional(Schema.String),
-  /** With a Project, `path` is relative to that Project's folder (a path already inside it is kept). */
   projectId: Schema.optional(Schema.String),
-  /** Replaces the page's front matter properties when given. */
   properties: Schema.optional(Properties),
   expectedRevision: Schema.optional(Schema.String),
   create: Schema.optional(Schema.Boolean),
@@ -135,7 +108,6 @@ export type Conflict = typeof Conflict.Type
 
 export const MigrateResult = Schema.Struct({
   moved: Schema.Number,
-  /** Relative to the vault root; null when nothing was moved. */
   backup: Schema.NullOr(Schema.String),
 })
 export type MigrateResult = typeof MigrateResult.Type
@@ -152,35 +124,26 @@ export class ConflictError extends Schema.TaggedError<ConflictError>()("Knowledg
   reason: Schema.String,
 }) {}
 
-/** What the vault knows about the request's workspace. `directory` is only used for the machine-local map. */
 export interface Workspace {
   readonly directory: string
   readonly name: string
-  /** A machine-independent id of the workspace (the git root commit), used to find its folder on a new machine. */
   readonly repository?: string
 }
 
-/** An opened workspace folder of the vault. */
 export interface Vault {
   readonly root: string
   readonly folder: string
-  /** Canonical path of the workspace's vault folder; every read and write stays inside it. */
   readonly directory: string
   readonly id: string
   readonly name: string
   readonly machine: string
 }
 
-/** `TENON_VAULT_DIR` when set, else `<home>/Documents/Tenon`. `api` lets tests check both platforms. */
 export function rootFor(env: Record<string, string | undefined>, home: string, api: path.PlatformPath = path) {
   const chosen = env.TENON_VAULT_DIR?.trim()
   return api.resolve(chosen || api.join(home, "Documents", "Tenon"))
 }
 
-/**
- * Whether `root` is, or sits inside, one of `folders` (a workspace or Project code folder). Windows paths
- * compare without letter case. `api` lets tests check both platforms.
- */
 export function rootInside(root: string, folders: ReadonlyArray<string>, api: path.PlatformPath = path) {
   const fold = (value: string) => (api === path.win32 ? value.toLowerCase() : value)
   return folders.some((folder) => {
@@ -189,10 +152,6 @@ export function rootInside(root: string, folders: ReadonlyArray<string>, api: pa
   })
 }
 
-/**
- * Find or create the workspace's folder under the vault root. A root inside this workspace or one of
- * its linked Project folders is refused, so vault writes can never land in a code folder.
- */
 export const open = Effect.fn("KnowledgeVault.open")(function* (workspace: Workspace) {
   const fs = yield* FSUtil.Service
   const global = yield* Global.Service
@@ -209,8 +168,6 @@ export const open = Effect.fn("KnowledgeVault.open")(function* (workspace: Works
       const mapped = machine.roots[root]?.[workspace.directory]
       const scan = yield* workspaceFolders(root)
       const folders = scan.found
-      // A vault moved to a new root (Settings copies it) keeps its workspace ids, so the id this
-      // directory had under an earlier root still finds its folder.
       const known =
         mapped ??
         Object.values(machine.roots)
@@ -219,8 +176,6 @@ export const open = Effect.fn("KnowledgeVault.open")(function* (workspace: Works
       const found =
         folders.find((item) => known !== undefined && item.id === known) ??
         (workspace.repository ? folders.find((item) => item.repository === workspace.repository) : undefined)
-      // This workspace may well have a folder, behind a file that could not be read (a sync lock, an offline
-      // placeholder, a half-synced file). A new folder would fork the vault; a really deleted one lists clean.
       const expected =
         workspace.repository !== undefined ||
         Object.values(machine.roots).some((directories) => directories[workspace.directory] !== undefined)
@@ -237,20 +192,12 @@ export const open = Effect.fn("KnowledgeVault.open")(function* (workspace: Works
   )
 })
 
-/**
- * The workspace folders this machine has opened a vault for, under any root. A workspace that is not a git
- * repository has no project record of its own, so this is how the server finds it again.
- */
 export const knownWorkspaces = Effect.fn("KnowledgeVault.knownWorkspaces")(function* () {
   const { machine } = yield* loadMachine()
   if (machine === undefined) return []
   return [...new Set(Object.values(machine.roots).flatMap((directories) => Object.keys(directories)))]
 })
 
-/**
- * The stored roots (vault root → workspace directory → workspace id), read directly for callers that have
- * no Effect services or must stay synchronous. A missing or damaged map reads as empty.
- */
 export function machineRoots(data: string): Machine["roots"] {
   try {
     const decoded = Schema.decodeUnknownOption(Schema.fromJsonString(Machine))(
@@ -262,11 +209,6 @@ export function machineRoots(data: string): Machine["roots"] {
   }
 }
 
-/**
- * Workspace directories with a vault folder under `root`. Settings copies the vault to a new root and each
- * directory is only mapped there when next opened, so an earlier root's entry counts while its id is among
- * `ids`, the workspace ids found under `root`.
- */
 export function workspacesUnder(roots: Machine["roots"], root: string, ids: ReadonlySet<string>) {
   const directories = Object.entries(roots).flatMap(([key, mapped]) =>
     Object.entries(mapped)
@@ -276,7 +218,6 @@ export function workspacesUnder(roots: Machine["roots"], root: string, ids: Read
   return [...new Set(directories)]
 }
 
-/** `workspacesUnder` for the current root, with plain fs: the scheduler and app tools run under Node. */
 export async function currentWorkspaces(root: string, data: string) {
   const entries = await readdir(root, { withFileTypes: true }).catch(() => [])
   const ids = await Promise.all(
@@ -292,7 +233,6 @@ export async function currentWorkspaces(root: string, data: string) {
   return workspacesUnder(machineRoots(data), root, new Set(ids.filter((id) => id !== undefined)))
 }
 
-/** The vault's view of an opened instance: its directory, a display name and, for a repository, its id. */
 export function workspaceFor(context: { directory: string; project: { id: string; name?: string } }): Workspace {
   return {
     directory: context.directory,
@@ -338,10 +278,6 @@ export const listPages = Effect.fn("KnowledgeVault.listPages")(function* (
     .slice(0, pageLimit)
 })
 
-/**
- * Every page under one top-level folder, bodies included, without reading the rest of the vault. The folder
- * matches in any letter case (a case-sensitive volume may hold `routines/`), and `pageLimit` doesn't apply.
- */
 export const folderPages = Effect.fn("KnowledgeVault.folderPages")(function* (vault: Vault, name: string) {
   const fs = yield* FSUtil.Service
   const entries = yield* fs.readDirectoryEntries(vault.directory).pipe(Effect.orElseSucceed(() => []))
@@ -370,10 +306,6 @@ export const folderPages = Effect.fn("KnowledgeVault.folderPages")(function* (va
   return pages.filter((page): page is Page => page !== undefined)
 })
 
-/**
- * Ids of the workspaces under `root` that have a top-level `name` folder in any letter case. Plain file
- * reads, so a background check can skip a workspace without booting an instance for it.
- */
 export async function workspacesWithFolder(root: string, name: string) {
   const ids = new Set<string>()
   const folders = await readdir(root, { withFileTypes: true }).catch(() => [])
@@ -444,7 +376,6 @@ export const writePage = Effect.fn("KnowledgeVault.writePage")(function* (
   const current = yield* readPageFile(vault, full, projects, byFolder)
   if (write.expectedRevision !== undefined && write.expectedRevision !== current.revision)
     return yield* new ConflictError({ reason: "stale" })
-  // Each save moves `updated_at` forward, so version names (keyed by it) stay in save order.
   const previous = Date.parse(current.info.updatedAt)
   const updatedAt =
     Number.isFinite(previous) && previous >= Date.parse(now) ? new Date(previous + 1).toISOString() : now
@@ -463,10 +394,6 @@ export const writePage = Effect.fn("KnowledgeVault.writePage")(function* (
   return decode(full, source, byFolder)
 })
 
-/**
- * A page path inside a Project's folder, relative to the workspace folder (a path already inside it is
- * kept). A Project without a vault folder yet has no pages, so its paths read as missing.
- */
 export const projectPagePath = Effect.fn("KnowledgeVault.projectPagePath")(function* (
   vault: Vault,
   projectId: string,
@@ -478,7 +405,6 @@ export const projectPagePath = Effect.fn("KnowledgeVault.projectPagePath")(funct
   return yield* pagePath(insideFolder(relative, folder))
 })
 
-/** Remove a page while it still has `expectedRevision`, keeping the removed version in its history. */
 export const removePage = Effect.fn("KnowledgeVault.removePage")(function* (
   vault: Vault,
   input: string,
@@ -496,7 +422,6 @@ export const removePage = Effect.fn("KnowledgeVault.removePage")(function* (
   forgetPage(target.canonical)
 })
 
-/** Earlier versions of a page, newest first. */
 export const pageHistory = Effect.fn("KnowledgeVault.pageHistory")(function* (vault: Vault, input: string) {
   return (yield* versions(vault, yield* pagePath(input))).slice(0, historyLimit).map((name) => ({
     revision: name,
@@ -517,7 +442,6 @@ export const pageVersion = Effect.fn("KnowledgeVault.pageVersion")(function* (
   return { revision, body: decode(relative, utf8.decode(bytes), new Map()).body }
 })
 
-/** The history route: the version list, or one version when `revision` is given. */
 export const history = Effect.fn("KnowledgeVault.history")(function* (vault: Vault, input: string, revision?: string) {
   if (revision === undefined) return yield* pageHistory(vault, input)
   return yield* pageVersion(vault, input, revision)
@@ -543,7 +467,6 @@ export const writeTimeline = Effect.fn("KnowledgeVault.writeTimeline")(function*
   if (input.expectedRevision !== undefined && input.expectedRevision !== file.revision)
     return yield* new ConflictError({ reason: "stale" })
   const source = JSON.stringify({ version: 1, items }, null, 2) + "\n"
-  // A damaged file read as empty, and it may be nearly complete after a bad sync: keep its bytes beside it.
   if (file.damaged && file.bytes !== undefined) {
     const copy = yield* resolveInside(vault, `${folder}/timeline.json.corrupt-${Date.now()}`)
     yield* files
@@ -565,7 +488,6 @@ export const writeTimeline = Effect.fn("KnowledgeVault.writeTimeline")(function*
   return timeline(projectId, hash(source), items)
 })
 
-/** Every machine's log of a Project, merged, newest first. */
 export const readLog = Effect.fn("KnowledgeVault.readLog")(function* (vault: Vault, projectId: string) {
   const fs = yield* FSUtil.Service
   const folder = yield* existingProjectFolder(vault, projectId)
@@ -580,7 +502,6 @@ export const readLog = Effect.fn("KnowledgeVault.readLog")(function* (vault: Vau
         const bytes = yield* readSmall(target.canonical, maxBytes)
         return bytes === undefined ? [] : parseLog(utf8.decode(bytes), entry.name.slice(0, -3))
       }).pipe(
-        // Above the read cap a machine's whole log drops out of the list while appends continue.
         Effect.catch((error) =>
           Effect.logWarning("Skipping unreadable vault log", {
             file: entry.name,
@@ -602,7 +523,6 @@ export const readLog = Effect.fn("KnowledgeVault.readLog")(function* (vault: Vau
     .map((item) => item.entry)
 })
 
-/** Append one line to this machine's own log file, so synced machines never edit the same file. */
 export const appendLog = Effect.fn("KnowledgeVault.appendLog")(function* (
   vault: Vault,
   projectId: string,
@@ -617,8 +537,6 @@ export const appendLog = Effect.fn("KnowledgeVault.appendLog")(function* (
   const target = yield* resolveInside(vault, `${folder}/log/${vault.machine}.md`)
   const entry = { at: new Date().toISOString(), author, text, machine: vault.machine }
   yield* fs.ensureDir(path.dirname(target.canonical))
-  // Appending (no rename) keeps the file's identity, which sync clients merge best. An append follows
-  // links, so anything but a regular file (or nothing) at the log path is refused first.
   yield* locks.withLock(`file:${target.canonical}`)(
     Effect.gen(function* () {
       const kind = yield* entryKind(target.canonical)
@@ -631,7 +549,6 @@ export const appendLog = Effect.fn("KnowledgeVault.appendLog")(function* (
   return entry
 })
 
-/** Remove one entry this machine appended (the last identical line); stale when it is no longer there. */
 export const removeLogEntry = Effect.fn("KnowledgeVault.removeLogEntry")(function* (
   vault: Vault,
   projectId: string,
@@ -657,7 +574,6 @@ export const removeLogEntry = Effect.fn("KnowledgeVault.removeLogEntry")(functio
   )
 })
 
-/** Sync conflict copies (Dropbox, OneDrive, Syncthing style names) in the workspace's vault folder. */
 export const conflicts = Effect.fn("KnowledgeVault.conflicts")(function* (vault: Vault) {
   const fs = yield* FSUtil.Service
   const files = yield* fs.glob("**/*", { cwd: vault.directory, absolute: false, include: "file", dot: false })
@@ -668,10 +584,6 @@ export const conflicts = Effect.fn("KnowledgeVault.conflicts")(function* (vault:
     .map((file) => ({ path: file, original: conflictOriginal(file) }))
 })
 
-/**
- * The file a conflict copy was made from: `Plan (conflicted copy 2026-11-02).md` → `Plan.md`, and
- * `Plan-DESKTOP-ABC123.md` → `Plan.md`.
- */
 export function conflictOriginal(file: string) {
   const name = path.posix.basename(file)
   const original = name
@@ -683,12 +595,6 @@ export function conflictOriginal(file: string) {
   return directory === "." ? original : `${directory}/${original}`
 }
 
-/**
- * Move notes written next to code into the vault: copy every note from `<workspace>/notes/**` and the
- * Project card folders, then back them up under `<root>/.backups/<timestamp>/`, then remove the
- * originals. Nothing is removed unless every copy and backup succeeded. Migrations of one workspace folder
- * run one at a time, so a caller that waited finds the notes already moved and moves nothing.
- */
 export const migrate = Effect.fn("KnowledgeVault.migrate")(function* (vault: Vault) {
   return yield* locks.withLock(`migrate:${vault.directory}`)(migrateNotes(vault))
 })
@@ -726,7 +632,6 @@ const migrateNotes = Effect.fnUntraced(function* (vault: Vault) {
 
   yield* Effect.forEach(notes, (note) => copyInto(vault, note.destination, note.bytes), { discard: true })
   const backup = `.backups/${new Date().toISOString().replace(/[:.]/g, "-")}`
-  // Backups sit beside the workspace folders, so they are contained by the real vault root.
   const root = yield* fs.realPath(vault.root)
   yield* Effect.forEach(
     notes,
@@ -737,7 +642,6 @@ const migrateNotes = Effect.fnUntraced(function* (vault: Vault) {
     { discard: true },
   )
   yield* Effect.forEach(notes, (note) => files.remove({ target: note.target }), { discard: true })
-  // Remove folders the move emptied, deepest first; rmdir leaves any folder that still holds something.
   const folders = [...new Set(notes.flatMap((note) => parents(note.source)))].sort((a, b) => b.length - a.length)
   yield* Effect.forEach(
     folders,
@@ -748,12 +652,9 @@ const migrateNotes = Effect.fnUntraced(function* (vault: Vault) {
   return { moved: notes.length, backup }
 })
 
-// ---- workspace folders and the machine map ----
-
 const Machine = Schema.Struct({
   version: Schema.Literal(1),
   machine: Schema.String,
-  /** vault root → workspace directory → workspace id. Lives in app data, never in the vault. */
   roots: Schema.Record(Schema.String, Schema.Record(Schema.String, Schema.String)),
 })
 type Machine = typeof Machine.Type
@@ -767,7 +668,6 @@ const WorkspaceFile = Schema.Struct({
 
 const ProjectFile = Schema.Struct({ version: Schema.Literal(1), id: Schema.String, name: Schema.String })
 
-/** The stored map, without writing. Only a missing file reads as absent; other read errors fail, since a reset would lose it. */
 const loadMachine = Effect.fnUntraced(function* () {
   const fs = yield* FSUtil.Service
   const global = yield* Global.Service
@@ -805,7 +705,6 @@ const writeMachine = Effect.fnUntraced(function* (machine: Machine) {
 
 const machinePattern = /^[A-Za-z0-9-]{1,60}$/
 
-/** A readable, file-safe machine id: the host name plus a random suffix so two hosts never share a log. */
 export function machineName(host: string) {
   const base =
     host
@@ -815,11 +714,6 @@ export function machineName(host: string) {
   return `${base}-${randomBytes(3).toString("hex")}`
 }
 
-/**
- * Read `name` from each visible folder of `directory`. A folder without the file is simply not one of ours;
- * anything else (a read error, a body `decode` refuses, a failed listing) lands in `unreadable`, relative to
- * `directory`, so a caller never takes a failure for "no such folder here".
- */
 const scanFolders = Effect.fnUntraced(function* <A>(
   directory: string,
   name: string,
@@ -892,26 +786,21 @@ export function uniqueFolder(base: string, taken: ReadonlyArray<string>) {
   }
 }
 
-// ---- Project folders ----
-
 const scanProjects = (vault: Vault) =>
   scanFolders(vault.directory, "project.json", (source, folder) => {
     const file = Schema.decodeUnknownOption(Schema.fromJsonString(ProjectFile))(source)
     return Option.isSome(file) && projectPattern.test(file.value.id) ? ([file.value.id, folder] as const) : undefined
   })
 
-/** Project id → folder name, from each top-level folder's `project.json`. */
 const projectFolders = (vault: Vault) => scanProjects(vault).pipe(Effect.map((scan) => new Map(scan.found)))
 
 const existingProjectFolder = Effect.fnUntraced(function* (vault: Vault, projectId: string) {
   if (!projectPattern.test(projectId)) return yield* new InvalidError({ reason: "invalid_project" })
   const folder = (yield* projectFolders(vault)).get(projectId)
-  // A Project without a vault folder yet must still exist in the workspace.
   if (folder === undefined) yield* BrainProject.get(projectId)
   return folder
 })
 
-/** The Project's readable folder in the vault, created (named after the Project) on first use. */
 const ensureProjectFolder = Effect.fnUntraced(function* (vault: Vault, projectId: string) {
   const existing = yield* existingProjectFolder(vault, projectId)
   if (existing !== undefined) return existing
@@ -923,7 +812,6 @@ const ensureProjectFolder = Effect.fnUntraced(function* (vault: Vault, projectId
       const scan = yield* scanProjects(vault)
       const again = new Map(scan.found).get(projectId)
       if (again !== undefined) return again
-      // The Project's folder may be the one that could not be read; a new one would fork it.
       if (scan.unreadable.length > 0) return yield* unavailable(scan.unreadable[0])
       const entries = yield* fs.readDirectoryEntries(vault.directory).pipe(Effect.orElseSucceed(() => []))
       const folder = uniqueFolder(
@@ -940,12 +828,6 @@ const ensureProjectFolder = Effect.fnUntraced(function* (vault: Vault, projectId
   )
 })
 
-// ---- pages ----
-
-/**
- * A page path relative to the workspace folder: `/`-separated, ending in `.md`, without empty, dot, `..`
- * or hidden segments, absolute or drive paths, backslashes, characters Windows refuses, or reserved names.
- */
 export function isPagePath(value: string) {
   if (!value || value.length > pathLimit || !value.toLowerCase().endsWith(".md")) return false
   if (value.includes("\\") || value.startsWith("/") || /[\u0000-\u001f<>:"|?*]/.test(value)) return false
@@ -965,22 +847,11 @@ export function isPagePath(value: string) {
 const pagePath = (value: string) =>
   isPagePath(value) ? Effect.succeed(value) : Effect.fail(new InvalidError({ reason: "invalid_path" }))
 
-/**
- * `relative` inside the top-level `folder`, in the folder's spelling on disk; a path already inside it is
- * not nested again.
- */
 function insideFolder(relative: string, folder: string) {
   const [top, ...rest] = relative.split("/")
   return rest.length > 0 && foldName(top) === foldName(folder) ? [folder, ...rest].join("/") : `${folder}/${relative}`
 }
 
-/**
- * The path a new page is created at, or undefined when refused. The file name is stored in NFC. Folders keep
- * the spelling given, so a page lands in the folder a listing named instead of an NFC sibling on NTFS, and a
- * Project folder takes its spelling on disk. A stem ending in a dot or space is refused because
- * `.history/<stem>` would become a folder name Windows tools mishandle; such a page already on disk stays
- * listed and writable.
- */
 export function newPagePath(value: string, projects: ReadonlyMap<string, string>) {
   const folders = value.split("/")
   const name = folders.pop()!.normalize("NFC")
@@ -990,7 +861,6 @@ export function newPagePath(value: string, projects: ReadonlyMap<string, string>
   return folder === undefined ? normal : insideFolder(normal, folder)
 }
 
-/** Folded top-level folder name → project id, built once per listing so per-file checks stay O(1). */
 function projectFolderIndex(projects: ReadonlyMap<string, string>): ReadonlyMap<string, string> {
   const index = new Map<string, string>()
   for (const [id, folder] of projects) {
@@ -1000,7 +870,6 @@ function projectFolderIndex(projects: ReadonlyMap<string, string>): ReadonlyMap<
   return index
 }
 
-/** Listed pages skip machine logs and sync conflict copies (shown by `conflicts`). */
 function isListedPage(file: string, byFolder: ReadonlyMap<string, string>) {
   return isPagePath(file) && isWritablePageFolder(file, byFolder) && !isConflictCopy(path.posix.basename(file))
 }
@@ -1014,7 +883,6 @@ function isWritablePage(file: string, projects: ReadonlyMap<string, string>) {
   return isWritablePageFolder(file, projectFolderIndex(projects))
 }
 
-/** The Project whose top-level folder holds the page, matched as `isWritablePage` matches it. */
 function projectOfFolder(relative: string, byFolder: ReadonlyMap<string, string>) {
   const slash = relative.indexOf("/")
   if (slash === -1) return null
@@ -1039,9 +907,6 @@ const readPageFile = Effect.fnUntraced(function* (
   return { ...page, bytes }
 })
 
-// Parsed pages for listing and search, keyed by canonical path (so each workspace has its own entries) and
-// reused while the file's size and modification time are unchanged. `relative` is checked too, since two links
-// can share a canonical path. Bounded by count and by search text; the least recently used entries go first.
 const pageCache = new Map<string, { relative: string; mtime: number; size: number; info: PageInfo; text?: string }>()
 const pageCacheLimit = 5_000
 const pageTextLimit = 32 * 1024 * 1024
@@ -1052,13 +917,6 @@ function forgetPage(canonical: string) {
   pageCache.delete(canonical)
 }
 
-/**
- * A listed page's info and, for a search, its lowercased text. Containment runs on every call, so a page
- * swapped for a link out of the vault stops listing even with a cached entry. `projectId` is worked out here
- * rather than cached: it depends on the workspace's `project.json` files, not on this file. A file with no
- * usable modification time is always read, and the stat comes before the read, so a change in between only
- * costs a miss next time.
- */
 const listedPage = Effect.fnUntraced(function* (
   vault: Vault,
   relative: string,
@@ -1114,7 +972,6 @@ const listedPage = Effect.fnUntraced(function* (
 
 function decode(relative: string, raw: string, byFolder: ReadonlyMap<string, string>): PageFile {
   const bom = raw.startsWith("﻿")
-  // Untrusted Markdown: never evaluates `---js` front matter and caps its size.
   const parsed = Frontmatter.parse(bom ? raw.slice(1) : raw)
   const data = { ...(parsed.data as Record<string, unknown>) }
   const title = typeof data.title === "string" ? data.title.trim() : ""
@@ -1132,7 +989,6 @@ function decode(relative: string, raw: string, byFolder: ReadonlyMap<string, str
           .filter(([key]) => !reservedKeys.has(key))
           .map(([key, value]) => [key, value instanceof Date ? value.toISOString() : value]),
       ),
-      // Front matter is hand-editable; a date that does not parse reads as "" (unknown) rather than as text.
       updatedAt:
         typeof data.updated_at === "string" && Number.isFinite(Date.parse(data.updated_at))
           ? data.updated_at
@@ -1154,13 +1010,10 @@ function encode(
   bom: boolean,
 ) {
   const rest = Object.fromEntries(Object.entries(properties).filter(([key]) => !reservedKeys.has(key)))
-  // Never through gray-matter's string form, which parses the body first: a body opening with its own front
-  // matter would merge into the page's properties, and a `---js` block would be evaluated.
   const source = Frontmatter.stringify(body, { id: head.id, title: head.title, ...rest, updated_at: head.updatedAt })
   return bom ? `﻿${source}` : source
 }
 
-/** Front matter properties: simple keys and JSON scalars or lists of them; null when invalid. */
 function validProperties(properties: Record<string, unknown>) {
   const scalar = (value: unknown) =>
     value === null ||
@@ -1177,8 +1030,6 @@ function validProperties(properties: Record<string, unknown>) {
   )
   return valid ? properties : null
 }
-
-// ---- history ----
 
 function historyFolder(relative: string) {
   return `.history/${relative.slice(0, -3)}`
@@ -1197,7 +1048,6 @@ const versions = Effect.fnUntraced(function* (vault: Vault, relative: string) {
     .reverse()
 })
 
-/** Copy the version about to be overwritten into `.history`, keeping the newest 20. */
 const keepVersion = Effect.fnUntraced(function* (
   vault: Vault,
   relative: string,
@@ -1210,7 +1060,6 @@ const keepVersion = Effect.fnUntraced(function* (
   yield* files
     .create({ target, content: current.bytes })
     .pipe(Effect.catchTag("FileMutation.TargetExistsError", () => Effect.void))
-  // Housekeeping never fails the save it comes with; the next save prunes again.
   yield* versions(vault, relative).pipe(
     Effect.flatMap((all) =>
       Effect.forEach(
@@ -1226,8 +1075,6 @@ const keepVersion = Effect.fnUntraced(function* (
   )
 })
 
-// ---- timeline and log ----
-
 const TimelineFile = Schema.Struct({ version: Schema.Literal(1), items: Schema.Array(TimelineItem) })
 
 const timelineFile = Effect.fnUntraced(function* (vault: Vault, folder: string) {
@@ -1235,7 +1082,6 @@ const timelineFile = Effect.fnUntraced(function* (vault: Vault, folder: string) 
   const bytes = yield* readSmall(target.canonical, maxBytes)
   if (bytes === undefined) return { target, bytes, damaged: false, revision: "new", items: [] as TimelineItem[] }
   const decoded = Schema.decodeUnknownOption(Schema.fromJsonString(TimelineFile))(utf8.decode(bytes))
-  // A damaged file reads as empty; its revision still guards it, and a save keeps a copy before replacing it.
   if (Option.isNone(decoded)) yield* Effect.logWarning("Unreadable vault timeline", { folder })
   return {
     target,
@@ -1290,9 +1136,6 @@ export function parseLog(source: string, machine: string) {
   })
 }
 
-// ---- migration ----
-
-/** The Project a moved note belongs to: its card folder, or the first known id in its `project_ids`. */
 const migratedProject = Effect.fnUntraced(function* (source: string, bytes: Uint8Array) {
   const card = /^(?:\.tenon\/)?projects\/(project_[0-9A-Z]+)\/notes\//i.exec(source)?.[1]
   if (card) return card
@@ -1317,7 +1160,6 @@ const migratedProject = Effect.fnUntraced(function* (source: string, bytes: Uint
   return undefined
 })
 
-/** Copy into the vault; an identical page is reused, a different one gets ` (migrated)` in its name. */
 const copyInto = Effect.fnUntraced(function* (vault: Vault, destination: string, bytes: Uint8Array) {
   const files = yield* FileMutation.Service
   for (let index = 1; ; index++) {
@@ -1341,18 +1183,8 @@ function parents(file: string) {
   return segments.flatMap((_, index) => (index >= stop ? [segments.slice(0, index + 1).join("/")] : []))
 }
 
-// ---- shared helpers ----
-
-/**
- * Resolve a validated relative path inside the workspace's vault folder. The nearest existing ancestor
- * is resolved through symlinks, so a link inside the vault cannot lead a read or write outside it.
- */
 const resolveInside = (vault: Vault, relative: string) => resolveUnder(vault.directory, relative)
 
-/**
- * Resolve `relative` under the canonical folder `base`. The walk stops at the nearest entry that exists
- * without following links, so a dangling symlink is caught too: its target must resolve inside `base`.
- */
 const resolveUnder = Effect.fnUntraced(function* (base: string, relative: string) {
   const fs = yield* FSUtil.Service
   const absolute = path.join(base, ...relative.split("/"))
@@ -1367,7 +1199,6 @@ const resolveUnder = Effect.fnUntraced(function* (base: string, relative: string
   return { canonical: path.join(real, path.relative(anchor, absolute)), resource: relative }
 })
 
-/** What sits at `file` without following a final symlink. */
 const entryKind = (file: string) =>
   Effect.tryPromise(() => lstat(file)).pipe(
     Effect.map((stat) =>
@@ -1376,7 +1207,6 @@ const entryKind = (file: string) =>
     Effect.orElseSucceed(() => "missing" as const),
   )
 
-/** File bytes, or undefined when missing; files above `limit` are refused before reading. */
 const readSmall = Effect.fnUntraced(function* (file: string, limit: number) {
   const fs = yield* FSUtil.Service
   const stat = yield* fs
@@ -1388,7 +1218,6 @@ const readSmall = Effect.fnUntraced(function* (file: string, limit: number) {
   return yield* fs.readFile(file).pipe(Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed(undefined)))
 })
 
-/** A small id file's text, or undefined only when it is missing; any other failure stays an error. */
 const readIdFile = (file: string) =>
   readSmall(file, smallFileLimit).pipe(Effect.map((bytes) => (bytes === undefined ? undefined : utf8.decode(bytes))))
 
@@ -1396,17 +1225,12 @@ function hash(source: string) {
   return createHash("sha256").update(source).digest("hex")
 }
 
-/**
- * The first `# Heading` line's text. The regex has no overlapping quantifiers, so it runs in linear
- * time; the closing `#` sequence is trimmed in code for the same reason.
- */
 export function titleFromBody(body: string) {
   const heading = /^ {0,3}#[ \t]+(.*)$/m.exec(body)?.[1]
   if (!heading) return ""
   const text = heading.slice(0, 1000).trimEnd()
   let end = text.length
   while (end > 0 && text[end - 1] === "#") end--
-  // A closing sequence counts only after a space, as in CommonMark: "# C#" keeps its "#".
   const closed = end === 0 || text[end - 1] === " " || text[end - 1] === "\t"
   return (closed ? text.slice(0, end) : text).trim()
 }

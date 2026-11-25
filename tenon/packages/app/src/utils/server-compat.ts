@@ -29,9 +29,7 @@ type CompatibleSessionApi = Omit<
   shell: (input: SessionShellInput & LegacyPrompt) => Promise<SessionShellOutput>
   compact: (input: SessionCompactInput & { model?: LegacyPrompt["model"] }) => Promise<SessionCompactOutput>
   rename: (input: Parameters<SessionApi["rename"]>[0] & LegacyLocation) => ReturnType<SessionApi["rename"]>
-  // archive: (input: Parameters<SessionApi["archive"]>[0] & LegacyLocation) => ReturnType<SessionApi["archive"]>
   remove: (input: Parameters<SessionApi["remove"]>[0] & LegacyLocation) => ReturnType<SessionApi["remove"]>
-  // The vendored client predates these routes, so they go through the workspace SDK.
   queuedRemove: (input: QueuedActionInput) => Promise<void>
   queuedSteer: (input: QueuedActionInput) => Promise<void>
 }
@@ -63,15 +61,12 @@ type CompatibleInput = {
   directory?: string
 }
 
-// Servers without queued-input actions (V1, and V2 before withdraw/steer) cannot change the server queue.
 export class QueuedActionsUnsupportedError extends Error {
   constructor() {
     super("This server cannot change queued messages")
   }
 }
 
-// An unmatched API route answers with an untagged local 404, unlike the tagged errors of the real routes.
-// The SDK error interceptor keeps the response body and status on the thrown error's cause.
 function unsupportedRoute(error: unknown): never {
   const cause = error instanceof Error ? (error.cause as { body?: unknown; status?: unknown } | undefined) : undefined
   const body = cause?.body
@@ -150,8 +145,6 @@ export function createCompatibleApi(input: CompatibleInput): CompatibleApi {
   return lazyApi(
     input.protocol.then(async (protocol) => {
       if (protocol === "v1") return v1
-      // The managed sidecar exposes session execution through V2 and these operations through legacy routes.
-      // It has no V2 session delete, so `remove` uses the legacy route too.
       if (await input.legacyProjectsAndMcp)
         return {
           ...current,
@@ -261,9 +254,6 @@ function createV1Api(input: CompatibleInput): CompatibleApi {
       async rename(value: Parameters<ServerApi["session"]["rename"]>[0] & LegacyLocation) {
         await legacy(value).session.update({ sessionID: value.sessionID, title: value.title })
       },
-      // async archive(value: Parameters<ServerApi["session"]["archive"]>[0] & LegacyLocation) {
-      //   await legacy(value).session.update({ sessionID: value.sessionID, time: { archived: Date.now() } })
-      // },
       async remove(value: Parameters<ServerApi["session"]["remove"]>[0] & LegacyLocation) {
         await legacy(value).session.delete(value)
       },
@@ -312,7 +302,6 @@ function createV1Api(input: CompatibleInput): CompatibleApi {
             })),
           ],
         })
-        // V1 ignores delivery and handles every follow-up as a steer.
         return { ...pendingUser(value), delivery: "steer" as const }
       },
       async command(value: SessionCommandInput) {
@@ -366,7 +355,6 @@ function createV1Api(input: CompatibleInput): CompatibleApi {
       },
       revert: {
         stage: async (value: Parameters<ServerApi["session"]["revert"]["stage"]>[0]) => {
-          // V1 servers always restore files; refuse rather than silently changing them.
           if (value.files === false) throw new Error("This server cannot rewind messages without restoring files")
           await legacy().session.revert({ sessionID: value.sessionID, messageID: value.messageID })
           return { messageID: value.messageID }
@@ -387,15 +375,6 @@ function createV1Api(input: CompatibleInput): CompatibleApi {
         if (!result.data) throw new Error("Project not found")
         return { id: result.data.id, directory: result.data.worktree } satisfies ProjectCurrent
       },
-      // async update(value: Parameters<ServerApi["project"]["update"]>[0]) {
-      //   const project = (await legacy().project.list()).data?.find((item) => item.id === value.projectID)
-      //   const result = await legacy({ directory: project?.worktree }).project.update({
-      //     ...value,
-      //     directory: project?.worktree,
-      //   })
-      //   if (!result.data) throw new Error(`Project not found: ${value.projectID}`)
-      //   return result.data as Project
-      // },
       async directories(value: Parameters<ServerApi["project"]["directories"]>[0]) {
         const result = await legacy(value.location).worktree.list()
         return (result.data ?? []).map((item) => ({ directory: item }))
@@ -432,20 +411,8 @@ function createV1Api(input: CompatibleInput): CompatibleApi {
         },
       },
     },
-    // path: {
-    //   ...input.current.path,
-    //   async get(value?: Parameters<ServerApi["path"]["get"]>[0]) {
-    //     const result = await legacy(value?.location).path.get()
-    //     if (!result.data) throw new Error("Path unavailable")
-    //     return result.data
-    //   },
-    // },
     vcs: {
       ...input.current.vcs,
-      // async get(value?: Parameters<ServerApi["vcs"]["get"]>[0]) {
-      //   const result = await legacy(value?.location).vcs.get()
-      //   return located({ branch: result.data?.branch, defaultBranch: result.data?.default_branch }, value?.location)
-      // },
       async status(value?: Parameters<ServerApi["vcs"]["status"]>[0]) {
         const result = await legacy(value?.location).vcs.status()
         return located(result.data ?? [], value?.location)
@@ -561,9 +528,6 @@ function createV1Api(input: CompatibleInput): CompatibleApi {
     },
     pty: {
       ...input.current.pty,
-      // async shells(value?: Parameters<ServerApi["pty"]["shells"]>[0]) {
-      //   return located((await legacy(value?.location).pty.shells()).data ?? [], value?.location)
-      // },
       async list(value?: Parameters<ServerApi["pty"]["list"]>[0]) {
         return located((await legacy(value?.location).pty.list()).data ?? [], value?.location)
       },
@@ -595,11 +559,6 @@ function createV1Api(input: CompatibleInput): CompatibleApi {
       async remove(value: Parameters<ServerApi["pty"]["remove"]>[0]) {
         await legacy(value.location).pty.remove({ ptyID: value.ptyID })
       },
-      // async connectToken(value: Parameters<ServerApi["pty"]["connectToken"]>[0]) {
-      //   const result = await legacy(value.location).pty.connectToken({ ptyID: value.ptyID })
-      //   if (!result.data) throw new Error(`Failed to connect terminal: ${value.ptyID}`)
-      //   return located(result.data, value.location)
-      // },
     },
     permission: {
       ...input.current.permission,

@@ -108,7 +108,6 @@ const layer = Layer.effect(
     const config = (yield* (yield* Config.Service).entries())
       .filter((entry): entry is Config.Document => entry.type === "document")
       .flatMap((item) => item.info.watcher?.ignore ?? [])
-    // Git folders are watched as before; a folder outside git too, unless it is the home folder or a root.
     if (
       (location.vcs || !isBroadFolder(location.directory, os.homedir())) &&
       (yield* Flag.TENON_EXPERIMENTAL_FILEWATCHER)

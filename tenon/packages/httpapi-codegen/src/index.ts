@@ -67,9 +67,6 @@ type Slot = {
   readonly schema: Schema.Top
 }
 
-// Mirrors HttpApiSchema's internal status lookup: `HttpApiSchema.status` stores
-// the code as a key annotation (`ast.context`) unless the schema or one of its
-// checks already carries an ordinary `httpApiStatus` annotation.
 function resolveHttpApiStatus(ast: SchemaAST.AST): number | undefined {
   const annotations = findHttpApiStatusAnnotations(ast)
   if (annotations !== undefined) return annotations.httpApiStatus as number | undefined
@@ -582,8 +579,6 @@ function identifierPart(value: string) {
     .join("")
 }
 
-// The encoded side of `toCodecJson(Schema.Unknown)` is Effect's internal JSON
-// declaration, which carries no `toCode` callback; render it as `Schema.Json`.
 const jsonRepresentations = new Set(["effect/schema/Json", "effect/schema/MutableJson"])
 const jsonCode = () => ({ runtime: "Schema.Json", Type: "Schema.Json" })
 
@@ -699,8 +694,6 @@ function normalizeTransport(
               : Array.from(rebuilt.error)[0]
   if (normalized === undefined) throw new GenerationError({ reason: `Unportable schema: ${operation}.${source}` })
   if (!sameEncoding(schema.ast, normalized.ast)) return { schema, effectPortable: false } as const
-  // Only `_tag`-keyed error classes can be re-emitted as standalone Effect
-  // code; other classes (for example `name`-keyed errors) need the import.
   if (isClassDeclaration(schema.ast) && taggedErrorFields(schema) === undefined)
     return { schema, effectPortable: false } as const
   return { schema: decoded, effectPortable: true } as const
@@ -754,9 +747,6 @@ function sameEncoding(left: SchemaAST.AST, right: SchemaAST.AST): boolean {
   return true
 }
 
-// Effect 4.1 builds a fresh `fromJsonString` transformation per schema, so
-// identity no longer matches across rebuilds. Treat two schema-preserving JSON
-// content transformations (no reviver or replacer) as the same encoding.
 const contentTypeId = Symbol.for("~effect/Schema/content")
 
 function jsonContent(transformation: object) {
@@ -790,8 +780,6 @@ function sameChecks(left: SchemaAST.Checks | undefined, right: SchemaAST.Checks 
 }
 
 function sameContext(left: SchemaAST.Context | undefined, right: SchemaAST.Context | undefined) {
-  // A missing context means required and immutable. Effect 4.1 can attach a
-  // default context (for example one that only carries key annotations).
   return (
     (left?.isOptional ?? false) === (right?.isOptional ?? false) &&
     (left?.isMutable ?? false) === (right?.isMutable ?? false)
@@ -981,9 +969,6 @@ function metadataPortable(ast: SchemaAST.AST, seen: Set<SchemaAST.AST>): boolean
   return true
 }
 
-// Effect 4.1 replaced the static `generation` annotation with a `toCode`
-// callback. Call it with placeholder type parameters and apply the same rules:
-// the runtime must come from `Schema` or an `effect` namespace import.
 const placeholderTypeParameters = new Proxy([], {
   get: (target, key) =>
     typeof key === "string" && /^\d+$/.test(key) ? { runtime: "?", Type: "?" } : Reflect.get(target, key),
@@ -1078,11 +1063,8 @@ function isDataEnvelope(schema: Schema.Top) {
   )
 }
 
-// NDJSON streams (added in Effect 4.1) are not generated; only SSE and byte streams are.
 type StreamSchema = Exclude<HttpApiSchema.StreamSchema, { readonly _tag: "StreamNdjson" }>
 
-// Effect 4.1 types stream `events` and `error` as `Schema.Constraint`; at runtime
-// they are full schemas, which the generator walks as `Schema.Top`.
 const streamEvents = (schema: Extract<StreamSchema, { readonly _tag: "StreamSse" }>) => schema.events as Schema.Top
 const streamError = (schema: Extract<StreamSchema, { readonly _tag: "StreamSse" }>) => schema.error as Schema.Top
 
@@ -1096,9 +1078,6 @@ function streamDataSchema(schema: Extract<StreamSchema, { readonly _tag: "Stream
 
 function streamEncodedDataSchema(schema: Extract<StreamSchema, { readonly _tag: "StreamSse" }>) {
   const data = streamDataAst(schema.events.ast)
-  // Effect 4.1 no longer annotates the JSON string with `contentSchema`. The SSE
-  // data field is `fromJsonString(toCodecJson(data))`: drop that final JSON
-  // string link and take the encoded side of what remains.
   const links = data.encoding
   const last = links?.at(-1)
   if (
@@ -1276,8 +1255,6 @@ function renderSchemas(slots: ReadonlyArray<Slot>) {
   const declarations = slots.map((slot, index) => {
     const tagged = classes.get(index)
     if (tagged === undefined) {
-      // Key annotations (`HttpApiSchema.status`) live in the AST context, which
-      // the code document does not render; restore the status explicitly.
       const status = keyHttpApiStatus(slot.schema.ast)
       const annotate = status === undefined ? "" : `.annotate({ "httpApiStatus": ${JSON.stringify(status)} })`
       return `const ${slot.name} = ${document.codes[index].runtime}${annotate}`

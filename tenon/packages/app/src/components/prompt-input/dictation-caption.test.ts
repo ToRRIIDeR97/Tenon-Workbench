@@ -14,7 +14,6 @@ describe("AC-6 the live caption only grows", () => {
 
   test("a window that slid past the first words keeps them", () => {
     const previous = "one two three four five six seven eight nine ten"
-    // The engine's window dropped "one two"; the first word it kept was half cut off and heard as "tree".
     const next = "tree four five six seven eight nine ten eleven twelve"
     expect(mergeCaption(previous, next)).toBe("one two three four five six seven eight nine ten eleven twelve")
   })
@@ -36,7 +35,6 @@ describe("AC-6 the live caption only grows", () => {
     for (let end = 4; ; end = Math.min(words.length, end + 3)) {
       const start = Math.max(0, end - windowWords)
       const window = words.slice(start, end)
-      // Whenever the window has slid, its first word is a cut-off fragment the model mishears.
       if (start > 0) window[0] = "garbled"
       caption = mergeCaption(caption, window.join(" "))
       if (end === words.length) break

@@ -70,7 +70,6 @@ test("auto-accept responds for an unfocused server session", async ({ page }) =>
     .toBe(true)
   await page.keyboard.press("Escape")
 
-  // Threads on another server have no sidebar row; open one through an in-app link (client-side navigation).
   await page.evaluate((href) => {
     const link = document.createElement("a")
     link.href = href

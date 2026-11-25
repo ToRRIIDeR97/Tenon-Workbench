@@ -36,16 +36,12 @@ import { logStartupTiming } from "@/util/startup-timing"
 
 type State = {
   hooks: Hooks[]
-  // Plugin name or spec per hooks object, for diagnostics only.
   sources: WeakMap<Hooks, string>
 }
 
 const HOOK_TIMEOUT = "30 seconds"
-// A throw from these hooks is the documented way for a plugin to block the operation, so a
-// failure or timeout must still abort it instead of being logged and skipped.
 const BLOCKING_HOOKS = new Set<string>(["tool.execute.before", "command.execute.before"])
 
-// Hook names that follow the (input, output) => Promise<void> trigger pattern
 type TriggerName = {
   [K in keyof Hooks]-?: NonNullable<Hooks[K]> extends (input: any, output: any) => Promise<void> ? K : never
 }[keyof Hooks]
@@ -70,10 +66,8 @@ export function experimentalWebSocketsEnabled(input: { enabled: boolean; channel
   return input.enabled || ["local", "dev", "beta"].includes(input.channel ?? InstallationChannel)
 }
 
-// Built-in plugins that are directly imported (not installed from npm)
 function internalPlugins(flags: RuntimeFlags.Info): PluginInstance[] {
   return [
-    // Temporary rollout: pre-release builds use WebSockets by default; releases require explicit opt-in.
     (input) =>
       CodexAuthPlugin(input, {
         experimentalWebSockets: experimentalWebSocketsEnabled({ enabled: flags.experimentalWebSockets }),
@@ -233,8 +227,6 @@ const layer = Layer.effect(
             continue
           }
 
-          // Keep plugin execution sequential so hook registration and execution
-          // order remains deterministic across plugin runs.
           const start = hooks.length
           yield* Effect.tryPromise({
             try: () => applyPlugin(load, input, hooks),
@@ -246,19 +238,12 @@ const layer = Layer.effect(
             logStartupTiming(`plugin.external.${index}`),
             Effect.tapError((error) => Effect.logError("failed to load plugin", { path: load.spec, error })),
             Effect.catch(() => {
-              // TODO: make proper events for this
-              // events.publish(Session.Event.Error, {
-              //   error: new NamedError.Unknown({
-              //     message: `Failed to load plugin ${load.spec}: ${message}`,
-              //   }).toObject(),
-              // })
               return Effect.void
             }),
           )
           for (const hook of hooks.slice(start)) sources.set(hook, load.spec)
         }
 
-        // Notify plugins of current config
         for (const hook of hooks) {
           yield* Effect.tryPromise({
             try: () => Promise.resolve((hook as any).config?.(cfg)),
@@ -274,7 +259,6 @@ const layer = Layer.effect(
           return Effect.sync(() => {
             for (const hook of hooks) {
               if (!hook.event) continue
-              // A sync throw must not stop delivery to later plugins, and a rejection must not go unhandled.
               Promise.resolve()
                 .then(() => hook.event?.({ event: { id: event.id, type: event.type, properties: event.data } as any }))
                 .catch((error) =>

@@ -124,7 +124,6 @@ export interface Interface {
     readonly list: (repository: Repository) => Effect.Effect<readonly Worktree[], WorktreeError>
   }
   readonly index: {
-    /** Refresh only the requested project-relative scope, preserving all other entries. */
     readonly refresh: (input: {
       repository: Repository
       scope: RelativePath
@@ -190,7 +189,6 @@ const layer = Layer.effect(
 
       const cwd = path.dirname(dotgit)
       const git = run(cwd, proc)
-      // One process answers all three on a normal checkout; starting git costs most on Windows.
       const combined = yield* git(["rev-parse", "--show-toplevel", "--git-dir", "--git-common-dir"])
       const lines = combined.text.trim().split(/\r?\n/)
       if (combined.exitCode === 0 && lines.length === 3)
@@ -199,7 +197,6 @@ const layer = Layer.effect(
           gitDirectory: AbsolutePath.make(resolvePath(cwd, lines[1]!)),
           commonDirectory: AbsolutePath.make(resolvePath(cwd, lines[2]!)),
         })
-      // A bare repository has no top level, which fails the combined call.
       const topLevel = yield* git(["rev-parse", "--show-toplevel"])
       const gitDir = yield* git(["rev-parse", "--git-dir"])
       const commonDir = yield* git(["rev-parse", "--git-common-dir"])
@@ -599,7 +596,6 @@ const layer = Layer.effect(
       const stats = new Map<string, string[]>()
       const patches = new Map<string, string>()
       const textual = (file: RelativePath) => stats.has(file) && !binary(stats.get(file))
-      // Batch pathspecs so the command line stays under the Windows length limit.
       yield* Effect.forEach(
         Array.from({ length: Math.ceil(paths.length / 100) }, (_, index) =>
           paths.slice(index * 100, index * 100 + 100),
@@ -620,7 +616,6 @@ const layer = Layer.effect(
               })
             const files = batch.filter(textual)
             if (!files.length) return
-            // A file's patch is every section whose header names it; type changes produce two.
             const headers = new Map(
               files.map((file) => [`diff --git ${quote(`a/${file}`)} ${quote(`b/${file}`)}`, file]),
             )
@@ -634,7 +629,6 @@ const layer = Layer.effect(
           }),
         { discard: true },
       )
-      // A configured diff prefix or an external diff leaves headers unmatched; diff those files alone.
       yield* Effect.forEach(
         paths.filter((file) => textual(file) && !patches.has(file)),
         (file) =>
@@ -811,7 +805,6 @@ const layer = Layer.effect(
             (cause) => new PatchError({ operation: "capture", directory: input.path, message: cause.message, cause }),
           ),
           Effect.flatMap((result) =>
-            // git diff --no-index returns 1 when differences were found.
             result.exitCode === 0 || result.exitCode === 1
               ? Effect.succeed(result.text)
               : Effect.fail(
@@ -864,7 +857,6 @@ const layer = Layer.effect(
     }) {
       const scope = path.relative(input.repository.worktree, input.path).replaceAll("\\", "/") || "."
       if (input.index === "reset") {
-        // Unstage first: `checkout HEAD` would leave a staged new file staged, so `clean` couldn't remove it.
         const unstage = yield* execute(
           input.repository.worktree,
           proc,
@@ -1053,7 +1045,6 @@ function binary(stats: readonly string[] | undefined) {
   return stats?.[0] === "-" || stats?.[1] === "-"
 }
 
-// Mirrors git's default core.quotePath header quoting: C escapes, octal for other control and non-ASCII bytes.
 function quote(name: string) {
   const escapes: Record<number, string> = {
     7: "a",
@@ -1080,11 +1071,8 @@ function quote(name: string) {
   return `"${body}"`
 }
 
-// A hung git (stale lock, credential prompt, network) would otherwise stall every later
-// snapshot step queued behind the per-repository lock. Network operations stay unbounded.
 function timeout(operation: OperationError["operation"]): Duration.Input | undefined {
   if (operation === "clone" || operation === "fetch") return undefined
-  // These scan or write the whole worktree and can legitimately take minutes on large repositories.
   if (operation === "checkout" || operation === "reset" || operation === "refresh" || operation === "restore")
     return "10 minutes"
   return "30 seconds"

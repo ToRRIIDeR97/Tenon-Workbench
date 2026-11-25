@@ -75,7 +75,6 @@ describe("Command Centre threads", () => {
 
 describe("Command Centre transcript reads", () => {
   type Entry = { id: string; role: "user" | "assistant"; completed?: number; parts: Array<[string, string]> }
-  // Each part is [type, text]; a text part named in `streamed` reads its accumulated delta instead.
   const transcript = (entries: Entry[], streamed: Record<string, string> = {}): CommandTranscript => ({
     message: {
       thread: entries.map(
@@ -136,7 +135,6 @@ describe("Command Centre transcript reads", () => {
   })
 
   test("the values on the fixtures", () => {
-    // Line breaks and spacing are kept: the reply is drawn as Markdown, where they carry lists and paragraphs.
     expect(lastReplyText(fixtures.streaming, "thread").replace(/\s+/g, " ")).toBe("Three meetings, and second part")
     expect(lastReplyText(fixtures.streaming, "thread")).toContain("\n")
     expect(lastReplyText(fixtures.userLast, "thread")).toBe("Old reply")

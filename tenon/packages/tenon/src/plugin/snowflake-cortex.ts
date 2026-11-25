@@ -175,7 +175,6 @@ async function startOAuthServer() {
     const error = url.searchParams.get("error")
     const errorDescription = url.searchParams.get("error_description")
 
-    // CSRF guard: validate state before processing any callback
     if (!pendingOAuth || state !== pendingOAuth.state) {
       const message = "Invalid state - potential CSRF attack"
       pendingOAuth?.reject(new Error(message))

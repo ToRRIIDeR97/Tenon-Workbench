@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { computerUseNotice, installCommand } from "./project-computer-use-model"
 
-// #333 (variant B): the Project's own switch, and what the user must still do before it works.
 describe("AC-22 the Project's computer use card", () => {
   test("a missing driver shows how to install it, for the platform", () => {
     expect(computerUseNotice({ enabled: true, installed: false, permissions: "unknown", platform: "win32" })).toBe(

@@ -26,11 +26,6 @@ type DownloadInput = {
   onProgress: (received: number) => void
 }
 
-/**
- * Streams the model to a `.part` file, checks its size and SHA-256, then moves it into place. A
- * dropped connection keeps the `.part` and the next attempt resumes it with a Range request; a server
- * that ignores the Range starts over. Cancelling removes it, since the download wasn't wanted.
- */
 export async function downloadModel(input: DownloadInput) {
   await transfer(input).catch(async (error: unknown) => {
     if (input.signal.aborted) {
@@ -55,7 +50,6 @@ async function transfer(input: DownloadInput) {
     await rm(partial, { force: true })
     have = 0
   }
-  // Network drives may not report free space; the write then fails with ENOSPC instead.
   const free = await statfs(dirname(partial)).then(
     (info) => info.bavail * info.bsize,
     () => Infinity,

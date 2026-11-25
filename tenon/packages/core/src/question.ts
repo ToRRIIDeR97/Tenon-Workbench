@@ -43,7 +43,6 @@ export class NotFoundError extends Schema.TaggedError<NotFoundError>()("Question
 }) {}
 
 export interface AskInput {
-  /** A caller-chosen ID, so the caller can withdraw the question with `reject` later. */
   readonly id?: ID
   readonly sessionID: SessionSchema.ID
   readonly questions: ReadonlyArray<Info>
@@ -69,11 +68,6 @@ interface Pending {
   readonly deferred: Deferred.Deferred<ReadonlyArray<Answer>, RejectedError>
 }
 
-/**
- * Location-owned pending prompts. The Location layer map must materialize this
- * layer once per embedded Location so replies cannot settle another Location's
- * deferred request.
- */
 const layer = Layer.effect(
   Service,
   Effect.gen(function* () {

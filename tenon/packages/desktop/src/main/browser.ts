@@ -8,14 +8,8 @@ import { renderSvg } from "./svg-render"
 import { indicate, watch } from "./computer-indicator"
 import { deviceInput, deviceLogs, deviceScreenshot, deviceStatus, installApp, launchApp } from "./device"
 
-// The Workbench panel's browser: one WebContentsView laid over the panel's Browser tab, in its own
-// session so it shares no cookies, storage or permissions with the app. The user drives it from the
-// panel; agents drive it through the `tenon` MCP server, which reaches this module over a loopback
-// HTTP bridge guarded by a bearer token (TENON_BROWSER_URL / TENON_BROWSER_TOKEN in the server's env).
 const PARTITION = "persist:tenon-browser"
 const MAX_LOG = 100
-// How long after a browser tool returns its page-driven navigation still counts as the agent's: a click
-// reports done before the navigation it started reaches this process, and a meta refresh follows the load.
 const AGENT_SETTLE_MS = 1000
 
 type Bounds = { x: number; y: number; width: number; height: number }
@@ -26,14 +20,10 @@ const state = {
   window: undefined as BrowserWindow | undefined,
   bounds: undefined as Bounds | undefined,
   visible: false,
-  // Why the last main-frame navigation has no page; cleared when the next one starts.
   failure: undefined as BrowserFailure | undefined,
-  // A main-frame navigation has committed in this view; until then getURL() can be the pending address.
   committed: false,
   log: [] as LogEntry[],
-  // The app's own server; the browser never loads it, so pages can't reach its API.
   blocked: new Set<string>(),
-  // Agent browser tools in flight, the hosts the user allowed for them, and the hosts being asked about now.
   agentCalls: 0,
   allowedHosts: new Set<string>(),
   askingHosts: new Set<string>(),
@@ -59,8 +49,6 @@ function ensureView() {
     webPreferences: { partition: PARTITION, sandbox: true, contextIsolation: true, nodeIntegration: false },
   })
   const contents = view.webContents
-  // While an agent's tool is in flight, a page-driven hop to a new site is held for the same dialog as
-  // browser_navigate, then loaded again if the user says yes. Returns whether it was held.
   const holdForConsent = (url: string) => {
     const window = state.window
     if (!window || !URL.canParse(url) || !needsAgentConsent(new URL(url), state.agentCalls, state.allowedHosts))
@@ -85,10 +73,8 @@ function ensureView() {
     if (event.isMainFrame && holdForConsent(event.url)) event.preventDefault()
   })
   contents.on("console-message", (event) => push({ level: event.level, text: event.message }))
-  // A failed load, crash or rejected certificate used to leave the same blank white view as no page at all.
   contents.on("did-start-navigation", (event) => {
     if (!event.isMainFrame || event.isSameDocument) return
-    // Until it commits, the stage shows loading over the old page rather than a blank native view.
     state.committed = false
     state.failure = undefined
     sendState()
@@ -112,7 +98,6 @@ function ensureView() {
     sendState()
   })
   contents.on("certificate-error", (event, url, error, _certificate, callback, isMainFrame) => {
-    // Never trust a bad certificate; only say why the page didn't load.
     event.preventDefault()
     callback(false)
     if (!isMainFrame) return
@@ -158,12 +143,10 @@ function attach(window: BrowserWindow) {
   return view
 }
 
-/** The panel shows the browser over `bounds` (CSS pixels in the window), or hides it. */
 export function showBrowser(window: BrowserWindow, bounds: Bounds | undefined) {
   const view = attach(window)
   state.visible = !!bounds
   if (bounds) state.bounds = bounds
-  // A hidden view keeps loading and answering agents; it is just moved out of sight.
   view.setBounds(bounds ? roundBounds(bounds, window) : { x: 0, y: 0, width: 0, height: 0 })
   view.setVisible(!!bounds)
   sendState()
@@ -204,7 +187,6 @@ export function browserHistory(direction: "back" | "forward" | "reload") {
   if (direction === "reload") contents.reload()
 }
 
-/** A PNG of the page (or of `rect`, in page CSS pixels), as a data URL. */
 export async function captureBrowser(rect?: Bounds) {
   const contents = state.view?.webContents
   if (!contents) return
@@ -212,8 +194,6 @@ export async function captureBrowser(rect?: Bounds) {
   return image.isEmpty() ? undefined : image.toDataURL()
 }
 
-// Runs in the page's isolated world: outlines the element under the pointer and resolves with the
-// clicked one. Escape cancels. The page's own scripts can't see or spoof it.
 const PICKER = `new Promise((resolve) => {
   const box = document.createElement("div")
   box.style.cssText = "position:fixed;z-index:2147483647;pointer-events:none;outline:2px solid #3b5cf6;background:rgba(59,92,246,.08);border-radius:3px"
@@ -248,7 +228,6 @@ export async function pickElement() {
   return contents.executeJavaScriptInIsolatedWorld(1001, [{ code: PICKER }], true).catch(() => null)
 }
 
-// Visible text and interactive elements, for agents.
 const SNAPSHOT = `(() => {
   const selector = (el) => {
     if (el.id) return "#" + CSS.escape(el.id)
@@ -294,7 +273,6 @@ async function runTool(
   signal: AbortSignal,
 ): Promise<{ text?: string; image?: string }> {
   if (name.startsWith("device_")) return runDeviceTool(name, args)
-  // The computer use pill (#333): shown on each Cua Driver action; Stop answers a held `computer_watch`.
   if (name === "computer_indicator") return indicate(args, nativeTheme.shouldUseDarkColors)
   if (name === "computer_watch") return watch(signal)
   if (name === "render_svg") return renderSvg(String(args.svg ?? ""))
@@ -302,7 +280,6 @@ async function runTool(
   if (!window) throw new Error("Open Tenon Workbench to use its browser.")
   const view = attach(window)
   const contents = view.webContents
-  // Show the user what the agent is doing.
   window.webContents.send("browser-agent", { tool: name })
   if (name === "browser_navigate") {
     const url = normalizeURL(String(args.url ?? ""))
@@ -348,7 +325,6 @@ async function runTool(
   throw new Error(`Unknown tool: ${name}`)
 }
 
-/** Starts the agent bridge and returns its URL and token for the server process's environment. */
 export function startBrowserBridge() {
   const token = randomBytes(32).toString("base64url")
   const expected = Buffer.from(`Bearer ${token}`)
@@ -358,7 +334,6 @@ export function startBrowserBridge() {
         response.writeHead(status, { "content-type": "application/json" })
         response.end(JSON.stringify(body))
       }
-      // Only the server process holds the token; a web page can't set this header cross-origin.
       const given = Buffer.from(request.headers.authorization ?? "")
       if (
         request.method !== "POST" ||
@@ -367,7 +342,6 @@ export function startBrowserBridge() {
         !timingSafeEqual(given, expected)
       )
         return answer(403, { error: "Forbidden" })
-      // An agent that gave up must not leave a dialog open that could still navigate the panel later.
       const abandoned = new AbortController()
       response.once("close", () => {
         if (!response.writableFinished) abandoned.abort()
@@ -400,7 +374,6 @@ export function startBrowserBridge() {
   })
 }
 
-/** Keeps pages in the browser from reaching an origin (the app's own server). */
 export function blockBrowserOrigin(origin: string) {
   state.blocked.add(origin)
 }
@@ -410,7 +383,6 @@ function readJSON(request: IncomingMessage) {
     let body = ""
     request.on("data", (chunk: Buffer) => {
       body += chunk.toString()
-      // render_svg carries a whole diagram; the other tools send a few fields.
       if (body.length > 400_000) request.destroy()
     })
     request.on("end", () => {
@@ -425,7 +397,6 @@ function readJSON(request: IncomingMessage) {
   })
 }
 
-// Device tools act on the named device, or the first running one (an emulator or a booted simulator).
 async function runDeviceTool(name: string, args: Record<string, unknown>): Promise<{ text?: string; image?: string }> {
   const status = await deviceStatus()
   if (name === "device_list") return { text: JSON.stringify(status, null, 1) }

@@ -21,9 +21,6 @@ import { recordedTests } from "../recorded-test"
 const codec = new EventStreamCodec(toUtf8, fromUtf8)
 const utf8Encoder = new TextEncoder()
 
-// Build a single AWS event-stream frame for a Converse stream event. Each
-// frame carries `:message-type=event` + `:event-type=<name>` headers and a
-// JSON payload body.
 const eventFrame = (type: string, payload: object) =>
   codec.encode({
     headers: {
@@ -48,8 +45,6 @@ const concat = (frames: ReadonlyArray<Uint8Array>) => {
 const eventStreamBody = (...payloads: ReadonlyArray<readonly [string, object]>) =>
   concat(payloads.map(([type, payload]) => eventFrame(type, payload)))
 
-// Override the default SSE content-type with the binary event-stream type so
-// the cassette layer treats the body as bytes when recording.
 const fixedBytes = (bytes: Uint8Array) =>
   fixedResponse(bytes.slice().buffer, { headers: { "content-type": "application/vnd.amazon.eventstream" } })
 
@@ -63,8 +58,6 @@ const baseRequest = LLM.request({
   model,
   system: "You are concise.",
   prompt: "Say hello.",
-  // Wire-shape assertions in this file predate the `cache: "auto"` default;
-  // pin the policy off so they only exercise the lowering path itself.
   cache: "none",
   generation: { maxTokens: 64, temperature: 0 },
 })
@@ -89,8 +82,6 @@ describe("Bedrock Converse route", () => {
         LLM.updateRequest(baseRequest, { generation: { maxTokens: 64, temperature: 0, topK: 40 } }),
       )
 
-      // Converse's inferenceConfig has no topK; Anthropic/Nova read it from
-      // additionalModelRequestFields as top_k.
       expect(prepared.body.inferenceConfig).toEqual({ maxTokens: 64, temperature: 0 })
       expect(prepared.body.additionalModelRequestFields).toEqual({ top_k: 40 })
     }),
@@ -256,9 +247,6 @@ describe("Bedrock Converse route", () => {
 
       expect(response.text).toBe("Hello!")
       const finishes = response.events.filter((event) => event.type === "finish")
-      // Bedrock splits the finish across `messageStop` (carries reason) and
-      // `metadata` (carries usage). We consolidate them into a single
-      // terminal `finish` event with both.
       expect(finishes).toHaveLength(1)
       expect(finishes[0]).toMatchObject({ type: "finish", reason: "stop" })
       expect(response.usage).toMatchObject({
@@ -436,7 +424,6 @@ describe("Bedrock Converse route", () => {
       )
 
       expect(prepared.body).toMatchObject({
-        // System: text block followed by cachePoint marker.
         system: [{ text: "System prefix." }, { cachePoint: { type: "default" } }],
         messages: [
           {
@@ -489,7 +476,6 @@ describe("Bedrock Converse route", () => {
               { text: "What is in this image?" },
               { image: { format: "png", source: { bytes: "AAAA" } } },
               { image: { format: "jpeg", source: { bytes: "BBBB" } } },
-              // image/jpg is a non-standard alias; we map it to jpeg.
               { image: { format: "jpeg", source: { bytes: "CCCC" } } },
               { image: { format: "webp", source: { bytes: "DDDD" } } },
             ],
@@ -509,7 +495,6 @@ describe("Bedrock Converse route", () => {
         }),
       )
 
-      // Buffer.from([1,2,3,4,5]).toString("base64") === "AQIDBAU="
       expect(prepared.body).toMatchObject({
         messages: [
           {
@@ -541,9 +526,7 @@ describe("Bedrock Converse route", () => {
           {
             role: "user",
             content: [
-              // Filename round-trips when supplied.
               { document: { format: "pdf", name: "report.pdf", source: { bytes: "UERGREFUQQ==" } } },
-              // Falls back to a stable placeholder when filename is missing.
               { document: { format: "csv", name: "document.csv", source: { bytes: "Q1NWREFUQQ==" } } },
             ],
           },
@@ -653,22 +636,10 @@ describe("Bedrock Converse route", () => {
   )
 })
 
-// Live recorded integration tests. Run with `RECORD=true AWS_ACCESS_KEY_ID=...
-// AWS_SECRET_ACCESS_KEY=... [AWS_SESSION_TOKEN=...] bun run test ...` to refresh
-// cassettes; replay is the default and works without credentials.
-//
-// Region is pinned to us-east-1 in tests so the request URL is stable across
-// machines on replay. If you need to record from a different region (e.g. your
-// account has access elsewhere), pass `BEDROCK_RECORDING_REGION=eu-west-1` —
-// but then commit the resulting cassette and others should record from the
-// same region too.
 const RECORDING_REGION = process.env.BEDROCK_RECORDING_REGION ?? "us-east-1"
 
 const recordedModel = () =>
   AmazonBedrock.configure({
-    // Most newer Anthropic models on Bedrock require a cross-region inference
-    // profile (`us.` prefix). Nova does not require an Anthropic use-case form
-    // and is on-demand-throughput accessible by default for most accounts.
     credentials: {
       region: RECORDING_REGION,
       accessKeyId: process.env.AWS_ACCESS_KEY_ID ?? "fixture",

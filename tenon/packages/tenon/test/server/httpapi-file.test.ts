@@ -98,7 +98,6 @@ function write(directory: string, body: { path: string; content: string; expecte
 
 const sha = (text: string) => createHash("sha256").update(text).digest("hex")
 
-// Symlinks on Windows need Developer Mode or an elevated shell; without the privilege that test skips.
 const canSymlink = await (async () => {
   if (process.platform !== "win32") return true
   const probe = path.join(os.tmpdir(), `tenon-symlink-probe-${process.pid}`)
@@ -173,7 +172,6 @@ describe("file write HttpApi", () => {
     expect(await Bun.file(target).text()).toBe("secret")
   })
 
-  // A directory junction needs no privilege on Windows, so this one runs on both platforms.
   test("doesn't follow a linked folder out of the folder", async () => {
     await using tmp = await tmpdir({ git: true })
     await using outside = await tmpdir()

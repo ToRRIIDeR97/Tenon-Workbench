@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { ARTBOARD, boardCamera, boardLayout, fitCamera, zoomAt } from "../../../../tenon/packages/app/src/pages/session/board-camera"
 
-// AC-12: boards sit on a two-column grid of 1280×800 artboards, 200 apart.
 describe("AC-12 boardLayout", () => {
   test("three boards", () => {
     expect(ARTBOARD).toEqual({ width: 1280, height: 800 })
@@ -14,7 +13,6 @@ describe("AC-12 boardLayout", () => {
   test("none", () => expect(boardLayout(0)).toEqual([]))
 })
 
-// AC-13: the camera fits a rectangle, follows the board being drawn, otherwise shows them all.
 describe("AC-13 camera", () => {
   const viewport = { width: 704, height: 600 }
   test("fitCamera centres the rectangle inside the padding", () => {
@@ -34,7 +32,6 @@ describe("AC-13 camera", () => {
   test("no boards", () => expect(boardCamera({ layout: [], viewport })).toEqual({ x: 0, y: 0, scale: 1 }))
 })
 
-// AC-14: zooming keeps the point under the pointer still and stays within 5%–400%.
 describe("AC-14 zoomAt", () => {
   test("keeps the anchor point fixed", () => {
     const camera = zoomAt({ x: 10, y: 20, scale: 0.5 }, 2, { x: 110, y: 120 })

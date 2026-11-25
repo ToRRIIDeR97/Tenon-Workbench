@@ -29,12 +29,9 @@ import { editDiffs } from "./step-diff"
 import { workspaceRelative } from "./step-path"
 import { SubagentLane, childLaneSteps, laneTokens, subagentLanes, taskSessionID } from "./subagent-lane"
 
-// Loaded when a reasoning note first renders: the renderer starts a highlighting worker, which the step list
-// shouldn't pull in up front (and which `bun test` can't resolve).
 const Markdown = lazy(() => import("@tenon/session-ui/markdown").then((module) => ({ default: module.Markdown })))
 import "./turn-steps-summary.css"
 
-// Fixed order so the phrase list doesn't reshuffle while a turn streams.
 const KIND_ORDER: StepKind[] = [
   "read",
   "search",
@@ -49,7 +46,6 @@ const KIND_ORDER: StepKind[] = [
   "other",
 ]
 
-/** One complete localized phrase per step kind that occurred, e.g. "Read 3 files". */
 export function stepCountPhrases(language: ReturnType<typeof useLanguage>, counts: TurnSteps["counts"]) {
   return stepCounts(counts).map((item) => stepCountPhrase(language, item.kind, item.count))
 }
@@ -65,11 +61,6 @@ function stepCountPhrase(language: ReturnType<typeof useLanguage>, kind: StepKin
   return language.plural(`secondBrain.turnSteps.${kind}`, count, { count: count.toLocaleString(language.intl()) })
 }
 
-/**
- * How long a turn took: from the user's message to the last assistant message's completion. It comes from message
- * times rather than the parts a card shows, so it doesn't change with which parts are visible (reasoning shown or
- * hidden), and the live counter, the card and the turn footer agree.
- */
 export function turnDuration(created: number | undefined, completed: readonly (number | undefined)[]) {
   const ends = completed.filter((value): value is number => typeof value === "number")
   if (created === undefined || ends.length === 0) return undefined
@@ -77,22 +68,18 @@ export function turnDuration(created: number | undefined, completed: readonly (n
   return end < created ? undefined : end - created
 }
 
-/** Whether a card has anything to show: a tool step, or a reasoning note with text. */
 export function hasVisibleSteps(parts: readonly Part[], text: (part: ReasoningPart) => string | undefined) {
   return parts.some((part) => part.type === "tool" || (part.type === "reasoning" && !!text(part)?.trim()))
 }
 
-/** How long the open card takes to fold, from its height: 300 ms for a few rows, up to 700 ms for a long list. */
 export function foldDuration(height: number) {
   return Math.round(Math.min(700, Math.max(300, 220 + height * 0.5)))
 }
 
 const GROUPED = new Set<StepKind>(["read", "search", "edit", "run", "fetch"])
 const isRunning = (part: ToolPart) => part.state.status === "pending" || part.state.status === "running"
-// A call the user declined or stopped errored, but it's the user's choice, so it reads muted rather than red.
 const isFailed = (part: ToolPart) => part.state.status === "error" && !isDeclined(part) && !isStopped(part)
 
-/** The note on a step Tenon blocked without asking the user, saying why; the harness calls it declined. */
 export function blockedNote(part: ToolPart) {
   const blocked = blockedBy(part)
   if (!blocked) return undefined
@@ -102,16 +89,11 @@ export function blockedNote(part: ToolPart) {
 }
 
 const isSubagent = (part: ToolPart) => stepOf(part).kind === "subagent"
-// Paths, patterns, commands and URLs read as code; a question or an agent's task reads as prose.
 const codeTarget = (kind: StepKind) =>
   kind === "read" || kind === "search" || kind === "edit" || kind === "run" || kind === "fetch"
 const isThinking = (part: ReasoningPart) => part.time?.end === undefined
 const stepRunning = (part: ToolPart | ReasoningPart) => (part.type === "tool" ? isRunning(part) : isThinking(part))
 
-/**
- * The step the ticker shows: the latest one still in progress, else the latest one. A reasoning part counts as a
- * step, so the agent's thinking reads as a line in the card. Subagents have lanes instead.
- */
 export function tickerStep(parts: readonly Part[]) {
   const steps = parts.filter(
     (part): part is ToolPart | ReasoningPart =>
@@ -120,10 +102,6 @@ export function tickerStep(parts: readonly Part[]) {
   return steps.findLast(stepRunning) ?? steps.at(-1)
 }
 
-/**
- * What a reasoning summary is on now, for the ticker: its latest heading or bold title line, else the first
- * sentence of its latest paragraph. Harnesses that send plain prose change topic paragraph by paragraph.
- */
 export function reasoningTopic(text: string) {
   const markdown = text.replace(/\r\n?/g, "\n")
   const title = markdown
@@ -149,17 +127,9 @@ function plain(value: string) {
   )
 }
 
-/**
- * Keeps the row the user clicked where it is on screen while the card grows or shrinks around it. The timeline
- * otherwise keeps whatever lies below steady, so a card whose header has scrolled off the top grows upward.
- */
 function keepInPlace(element: Element) {
   const scroller = scrollParent(element)
   if (!scroller) return
-  // The browser's scroll anchoring would hold content below the card steady and grow the card upward; turn it off
-  // while the card animates, then correct any drift the list's own measuring causes.
-  // Pausing auto-scroll sets the property again right after the click, so it's re-applied every frame and the
-  // last value anyone else set comes back at the end.
   let anchoring = scroller.style.overflowAnchor
   const suppress = () => {
     if (scroller.style.overflowAnchor === "none") return
@@ -175,9 +145,6 @@ function keepInPlace(element: Element) {
     const drift = element.getBoundingClientRect().top - start
     if (Math.abs(drift) >= 1) scroller.scrollTop += drift
   }
-  // Resize callbacks run after layout and before paint, so a correction made there lands in the frame the card grew
-  // in. Corrected only from requestAnimationFrame it landed a frame late, and near the end of the thread, where the
-  // scroll position is clamped, the card visibly jittered.
   const observer = new ResizeObserver(correct)
   const card = element.closest('[data-slot="turn-steps"]')
   if (card) observer.observe(card)
@@ -199,11 +166,9 @@ function scrollParent(element: Element) {
   return undefined
 }
 
-/** What an open step row shows: the error, or a command with its output, or the tool's output. */
 export function toolDetail(part: ToolPart) {
   const state = part.state
   if (state.status === "error") return state.error
-  // A running command streams its output through metadata, so an open row shows it live.
   const raw =
     state.status === "completed"
       ? state.output
@@ -211,7 +176,6 @@ export function toolDetail(part: ToolPart) {
         ? state.metadata.output
         : undefined
   if (raw === undefined) return undefined
-  // Escape sequences from terminals; the row is plain text.
   // oxlint-disable-next-line no-control-regex
   const output = raw
     .replace(/\u001b\[[0-9;]*[A-Za-z]/g, "")
@@ -242,30 +206,19 @@ export function TurnStepsSummary(props: {
   durationMs?: number
   open: boolean
   onToggle: (open: boolean) => void
-  /** Called before a row inside the open card opens or closes, which changes the card's height. */
   onResize?: () => void
-  /**
-   * Opens the side panel's Agents tab, on the given subagent or on the list without one. Lanes become buttons and
-   * the lanes block gets an "Agents" link when this is set.
-   */
   onOpenSubagent?: (part?: ToolPart) => void
-  /**
-   * "grouped" (default) is one card whose same-kind steps merge into one row. "rows" lists each step as its own
-   * line straight in the thread while the card works, the current one highlighted, then folds into the card.
-   */
   layout?: "grouped" | "rows"
 }) {
   const language = useLanguage()
   const settings = useSettings()
   const summary = createMemo(() => summarizeTurn(props.parts))
   const counts = createMemo(() => stepCounts(summary().counts))
-  // Working in the "rows" layout there is no card: no header, and the steps always show.
   const transcript = () => props.layout === "rows" && props.working
   const shown = () => transcript() || props.open
   const live = () => props.working && !shown()
   const data = useData()
   const fileComponent = useFileComponent()
-  // A new value whenever the step or the reasoning topic changes, so the keyed ticker slides the new line in.
   const ticker = createMemo(
     () => {
       const part = live() ? tickerStep(props.parts) : undefined
@@ -276,8 +229,6 @@ export function TurnStepsSummary(props: {
     undefined,
     { equals: (a, b) => a?.part === b?.part && a?.topic === b?.topic },
   )
-  // Finished lanes stay, with a full bar, until the turn ends so parallel subagents don't jump around.
-  // A `task` agent's steps are its child session's tool calls, when that session is loaded.
   const childParts = (sessionID: string) =>
     (data.store.message[sessionID] ?? []).flatMap((message) => data.store.part[message.id] ?? [])
   const childSteps = (part: ToolPart) => {
@@ -289,11 +240,8 @@ export function TurnStepsSummary(props: {
     const id = taskSessionID(part)
     return id ? data.store.session.find((session) => session.id === id) : undefined
   }
-  // The body's rows mount on first open and stay, so closing animates instead of emptying at once.
   const [body, setBody] = createStore({
     mounted: shown(),
-    // Set once the card opens while on screen: the timeline remounts rows on scroll, and an open card coming back
-    // into view shouldn't replay its entrance.
     animate: false,
     expanded: {} as Record<string, boolean>,
     seen: {} as Record<string, boolean>,
@@ -305,16 +253,12 @@ export function TurnStepsSummary(props: {
       (open, previous) => {
         if (open) setBody("mounted", true)
         if (open && previous === false) setBody("animate", true)
-        // A taller card takes longer to fold, so a long list doesn't snap shut. Set before the frame paints, so the
-        // transition that starts from this change already uses it.
         const rows = bodyEl?.querySelector<HTMLElement>('[data-slot="turn-steps-rows"]')
         if (!open && previous && rows)
           bodyEl?.style.setProperty("--turn-steps-close", `${foldDuration(rows.scrollHeight)}ms`)
       },
     ),
   )
-  // Rows built a frame or more after the body mounted are steps that just arrived, and slide in. Rows built with the
-  // body (its first open, or the timeline remounting the card on scroll) don't, so nothing replays.
   const [arriving, setArriving] = createSignal(false)
   createEffect(() => {
     if (!body.mounted) return
@@ -329,11 +273,9 @@ export function TurnStepsSummary(props: {
       setBody("seen", id, true)
       return setBody("expanded", id, !open)
     }
-    // First open: mount the panel closed, then open it a frame later so it grows instead of appearing.
     setBody("seen", id, true)
     requestAnimationFrame(() => setBody("expanded", id, true))
   }
-  // One clock drives the turn and step timers; it only ticks while the turn works.
   const [now, setNow] = createSignal(Date.now())
   createEffect(() => {
     if (!props.working) return
@@ -357,7 +299,6 @@ export function TurnStepsSummary(props: {
 
   const label = (part: ToolPart) => {
     const step = stepOf(part)
-    // Subagent rows show the agent's task, else its type, which are data rather than copy.
     if (step.kind === "subagent") {
       const named = subagentName(part.state.input)
       const name = named.name ?? named.tag
@@ -365,17 +306,14 @@ export function TurnStepsSummary(props: {
     }
     return language.t(stepVerbKey(step.kind, isRunning(part)))
   }
-  // A subagent row's task is already its label, so the agent type takes the target's place.
   const rowTarget = (part: ToolPart) => {
     const step = stepOf(part)
     if (step.kind !== "subagent") return step.target
     const named = subagentName(part.state.input)
     return named.name ? named.tag : undefined
   }
-  // Paths read relative to the workspace; the full target stays in the tooltip.
   const shortTarget = (target: string) => workspaceRelative(target, data.directory)
   const fullTitle = (target: string) => (shortTarget(target) === target ? undefined : target)
-  // The "Expand shell/edit tool parts" settings open those steps until the user toggles them.
   const startsOpen = (part: ToolPart) => {
     const kind = stepOf(part).kind
     if (kind === "run") return settings.general.shellToolPartsExpanded()
@@ -384,7 +322,6 @@ export function TurnStepsSummary(props: {
   }
   const openable = (part: ToolPart) => (part.tool === "acp_subagent" ? props.onOpenSubagent : undefined)
   const startOf = (part: ToolPart) => (part.state.status === "running" ? part.state.time.start : undefined)
-  // Finished steps show how long they took, from a second up.
   const tookOf = (part: ToolPart) => {
     const state = part.state
     if (state.status !== "completed" && state.status !== "error") return undefined
@@ -392,13 +329,11 @@ export function TurnStepsSummary(props: {
     return ms >= 1000 ? formatTurnDuration(language, ms) : undefined
   }
 
-  // One step: a tool row that opens to its output, or a reasoning note that opens to its full text.
   const stepRow = (part: Part, index: number) => (
     <>
       <Show when={part.type === "tool" ? part : undefined}>
         {(tool) => {
           const detail = createMemo(() => toolDetail(tool()))
-          // An edit opens to its diff instead of the tool's "applied" text.
           const diffs = createMemo(() => editDiffs(tool()))
           const expandable = () => diffs().length > 0 || !!detail()
           const open = () => body.expanded[tool().id] ?? (expandable() && startsOpen(tool()))
@@ -478,7 +413,6 @@ export function TurnStepsSummary(props: {
                   />
                 </Show>
               </button>
-              {/* Mounted on first open and kept, so closing animates like the card itself. */}
               <Show when={mounted() && diffs().length > 0}>
                 <div data-slot="turn-steps-reveal" data-open={open() ? "" : undefined}>
                   <div>
@@ -489,7 +423,6 @@ export function TurnStepsSummary(props: {
                       <For each={diffs()}>
                         {(diff) => (
                           <div data-slot="turn-steps-diff" class="flex min-w-0 flex-col">
-                            {/* Several files in one patch each get their name above their diff. */}
                             <Show when={diffs().length > 1}>
                               <div class="flex min-w-0 items-center gap-2 px-3 pt-2 text-[12px] text-v2-text-text-muted">
                                 <span class="min-w-0 truncate font-mono" title={fullTitle(diff.file)}>
@@ -542,7 +475,6 @@ export function TurnStepsSummary(props: {
                 aria-expanded={open()}
                 class="flex w-full min-w-0 items-start gap-2 rounded-[12px] px-2.5 py-1 text-[13px] leading-5 text-v2-text-text-muted transition-colors select-text hover:bg-v2-background-bg-layer-02 focus-visible:outline focus-visible:outline-2 focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
                 onClick={(event) => {
-                  // Selecting text to copy it shouldn't fold the note.
                   if (window.getSelection()?.toString()) return
                   toggle(note().id, event.currentTarget)
                 }}
@@ -553,7 +485,6 @@ export function TurnStepsSummary(props: {
                 }}
               >
                 <StepIcon name="brain" size="small" class="mt-0.5 shrink-0" />
-                {/* One block clipped to its first line when folded, so opening grows it smoothly. */}
                 <div data-slot="turn-steps-note-text" data-open={open() ? "" : undefined} class="min-w-0 flex-1">
                   <Markdown text={text()} class="text-[13px] leading-5" />
                 </div>
@@ -564,7 +495,6 @@ export function TurnStepsSummary(props: {
       </Show>
     </>
   )
-  // A run of same-kind steps ("Read 3 files") that opens to the steps themselves.
   const groupRow = (run: () => ToolPart[], index: number) => {
     const id = () => `group:${run()[0]?.id}`
     const open = () => !!body.expanded[id()]
@@ -620,7 +550,6 @@ export function TurnStepsSummary(props: {
       </div>
     )
   }
-  // Consecutive reads, searches, edits, commands or fetches merge into one row; reasoning and agents stand alone.
   const runs = createMemo(() =>
     props.parts.reduce<Part[][]>((list, part) => {
       const last = list.at(-1)
@@ -657,7 +586,6 @@ export function TurnStepsSummary(props: {
           when={props.working}
           fallback={<Icon name="check" size="small" class="shrink-0 text-v2-text-text-muted" />}
         >
-          {/* The same breathing dot as a running thread in the sidebar, centred in the check's 14px slot. */}
           <span class="flex size-3.5 shrink-0 items-center justify-center" data-slot="turn-steps-running">
             <span class="size-2 rounded-full bg-v2-icon-icon-accent running-pulse" />
           </span>
@@ -702,10 +630,8 @@ export function TurnStepsSummary(props: {
           classList={{ "rotate-90 rtl:-rotate-90": props.open }}
         />
       </button>
-      {/* Shown and hidden at once: the card sits in a virtualized timeline row. */}
       <Show when={ticker() || lanes().length > 0}>
         <div class="flex flex-col gap-2 px-3 pb-2.5 text-[13px] leading-5">
-          {/* One line, fixed height: a new step replaces the old one instead of pushing rows below it. */}
           <Show when={ticker()} keyed>
             {(item) => (
               <div data-slot="turn-steps-ticker" aria-live="polite" class="h-5 overflow-hidden">
@@ -816,8 +742,6 @@ export function TurnStepsSummary(props: {
           </Index>
         </div>
       </Show>
-      {/* Open: every step on the card's own surface. Tools are filled rows that open to their output; reasoning is a
-          one-line note that opens to its full text. */}
       <div
         ref={bodyEl}
         data-slot="turn-steps-body"
@@ -830,8 +754,6 @@ export function TurnStepsSummary(props: {
             <div data-slot="turn-steps-rows" class="flex flex-col gap-1 px-2 pb-2">
               <Index each={runs()}>
                 {(run, index) => (
-                  // Built untracked: Show reads these on every runs() update, and reading run() there would rebuild
-                  // every row each time a step arrives. A row only rebuilds when it turns into a group.
                   <Show when={run().length > 1} fallback={untrack(() => stepRow(run()[0], index))}>
                     {untrack(() => groupRow(() => run() as ToolPart[], index))}
                   </Show>

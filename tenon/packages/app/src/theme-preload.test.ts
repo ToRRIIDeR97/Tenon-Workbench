@@ -31,7 +31,6 @@ describe("theme preload", () => {
     expect(localStorage.getItem("tenon-theme-id")).toBe("oc-2")
     expect(localStorage.getItem("tenon-theme-css-light")).toBeNull()
     expect(localStorage.getItem("tenon-theme-css-dark")).toBeNull()
-    // The pre-rename keys were moved, not left behind.
     expect(localStorage.getItem("opencode-theme-id")).toBeNull()
     expect(document.getElementById("oc-theme-preload")).toBeNull()
   })

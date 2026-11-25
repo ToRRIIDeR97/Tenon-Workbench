@@ -66,7 +66,6 @@ const failed = (language: ReturnType<typeof useLanguage>) => (error: unknown) =>
     description: error instanceof Error ? error.message : String(error),
   })
 
-/** The headline's title and detail as text. */
 export function headlineText(t: Translate, value: Headline) {
   const list = (names: string[]) => names.join(", ")
   if (value.key === "setup") return [t("harness.sync.headline.setup"), t("harness.sync.headline.setup.detail")]
@@ -83,7 +82,6 @@ export function headlineText(t: Translate, value: Headline) {
   ]
 }
 
-/** Status shared by Settings › Instructions and the sync part of Settings › Skills, refreshed on background changes. */
 export function useHarnessSyncStatus(sync: HarnessSyncPlatform) {
   const [status, { mutate, refetch }] = createResource(() => sync.status())
   const off = sync.onChange(() => void refetch())
@@ -91,7 +89,6 @@ export function useHarnessSyncStatus(sync: HarnessSyncPlatform) {
   return { status, set: (next: HarnessSyncStatus | null) => next && mutate(next), refetch }
 }
 
-/** Settings › Instructions: one set of global instructions written into every harness, synced between computers. */
 export function SettingsInstructionsV2() {
   const language = useLanguage()
   const platform = usePlatform()
@@ -172,7 +169,6 @@ type ViewProps = {
   run: (work: () => Promise<HarnessSyncStatus | null>, done?: string) => Promise<unknown>
 }
 
-/** Installed harnesses whose instructions file has text: candidates to start the shared preset from. */
 const seeds = (status: HarnessSyncStatus) =>
   status.tools.filter((tool) => tool.installed && tool.exists && tool.lines > 0)
 
@@ -290,7 +286,6 @@ function JoinView(props: ViewProps & { pending: NonNullable<HarnessSyncStatus["p
   )
 }
 
-/** The harness rows before a sync file is connected: what was found, read-only. */
 function HarnessList(props: { status: HarnessSyncStatus }) {
   const language = useLanguage()
   return (
@@ -329,7 +324,6 @@ function ConnectedView(props: ViewProps) {
     const base = saved()
     return base ? instructionsChanged(base, draft) : false
   }
-  // A newer revision replaces the draft unless the person has unsaved edits.
   createEffect(
     on(
       saved,

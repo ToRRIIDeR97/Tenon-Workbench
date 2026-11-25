@@ -10,29 +10,19 @@ import { useServerSync } from "@/context/server-sync"
 import { Persist, persisted } from "@/utils/persist"
 import { dismissToast, showToast } from "@/utils/toast"
 
-/**
- * Checks harness CLIs once per server connection and offers each available update in a toast. Upgrades go through
- * the shared registry, so a toast and Settings never upgrade the same CLI twice.
- */
 export function HarnessUpdateNotifier() {
   const language = useLanguage()
   const layout = useLayout()
   const platform = usePlatform()
   const serverSDK = useServerSDK()
   const serverSync = useServerSync()
-  // "Later" hides an update until a newer version than the one dismissed comes out.
   const [prefs, setPrefs, , ready] = persisted(
     Persist.global("harness-updates"),
     createStore<{ dismissed: Record<string, string> }>({ dismissed: {} }),
   )
   const server = () => ({ server: serverSDK().server.http, fetch: platform.fetch })
-  // Harness routes are global; they only need some valid location.
-  const directory = createMemo(
-    // The open workspace (never a removed one, whose folder may be gone), else the home folder.
-    () => layout.home.workspace() || serverSync().data.path.home,
-  )
+  const directory = createMemo(() => layout.home.workspace() || serverSync().data.path.home)
 
-  // Harnesses that run the same CLI report the same update; one toast covers them all.
   const offer = (group: Harness.UpdateStatus[]) => {
     const update = group[0]!
     const id = showToast({

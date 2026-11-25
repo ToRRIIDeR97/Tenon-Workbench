@@ -10,24 +10,6 @@ import path from "node:path"
 import { isDeepStrictEqual } from "node:util"
 import { CommandVault } from "./command-vault"
 
-/**
- * Routines: vault pages under the workspace's `Routines/` folder whose properties carry a `schedule`
- * (`daily HH:MM`, `weekdays HH:MM`, `weekly <mon..sun> HH:MM` or a five-field cron) and optionally
- * `enabled`, `harness`, `model`, `tools` and `timeout` (minutes). The page body is the prompt a Command
- * Centre thread runs.
- *
- * When each routine last ran lives in this machine's app data (`routines-state.json`), never in the
- * vault: it is a cache, and a lost file only means the next scheduled time is the new baseline. The same
- * file keeps the Command Centre's default model as the renderer last sent it, for scheduled runs.
- *
- * `harness` and `tools` are read but not honoured yet: every run uses the Tenon harness and its tools, and
- * the Routines page says so on the row.
- *
- * A routine runs unattended with the Command Centre's tools, and anything that can write the vault folder
- * can write a page. So a page runs only once the user has approved what it would run: the state file keeps
- * the approved content's hash, and any change to it needs approving again, on each machine.
- */
-
 export const Info = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
@@ -36,15 +18,10 @@ export const Info = Schema.Struct({
   enabled: Schema.Boolean,
   nextRun: Schema.NullOr(Schema.String),
   lastRun: Schema.NullOr(Schema.String),
-  /** `unfiled`: the run finished but its reply stayed in its thread, out of `Inbox.md`. */
   lastStatus: Schema.NullOr(Schema.Literals(["running", "done", "failed", "unfiled"])),
-  /** Front-matter properties the page sets that runs don't honour yet (`harness`, `tools`). */
   unsupported: Schema.Array(Schema.String),
-  /** The hash of what the page would run; `approve` takes it back, so a page changed since isn't approved. */
   hash: Schema.String,
-  /** This content isn't approved: it won't run on schedule or from Run now. */
   needsApproval: Schema.Boolean,
-  /** Permissions the last run wanted and was refused, because nobody could answer. */
   denied: Schema.Array(Schema.String),
 })
 export type Info = typeof Info.Type
@@ -55,20 +32,16 @@ export class NotFoundError extends Schema.TaggedError<NotFoundError>()("Routines
   id: Schema.String,
 }) {}
 
-/** Run now on an unapproved routine, or an approval of content that has changed since it was listed. */
 export class ApprovalError extends Schema.TaggedError<ApprovalError>()("Routines.ApprovalError", {
   id: Schema.String,
 }) {}
 
-/** A Run now while the routine's last run is still in flight. */
 export class ConflictError extends Schema.TaggedError<ConflictError>()("Routines.ConflictError", {
   id: Schema.String,
 }) {}
 
-/** `routines-state.json` could not be written. */
 export class StateError extends Schema.TaggedError<StateError>()("Routines.StateError", {}) {}
 
-/** A routine as `run` receives it. */
 export interface Routine {
   readonly id: string
   readonly name: string
@@ -79,29 +52,21 @@ export interface Routine {
   readonly harness?: string
   readonly model?: string
   readonly tools?: ReadonlyArray<string>
-  /** Minutes a run may take; a longer run is stopped and marked failed. */
   readonly timeout?: number
 }
 
 type Reply = { text: string; denied?: ReadonlyArray<string> }
 export type Run<E = never, R = never> = (routine: Routine) => Effect.Effect<Reply & { threadId: string }, E, R>
 
-/** The top-level vault folder routines live in, in any letter case. */
 export const folder = "Routines"
-/** Whether a vault page path is one the scheduler reads as a routine, in any case. */
 export const isRoutinePath = (page: string) => page.toLowerCase().startsWith(`${folder.toLowerCase()}/`)
 const inbox = "Inbox.md"
-// Past this size the Inbox's entries move to `Inbox/<YYYY-MM>.md`. A full Inbox would refuse every reply at
-// the 5 MB page limit, and each append keeps a copy in `.history`, so a smaller page is also cheaper.
 const inboxLimit = 1024 * 1024
 const defaultTimeout = 120
 const maxTimeout = 24 * 60
 const days = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]
 
-// ---------------------------------------------------------------------------------------------
-// Schedules
-
-type Field = ReadonlySet<number> | undefined // undefined: any value ("*")
+type Field = ReadonlySet<number> | undefined
 type Cron = { minute: Field; hour: Field; day: Field; month: Field; weekday: Field }
 
 function field(source: string, min: number, max: number): Field {
@@ -129,7 +94,6 @@ function time(source: string) {
   return { hour, minute }
 }
 
-/** Parse a schedule into cron fields; throws on an unknown form. */
 export function parse(schedule: string): Cron {
   const words = schedule.trim().toLowerCase().split(/\s+/)
   if (words[0] === "daily" && words.length === 2) return cron(words[1], "*")
@@ -146,7 +110,6 @@ export function parse(schedule: string): Cron {
     hour: field(words[1], 0, 23),
     day: field(words[2], 1, 31),
     month: field(words[3], 1, 12),
-    // Cron allows 7 for Sunday.
     weekday: weekday && new Set([...weekday].map((value) => value % 7)),
   }
 }
@@ -165,19 +128,16 @@ function cron(clock: string, weekday: string): Cron {
 const has = (set: Field, value: number) => set === undefined || set.has(value)
 
 function dayMatches(spec: Cron, date: Date) {
-  // Cron: when both day-of-month and day-of-week are restricted, either one matching is enough.
   if (spec.day !== undefined && spec.weekday !== undefined)
     return spec.day.has(date.getDate()) || spec.weekday.has(date.getDay())
   return has(spec.day, date.getDate()) && has(spec.weekday, date.getDay())
 }
 
-/** The first scheduled local time strictly after `after`. Throws on an invalid schedule. */
 export function nextRun(schedule: string, after: Date): Date {
   const spec = parse(schedule)
   const date = new Date(after.getTime())
   date.setSeconds(0, 0)
   date.setMinutes(date.getMinutes() + 1)
-  // Five years covers every valid cron (29 February included); jumps keep the walk short.
   const limit = after.getTime() + 5 * 366 * 24 * 60 * 60 * 1000
   while (date.getTime() <= limit) {
     if (!has(spec.month, date.getMonth() + 1)) {
@@ -211,22 +171,13 @@ function safeNextRun(schedule: string, after: Date) {
   }
 }
 
-// ---------------------------------------------------------------------------------------------
-// Run state (app data, machine-local)
-
 type State = {
-  /** Schedule baseline: when the routine was first seen, or last enabled or disabled. */
   firstSeen?: number
-  /** The start of the last finished run, however it ended. */
   lastRun?: number
   lastStatus?: "running" | "done" | "failed" | "unfiled"
-  /** The start of the run in flight. */
   startedAt?: number
-  /** Whether the routine could run at the last check (on and approved), so a change moves the baseline. */
   enabled?: boolean
-  /** The hash of the content the user approved. */
   approved?: string
-  /** Permissions the last finished run was refused. */
   denied?: ReadonlyArray<string>
 }
 type ModelChoice = { providerID: string; modelID: string }
@@ -265,7 +216,6 @@ const updateState = (key: string, change: (current: State) => State) =>
       const state = yield* readState
       const current = state.routines[key] ?? {}
       const next = change(current)
-      // Every check of every routine lands here each minute, nearly always with nothing to record.
       if (isDeepStrictEqual(next, current)) return current
       state.routines[key] = next
       yield* writeState(state)
@@ -273,17 +223,11 @@ const updateState = (key: string, change: (current: State) => State) =>
     }),
   )
 
-/** How long a run may take, in milliseconds. */
 const timeoutOf = (routine: Routine) => (routine.timeout ?? defaultTimeout) * 60_000
 
-/**
- * A run past its limit never ended (its timeout should have ended it), so it no longer counts as in flight.
- * The extra minute lets a timeout that is firing right now record its own result first.
- */
 const inFlight = (state: State, limit: number, now: Date) =>
   state.lastStatus === "running" && now.getTime() - (state.startedAt ?? 0) <= limit + 60_000
 
-/** Mark a run started when `due` holds on the current state; false when it doesn't or one is in flight. */
 const claim = (key: string, now: Date, limit: number, due: (current: State) => boolean) =>
   stateLock.withPermits(1)(
     Effect.gen(function* () {
@@ -296,10 +240,6 @@ const claim = (key: string, now: Date, limit: number, due: (current: State) => b
     }),
   )
 
-/**
- * Mark runs no process finished (the app quit or crashed mid-run) as failed. Their `lastRun` is unchanged,
- * so the missed time runs again on the next check. The scheduler calls it once when it starts.
- */
 export const recoverInterrupted = stateLock.withPermits(1)(
   Effect.gen(function* () {
     const state = yield* readState
@@ -312,10 +252,8 @@ export const recoverInterrupted = stateLock.withPermits(1)(
   }),
 )
 
-/** The Command Centre's default model as the renderer last sent it; scheduled runs fall back to it. */
 export const defaultModel = readState.pipe(Effect.map((state) => state.defaultModel))
 
-/** Remember the Command Centre's default model; none clears it. */
 export const rememberDefaultModel = (model: ModelChoice | undefined) =>
   stateLock.withPermits(1)(
     Effect.gen(function* () {
@@ -326,9 +264,6 @@ export const rememberDefaultModel = (model: ModelChoice | undefined) =>
   )
 
 const stateKey = (vault: KnowledgeVault.Vault, id: string) => `${vault.id}/${id}`
-
-// ---------------------------------------------------------------------------------------------
-// Routines in the vault
 
 function routineFrom(page: KnowledgeVault.Page): Routine | undefined {
   const properties = page.info.properties
@@ -362,7 +297,6 @@ const routinesIn = Effect.fnUntraced(function* (vault: KnowledgeVault.Vault) {
     .sort((left, right) => left.name.localeCompare(right.name))
 })
 
-/** What a run depends on. `enabled` is out: turning a routine off and on changes nothing it would do. */
 const contentHash = (routine: Routine) =>
   createHash("sha256")
     .update(
@@ -388,7 +322,6 @@ const describe = (routine: Routine, state: State, now: Date): Info => {
     enabled: routine.enabled,
     nextRun: next ? next.toISOString() : null,
     lastRun: state.lastRun === undefined ? null : new Date(state.lastRun).toISOString(),
-    // A run that never ended reads as failed, so Run now is offered again.
     lastStatus:
       state.lastStatus === "running" && !inFlight(state, timeoutOf(routine), now)
         ? "failed"
@@ -403,7 +336,6 @@ const describe = (routine: Routine, state: State, now: Date): Info => {
   }
 }
 
-/** The current workspace's routines with their next and last runs. */
 export const list = Effect.fn("Routines.list")(function* (now: Date = new Date()) {
   return yield* CommandVault.withVault((vault) =>
     Effect.gen(function* () {
@@ -414,7 +346,6 @@ export const list = Effect.fn("Routines.list")(function* (now: Date = new Date()
   )
 })
 
-/** Record the user's approval of a routine's content; refused when `hash` is no longer what the page holds. */
 export const approve = Effect.fn("Routines.approve")(function* (input: { id: string; hash: string }) {
   return yield* CommandVault.withVault((vault) =>
     Effect.gen(function* () {
@@ -426,7 +357,6 @@ export const approve = Effect.fn("Routines.approve")(function* (input: { id: str
   )
 })
 
-/** Move a full Inbox's text to `Inbox/<YYYY-MM>.md`, or `-2`, `-3`... when a month fills more than one. */
 const archiveInbox = Effect.fnUntraced(function* (vault: KnowledgeVault.Vault, body: string, at: Date) {
   const month = at.toISOString().slice(0, 7)
   for (let part = 1; ; part++) {
@@ -443,11 +373,6 @@ const archiveInbox = Effect.fnUntraced(function* (vault: KnowledgeVault.Vault, b
   }
 })
 
-/**
- * Append a run's reply to the workspace's `Inbox.md` vault page, creating it when missing and first moving
- * its entries to an archive page when it is full. True once the reply is in. The archive page is written
- * before the Inbox is emptied, so a failure in between leaves a duplicate, never a gap.
- */
 const appendInbox = Effect.fnUntraced(function* (
   vault: KnowledgeVault.Vault,
   routine: Routine,
@@ -480,11 +405,6 @@ const appendInbox = Effect.fnUntraced(function* (
   return false
 })
 
-/**
- * Run one routine whose start is already recorded (`claim` or `runNow`), then record the run, file its reply
- * in the Inbox and announce it. `lastRun` is written only once the run ends, however it ended. A run past
- * its timeout is interrupted and counts as failed, so a hung thread can't hold the routine. A reply that can't be filed stays in its thread and the routine shows `unfiled`.
- */
 const runOne = Effect.fnUntraced(function* <E, R>(
   vault: KnowledgeVault.Vault,
   routine: Routine,
@@ -492,7 +412,6 @@ const runOne = Effect.fnUntraced(function* <E, R>(
   now: Date,
 ) {
   const key = stateKey(vault, routine.id)
-  // A lost write leaves the run "running" until `claim` calls it stale.
   const finish = (status: "done" | "failed" | "unfiled", denied?: ReadonlyArray<string>) =>
     updateState(key, (current) => ({
       ...current,
@@ -515,7 +434,6 @@ const runOne = Effect.fnUntraced(function* <E, R>(
     yield* finish("failed")
     return undefined
   }
-  // Serial, so routines finishing together don't use up each other's retries.
   const filed = yield* inboxLock
     .withPermits(1)(appendInbox(vault, routine, result.text, now))
     .pipe(
@@ -530,12 +448,6 @@ const runOne = Effect.fnUntraced(function* <E, R>(
   return result
 })
 
-/**
- * Run every enabled routine whose schedule had a time after its last run (or, never run, after the first
- * `runDue` that saw it, or after it was last enabled, disabled or approved) and at or before `now`. Each runs at most
- * once however many times were missed, and at most one run of a routine is in flight. Due routines run
- * concurrently; the state is re-read under the lock before each starts, so a Run now is seen.
- */
 export const runDue = Effect.fn("Routines.runDue")(function* <E, R>(input: { now: Date; run: Run<E, R> }) {
   return yield* CommandVault.withVault((vault) =>
     Effect.gen(function* () {
@@ -546,8 +458,6 @@ export const runDue = Effect.fn("Routines.runDue")(function* <E, R>(input: { now
         (routine) =>
           Effect.gen(function* () {
             const key = stateKey(vault, routine.id)
-            // A routine never seen, or that started or stopped being able to run since the last check, takes
-            // now as its baseline, so neither approving nor enabling one runs a missed time.
             const hash = contentHash(routine)
             let baseline = false
             let runnable = false
@@ -568,7 +478,6 @@ export const runDue = Effect.fn("Routines.runDue")(function* <E, R>(input: { now
             yield* runOne(vault, routine, input.run, input.now)
             return routine.id
           }).pipe(
-            // One routine's state failure leaves the others running.
             Effect.catchTag("Routines.StateError", () =>
               Effect.logWarning("Routine check failed", { routine: routine.id }).pipe(Effect.as(undefined)),
             ),
@@ -580,11 +489,6 @@ export const runDue = Effect.fn("Routines.runDue")(function* <E, R>(input: { now
   )
 })
 
-/**
- * Start a routine now. `start` creates the thread and returns its id with the reply still to come; the
- * reply is then filed in the background. Resolves once the thread exists. Fails with `ApprovalError` when the page
- * isn't approved and `ConflictError` while a run of the routine is in flight.
- */
 export const runNow = Effect.fn("Routines.runNow")(function* <E, R, E2, R2>(input: {
   id: string
   start: (routine: Routine) => Effect.Effect<{ threadId: string; reply: Effect.Effect<Reply, E2, R2> }, E, R>
@@ -596,7 +500,6 @@ export const runNow = Effect.fn("Routines.runNow")(function* <E, R, E2, R2>(inpu
       const key = stateKey(vault, routine.id)
       const hash = contentHash(routine)
       const now = new Date()
-      // Not consulted while a run is in flight, so that case stays a `ConflictError`.
       let approved = true
       const claimed = yield* claim(key, now, timeoutOf(routine), (current) => (approved = current.approved === hash))
       if (!approved) return yield* new ApprovalError({ id: routine.id })

@@ -21,7 +21,6 @@ export function SessionHeader() {
   const settings = useSettings()
   const { view } = useSessionLayout()
   const sdk = useSDK()
-  // A Command Centre thread has no code folder, so no review or terminal.
   const codeThread = () => !isCommandThread(sdk().directory)
 
   const status = settings.visibility.status

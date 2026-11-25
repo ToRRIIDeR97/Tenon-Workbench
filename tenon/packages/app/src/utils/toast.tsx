@@ -33,8 +33,6 @@ export function showToast(options: ToastOptions | string) {
   })
 }
 
-// v1 and v2 ids come from separate registries, so dismissal has to use the same
-// implementation that issued the id.
 export function dismissToast(toastId: number) {
   if (!v2) return legacyToaster.dismiss(toastId)
   return toasterV2.dismiss(toastId)

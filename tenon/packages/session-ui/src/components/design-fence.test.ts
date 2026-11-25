@@ -119,7 +119,6 @@ describe("designDocument", () => {
     expect(frame.RTCPeerConnection).toBeUndefined()
     expect(frame.webkitRTCPeerConnection).toBeUndefined()
     expect(frame.RTCDataChannel).toBeUndefined()
-    // Modules are strict, so writing a non-writable property throws.
     expect(() => {
       frame.RTCPeerConnection = connect
     }).toThrow()
@@ -139,7 +138,6 @@ describe("designTooLarge", () => {
   test("caps the UTF-8 size", () => {
     expect(designTooLarge("x".repeat(MAX_DESIGN_BYTES))).toBe(false)
     expect(designTooLarge("x".repeat(MAX_DESIGN_BYTES + 1))).toBe(true)
-    // Three bytes per character in UTF-8.
     expect(designTooLarge("€".repeat(Math.ceil(MAX_DESIGN_BYTES / 3) + 1))).toBe(true)
   })
 })

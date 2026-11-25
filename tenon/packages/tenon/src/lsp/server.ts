@@ -163,9 +163,7 @@ export const Vue: Info = {
     })
     return {
       process: proc,
-      initialization: {
-        // Leave empty; the server will auto-detect workspace TypeScript.
-      },
+      initialization: {},
     }
   },
 }
@@ -858,8 +856,6 @@ export const SourceKit: Info = {
   extensions: [".swift", ".objc", "objcpp"],
   root: NearestRoot(["Package.swift", "*.xcodeproj", "*.xcworkspace"]),
   async spawn(root) {
-    // Check if sourcekit-lsp is available in the PATH
-    // This is installed with the Swift toolchain
     const sourcekit = which("sourcekit-lsp")
     if (sourcekit) {
       return {
@@ -869,8 +865,6 @@ export const SourceKit: Info = {
       }
     }
 
-    // If sourcekit-lsp not found, check if xcrun is available
-    // This is specific to macOS where sourcekit-lsp is typically installed with Xcode
     if (!which("xcrun")) return
 
     const lspLoc = await output(["xcrun", "--find", "sourcekit-lsp"])
@@ -897,22 +891,18 @@ export const RustAnalyzer: Info = {
     let currentDir = crateRoot
 
     while (currentDir !== path.dirname(currentDir)) {
-      // Stop at filesystem root
       const cargoTomlPath = path.join(currentDir, "Cargo.toml")
       try {
         const cargoTomlContent = await Filesystem.readText(cargoTomlPath)
         if (cargoTomlContent.includes("[workspace]")) {
           return currentDir
         }
-      } catch {
-        // File doesn't exist or can't be read, continue searching up
-      }
+      } catch {}
 
       const parentDir = path.dirname(currentDir)
-      if (parentDir === currentDir) break // Reached filesystem root
+      if (parentDir === currentDir) break
       currentDir = parentDir
 
-      // Stop if we've gone above the app root
       if (!currentDir.startsWith(ctx.worktree)) break
     }
 
@@ -1149,7 +1139,6 @@ export const JDTLS: Info = {
   root: async (file, ctx) => {
     const settingsMarkers = ["settings.gradle", "settings.gradle.kts"]
     const gradleMarkers = ["gradlew", "gradlew.bat"]
-    // 1. Gradle (unchanged from original logic)
     const [wrapperRoot, settingsRoot] = await Promise.all([
       StrictNearestRoot(gradleMarkers, settingsMarkers)(file, ctx),
       StrictNearestRoot(settingsMarkers)(file, ctx),
@@ -1157,11 +1146,9 @@ export const JDTLS: Info = {
     if (wrapperRoot) return wrapperRoot
     if (settingsRoot) return settingsRoot
 
-    // 2. Gradle single-project fallback (build.gradle without settings.gradle)
     const buildRoot = await StrictNearestRoot(["build.gradle", "build.gradle.kts"])(file, ctx)
     if (buildRoot) return buildRoot
 
-    // 3. Maven: walk up pom.xml chain verifying <module> relationships
     const pomFiles = await Filesystem.findUp("pom.xml", path.dirname(file), ctx.directory)
     if (pomFiles.length > 0) {
       let root = path.dirname(pomFiles[0])
@@ -1178,7 +1165,6 @@ export const JDTLS: Info = {
       return root
     }
 
-    // 4. Eclipse native project fallback
     const eclipseRoot = await StrictNearestRoot([".project", ".classpath"])(file, ctx)
     if (eclipseRoot) return eclipseRoot
 
@@ -1274,16 +1260,12 @@ export const KotlinLS: Info = {
   id: "kotlin-ls",
   extensions: [".kt", ".kts"],
   root: async (file, ctx) => {
-    // 1) Nearest Gradle root (multi-project or included build)
     const settingsRoot = await NearestRoot(["settings.gradle.kts", "settings.gradle"])(file, ctx)
     if (settingsRoot) return settingsRoot
-    // 2) Gradle wrapper (strong root signal)
     const wrapperRoot = await NearestRoot(["gradlew", "gradlew.bat"])(file, ctx)
     if (wrapperRoot) return wrapperRoot
-    // 3) Single-project or module-level build
     const buildRoot = await NearestRoot(["build.gradle.kts", "build.gradle"])(file, ctx)
     if (buildRoot) return buildRoot
-    // 4) Maven fallback
     return NearestRoot(["pom.xml"])(file, ctx)
   },
   async spawn(root, _ctx, flags) {
@@ -1455,12 +1437,8 @@ export const LuaLS: Info = {
       const tempPath = path.join(Global.Path.bin, assetName)
       if (downloadResponse.body) await Filesystem.writeStream(tempPath, downloadResponse.body)
 
-      // Unlike zls which is a single self-contained binary,
-      // lua-language-server needs supporting files (meta/, locale/, etc.)
-      // Extract entire archive to dedicated directory to preserve all files
       const installDir = path.join(Global.Path.bin, `lua-language-server-${lualsArch}-${lualsPlatform}`)
 
-      // Remove old installation if exists
       const stats = await fs.stat(installDir).catch(() => undefined)
       if (stats) {
         await fs.rm(installDir, { force: true, recursive: true })
@@ -1486,7 +1464,6 @@ export const LuaLS: Info = {
 
       await fs.rm(tempPath, { force: true })
 
-      // Binary is located in bin/ subdirectory within the extracted archive
       bin = path.join(installDir, "bin", "lua-language-server" + (platform === "win32" ? ".exe" : ""))
 
       if (!(await Filesystem.exists(bin))) {
@@ -1838,14 +1815,11 @@ export const Nixd: Info = {
   id: "nixd",
   extensions: [".nix"],
   root: async (file, ctx) => {
-    // First, look for flake.nix - the most reliable Nix project root indicator
     const flakeRoot = await NearestRoot(["flake.nix"])(file, ctx)
     if (flakeRoot && flakeRoot !== ctx.directory) return flakeRoot
 
-    // If no flake.nix, fall back to git repository root
     if (ctx.worktree && ctx.worktree !== ctx.directory) return ctx.worktree
 
-    // Finally, use the instance directory as fallback
     return ctx.directory
   },
   async spawn(root) {

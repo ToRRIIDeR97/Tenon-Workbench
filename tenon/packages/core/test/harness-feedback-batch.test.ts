@@ -14,7 +14,6 @@ async function write(file: string, content: string) {
   await fs.writeFile(file, content)
 }
 
-// AC-2: a skill installed in two of a harness's folders is listed once, the first one found.
 describe("HarnessSkills.scan duplicates", () => {
   test("one entry per name", async () => {
     const home = path.join(root, "home")
@@ -35,7 +34,6 @@ describe("HarnessSkills.scan duplicates", () => {
   })
 })
 
-// AC-11: the key Tenon chats with is the one checked for plan limits.
 describe("OpenCode Go key", () => {
   const key = (integrationID: string, value: string) => ({ integrationID, value: { type: "key" as const, key: value } })
 
@@ -59,8 +57,6 @@ describe("OpenCode Go key", () => {
   })
 })
 
-// AC-13: a Max/Ultra account's Fable window is listed with the other Claude Code windows. A live Max response
-// (2026-11-12) has no `seven_day_fable` key; per-model weekly limits arrive in `limits[]` as `weekly_scoped`.
 describe("Claude Code Fable window", () => {
   test("a weekly_scoped limit is read after the keyed windows", () => {
     const windows = HarnessUsage.parseClaudeUsage({
@@ -96,7 +92,6 @@ describe("Claude Code Fable window", () => {
   })
 })
 
-// A Codex update can move the CLI; a saved absolute path that no longer exists falls back to `codex` on PATH.
 describe("codexCommand", () => {
   test("keeps a path that exists, a bare name, and the default", async () => {
     const { codexCommand } = await import("@tenon/core/harness")

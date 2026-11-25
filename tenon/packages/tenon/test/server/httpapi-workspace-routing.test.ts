@@ -144,9 +144,6 @@ const createRemoteWorkspace = (input: {
   url: string
   headers?: HeadersInit
 }) =>
-  // Workspace.create starts the remote sync loop. The test upstream exposes
-  // /global/event and /sync/history so middleware proxying sees the remote
-  // workspace as active, just like production would.
   createWorkspace({
     projectID: input.projectID,
     type: input.type,
@@ -183,9 +180,6 @@ const startRemoteWorkspaceHttpServer = <E, R>(
 ) =>
   listenAdditionalServer((request) =>
     Effect.gen(function* () {
-      // Remote workspaces run a sync loop against their target server. These
-      // bootstrap routes make Workspace.isSyncing(...) true for proxy tests;
-      // everything else is the request being proxied by the middleware.
       const sync = syncResponse(request)
       if (sync) return yield* sync
       return yield* handler({
@@ -269,9 +263,6 @@ describe("HttpApi workspace routing middleware", () => {
       const project = yield* Project.use.fromDirectory(dir)
       let forwarded: ProxiedRequest | undefined
 
-      // This starts a second HTTP server that stands in for the opencode server
-      // backing a remote workspace. The client below still calls the local test
-      // server; only the middleware should call this server.
       const remoteUrl = yield* startRemoteWorkspaceHttpServer((request) => {
         forwarded = request
         const url = requestURL(request)
@@ -285,9 +276,6 @@ describe("HttpApi workspace routing middleware", () => {
           { status: 201, headers: { "x-remote": "yes" } },
         )
       })
-      // The adapter target tells the middleware where to proxy selected remote
-      // workspace requests. Appending /probe to this base should produce
-      // `${remoteUrl}/base/probe` on the fake remote server above.
       const workspace = yield* createRemoteWorkspace({
         dir,
         projectID: project.project.id,
@@ -296,8 +284,6 @@ describe("HttpApi workspace routing middleware", () => {
         headers: { "x-target-auth": "secret" },
       })
 
-      // The local /probe handler should not run. Selecting a remote workspace
-      // should make the middleware call HttpApiProxy.http instead.
       yield* serveProbe
 
       const body = '{"title":"Remote workspace request"}'
@@ -318,8 +304,6 @@ describe("HttpApi workspace routing middleware", () => {
       expect(response.headers["x-remote"]).toBe("yes")
       expect(yield* response.json).toEqual({ proxied: true, path: "/base/probe", keep: "yes", workspace: null })
       const forwardedURL = forwarded ? requestURL(forwarded) : undefined
-      // These assertions are the routing contract: append the original path to
-      // the remote base URL, preserve normal query params, and remove workspace.
       expect(forwardedURL?.pathname).toBe("/base/probe")
       expect(forwardedURL?.searchParams.get("keep")).toBe("yes")
       expect(forwardedURL?.searchParams.get("workspace")).toBeNull()
@@ -425,8 +409,6 @@ describe("HttpApi workspace routing middleware", () => {
         url: `${remoteUrl}/base`,
       })
 
-      // The client connects to the local test server. The middleware should
-      // detect the WebSocket upgrade and proxy it to the remote /base/probe.
       yield* serveProbe
 
       const socket = yield* Socket.makeWebSocket(
@@ -448,8 +430,6 @@ describe("HttpApi workspace routing middleware", () => {
   it.live("returns a missing workspace response for unknown workspace ids", () =>
     Effect.gen(function* () {
       const workspaceID = WorkspaceV2.ID.ascending("wrk_missing")
-      // If the middleware resolves the workspace first, this handler is never
-      // reached and the response should be the middleware error response.
       yield* serveProbe
 
       const response = yield* HttpClient.get(`/probe?workspace=${workspaceID}`)
@@ -471,8 +451,6 @@ describe("HttpApi workspace routing middleware", () => {
         directory: workspaceDir,
       })
 
-      // GET /session is a control-plane route: it lists sessions for the main
-      // process and should not be redirected into the selected workspace target.
       yield* serveProbe
 
       const response = yield* HttpClient.get(`/session?workspace=${workspace.id}`)
@@ -493,9 +471,6 @@ describe("HttpApi workspace routing middleware", () => {
         directory: workspaceDir,
       })
 
-      // Workspace CRUD/status routes manage the control plane itself. Selecting
-      // a workspace should preserve the selected id for handlers, but must not
-      // swap the route context to the workspace target directory.
       yield* serveProbe
 
       const response = yield* HttpClient.get(`${WorkspacePaths.list}?workspace=${workspace.id}`)
@@ -512,8 +487,6 @@ describe("HttpApi workspace routing middleware", () => {
       const headerDir = path.join(dir, "header-target")
       yield* serveProbe
 
-      // Without a selected workspace, the middleware falls back to request
-      // directory hints before using the process cwd.
       const queryResponse = yield* HttpClient.get(`/probe?directory=${encodeURIComponent(queryDir)}`)
       const headerResponse = yield* HttpClientRequest.get("/probe").pipe(
         HttpClientRequest.setHeader("x-opencode-directory", headerDir),
@@ -553,7 +526,6 @@ describe("HttpApi workspace routing middleware", () => {
       expect(stored.status).toBe(200)
       expect(yield* stored.json).toEqual({ directory: sessionDir, workspaceID: null })
 
-      // An unknown session falls back to the request directory hints.
       const fallbackDir = path.join(dir, "fallback")
       const missing = yield* HttpClient.get(
         `/session/${SessionID.descending()}?directory=${encodeURIComponent(fallbackDir)}`,
@@ -577,8 +549,6 @@ describe("HttpApi workspace routing middleware", () => {
 
       yield* serveProbe
 
-      // /probe is not a control-plane route, so selecting a local workspace
-      // should swap the route context to the workspace target directory.
       const response = yield* HttpClient.get(`/probe?workspace=${workspace.id}`)
 
       expect(response.status).toBe(200)

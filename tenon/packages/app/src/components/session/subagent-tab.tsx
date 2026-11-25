@@ -32,10 +32,6 @@ import {
 } from "./subagent-list"
 import { formatTurnDuration } from "./turn-steps-summary"
 
-/**
- * Every subagent in the open thread, grouped by turn, newest first. One lookup serves the tab's label and body; it
- * scans the thread only while `enabled` (the tab is open), so streaming elsewhere doesn't pay for it.
- */
 export function useThreadSubagents(enabled: () => boolean) {
   const sync = useSync()
   const { params } = useSessionLayout()
@@ -46,7 +42,6 @@ export function useThreadSubagents(enabled: () => boolean) {
   })
 }
 
-/** Agents tab trigger content: "Agents" and a badge with how many are running. */
 export function AgentsTabLabel(props: { groups: SubagentGroup[] }) {
   const language = useLanguage()
   const running = createMemo(() => subagentCounts(props.groups).running)
@@ -66,12 +61,10 @@ export function AgentsTabLabel(props: { groups: SubagentGroup[] }) {
   )
 }
 
-/** The Agents tab: every subagent in the thread as lanes, or one agent's detail when `selected` names it. */
 export function AgentsTab(props: {
   groups: SubagentGroup[]
   selected?: string
   onSelect: (partID: string | undefined) => void
-  /** Display name of a harness instance from the harness list; undefined when it isn't known. */
   harnessName?: (id: string) => string | undefined
 }) {
   const selected = createMemo(() => findSubagent(props.groups, props.selected))
@@ -88,7 +81,6 @@ export function AgentsTab(props: {
   )
 }
 
-/** One clock for elapsed times; it only ticks while something runs. */
 function useNow(active: () => boolean) {
   const [clock, setClock] = createStore({ now: Date.now() })
   createEffect(() => {
@@ -249,7 +241,6 @@ function AgentDetail(props: {
     return typeof value === "string" && value.trim() ? value : undefined
   }
   const childID = createMemo(() => taskSessionID(part()))
-  // A `task` agent's steps live in its child session; load it once if the thread hasn't.
   createEffect(() => {
     const id = childID()
     if (!id || sync().data.message[id]) return
@@ -466,7 +457,6 @@ function TranscriptEntry(props: { entry: SubagentTranscriptEntry }) {
                 when={tool().output}
                 fallback={
                   <div class="flex min-w-0 items-center gap-2">
-                    {/* Keeps titles aligned with expandable rows. */}
                     <span class="size-3 shrink-0" aria-hidden="true" />
                     {row()}
                   </div>
@@ -492,7 +482,6 @@ function TranscriptEntry(props: { entry: SubagentTranscriptEntry }) {
   )
 }
 
-// The summary is the row itself, so the disclosure marker sits on the same line as its content.
 const SUMMARY =
   "flex min-w-0 list-none items-center gap-2 select-none rounded-[6px] [&::-webkit-details-marker]:hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-v2-border-border-focus"
 
@@ -506,7 +495,6 @@ function Disclosure() {
   )
 }
 
-/** Tool part statuses and ACP step statuses (`in_progress`, `failed`) share these labels. */
 function statusText(language: ReturnType<typeof useLanguage>, status: string) {
   if (status === "pending") return language.t("secondBrain.agentTab.status.pending")
   if (status === "running" || status === "in_progress") return language.t("secondBrain.agentTab.status.running")

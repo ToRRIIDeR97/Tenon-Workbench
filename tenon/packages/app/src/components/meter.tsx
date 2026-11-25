@@ -1,4 +1,3 @@
-/** The app's one progress bar: a 6px pill track with an accent fill, exposed as a meter. */
 export function Meter(props: { value: number; label: string; class?: string }) {
   return (
     <span

@@ -60,7 +60,6 @@ export async function tracingLayer() {
   const { AsyncLocalStorageContextManager } = await import("@opentelemetry/context-async-hooks")
   const { context } = await import("@opentelemetry/api")
 
-  // The Effect Node SDK does not register a global context manager, but the AI SDK uses it to parent spans.
   const manager = new AsyncLocalStorageContextManager()
   manager.enable()
   context.setGlobalContextManager(manager)

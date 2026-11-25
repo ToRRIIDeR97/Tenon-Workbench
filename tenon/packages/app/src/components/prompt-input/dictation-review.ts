@@ -1,7 +1,3 @@
-// #328: what the live caption doesn't tell you on its own — which language dictation runs with, and whether the
-// final transcript (one pass over the whole recording) came out different from the words you watched.
-
-/** The spoken language's name in the app's language, or undefined when the model detects it per recording. */
 export function dictationLanguageName(code: string | undefined, locale: string) {
   if (!code) return undefined
   try {
@@ -17,15 +13,10 @@ const words = (text: string) =>
     .map((word) => word.toLowerCase().replace(/[^\p{L}\p{N}']/gu, ""))
     .filter(Boolean)
 
-/**
- * Words the final transcript changed from the caption: replaced, added and dropped words count once each; case and
- * punctuation don't count. Nothing shown means nothing to compare.
- */
 export function captionChanges(caption: string, final: string) {
   const before = words(caption)
   if (before.length === 0) return 0
   const after = words(final)
-  // Word-level edit distance, one row at a time.
   let previous = Array.from({ length: after.length + 1 }, (_, index) => index)
   for (let i = 1; i <= before.length; i++) {
     const row = [i]
@@ -37,12 +28,7 @@ export function captionChanges(caption: string, final: string) {
   return previous[after.length]!
 }
 
-/**
- * Swaps `inserted`, when it is still the text right before the caret, for `replacement`, through the editor's own
- * undo stack where the browser has one. False, and nothing changed, once the user typed or moved on.
- */
 export function replaceBeforeCaret(inserted: string, replacement: string) {
-  // The Home and Command Centre composers are textareas; the thread's editor is contenteditable.
   const field = document.activeElement
   if (field instanceof HTMLTextAreaElement || field instanceof HTMLInputElement) {
     const end = field.selectionStart ?? 0

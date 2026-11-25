@@ -6,15 +6,10 @@ export type CalendarView = "today" | "week" | "month" | "agenda" | "tasks" | "up
 
 export type CalendarDay = { date: string; day: number; inMonth: boolean; today: boolean }
 
-/** The planner holds at most this many events (the server rejects more). */
 export const CALENDAR_EVENT_LIMIT = 5_000
 
 type EventSpan = Pick<CalendarEvent, "date" | "endDate" | "start" | "end">
 
-/**
- * The last day an event occupies. A timed event that ends exactly at midnight on a later day
- * ends before that day starts, so it does not show there.
- */
 export function eventLastDay(event: EventSpan) {
   const last = event.endDate ?? event.date
   if (last > event.date && event.start && event.end === "00:00") return shiftDateKey(last, -1)
@@ -25,7 +20,6 @@ export function eventCoversDay(event: EventSpan, date: string) {
   return event.date <= date && eventLastDay(event) >= date
 }
 
-/** Every day key from `start` to `end`, inclusive. */
 export function dateKeys(start: string, end: string) {
   const keys: string[] = []
   for (let key = start; key <= end && keys.length < 1_000; key = shiftDateKey(key, 1)) keys.push(key)
@@ -61,27 +55,13 @@ export function providerEvent(event: GoogleCalendarProviderEvent, projectId?: st
 }
 
 export type ProviderMergeOptions = {
-  /** Maps a stored item's account, which may be missing on items from before multiple accounts, to an account ID. */
   accountOf?: (accountId: string | undefined) => string | undefined
-  /** Accounts that are still connected but failed this sync: their items stay as they are. */
   failed?: (account: string | undefined) => boolean
-  /** Accounts this sync fetched. */
   synced?: (account: string | undefined) => boolean
-  /** Outbox keys whose write has finished, so the item no longer waits on the outbox. */
   settled?: (outboxKey: string) => boolean
   today?: string
 }
 
-/**
- * Merge a Google sync into the local calendar. Local events stay, and so does every event of
- * an account that failed this sync. A synced account's event with an unsynced write (queued,
- * failed or in conflict) stays as it is, whether or not Google returned it, so a sync never
- * silently drops or overwrites the user's change; a write the outbox has finished no longer
- * counts as unsynced. Every other event of a synced account is
- * replaced by Google's copy, keeping its Project link; events of accounts that are gone are
- * dropped. Ids stay unique, and remote events farthest from `today` are dropped if the
- * calendar would exceed its limit.
- */
 export function mergeProviderEvents(
   current: ReadonlyArray<CalendarEvent>,
   remote: ReadonlyArray<GoogleCalendarProviderEvent>,
@@ -146,30 +126,22 @@ export function monthGrid(cursor: Date, now = new Date()): CalendarDay[] {
   })
 }
 
-// A month cell's 8px padding, 1px border and 32px day number; each item row is 24px plus a 2px gap.
 const MONTH_CELL_CHROME = 41
 const MONTH_ROW = 26
 
-/** How many item rows fit in a month cell of `height` pixels; the row count follows the window size. */
 export function monthCellRows(height: number) {
   return Math.max(1, Math.floor((height - MONTH_CELL_CHROME + 2) / MONTH_ROW))
 }
 
-/** How many of a day's items to show: all that fit, or one row fewer to leave room for "+N more". */
 export function monthCellShown(total: number, rows: number) {
   return total <= rows ? total : rows - 1
 }
 
-/** The hour starting at `hour`, for an event started from a slot in the day grid. It stays within the day. */
 export function hourSlot(hour: number) {
   const clock = (value: number) => `${String(value).padStart(2, "0")}:00`
   return { start: clock(hour), end: hour >= 23 ? "23:59" : clock(hour + 1) }
 }
 
-/**
- * Scroll offset that opens the Day and Week grid at 07:00, or at the hour of an earlier event, just below the
- * pinned day header. `starts` are the "HH:MM" start times of the shown timed events.
- */
 export function gridScrollTop(input: { starts: string[]; hoursTop: number; headerHeight: number; hour: number }) {
   const first = Math.min(
     7 * 60,
@@ -193,10 +165,6 @@ export function weekRange(cursor: Date) {
   return { start: localDateKey(start), end: localDateKey(shiftDate(start, 6)) }
 }
 
-/**
- * The dates a list view covers: the cursor's day, its week, or for the agenda today onward (days that have passed
- * are the calendar's, not the agenda's).
- */
 export function scheduleBounds(
   view: CalendarView,
   cursor: string,
@@ -208,7 +176,6 @@ export function scheduleBounds(
   return { start: today, end: "9999-12-31" }
 }
 
-/** The view named in `?view=`; anything else opens Today. */
 export function calendarView(value?: string): CalendarView {
   if (
     value === "week" ||

@@ -491,7 +491,6 @@ describe("tool.read truncation", () => {
         "base64",
       )
       yield* put(file, png)
-      // Sparse, so the 21 MB file costs no disk.
       yield* Effect.promise(() => import("fs/promises").then((fs) => fs.truncate(file, 21 * 1024 * 1024)))
 
       const error = yield* fail(dir, { filePath: file })

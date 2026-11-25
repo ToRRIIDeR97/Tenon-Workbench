@@ -148,7 +148,6 @@ async function refreshAccessToken(refreshToken: string, issuer = ISSUER): Promis
   return response.json()
 }
 
-// Kept as a named export for plugin.codex tests; delegates to the shared branded page.
 export const renderOAuthError = (error: string) => OauthCallbackPage.error(error, { provider: "ChatGPT" })
 
 interface PendingOAuth {
@@ -253,7 +252,7 @@ function waitForOAuthCallback(pkce: PkceCodes, state: string): Promise<TokenResp
         }
       },
       5 * 60 * 1000,
-    ) // 5 minute timeout
+    )
 
     pendingOAuth = {
       pkce,
@@ -558,14 +557,10 @@ export async function CodexAuthPlugin(input: PluginInput, options: CodexAuthPlug
       output.headers.originator = "opencode"
       output.headers["User-Agent"] = `opencode/${InstallationVersion} (${os.platform()} ${os.release()}; ${os.arch()})`
       output.headers["session-id"] = input.sessionID
-      // Temporary fetch-layer hack: title generation currently shares the conversation
-      // session ID, so the OpenAI plugin marks it for HTTP fallback until transport
-      // context can be passed directly instead of smuggled through headers.
       if (websocketFetchInstalled && input.agent === "title") output.headers[OpenAIWebSocketPool.TITLE_HEADER] = "true"
     },
     "chat.params": async (input, output) => {
       if (input.model.providerID !== "openai") return
-      // Match codex cli
       output.maxOutputTokens = undefined
     },
   }

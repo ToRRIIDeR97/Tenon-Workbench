@@ -22,7 +22,6 @@ describe("windowsPath", () => {
     expect(result).toContain(String.raw`C:\Users\me\.cargo\bin`)
     expect(result).toContain(String.raw`C:\Users\me\AppData\Local\Microsoft\WinGet\Links`)
     expect(result).toContain(String.raw`C:\Users\me\scoop\shims`)
-    // Entries already present, in any case or with a trailing slash, are not repeated.
     expect(
       result.filter((entry) => entry.toLowerCase().startsWith(String.raw`c:\users\me\appdata\roaming\npm`)),
     ).toHaveLength(1)

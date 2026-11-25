@@ -52,8 +52,6 @@ export function serveEmbeddedUIEffect(
   )
 }
 
-// Serves only the UI bundled into this binary. There is no hosted fallback:
-// a missing bundle or an unmatched API route is a local 404.
 export function serveUIEffect(
   request: HttpServerRequest.HttpServerRequest,
   services: { fs: FSUtil.Interface; disableEmbeddedWebUi: boolean },

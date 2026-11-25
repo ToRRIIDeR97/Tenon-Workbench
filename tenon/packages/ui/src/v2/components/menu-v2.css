@@ -1,4 +1,3 @@
-/* Above modal dialogs (z-index 50); matches select-v2-content. */
 [data-popper-positioner]:has([data-component="menu-v2-content"]) {
   z-index: 60;
 }
@@ -30,8 +29,6 @@
   }
 }
 
-/* Opt-in for long data-driven lists (harness models): scroll inside the menu instead of running
-   off-screen. Menus that scroll an inner element, like the model selector, leave it off. */
 [data-component="menu-v2-content"][data-scrollable] {
   max-height: min(24rem, 60vh);
   overflow-y: auto;
@@ -143,7 +140,6 @@
     color: var(--v2-icon-icon-muted);
   }
 
-  /* An overlay image, so the keyboard highlight also shows on a checked (accent container) row. */
   &[data-highlighted] {
     background-image: linear-gradient(var(--menu-v2-hover), var(--menu-v2-hover));
   }
@@ -191,10 +187,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Material 3 shape and motion: rounded menu surface that scales in from its anchor (short +
-   emphasized-decelerate) and fades and shrinks to .96 toward it on close (exit-small + ease-exit), the
-   exit every small surface shares. The exit has its own animation name, so Kobalte keeps the menu mounted
-   until it ends; selection and dismissal have already run by then, and the leaving menu takes no pointer. */
 [data-component="menu-v2-content"] {
   border-radius: var(--v2-radius-lg);
   transform-origin: var(--kb-menu-content-transform-origin, top left);

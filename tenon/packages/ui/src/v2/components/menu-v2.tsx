@@ -47,7 +47,6 @@ function ItemBody(
 }
 
 export interface MenuV2ItemProps extends ComponentProps<typeof DropdownMenu.Item> {
-  /** Marks an action that can't be undone. */
   critical?: boolean
   shortcut?: JSX.Element | string
   badge?: JSX.Element | string

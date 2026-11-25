@@ -95,9 +95,6 @@ type DraftProps = {
   submitLabel?: string
 }
 
-// Generic host machinery shared by the v1 and v2 annotation renderers: each
-// annotation key gets a detached DOM host with its own Solid root, updated in
-// place through a signal so Pierre can reparent the host without re-rendering.
 export function createLineCommentAnnotationRenderer<T, C, D>(props: {
   renderComment: (comment: T) => C
   renderDraft: (range: SelectedLineRange) => D
@@ -522,7 +519,6 @@ export function createLineCommentAnnotations<T>(
         ]
       },
       [],
-      // Stable identity for unchanged annotations avoids no-op diff rerenders downstream.
       { equals: sameAnnotationLists },
     )
   }

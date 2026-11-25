@@ -8,7 +8,6 @@ import { unique } from "remeda"
 import * as Effect from "effect/Effect"
 import { FSUtil } from "@tenon/core/fs-util"
 
-/** Project config files for `names` (lowest priority first), ordered so later files win when merged. */
 export const files = Effect.fn("ConfigPaths.projectFiles")(function* (
   names: readonly string[],
   directory: string,

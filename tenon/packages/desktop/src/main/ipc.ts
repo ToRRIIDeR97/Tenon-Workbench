@@ -49,9 +49,6 @@ import type { DictationService } from "./dictation-service"
 import type { MailService } from "./mail/service"
 import type { HarnessSyncService } from "./harness-sync/service"
 
-// Renderer-supplied IPC is only trusted from the main frame of an app window:
-// any other frame or webContents that reaches ipcRenderer must not reach the
-// privileged handlers below (issue #25).
 const assertTrustedSender = (event: IpcMainInvokeEvent | IpcMainEvent) => {
   const win = BrowserWindow.fromWebContents(event.sender)
   if (!win || win.isDestroyed() || win.webContents !== event.sender || event.senderFrame !== event.sender.mainFrame) {
@@ -76,7 +73,6 @@ const trustedOn = <A extends unknown[]>(channel: string, listener: (event: IpcMa
   })
 }
 
-// Parent native dialogs to the requesting window so they stay modal to it.
 const showOpenDialog = (event: IpcMainInvokeEvent, options: Electron.OpenDialogOptions) => {
   const owner = BrowserWindow.fromWebContents(event.sender)
   return owner ? dialog.showOpenDialog(owner, options) : dialog.showOpenDialog(options)
@@ -127,8 +123,6 @@ type Deps = {
   harnessSync: HarnessSyncService
 }
 
-// Harness sync calls settle as `{ value }` or `{ error }`, so the renderer gets the message without Electron's
-// "Error invoking remote method" prefix.
 const settle = (work: () => Promise<unknown>) =>
   work().then(
     (value) => ({ value }),
@@ -210,8 +204,6 @@ export function registerIpcHandlers(deps: Deps) {
   trustedHandle("google-calendar-disconnect", (_event, input: Parameters<GoogleCalendarPlatform["disconnect"]>[0]) =>
     deps.googleCalendar.disconnect(typeof input?.accountId === "string" ? { accountId: input.accountId } : undefined),
   )
-  // Dictation: the renderer starts and stops recordings and manages model files by id only.
-  // The spoken language is a code the service validates; the live transcript goes back to the same window.
   trustedHandle("dictation-start", (event, options: { language?: unknown } | undefined) =>
     deps.dictation.start(
       (rms) => !event.sender.isDestroyed() && event.sender.send("dictation-level", rms),
@@ -221,7 +213,6 @@ export function registerIpcHandlers(deps: Deps) {
       (values) => !event.sender.isDestroyed() && event.sender.send("dictation-bands", values),
     ),
   )
-  // An attachment's audio (#330): at most 30 minutes of 16 kHz samples, as a Float32Array.
   trustedHandle("dictation-transcribe", (_event, samples: unknown) => {
     if (!(samples instanceof Float32Array) || samples.length > 30 * 60 * 16_000)
       return { error: { code: "bad_request" } }
@@ -240,7 +231,6 @@ export function registerIpcHandlers(deps: Deps) {
   )
   trustedHandle("dictation-cancel-download", (_event, id: unknown) => deps.dictation.cancelDownload(id))
   trustedHandle("dictation-open-permission-settings", () => deps.dictation.openPermissionSettings())
-  // Harness sync: the renderer passes harness IDs, presets and names; sync files come from native dialogs.
   trustedHandle("harness-sync-status", () => settle(() => deps.harnessSync.status()))
   trustedHandle("harness-sync-now", () => settle(() => deps.harnessSync.syncNow()))
   trustedHandle("harness-sync-read-tool", (_event, tool: unknown) =>
@@ -279,7 +269,6 @@ export function registerIpcHandlers(deps: Deps) {
   })
   trustedHandle("mail-remove", (_event, id: unknown) => deps.mail.remove(String(id ?? "")))
   trustedHandle("set-background-color", (_event: IpcMainInvokeEvent, color: string) => deps.setBackgroundColor(color))
-  // The desktop widget: shown and hidden from any window, sized to its card, and able to open a route in a main window.
   trustedHandle("widget-toggle", () => deps.widget.toggle())
   trustedHandle("widget-hide", () => deps.widget.hide())
   trustedHandle("widget-resize", (_event: IpcMainInvokeEvent, height: unknown) => deps.widget.resize(Number(height)))
@@ -368,9 +357,6 @@ export function registerIpcHandlers(deps: Deps) {
     chosen: typeof getStore().get(VAULT_FOLDER_KEY) === "string",
   }))
 
-  // The folder comes from the native dialog, never from the renderer. The running server keeps its vault
-  // until it restarts, so the caller offers a relaunch. The current vault's pages are copied over first (the
-  // old folder stays as it was, `previous` names it); a non-empty folder that is not a vault is refused.
   trustedHandle("choose-vault-folder", async (event: IpcMainInvokeEvent) => {
     const current = vaultFolder(getStore().get(VAULT_FOLDER_KEY), app.getPath("documents"))
     const result = await showOpenDialog(event, {
@@ -380,7 +366,6 @@ export function registerIpcHandlers(deps: Deps) {
     })
     if (result.canceled || !result.filePaths[0]) return null
     const folder = vaultFolder(result.filePaths[0], app.getPath("documents"))
-    // A vault inside a repository or workspace would write notes next to code; the server refuses it too.
     if (insideCodeFolder(folder, app.getPath("home"))) return { error: "inside_workspace" as const, folder }
     const moved = await moveVault(current, folder)
     if ("error" in moved) return { error: moved.error, folder }
@@ -455,7 +440,6 @@ export function registerIpcHandlers(deps: Deps) {
     openLocalFileURL(url)
   })
 
-  // The Workbench panel's browser. Bounds are CSS pixels in the window; undefined hides it.
   trustedHandle(
     "browser-show",
     (event: IpcMainInvokeEvent, bounds?: { x: number; y: number; width: number; height: number }) => {
@@ -477,7 +461,6 @@ export function registerIpcHandlers(deps: Deps) {
   )
   trustedHandle("browser-pick", () => pickElement())
 
-  // The Device tab: Android (adb, emulator) on every desktop, the iOS Simulator on macOS.
   trustedHandle("device-status", () => deviceStatus())
   trustedHandle("device-boot", (_event: IpcMainInvokeEvent, platform: DevicePlatform, id: string) =>
     isPlatform(platform) && typeof id === "string" ? bootDevice(platform, id) : undefined,
@@ -495,31 +478,22 @@ export function registerIpcHandlers(deps: Deps) {
         : undefined,
   )
 
-  // A read-only tenon-file:// URL for a file inside an open folder, for the Workbench panel viewers.
   trustedHandle("file-viewer-url", (_event: IpcMainInvokeEvent, directory: string, path: string) =>
     typeof directory === "string" && typeof path === "string" ? fileViewerURL(directory, path) : undefined,
   )
 
-  // The renderer may only name an application from the "Open in" list, never
-  // hand over a path to execute: main resolves the name through the
-  // registered-application lookup so a compromised renderer cannot run an
-  // arbitrary binary (issue #23). UNC paths are refused before stat.
   trustedHandle("open-path", async (_event: IpcMainInvokeEvent, path: string, app?: string) => {
     if (typeof path !== "string" || !isAbsolute(path) || isUncPath(path))
       throw new Error("open-path requires a local absolute path")
-    // Only the apps "Open in" offers; a name such as python3 or node would run against the folder.
     if (app && (typeof app !== "string" || !isOpenWithApp(app))) throw new Error("Unknown application")
     const info = await stat(path)
     if (!app) {
-      // Same policy as local file links: check both the requested path and its resolved target
-      // so a benign-looking symlink (e.g. notes.txt -> Payload.app) cannot launch an executable.
       const real = await realpath(path).catch(() => undefined)
       const meta = { isDirectory: info.isDirectory(), mode: info.mode }
       if (!real || localFileAction(path, meta) === "reveal" || localFileAction(real, meta) === "reveal")
         return shell.showItemInFolder(path)
       return shell.openPath(path)
     }
-    // "Open in" passes a project folder; a file handed to an app such as Terminal could run.
     if (!info.isDirectory()) throw new Error("open-path with an application requires a directory")
     const resolved = process.platform === "darwin" ? app : await resolveAppPath(app)
     if (!resolved || (process.platform !== "darwin" && !isAbsolute(resolved))) throw new Error("Unknown application")
@@ -584,7 +558,6 @@ export function registerIpcHandlers(deps: Deps) {
   trustedHandle("get-zoom-factor", (event: IpcMainInvokeEvent) => event.sender.getZoomFactor())
   trustedHandle("set-zoom-factor", (event: IpcMainInvokeEvent, factor: unknown) => {
     if (typeof factor !== "number" || !Number.isFinite(factor)) throw new Error("Invalid zoom factor")
-    // Same bounds as the View menu zoom actions.
     event.sender.setZoomFactor(Math.min(Math.max(factor, 0.2), 10))
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return

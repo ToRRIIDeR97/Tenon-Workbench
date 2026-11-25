@@ -63,8 +63,6 @@
     --sticky-accordion-top: 0px;
   }
 
-  /* Each reviewed file is a tonal 16px card with no hairlines. The radii are !important because
-     the shared ui accordion rounds first/last items with higher-specificity :first-child/:last-child rules. */
   [data-component="accordion"] {
     gap: 4px;
 

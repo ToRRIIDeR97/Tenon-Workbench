@@ -450,7 +450,6 @@ describe("DatabaseMigration", () => {
         const db = yield* makeDb
         yield* db.run(sql`CREATE TABLE project (id text PRIMARY KEY, worktree text NOT NULL, sandboxes text NOT NULL)`)
         yield* db.run(sql`CREATE TABLE session (id text PRIMARY KEY, directory text NOT NULL, path text)`)
-        // Windows-shaped rows (drive + backslash) must be normalized.
         yield* db.run(
           sql`INSERT INTO project (id, worktree, sandboxes) VALUES (${"win"}, ${"C:\\Repo\\Thing"}, ${JSON.stringify([
             "C:\\Repo\\Thing\\sandbox",
@@ -459,14 +458,11 @@ describe("DatabaseMigration", () => {
         yield* db.run(
           sql`INSERT INTO session (id, directory, path) VALUES (${"win"}, ${"C:\\Repo\\Thing\\packages\\api"}, ${"packages\\api"})`,
         )
-        // UNC worktrees and their sandboxes must normalize too (not just drive paths).
         yield* db.run(
           sql`INSERT INTO project (id, worktree, sandboxes) VALUES (${"unc"}, ${"\\\\server\\share"}, ${JSON.stringify([
             "\\\\server\\share\\sandbox",
           ])})`,
         )
-        // The "/" worktree sentinel and POSIX paths (including a pathological
-        // backslash in a POSIX filename) must survive byte-for-byte.
         yield* db.run(sql`INSERT INTO project (id, worktree, sandboxes) VALUES (${"global"}, ${"/"}, ${"[]"})`)
         yield* db.run(
           sql`INSERT INTO session (id, directory, path) VALUES (${"posix"}, ${"/home/me/we\\ird"}, ${"src\\weird"})`,
@@ -684,7 +680,6 @@ describe("DatabaseMigration", () => {
   })
 })
 
-// The statements drizzle-kit generates when it rebuilds a table.
 const rebuildParent = {
   id: "20990101000000_rebuild_parent",
   up: (tx) =>
@@ -746,7 +741,6 @@ describe("DatabaseMigration safety", () => {
       Effect.gen(function* () {
         const db = yield* makeDb
         yield* createParentAndChild(db)
-        // An orphan left by an older build must not block later migrations.
         yield* db.run(sql`PRAGMA foreign_keys = OFF`)
         yield* db.run(sql`INSERT INTO child (id, parent_id) VALUES ('orphan', 'missing')`)
         yield* db.run(sql`PRAGMA foreign_keys = ON`)
@@ -759,7 +753,6 @@ describe("DatabaseMigration safety", () => {
           },
         ]).pipe(Effect.exit)
 
-        // Earlier migrations in the batch stay committed; only the failing one rolls back.
         expect(exit._tag).toBe("Failure")
         expect(yield* db.all(sql`SELECT id, name FROM parent`)).toEqual([{ id: "p1", name: "" }])
         expect(yield* db.all(sql`SELECT id FROM migration`)).toEqual([{ id: rebuildParent.id }])
@@ -779,7 +772,6 @@ describe("DatabaseMigration safety", () => {
             up: (tx) =>
               Effect.gen(function* () {
                 applied.push("first")
-                // Simulates a concurrent process that committed the next migration.
                 yield* tx.run(sql`INSERT INTO migration (id, time_completed) VALUES ('20990101000001_second', 1)`)
               }),
           },
@@ -799,7 +791,6 @@ describe("DatabaseMigration safety", () => {
     const filename = path.join(tmp.path, "opencode.db")
     const stale = ["20000101000000_a", "20000101000001_b", "20000101000002_c"]
     await Promise.all(stale.map((id) => Bun.write(`${filename}.pre-${id}.bak`, "old")))
-    // Temp files from a backup that was killed long ago, and from one another process is writing now.
     const killed = `${filename}.pre-20000101000000_a.bak.killed.tmp`
     const writing = `${filename}.pre-20000101000000_a.bak.writing.tmp`
     await Promise.all([Bun.write(killed, "partial"), Bun.write(writing, "partial")])

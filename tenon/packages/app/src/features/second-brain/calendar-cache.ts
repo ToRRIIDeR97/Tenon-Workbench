@@ -6,27 +6,17 @@ type Client = Parameters<typeof readCalendar>[0]
 const PREFIX = "tenon.calendar-cache:"
 const memory = new Map<string, CalendarSnapshot>()
 
-/**
- * The workspace calendar, shown from the last snapshot while a fresh read is in flight. A launch paints the
- * cached events at once and a background refetch (Google sync, focus) swaps items in place instead of
- * blanking the view. A local write (`mutate`) shows at once, even mid-read, and a read that started before
- * it never overwrites it. A failed refresh keeps the last snapshot; `error` says it failed. The cache is
- * rebuildable: a missing or unreadable entry only means a cold first paint.
- */
 export function createCalendarResource(source: () => string | undefined, client: (directory: string) => Client) {
-  // The newest snapshot of a workspace from a read or a local write, whichever came last.
   const [shown, setShown] = createSignal<{ directory: string; snapshot: CalendarSnapshot }>()
   const writes = { count: 0 }
   const [calendar, actions] = createResource(source, async (directory) => {
     const started = writes.count
     const snapshot = await readCalendar(client(directory))
-    // A local write since this read started is newer than what the read returned.
     if (writes.count !== started) return remembered(directory) ?? snapshot
     remember(directory, snapshot)
     setShown({ directory, snapshot })
     return snapshot
   })
-  // `shown` can still hold the previous workspace while a switch loads, so that reads this one's cache.
   const snapshot = () => {
     const directory = source()
     if (!directory) return undefined
@@ -36,7 +26,6 @@ export function createCalendarResource(source: () => string | undefined, client:
   }
   return {
     snapshot,
-    /** True only when there is nothing to show yet: a cold first load with no cached snapshot. */
     loading: () => !calendar.error && !snapshot(),
     error: () => calendar.error as unknown,
     refetch: () => actions.refetch(),
@@ -63,9 +52,7 @@ function remember(directory: string, snapshot: CalendarSnapshot) {
   memory.set(directory, snapshot)
   try {
     localStorage.setItem(PREFIX + directory, JSON.stringify(snapshot))
-  } catch {
-    // A full or blocked storage only costs the next launch its instant paint.
-  }
+  } catch {}
 }
 
 function read(directory: string) {

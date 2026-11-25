@@ -52,7 +52,6 @@ const taskListsEndpoint = "https://tasks.googleapis.com/tasks/v1/users/@me/lists
 const tasksEndpoint = "https://tasks.googleapis.com/tasks/v1/lists"
 const oauthTimeoutMs = 5 * 60 * 1_000
 const taskLimit = 5_000
-// Set at build time from desktop/.env.local; Google treats a desktop client secret as non-confidential.
 const builtInClient = builtInGoogleClient({
   clientId: import.meta.env.MAIN_VITE_GOOGLE_CLIENT_ID,
   clientSecret: import.meta.env.MAIN_VITE_GOOGLE_CLIENT_SECRET,
@@ -69,7 +68,6 @@ type Account = {
   lastSyncedAt?: string
 }
 
-/** An account as kept in the store: the client secret and refresh token are encrypted. */
 type StoredAccount = Account
 
 type StoredOutbox = {
@@ -81,7 +79,6 @@ type StoredOutbox = {
   createdAt: string
   lastError?: string
   result?: GoogleCalendarProviderEvent | null
-  /** This began as a create that was attempted before an edit, so Google may have it. */
   reached?: boolean
 }
 
@@ -99,24 +96,19 @@ type StoredTaskOutbox = {
 type TaskListResponse = { id?: string; title?: string }
 
 const netFetch = (input: string, init: RequestInit) => net.fetch(input, init)
-// A rotated refresh token is stored on its own, so no stale copy of the account can overwrite it.
 const accessTokens = createGoogleAccessTokens({
   fetch: netFetch,
   endpoint: tokenEndpoint,
   onRotate: async (accountId, refreshToken) => updateAccount(accountId, { refreshToken: await encrypt(refreshToken) }),
 })
 
-/** A Google grant made elsewhere (Gmail's sign-in) that also covers Calendar and Tasks. */
 export type GoogleGrant = { accessToken: string; refreshToken: string; scope?: string }
 
 export function createGoogleCalendarService(): GoogleCalendarPlatform & {
   adoptGrant: (grant: GoogleGrant) => Promise<boolean>
 } {
   let busy = false
-  // The browser consent can take minutes; it has its own guard so syncs and writes aren't blocked, and
-  // starting Connect again cancels it (the user may have closed the Google tab).
   let consent: AbortController | undefined
-  // The last sync failure per account; in memory only, so a restart shows a clean slate until the next sync.
   const errors = new Map<string, string>()
 
   const status = async (): Promise<GoogleCalendarConnection> => {
@@ -174,10 +166,8 @@ export function createGoogleCalendarService(): GoogleCalendarPlatform & {
     }
   }
 
-  // Saves a Calendar account for a grant, keyed by address so signing in again renews the same account.
   const keep = async (client: GoogleClient, accessToken: string, refreshToken: string, access: "read" | "write") => {
     const calendar = await providerJson<{ summary?: string; id?: string }>(calendarEndpoint, accessToken)
-    // The primary calendar's ID is the account's address.
     const email = calendar.id?.includes("@") ? calendar.id : undefined
     const existing = email ? (await readAccounts()).find((account) => account.email === email) : undefined
     const id = existing?.id ?? randomUUID()
@@ -194,8 +184,6 @@ export function createGoogleCalendarService(): GoogleCalendarPlatform & {
     })
   }
 
-  // Gmail's sign-in asks for Calendar and Tasks too, so one Google consent connects both. Uses the built-in
-  // client, the one Gmail signs in with; false when Calendar wasn't granted or can't be stored securely.
   const adoptGrant = async (grant: GoogleGrant) => {
     const access = grantedCalendarAccess(grant.scope)
     if (!access || !builtInClient || busy || !(await secureStorageAvailable())) return false
@@ -211,14 +199,12 @@ export function createGoogleCalendarService(): GoogleCalendarPlatform & {
   const sync: GoogleCalendarPlatform["sync"] = async () => {
     if (busy) throw new Error("google_operation_busy")
     const accounts = await requireAccounts()
-    // Decrypting awaits the OS key store, so check again before claiming the guard.
     if (busy) throw new Error("google_operation_busy")
     busy = true
     try {
       const events: GoogleCalendarProviderEvent[] = []
       const tasks: GoogleTaskProviderTask[] = []
       const syncedAccounts: string[] = []
-      // One at a time, so a slow or revoked account never hides another account's results.
       for (const account of accounts) {
         const result = await syncAccount(account).catch((error: unknown) => {
           errors.set(account.id, error instanceof Error ? error.message : "google_sync_failed")
@@ -229,7 +215,6 @@ export function createGoogleCalendarService(): GoogleCalendarPlatform & {
         events.push(...result.events)
         tasks.push(...result.tasks)
         syncedAccounts.push(account.id)
-        // Only the timestamp: `account` may hold a refresh token that was rotated during this sync.
         updateAccount(account.id, { lastSyncedAt: new Date().toISOString() })
       }
       if (syncedAccounts.length === 0) throw new Error(errors.get(accounts[0].id) ?? "google_sync_failed")
@@ -264,7 +249,6 @@ export function createGoogleCalendarService(): GoogleCalendarPlatform & {
       if (!edited) return { state: "synced", event: stored.result ?? null }
       const finished = finishedWriteTarget(stored.result, request.event)
       if (!finished) throw new Error("google_idempotency_collision")
-      // The write finished before the page heard of it, so this edit goes on top of Google's copy.
       existing = {
         ...stored,
         input: { ...request, kind: "update", event: finished },
@@ -320,8 +304,6 @@ export function createGoogleCalendarService(): GoogleCalendarPlatform & {
     const outbox = readTaskOutbox()
     const stored = outbox.find((operation) => operation.input.idempotencyKey === request.idempotencyKey)
     const finished = stored?.state === "succeeded" ? finishedWriteTarget(stored.result, request.task) : undefined
-    // Google has no ID for a task still queued as a create, so there is nothing to delete there. A create
-    // whose response was lost shows up at the next sync as an ordinary task.
     if (request.kind === "delete" && request.task.providerId.startsWith("pending:") && stored?.state !== "succeeded") {
       if (stored) persistTaskOutbox(outbox.filter((item) => item.id !== stored.id))
       return { state: "synced", task: null }
@@ -332,7 +314,6 @@ export function createGoogleCalendarService(): GoogleCalendarPlatform & {
     if (stored?.state === "succeeded") {
       if (!edited) return { state: "synced", task: stored.result ?? null }
       if (!finished) throw new Error("google_idempotency_collision")
-      // The write finished before the page heard of it, so this edit goes on top of Google's copy.
       existing = { ...stored, input: { ...request, kind: "update", task: finished }, result: undefined }
     }
     let operation: StoredTaskOutbox =
@@ -428,7 +409,6 @@ export function createGoogleCalendarService(): GoogleCalendarPlatform & {
 
 async function syncAccount(account: Account) {
   const credentials = accountCredentials(account)
-  // Exchanged first, so a revoked grant stops the sync before any queued write is retried.
   await accessTokens.get(credentials)
   await retryOutbox(account)
   await retryTaskOutbox(account)
@@ -443,7 +423,6 @@ async function syncAccount(account: Account) {
 
 async function fetchGoogleEvents(accessToken: string, accountId: string) {
   const events: GoogleCalendarProviderEvent[] = []
-  // Times come back as wall-clock times in the device's zone, which is how the planner shows them.
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
   let pageToken: string | undefined
   do {
@@ -467,7 +446,6 @@ async function fetchGoogleEvents(accessToken: string, accountId: string) {
     }
     pageToken = page.nextPageToken
   } while (pageToken)
-  // The planner holds at most 5,000 events; keep the ones nearest to today.
   return nearestEvents(events, new Date().toISOString().slice(0, 10))
 }
 
@@ -491,7 +469,6 @@ async function fetchGoogleTasks(accessToken: string, accountId: string) {
     listPageToken = taskLists.length < 2_000 ? page.nextPageToken : undefined
   } while (listPageToken)
 
-  // Three lists at a time; results are joined in list order before the cap, so the cap is stable.
   const perList: GoogleTaskProviderTask[][] = []
   const queue = taskLists.map((taskList, index) => ({ taskList, index }))
   const worker = async () => {
@@ -522,8 +499,6 @@ async function fetchTaskList(accessToken: string, accountId: string, taskList: {
     )
     for (const item of page.items ?? []) {
       const task = normalizeGoogleTask(item, taskList, accountId)
-      // Tasks completed over a year ago would only crowd out current ones under the cap. Filtered
-      // here rather than with `completedMin`, whose effect on open tasks the API leaves unspecified.
       if (task && (!task.completedAt || task.completedAt >= completedSince)) tasks.push(sanitizeProviderTask(task))
       if (tasks.length >= taskLimit) return tasks
     }
@@ -553,8 +528,6 @@ async function authorize(input: {
     const error = url.searchParams.get("error")
     response.setHeader("Content-Type", "text/html; charset=utf-8")
     response.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'")
-    // Any local process or web page can hit this port. A request without our state is refused
-    // but does not end the sign-in, so it cannot cancel the user's real callback.
     if (returnedState !== state) {
       response.writeHead(400).end("<p>Google sign-in could not be completed. You can close this window.</p>")
       return
@@ -582,7 +555,6 @@ async function authorize(input: {
   url.searchParams.set("redirect_uri", redirectUri)
   url.searchParams.set("response_type", "code")
   url.searchParams.set("access_type", "offline")
-  // select_account lets the user pick a different Google account than the browser's current one.
   url.searchParams.set("prompt", "select_account consent")
   url.searchParams.set("scope", googleScopes(input.access).join(" "))
   url.searchParams.set("state", state)
@@ -637,7 +609,6 @@ async function providerJson<T>(
   return (await response.json()) as T
 }
 
-// Logs only the API, status and Google's reason code; the body can echo event or task content.
 async function providerError(response: Response, url: string) {
   const body = await response.text().catch(() => "")
   const { code, api, reason } = classifyGoogleError(response.status, url, body.slice(0, 64_000))
@@ -680,7 +651,6 @@ async function dispatch(account: Account, operation: StoredOutbox) {
           account.id,
         ).catch((error) => {
           if (input.kind !== "create" || !(error instanceof Error) || error.message !== "google_http_409") throw error
-          // The ID is taken, so an earlier attempt did reach Google; an edit since then still has to.
           return providerJson<GoogleEventResponse>(
             `${eventsEndpoint}/${encodeURIComponent(id)}`,
             accessToken,
@@ -811,7 +781,6 @@ async function secureStorageAvailable() {
   return process.platform !== "linux" || safeStorage.getSelectedStorageBackend() !== "basic_text"
 }
 
-/** Accounts as stored, after moving a single-account store into the account list. */
 function readStoredAccounts(): StoredAccount[] {
   const store = getStore(storeName)
   if (GOOGLE_LEGACY_KEYS.some((key) => store.has(key))) migrateLegacyStore()
@@ -839,7 +808,6 @@ function migrateLegacyStore() {
   GOOGLE_LEGACY_KEYS.forEach((key) => store.delete(key))
 }
 
-/** Decrypted accounts; one whose secrets no longer decrypt is skipped rather than failing every account. */
 async function readAccounts(): Promise<Account[]> {
   const accounts = await Promise.all(
     readStoredAccounts().map(async (account): Promise<Account | undefined> => {
@@ -898,7 +866,6 @@ function updateAccount(id: string, patch: Partial<StoredAccount>) {
   )
 }
 
-/** Stores a re-encrypted secret unless the account was saved again in the meantime. */
 function replaceSecret(id: string, field: "clientSecret" | "refreshToken", previous: string, fresh: string) {
   const accounts = readStoredAccounts()
   if (!accounts.some((account) => account.id === id && account[field] === previous)) return
@@ -934,7 +901,6 @@ function rawOutbox(key: "outbox" | "taskOutbox") {
   )
 }
 
-// Entries are tagged with their account by the migration; an untagged entry can no longer be routed.
 function readOutbox() {
   return rawOutbox("outbox").filter((item): item is StoredOutbox => typeof item.accountId === "string")
 }

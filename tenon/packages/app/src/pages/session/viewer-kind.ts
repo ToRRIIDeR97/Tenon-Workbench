@@ -1,4 +1,3 @@
-/** File types the Workbench panel renders instead of showing their source or bytes. */
 export type ViewerKind = "markdown" | "csv" | "json" | "pdf" | "video" | "sheet" | "doc"
 
 const kinds: Record<string, ViewerKind> = {

@@ -86,7 +86,6 @@ class ScenarioBuilder<S = undefined> {
     return this.clone({ auth })
   }
 
-  /** Assert a non-JSON or shape-only response. */
   ok(status = 200, compare: Comparison = "status") {
     return this.done(compare, (_ctx, result) =>
       Effect.sync(() => {
@@ -108,12 +107,10 @@ class ScenarioBuilder<S = undefined> {
     )
   }
 
-  /** Assert JSON status/content-type plus an optional synchronous body check. */
   json(status = 200, inspect?: (body: unknown, ctx: SeededContext<S>) => void, compare: Comparison = "json") {
     return this.jsonEffect(status, inspect ? (body, ctx) => Effect.sync(() => inspect(body, ctx)) : undefined, compare)
   }
 
-  /** Assert JSON status/content-type plus optional Effect assertions, e.g. DB side effects. */
   jsonEffect(
     status = 200,
     inspect?: (body: unknown, ctx: SeededContext<S>) => Effect.Effect<void>,
@@ -135,10 +132,6 @@ class ScenarioBuilder<S = undefined> {
     return builder
   }
 
-  /**
-   * Seed typed state before the HTTP request. The returned value becomes `ctx.state`
-   * for `.at(...)` and assertions, giving stateful route tests type-safe setup.
-   */
   seeded<Next>(seed: (ctx: ScenarioContext) => Effect.Effect<Next>) {
     const builder = new ScenarioBuilder<Next>(this.state.method, this.state.path, this.state.name, this.state.auth)
     Object.assign(builder.state, this.state, { seed })

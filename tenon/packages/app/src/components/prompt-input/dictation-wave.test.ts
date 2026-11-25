@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { levelReading, voiceGain, waveBars } from "./dictation-wave"
 
-// #328 (variant A): a wave whose bars follow the microphone's frequency bands, inside the composer.
 describe("AC-16 the voice wave", () => {
   test("bars rise at once to a louder band and fall back slowly", () => {
     const up = waveBars([1, 1, 1, 1], [0, 0, 0, 0], 4)
@@ -22,14 +21,11 @@ describe("AC-16 the voice wave", () => {
   })
 
   test("ordinary speech fills the wave and a quiet room stays flat", () => {
-    // Speech into a laptop mic: bands around 0.1–0.4 of the engine's full scale.
     const speech = voiceGain([0.05, 0.3, 0.4, 0.25], 0)
     expect(Math.max(...speech.values)).toBeGreaterThan(0.9)
     expect(speech.values[0]).toBe(0)
-    // Room noise after the speech: the gain relaxes slowly and the bars stay near the line.
     const quiet = voiceGain([0.06, 0.1, 0.08, 0.05], speech.peak)
     expect(Math.max(...quiet.values)).toBe(0)
-    // A quiet room on its own is not blown up.
     expect(Math.max(...voiceGain([0.15, 0.2], 0).values)).toBeLessThan(0.4)
   })
 

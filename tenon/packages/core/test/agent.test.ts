@@ -125,13 +125,11 @@ describe("AgentV2", () => {
         "title",
       ])
       for (const item of agents) {
-        // No agent is opted into running commands without asking; an explicit "ask" is narrower than the wildcard.
         expect(item.permissions.some((rule) => rule.action === "bash" && rule.effect === "allow")).toBe(false)
       }
     }),
   )
 
-  // Ask mode only works if these reach the app as approval cards; the app answers them per the thread's mode.
   it.effect("every folder asks before shell, edits, the web and MCP or agent tools", () =>
     Effect.gen(function* () {
       const agent = yield* AgentV2.Service

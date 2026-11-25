@@ -188,7 +188,6 @@ export const hasPending = Effect.fn("SessionInput.hasPending")(function* (
   return row !== undefined
 })
 
-/** Sessions with queued inputs still waiting, for a server that starts with work left from its last run. */
 export const queuedSessions = Effect.fn("SessionInput.queuedSessions")(function* (db: DatabaseService) {
   const rows = yield* db
     .selectDistinct({ sessionID: SessionInputTable.session_id })
@@ -199,7 +198,6 @@ export const queuedSessions = Effect.fn("SessionInput.queuedSessions")(function*
   return rows.map((row) => row.sessionID)
 })
 
-// Queued inputs wait for the session to go idle; clients show them outside the transcript until promotion.
 export const listQueued = Effect.fn("SessionInput.listQueued")(function* (
   db: DatabaseService,
   sessionID: SessionSchema.ID,
@@ -233,7 +231,6 @@ const matchesPrompt = (input: Admitted, expected: { readonly sessionID: SessionS
   input.sessionID === expected.sessionID &&
   JSON.stringify(encodePrompt(input.prompt)) === JSON.stringify(encodePrompt(expected.prompt))
 
-// Delivery is not compared: a queued input steered after the runner selected it is still promoted once.
 const matchesProjection = (
   input: Admitted,
   expected: {
@@ -319,9 +316,6 @@ export const promoteNextQueued = Effect.fn("SessionInput.promoteNextQueued")(fun
   return row === undefined ? false : yield* publish(db, events, sessionID, [row]).pipe(Effect.as(true))
 })
 
-// Where an admitted input stands. A withdrawn input keeps its row, with promoted_seq set to the
-// withdrawal event's sequence and no transcript message, so a racing promotion is skipped instead of
-// re-inserting it.
 export type PendingState = Delivery | "started" | "withdrawn" | "missing"
 
 export const pendingState = Effect.fn("SessionInput.pendingState")(function* (
@@ -341,8 +335,6 @@ export const pendingState = Effect.fn("SessionInput.pendingState")(function* (
   return (message === undefined ? "withdrawn" : "started") as PendingState
 })
 
-// Publishes a transition of a still-queued input. The projector re-checks the row inside the event
-// transaction, so if the runner promotes it first nothing is written and the current state is returned.
 const transitionQueued = Effect.fn("SessionInput.transitionQueued")(function* (
   db: DatabaseService,
   events: EventV2.Interface,

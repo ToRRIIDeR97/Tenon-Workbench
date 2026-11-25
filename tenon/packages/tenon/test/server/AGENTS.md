@@ -12,4 +12,4 @@ Use these patterns for server and HttpApi middleware tests in this directory.
 - Use scoped test layers for flags, database reset, and other global mutable state. Restore flags and reset state in finalizers.
 - Use `tmpdirScoped({ git: true })` plus `Project.use.fromDirectory(dir)` for project-backed requests.
 - If a test needs persisted state without matching runtime state, keep direct database setup inside a narrowly named helper that explains that state.
-- Add comments for non-obvious test topology, especially tests involving both the local test server and a fake upstream server.
+- Make non-obvious test topology clear through test and helper names, especially tests involving both the local test server and a fake upstream server.

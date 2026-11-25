@@ -1,18 +1,3 @@
-//! tenon-dictation: local speech-to-text for Tenon Workbench, spoken over JSON lines on stdio.
-//!
-//! Built on the same stack as Handy (https://github.com/cjpais/Handy, MIT, Copyright (c) 2025
-//! CJ Pais): `handy-recorder` for the microphone, `earshot` for voice activity and
-//! `transcribe-cpp` for GGUF Whisper/Parakeet models. Stdout carries only protocol events;
-//! diagnostics go to stderr.
-//!
-//! Requests: {"id","type":"load","model"} {"id","type":"start","language"?} {"id","type":"stop"}
-//!           {"id","type":"cancel"} {"id","type":"transcribe_file","path"}
-//! Events:   {"type":"ready"} {"type":"level","rms"} {"type":"bands","values"} {"type":"partial","text"}
-//!           {"type":"final","id","text"} {"type":"error","id"?,"code","message"}
-//!
-//! `language` is the spoken language's code (`en`, `zh`...); missing or `auto` lets the model detect it.
-//! While recording, `partial` carries the transcript of the audio so far; `final` replaces it.
-
 mod audio;
 mod language;
 
@@ -26,11 +11,8 @@ use transcribe_cpp::{CancelToken, Model, RunOptions, Session};
 
 use audio::{LevelSink, SharedSamples};
 
-/// How often the live transcript is refreshed while recording.
 const PREVIEW_EVERY: Duration = Duration::from_millis(1200);
-/// A live transcript waits for this much audio (0.8 s) before its first run.
 const PREVIEW_MIN_SAMPLES: usize = 12_800;
-/// The live transcript covers at most the last 28 s, so each refresh stays quick; the final run covers all.
 const PREVIEW_MAX_SAMPLES: usize = 28 * 16_000;
 
 #[derive(Clone)]
@@ -42,7 +24,6 @@ impl Events {
             .0
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        // A closed stdout means the supervisor is gone; the stdin loop ends on its own.
         let _ = writeln!(out, "{event}").and_then(|_| out.flush());
     }
 
@@ -61,11 +42,8 @@ struct Engine {
     events: Events,
     session: SharedSession,
     recorder: Option<Recorder<LevelSink>>,
-    /// The loaded model's language codes (empty for a language-agnostic model).
     languages: Arc<Vec<String>>,
-    /// The spoken language the current recording was started with.
     language: Option<String>,
-    /// Cancels the live-transcript thread of the current recording, and any preview run in flight.
     preview: Option<CancelToken>,
 }
 
@@ -92,7 +70,6 @@ fn main() {
 
 impl Engine {
     fn handle(&mut self, line: &str) {
-        // Windows shells may prefix piped input with a byte-order mark.
         let line = line.trim_start_matches('\u{feff}');
         let Ok(request) = serde_json::from_str::<Value>(line) else {
             return self
@@ -200,9 +177,6 @@ impl Engine {
         }
     }
 
-    /// Re-transcribes the recording so far every `PREVIEW_EVERY` and sends it as a `partial` event, so the words
-    /// appear while the user speaks. A run only starts when the model is free, so the final run is never held up
-    /// by a preview: stop cancels a preview run in flight, and a preview that ends after stop sends nothing.
     fn start_preview(&self, samples: SharedSamples) -> CancelToken {
         let stopped = CancelToken::new();
         let token = stopped.clone();
@@ -231,7 +205,6 @@ impl Engine {
                     continue;
                 };
                 let Some(model) = guard.as_mut() else { return };
-                // The final run must not inherit the token: it is installed only for this preview run.
                 model.set_cancel_token(&token);
                 let result = model.run(speech, &options);
                 model.clear_cancel_token();
@@ -257,7 +230,6 @@ impl Engine {
             return self.events.error(id, "not_recording", "Not recording");
         };
         let stopped = recorder.stop();
-        // Closing releases the microphone (and the OS recording indicator) between dictations.
         drop(recorder);
         let samples = match stopped {
             Ok(stopped) => stopped.sink.into_samples(),
@@ -289,7 +261,6 @@ impl Engine {
         }
     }
 
-    /// Runs the model on a worker thread so `cancel` and new requests are still read meanwhile.
     fn transcribe(&self, id: Option<&str>, samples: Vec<f32>) {
         let events = self.events.clone();
         let session = self.session.clone();
@@ -297,7 +268,6 @@ impl Engine {
         let id = id.map(str::to_owned);
         std::thread::spawn(move || {
             let speech = audio::trim_to_speech(&samples);
-            // Silence (or a muted mic) gives no text instead of a model hallucination.
             if speech.is_empty() {
                 return events.send(json!({ "type": "final", "id": id, "text": "" }));
             }

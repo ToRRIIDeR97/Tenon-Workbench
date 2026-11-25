@@ -4,20 +4,13 @@ import { useI18n } from "../../context/i18n"
 import "./inline-input-v2.css"
 
 export interface InlineInputV2Props extends Omit<ComponentProps<"input">, "type" | "prefix"> {
-  /** Inline label shown before the field (prefix segment). */
   prefix: JSX.Element
-  /** Fixed width for the prefix segment (px number or CSS length). Omit for fit-content. */
   labelWidth?: number | string
-  /** Show the trailing copy action. */
   showCopyButton?: boolean
-  /** Accessible label for the copy button. */
   copyLabel?: string
   onCopyClick?: (event: MouseEvent) => void
-  /** Apply tabular numerals to the prefix and field value. */
   numeric?: boolean
-  /** Error styling for the field and value text. */
   invalid?: boolean
-  /** `base` is 28px tall; `large` is 32px tall. */
   appearance?: "base" | "large"
   type?: ComponentProps<"input">["type"]
 }
@@ -67,7 +60,6 @@ export function InlineInputV2(props: InlineInputV2Props) {
         data-slot="inline-input-v2-prefix"
         onMouseDown={(event) => {
           if (local.disabled || event.button !== 0) return
-          // Keep focus on the input without using a native <label>, so external labels still work.
           event.preventDefault()
           input?.focus()
         }}

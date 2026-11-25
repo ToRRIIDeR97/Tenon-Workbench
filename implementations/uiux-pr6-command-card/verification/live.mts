@@ -1,5 +1,3 @@
-// PR6 verification: open the Command Centre card with Ctrl+J on Home and measure it.
-// Run from tenon/packages/app as e2e/.uiux-pr6.mts: node --experimental-strip-types e2e/.uiux-pr6.mts <outdir> <workspace>
 import { chromium } from "@playwright/test"
 
 const [OUT, WS] = [process.argv[2]!, process.argv[3]!]

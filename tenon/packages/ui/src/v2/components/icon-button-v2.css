@@ -21,7 +21,6 @@
   outline: none;
 }
 
-/* A 24px hit area around the 20px button, without moving its neighbours. */
 [data-component="icon-button-v2"][data-size="small"] {
   position: relative;
 }
@@ -57,7 +56,6 @@
   color: currentColor;
 }
 
-/* Neutral */
 [data-component="icon-button-v2"][data-variant="neutral"] {
   background-color: var(--v2-background-bg-button-neutral);
   color: var(--v2-text-text-base);
@@ -81,7 +79,6 @@
   cursor: not-allowed;
 }
 
-/* Contrast */
 [data-component="icon-button-v2"][data-variant="contrast"] {
   background-image:
     linear-gradient(180deg, var(--v2-alpha-light-20) 0%, var(--v2-alpha-light-0) 100%),
@@ -120,7 +117,6 @@
   cursor: not-allowed;
 }
 
-/* Ghost */
 [data-component="icon-button-v2"][data-variant="ghost"] {
   background-color: transparent;
   color: var(--v2-text-text-base);
@@ -145,7 +141,6 @@
   cursor: not-allowed;
 }
 
-/* Ghost */
 [data-component="icon-button-v2"][data-variant="ghost-muted"] {
   background-color: transparent;
   color: var(--v2-icon-icon-muted);
@@ -172,9 +167,6 @@
   cursor: not-allowed;
 }
 
-/* Material 3 shape and motion: circular icon buttons that morph toward a rounded square while pressed.
-   This unlayered list overrides Tailwind transition utilities on the button, so it includes transform for
-   callers that rotate it (chevrons). */
 [data-component="icon-button-v2"],
 [data-component="icon-button-v2"][data-size="small"] {
   border-radius: var(--v2-radius-full);
@@ -219,12 +211,10 @@
   color: var(--v2-text-text-disabled);
 }
 
-/* Ghost-muted icons rest at icon-muted and turn base on hover. */
 [data-component="icon-button-v2"][data-variant="ghost-muted"]:is(:hover, [data-state="hover"]):not(:disabled) {
   color: var(--v2-icon-icon-base);
 }
 
-/* Lists the small size too: the motion rule above names it, so a lone selector would lose to it. */
 @media (prefers-reduced-motion: reduce) {
   [data-component="icon-button-v2"],
   [data-component="icon-button-v2"][data-size="small"] {

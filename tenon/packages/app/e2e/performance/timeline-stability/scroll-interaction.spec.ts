@@ -143,7 +143,6 @@ test("tracks keyboard scrolling from a focused timeline descendant", async ({ pa
     reducedMotion: true,
   })
   const scroller = page.locator(".scroll-view__viewport", { has: page.locator("[data-timeline-row]") })
-  // The shell is a step in the Worked card (opened by the fixture); its row button opens the output below it.
   const row = page.locator(`[data-timeline-part-id="${shellID}"]`)
   const trigger = row.locator('[data-slot="turn-steps-row"]')
   await row.evaluate((element) => element.setAttribute("tabindex", "0"))
@@ -155,7 +154,6 @@ test("tracks keyboard scrolling from a focused timeline descendant", async ({ pa
   await expect
     .poll(() => scroller.evaluate((element) => element.scrollHeight - element.clientHeight - element.scrollTop))
     .toBeGreaterThan(5)
-  // Long PageUp travel can still be settling under CPU throttle; pick the anchor only once scrollTop holds still.
   await page.waitForFunction(() => {
     const root = [...document.querySelectorAll<HTMLElement>(".scroll-view__viewport")].find((element) =>
       element.querySelector("[data-timeline-row]"),
@@ -180,7 +178,6 @@ test("tracks keyboard scrolling from a focused timeline descendant", async ({ pa
     anchor: { selector: `[data-timeline-key="${anchor}"]` },
   })
   await startVisualProbe(page, regions)
-  // The step sits below the fold after the PageUps; a pointer click would first scroll it into view.
   await trigger.dispatchEvent("click")
   await page.waitForTimeout(300)
   const trace = await stopVisualProbe<keyof typeof regions>(page)
@@ -198,7 +195,6 @@ test("does not claim keyboard scrolling owned by a nested scrollable", async ({ 
   })
   const scroller = page.locator(".scroll-view__viewport", { has: page.locator("[data-timeline-row]") })
   const nested = page.locator(`[data-timeline-part-id="${shellID}"] [data-scrollable]`)
-  // The fixture opens the Worked card; the setting opens the shell step's output.
   await expect(nested).toBeVisible()
   await nested.evaluate((element) => (element.scrollTop = element.scrollHeight))
   await nested.focus()
@@ -298,7 +294,6 @@ test("handles a single row taller than the viewport", async ({ page }, testInfo)
     following: { selector: `[data-timeline-part-id="${followingID}"]`, closest: '[data-timeline-row="AssistantPart"]' },
   })
   await startVisualProbe(page, regions)
-  // Still running, so its card stays open: a finished step before text would fold the card by design.
   await timeline.send(partUpdated(shell(shellID, "running", lines(100))), 700)
   const trace = await stopVisualProbe<keyof typeof regions>(page)
   await reportVisualStability(

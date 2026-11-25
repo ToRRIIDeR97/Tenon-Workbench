@@ -29,7 +29,6 @@ export type CommandPaletteEntry = {
   keybind?: string
   category: string
   option?: CommandOption
-  /** Where a page or Project opens. */
   href?: string
   path?: string
   directory?: string
@@ -41,9 +40,7 @@ export type CommandPaletteEntry = {
 }
 
 const ENTRY_LIMIT = 5
-// Each vault search reads every page in the workspace.
 const VAULT_SEARCH_DELAY = 250
-// The server returns up to 1,000 matches; the session search here asks for 50.
 const VAULT_PAGE_LIMIT = 50
 const COMMON_COMMAND_IDS = [
   "session.new",
@@ -229,11 +226,6 @@ export function createCommandPaletteCommandEntry(option: CommandOption, category
   }
 }
 
-/**
- * The selected workspace's Projects and pages for the palette, the same ones the Projects page shows. Projects load
- * once per palette and filter here; pages are searched on the server, behind a delay so typing doesn't read the vault
- * on every keystroke.
- */
 export function createVaultEntries(server: () => ServerConnection.Any) {
   const language = useLanguage()
   const layout = useLayout()

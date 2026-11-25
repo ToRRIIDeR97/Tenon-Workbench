@@ -18,10 +18,6 @@ export type DictationModelState = {
 export type DictationDownloadProgress = { id: DictationModelID; received: number; total: number }
 export type DictationDownloadResult = { error?: DictationDownloadCode }
 
-/**
- * The desktop dictation feature: model files under the app data folder, the active model choice,
- * microphone permission per platform, and the supervised tenon-dictation engine.
- */
 export function createDictationService() {
   const folder = join(app.getPath("userData"), "dictation", "models")
   const settingsFile = join(app.getPath("userData"), "dictation", "settings.json")
@@ -61,7 +57,6 @@ export function createDictationService() {
   }
 
   const service = {
-    /** An attachment's audio as text (#330): 16 kHz mono samples, written to a temporary WAV for the engine. */
     async transcribe(samples: Float32Array): Promise<{ text?: string; error?: DictationFailure }> {
       await ready
       if (!existsSync(engine)) return { error: { code: "engine_unavailable" } }
@@ -89,8 +84,6 @@ export function createDictationService() {
       const access = await microphoneAccess()
       const help = dictationPermissionHelp(process.platform, access)
       if (help) return { error: { code: "permission_denied", help } }
-      // A second window starting while one records must not take over that recording's level, limit and
-      // live transcript: refuse it before pointing them anywhere.
       if (dictation.status() === "transcribing") return { error: { code: "transcribing" } }
       if (dictation.status() !== "idle") return { error: { code: "already_recording" } }
       levelTarget = onLevel
@@ -151,7 +144,6 @@ export function createDictationService() {
       const task = downloadModel({
         model,
         target: modelPath(id),
-        // net.fetch follows the system proxy and certificate store, like mail and calendar.
         fetch: (url, init) => net.fetch(url, init),
         signal: controller.signal,
         onProgress: (received) => onProgress({ id, received, total: model.size }),
@@ -159,7 +151,6 @@ export function createDictationService() {
         .finally(() => downloads.delete(id))
         .then(
           async (): Promise<DictationDownloadResult> => {
-            // The first model someone downloads becomes the one dictation uses.
             await ready
             if (!active || !existsSync(modelPath(active))) await service.setActive(id)
             return {}
@@ -191,12 +182,10 @@ export function createDictationService() {
 export type DictationService = ReturnType<typeof createDictationService>
 
 async function microphoneAccess(): Promise<MicrophoneAccess> {
-  // Linux has no system-level microphone switch Electron can read; the engine reports failures.
   if (process.platform !== "darwin" && process.platform !== "win32") return "granted"
   const status = systemPreferences.getMediaAccessStatus("microphone")
   if (process.platform === "darwin" && status === "not-determined")
     return (await systemPreferences.askForMediaAccess("microphone")) ? "granted" : "denied"
-  // Windows reports "not-determined" until the first capture; the engine reports a denial then.
   return status
 }
 
@@ -205,7 +194,6 @@ function engineCommand() {
   if (override) return override
   const file = dictationEngineFile(process.platform)
   if (app.isPackaged) return join(process.resourcesPath, "dictation", file)
-  // Development: the cargo release build next to this package (see docs/release-operations.md).
   return join(app.getAppPath(), "..", "dictation", "target", "release", file)
 }
 
@@ -213,7 +201,6 @@ function modelFile(id: DictationModelID) {
   return DICTATION_MODELS.find((model) => model.id === id)!.file
 }
 
-/** The renderer's spoken-language choice as an ISO 639 code for the engine; anything else means "detect". */
 export function dictationLanguageCode(value: unknown) {
   if (typeof value !== "string") return undefined
   const code = value.trim().toLowerCase()

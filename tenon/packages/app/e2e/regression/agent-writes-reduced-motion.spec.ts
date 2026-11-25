@@ -1,10 +1,6 @@
 import { expect, test } from "@playwright/test"
 import { brain, openApp } from "../acceptance/open-app"
 
-// AC-6.6: under reduced motion a write in progress shows its whole text on the first render; with
-// motion, the same text types in over about a second, so a check right after the card appears tells
-// the two apart.
-
 const directory = `${brain}/projects/Acme`
 const sessionID = "ses_acme_thread"
 const text = "Shipped rate limiting and the webhook retry queue. ".repeat(12).trim()

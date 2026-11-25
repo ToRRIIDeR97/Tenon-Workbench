@@ -29,10 +29,6 @@ export class EffectSQLiteDatabase<TRelations extends AnyRelations = EmptyRelatio
 > {
   static override readonly [entityKind]: string = "EffectSQLiteDatabase"
 
-  /**
-   * Runs `transaction` in a transaction. `config.behavior` picks `BEGIN DEFERRED`, `IMMEDIATE` or `EXCLUSIVE`;
-   * without it the `SqlClient`'s default `BEGIN` is used.
-   */
   override transaction<A, E, R>(
     transaction: (
       tx: SQLiteEffectTransaction<EffectSQLiteQueryEffectHKT, EffectSQLiteRunResult, TRelations>,
@@ -45,10 +41,6 @@ export class EffectSQLiteDatabase<TRelations extends AnyRelations = EmptyRelatio
 
 export type EffectDrizzleSQLiteConfig<TRelations extends AnyRelations = EmptyRelations> = UpstreamConfig<TRelations>
 
-/**
- * The column codecs of upstream's `drizzle-orm/effect-sqlite-bun` and `-node` drivers, which are identical:
- * both Effect SQLite clients return the same JavaScript values.
- */
 export const effectSQLiteCodecs = refineSqliteCodecs({
   "integer:boolean": { normalize: booleanFromInteger },
   "integer:timestamp": { normalize: dateFromStoredSeconds },
@@ -64,7 +56,6 @@ export const effectSQLiteCodecs = refineSqliteCodecs({
 
 export const DefaultServices = Layer.merge(EffectCache.Default, EffectLogger.Default)
 
-// Drizzle's own check is not in its declarations: JIT mappers need `new Function`, which a CSP can forbid.
 function jitCompatCheck(isEnabled: boolean | undefined) {
   if (!isEnabled) return false
   try {
@@ -74,21 +65,6 @@ function jitCompatCheck(isEnabled: boolean | undefined) {
   }
 }
 
-/**
- * Creates an EffectSQLiteDatabase instance.
- *
- * Requires a generic Effect `SqlClient`, `EffectLogger`, and `EffectCache` services to be provided.
- * Drizzle only depends on the generic `SqlClient`; provide any SQLite client that exposes it, such as
- * `@effect/sql-sqlite-node`, `@effect/sql-sqlite-bun`, or core's own `#sqlite` clients.
- *
- * @example
- * ```ts
- * const db = yield* EffectDrizzleSqlite.make({ relations }).pipe(
- *   Effect.provide(EffectDrizzleSqlite.DefaultServices),
- *   Effect.provide(SqliteClient.layer({ filename: 'sqlite.db' })),
- * );
- * ```
- */
 export const make = Effect.fn("SQLiteDrizzle.make")(function* <TRelations extends AnyRelations = EmptyRelations>(
   config: EffectDrizzleSQLiteConfig<TRelations> = {},
 ) {
@@ -115,9 +91,6 @@ export const make = Effect.fn("SQLiteDrizzle.make")(function* <TRelations extend
   return db
 })
 
-/**
- * Convenience function that creates an EffectSQLiteDatabase with `DefaultServices` already provided.
- */
 export const makeWithDefaults = <TRelations extends AnyRelations = EmptyRelations>(
   config: EffectDrizzleSQLiteConfig<TRelations> = {},
 ) => make(config).pipe(Effect.provide(DefaultServices))

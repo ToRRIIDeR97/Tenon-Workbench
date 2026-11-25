@@ -31,7 +31,6 @@ export function createTimelineModel(input: {
           refreshTimer = undefined
           if (input.sessionID() !== id) return
           untrack(() => {
-            // A safety net behind live events: if it fails, the cached thread stays and the next visit retries.
             if (stale)
               void sync()
                 .session.sync(id, { force: true })

@@ -40,7 +40,6 @@ export const Status = Event.define({
   },
 })
 
-// deprecated
 export const Idle = Event.define({
   type: "session.idle",
   schema: {

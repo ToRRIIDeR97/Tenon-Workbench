@@ -79,7 +79,6 @@ test("finds the element again when it comes back under a different parent", asyn
     instance.scrollOffset = offset
   })
 
-  // Detached in one task, re-inserted under a sibling that was never part of its ancestor chain in a later one.
   viewport.remove()
   await new Promise((resolve) => setTimeout(resolve, 0))
   second.append(viewport)
@@ -87,7 +86,6 @@ test("finds the element again when it comes back under a different parent", asyn
   await frames(3)
   expect(calls).toEqual([[0, false]])
 
-  // Moved again within one task: the old parent reports the removal, the new one was not watched.
   instance.scrollOffset = 79_400
   first.append(viewport)
   await new Promise((resolve) => setTimeout(resolve, 0))
@@ -97,7 +95,6 @@ test("finds the element again when it comes back under a different parent", asyn
     [0, false],
   ])
 
-  // Streaming inside the viewport never wakes it.
   instance.scrollOffset = 79_400
   viewport.append(document.createElement("p"))
   await frames(3)

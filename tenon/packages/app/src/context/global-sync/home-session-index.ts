@@ -16,7 +16,6 @@ export type HomeSessionEvents = {
 export type HomeSessionIndex = {
   sessions: Session[]
   eventSequence: number
-  /** Child thread ID to parent ID. `sessions` holds roots only, so these links are all that's left of children. */
   parents?: HomeSessionParents
 }
 export type HomeSessionParents = Record<string, string>
@@ -88,11 +87,6 @@ export function homeSessionIndexRefresh(event: Event["type"], connected: boolean
   }
 }
 
-/**
- * Query options for the Home session index, shared by Home, Activity and the sidebar. Live session
- * events keep the cached index current (`apply`), and `refresh` refetches after a reconnect or a
- * global dispose, so a revisit never needs to re-read the full session table.
- */
 export function homeSessionIndexQueryOptions(
   cache: Pick<HomeSessionIndexCache, "indexKey" | "eventSequence" | "complete">,
   list: HomeSessionList,
@@ -124,7 +118,6 @@ export function createHomeSessionIndexCache(queryClient: QueryClient, server: st
       return queryClient.getQueryData<HomeSessionEvents>(eventsKey)?.sequence ?? 0
     },
     complete(sequence: number) {
-      // Keep events received after the fetch began so its response cannot overwrite them.
       queryClient.setQueryData<HomeSessionEvents>(eventsKey, (current) => trimHomeSessionEvents(current, sequence))
     },
     sessions(index: HomeSessionIndex | undefined, events: HomeSessionEvents | undefined) {
@@ -144,18 +137,11 @@ export function createHomeSessionIndexCache(queryClient: QueryClient, server: st
       const index = queryClient.getQueryData<HomeSessionIndex>(indexKey)
       const sessions = homeSessionIndexSessions(index, next)
       const parents = homeSessionIndexParents(index, next)
-      // Most events (subagents, archived threads, known children) change neither list. The index then keeps
-      // its older `eventSequence`: the pending events it skips were no-ops on it and are cleared below, and
-      // the next fetch reads its baseline from the events counter, not from the index.
       if (index && (sessions !== index.sessions || parents !== index.parents)) {
         queryClient.setQueryData<HomeSessionIndex>(indexKey, { sessions, eventSequence: next.sequence, parents })
       }
       queryClient.setQueryData<HomeSessionEvents>(eventsKey, { sequence: next.sequence, entries: [] })
     },
-    /**
-     * A prompt or a finished reply is the thread's latest conversation: its last update moves forward, so it
-     * rises in the lists without refetching the index (the server stores the same time).
-     */
     touch(sessionID: string, time: number) {
       const index = queryClient.getQueryData<HomeSessionIndex>(indexKey)
       const session = homeSessionIndexSessions(index, queryClient.getQueryData<HomeSessionEvents>(eventsKey)).find(
@@ -176,11 +162,6 @@ export function createHomeSessionIndexCache(queryClient: QueryClient, server: st
   }
 }
 
-// TODO(v2): This deliberately dumb full-table scan is necessary because the
-// current V2 API orders by creation time and cannot filter roots, archives, or
-// multiple directories. A bounded page could omit an old session updated today.
-// Once released, use client.v2.project.list() and client.v2.session.list({
-// parentID: null, order: "desc" }), then remove this adapter and its V1 fields.
 export function parseHomeSessionIndex(sessions: SessionV2Info[]): Session[] {
   return sessions.flatMap((item) => {
     if (item.parentID || typeof item.time.archived === "number") return []
@@ -213,7 +194,6 @@ export function applyHomeSessionEvent(sessions: Session[], event: HomeSessionEve
   return sessions.with(index, info)
 }
 
-/** Keeps the same object when nothing changes, because most events are updates to a known thread. */
 function applyHomeParentEvent(parents: HomeSessionParents, event: HomeSessionEvent) {
   const info = event.properties.info
   const parentID =
@@ -239,8 +219,6 @@ function toLegacySummary(session: SessionV2Info): Session {
     model: session.model,
     version: "",
     time: session.time,
-    // The legacy shape keeps in `metadata` what V2 has as fields: the pin, the harness and the thread's origin.
-    // The sidebar merges this summary over the folder lists, so anything left out here is lost to it.
     metadata: legacyMetadata(session),
   }
 }

@@ -21,8 +21,6 @@ describe("command strip anchor", () => {
     expect(commandStripStyle({ lift: 150, center: 439, span: 900 }).width).toBe("640px")
   })
 
-  // Custom properties on <html> inherit into every element: writing them each frame while the side panel eased the
-  // thread column's width restyled and re-laid out the whole document, which is what made opening the panel lag.
   test("the composer region doesn't write style onto the document root", () => {
     const source = readFileSync(
       join(import.meta.dir, "../../pages/session/composer/session-composer-region.tsx"),

@@ -2,8 +2,6 @@
   overflow: hidden;
 }
 
-/* Anchor to the top edge of where a centered 480px-tall dialog would sit, so the
-   top stays put while the content-driven height grows and shrinks. */
 [data-component="dialog-v2"]:has(.command-palette-v2) {
   align-items: flex-start;
 }

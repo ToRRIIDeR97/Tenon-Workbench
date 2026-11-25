@@ -28,8 +28,6 @@ import { resetDatabase } from "../fixture/db"
 import { disposeAllInstances, TestInstance, tmpdirScoped } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 
-// P9 · Routines (implementations/notes-command-centre/implementation.md, AC-9.1 … AC-9.4)
-
 const appLayer = AppNodeBuilder.build(
   LayerNode.group([
     InstanceStore.node,
@@ -89,7 +87,6 @@ describe("Routines.nextRun (AC-9.1)", () => {
     )
   })
   test("weekdays skips the weekend", () => {
-    // 6 Nov 2026 is a Friday.
     expect(Routines.nextRun("weekdays 17:30", local(2026, 11, 6, 18, 0)).getTime()).toBe(
       local(2026, 11, 9, 17, 30).getTime(),
     )
@@ -116,7 +113,6 @@ const setup = Effect.gen(function* () {
       headers,
       body: JSON.stringify({ body: `Prompt for ${name}`, properties, ...(create ? { create: true } : {}) }),
     }).pipe(Effect.flatMap(json<unknown>))
-  // Pages run only once approved; approve what is there, as the Routines page does.
   const approveAll = Effect.gen(function* () {
     const routines = yield* request("/second-brain/routines", { headers }).pipe(Effect.flatMap(json<Routines.Info[]>))
     yield* Effect.forEach(routines, (routine) =>
@@ -134,7 +130,6 @@ const setup = Effect.gen(function* () {
   return { test, headers, write, approveAll, list }
 })
 
-/** The workspace's folder in the vault; a routine must have been written first. */
 const vaultFolder = async () => {
   const root = process.env.TENON_VAULT_DIR!
   const [folder] = (await readdir(root, { withFileTypes: true })).filter(
@@ -226,13 +221,11 @@ describe("Routines", () => {
       yield* approveAll
       yield* Routines.runDue({ now: local(2026, 11, 2, 7, 0), run: () => Effect.die("not due") })
       const started = yield* Deferred.make<void>()
-      // The process "stops" mid-run: the run never answers and its fiber is interrupted.
       const fiber = yield* Routines.runDue({
         now: local(2026, 11, 2, 8, 5),
         run: () => Deferred.succeed(started, undefined).pipe(Effect.andThen(Effect.never)),
       }).pipe(Effect.forkChild)
       yield* Deferred.await(started)
-      // Read at the run's own time: from today's clock this run would be past its limit.
       const list = () => Routines.list(local(2026, 11, 2, 8, 6))
       expect((yield* list())[0]).toMatchObject({ lastRun: null, lastStatus: "running" })
       yield* Fiber.interrupt(fiber)
@@ -257,7 +250,6 @@ describe("Routines", () => {
       const bDone = yield* Deferred.make<void>()
       const release = yield* Deferred.make<void>()
       const aStarted = yield* Deferred.make<void>()
-      // A finishes only after B has run, so a serial loop over A then B would never finish.
       const run = (routine: { name: string }) =>
         routine.name === "A"
           ? Deferred.succeed(aStarted, undefined).pipe(
@@ -269,7 +261,6 @@ describe("Routines", () => {
       const fiber = yield* Routines.runDue({ now: local(2026, 11, 2, 8, 5), run }).pipe(Effect.forkChild)
       yield* Deferred.await(aStarted)
       yield* Deferred.await(bDone)
-      // A later tick while A is still running starts nothing.
       const again = yield* Routines.runDue({ now: local(2026, 11, 2, 8, 6), run: () => Effect.die("double start") })
       expect(again.ran).toEqual([])
       yield* Deferred.succeed(release, undefined)
@@ -284,7 +275,6 @@ describe("Routines", () => {
       yield* write("Recent", { schedule: "daily 08:00" })
       const folder = yield* Effect.promise(vaultFolder)
       yield* Effect.promise(async () => {
-        // No updated_at, so a list cut to the newest 1,000 pages would drop it.
         await writeFile(path.join(folder, "Routines", "Old.md"), "---\nschedule: daily 09:00\n---\nOld prompt\n")
         await Promise.all(
           Array.from({ length: 1_001 }, (_, index) =>
@@ -322,7 +312,6 @@ describe("Routines", () => {
       const run = () => Effect.die("not due")
       yield* Routines.runDue({ now: local(2026, 11, 2, 7, 0), run })
       const file = path.join(Global.make().data, "routines-state.json")
-      // A trailing space survives only if nothing rewrites the file.
       const marked = (yield* Effect.promise(() => readFile(file, "utf8"))) + " "
       yield* Effect.promise(() => writeFile(file, marked))
       yield* Routines.runDue({ now: local(2026, 11, 2, 7, 1), run })
@@ -476,7 +465,6 @@ describe("Routines", () => {
       })
       expect(stale.status).toBe(409)
 
-      // Approving takes the next check as the baseline, so a missed time doesn't run at once.
       yield* approveAll
       expect((yield* list())[0].needsApproval).toBe(false)
       yield* Routines.runDue({ now: local(2026, 11, 4, 8, 0), run })

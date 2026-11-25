@@ -34,10 +34,6 @@ const pageStatuses = ["todo", "doing", "done"] as const
 const propertyField =
   "h-7 min-w-0 rounded-full bg-transparent px-2 text-[13px] text-v2-text-text-base transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none"
 
-/**
- * One vault page, full width: title, Project, Markdown body and Save. Saving sends the revision it loaded, so a
- * page changed elsewhere (another machine, a sync, an agent) is never overwritten unseen.
- */
 export function NotesPageView(props: {
   client: VaultClient
   path: string
@@ -46,11 +42,8 @@ export function NotesPageView(props: {
   onBack: () => void
   onOpen: (path: string) => void
   onSaved: (info: VaultPageInfo) => void
-  /** Leaves the page and deletes it once its Undo window closes. */
   onDelete: (page: { path: string; title: string; revision: string }) => void
-  /** Reports unsaved edits, so the page can hold its workspace until they are saved or discarded. */
   onDirty: (dirty: boolean) => void
-  /** The sidebar switched workspace while this page had unsaved edits. */
   held: boolean
 }) {
   const language = useLanguage()
@@ -64,14 +57,11 @@ export function NotesPageView(props: {
     revision: "",
     projectId: null as string | null,
     updatedAt: "",
-    /** Front matter properties as edited, and as loaded (JSON, to compare). */
     properties: {} as Record<string, unknown>,
     baseProperties: "{}",
     saving: false,
     error: "",
-    /** The last save met a newer revision; offer to reload or keep the text as a copy. */
     conflict: false,
-    /** The page is gone (deleted elsewhere); the text can still become a copy. */
     missing: false,
   })
   const propertiesChanged = () => JSON.stringify(state.properties) !== state.baseProperties
@@ -86,8 +76,6 @@ export function NotesPageView(props: {
     () => props.path,
     (path) => readVaultPage(props.client, path),
   )
-  // An empty page comes back as the newline after its front matter; as text it would put the caret on line 2 and
-  // save a leading blank line.
   const apply = (document: VaultPage) => {
     const body = document.body.trim() ? document.body : ""
     setState({
@@ -98,7 +86,6 @@ export function NotesPageView(props: {
       revision: document.revision,
       projectId: document.info.projectId,
       updatedAt: document.info.updatedAt,
-      // A copy: edits must not write into the loaded document.
       properties: { ...document.info.properties },
       baseProperties: JSON.stringify(document.info.properties),
       error: "",
@@ -106,7 +93,6 @@ export function NotesPageView(props: {
       missing: false,
     })
   }
-  // A path with no page (a stale or hand-typed link) shows a not-found state instead of an empty editor.
   const notFound = () => page.error instanceof SecondBrainRequestError && page.error.status === 404
   createEffect(
     on(
@@ -128,7 +114,6 @@ export function NotesPageView(props: {
       path,
       body: sent.body,
       title: sent.title.trim() || undefined,
-      // Only an edited set is sent: the server replaces all properties and refuses ones it cannot write back.
       properties: propertiesChanged() ? { ...state.properties } : undefined,
       expectedRevision: state.revision,
     }).then(
@@ -151,7 +136,6 @@ export function NotesPageView(props: {
       })
       return false
     }
-    // Text typed while the request ran stays unsaved; the rest takes the server copy.
     setState({
       ...bodyAfterSave(state.body, sent.body, saved.body),
       ...(state.title === sent.title ? { title: saved.info.title } : {}),
@@ -174,14 +158,12 @@ export function NotesPageView(props: {
   }
   const dropEdits = () =>
     setState({ body: state.baseBody, title: state.baseTitle, properties: JSON.parse(state.baseProperties), error: "" })
-  // Reloading replaces the text, so it asks while there is text to lose.
   const confirmReload = () => {
     if (!dirty()) return reload()
     void dialog.show(() => <DialogConfirmReload onReload={reload} onCopy={() => void saveCopy()} />)
   }
   const discard = () => (state.conflict ? confirmReload() : dropEdits())
 
-  // Keeps the text in a new page beside this one, then returns this page to what is on disk.
   const saveCopy = async () => {
     if (state.saving) return
     const missing = state.missing
@@ -194,7 +176,6 @@ export function NotesPageView(props: {
     ]
       .slice(0, 200)
       .join("")
-    // File names are shorter than titles.
     const name = newPagePath([...title].slice(0, 100).join(""), folder, props.pages)
     setState("saving", true)
     const copy = await writeVaultPage(props.client, {
@@ -266,7 +247,6 @@ export function NotesPageView(props: {
     </span>
   )
 
-  // Also in the fullscreen toolbar, where the page's own error line sits behind the editor.
   const recoveryActions = () => (
     <>
       <Show when={state.conflict || state.missing}>
@@ -282,8 +262,6 @@ export function NotesPageView(props: {
     </>
   )
 
-  // Front matter properties: text and dates edit in place, booleans tick, `status` picks a timeline status; lists,
-  // numbers and other values show as read-only text. Edits save with the page.
   const properties = () => (
     <Show when={Object.keys(state.properties).length > 0}>
       <dl
@@ -294,7 +272,6 @@ export function NotesPageView(props: {
           {(key) => {
             const value = () => state.properties[key]
             const set = (next: string | boolean) => setState("properties", key, next)
-            // Routine keys read as words; any other key shows as written in the file.
             const label = () =>
               key === "schedule" || key === "enabled" || key === "model"
                 ? language.t(`secondBrain.vault.property.${key}`)
@@ -415,7 +392,6 @@ export function NotesPageView(props: {
                     <MenuV2.Item disabled={!state.revision} onSelect={openVersions}>
                       {language.t("secondBrain.vault.versions")}
                     </MenuV2.Item>
-                    {/* Unsaved edits would go with the page, so they are saved or discarded first. */}
                     <MenuV2.Item
                       disabled={!state.revision || dirty() || state.saving}
                       onSelect={() =>
@@ -455,7 +431,6 @@ export function NotesPageView(props: {
                   </span>
                 )}
               </Show>
-              {/* A hand-edited `updated_at` may not parse; the server then sends "". */}
               <Show when={Number.isFinite(Date.parse(state.updatedAt))}>
                 <span class="tabular-nums">
                   {language.t("secondBrain.vault.edited", {

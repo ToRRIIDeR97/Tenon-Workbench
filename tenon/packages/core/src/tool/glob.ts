@@ -29,13 +29,11 @@ export const Input = Schema.Struct({
 export const Output = Schema.Array(FileSystem.Entry)
 type ModelOutput = typeof Output.Encoded
 
-/** Format raw search results into the concise line-oriented output models expect. */
 export const toModelOutput = (output: ModelOutput) => {
   const lines = output.length === 0 ? ["No files found"] : output.map((item) => item.path)
   return lines.join("\n")
 }
 
-/** Glob leaf that defaults its filesystem root to the active Location. */
 const layer = Layer.effectDiscard(
   Effect.gen(function* () {
     const tools = yield* Tools.Service

@@ -58,7 +58,6 @@ test("a large image does not trigger compaction by itself", async () => {
     provider: "fake",
     route: OpenAIChat.route.with({ limits: { context: 100_000, output: 4_000 } }),
   })
-  // About 10 MB of base64: millions of tokens if it were counted as text.
   const image = "A".repeat(10 * 1024 * 1024)
   const request = LLM.request({
     model,
@@ -83,7 +82,6 @@ test("a large image does not trigger compaction by itself", async () => {
     llm: { stream: () => Stream.die("compaction should not run") },
     config: [],
   })
-  // Enough older history that compaction would summarize it if the estimate overflowed.
   const entries = ["older", "recent"].map((name, seq) => ({
     seq,
     message: SessionMessage.User.make({

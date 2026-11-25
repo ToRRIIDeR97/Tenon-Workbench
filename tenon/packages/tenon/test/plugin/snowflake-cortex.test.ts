@@ -83,7 +83,6 @@ describe("plugin.snowflake-cortex", () => {
     let refreshCalls = 0
     const apiAuthHeaders: string[] = []
 
-    // Must mock fetch before calling loader because startup refresh triggers for expires: 0
     const originalFetch = globalThis.fetch
     globalThis.fetch = (async (request, init) => {
       const url =

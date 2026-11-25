@@ -23,11 +23,9 @@ function ChoiceDialog(props: { title: string; body: string; children: JSX.Elemen
 
 function DialogUnsaved(props: {
   body: string
-  /** Resolves false when the save failed; the form shows why and the page stays open. */
   onSave: () => Promise<boolean>
   onDiscard: () => void
   onLeave: () => void
-  /** Also runs when another dialog replaces this one. */
   onClosed: () => void
 }) {
   const dialog = useDialog()
@@ -65,10 +63,6 @@ function DialogUnsaved(props: {
   )
 }
 
-/**
- * Guards a form with unsaved edits. Leaving inside the app asks Save / Discard / Keep editing and then finishes the
- * navigation; closing the window asks in the desktop shell, which also holds a quit before it stops the server.
- */
 export function useUnsavedGuard(input: {
   dirty: () => boolean
   save: () => Promise<boolean>
@@ -100,7 +94,6 @@ export function useUnsavedGuard(input: {
         body={input.body()}
         onSave={input.save}
         onDiscard={input.discard}
-        // Forced: a saved form can still look dirty until its refreshed record arrives.
         onLeave={() => event.retry(true)}
         onClosed={() => (asking = false)}
       />
@@ -108,7 +101,6 @@ export function useUnsavedGuard(input: {
   })
 }
 
-/** Confirms replacing unsaved edits with the page on disk; a copy keeps them instead. */
 export function DialogConfirmReload(props: { onReload: () => void; onCopy: () => void }) {
   const dialog = useDialog()
   const language = useLanguage()

@@ -19,17 +19,9 @@ export type ScrollViewThumbVisibility = "hover" | "scroll"
 
 export interface ScrollViewProps extends ComponentProps<"div"> {
   viewportRef?: (el: HTMLDivElement) => void
-  orientation?: "vertical" | "horizontal" // currently only vertical is fully implemented for thumb
-  /**
-   * `hover`: show while hovered or scrolling. `scroll`: show only while scrolling.
-   *
-   * In most cases, scrolling a container = hovering over it, so this change has no effect.
-   * This is a special case to account for the home page scroll, where scrolling a container != hovering over it
-   * */
+  orientation?: "vertical" | "horizontal"
   thumbVisibility?: ScrollViewThumbVisibility
-  /** Mount the thumb into an external track. Scroll metrics still come from this ScrollView. */
   thumbContainer?: HTMLElement | Accessor<HTMLElement | undefined>
-  /** Element whose hover reveals the thumb. Defaults to the ScrollView root when unset. */
   thumbHoverTarget?: HTMLElement | Accessor<HTMLElement | undefined>
 }
 
@@ -87,7 +79,6 @@ export function scrollTopFromThumbPointer(input: {
   clientHeight: number
   scrollHeight: number
   thumbHeight: number
-  /** Viewport height used for max scroll. Defaults to `clientHeight` (track == viewport). */
   scrollClientHeight?: number
 }) {
   const padding = 8
@@ -186,7 +177,6 @@ export function ScrollView(props: ScrollViewProps) {
     const trackHeight = trackClientHeight - trackPadding * 2
 
     const minThumbHeight = 32
-    // Calculate raw thumb height based on ratio
     let height = (clientHeight / scrollHeight) * trackHeight
     height = Math.max(height, minThumbHeight)
 
@@ -195,7 +185,6 @@ export function ScrollView(props: ScrollViewProps) {
 
     const top = maxScrollTop > 0 ? (scrollTop / maxScrollTop) * maxThumbTop : 0
 
-    // Ensure thumb stays within bounds (shouldn't be necessary due to math above, but good for safety)
     const boundedTop = trackPadding + Math.max(0, Math.min(top, maxThumbTop))
 
     setState("thumbHeight", height)
@@ -282,17 +271,12 @@ export function ScrollView(props: ScrollViewProps) {
       style={{
         height: `${thumbHeight()}px`,
         transform: `translateY(${thumbTop()}px)`,
-        "z-index": 100, // ensure it displays over content
+        "z-index": 100,
       }}
     />
   )
 
-  // Keybinds implementation
-  // We ensure the viewport has a tabindex so it can receive focus
-  // We can also explicitly catch PageUp/Down if we want smooth scroll or specific behavior,
-  // but native usually handles this perfectly. Let's explicitly ensure it behaves well.
   const onKeyDown = (e: KeyboardEvent) => {
-    // If user is focused on an input inside the scroll view, don't hijack keys
     if (document.activeElement && ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName)) {
       return
     }
@@ -346,7 +330,6 @@ export function ScrollView(props: ScrollViewProps) {
       }}
       {...rest}
     >
-      {/* Viewport */}
       <div
         ref={viewportRef}
         class="scroll-view__viewport"
@@ -379,7 +362,6 @@ export function ScrollView(props: ScrollViewProps) {
         {local.children}
       </div>
 
-      {/* Thumb Overlay — optionally portaled into an external track */}
       <Show when={showThumb()}>
         <Show when={thumbMount()} fallback={renderThumb()}>
           {(mount) => <Portal mount={mount()}>{renderThumb()}</Portal>}

@@ -1,13 +1,3 @@
-// End-to-end regression tests for opencode#24432 and opencode#32051/#32052.
-//
-// Routes through the actual ai-gateway-provider chain that provider.ts builds at
-// runtime, with only the network boundary stubbed:
-//   - openai/*    -> native OpenAI passthrough (Responses API)
-//   - anthropic/* -> native Anthropic passthrough (Messages API)
-//   - everything else -> unified /compat (openai-compatible chat completions)
-// Asserts what actually lands in the envelope body Cloudflare AI Gateway
-// forwards upstream, which is the only place these bugs were observable.
-
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import type { JSONValue } from "ai"
 import { generateText } from "ai"
@@ -30,8 +20,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
-// The gateway returns the upstream provider's response body verbatim, so the
-// mock must answer in the wire format of the step's target provider.
 function upstreamResponseBody(provider: string | undefined) {
   if (provider === "openai")
     return {
@@ -103,7 +91,6 @@ beforeEach(() => {
     }
     return realFetch(input, init)
   }
-  // `typeof fetch` includes Bun's `preconnect` method; preserve it from realFetch.
   const stubFetch: typeof fetch = Object.assign(handle, { preconnect: realFetch.preconnect.bind(realFetch) })
   globalThis.fetch = stubFetch
 })
@@ -112,8 +99,6 @@ afterEach(() => {
   globalThis.fetch = realFetch
 })
 
-// Mirrors the runtime npm rewrite in provider.ts: openai/anthropic models carry
-// their native SDK package so transforms key provider options correctly.
 const cfNpm = (apiId: string) => {
   if (apiId.startsWith("openai/")) return "@ai-sdk/openai"
   if (apiId.startsWith("anthropic/")) return "@ai-sdk/anthropic"
@@ -142,8 +127,6 @@ const cfModel = (apiId: string, releaseDate = "2026-03-05"): Provider.Model => (
   release_date: releaseDate,
 })
 
-// ai-gateway-provider sends an array of step descriptors; each entry's `query`
-// is the body forwarded to the upstream provider.
 function firstStep(body: unknown): Record<string, unknown> | undefined {
   if (!Array.isArray(body) || body.length === 0) return undefined
   const first = body[0]
@@ -155,13 +138,11 @@ function extractUpstreamQuery(body: unknown): Record<string, unknown> | undefine
   return isRecord(query) ? query : undefined
 }
 
-// Each step descriptor also carries the `headers` forwarded to the upstream provider.
 function extractUpstreamHeaders(body: unknown): Record<string, unknown> | undefined {
   const headers = firstStep(body)?.headers
   return isRecord(headers) ? headers : undefined
 }
 
-// Mirrors the runtime routing in provider.ts getModel.
 function gatewayModel(apiId: string, gatewayToken = "test") {
   const aigateway = createAiGateway({ accountId: "test", gateway: "test", apiKey: gatewayToken })
   if (apiId.startsWith("openai/")) return aigateway(createOpenAI()(apiId.slice("openai/".length)))
@@ -207,10 +188,6 @@ describe("cf-ai-gateway routing", () => {
 
 describe("cf-ai-gateway end-to-end (regression: #24432)", () => {
   test("ProviderTransform.providerOptions output puts reasoning effort on the Responses wire", async () => {
-    // The full chain the runtime exercises for OpenAI models:
-    //   transform.providerOptions() -> "openai" key (npm rewritten to @ai-sdk/openai)
-    //   -> OpenAIResponsesLanguageModel emits body.reasoning.effort
-    //   -> ai-gateway-provider wraps the body and forwards to gateway.ai.cloudflare.com
     const opts = ProviderTransform.providerOptions(cfModel("openai/gpt-5.4"), { reasoningEffort: "xhigh" })
     expect(Object.keys(opts)).toEqual(["openai"])
     expect(opts.openai.reasoningEffort).toBe("xhigh")
@@ -220,9 +197,6 @@ describe("cf-ai-gateway end-to-end (regression: #24432)", () => {
   })
 
   test("variants() output for openai/gpt-5.4 lands xhigh on the wire", async () => {
-    // fromModelsDevModel resolves the native npm before computing variants, so
-    // OpenAI models get full Responses-flavored payloads (summary + encrypted
-    // reasoning include for stateless multi-turn reasoning).
     const variants = ProviderTransform.variants(cfModel("openai/gpt-5.4"))
     expect(variants.xhigh).toEqual({
       reasoningEffort: "xhigh",
@@ -238,8 +212,6 @@ describe("cf-ai-gateway end-to-end (regression: #24432)", () => {
   })
 
   test("reasoning effort variants for anthropic models land as native adaptive thinking", async () => {
-    // Mirrors the runtime catalog path: models.dev reasoning_options -> reasoningVariants
-    // computed on the native @ai-sdk/anthropic npm -> adaptive thinking + output_config.effort.
     const model = cfModel("anthropic/claude-sonnet-4-6")
     const variants = ProviderTransform.reasoningVariants(
       { reasoning_options: [{ type: "effort", values: ["low", "medium", "high"] }] } as never,
@@ -265,8 +237,6 @@ describe("cf-ai-gateway end-to-end (regression: #24432)", () => {
   })
 
   test("legacy buggy key 'cloudflare-ai-gateway' does NOT reach the wire (proves the bug)", async () => {
-    // Sanity: confirms the bug class. If a future change accidentally restores
-    // providerID-keyed providerOptions, this test fails before users notice.
     const upstream = await callThroughGateway("workers-ai/@cf/moonshotai/kimi-k2.6", {
       "cloudflare-ai-gateway": { reasoningEffort: "high" },
     })
@@ -279,7 +249,6 @@ describe("cf-ai-gateway token scoping (regression: #32051/#32052)", () => {
     await callThroughGateway("openai/gpt-5.4", {}, "cf-gateway-secret")
 
     expect(captured?.headers["cf-aig-authorization"]).toBe("Bearer cf-gateway-secret")
-    // Security invariant: the Cloudflare token must never become the upstream provider's Authorization.
     expect(extractUpstreamHeaders(captured?.outerBody)?.["authorization"]).toBeUndefined()
     expect(JSON.stringify(captured?.outerBody)).not.toContain("cf-gateway-secret")
   })

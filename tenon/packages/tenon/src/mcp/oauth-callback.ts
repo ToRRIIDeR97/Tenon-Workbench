@@ -5,7 +5,6 @@ import { OAUTH_CALLBACK_PORT, OAUTH_CALLBACK_PATH, parseRedirectUri } from "./oa
 
 const OAUTH_CALLBACK_HOST = "127.0.0.1"
 
-// Current callback server configuration (may differ from defaults if custom redirectUri is used)
 let currentPort = OAUTH_CALLBACK_PORT
 let currentPath = OAUTH_CALLBACK_PATH
 
@@ -17,11 +16,9 @@ interface PendingAuth {
 
 let server: ReturnType<typeof createServer> | undefined
 const pendingAuths = new Map<string, PendingAuth>()
-// Reverse index: mcpName → oauthState, so cancelPending(mcpName) can
-// find the right entry in pendingAuths (which is keyed by oauthState).
 const mcpNameToState = new Map<string, string>()
 
-const CALLBACK_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
+const CALLBACK_TIMEOUT_MS = 5 * 60 * 1000
 
 function cleanupStateIndex(oauthState: string) {
   for (const [name, state] of mcpNameToState) {
@@ -53,7 +50,6 @@ function handleRequest(req: import("http").IncomingMessage, res: import("http").
   const error = url.searchParams.get("error")
   const errorDescription = url.searchParams.get("error_description")
 
-  // Enforce state parameter presence
   if (!state) {
     const errorMsg = "Missing required state parameter - potential CSRF attack"
     res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" })
@@ -82,7 +78,6 @@ function handleRequest(req: import("http").IncomingMessage, res: import("http").
     return
   }
 
-  // Validate state parameter
   if (!pendingAuths.has(state)) {
     const errorMsg = "Invalid or expired state parameter - potential CSRF attack"
     res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" })
@@ -103,10 +98,8 @@ function handleRequest(req: import("http").IncomingMessage, res: import("http").
 }
 
 export async function ensureRunning(redirectUri?: string): Promise<void> {
-  // Parse the redirect URI to get port and path (uses defaults if not provided)
   const { port, path } = parseRedirectUri(redirectUri)
 
-  // If server is running on a different port/path, stop it first
   if (server && (currentPort !== port || currentPath !== path)) {
     await stop()
   }
@@ -147,7 +140,6 @@ export function waitForCallback(oauthState: string, mcpName?: string): Promise<s
 }
 
 export function cancelPending(mcpName: string): void {
-  // Look up the oauthState for this mcpName via the reverse index
   const oauthState = mcpNameToState.get(mcpName)
   const key = oauthState ?? mcpName
   const pending = pendingAuths.get(key)

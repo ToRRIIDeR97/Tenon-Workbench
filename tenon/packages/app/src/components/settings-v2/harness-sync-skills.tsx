@@ -29,10 +29,6 @@ import { SettingsRowV2 } from "./parts/row"
 
 type Key = Parameters<ReturnType<typeof useLanguage>["t"]>[0]
 
-/**
- * The sync part of Settings › Skills: the shared skill set, what each harness's skills folder gets, and the skills
- * found on this computer that can be shared. Saving writes the sync file and copies skills into each folder.
- */
 export function HarnessSyncSkills(props: { sync: HarnessSyncPlatform }) {
   const language = useLanguage()
   const t = language.t
@@ -78,7 +74,6 @@ function SkillsEditor(props: {
   const library = () => props.status.skills.library
   const local = createMemo(() => shareable(props.status, draft))
   const edited = createMemo(() => editedSkills(props.status))
-  // A skill can be picked as an extra when it is in the sync file or staged for upload from this computer.
   const extraOptions = createMemo(() => [
     ...new Set([...library().map((skill) => skill.name), ...local().map((skill) => skill.name)]),
   ])

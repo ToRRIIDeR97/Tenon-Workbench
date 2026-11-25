@@ -15,8 +15,6 @@ export type Projection = {
   blocks: Block[]
 }
 
-// Reference definitions (`[id]: url`), including the two-line form. Each streamed block is parsed on
-// its own, so the definitions are appended to every block for its reference links to resolve.
 function definitions(text: string) {
   if (!text.includes("]:")) return ""
   return (text.match(/^[ \t]{0,3}\[[^\]]+\]:[ \t]*(?:\S[^\n]*|\r?\n[ \t]+\S[^\n]*)$/gm) ?? []).join("\n")
@@ -118,7 +116,6 @@ export function project(previous: Projection | undefined, text: string, live: bo
   const tail = previous.blocks.at(-1)
   const suffix = text.slice(previous.text.length)
   if (!suffix || !tail || tail.mode === "full") return { text, blocks: stream(text, live) }
-  // Until its first line ends, a fence's suffix is still its language, not code.
   if (tail.mode === "code" && !tail.complete && tail.raw.includes("\n") && !closesFence(tail.raw, suffix))
     return {
       text,
@@ -131,12 +128,7 @@ export function project(previous: Projection | undefined, text: string, live: bo
         },
       ],
     }
-  // The lexer rewrites line endings and drops repeated reference definitions, and definitions reach every block,
-  // so either one means the blocks can't be taken from the text by offset.
   if (text.includes("\r") || /^[ \t]{0,3}\[[^\]]+\]:/m.test(text)) return { text, blocks: stream(text, live) }
-  // Only the last line grows, so frozen blocks keep their bounds, except that a line can turn out to continue
-  // the block before it ("1. a\n\n2" then ". b"). Lexing from that block gives the same blocks as the whole text.
-  // A block's raw can differ from the text (the lexer ends some blockquotes with a newline), so check the offset.
   const relexed = previous.blocks
     .slice(-4)
     .map((block) => block.raw)

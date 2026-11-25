@@ -27,7 +27,6 @@ const withSession = <A, E, R>(
     (input) => input.session.remove(input.sessionID).pipe(Effect.ignore),
   )
 
-// Helper functions using Effect.gen
 const fill = Effect.fn("Test.fill")(function* (
   sessionID: SessionID,
   count: number,
@@ -673,7 +672,6 @@ describe("MessageV2.filterCompacted", () => {
 
         const result = MessageV2.filterCompacted(yield* MessageV2.stream(sessionID))
         expect(result).toHaveLength(5)
-        // reversed from newest-first to chronological
         expect(result.map((item) => item.info.id)).toEqual(ids)
       }),
     ),
@@ -682,8 +680,6 @@ describe("MessageV2.filterCompacted", () => {
   it.instance("stops at compaction boundary and returns chronological order", () =>
     withSession(({ session, sessionID }) =>
       Effect.gen(function* () {
-        // Chronological: u1(+compaction part), a1(summary, parentID=u1), u2, a2
-        // Stream (newest first): a2, u2, a1(adds u1 to completed), u1(in completed + compaction) -> break
         const u1 = yield* addUser(sessionID, "first question")
         const a1 = yield* addAssistant(sessionID, u1, { summary: true, finish: "end_turn" })
         yield* session.updatePart({
@@ -706,7 +702,6 @@ describe("MessageV2.filterCompacted", () => {
         })
 
         const result = MessageV2.filterCompacted(yield* MessageV2.stream(sessionID))
-        // Includes compaction boundary: u1, a1, u2, a2
         expect(result[0].info.id).toBe(u1)
         expect(result.length).toBe(4)
       }),
@@ -747,7 +742,6 @@ describe("MessageV2.filterCompacted", () => {
         yield* addUser(sessionID, "retry")
 
         const result = MessageV2.filterCompacted(yield* MessageV2.stream(sessionID))
-        // Error assistant doesn't add to completed, so compaction boundary never triggers
         expect(result).toHaveLength(3)
       }),
     ),
@@ -759,7 +753,6 @@ describe("MessageV2.filterCompacted", () => {
         const u1 = yield* addUser(sessionID, "hello")
         yield* addCompactionPart(sessionID, u1)
 
-        // summary=true but no finish
         yield* addAssistant(sessionID, u1, { summary: true })
         yield* addUser(sessionID, "next")
 
@@ -1016,7 +1009,6 @@ describe("MessageV2.filterCompacted", () => {
   )
 
   test("works with array input", () => {
-    // filterCompacted accepts any Iterable, not just generators
     const id = MessageID.ascending()
     const items: SessionV1.WithParts[] = [
       {

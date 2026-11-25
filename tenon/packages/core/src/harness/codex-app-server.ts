@@ -13,7 +13,6 @@ export interface ServerRequest extends Notification {
 export class ProtocolError extends Error {
   readonly code?: number
   readonly data?: unknown
-  /** The peer didn't answer in time, so the process may be wedged: callers replace it rather than reuse it. */
   readonly timedOut?: boolean
 
   constructor(
@@ -34,10 +33,6 @@ export class ProtocolError extends Error {
 }
 
 export interface Client {
-  /**
-   * Sends one request. Pass `timeout` for setup calls that must answer promptly; turn-length calls such as
-   * ACP `session/prompt` legitimately stay open for the whole turn and take none.
-   */
   readonly request: (
     method: string,
     params?: unknown,
@@ -45,7 +40,6 @@ export interface Client {
   ) => Effect.Effect<unknown, ProtocolError>
   readonly notify: (method: string, params?: unknown) => Effect.Effect<void, ProtocolError>
   readonly notifications: Stream.Stream<Notification, ProtocolError>
-  /** True once the process's output ended or failed: requests then fail at once, so callers can replace it. */
   readonly closed: Effect.Effect<boolean>
 }
 
@@ -57,11 +51,6 @@ export interface Connection {
 const STDERR_TAIL = 8_192
 const STDERR_SHOWN = 300
 
-/**
- * Reads a CLI's stderr so it can't block, keeping only its end in memory. The result is the rest of the "exited"
- * sentence for `make`'s `exit`, such as ` (code 1): bad flag`. It ends up in the thread and the stored session
- * error, so it is one capped, redacted line; the tail itself is never logged.
- */
 export const watchExit = Effect.fn("CodexAppServer.watchExit")(function* (handle: {
   readonly stderr: Stream.Stream<Uint8Array, PlatformError>
   readonly exitCode: Effect.Effect<number, PlatformError>
@@ -77,7 +66,6 @@ export const watchExit = Effect.fn("CodexAppServer.watchExit")(function* (handle
     Effect.ignore,
     Effect.forkScoped,
   )
-  // The output closes a moment before the process reports its exit code.
   return handle.exitCode.pipe(
     Effect.timeout("1 second"),
     Effect.option,
@@ -122,12 +110,9 @@ const encoder = new TextEncoder()
 export const make = Effect.fn("CodexAppServer.make")(function* (input: {
   readonly connection: Connection
   readonly handleRequest?: (request: ServerRequest) => Effect.Effect<unknown, ProtocolError>
-  // Peers such as ACP agents require the JSON-RPC 2.0 envelope; Codex app-server omits it.
   readonly jsonrpc?: boolean
   readonly label?: string
-  // Finishes the "exited" sentence once the process's output ends; see `watchExit`.
   readonly exit?: Effect.Effect<string>
-  // Receives notifications in wire order before any later response resolves. Replaces `notifications`.
   readonly onNotification?: (notification: Notification) => Effect.Effect<void>
 }) {
   const label = input.label ?? "Codex app-server"
@@ -135,7 +120,6 @@ export const make = Effect.fn("CodexAppServer.make")(function* (input: {
   const notifications = yield* Queue.unbounded<Notification, ProtocolError>()
   const pending = yield* Ref.make(new Map<string, Pending>())
   const nextID = yield* Ref.make(1)
-  // Set once the connection is gone. A request made after that has nobody to answer it, so it fails at once.
   const closedBy = yield* Ref.make<ProtocolError | undefined>(undefined)
 
   const fail = (error: ProtocolError) =>
@@ -225,7 +209,6 @@ export const make = Effect.fn("CodexAppServer.make")(function* (input: {
   const handleLine = (line: string) => {
     if (!line.trim()) return Effect.void
     const value = Option.getOrUndefined(decode(line))
-    // A CLI can print a banner or an update notice to stdout; one such line must not end a healthy process.
     return value === undefined
       ? Effect.logWarning(`${label} printed a line that isn't JSON`, { length: line.length })
       : route(value)
@@ -267,7 +250,6 @@ export const make = Effect.fn("CodexAppServer.make")(function* (input: {
       const id = yield* Ref.modify(nextID, (current) => [current, current + 1] as const)
       const deferred = yield* Deferred.make<unknown, ProtocolError>()
       yield* Ref.update(pending, (current) => new Map(current).set(String(id), { method, deferred }))
-      // The connection can close between the check above and this registration; fail rather than wait forever.
       const lost = yield* Ref.get(closedBy)
       if (lost) {
         yield* removePending(String(id))

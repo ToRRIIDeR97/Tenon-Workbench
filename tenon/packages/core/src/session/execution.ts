@@ -8,27 +8,20 @@ import { SessionSchema } from "./schema"
 import type { Harness } from "@tenon/schema/harness"
 
 export interface Interface {
-  /** Snapshots active execution owned by this process. */
   readonly active: Effect.Effect<ReadonlySet<SessionSchema.ID>>
-  /** Starts execution while idle or joins the active execution. */
   readonly resume: (sessionID: SessionSchema.ID) => Effect.Effect<void, SessionRunner.RunError>
-  /** Registers newly recorded work. Repeated wakeups may coalesce. */
   readonly wake: (sessionID: SessionSchema.ID) => Effect.Effect<void>
-  /** Interrupt active work owned by this process. Idle interruption is a no-op. */
   readonly interrupt: (sessionID: SessionSchema.ID) => Effect.Effect<void>
-  /** Compacts an idle Session through the runner of its Location (`SessionRunner.compact`). */
   readonly compact: (input: {
     readonly sessionID: SessionSchema.ID
     readonly model?: Harness.ModelSelection
   }) => Effect.Effect<SessionRunner.CompactResult>
 }
 
-/** Routes execution from a Session ID to the runner owned by that Session's Location. */
 export class Service extends Context.Service<Service, Interface>()("@tenon/v2/SessionExecution") {}
 
 export const node = LayerNode.unbound(Service, Node.tags.values.global)
 
-/** Low-level compatibility layer for callers that only need durable Session recording. */
 export const noopLayer = Layer.succeed(
   Service,
   Service.of({

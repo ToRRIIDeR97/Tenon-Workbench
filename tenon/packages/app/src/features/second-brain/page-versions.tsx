@@ -8,14 +8,9 @@ import { listVaultPageVersions, readVaultPageVersion } from "./client"
 
 type VaultClient = Parameters<typeof listVaultPageVersions>[0]
 
-/**
- * A page's saved versions: pick one to preview it, then restore it. Restoring is a normal save over the current
- * revision, so it can report a conflict like any other, and the replaced text becomes a version in turn.
- */
 export function DialogPageVersions(props: {
   client: VaultClient
   path: string
-  /** Edits on screen would be lost, so the page must be saved or discarded first. */
   blocked: boolean
   onRestore: (body: string) => void
 }) {

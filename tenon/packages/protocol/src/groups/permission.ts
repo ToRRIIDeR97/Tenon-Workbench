@@ -57,7 +57,6 @@ export const makePermissionGroup = <
         }),
       ),
     )
-    // Effect applies group middleware only to endpoints already added; session endpoints use session placement below.
     .middleware(locationMiddleware)
     .add(
       HttpApiEndpoint.post("session.permission.create", "/api/session/:sessionID/permission", {

@@ -81,17 +81,12 @@ export function decodeFilePath(input: string) {
 }
 
 export function encodeFilePath(filepath: string): string {
-  // Normalize Windows paths: convert backslashes to forward slashes
   let normalized = filepath.replace(/\\/g, "/")
 
-  // Handle Windows absolute paths (D:/path -> /D:/path for proper file:// URLs)
   if (/^[A-Za-z]:/.test(normalized)) {
     normalized = "/" + normalized
   }
 
-  // Encode each path segment (preserving forward slashes as path separators)
-  // Keep the colon in Windows drive letters (`/C:/...`) so downstream file URL parsers
-  // can reliably detect drives.
   return normalized
     .split("/")
     .map((segment, index) => {
@@ -107,8 +102,6 @@ export function createPathHelpers(scope: () => string) {
 
     let path = unquoteGitPath(decodeFilePath(stripQueryAndHash(stripFileProtocol(input))))
 
-    // Separator-agnostic prefix stripping for Cygwin/native Windows compatibility
-    // Only case-insensitive on Windows (drive letter or UNC paths)
     const windows = /^[A-Za-z]:/.test(root) || root.startsWith("\\\\")
     const canonRoot = windows ? root.replace(/\\/g, "/").toLowerCase() : root.replace(/\\/g, "/")
     const canonPath = windows ? path.replace(/\\/g, "/").toLowerCase() : path.replace(/\\/g, "/")
@@ -116,7 +109,6 @@ export function createPathHelpers(scope: () => string) {
       canonPath.startsWith(canonRoot) &&
       (canonRoot.endsWith("/") || canonPath === canonRoot || canonPath[canonRoot.length] === "/")
     ) {
-      // Slice from original path to preserve native separators
       path = path.slice(root.length)
     }
 

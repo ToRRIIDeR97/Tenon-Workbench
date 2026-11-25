@@ -41,19 +41,8 @@ const pending = new Map<string, PendingPrompt>()
 
 export type PromptDelivery = "steer" | "queue"
 
-/**
- * Per-submit overrides: `opposite` flips the delivery preference, `background` sends into a new thread without
- * leaving the current view, and `reply` sends a reply to a quoted passage (from the thread's reply card) instead of
- * the composer's contents, leaving the composer's draft, attachments and context chips as they are.
- */
 export type PromptSubmitOptions = { opposite?: boolean; background?: boolean; reply?: PromptReply }
 
-/** Delivery for a message sent to a working agent; idle sessions take the server default. */
-/**
- * The delivery a follow-up uses before Ctrl+Enter flips it. An external harness (Codex, OpenCode, ACP agents) runs
- * its subagents inside one turn, and a steer stops that turn, so while they run a message waits in the queue
- * instead; Ctrl+Enter, or "send now" on the queued message, still stops them and sends.
- */
 export function followupPreference(input: {
   preference: PromptDelivery
   external: boolean
@@ -78,9 +67,7 @@ export type FollowupDraft = {
   harness?: boolean
   variant?: string
   delivery?: PromptDelivery
-  /** The model profile to attach, when one is due. */
   profile?: { model: string; rules: string }
-  /** What the model reads besides text; unknown models are assumed to read images and PDF (#330). */
   inputs?: ModelInputs
 }
 
@@ -95,7 +82,6 @@ type FollowupSendInput = {
   skill?: (name: string) => string | undefined
 }
 
-/** The model's input types from the provider list, when it reports them (#330). */
 export function modelInputs(model: unknown): ModelInputs | undefined {
   const input = (model as { capabilities?: { input?: Partial<Record<keyof ModelInputs, boolean>> } } | undefined)
     ?.capabilities?.input
@@ -127,7 +113,6 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
   }
 
   const [head, ...tail] = text.split(" ")
-  // Skill chips go out as one prompt with their instructions, never as a single slash command.
   const cmd = head?.startsWith("/") && promptSkills(input.draft.prompt).length === 0 ? head.slice(1) : undefined
   if (cmd && input.sync.data.command.find((item) => item.name === cmd)) {
     setBusy()
@@ -164,8 +149,6 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
   }
 
   const messageID = input.messageID ?? Identifier.ascending("message")
-  // Video, audio and documents become what the model can read: frame grids, text or a stand-in (#330).
-  // Only when one needs it, so a plain send keeps its timing.
   const sendable = images.some(
     (attachment) => mediaPlan(attachment.mime, input.draft.inputs ?? DEFAULT_INPUTS) !== "file",
   )
@@ -213,7 +196,6 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
       messageID,
     })
 
-  // Queued messages render in the follow-up dock from server state, not as optimistic transcript entries.
   const queued = input.draft.delivery === "queue"
   if (!queued)
     batch(() => {
@@ -272,18 +254,14 @@ type PromptSubmitInput = {
   newSessionHarness?: Accessor<Harness.InstanceID | undefined>
   newSessionHarnessModel?: Accessor<Harness.ModelSelection | undefined>
   harnessDriver?: Accessor<Harness.DriverKind | undefined>
-  /** A harness switch in flight; the send goes once it has reached the server. */
   harnessSettled?: () => Promise<unknown> | undefined
   onNewSessionWorktreeReset?: () => void
   followup?: Accessor<PromptDelivery>
   onAbort?: () => void
   onSubmit?: () => void
-  /** Called with the harness a new thread starts on, for Settings' "start from the last one I used". */
   onNewSessionHarness?: (choice: { harnessID: string; model?: Harness.ModelSelection }) => void
   model?: ModelSelection
-  /** A Tenon skill's instructions by name, for skill chips. */
   skill?: (name: string) => string | undefined
-  /** The switched-on model profile for a model id, if any. */
   modelProfile?: (modelID: string) => { model: string; rules: string } | undefined
 }
 
@@ -363,10 +341,6 @@ export function createPromptSubmit(input: PromptSubmitInput) {
   const handleSubmit = async (event: Event, options: PromptSubmitOptions = {}) => {
     event.preventDefault()
 
-    // A harness picked a moment ago is still being switched on the server: send once it has, so the message
-    // runs on the harness the pill shows. Without a switch in flight the send starts in this same tick. A second
-    // Enter while waiting is ignored, and if the switch fails the prompt stays in the composer (the switch shows
-    // its own error) instead of going to the old harness.
     const switching = input.harnessSettled?.()
     if (switching) {
       if (awaitingSwitch) return
@@ -396,7 +370,6 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       return
     }
 
-    // A background send always starts a new thread in the current Project and leaves the view unchanged.
     const background = !!options.background
     const isNewSession = !params.id || background
     const currentInfo = input.info() as
@@ -510,7 +483,6 @@ export function createPromptSubmit(input: PromptSubmitInput) {
           })
           layout.handoff.setTabs(base64Encode(sessionDirectory), session.id)
           if (background) return
-          // A new thread opens without the side panel, even when the last thread had it open.
           layout.review.closePanel()
           const draftID = search.draftId
           const sessionServer = drafts.get(draftID)?.server ?? server.key
@@ -532,7 +504,6 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       ? { modelID: currentModel!.id, providerID: currentModel!.provider.id }
       : { modelID: harnessModel?.id ?? harnessInstanceID, providerID: harnessInstanceID }
     const agent = currentAgent?.name ?? "build"
-    // A profile rides on the thread's first message and again whenever the model changes.
     const candidate = input.modelProfile?.(model.modelID)
     const profile =
       candidate &&
@@ -554,7 +525,6 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       harness: !usesHostModel,
       variant,
       profile,
-      // What the built-in agent's model reads besides text; a harness's model is assumed to read images and PDF.
       inputs: usesHostModel ? modelInputs(currentModel) : undefined,
       delivery: promptDelivery({
         working: !isNewSession && input.working(),
@@ -564,7 +534,6 @@ export function createPromptSubmit(input: PromptSubmitInput) {
     }
 
     const clearInput = () => {
-      // A reply was never in the composer, so the composer keeps its draft.
       if (reply) return
       submission.clear()
       input.setMode("normal")
@@ -572,7 +541,6 @@ export function createPromptSubmit(input: PromptSubmitInput) {
     }
 
     const restoreInput = () => {
-      // A failed reply lands in the composer, with its quote, so it isn't lost; unless that would replace a draft.
       if (reply) {
         const empty = !submission
           .target()
@@ -655,7 +623,6 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       }
     }
 
-    // Comments and quotes go out with this message; they come back if sending fails.
     const commentItems = context.filter((item) => item.type === "quote" || !!item.comment?.trim())
     const messageID = Identifier.ascending("message")
 

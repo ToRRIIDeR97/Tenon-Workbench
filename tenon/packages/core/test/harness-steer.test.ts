@@ -10,7 +10,6 @@ import { testEffect } from "./lib/effect"
 
 const it = testEffect(LayerNode.compile(AppProcess.node))
 
-// A real child process speaking ACP over stdio: its prompt only ends when the client sends session/cancel.
 const agent = `
 let buffer = ""
 const send = (message) => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...message }) + "\\n")
@@ -71,7 +70,6 @@ it.live("a waiting steer ends a harness turn through session/cancel, and the tur
   }).pipe(Effect.scoped),
 )
 
-// Answers session/cancel late, with one more chunk first, and would mark a prompt sent over a live one.
 const slowToStop = `
 let buffer = ""
 const send = (message) => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...message }) + "\\n")
@@ -157,7 +155,6 @@ it.live("closing the runtime mid-turn cancels the turn on the agent instead of a
     yield* Scope.close(scope, Exit.void)
     const events = yield* Fiber.join(turn).pipe(Effect.timeout("5 seconds"))
     expect(events.at(-1)).toMatchObject({ type: "finish", reason: "stop" })
-    // The agent wrote it before answering, so its presence means the cancel reached the agent, not just the client.
     expect(yield* Effect.promise(() => fs.readFile(cancelled, "utf8"))).toBe("s1")
   }).pipe(Effect.scoped),
 )

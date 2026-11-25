@@ -11,8 +11,6 @@ export const GithubCopilotPlugin = {
         const item = evt.provider.get(ProviderV2.ID.githubCopilot)
         if (!item || !item.models.has(ModelV2.ID.make("gpt-5-chat-latest"))) return
         evt.model.update(item.provider.id, ModelV2.ID.make("gpt-5-chat-latest"), (model) => {
-          // This chat-only alias conflicts with the Copilot GPT-5 Responses route,
-          // so hide it only for Copilot rather than for every provider catalog.
           model.enabled = false
         })
       }),
@@ -40,8 +38,6 @@ export const GithubCopilotPlugin = {
           return
         }
         const match = /^gpt-(\d+)/.exec(evt.model.api.id)
-        // Copilot supports Responses for GPT-5 class models, except mini variants
-        // which still need the chat-completions endpoint.
         evt.language =
           match && Number(match[1]) >= 5 && !evt.model.api.id.startsWith("gpt-5-mini") && evt.sdk.responses
             ? evt.sdk.responses(evt.model.api.id)

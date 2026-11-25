@@ -27,7 +27,6 @@ const layer = (filename: string) =>
     Effect.gen(function* () {
       const db = yield* makeDatabase
 
-      // The driver opens the connection with the busy timeout and WAL journal mode already set.
       yield* db.run("PRAGMA synchronous = NORMAL")
       yield* db.run("PRAGMA cache_size = -64000")
       yield* db.run("PRAGMA temp_store = MEMORY")
@@ -37,8 +36,6 @@ const layer = (filename: string) =>
       yield* db.run("PRAGMA wal_checkpoint(PASSIVE)")
       yield* restrictPermissions(filename)
       yield* DatabaseMigration.apply(db)
-      // Keeps planner statistics current. analysis_limit bounds the blocking scan on a large database, and a second
-      // server process holding the write lock only defers this to the next start.
       yield* db.run("PRAGMA analysis_limit = 1000")
       yield* db.run("PRAGMA optimize = 0x10002").pipe(Effect.ignore)
 
@@ -59,11 +56,6 @@ export function layerFromPath(filename: string) {
   )
 }
 
-/**
- * Databases created before the rename are named `opencode*.db`. When `filename` is a `tenon*.db`
- * that does not exist yet, move the matching legacy file (and its -wal/-shm, first, so a crash
- * cannot separate committed pages from the database) into place before it is opened.
- */
 export function adoptLegacyFile(filename: string) {
   const name = basename(filename)
   if (filename === ":memory:" || !name.startsWith("tenon") || existsSync(filename)) return
@@ -75,8 +67,6 @@ export function adoptLegacyFile(filename: string) {
   renameSync(legacy, filename)
 }
 
-// The database stores provider credentials. SQLite creates the -wal and -shm files with the
-// database file's mode, but files left by an older build may still be world-readable.
 function restrictPermissions(filename: string) {
   if (filename === ":memory:" || process.platform === "win32") return Effect.void
   return Effect.promise(() =>

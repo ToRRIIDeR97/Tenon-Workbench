@@ -36,12 +36,8 @@ const oc2Background = {
 }
 const documentPolicyHeader = "Document-Policy"
 const jsCallStacksDocumentPolicy = "include-js-call-stacks-in-crash-reports"
-// No script-src: a srcdoc design frame inherits this policy and runs its own inline scripts. These three
-// don't touch scripts, and design frames already meet them.
 const contentPolicyHeader = "Content-Security-Policy"
 const contentPolicy = "object-src 'none'; base-uri 'none'; form-action 'none'"
-// Observed, not enforced: Chromium logs what would break to the console, the check to do before img-src and
-// media-src can back the Markdown no-beacon rule.
 const contentPolicyReportHeader = "Content-Security-Policy-Report-Only"
 const contentPolicyReport = `img-src 'self' data: blob: ${fileViewerScheme.scheme}:; media-src 'self' data: blob: ${fileViewerScheme.scheme}:`
 
@@ -53,7 +49,6 @@ protocol.registerSchemesAsPrivileged([
       standard: true,
       supportFetchAPI: true,
       stream: true,
-      // V8 code cache for the bundled renderer JS; requires `standard`.
       codeCache: true,
     },
   },
@@ -63,7 +58,6 @@ protocol.registerSchemesAsPrivileged([
 let backgroundColor: string | undefined
 let relaunchHandler = () => {
   setAppQuitting()
-  // app.exit skips before-quit, which normally flushes pending store writes.
   rendererStore.flush()
   app.relaunch()
   app.exit(0)
@@ -80,7 +74,6 @@ const registry = createWindowRegistry<BrowserWindow>({
     removeStoreFile(windowDataFile(id))
   },
 })
-// Sync on purpose: `will-prevent-unload` must be answered before its handler returns.
 const unloadGuard = createUnloadGuard<BrowserWindow>({
   windows: () => BrowserWindow.getAllWindows(),
   ask: (win) => {
@@ -111,15 +104,10 @@ export function setAppQuitting(quitting = true) {
   if (!quitting) unloadGuard.reset()
 }
 
-/**
- * Asks before a quit, relaunch or update drops unsaved edits, so it runs before anything stops; false means stay.
- * Once it passes, windows close without asking again.
- */
 export function confirmQuit() {
   return unloadGuard.confirmQuit()
 }
 
-/** For a shutdown nobody can answer a dialog in: a signal, or Windows ending the session. */
 export function skipUnloadPrompts() {
   unloadGuard.allow()
 }
@@ -130,7 +118,6 @@ export function setWindowUnsaved(win: BrowserWindow, unsaved: boolean) {
 
 export function setBackgroundColor(color: string) {
   backgroundColor = color
-  // The desktop widget's window stays transparent around its card.
   BrowserWindow.getAllWindows().forEach((win) => {
     if (windowIDs.get(win) === WIDGET_WINDOW_ID) return
     win.setBackgroundColor(color)
@@ -170,12 +157,6 @@ function overlay(theme: Partial<TitlebarTheme> = {}, zoom = 1) {
 
 export function setTitlebar(win: BrowserWindow, theme: Partial<TitlebarTheme> = {}) {
   titlebarThemes.set(win, theme)
-  // macOS draws the window frame hairline and shadow using the NSWindow
-  // appearance, which follows nativeTheme rather than the rendered content.
-  // Align it with the app theme so a light app on a dark system does not get
-  // the dark-appearance border and shadow. A "system" scheme must map to
-  // "system" (not the resolved mode) or prefers-color-scheme stops tracking
-  // OS appearance changes in the renderer.
   if (process.platform === "darwin") nativeTheme.themeSource = theme.scheme ?? theme.mode ?? "system"
   updateTitlebar(win)
 }
@@ -258,7 +239,6 @@ export function createMainWindow(id: string = randomUUID()) {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      // Chromium's PDF viewer for PDFs opened in the Workbench panel (tenon-file:// frames).
       plugins: true,
     },
   })
@@ -267,17 +247,12 @@ export function createMainWindow(id: string = randomUUID()) {
   wireWindowRecovery(win, id)
   wireNavigationPolicy(win)
   wireUnloadGuard(win)
-  // The app doesn't use WebRTC, and a design frame's CSP doesn't cover it: without a proxy this
-  // stops every UDP STUN/ICE request, also from frames nested in a design (design-fence.ts).
   win.webContents.setWebRTCIPHandlingPolicy("disable_non_proxied_udp")
 
   state.manage(win)
   registerWindow(win, id)
   wireFullscreen(win)
   loadWindow(win, "index.html")
-  // The desktop widget is a window too, so it would keep the app running with no main window and no taskbar
-  // entry. Closing the last main window closes it as well, and the app quits as it did before the widget
-  // (window-all-closed); macOS keeps running with the widget, as apps there do.
   win.on("closed", () => {
     if (process.platform === "darwin" || mainWindows().length > 0) return
     BrowserWindow.getAllWindows().forEach((other) => other.destroy())
@@ -292,15 +267,8 @@ export function createMainWindow(id: string = randomUUID()) {
   return win
 }
 
-/** The desktop widget's id, for its renderer (`?surface=widget`) and its saved position. */
 export const WIDGET_WINDOW_ID = "widget"
 
-/**
- * The desktop widget (docs/design.md, desktop widget): one small frameless window that stays on the desktop while
- * Tenon runs. It loads the same renderer as a main window with `?surface=widget`, shares its session and
- * navigation policy, and keeps its position; it isn't in the registry, so it never restores as a main window.
- * Transparent so its card can have round corners; the renderer sizes it to the card (`resizeWidgetWindow`).
- */
 export function createWidgetWindow() {
   const state = windowState({
     file: windowStateFile(WIDGET_WINDOW_ID),
@@ -336,7 +304,6 @@ export function createWidgetWindow() {
   wireSession(win.webContents.session)
   wireNavigationPolicy(win)
   win.webContents.setWebRTCIPHandlingPolicy("disable_non_proxied_udp")
-  // Trusted IPC accepts the window by its id; leaving the registry out keeps it from restoring as a main window.
   windowIDs.set(win, WIDGET_WINDOW_ID)
   state.manage(win)
   loadWindow(win, "index.html?surface=widget")
@@ -345,13 +312,11 @@ export function createWidgetWindow() {
 
 const WIDGET_WIDTH = 344
 
-/** Fits the widget window to its card, keeping the top edge where it is. */
 export function resizeWidgetWindow(win: BrowserWindow, height: number) {
   if (win.isDestroyed() || !Number.isFinite(height)) return
   win.setContentSize(WIDGET_WIDTH, Math.max(80, Math.min(720, Math.round(height))))
 }
 
-/** The main windows (not the widget), most recently focused first. */
 export function mainWindows() {
   return BrowserWindow.getAllWindows().filter(
     (win) => !win.isDestroyed() && windowIDs.has(win) && windowIDs.get(win) !== WIDGET_WINDOW_ID,
@@ -364,7 +329,6 @@ export function openExternalURL(value: string) {
     writeLog("window", "blocked external target", { url: redactURL(value) }, "warn")
     return
   }
-  // The error text can repeat the full URL, so only the redacted target is logged.
   shell
     .openExternal(url)
     .catch(() => writeLog("window", "failed to open external target", { url: redactURL(url) }, "warn"))
@@ -376,8 +340,6 @@ export function openLocalFileURL(value: string) {
     writeLog("window", "blocked local file target", { url: redactURL(value) }, "warn")
     return
   }
-  // A file:// link in terminal output or Markdown must not launch a program: executables,
-  // symlinks to executables, and anything we cannot stat are revealed instead of opened.
   void Promise.all([stat(path), realpath(path)])
     .then(([info, real]) => {
       const meta = { isDirectory: info.isDirectory(), mode: info.mode }
@@ -393,7 +355,6 @@ export function openLocalFileURL(value: string) {
     })
 }
 
-/** Packaged builds always load the bundled renderer; only development honours the Vite dev server. */
 function devRendererURL() {
   if (app.isPackaged) return undefined
   return process.env.ELECTRON_RENDERER_URL
@@ -404,16 +365,11 @@ function wireNavigationPolicy(win: BrowserWindow) {
     if (!isRendererUrl(url)) openExternalURL(url)
     return { action: "deny" }
   })
-  // Renderer reloads (window.location.reload) navigate to the app's own URL
-  // and must stay in-window; everything else leaves through the OS.
   win.webContents.on("will-navigate", (event, url) => {
     if (isRendererUrl(url)) return
     event.preventDefault()
     openExternalURL(url)
   })
-  // will-navigate covers only the main frame. A sandboxed design or diagram frame in chat may run
-  // agent-written script; it can't open popups or navigate the top window, but it can navigate
-  // itself, so any subframe navigation away from its srcdoc is dropped, never opened externally.
   win.webContents.on("will-frame-navigate", (event) => {
     if (event.isMainFrame || isSubframeDocumentURL(event.url) || isFileViewerFrameURL(event.url)) return
     event.preventDefault()
@@ -421,12 +377,10 @@ function wireNavigationPolicy(win: BrowserWindow) {
   })
 }
 
-// A page that cancels beforeunload stops the close without any prompt of its own; Electron leaves that to us.
 function wireUnloadGuard(win: BrowserWindow) {
   win.webContents.on("will-prevent-unload", (event) => {
     if (unloadGuard.leave(win)) event.preventDefault()
   })
-  // A reloaded or crashed page has no edits left to protect, and can't report that itself.
   win.webContents.on("did-navigate", () => unloadGuard.setUnsaved(win, false))
   win.webContents.on("render-process-gone", () => unloadGuard.setUnsaved(win, false))
 }
@@ -436,8 +390,6 @@ function registerWindow(win: BrowserWindow, id: string) {
   registry.register(id, win)
 
   win.on("focus", () => registry.focused(id))
-  // Windows never emits before-quit on OS shutdown/logoff, but each window
-  // gets session-end before it closes; flag the quit so ids stay persisted.
   win.on("session-end", () => {
     registry.setQuitting()
     skipUnloadPrompts()
@@ -449,8 +401,6 @@ function windowStateFile(id: string) {
   return `window-state-${id.replace(/[^a-zA-Z0-9._-]/g, "-")}.json`
 }
 
-// Mirrors windowStorage() in packages/app/src/utils/persist.ts, which names
-// the per-window renderer store this window persists its tabs into.
 function windowDataFile(id: string) {
   return `tenon.window.${id.replace(/[^a-zA-Z0-9._-]/g, "-")}.dat`
 }
@@ -469,7 +419,6 @@ export function registerRendererProtocol() {
     try {
       pathname = decodeURIComponent(url.pathname)
     } catch {
-      // A malformed % escape would otherwise throw out of the handler.
       writeLog("protocol", "rejected path", { url: redactURL(request.url) }, "warn")
       return new Response("Bad request", { status: 400 })
     }
@@ -632,8 +581,6 @@ function wireWindowRecovery(win: BrowserWindow, name: string) {
   win.on("unresponsive", () => {
     writeLog("window", "renderer unresponsive", { window: name, currentURL: safeWindowURL(win) }, "error")
     sampler.start()
-    // Chromium also reports a page that sat behind a beforeunload prompt, as the unsaved-changes dialog leaves it,
-    // so ask the page itself before offering a relaunch that would throw away what it still holds.
     void answersWithin(() => win.webContents.executeJavaScript("true"), rendererProbeTimeout).then((answered) => {
       if (win.isDestroyed()) return
       if (answered) {
@@ -662,9 +609,6 @@ function addDocumentPolicy(response: Response, file: string) {
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers })
 }
 
-// All app windows share the default session, and each setter replaces the
-// previous handler, so wire a session once and admit every app window rather
-// than only the newest one.
 function wireSession(session: Electron.Session) {
   if (wiredSessions.has(session)) return
   wiredSessions.add(session)
@@ -753,12 +697,9 @@ function upsertKeyValue(obj: Record<string, any>, keyToChange: string, value: an
   const keyToChangeLower = keyToChange.toLowerCase()
   for (const key of Object.keys(obj)) {
     if (key.toLowerCase() === keyToChangeLower) {
-      // Reassign old key
       obj[key] = value
-      // Done
       return
     }
   }
-  // Insert at end instead
   obj[keyToChange] = value
 }

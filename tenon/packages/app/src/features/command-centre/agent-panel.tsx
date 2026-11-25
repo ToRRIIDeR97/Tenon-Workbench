@@ -25,23 +25,14 @@ import { searchCommandMemory } from "@/features/second-brain/client"
 import { sessionHref } from "@/utils/session-route"
 import { getRelativeTime } from "@/utils/time"
 
-/**
- * The Command Centre agent beside the board: the latest exchange of its newest thread (your last message and the
- * reply as Markdown) and a composer that replies to that thread, as the card on other pages does. New thread makes
- * the next send start a fresh thread on the model pill's harness. Threads swaps the conversation for memory search
- * and the list of the Command Centre's own threads, each with rename, archive and delete.
- */
 export function AgentPanel(props: { open: (sessionID: string) => void }) {
   const language = useLanguage()
   const settings = useSettings()
   const centre = useCommandCentre()
-  // `fresh`: the next send starts a new thread. `threads`: the thread list and memory search replace the chat.
   const [state, setState] = createStore({ fresh: false, threads: false })
   const shown = () => !state.fresh && !!centre.latest()
   let input: HTMLTextAreaElement | undefined
 
-  // The pill starts on Settings › Command Centre's harness and model and applies to the next send. It stays
-  // mounted while replying: its folder model list is also what loads the folder's pending approvals here.
   const harness = createComposerHarness({
     scope: "command",
     directory: () => centre.directory() ?? "",
@@ -54,8 +45,6 @@ export function AgentPanel(props: { open: (sessionID: string) => void }) {
   })
   const composer = createComposerController({
     persist: "command",
-    // A reply lands in the shown thread, so "yes, do it" goes where the question was asked. A failed send keeps
-    // the text.
     send: async (text) => {
       const id = await centre.send(text, shown() ? centre.latest()?.id : null, {
         harnessID: harness.harnessID(),
@@ -138,7 +127,6 @@ export function AgentPanel(props: { open: (sessionID: string) => void }) {
   )
 }
 
-/** The newest thread's last ask and reply, with Undo for that reply's last write and the thread's waiting state. */
 function Conversation(props: { shown: boolean; open: (sessionID: string) => void }) {
   const language = useLanguage()
   const centre = useCommandCentre()
@@ -241,7 +229,6 @@ function Conversation(props: { shown: boolean; open: (sessionID: string) => void
   )
 }
 
-/** Memory search, the Command Centre's own threads and the archived ones. */
 function ThreadList(props: { open: (sessionID: string) => void }) {
   const language = useLanguage()
   const layout = useLayout()
@@ -312,7 +299,6 @@ function ThreadList(props: { open: (sessionID: string) => void }) {
             >
               {(hit, index) => (
                 <li>
-                  {/* A hit from a live thread opens it; a summary (its thread was compacted) expands in place. */}
                   <button
                     type="button"
                     class={`${pageRowClass} !py-1.5`}
@@ -344,7 +330,6 @@ function ThreadList(props: { open: (sessionID: string) => void }) {
         }
       >
         <ul class="flex flex-col gap-0.5" aria-label={language.t("secondBrain.commandCentre.threads")}>
-          {/* By ID: a refresh rebuilds the thread objects, which must not end a rename in progress. */}
           <For each={centre.threads().flatMap((thread) => (ctrl.threadHidden(thread.id) ? [] : [thread.id]))}>
             {(id) => (
               <Show when={centre.threads().find((thread) => thread.id === id)}>
@@ -372,7 +357,6 @@ function ThreadList(props: { open: (sessionID: string) => void }) {
   )
 }
 
-/** A Command Centre thread: opens on click, with the sidebar's rename, archive and delete in a "…" menu. */
 function ThreadRow(props: { thread: CommandThread; href: string }) {
   const language = useLanguage()
   const centre = useCommandCentre()
@@ -380,8 +364,6 @@ function ThreadRow(props: { thread: CommandThread; href: string }) {
   const [editing, setEditing] = createSignal(false)
   const label = () => centre.label(props.thread)
   let input: HTMLInputElement | undefined
-  // The menu stays mounted during an edit: the input takes focus when the menu closes, and closing returns focus
-  // to the "…" trigger, which would blur an already focused input and end the edit straight away.
   const finish = (value: string | undefined) => {
     if (!editing()) return
     setEditing(false)
@@ -439,7 +421,6 @@ function ThreadRow(props: { thread: CommandThread; href: string }) {
           <MenuV2.Portal>
             <MenuV2.Content
               onCloseAutoFocus={() => {
-                // Kobalte focuses the trigger right after this handler, so the input takes focus in a microtask.
                 if (!editing()) return
                 queueMicrotask(() => {
                   input?.focus()

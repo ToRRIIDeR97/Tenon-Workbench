@@ -11,21 +11,14 @@ import type { TimelineItem } from "./client"
 import { dueDatePatch, milestoneStatus, restoreItem, type MilestoneGroup } from "./notes-timeline"
 import { DateChip, StatusMenu } from "./project-controls"
 
-/**
- * A Project's task edits: check off, status, due date, rename and delete, each saved as the whole item list
- * through `onSaveItems`, with Undo for a completion or a delete. Shared by the Project page and the Projects
- * page's detail card, so a task row works the same in both.
- */
 export function createProjectTasks(props: {
   items: () => ReadonlyArray<TimelineItem>
-  /** Saves the whole item list over the loaded revision; resolves to an error message, or "" when saved. */
   onSaveItems: (items: ReadonlyArray<TimelineItem>) => Promise<string>
 }) {
   const language = useLanguage()
   const [state, setState] = createStore({
     saving: false,
     error: "",
-    /** The item whose title is being edited in its row. */
     renaming: "",
   })
   const save = async (next: ReadonlyArray<TimelineItem>) => {
@@ -35,7 +28,6 @@ export function createProjectTasks(props: {
     setState({ saving: false, error })
     return !error
   }
-  // Saves replace the whole list, so every change and Undo starts from the latest items, not a captured array.
   const update = (id: string, patch: Partial<TimelineItem>) =>
     save(props.items().map((item) => (item.id === id ? { ...item, ...patch } : item)))
   const undoToast = (description: string, undo: () => void) =>
@@ -59,21 +51,17 @@ export function createProjectTasks(props: {
     const title = value?.trim()
     if (title && title !== item.title) void update(item.id, { title })
   }
-  // A rename picked from the menu shows its input once the menu has closed: closing returns focus to the trigger.
   const menu = { renaming: "" }
   return { state, setState, save, update, setStatus, remove, finishRename, menu }
 }
 
 export type ProjectTasks = ReturnType<typeof createProjectTasks>
 
-// A task's date is its due day (end); a milestone's is its day (start).
 const dueOf = (item: TimelineItem) => (item.kind === "milestone" ? item.start : (item.end ?? item.start))
 
-/** A task line, or a milestone's heading line with its tasks' "n of m done". */
 export function ProjectTaskRow(props: { tasks: ProjectTasks; item: TimelineItem; group?: MilestoneGroup }) {
   const language = useLanguage()
   const tasks = props.tasks
-  // A milestone reads as done once every task under it is.
   const status = () => (props.group && milestoneStatus(props.group)) || props.item.status
   return (
     <div
@@ -106,7 +94,6 @@ export function ProjectTaskRow(props: { tasks: ProjectTasks; item: TimelineItem;
       <Show
         when={tasks.state.renaming === props.item.id}
         fallback={
-          // A button, so rename is one click or Enter away from the keyboard too.
           <button
             type="button"
             title={props.item.title}
@@ -170,7 +157,6 @@ export function ProjectTaskRow(props: { tasks: ProjectTasks; item: TimelineItem;
             onCloseAutoFocus={() => {
               if (tasks.menu.renaming !== props.item.id) return
               tasks.menu.renaming = ""
-              // Kobalte focuses the trigger right after this handler, so the input opens after it.
               queueMicrotask(() => tasks.setState("renaming", props.item.id))
             }}
           >

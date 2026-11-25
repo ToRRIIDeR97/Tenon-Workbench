@@ -17,7 +17,6 @@ export function createTimelineProjection(input: {
   status: Accessor<SessionStatus>
   showReasoningSummaries: Accessor<boolean>
   inlineComments: Accessor<boolean>
-  /** Whether a turn's steps are folded; folded step rows leave the virtual list. */
   folded?: (row: TimelineRow.TurnSteps, active: boolean) => boolean
 }) {
   const messageByID = createMemo(() => new Map(input.messages().map((message) => [message.id, message] as const)))
@@ -34,8 +33,6 @@ export function createTimelineProjection(input: {
     })
     return result
   })
-  // Turns read messages only. Each turn builds its rows in its own memo, so a streamed part can only
-  // rebuild the active turn's rows, and only when the parts' signature changes: rows hold no part text.
   const turns = createMemo(() =>
     Timeline.constructSessionTurns(
       input.sessionMessages(),
@@ -44,9 +41,7 @@ export function createTimelineProjection(input: {
     ),
   )
   const activeMessageID = createMemo(() => turns().at(-1)?.user.id)
-  // External harnesses compact on their own; a sharp drop in their context reports marks the turn (#332).
   const observed = createMemo(() => observedCompactions(input.sessionMessages() as never))
-  // How many messages come before each user message: what a compaction there summarised (#332).
   const before = createMemo(
     () => new Map(input.sessionMessages().map((message, index) => [message.id, index] as const)),
   )
@@ -133,7 +128,6 @@ export function createTimelineProjection(input: {
 
 type TurnEntry = { turn: Timeline.Turn; index: number }
 
-// Same messages in the same position class (first turn or not) build the same rows.
 function sameTurn(a: TurnEntry | undefined, b: TurnEntry | undefined) {
   if (a === b) return true
   if (!a || !b) return false

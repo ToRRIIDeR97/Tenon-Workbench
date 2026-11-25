@@ -64,7 +64,6 @@ describe("encodeFilePath", () => {
       const result = encodeFilePath(linuxPath)
       const fileUrl = `file://${result}`
 
-      // Should create a valid URL
       expect(() => new URL(fileUrl)).not.toThrow()
       expect(result).toBe("/home/user/project/README.md")
 
@@ -100,10 +99,10 @@ describe("encodeFilePath", () => {
       const fileUrl = `file://${result}`
 
       expect(() => new URL(fileUrl)).not.toThrow()
-      expect(result).toContain("%23") // #
-      expect(result).toContain("%3F") // ?
-      expect(result).toContain("%25") // %
-      expect(result).toContain("%26") // &
+      expect(result).toContain("%23")
+      expect(result).toContain("%3F")
+      expect(result).toContain("%25")
+      expect(result).toContain("%26")
     })
   })
 
@@ -133,7 +132,6 @@ describe("encodeFilePath", () => {
       const result = encodeFilePath(windowsPath)
       const fileUrl = `file://${result}`
 
-      // Should create a valid, parseable URL
       expect(() => new URL(fileUrl)).not.toThrow()
 
       const url = new URL(fileUrl)
@@ -143,7 +141,6 @@ describe("encodeFilePath", () => {
     })
 
     test("should handle mixed separator path (Windows + Unix)", () => {
-      // This is what happens in build-request-parts.ts when concatenating paths
       const mixedPath = "D:\\dev\\projects\\opencode/README.bs.md"
       const result = encodeFilePath(mixedPath)
       const fileUrl = `file://${result}`
@@ -184,21 +181,17 @@ describe("encodeFilePath", () => {
       const windowsPath = "src\\components\\App.tsx"
       const result = encodeFilePath(windowsPath)
 
-      // Relative paths shouldn't get the leading slash
       expect(result).toBe("src/components/App.tsx")
     })
 
     test("should NOT create invalid URL like the bug report", () => {
-      // This is the exact scenario from bug report by @alexyaroshuk
       const windowsPath = "D:\\dev\\projects\\opencode\\README.bs.md"
       const result = encodeFilePath(windowsPath)
       const fileUrl = `file://${result}`
 
-      // The bug was creating: file://D%3A%5Cdev%5Cprojects%5Copencode/README.bs.md
-      expect(result).not.toContain("%5C") // Should not have encoded backslashes
+      expect(result).not.toContain("%5C")
       expect(result).not.toBe("D%3A%5Cdev%5Cprojects%5Copencode/README.bs.md")
 
-      // Should be valid
       expect(() => new URL(fileUrl)).not.toThrow()
     })
 
@@ -222,7 +215,6 @@ describe("encodeFilePath", () => {
     test("should normalize Windows paths for cross-platform use", () => {
       const windowsPath = "C:\\Users\\test\\file.txt"
       const result = encodeFilePath(windowsPath)
-      // Should convert to forward slashes and add leading /
       expect(result).not.toContain("\\")
       expect(result).toMatch(/^\/[A-Za-z]:\//)
     })
@@ -234,7 +226,6 @@ describe("encodeFilePath", () => {
       const unixResult = encodeFilePath(unixRelative)
       const windowsResult = encodeFilePath(windowsRelative)
 
-      // Both should normalize to forward slashes
       expect(unixResult).toBe("src/app.ts")
       expect(windowsResult).toBe("src/app.ts")
     })
@@ -248,7 +239,6 @@ describe("encodeFilePath", () => {
 
     test("should handle path with multiple consecutive slashes", () => {
       const result = encodeFilePath("//path//to///file.txt")
-      // Multiple slashes should be preserved (backend handles normalization)
       expect(result).toBe("//path//to///file.txt")
     })
 
@@ -258,16 +248,13 @@ describe("encodeFilePath", () => {
       const fileUrl = `file://${result}`
 
       expect(() => new URL(fileUrl)).not.toThrow()
-      // Unicode should be encoded
       expect(result).toContain("%E6%96%87%E6%A1%A3")
     })
 
     test("should handle already normalized Windows path", () => {
-      // Path that's already been normalized (has / before drive letter)
       const alreadyNormalized = "/D:/path/file.txt"
       const result = encodeFilePath(alreadyNormalized)
 
-      // Should not add another leading slash
       expect(result).toBe("/D:/path/file.txt")
       expect(result).not.toContain("//D")
     })
@@ -305,7 +292,6 @@ describe("encodeFilePath", () => {
       const fileUrl = `file://${result}`
 
       expect(() => new URL(fileUrl)).not.toThrow()
-      // Dots should be preserved (backend normalizes)
       expect(result).toContain("..")
       expect(result).toContain("/./")
     })

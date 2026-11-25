@@ -53,13 +53,9 @@ import { sessionOrigin } from "@/features/command-centre/hub-model"
 import { sessionHref } from "@/utils/session-route"
 import { sessionTitle } from "@/utils/session-title"
 
-// Rows clip, so keyboard focus draws an inset ring on the row: when the row is the button, or while its
-// main button (a direct child) has focus. A selected row has no fill of its own: SelectionGlide draws one
-// highlight behind it that slides from row to row.
 const rowClass =
   "group/row relative grid h-8 w-full min-w-0 shrink-0 cursor-default items-center overflow-hidden rounded-[8px] bg-transparent text-left type-control text-v2-text-text-muted transition-[color] duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base active:bg-v2-overlay-simple-overlay-pressed data-[selected]:bg-v2-overlay-simple-overlay-pressed data-[selected]:text-v2-text-text-base data-[selected]:hover:bg-v2-overlay-simple-overlay-pressed data-[selected]:[font-weight:600] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-v2-border-border-focus has-[>button:focus-visible]:outline has-[>button:focus-visible]:outline-2 has-[>button:focus-visible]:-outline-offset-2 has-[>button:focus-visible]:outline-v2-border-border-focus motion-reduce:transition-none"
 
-// Card header actions take no width at rest and open beside the status marks on hover, focus or an open menu.
 const headerActionsClass =
   "flex w-0 items-center gap-0.5 overflow-hidden group-hover/row:w-auto group-hover/row:pr-0.5 focus-within:w-auto focus-within:pr-0.5 has-[[data-expanded]]:w-auto has-[[data-expanded]]:pr-0.5"
 
@@ -82,7 +78,6 @@ export function SecondBrainSidebar() {
   const dialog = useDialog()
   const global = useGlobal()
   const server = useServer()
-  // The palette on every page without its own; thread and draft pages register after this and shadow it.
   command.register("sidebar.palette", () => [
     {
       id: "command.palette",
@@ -108,11 +103,7 @@ export function SecondBrainSidebar() {
       },
     },
   ])
-  // The panel keeps its content while its width collapses, so it never closes as an empty column.
   const panel = createReveal(() => layout.sidebar.opened())
-  // The Projects content mounts once the width has settled, not on the click: building every group and thread
-  // row while the width animates relayouts the page beside it on each frame (#309). It stays mounted while
-  // the panel closes, and fades in when it waited for the slide, like the thread's side panel.
   const body = createMemo<{ mounted: boolean; waited: boolean }>(
     (was) => {
       const phase = panel.phase()
@@ -124,9 +115,7 @@ export function SecondBrainSidebar() {
     { mounted: panel.phase() === "open", waited: false },
   )
   const path = () => ctrl.location.pathname
-  // Routine pages open in the page editor under /projects but belong to the Command Centre.
   const fromRoutines = () => new URLSearchParams(ctrl.location.search).get("from") === "routines"
-  // A Command Centre thread is the Command Centre's Mission control, so the rail keeps its entry lit there.
   const centre = useCommandCentre()
   const inCommandThread = () => {
     const id = sessionFromPath(path())
@@ -153,10 +142,7 @@ export function SecondBrainSidebar() {
     <div
       data-component="second-brain-sidebar"
       data-expanded={layout.sidebar.opened() ? "" : undefined}
-      // The left shell: the rail strip and the Projects panel in one 16px card with a hairline ring. Its width
-      // grows from the rail (64px) into rail plus panel. The rail's focus rings sit inside its 64px strip.
       classList={{
-        // Starts 8px below the title bar, which belongs to the window; 8px in on the other sides.
         "titlebar-inset-margin m-2 flex min-h-0 shrink-0 overflow-hidden rounded-[16px] bg-v2-background-bg-base shadow-[0_0_0_1px_var(--v2-border-border-muted)] transition-[width] motion-reduce:duration-0": true,
         "w-16 duration-medium ease-emphasized-decelerate md:w-[320px]": layout.sidebar.opened(),
         "w-16 duration-short ease-emphasized-accelerate": !layout.sidebar.opened(),
@@ -165,8 +151,6 @@ export function SecondBrainSidebar() {
         if (event.target === event.currentTarget && event.propertyName === "width") panel.settle()
       }}
     >
-      {/* The rail is a tinted strip in the shell, split from the Projects panel by a hairline; Settings sits at its
-          foot. */}
       <nav
         class="flex w-16 shrink-0 flex-col items-center gap-1.5 self-stretch bg-v2-background-bg-layer-01 py-2"
         classList={{ "shadow-[inset_-1px_0_0_var(--v2-border-border-muted)]": panel.phase() !== "closed" }}
@@ -195,8 +179,6 @@ export function SecondBrainSidebar() {
         aria-label={language.t("secondBrain.sidebar.projectsSection")}
         inert={layout.sidebar.opened() ? undefined : true}
         classList={{
-          // The rail stays at every width; the Projects panel needs the room of a md window.
-          // It fills what the shell leaves beside the rail and fades on the shell's timing, on the shell's bg-base.
           "hidden min-h-0 min-w-0 flex-1 flex-col overflow-hidden transition-opacity motion-reduce:duration-0 md:flex": true,
           "opacity-100 duration-medium ease-emphasized-decelerate": layout.sidebar.opened(),
           "opacity-0 duration-short ease-emphasized-accelerate": !layout.sidebar.opened(),
@@ -232,7 +214,6 @@ export function SecondBrainSidebar() {
                       </>
                     }
                   >
-                    {/* Keyed by the Project, not its group: a group is rebuilt on every thread change. */}
                     <For each={ctrl.projects()}>
                       {(project) => (
                         <ProjectGroup
@@ -267,7 +248,6 @@ export function SecondBrainSidebar() {
   )
 }
 
-/** A navigation rail destination: a 44px icon box, accent container when selected. The tooltip names it. */
 function RailItem(props: { id: string; icon: string; label: string; active?: boolean; onClick: () => void }) {
   return (
     <TooltipV2 placement="right" value={props.label} class={props.id === "settings" ? "mt-auto w-full" : "w-full"}>
@@ -295,7 +275,6 @@ function RailItem(props: { id: string; icon: string; label: string; active?: boo
   )
 }
 
-/** Shown in place of the Project list when the selected workspace's folder was moved or deleted. */
 function MissingFolder(props: { ctrl: SidebarController; directory: string }) {
   const language = useLanguage()
   const action =
@@ -320,18 +299,15 @@ function MissingFolder(props: { ctrl: SidebarController; directory: string }) {
   )
 }
 
-/** The workspace switcher that heads the sidebar, with the workspace's Project actions. */
 function WorkspaceHeader(props: { ctrl: SidebarController }) {
   const language = useLanguage()
   const dialog = useDialog()
   const navigate = useNavigate()
   const server = useServer()
-  // A modal over the current page; the workspace's list refreshes once the folder is linked.
   const addProject = () => {
     const current = server.current
     if (current) void dialog.show(() => <DialogAddProject server={current} onAdd={props.ctrl.addProject} />)
   }
-  // Project actions need the folder; a missing one gets locate or remove in the sidebar instead.
   const present = () => {
     const directory = props.ctrl.brainDirectory()
     return directory && props.ctrl.folderMissing(directory) !== true ? directory : undefined
@@ -414,7 +390,6 @@ function WorkspaceHeader(props: { ctrl: SidebarController }) {
       </MenuV2>
       <div class="flex-1" />
       <Show when={present()}>
-        {/* Add project and Scan share one bordered button group, which clips their square corners. */}
         <div class="flex shrink-0 overflow-hidden rounded-[10px] bg-v2-background-bg-layer-01 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]">
           <TooltipV2 placement="bottom" class="flex" value={language.t("secondBrain.sidebar.addProject")}>
             <IconButtonV2
@@ -472,7 +447,6 @@ const groupingLabel = {
   recent: "secondBrain.sidebar.groupByRecent",
 } as const
 
-/** Project, Attention and Recent as text tabs; an underline slides to the chosen one. */
 function GroupTabs(props: { ctrl: SidebarController }) {
   const language = useLanguage()
   const tabs: HTMLButtonElement[] = []
@@ -483,11 +457,9 @@ function GroupTabs(props: { ctrl: SidebarController }) {
   }
   onMount(() => {
     measure()
-    // The Attention count and late fonts change a tab's width.
     const observer = new ResizeObserver(measure)
     tabs.forEach((tab) => observer.observe(tab))
     onCleanup(() => observer.disconnect())
-    // The underline starts in place, then slides on later changes.
     requestAnimationFrame(() => setInk("ready", true))
   })
   createEffect(on(props.ctrl.grouping, measure, { defer: true }))
@@ -538,10 +510,6 @@ function GroupTabs(props: { ctrl: SidebarController }) {
   )
 }
 
-/**
- * The thread list under the tabs. The selected row carries its own highlight, which appears and disappears at once
- * (no sliding between rows). A switch of tab slides the list in from the side of the new tab.
- */
 function SelectionGlide(props: ParentProps<{ ctrl: SidebarController }>) {
   let list!: HTMLDivElement
   createEffect(
@@ -577,7 +545,6 @@ function SelectionGlide(props: ParentProps<{ ctrl: SidebarController }>) {
   )
 }
 
-/** One mark for rows and card headers. Shape carries the state, so colour is never the only signal. */
 function ThreadStatusMark(props: { state: ThreadState }) {
   const language = useLanguage()
   return (
@@ -604,7 +571,6 @@ function ThreadStatusMark(props: { state: ThreadState }) {
   )
 }
 
-/** How a thread's last turn ended while it was not on screen; shown until the thread is opened. */
 function ThreadFinishMark(props: { mark: FinishMark | undefined }) {
   const language = useLanguage()
   return (
@@ -659,7 +625,6 @@ function CardMarks(props: { summary?: CardSummary }) {
   )
 }
 
-/** A group of threads: a header row and its list, flat on the panel. */
 function SidebarCard(props: ComponentProps<"div"> & { cardID: string; label: string; summary?: CardSummary }) {
   const language = useLanguage()
   const [local, rest] = splitProps(props, ["cardID", "label", "summary", "children"])
@@ -681,7 +646,6 @@ function SidebarCard(props: ComponentProps<"div"> & { cardID: string; label: str
   )
 }
 
-/** Attention and Recent. Keyed by card ID: cards are rebuilt on every status change, and their rows must stay. */
 function GroupedCards(props: { ctrl: SidebarController }) {
   const language = useLanguage()
   return (
@@ -728,7 +692,6 @@ function GroupedCard(props: { ctrl: SidebarController; id: keyof typeof groupedC
   )
 }
 
-/** Needs you and Running in Attention: each thread as a card naming its folder and, for an approval, what it waits on. */
 function InboxCards(props: { ctrl: SidebarController; threads: ThreadNode<Session>[] }) {
   const language = useLanguage()
   const fresh = createFreshItems()
@@ -774,7 +737,6 @@ function InboxCards(props: { ctrl: SidebarController; threads: ThreadNode<Sessio
   )
 }
 
-// Right-click opens the row's own "…" menu instead of Electron's default one; text fields keep the native menu.
 function openRowMenu(event: MouseEvent, open: (value: true) => void) {
   if (
     event.target instanceof Element &&
@@ -803,7 +765,6 @@ function ProjectGroup(props: { ctrl: SidebarController; project: SidebarProjectI
   const open = () => props.ctrl.expanded(props.project.id)
   const summary = () => props.ctrl.card(props.project.id)?.summary
   const [menuOpen, setMenuOpen] = createSignal(false)
-  // The desktop opens the folder in the system's file manager; the web build has no such action.
   const openFolder = () =>
     platform.openPath?.(props.project.threadDirectory).catch((cause: unknown) =>
       showToast({
@@ -849,7 +810,6 @@ function ProjectGroup(props: { ctrl: SidebarController; project: SidebarProjectI
             <CardMarks summary={summary()} />
           </span>
         </button>
-        {/* Beside the marks, and no width at rest, so the marks line up with the row marks below. */}
         <div class={headerActionsClass}>
           <TooltipV2 placement="right" value={language.t("secondBrain.sidebar.newThread")}>
             <IconButtonV2
@@ -931,7 +891,6 @@ function ThreadGroup(props: {
   label: string
   threads: ThreadNode<Session>[]
   onNewThread?: () => void
-  /** Offers the folder's Archived threads dialog from a "…" menu. */
   archivedDirectory?: string
 }) {
   const language = useLanguage()
@@ -1007,11 +966,8 @@ function ThreadGroup(props: {
   )
 }
 
-/** A group's threads, flat under its header; the header's + starts a new thread. */
 function ThreadList(props: { ctrl: SidebarController; threads: ThreadNode<Session>[] }) {
   const language = useLanguage()
-  // The list is rebuilt on every thread change, so `For` recreates its rows. Only a thread that was not
-  // listed before animates in; the rows of the first render, and later reorders, do not.
   const fresh = createFreshItems()
   return (
     <div class="flex flex-col">
@@ -1034,15 +990,11 @@ function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; 
   const session = () => props.node.session
   const active = () => props.ctrl.activeSessionID() === session().id
   const title = () => sessionTitle(session().title) || session().id
-  // A thread still on its placeholder title reads as one, so it does not look like the "New thread" action.
   const untitled = () => !session().title || sessionTitle(session().title) !== session().title
   const pinned = () => sessionPinnedAt(session()) !== undefined
-  // Child threads (subagents) show while their parent's lineage is on screen, or when the row's toggle opens them.
   const childrenOpen = () => props.ctrl.childrenOpen(props.node)
   let saved = false
   let input: HTMLInputElement | undefined
-  // A rename picked from the menu focuses the input only once the menu has closed: closing returns focus to
-  // the "…" trigger, which would blur an already focused input and end the edit straight away.
   let renameFromMenu = false
   const finish = (value: string | undefined) => {
     if (saved) return
@@ -1052,7 +1004,6 @@ function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; 
     if (value !== undefined) void props.ctrl.renameThread(session(), value)
   }
   const [menuOpen, setMenuOpen] = createSignal(false)
-  // Each menu item runs from a click or from its single-key hint while the menu has focus.
   const run: ThreadMenuRun = {
     rename: () => {
       renameFromMenu = true
@@ -1099,7 +1050,6 @@ function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; 
               data-sidebar-thread-open
               aria-current={active() ? "page" : undefined}
               draggable="true"
-              // Dropped on a composer, the thread is attached as a reference.
               onDragStart={(event) => {
                 event.dataTransfer?.setData("text/plain", `${THREAD_DRAG_PREFIX}${session().id}\n${title()}`)
                 if (event.dataTransfer) event.dataTransfer.effectAllowed = "copy"
@@ -1124,7 +1074,6 @@ function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; 
                   <Icon name="pin" size="small" />
                 </span>
               </Show>
-              {/* A thread the Command Centre started (a delegated task or thread_start) carries its rail icon. */}
               <Show when={sessionOrigin(session())?.commandCentre}>
                 <TooltipV2 placement="right" value={language.t("secondBrain.sidebar.startedByCommandCentre")}>
                   <span
@@ -1160,7 +1109,6 @@ function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; 
             onBlur={(event) => finish(event.currentTarget.value)}
           />
         </Show>
-        {/* The "…" stays on the selected row and while its menu is open. */}
         <div
           class="flex items-center pr-0.5 opacity-0 transition-opacity group-hover/row:opacity-100 group-data-[selected]/row:opacity-100 focus-within:opacity-100 motion-reduce:transition-none"
           classList={{ "!opacity-100": menuOpen() }}
@@ -1182,8 +1130,6 @@ function ThreadRow(props: { ctrl: SidebarController; node: ThreadNode<Session>; 
                 onCloseAutoFocus={() => {
                   if (!renameFromMenu) return
                   renameFromMenu = false
-                  // Kobalte's DropdownMenu.Content focuses the trigger right after this handler even when it is
-                  // prevented, so the input takes focus in a microtask, once that has happened.
                   queueMicrotask(() => {
                     input?.focus()
                     input?.select()

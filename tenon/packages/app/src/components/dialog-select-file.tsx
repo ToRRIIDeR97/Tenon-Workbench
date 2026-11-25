@@ -98,7 +98,6 @@ function DialogSelectFileLegacy(props: { filesOnly: () => boolean; onOpenFile?: 
     return [...palette.commandEntries(), ...nextSessions, ...entries]
   }
 
-  // Only reached in files-only mode, so every entry is a file; other entries fall back to their title.
   return (
     <Dialog size="large">
       <DialogBody class="min-h-0 pt-3">

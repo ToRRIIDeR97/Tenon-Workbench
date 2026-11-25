@@ -51,7 +51,6 @@ const layer = Layer.effectDiscard(
           description,
           input: Input,
           output: Output,
-          // The switch itself is hidden from the model, so the result says what changed.
           toModelOutput: () => [
             {
               type: "text",
@@ -87,7 +86,6 @@ const layer = Layer.effectDiscard(
                 .pipe(Effect.orDie)
               if (answers[0]?.[0] !== YES)
                 return yield* new ToolFailure({ message: "The user wants to keep refining the plan." })
-              // The runner selects the Session's agent each step, so the next step runs as the build agent.
               yield* events.publish(SessionEvent.AgentSwitched, {
                 sessionID: context.sessionID,
                 messageID: SessionMessage.ID.create(),

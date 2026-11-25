@@ -1,14 +1,10 @@
-// The computer use pill's page and its Stop watchers, kept free of Electron so they can be tested (#333).
-
 const watchers = new Set<(stop: boolean) => void>()
 
-/** Tells every held `computer_watch` that Stop was pressed. */
 export function notifyStop() {
   for (const watcher of watchers) watcher(true)
   watchers.clear()
 }
 
-/** The pill's page: plain markup, no scripts beyond setting the title when Stop is pressed. */
 export function indicatorPage(input: { label: string; stop: string; dark: boolean }) {
   const escape = (value: string) => value.replace(/[&<>"]/g, (char) => `&#${char.charCodeAt(0)};`)
   const bg = input.dark ? "#2e2e2e" : "#ffffff"
@@ -24,13 +20,8 @@ button{-webkit-app-region:no-drag;border:0;border-radius:9999px;height:32px;padd
 </style></head><body><div class="pill"><i class="dot"></i><span>${escape(input.label)}</span><button onclick="document.title='stop'">${escape(input.stop)}</button></div></body></html>`
 }
 
-/** Tenon blue (`--v2-blue-600`, the app's accent): the default colour of the glow around the screen. */
 export const GLOW_COLOR = "#3b5cf6"
 
-/**
- * The glow around the edges of the screen while an agent uses the computer, like the frame other agents draw when
- * they take control. Plain markup with no scripts; the window that shows it lets every click through.
- */
 export function glowPage(input: { color?: string } = {}) {
   const color = /^#[0-9a-f]{6}$/i.test(input.color ?? "") ? input.color! : GLOW_COLOR
   return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><style>
@@ -41,7 +32,6 @@ html,body{margin:0;height:100%;background:transparent;overflow:hidden}
 </style></head><body><div class="glow"></div></body></html>`
 }
 
-/** `computer_watch`: answers `{"stop":true}` when Stop is pressed, `{"stop":false}` after a minute. */
 export function watch(signal: AbortSignal) {
   return new Promise<{ text: string }>((resolve) => {
     const done = (stop: boolean) => {

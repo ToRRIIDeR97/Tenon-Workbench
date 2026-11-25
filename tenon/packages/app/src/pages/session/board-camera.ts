@@ -1,8 +1,3 @@
-/**
- * The Canvas board's geometry: designs are 1280×800 artboards on a grid in world space, and a camera
- * maps world to screen as `screen = world · scale + (x, y)`.
- */
-
 export const ARTBOARD = { width: 1280, height: 800 }
 
 export type Rect = { x: number; y: number; width: number; height: number }
@@ -12,7 +7,6 @@ export type Size = { width: number; height: number }
 const MIN_SCALE = 0.05
 const MAX_SCALE = 4
 
-/** Where each of `count` artboards sits: rows of `columns`, `gap` apart. */
 export function boardLayout(count: number, options: { columns?: number; gap?: number } = {}): Rect[] {
   const columns = options.columns ?? 2
   const gap = options.gap ?? 200
@@ -24,7 +18,6 @@ export function boardLayout(count: number, options: { columns?: number; gap?: nu
   }))
 }
 
-/** The camera that shows `rect` as large as fits inside `viewport` less `pad`, centred. */
 export function fitCamera(rect: Rect, viewport: Size, pad = 32): Camera {
   const scale = Math.min((viewport.width - 2 * pad) / rect.width, (viewport.height - 2 * pad) / rect.height)
   return {
@@ -34,7 +27,6 @@ export function fitCamera(rect: Rect, viewport: Size, pad = 32): Camera {
   }
 }
 
-/** The board being drawn when there is one, otherwise every board. */
 export function boardCamera(input: { layout: Rect[]; drawing?: number; viewport: Size; pad?: number }): Camera {
   const focus = input.drawing === undefined ? undefined : input.layout[input.drawing]
   if (focus) return fitCamera(focus, input.viewport, input.pad)
@@ -46,10 +38,6 @@ export function boardCamera(input: { layout: Rect[]; drawing?: number; viewport:
   return fitCamera({ x: left, y: top, width: right - left, height: bottom - top }, input.viewport, input.pad)
 }
 
-/**
- * How many columns show `count` boards largest in `viewport`: a tall narrow view stacks them in one
- * column, a wide one spreads them out. Ties keep fewer columns.
- */
 export function boardColumns(count: number, viewport: Size, pad = 32) {
   if (count < 2 || viewport.width <= 0 || viewport.height <= 0) return Math.max(1, Math.min(2, count))
   return Array.from({ length: count }, (_, index) => index + 1).reduce((best, columns) =>
@@ -60,7 +48,6 @@ export function boardColumns(count: number, viewport: Size, pad = 32) {
   )
 }
 
-/** The camera part way from `from` to `to`, `progress` already eased (0–1). */
 export function blendCamera(from: Camera, to: Camera, progress: number): Camera {
   return {
     x: from.x + (to.x - from.x) * progress,
@@ -69,10 +56,6 @@ export function blendCamera(from: Camera, to: Camera, progress: number): Camera 
   }
 }
 
-/**
- * A CSS easing token as a function of progress (0–1), for camera moves driven frame by frame:
- * `cubic-bezier(x1, y1, x2, y2)`, else linear.
- */
 export function cssEasing(value: string) {
   const points = value
     .match(/cubic-bezier\(([^)]*)\)/)?.[1]
@@ -83,7 +66,6 @@ export function cssEasing(value: string) {
   return (progress: number) => {
     if (progress <= 0) return 0
     if (progress >= 1) return 1
-    // Find t where the curve's x reaches `progress` by bisection, then read its y.
     const range = Array.from({ length: 24 }).reduce<[number, number]>(
       (bounds) => {
         const middle = (bounds[0] + bounds[1]) / 2
@@ -95,7 +77,6 @@ export function cssEasing(value: string) {
   }
 }
 
-/** Zooms by `factor` (the scale kept within 5%–400%) so the world point under `point` stays put. */
 export function zoomAt(camera: Camera, factor: number, point: { x: number; y: number }): Camera {
   const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, camera.scale * factor))
   return {

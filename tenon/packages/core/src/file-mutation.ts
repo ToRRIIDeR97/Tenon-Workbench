@@ -54,12 +54,9 @@ export interface RemoveResult {
 }
 
 export interface Interface {
-  /** Create without replacing an existing target. */
   readonly create: (input: WriteInput) => Effect.Effect<WriteResult, TargetExistsError | FSUtil.Error>
   readonly write: (input: WriteInput) => Effect.Effect<WriteResult, FSUtil.Error>
-  /** Write text while retaining an existing UTF-8 BOM and emitting at most one BOM. */
   readonly writeTextPreservingBom: (input: TextWriteInput) => Effect.Effect<WriteResult, FSUtil.Error>
-  /** Commit only if an existing target still has the expected bytes. */
   readonly writeIfUnchanged: (
     input: ConditionalWriteInput,
   ) => Effect.Effect<WriteResult, StaleContentError | FSUtil.Error>
@@ -68,13 +65,6 @@ export interface Interface {
 
 export class Service extends Context.Service<Service, Interface>()("@tenon/v2/FileMutation") {}
 
-/**
- * Serialize file changes by canonical target. Conditional writes compare and
- * write under the same process-local lock so cooperating Tenon mutations do
- * not overwrite changes made from the same stale content. Replacing writes go
- * through a synced sibling temp file and a rename, so a crash leaves either the
- * old or the new content, never a truncated file.
- */
 const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -85,9 +75,6 @@ const layer = Layer.effect(
       <A, E, R>(effect: Effect.Effect<A, E, R>) =>
         locks.withLock(target.canonical)(Effect.uninterruptible(effect))
 
-    // Returns whether the target existed. A rename swaps in a new inode and
-    // ignores the target's own permissions, so a read-only target is refused
-    // up front (as an in-place write was) and its permission bits are copied.
     const replace = (path: string, content: string | Uint8Array) =>
       Effect.gen(function* () {
         const existing = yield* fs
@@ -103,7 +90,6 @@ const layer = Layer.effect(
             : fs.writeFile(temp, content, { flag: "wx" })
         ).pipe(
           Effect.as(true),
-          // A directory that refuses new files can still hold a writable target: write it in place.
           Effect.catchReason("PlatformError", "PermissionDenied", () => Effect.succeed(false)),
           Effect.onError(removeTemp),
         )
@@ -114,8 +100,6 @@ const layer = Layer.effect(
         yield* Effect.gen(function* () {
           yield* syncFile(temp)
           if (existing) yield* fs.chmod(temp, existing.mode & 0o7777)
-          // Windows refuses a rename while an indexer, antivirus or editor briefly holds the target.
-          // Suspended so each retry calls rename again, whatever the filesystem implementation does at call time.
           yield* Effect.suspend(() => fs.rename(temp, path)).pipe(
             Effect.retry({ while: isTransientLock, schedule: Schedule.exponential("25 millis"), times: 4 }),
           )
@@ -126,10 +110,6 @@ const layer = Layer.effect(
     const syncFile = (path: string) =>
       Effect.scoped(fs.open(path, { flag: "r+" }).pipe(Effect.flatMap((file) => file.sync)))
 
-    // Stage the full content in a synced sibling temp file, then publish it without replacing an
-    // existing target: a hard link fails if the target exists. Where hard links are unsupported, a
-    // rename after an existence check under the target lock is the fallback. Either way a crash or
-    // failed write never leaves a partial target.
     const publishNew = (path: string, content: string | Uint8Array) =>
       Effect.gen(function* () {
         yield* fs.ensureDir(dirname(path))
@@ -216,7 +196,6 @@ const layer = Layer.effect(
     const remove = Effect.fn("FileMutation.remove")((input: RemoveInput) =>
       withTargetLock(input.target)(
         Effect.gen(function* () {
-          // Windows refuses a delete while an indexer, antivirus or sync client briefly holds the file.
           const existed = yield* Effect.suspend(() => fs.remove(input.target.canonical)).pipe(
             Effect.retry({ while: isTransientLock, schedule: Schedule.exponential("25 millis"), times: 4 }),
             Effect.as(true),
@@ -256,14 +235,3 @@ function sameBytes(left: Uint8Array, right: Uint8Array) {
 export const locationLayer = layer
 
 export const node = makeLocationNode({ service: Service, layer, deps: [FSUtil.node] })
-
-/**
- * Deferred until the corresponding V2 integrations exist.
- */
-// TODO: Add formatter integration after V2 formatter runtime exists.
-// TODO: Publish watcher/file-edit events after V2 watcher integration exists.
-// TODO: Add snapshots / undo after V2 snapshot design exists.
-// TODO: Notify LSP and collect diagnostics after V2 LSP runtime exists.
-// TODO: Design multi-file transactions / rollback if apply_patch needs atomic edits.
-// Until then, edits are sequential and report partial application.
-// TODO: Define crash recovery and idempotency for side effects between Tool.Called and durable settlement.

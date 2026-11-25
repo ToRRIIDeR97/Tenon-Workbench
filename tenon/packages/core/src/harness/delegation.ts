@@ -9,25 +9,8 @@ import { SessionSchema } from "../session/schema"
 import { HarnessAskUser } from "./ask-user"
 import { HarnessComputerProxy } from "./computer-proxy"
 
-/**
- * The `tenon` MCP server for external harnesses (Claude Code and Gemini over ACP, Codex). Each
- * harness runtime gets its own bearer token, bound to the Run that owns the runtime, so a tool
- * call always knows which Run is calling.
- *
- * It serves `ask_user`, which puts the harness's questions in the Run's question dock (every
- * runtime with a Run gets it); cross-harness delegation, which hands a task to an agent in another
- * harness (its task work is installed by the server, `delegation-tasks.ts`, which owns sessions);
- * the browser and device tools; and the Tenon app tools (`app-tools.ts`, installed by the server).
- * Without an installed handler or provider those tools are not offered. This module only holds the
- * endpoint and protocol.
- *
- * The listener and tokens are process-global on purpose: harness runtimes are built per Location,
- * while the endpoint is one loopback port for the whole server process.
- */
-
 export const SERVER_NAME = "tenon"
 export const TOKEN_ENV = "TENON_DELEGATION_TOKEN"
-/** Codex and other MCP clients time out tool calls; a delegated run waits at most this long per call. */
 export const MAX_WAIT_SECONDS = 600
 export const DEFAULT_WAIT_SECONDS = 300
 const BODY_LIMIT = 1_000_000
@@ -52,12 +35,10 @@ export interface DelegateInput {
   readonly model?: string
   readonly reasoningEffort?: string
   readonly title?: string
-  /** Runs the task as a root thread in this Project's folder, linked back to the caller, instead of as its child. */
   readonly projectId?: string
   readonly waitSeconds: number
 }
 
-/** A goal for a Project's lead; the agent and model apply only when the lead is started. */
 export interface LeadInput {
   readonly projectId: string
   readonly goal: string
@@ -74,7 +55,6 @@ export interface TaskResult {
   readonly status: "running" | "completed" | "failed" | "cancelled"
   readonly output?: string
   readonly error?: string
-  /** Where a running task is: its checklist, its latest note and how long it has run. */
   readonly progress?: TaskProgress
 }
 
@@ -84,15 +64,12 @@ export interface TaskProgress {
   readonly latest?: string
 }
 
-/** Task operations, called with the ID of the Run whose harness made the call. */
 export interface Handler {
   readonly listAgents: (sessionID: string) => Promise<ReadonlyArray<Agent>>
   readonly delegate: (sessionID: string, input: DelegateInput) => Promise<TaskResult>
-  /** Gives a goal to the Project's lead thread, starting the lead on first use. */
   readonly lead: (sessionID: string, input: LeadInput) => Promise<TaskResult>
   readonly result: (sessionID: string, taskID: string, waitSeconds: number) => Promise<TaskResult>
   readonly cancel: (sessionID: string, taskID: string) => Promise<TaskResult>
-  /** Steers a running task with `text`, which it reads at its next safe point. */
   readonly message: (sessionID: string, taskID: string, text: string) => Promise<{ taskID: string; sent: true }>
 }
 
@@ -101,15 +78,12 @@ export interface Endpoint {
   readonly token: string
 }
 
-/** The Run a token belongs to, and its runtime's asker when the runtime can ask the user. */
 export interface Caller {
   readonly sessionID: string
   readonly ask?: HarnessAskUser.Ask
-  /** Set for a harness without its own computer use: its folder and name, for the Cua Driver proxy (#333). */
   readonly computer?: { readonly directory: string; readonly harness: string }
 }
 
-/** Driver tools on the tenon server carry this prefix, so they can't collide with Tenon's own. */
 const COMPUTER_PREFIX = "computer_"
 
 const state: {
@@ -118,7 +92,6 @@ const state: {
   listener?: Promise<{ server: Server; url: string }>
 } = { tokens: new Map() }
 
-/** Installs the task handler; the returned function removes it again if it is still the current one. */
 export function install(handler: Handler) {
   state.handler = handler
   return () => {
@@ -126,12 +99,6 @@ export function install(handler: Handler) {
   }
 }
 
-/**
- * A token for one harness runtime of `sessionID`, revoked when the scope closes. `ask` is the
- * runtime's own asker (`HarnessAskUser.make`): the runtime keeps it to withdraw questions when a
- * turn ends. With neither `ask` nor an installed delegation handler (tests, the headless CLI)
- * there is nothing to offer, so the harness gets none.
- */
 export const endpoint = (
   sessionID: SessionSchema.ID,
   ask?: HarnessAskUser.Ask,
@@ -152,7 +119,6 @@ export const endpoint = (
       }),
   )
 
-/** Codex `-c` overrides that register the endpoint; the token itself travels in `TOKEN_ENV`. */
 export function codexArgs(value: Endpoint) {
   return [
     "-c",
@@ -164,7 +130,6 @@ export function codexArgs(value: Endpoint) {
   ]
 }
 
-/** The ACP `session/new` entry; only agents that advertise `mcpCapabilities.http` accept it. */
 export function acpServer(value: Endpoint) {
   return {
     type: "http" as const,
@@ -215,7 +180,6 @@ export const ASK_USER_TOOL = {
   },
 } as const
 
-/** What both delegate tools take. */
 const TASK_PROPERTIES = {
   agent: { type: "string", description: "Agent ID from list_agents." },
   task: { type: "string", description: "Complete instructions for the delegated agent." },
@@ -230,7 +194,6 @@ const TASK_PROPERTIES = {
   },
 } as const
 
-/** The delegation tools, offered only while a delegation handler is installed. */
 export const TOOLS = [
   {
     name: "list_agents",
@@ -339,7 +302,6 @@ export const TOOLS = [
 
 type Message = { jsonrpc?: unknown; id?: unknown; method?: unknown; params?: unknown }
 
-/** Answers one MCP JSON-RPC message from `caller`; notifications get no answer. */
 export async function handleMessage(message: Message, caller: Caller, handler: Handler | undefined) {
   if (typeof message.method !== "string") return error(message.id ?? null, -32600, "Invalid request")
   if (message.id === undefined || message.id === null) return undefined
@@ -440,7 +402,6 @@ export async function handleMessage(message: Message, caller: Caller, handler: H
   return reply(message.id, result)
 }
 
-/** Runs one delegation tool for the in-process loop, which calls it natively instead of over MCP. */
 export function invoke(name: string, args: Record<string, unknown>, sessionID: string) {
   if (!state.handler) return Promise.reject(new Error("Delegation is not available in this app process."))
   return callTool(name, args, sessionID, state.handler)
@@ -461,8 +422,6 @@ function callTool(name: string, args: Record<string, unknown>, sessionID: string
     const agent = text(args.agent)
     const task = text(args.task)
     if (!agent || !task) return Promise.reject(new Error(`${name} needs an agent and a task.`))
-    // delegate_task took project_id before delegate_to_project existed, and a harness that keeps a session's first
-    // copy of each tool (Claude Code) may still send it there.
     const projectId = text(args.project_id)
     if (name === "delegate_to_project" && !projectId)
       return Promise.reject(new Error("delegate_to_project needs a project_id from threads_overview's projects."))
@@ -517,7 +476,6 @@ function listen() {
     server.listen(0, "127.0.0.1", () => {
       const address = server.address()
       if (!address || typeof address === "string") return reject(new Error("Delegation endpoint has no port."))
-      // The server process must be able to exit while the endpoint idles.
       server.unref()
       resolve({ server, url: `http://127.0.0.1:${address.port}/mcp` })
     })
@@ -528,7 +486,6 @@ function listen() {
 async function serve(request: IncomingMessage, response: ServerResponse) {
   const url = new URL(request.url ?? "/", "http://127.0.0.1")
   if (url.pathname !== "/mcp") return void response.writeHead(404).end()
-  // A browser page could reach a loopback port; MCP clients send no Origin, so any Origin is refused.
   if (request.headers.origin) return void response.writeHead(403).end()
   const caller = authorize(request.headers.authorization)
   if (!caller) return void response.writeHead(401, { "WWW-Authenticate": "Bearer" }).end()

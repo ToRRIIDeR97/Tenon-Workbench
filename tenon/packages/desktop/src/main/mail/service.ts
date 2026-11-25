@@ -23,14 +23,6 @@ import {
   type MailProvider,
 } from "./index"
 
-/**
- * Mail accounts for the Command Centre (Settings › Accounts) and the loopback endpoint the server's mail
- * tools call. Gmail signs in with the app's Google OAuth client (as Calendar does) asking only for
- * gmail.readonly and gmail.compose; Outlook signs in through Microsoft identity with PKCE on a loopback
- * redirect; IMAP stores an app password. Refresh tokens and passwords are encrypted with safeStorage
- * (Keychain on macOS, DPAPI on Windows). Nothing here sends email.
- */
-
 const storeName = "tenon.mail"
 const googleAuthorize = "https://accounts.google.com/o/oauth2/v2/auth"
 const googleToken = "https://oauth2.googleapis.com/token"
@@ -44,14 +36,12 @@ const googleClient = builtInGoogleClient({
   clientId: import.meta.env.MAIN_VITE_GOOGLE_CLIENT_ID,
   clientSecret: import.meta.env.MAIN_VITE_GOOGLE_CLIENT_SECRET,
 })
-// A public (no secret) Microsoft identity client registered for http://localhost redirects.
 const microsoftClientId = import.meta.env.MAIN_VITE_MICROSOFT_CLIENT_ID?.trim() || undefined
 
 type StoredAccount = {
   id: string
   provider: MailAccount["provider"]
   address: string
-  /** Encrypted refresh token (Gmail, Outlook). */
   refreshToken?: string
   imap?: { host: string; port: number; secure: boolean; user: string }
 }
@@ -65,7 +55,6 @@ export type MailService = MailPlatform & {
 
 export function createMailService(
   options: {
-    /** Gmail's sign-in also asks for Calendar and Tasks; this hands the grant to the Calendar service. */
     onGoogleGrant?: (grant: { accessToken: string; refreshToken: string; scope?: string }) => Promise<unknown>
   } = {},
 ): MailService {
@@ -134,7 +123,6 @@ export function createMailService(
         tokenEndpoint: googleToken,
         clientId: googleClient.clientId,
         clientSecret: googleClient.clientSecret,
-        // One consent for the whole Google account: mail, plus Calendar and Tasks for the Calendar page.
         scopes: [...GMAIL_SCOPES, ...googleScopes("write")],
         extra: { access_type: "offline", prompt: "select_account consent", include_granted_scopes: "true" },
         signal: controller.signal,
@@ -150,7 +138,6 @@ export function createMailService(
         address: profile.emailAddress ?? "Gmail",
         refreshToken: await encrypt(tokens.refresh_token),
       })
-      // Calendar is a bonus: if it fails or wasn't granted, the mail account still stands.
       await options
         .onGoogleGrant?.({ accessToken: tokens.access_token, refreshToken: tokens.refresh_token, scope: tokens.scope })
         .catch(() => undefined)
@@ -176,7 +163,6 @@ export function createMailService(
   }
 
   const addImap: MailPlatform["addImap"] = async (input) => {
-    // Same keychain check as connect(): Linux's basic_text backend would store the password readable.
     if (!(await secure())) throw new Error("mail_secure_storage_unavailable")
     const host = input.host.trim()
     const user = input.user.trim()
@@ -184,7 +170,6 @@ export function createMailService(
     if (!host || !user || !input.password || !Number.isInteger(port) || port <= 0 || port > 65_535)
       throw new Error("mail_imap_invalid")
     const id = randomUUID()
-    // Check the login before keeping anything.
     await verifyImap({ host, port, secure: input.secure, user, password: input.password })
     await saveImapPassword(
       { safeStorage, write: (key, value) => getStore(storeName).set(key, value) },
@@ -230,11 +215,6 @@ export function createMailService(
   }
 }
 
-/**
- * The loopback endpoint the server's mail tools call: `POST /search`, `/thread`, `/draft` with
- * `Authorization: Bearer <token>`. Only the server process gets the token (TENON_MAIL_TOKEN); a request
- * with an Origin header (a web page) is refused. There is no send route.
- */
 export function startMailEndpoint(service: MailService) {
   const token = randomBytes(32).toString("base64url")
   const expected = Buffer.from(`Bearer ${token}`)
@@ -260,7 +240,6 @@ export function startMailEndpoint(service: MailService) {
             const message = cause instanceof Error ? cause.message : String(cause)
             writeLog("mail", "mail request failed", { route: request.url, message }, "warn")
             if (message !== bodyTooLarge) return answer(200, { error: message })
-            // The rest of the body is never read; close the connection after answering.
             response.setHeader("connection", "close")
             answer(413, { error: message })
           },
@@ -342,7 +321,6 @@ async function tokenRequest(endpoint: string, body: Record<string, string>) {
   }
 }
 
-/** OAuth authorization code with PKCE on a one-shot loopback redirect, in the user's browser. */
 async function authorize(input: {
   endpoint: string
   tokenEndpoint: string
@@ -350,7 +328,6 @@ async function authorize(input: {
   clientSecret?: string
   scopes: string[]
   extra: Record<string, string>
-  /** Microsoft only matches `localhost` (any port) for desktop redirects. */
   host?: "127.0.0.1" | "localhost"
   signal: AbortSignal
 }) {
@@ -361,7 +338,6 @@ async function authorize(input: {
     const url = new URL(request.url ?? "/", "http://127.0.0.1")
     response.setHeader("Content-Type", "text/html; charset=utf-8")
     response.setHeader("Content-Security-Policy", "default-src 'none'")
-    // Any local process can hit this port; a request without our state is refused but does not end sign-in.
     if (url.pathname !== "/" || url.searchParams.get("state") !== state) {
       response.writeHead(400).end("<p>Sign-in could not be completed. You can close this window.</p>")
       return
@@ -429,7 +405,6 @@ async function authorize(input: {
   }
 }
 
-/** The signed-in address from a Microsoft access token's claims, when the token is a readable JWT. */
 function tokenAddress(token: string) {
   try {
     const claims = JSON.parse(Buffer.from(token.split(".")[1] ?? "", "base64url").toString("utf8")) as Record<
@@ -462,7 +437,6 @@ function read(): StoredAccount[] {
 }
 
 function save(account: StoredAccount) {
-  // Signing in to the same address again replaces that account.
   const others = read().filter(
     (item) => !(item.provider === account.provider && item.address.toLowerCase() === account.address.toLowerCase()),
   )
@@ -476,7 +450,6 @@ function update(id: string, patch: Partial<StoredAccount>) {
   )
 }
 
-/** Stores a re-encrypted secret unless the account signed in again in the meantime. */
 function replaceRefreshToken(account: StoredAccount, fresh: string) {
   if (!read().some((item) => item.id === account.id && item.refreshToken === account.refreshToken)) return
   update(account.id, { refreshToken: fresh })

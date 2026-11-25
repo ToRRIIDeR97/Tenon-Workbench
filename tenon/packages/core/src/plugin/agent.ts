@@ -118,9 +118,6 @@ export const Plugin = define({
       { action: "read", resource: "*.env.example", effect: "allow" },
       { action: "tenon_write", resource: "*", effect: "ask" },
     ]
-    // Commands, edits, the web and tools from MCP servers or other agents ask in every folder, so a thread's mode
-    // decides: the app answers the card itself in Full auto (and edits in Auto-edit) and shows it in Ask. Allowing
-    // them here instead approved everything before any card existed, whatever the mode said.
     const asks = (...actions: string[]) =>
       actions.map((action): PermissionV2.Rule => ({ action, resource: "*", effect: "ask" }))
 

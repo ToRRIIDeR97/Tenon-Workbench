@@ -11,19 +11,12 @@ import type { AppProcess } from "../process"
 import { HarnessDelegation } from "./delegation"
 import { which } from "../util/which"
 
-/**
- * Day-one setup for the built-in external harnesses: install the CLI, then sign in through the
- * harness's own login or give it an API key. Only these recipes can be installed, so the package
- * name and login command always come from here, never from the caller.
- */
 export interface Recipe {
   readonly id: Harness.InstanceID
   readonly packageName: string
   readonly command: string
-  /** `link`: the server starts the login and returns a browser URL. `terminal`: the user runs `login` in a terminal. */
   readonly signIn: "link" | "terminal"
   readonly login?: ReadonlyArray<string>
-  /** Keys this harness accepts. `env` keys are passed to the harness process; Codex stores its key itself. */
   readonly apiKeys: ReadonlyArray<{ readonly id: string; readonly label: string; readonly env?: string }>
 }
 
@@ -40,7 +33,6 @@ export const recipes: ReadonlyArray<Recipe> = [
     packageName: "@agentclientprotocol/claude-agent-acp",
     command: "claude-agent-acp",
     signIn: "terminal",
-    // The adapter's own ACP terminal-auth method: Claude's browser login for a Claude subscription.
     login: ["claude-agent-acp", "--cli", "auth", "login", "--claudeai"],
     apiKeys: [{ id: "anthropic", label: "Anthropic API key", env: "ANTHROPIC_API_KEY" }],
   },
@@ -65,7 +57,6 @@ export class SetupError extends Schema.TaggedError<SetupError>()("HarnessSetup.S
   message: Schema.String,
 }) {}
 
-/** Installs the recipe's npm package globally. npm must be on PATH; it ships with Node.js. */
 export const install = Effect.fn("HarnessSetup.install")(function* (
   process: Pick<AppProcess.Interface, "run">,
   item: Recipe,
@@ -94,12 +85,6 @@ export const install = Effect.fn("HarnessSetup.install")(function* (
   })
 })
 
-/**
- * Whether the harness's own login is present, read from the files each CLI writes. Claude Code records
- * the signed-in account as `oauthAccount` in `.claude.json` on every platform (the token itself may sit
- * in the macOS keychain). Nothing here reads a token.
- */
-/** The OpenCode CLI's data folder, where its `auth.json` keeps provider keys. */
 export const openCodeDataDir = (env: Readonly<Record<string, string | undefined>> = process.env) =>
   path.join(env.XDG_DATA_HOME ?? path.join(env.HOME ?? os.homedir(), ".local", "share"), "opencode")
 
@@ -122,12 +107,9 @@ export const signedIn = (item: Recipe, env: Readonly<Record<string, string | und
 
 export const fileName = "harness-credentials.json"
 const writeLock = Semaphore.makeUnsafe(1)
-// Bumped on every key change. Harness runtimes are built per Location, so each compares this before a
-// turn and reloads its instances when another Location's Settings request changed a key.
 let keysRevision = 0
 export const keysVersion = () => keysRevision
 
-/** API keys for built-in harnesses, one per harness: `{ [harnessID]: { option, key } }`. */
 export type Keys = Readonly<Record<string, { readonly option: string; readonly key: string }>>
 
 export const readKeys = (dataDir: string): Effect.Effect<Keys> =>
@@ -143,7 +125,6 @@ export const readKeys = (dataDir: string): Effect.Effect<Keys> =>
     )
   })
 
-/** Stores or (with `undefined`) removes one harness's key. The file is written `0600` with an atomic rename. */
 export const writeKey = (
   dataDir: string,
   id: string,
@@ -160,23 +141,14 @@ export const writeKey = (
     keysRevision += 1
   }).pipe(writeLock.withPermits(1))
 
-/** The environment a stored key adds to its harness process. */
 export function keyEnvironment(item: Recipe | undefined, stored: Keys[string] | undefined): Record<string, string> {
   const env = item?.apiKeys.find((option) => option.id === stored?.option)?.env
   if (!env || !stored) return {}
-  // Claude Code passes its environment to the commands it runs; with this flag it strips credentials from them,
-  // so a project script or test suite can't read or bill the key the app injected.
   return item?.id === Harness.ClaudeCode
     ? { [env]: stored.key, CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1" }
     : { [env]: stored.key }
 }
 
-/**
- * Launch environment for the Claude Code harness: its MCP calls wait as long as Tenon's `tenon` tools hold them
- * (`project_lead`, `task_result`, `ask_user`), like Codex's `tool_timeout_sec`. Claude Code gives a call to an HTTP
- * server a minute in all and aborts one that stays silent for less, so a Command Centre waiting on a lead was told
- * "The operation timed out." while the lead kept working. A value in Tenon's own environment wins and is inherited.
- */
 export function claudeCodeLaunchEnv(inherited: Record<string, string | undefined>): Record<string, string> {
   const limit = String((HarnessDelegation.MAX_WAIT_SECONDS + 60) * 1_000)
   return Object.fromEntries(
@@ -186,17 +158,6 @@ export function claudeCodeLaunchEnv(inherited: Record<string, string | undefined
   )
 }
 
-/**
- * Launch environment for the OpenCode harness, as inline config:
- * - it asks (through Tenon's approvals) before edits and shell commands. OpenCode's own default lets them run
- *   without asking; Codex runs with on-request approvals.
- * - its MCP calls wait as long as Tenon's `tenon` tools hold them (`ask_user`, `task_result`), like Codex's
- *   `tool_timeout_sec`. OpenCode's default gives up after 60 s, while the user is still reading the question.
- * - it has its `todowrite` tool, which OpenCode 2.2 keeps behind `experimental.todo` (off by default): without
- *   it the agent can't keep a checklist, so the thread's Tasks dock and the Ctrl+J card have no steps to show.
- * A value the user set in their global OpenCode config wins, so that part is left out.
- * `userConfig` is that file's text (JSON or JSONC), or undefined when there is none.
- */
 export function openCodeLaunchEnv(userConfig: string | undefined): Record<string, string> {
   const parsed: unknown = userConfig === undefined ? undefined : parse(userConfig, [], { allowTrailingComma: true })
   const user = isRecord(parsed) ? parsed : {}
@@ -215,7 +176,6 @@ export function openCodeLaunchEnv(userConfig: string | undefined): Record<string
   return { OPENCODE_CONFIG_CONTENT: JSON.stringify(config) }
 }
 
-/** The user's global OpenCode config text: `opencode.jsonc`, `opencode.json` or `config.json`, the first that exists. */
 export const readOpenCodeUserConfig = (env: Readonly<Record<string, string | undefined>> = process.env) =>
   Effect.promise(async () => {
     const dir = path.join(env.XDG_CONFIG_HOME ?? path.join(env.HOME ?? os.homedir(), ".config"), "opencode")

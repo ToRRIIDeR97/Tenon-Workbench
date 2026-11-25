@@ -5,7 +5,6 @@ export function mapOpenAIResponseFinishReason({
   hasFunctionCall,
 }: {
   finishReason: string | null | undefined
-  // flag that checks if there have been client-side tool calls (not executed by openai)
   hasFunctionCall: boolean
 }): LanguageModelV3FinishReason["unified"] {
   switch (finishReason) {

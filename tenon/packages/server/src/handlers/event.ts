@@ -8,11 +8,8 @@ import { Api } from "../api"
 
 const subscriberCapacity = 256
 const encodeEvent = Schema.encodeUnknownOption(TenonEvent)
-// The bus hands every subscriber the same event object, so encode it once and share the string.
 const encoded = new WeakMap<object, Option.Option<string>>()
 
-// The bus also carries events outside the served schema (for example TUI events).
-// Encoding them would fail and end the stream for every subscriber, so drop them.
 function eventData(event: { readonly type: string }) {
   const data = encoded.get(event) ?? encodeEvent(event).pipe(Option.map((value) => JSON.stringify(value)))
   encoded.set(event, data)
@@ -39,7 +36,6 @@ export const EventHandler = HttpApiBuilder.group(Api, "server.event", (handlers)
         }
         const output = Stream.unwrap(
           Effect.gen(function* () {
-            // Acquiring the bounded stream installs its listener before readiness is observable.
             const live = yield* EventV2.allBounded(events, subscriberCapacity)
             return Stream.make(connected).pipe(Stream.concat(live))
           }),

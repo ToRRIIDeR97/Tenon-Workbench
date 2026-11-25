@@ -34,16 +34,12 @@ import { listHarnessesRemembered, rememberedHarnesses } from "@/utils/server"
 
 const chipClass =
   "flex h-7 min-w-0 max-w-full shrink-0 items-center gap-1.5 rounded-full bg-v2-background-bg-layer-02 px-2.5 text-[12px] text-v2-text-text-base transition-colors duration-short ease-standard hover:bg-v2-background-bg-layer-03 data-[expanded]:bg-v2-background-bg-layer-03 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus disabled:text-v2-text-text-disabled motion-reduce:transition-none"
-// Text that reads as text until hovered or focused: names and descriptions edit in place, with no field border.
 const quietClass =
   "min-w-0 rounded-[8px] bg-transparent px-1.5 -mx-1.5 text-v2-text-text-base outline-none transition-colors duration-short ease-standard placeholder:text-v2-text-text-muted hover:bg-v2-overlay-simple-overlay-hover focus:bg-v2-background-bg-layer-02 focus:[box-shadow:inset_0_0_0_1px_var(--v2-border-border-focus)] motion-reduce:transition-none"
-// A borderless field on a tonal fill, for the longer text a role unfolds to.
 const areaClass =
   "w-full min-w-0 resize-y rounded-[12px] bg-v2-background-bg-layer-01 px-3 py-2 text-[13px] leading-5 text-v2-text-text-base outline-none placeholder:text-v2-text-text-muted focus:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)]"
-// One list surface with hairlines between its rows, as Settings lists are.
 const listClass =
   "flex flex-col overflow-hidden rounded-[16px] bg-v2-background-bg-base shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]"
-// A number in a pill, with its label in front: the run limits.
 const limitClass =
   "flex h-8 items-center gap-2 rounded-full bg-v2-background-bg-layer-02 pl-3 pr-1 text-[12px] text-v2-text-text-muted focus-within:[box-shadow:inset_0_0_0_2px_var(--v2-border-border-focus)]"
 const limitInputClass =
@@ -52,7 +48,6 @@ const mays: RoleMay[] = ["direct", "edit", "read"]
 
 type Choice = { id: string; label: string; detail?: string; disabled?: boolean; icon?: Harness.Instance }
 
-/** A chip that opens a menu of choices, for the harness, model, "may do" and Project pickers. */
 function PickChip(props: {
   action: string
   label: string
@@ -74,7 +69,6 @@ function PickChip(props: {
           <MenuV2.RadioGroup value={props.current} onChange={props.onPick}>
             <For each={props.choices}>
               {(choice) => (
-                // A choice closes the menu: it would otherwise cover the chips of the role below.
                 <MenuV2.RadioItem value={choice.id} disabled={choice.disabled} closeOnSelect>
                   <span class="flex min-w-0 items-center gap-2">
                     <Show when={choice.icon}>{(instance) => <HarnessIcon instance={instance()} />}</Show>
@@ -93,17 +87,12 @@ function PickChip(props: {
   )
 }
 
-/**
- * The harnesses the composer offers, from the same check (`listHarnessesRemembered`) and with the same hidden
- * models left out. Undefined until the first answer.
- */
 function createHarnessList(directory: () => string) {
   const platform = usePlatform()
   const server = useServer()
   const serverSDK = useServerSDK()
   const settings = useSettings()
   const query = useQuery(() => ({
-    // A harness added, toggled or removed in Settings changes the key, so the list is asked again as the composer's is.
     queryKey: ["workflows", "harnesses", server.key, directory(), harnessSettingsVersion()],
     enabled: !!directory(),
     queryFn: () => listHarnessesRemembered({ server: serverSDK().server.http, fetch: platform.fetch }, directory()),
@@ -112,7 +101,6 @@ function createHarnessList(directory: () => string) {
     retry: MODEL_RETRIES,
     retryDelay: MODEL_RETRY_MS,
   }))
-  // Reading `data` while pending suspends, and a failed check throws; neither belongs in this page.
   return createMemo(() => {
     if (query.isPending || query.isError) return undefined
     const list = query.data?.map((item) =>
@@ -122,15 +110,9 @@ function createHarnessList(directory: () => string) {
   })
 }
 
-/**
- * The Command Centre's Workflows view: saved role setups on the left; on the right the selected one (its roles
- * with a harness and model each, the run limits, a Project and a brief) and Start, which creates a director thread
- * in that Project and sends it the generated brief.
- */
 export function Workflows(props: {
   ctrl: SidebarController
   started: () => void
-  /** The run shown in the right pane instead of the workflow editor. */
   run?: string
   selectRun: (id: string | undefined) => void
   open: (sessionID: string) => void
@@ -148,7 +130,6 @@ export function Workflows(props: {
     tried: false,
     starting: false,
     failed: false,
-    // The role unfolded to its job; one at a time.
     open: undefined as string | undefined,
   })
   const list = createMemo(() => store.workflows())
@@ -158,7 +139,6 @@ export function Workflows(props: {
   const projects = () => props.ctrl.projects()
   const project = () => projects().find((item) => item.id === state.project)
 
-  // Why Start would be refused, one entry per problem code, then the run's own brief and Project.
   const problems = createMemo<(WorkflowProblem | "brief" | "project")[]>(() => {
     const current = workflow()
     if (!current) return []
@@ -194,7 +174,6 @@ export function Workflows(props: {
   const addRole = () => {
     const roles = workflow()?.roles ?? []
     const id = workflowID("role")
-    // A new role opens, so its job can be written straight away.
     setState("open", id)
     update({
       roles: [
@@ -246,8 +225,6 @@ export function Workflows(props: {
     setState("selected", undefined)
   }
 
-  // The new thread runs in the Project's thread folder on the director's harness and model, as the Command
-  // Centre's own composer starts one; nothing is recorded unless the brief was sent.
   const start = () => {
     const current = workflow()
     const target = project()
@@ -277,7 +254,6 @@ export function Workflows(props: {
           ...(model ? { model: { providerID: model.providerID, modelID: model.modelID } } : {}),
         })
         .catch(async (error: unknown) => {
-          // Don't leave an empty director thread behind.
           await serverSDK()
             .api.session.remove({ sessionID: info.id, directory })
             .catch(() => undefined)
@@ -312,8 +288,6 @@ export function Workflows(props: {
       icon: item,
     }))
 
-  // One row per role: its number, name, what it may do and what it runs on; the job shows on one line and unfolds to
-  // edit, with what the role may do spelled out.
   const RoleRow = (row: { id: string; number: number }) => (
     <Show when={workflow()?.roles.find((role) => role.id === row.id)}>
       {(role) => {
@@ -362,7 +336,6 @@ export function Workflows(props: {
                     icon={instance()}
                     current={role().harnessID}
                     choices={harnessChoices()}
-                    // A new harness starts on its default model: the old one may not exist there.
                     onPick={(id) => updateRole(role().id, { harnessID: id, modelID: undefined })}
                   />
                   <Show when={external()}>
@@ -595,7 +568,6 @@ export function Workflows(props: {
                       </div>
                     </section>
                   </div>
-                  {/* The run stays docked under the setup: what's still missing, the brief, where it starts and Start. */}
                   <div class="flex shrink-0 flex-col gap-2 border-t border-v2-border-border-muted px-6 pb-5 pt-3">
                     <Reveal open={problems().length > 0} variant="line">
                       <ul

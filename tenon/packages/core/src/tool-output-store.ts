@@ -47,8 +47,6 @@ export interface Interface {
 
 export class Service extends Context.Service<Service, Interface>()("@tenon/v2/ToolOutputStore") {}
 
-// Both take a byte budget. A UTF-16 code unit is at least one byte, so slicing to that many units means only the kept
-// window is encoded. The cut then moves off any UTF-8 continuation byte so no character is split.
 const takePrefix = (input: string, maximumBytes: number) => {
   const bytes = Buffer.from(input.slice(0, maximumBytes))
   if (bytes.length <= maximumBytes) return bytes.toString()
@@ -204,7 +202,6 @@ export const node = makeLocationNode({ service: Service, layer, deps: [FSUtil.no
 
 export const nodeWithoutConfig = makeLocationNode({ service: Service, layer, deps: [FSUtil.node, Global.node] })
 
-/** Runs retention scanning once globally rather than once per active Location. */
 export const cleanupLayer = Layer.effectDiscard(
   Effect.gen(function* () {
     const store = yield* Service

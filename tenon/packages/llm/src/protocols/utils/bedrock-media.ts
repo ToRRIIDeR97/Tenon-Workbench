@@ -2,8 +2,6 @@ import { Effect, Schema } from "effect"
 import type { MediaPart } from "../../schema"
 import { ProviderShared } from "../shared"
 
-// Bedrock Converse accepts image `format` as the file extension and
-// `source.bytes` as base64 in the JSON wire format.
 export const ImageFormat = Schema.Literals(["png", "jpeg", "gif", "webp"])
 export type ImageFormat = Schema.Schema.Type<typeof ImageFormat>
 
@@ -15,8 +13,6 @@ export const ImageBlock = Schema.Struct({
 })
 export type ImageBlock = Schema.Schema.Type<typeof ImageBlock>
 
-// Bedrock document blocks require a user-facing name so the model can refer to
-// the uploaded document.
 export const DocumentFormat = Schema.Literals(["pdf", "csv", "doc", "docx", "xls", "xlsx", "html", "txt", "md"])
 export type DocumentFormat = Schema.Schema.Type<typeof DocumentFormat>
 
@@ -57,11 +53,6 @@ const documentBlock = (part: MediaPart, format: DocumentFormat, bytes: string): 
   },
 })
 
-// Route by MIME. Known image/document formats lower into a typed block; anything
-// else fails with a clear error instead of silently degrading to a malformed
-// document block. Image MIME types not in `IMAGE_FORMATS` (e.g. `image/svg+xml`)
-// get an image-specific error so the caller knows it's a format-support issue,
-// not a kind-detection issue.
 export const lower = Effect.fn("BedrockMedia.lower")(function* (part: MediaPart) {
   const mime = part.mediaType.toLowerCase()
   const imageFormat = IMAGE_FORMATS[mime as keyof typeof IMAGE_FORMATS]

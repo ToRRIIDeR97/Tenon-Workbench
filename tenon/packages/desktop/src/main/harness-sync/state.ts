@@ -3,17 +3,12 @@ import os from "node:os"
 import path from "node:path"
 import { message, readText, writeAtomic } from "./fsutil"
 
-/** Per-computer settings in Tenon's app data folder. Never synced. */
 export type LocalState = {
   syncFile?: string
   deviceName?: string
-  /** Hash of the text Tenon last wrote or confirmed for each tool. */
   applied: Record<string, string>
-  /** Hash of each skill Tenon last wrote or confirmed, keyed by `tool/skill`. */
   appliedSkills: Record<string, string>
-  /** Skill copies Tenon created or replaced, keyed by `tool/skill`. Only these are ever deleted. */
   writtenSkills: string[]
-  /** Hash of the sync file bytes last applied. */
   lastFileHash?: string
 }
 
@@ -50,7 +45,6 @@ function parseState(text: string): LocalState {
   }
 }
 
-/** Loads local settings. An unreadable file is moved aside and reported, so it is never overwritten. */
 export async function loadState(file: string): Promise<{ state: LocalState; warning?: string }> {
   const parsed = await readText(file)
     .then((text) => ({ state: text === undefined ? emptyState() : parseState(text) }))

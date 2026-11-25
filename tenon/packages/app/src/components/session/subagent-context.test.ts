@@ -56,7 +56,6 @@ describe("subagentContexts", () => {
     expect(rows[0]!.usage.output).toBe(162)
     expect(rows[0]!.seconds).toBe(9)
     expect(rows[1]!.context).toBeUndefined()
-    // OpenCode reports no usage for its subagents: the transcript gives a rough count instead.
     expect(rows[1]!.estimate).toBe(110)
     expect(rows[0]!.estimate).toBeUndefined()
   })

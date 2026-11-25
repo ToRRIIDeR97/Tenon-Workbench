@@ -23,9 +23,6 @@ import { resetDatabase } from "../fixture/db"
 import { disposeAllInstances, provideInstanceEffect, TestInstance, tmpdirScoped } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 
-// P8 · Email, AC-8.4 (implementations/notes-command-centre/implementation.md)
-
-// The served routes install the app tools (AgentAppTools.layer), as in command-centre.acceptance.test.ts.
 const servedRoutes: Layer.Layer<never, Config.ConfigError, HttpServer.HttpServer> = HttpRouter.serve(
   HttpApiApp.routes,
   {

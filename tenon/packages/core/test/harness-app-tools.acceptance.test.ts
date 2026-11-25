@@ -2,9 +2,6 @@ import { afterEach, describe, expect, test } from "bun:test"
 import { HarnessAppTools } from "../src/harness/app-tools"
 import { HarnessDelegation } from "../src/harness/delegation"
 
-// P5 · App tools, AC-5.1: the `tenon` MCP server lists and routes installed app tools
-// (implementations/notes-command-centre/implementation.md).
-
 const caller = { sessionID: "ses_app_tools" }
 const tool = {
   name: "notes_search",

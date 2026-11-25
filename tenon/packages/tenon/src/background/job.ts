@@ -14,7 +14,6 @@ export {
   type WaitResult,
 } from "@tenon/core/background-job"
 
-/** Keeps the legacy service instance-scoped while sharing the core registry engine. */
 const layer = Layer.effect(
   CoreBackgroundJob.Service,
   Effect.gen(function* () {

@@ -6,24 +6,18 @@ import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
 import { useServerSDK } from "@/context/server-sdk"
 
-/**
- * A file an agent cited outside the thread's folder: its own folder (the parent of the cited path) and its name
- * there. The server reads it through that folder like any other, so the path stays a plain relative name.
- */
 export function outsideFileLocation(path: string) {
   const cut = path.lastIndexOf("/")
   const folder = path.slice(0, cut)
   return { folder: !folder ? "/" : /^[A-Za-z]:$/.test(folder) ? `${folder}/` : folder, name: path.slice(cut + 1) }
 }
 
-/** A `file://` URL for an absolute path with forward slashes (`C:/x/y.md` or `/x/y.md`). */
 export function outsideFileURL(path: string) {
   const url = new URL("file:///")
   url.pathname = path
   return url.href
 }
 
-/** Reads an outside file's text through its own folder; undefined for a binary file. */
 export function useOutsideFileReader() {
   const serverSDK = useServerSDK()
   return async (path: string) => {
@@ -35,10 +29,6 @@ export function useOutsideFileReader() {
   }
 }
 
-/**
- * Shows a file outside the thread's folder, read-only, with its cited lines marked. The Files panel only knows the
- * thread's folder, so the file gets a viewer of its own; on desktop it can also go to its default app.
- */
 export function OutsideFileDialog(props: { reference: FileReference }) {
   const language = useLanguage()
   const platform = usePlatform()
@@ -97,7 +87,6 @@ export function OutsideFileDialog(props: { reference: FileReference }) {
                     class="flex min-w-max gap-4 px-4"
                     classList={{ "bg-v2-overlay-simple-overlay-hover": marked(index() + 1) }}
                     ref={(el) => {
-                      // The first cited line is scrolled into view once it renders.
                       if (index() + 1 === props.reference.start)
                         queueMicrotask(() => el.scrollIntoView({ block: "center" }))
                     }}

@@ -257,8 +257,6 @@ const withMcpInstructions = testEffect(
 const unix = process.platform !== "win32" ? it.instance : it.instance.skip
 const unixNoLLMServer = process.platform !== "win32" ? noLLMServer.instance : noLLMServer.instance.skip
 
-// Config that registers a custom "test" provider with a "test-model" model
-// so provider model lookup succeeds inside the loop.
 const cfg = {
   provider: {
     test: {
@@ -323,9 +321,6 @@ const useServerConfig = Effect.fn("test.useServerConfig")(function* (config: (ur
   return { dir, llm }
 })
 
-// Wait for a session's runner to enter a busy state. SessionStatus is flipped
-// inside Runner.startShell's serialized transition, so cancel can't no-op once
-// we observe it.
 const waitForBusy = (sessionID: SessionID, duration: Duration.Input = "2 seconds") =>
   pollWithTimeout(
     Effect.gen(function* () {
@@ -442,8 +437,6 @@ const boot = Effect.fn("test.boot")(function* (input?: { title?: string }) {
   const chat = yield* sessions.create(input ?? { title: "Pinned" })
   return { prompt, run, sessions, chat }
 })
-
-// Loop semantics
 
 noLLMServer.instance(
   "loop exits immediately when last assistant has stop finish",
@@ -866,8 +859,6 @@ it.instance("loop continues when finish is unknown", () =>
       noReply: true,
       parts: [{ type: "text", text: "hello" }],
     })
-    // A stream that ends without any finish_reason is reported as an error since
-    // @ai-sdk/openai-compatible 2.0.70; an unrecognised finish_reason still maps to "unknown".
     yield* llm.push(reply().unrecognizedFinish())
     yield* llm.text("second")
 
@@ -1184,8 +1175,6 @@ it.instance(
   3_000,
 )
 
-// Cancel semantics
-
 it.instance("cancel interrupts loop and resolves with an assistant message", () =>
   Effect.gen(function* () {
     const { llm } = yield* useServerConfig(providerCfg)
@@ -1433,8 +1422,6 @@ it.instance(
   10_000,
 )
 
-// Queue semantics
-
 noLLMServer.instance("concurrent loop callers get same result", () =>
   Effect.gen(function* () {
     const { prompt, run, chat } = yield* boot()
@@ -1571,8 +1558,6 @@ noLLMServer.instance("assertNotBusy succeeds when idle", () =>
     expect(Exit.isSuccess(exit)).toBe(true)
   }),
 )
-
-// Shell semantics
 
 it.instance("shell rejects with BusyError when loop running", () =>
   Effect.gen(function* () {
@@ -1936,9 +1921,6 @@ unixNoLLMServer(
           .shell({
             sessionID: chat.id,
             agent: "build",
-            // Touch marker AFTER trap installs so the test waits for the actual
-            // ignore-TERM state before cancelling; otherwise SIGTERM can arrive
-            // before `trap` runs and the escalation path is never exercised.
             command: `trap '' TERM; touch "${ready}"; sleep 30`,
           })
           .pipe(Effect.forkChild)
@@ -2075,8 +2057,6 @@ unixNoLLMServer(
   30_000,
 )
 
-// Abort signal propagation tests for inline tool execution
-
 function hangUntilAborted(tool: { execute: (...args: any[]) => any }) {
   return Effect.gen(function* () {
     const ready = yield* Deferred.make<void>()
@@ -2166,8 +2146,6 @@ noLLMServer.instance(
   30_000,
 )
 
-// Missing file handling
-
 noLLMServer.instance(
   "does not fail the prompt when a file part is missing",
   () =>
@@ -2246,8 +2224,6 @@ noLLMServer.instance(
   { config: cfg },
 )
 
-// Special characters in filenames
-
 noLLMServer.instance(
   "handles filenames with # character",
   () =>
@@ -2282,8 +2258,6 @@ noLLMServer.instance(
     }),
   { git: true, config: cfg },
 )
-
-// Regression: empty assistant turn loop
 
 it.instance("does not loop empty assistant turns for a simple reply", () =>
   Effect.gen(function* () {
@@ -2347,8 +2321,6 @@ it.instance("records aborted errors when prompt is cancelled mid-stream", () =>
     }
   }),
 )
-
-// Agent variant
 
 noLLMServer.instance(
   "applies agent variant only when using agent model",
@@ -2418,8 +2390,6 @@ noLLMServer.instance(
     },
   },
 )
-
-// Agent / command resolution errors
 
 noLLMServer.instance(
   "unknown agent throws typed error",

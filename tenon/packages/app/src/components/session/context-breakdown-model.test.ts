@@ -24,7 +24,6 @@ function build(entries: { message: Record<string, unknown>; parts: Record<string
 
 describe("contextBreakdown", () => {
   test("splits the reported use by the thread's text and leaves the rest as the agent's own and free", () => {
-    // 4,000 chars of messages = 1,000 tokens; 2,000 chars of tool output plus its 12-char input = 503; system 400 chars = 100.
     const thread = build([
       user("u1", "a".repeat(2000), "s".repeat(400)),
       assistant("a1", "b".repeat(2000), "c".repeat(2000)),

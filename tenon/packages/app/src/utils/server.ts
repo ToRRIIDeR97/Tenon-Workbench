@@ -146,32 +146,19 @@ export async function listHarnessesForServer(
   return decodeHarnessResponse(await response.json()).data
 }
 
-// The last list each server reported per folder. A composer that opens shows it at once while its own
-// check runs, so opening a thread doesn't wait on the server starting every harness CLI. Every check
-// replaces it; a failed check is never kept.
 const recentHarnesses = new Map<string, ReadonlyArray<HarnessSchema.Instance>>()
-// The persisted list (harness-controller.ts) uses the same shape with the connection key in place of the URL.
 export const recentHarnessKey = (server: string, directory: string) => `${server}\n${directory}`
 
-// Availability doesn't depend on the folder, so a folder opened for the first time uses the server's
-// latest list from any folder.
 const latestHarnesses = new Map<string, ReadonlyArray<HarnessSchema.Instance>>()
 
 export function rememberedHarnesses(url: string, directory: string) {
   return recentHarnesses.get(recentHarnessKey(url, directory)) ?? latestHarnesses.get(url)
 }
 
-// Each check can start every harness CLI on the server, so composers opening at once share one check, and a list
-// checked within the last 30 s is reused when a page opens again (a forced check, `reuse: false`, always asks).
 const HARNESS_REUSE_MS = 30_000
 const harnessChecks = new Map<string, Promise<ReadonlyArray<HarnessSchema.Instance> | undefined>>()
 const harnessCheckedAt = new Map<string, number>()
 
-/**
- * Lists the harnesses for a folder and remembers the answer, also through `keep` (which persists it).
- * A failed check returns the fallback list and keeps nothing. With `reuse`, a check already running for the folder
- * is joined and one made in the last 30 s is answered from memory.
- */
 export async function listHarnessesRemembered(
   input: Parameters<typeof listHarnessesForServer>[0],
   directory: string,
@@ -192,7 +179,6 @@ export async function listHarnessesRemembered(
       .finally(() => harnessChecks.delete(key))
   if (!running) harnessChecks.set(key, check)
   const list = await check
-  // A failed check keeps the last answer instead of marking every harness unavailable.
   if (!list) {
     const last = rememberedHarnesses(input.server.url, directory)
     if (last) return last
@@ -214,12 +200,10 @@ export type HarnessServer = {
   fetch?: typeof globalThis.fetch
 }
 
-// Settings routes return `{ reason, message }` on failure; the message is written for people.
 function harnessSettingsRequest(input: HarnessServer, directory: string, route: string, init?: RequestInit) {
   return locationRequest(input, directory, `/api/harness${route}`, "Harness request failed", init)
 }
 
-// The vendored client predates some routes, so settings pages call them directly with the location query.
 async function locationRequest(
   input: HarnessServer,
   directory: string,
@@ -228,7 +212,6 @@ async function locationRequest(
   init?: RequestInit,
 ) {
   const url = new URL(`${input.server.url.replace(/\/+$/, "")}${route}`)
-  // Without a folder the server uses its own default location; harness routes don't depend on it.
   if (directory) url.searchParams.set("location[directory]", directory)
   const headers = new Headers(init?.headers)
   if (init?.body !== undefined) headers.set("content-type", "application/json")
@@ -247,7 +230,6 @@ async function locationRequest(
   throw new Error(message)
 }
 
-/** Computer use for a Project folder (#333): its switch and the Cua Driver's install and permission state. */
 export async function getComputerUse(input: HarnessServer, folder: string) {
   const body = await locationRequest(input, folder, "/api/computer-use", "Computer use request failed")
   return (body as { data: import("@/features/second-brain/project-computer-use-model").ComputerUseState }).data
@@ -261,7 +243,6 @@ export async function setComputerUse(input: HarnessServer, folder: string, enabl
   return (body as { data: import("@/features/second-brain/project-computer-use-model").ComputerUseState }).data
 }
 
-/** The Project folder's GitHub issues and PRs (#331), read on the server with the user's gh login. */
 export async function projectGithubWork(
   input: HarnessServer,
   folder: string,
@@ -274,7 +255,6 @@ export async function projectGithubWork(
   return (body as { data: import("@/features/second-brain/github-tasks").GithubWork }).data
 }
 
-/** Deletes one MCP server from the global config (#334); a config patch can only add or change servers. */
 export async function removeMcpServer(input: HarnessServer, name: string) {
   const body = await locationRequest(
     input,
@@ -288,7 +268,6 @@ export async function removeMcpServer(input: HarnessServer, name: string) {
   return typeof body === "object" && body !== null && "changed" in body && body.changed === true
 }
 
-/** Each connected server's tool names in a folder, for Settings › MCP servers. */
 export async function mcpToolNames(input: HarnessServer, directory: string) {
   const body = await locationRequest(
     input,
@@ -299,7 +278,6 @@ export async function mcpToolNames(input: HarnessServer, directory: string) {
   return (typeof body === "object" && body !== null ? body : {}) as Record<string, string[]>
 }
 
-/** A server's environment variable and header names; the values never leave the config file. */
 export async function mcpSecretNames(input: HarnessServer, name: string) {
   const body = await locationRequest(
     input,
@@ -311,7 +289,6 @@ export async function mcpSecretNames(input: HarnessServer, name: string) {
   return { environment: value.environment ?? [], headers: value.headers ?? [] }
 }
 
-/** Renames a server or removes some of its fields in the config file, keeping its secrets. */
 export async function editMcpServer(
   input: HarnessServer,
   name: string,
@@ -331,7 +308,6 @@ export async function editMcpServer(
 
 const decodeSkillCatalog = Schema.decodeUnknownSync(Location.response(SkillSchema.Catalog))
 
-/** Tenon's skills and each harness's skills, read-only, for Settings → Skills. */
 export async function listSkillCatalog(input: HarnessServer, directory: string) {
   return decodeSkillCatalog(await locationRequest(input, directory, "/api/skill/catalog", "Skills request failed")).data
 }
@@ -342,12 +318,10 @@ const decodeSkillEnabled = Schema.decodeUnknownSync(
 
 const decodeSkills = Schema.decodeUnknownSync(Location.response(Schema.Array(SkillSchema.Info)))
 
-/** Tenon's skills with their instructions; a skill chip in the composer sends them with the prompt. */
 export async function listSkills(input: HarnessServer, directory: string) {
   return decodeSkills(await locationRequest(input, directory, "/api/skill", "Skills request failed")).data
 }
 
-/** Switches one of Tenon's skills on or off, or with `harness` that harness's skill (#323). */
 export async function setSkillEnabled(
   input: HarnessServer,
   directory: string,
@@ -371,7 +345,6 @@ const decodeTitleAgent = Schema.decodeUnknownSync(
   Location.response(Schema.Struct({ id: Schema.optional(HarnessSchema.InstanceID) })),
 )
 
-/** The harness that titles new threads; undefined means each thread's own harness. */
 export async function getTitleAgent(input: HarnessServer, directory: string) {
   return decodeTitleAgent(await harnessSettingsRequest(input, directory, "/title-agent")).data.id
 }
@@ -423,7 +396,6 @@ export async function removeHarness(input: HarnessServer, directory: string, id:
   await harnessSettingsRequest(input, directory, `/registry/${encodeURIComponent(id)}`, { method: "DELETE" })
 }
 
-/** Re-reads harness availability and models, for one harness or all, skipping the server's cache. */
 export async function refreshHarnesses(input: HarnessServer, directory: string, id?: string) {
   return decodeHarnessResponse(
     await harnessSettingsRequest(input, directory, "/refresh", { method: "POST", body: JSON.stringify({ id }) }),
@@ -435,7 +407,6 @@ const decodeSetup = Schema.decodeUnknownSync(Location.response(HarnessSchema.Set
 const decodeSignIn = Schema.decodeUnknownSync(Location.response(HarnessSchema.SignIn))
 const setupPath = (id: string, action: string) => `/setup/${encodeURIComponent(id)}/${action}`
 
-/** Install and sign-in state of the built-in external harnesses. */
 export async function listHarnessSetup(input: HarnessServer, directory: string) {
   return decodeSetupList(await harnessSettingsRequest(input, directory, "/setup")).data
 }
@@ -444,7 +415,6 @@ export async function installHarness(input: HarnessServer, directory: string, id
   return decodeSetup(await harnessSettingsRequest(input, directory, setupPath(id, "install"), { method: "POST" })).data
 }
 
-/** Starts a browser sign-in and returns the link to open. */
 export async function signInHarness(input: HarnessServer, directory: string, id: string) {
   return decodeSignIn(await harnessSettingsRequest(input, directory, setupPath(id, "sign-in"), { method: "POST" })).data
 }
@@ -477,25 +447,21 @@ export async function listHarnessUpdates(input: HarnessServer, directory: string
 
 const decodeUsage = Schema.decodeUnknownSync(Location.response(Schema.Array(HarnessSchema.UsageReport)))
 
-/** Subscription usage limits of each enabled harness; the server caches each harness's answer for a minute. */
 export async function listHarnessUsage(input: HarnessServer, directory: string) {
   return decodeUsage(await harnessSettingsRequest(input, directory, "/usage")).data
 }
 
-/** The folder's local git branches by name; empty outside git. */
 export async function listBranches(input: HarnessServer, directory: string) {
   const body = await instanceRequest(input, directory, "/vcs/branches", "Couldn't list branches")
   return Array.isArray(body) ? body.filter((item): item is string => typeof item === "string") : []
 }
 
-/** The folder's current branch, or null when it isn't a git repository. */
 export async function currentBranch(input: HarnessServer, directory: string) {
   const body = await instanceRequest(input, directory, "/vcs", "Couldn't read the branch")
   const branch = body && typeof body === "object" ? (body as { branch?: unknown }).branch : undefined
   return typeof branch === "string" && branch ? branch : null
 }
 
-/** Switches the folder to a local branch; git refuses when local changes would be lost, and the error says so. */
 export async function switchBranch(input: HarnessServer, directory: string, branch: string) {
   await instanceRequest(input, directory, "/vcs/branch", "Couldn't switch branch", {
     method: "POST",
@@ -503,7 +469,6 @@ export async function switchBranch(input: HarnessServer, directory: string, bran
   })
 }
 
-// Instance routes resolve the folder from the `x-opencode-directory` header; their errors carry `data.message`.
 async function instanceRequest(
   input: HarnessServer,
   directory: string,
@@ -594,8 +559,6 @@ export async function promptSessionForServer(
         }
       : {}),
   }
-  // The prompt route carries no model, so a built-in (host model) thread records the composer's choice first;
-  // the server skips the switch when the model is unchanged. A harness thread switches through /harness instead.
   if (value.model && !value.harness) {
     const switched = await (input.fetch ?? globalThis.fetch)(`${base}/model`, {
       method: "POST",
@@ -657,10 +620,6 @@ export async function switchHarnessForServer(
   if (!response.ok) throw new Error(`Harness switch failed (${response.status}).`)
 }
 
-/**
- * Compacts a harness thread with the harness's own /compact, on `model` for the compaction only when given. The server
- * answers 503 with a reason while the thread runs or for a harness without /compact.
- */
 export async function compactHarnessForServer(
   input: { server: ServerConnection.HttpBase; fetch?: typeof globalThis.fetch },
   sessionID: string,

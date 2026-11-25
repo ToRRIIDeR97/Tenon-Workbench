@@ -4,11 +4,6 @@ import { motionDuration, prefersReducedMotion } from "@tenon/ui/v2/motion"
 
 export type ExitListEntry<T> = { key: string; item: T; open: boolean }
 
-/**
- * A list for rows that animate in and out (each row a Reveal driven by `open`). Items added after the first
- * read start closed and open a frame later; removed items stay, closed, at the place they left until the
- * short exit has played. Reduced motion adds and removes at once.
- */
 export function createExitList<T>(items: Accessor<readonly T[]>, key: (item: T) => string) {
   const [store, setStore] = createStore({ entries: [] as ExitListEntry<T>[] })
   const timers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -48,7 +43,6 @@ export function createExitList<T>(items: Accessor<readonly T[]>, key: (item: T) 
         store.entries.forEach((entry, index) => {
           if (listed.has(entry.key)) return
           entering.delete(entry.key)
-          // A leaving row stays right after the nearest earlier row that is still listed.
           const before = store.entries.slice(0, index).findLast((other) => listed.has(other.key))
           const at = before ? entries.findIndex((other) => other.key === before.key) + 1 : 0
           entries.splice(at, 0, { key: entry.key, item: entry.item, open: false })

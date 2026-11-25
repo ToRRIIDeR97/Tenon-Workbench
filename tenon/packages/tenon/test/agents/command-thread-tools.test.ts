@@ -25,9 +25,6 @@ import { resetDatabase } from "../fixture/db"
 import { disposeAllInstances, provideInstanceEffect, TestInstance, tmpdirScoped } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 
-// The Command Centre agent's thread tools: listing, reading, the workspace boundary and the action log
-// (implementations/command-centre-orchestrator, AC-2.3 to AC-2.5).
-
 const appLayer = AppNodeBuilder.build(
   LayerNode.group([InstanceStore.node, Project.node, Session.node, Workspace.node, Database.node, Ripgrep.node]),
   [
@@ -126,7 +123,6 @@ const setup = Effect.gen(function* () {
   const other = yield* Session.use.create({ title: "Other command" }).pipe(provideInstanceEffect(commandDirectory))
   const alpha = yield* Session.use.create({ title: "Alpha sync" }).pipe(provideInstanceEffect(folder))
   const general = yield* Session.use.create({ title: "General notes" }).pipe(provideInstanceEffect(test.directory))
-  // A thread in a folder that no workspace of this test owns.
   const elsewhere = yield* tmpdirScoped()
   const stray = yield* Session.use.create({ title: "Stray" }).pipe(provideInstanceEffect(elsewhere))
   const call = (name: string, args: Record<string, unknown>, caller = command.id) =>
@@ -189,7 +185,6 @@ describe("Command Centre thread tools", () => {
       expect((yield* folder(" alpha "))?.directory).toBe((yield* folder(project.id))?.directory)
       expect((yield* folder("alpha"))?.directory.toLowerCase()).toBe(path.resolve(alpha.directory).toLowerCase())
       expect(yield* folder("Gamma")).toBeUndefined()
-      // Projects in two workspaces can share a name; then only the id tells them apart.
       const second = yield* tmpdirScoped()
       const twin = yield* request("/second-brain/projects", {
         method: "POST",
@@ -245,7 +240,6 @@ describe("Command Centre thread tools", () => {
       expect(String((yield* call("thread_stop", { threadId: other.id })).value)).toContain("Command Centre thread")
       expect(String((yield* call("thread_read", { threadId: stray.id })).value)).toContain("root threads")
       expect(String((yield* call("thread_read", { threadId: "ses_missing" })).value)).toContain("doesn't exist")
-      // Nothing was done, so nothing is logged.
       expect(yield* CommandActionLog.read).toEqual([])
     }),
   )
@@ -299,12 +293,10 @@ describe("Command Centre thread tools", () => {
       expect(log[0].project).toBeUndefined()
       expect(log[0].text).toBeUndefined()
 
-      // The file is the log: a restart reads it back from the Command Centre's folder.
       const file = path.join(root, ".command-centre", "actions.json")
       const stored = JSON.parse(yield* Effect.promise(() => readFile(file, "utf8"))) as CommandActions.Action[]
       expect(stored.map((action) => action.id)).toEqual(log.map((action) => action.id))
 
-      // The page reads it over the route, all of it or only from a time on.
       const all = yield* actions(headers)
       expect(all.map((action) => action.id)).toEqual(log.map((action) => action.id))
       const recent = yield* actions(headers, log[0].at)
@@ -339,7 +331,6 @@ describe("Command Centre thread tools", () => {
           expect(`${name} ${item.label}: ${result.isError}`).toBe(`${name} ${item.label}: true`)
           expect(String(result.value)).toContain("root threads")
         }
-        // Nothing was sent to it.
         expect(
           yield* Session.use
             .messages({ sessionID: item.session.id })
@@ -347,15 +338,12 @@ describe("Command Centre thread tools", () => {
         ).toEqual([])
       }
       expect(yield* CommandActionLog.read).toEqual([])
-      // The Project's own folder is still reached.
       expect((yield* call("thread_read", { threadId: alpha.id })).isError).toBe(false)
     }),
   )
 
   it.instance("a Project folder spelled with other separators or a trailing separator is still reached", () =>
     Effect.gen(function* () {
-      // `key()` compares with this platform's path rules, so the spellings below exercise them here: on Windows
-      // that is "/" for "\\" and a trailing separator (letter case is folded too); elsewhere a trailing separator.
       const { alpha, call } = yield* setup
       const spellings = [`${alpha.directory}${path.sep}`, alpha.directory.replaceAll(path.sep, "/")]
       for (const spelling of spellings) {
@@ -375,7 +363,6 @@ describe("Command Centre thread tools", () => {
         Effect.promise(() => readdir(path.dirname(file))).pipe(
           Effect.map((names) => names.filter((name) => name.startsWith("actions.json.corrupt-"))),
         )
-      // Not JSON at all, then JSON with an invalid entry: each is moved aside whole, never dropped.
       for (const [index, content] of ["{ this is not json", JSON.stringify([{ id: 1 }])].entries()) {
         yield* Effect.promise(() => writeFile(file, content))
         const result = yield* call("thread_message", { threadId: alpha.id, text: `after ${index}` })
@@ -388,7 +375,6 @@ describe("Command Centre thread tools", () => {
           Promise.all(names.map((name) => readFile(path.join(path.dirname(file), name), "utf8"))),
         )
         expect(kept).toContain(content)
-        // Let the next aside get its own timestamp.
         yield* Effect.sleep("5 millis")
       }
     }),
@@ -402,8 +388,6 @@ describe("Command Centre thread tools", () => {
       expect((yield* call("thread_stop", { threadId: alpha.id })).isError).toBe(false)
       expect((yield* CommandActionLog.read).map((action) => action.kind)).toEqual(["stop"])
 
-      // Read errors other than "missing" (here: a directory where the file should be) leave it untouched, and
-      // the tool still succeeds, because the log is a record and not part of the action.
       yield* Effect.promise(() => rm(file))
       yield* Effect.promise(() => mkdir(file))
       const result = yield* call("thread_stop", { threadId: general.id })

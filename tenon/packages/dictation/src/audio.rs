@@ -1,6 +1,3 @@
-//! Audio helpers: the recording sink (levels + collected samples), WAV input and earshot VAD
-//! trimming. Approach follows Handy's audio toolkit (https://github.com/cjpais/Handy, MIT).
-
 use std::sync::{Arc, Mutex};
 
 use handy_recorder::{AudioChunk, Sink};
@@ -9,28 +6,19 @@ use serde_json::json;
 use crate::Events;
 
 pub const SAMPLE_RATE: u32 = 16_000;
-/// earshot scores 16 ms frames of 256 samples at 16 kHz.
 const VAD_FRAME: usize = 256;
 const VAD_THRESHOLD: f32 = 0.5;
-/// Speech padding kept on both sides of the detected speech, in frames (about 240 ms).
 const VAD_PADDING_FRAMES: usize = 15;
-/// A level event every few chunks (480-frame chunks are 30 ms) keeps the meter smooth without flooding stdout.
 const LEVEL_EVERY_CHUNKS: u32 = 3;
 
-/// Samples per voice-wave reading: 512 at 16 kHz is 32 ms, about one recorder chunk.
 pub const BAND_WINDOW: usize = 512;
-/// Bars in the composer's voice wave (#328).
 pub const BAND_COUNT: usize = 24;
-/// The bands span the voice: log-spaced from 80 Hz to 6 kHz.
 const BAND_LOW_HZ: f32 = 80.0;
 const BAND_HIGH_HZ: f32 = 6_000.0;
-/// Loudness below this many dB (full scale) draws an empty bar.
 const BAND_FLOOR_DB: f32 = 60.0;
 
-/// The recording so far, shared with the live-transcript thread while the recorder appends to it.
 pub type SharedSamples = Arc<Mutex<Vec<f32>>>;
 
-/// Collects the 16 kHz mono recording and reports its loudness while it runs.
 pub struct LevelSink {
     events: Events,
     samples: SharedSamples,
@@ -50,7 +38,6 @@ impl LevelSink {
         }
     }
 
-    /// A handle to the samples recorded so far, for reading while recording.
     pub fn shared(&self) -> SharedSamples {
         self.samples.clone()
     }
@@ -71,7 +58,6 @@ impl Sink for LevelSink {
                 BAND_COUNT,
             )
         };
-        // Every chunk (30 ms), so the wave moves with the voice; values rounded to keep the line short.
         let values: Vec<f32> = bands
             .iter()
             .map(|value| (value * 100.0).round() / 100.0)
@@ -92,9 +78,6 @@ impl Sink for LevelSink {
     }
 }
 
-/// The loudness of `count` log-spaced frequency bands in the newest `BAND_WINDOW` samples, each 0 (silent or below
-/// the floor) to 1 (full scale). Each band is the loudest frequency bin between its edges, one Hann-windowed Goertzel
-/// filter per bin (about 190 bins over 80 Hz to 6 kHz): no FFT crate needed for 24 bars.
 pub fn frequency_bands(samples: &[f32], count: usize) -> Vec<f32> {
     let n = samples.len().min(BAND_WINDOW);
     if n == 0 {
@@ -119,7 +102,6 @@ pub fn frequency_bands(samples: &[f32], count: usize) -> Vec<f32> {
             let high = BAND_LOW_HZ * ratio.powf((band + 1) as f32 / count as f32);
             let mut peak = 0.0f32;
             let mut frequency = low;
-            // At least the band's middle, then every bin up to its upper edge.
             loop {
                 peak = peak.max(goertzel(&windowed, frequency.min(high)));
                 frequency += bin;
@@ -130,7 +112,6 @@ pub fn frequency_bands(samples: &[f32], count: usize) -> Vec<f32> {
             if band_is_narrow(low, high, bin) {
                 peak = peak.max(goertzel(&windowed, (low + high) / 2.0));
             }
-            // A full-scale sine of amplitude A gives about A * n / 4 through a Hann window.
             let magnitude = peak / (size / 4.0);
             if magnitude <= 0.0 {
                 return 0.0;
@@ -144,7 +125,6 @@ fn band_is_narrow(low: f32, high: f32, bin: f32) -> bool {
     high - low < bin
 }
 
-/// The magnitude of one frequency in an already windowed block.
 fn goertzel(windowed: &[f32], frequency: f32) -> f32 {
     let coefficient = 2.0 * (2.0 * std::f32::consts::PI * frequency / 16_000.0).cos();
     let (mut previous, mut before) = (0.0f32, 0.0f32);
@@ -158,7 +138,6 @@ fn goertzel(windowed: &[f32], frequency: f32) -> f32 {
         .sqrt()
 }
 
-/// The span of `samples` that holds speech, padded; empty when earshot hears no speech.
 pub fn trim_to_speech(samples: &[f32]) -> &[f32] {
     let mut detector = earshot::Detector::default_boxed();
     let voiced: Vec<usize> = samples
@@ -177,7 +156,6 @@ pub fn trim_to_speech(samples: &[f32]) -> &[f32] {
     &samples[start..end]
 }
 
-/// Reads a PCM WAV file as 16 kHz mono f32, mixing channels down and resampling linearly.
 pub fn read_wav_16k_mono(path: &str) -> Result<Vec<f32>, String> {
     let mut reader =
         hound::WavReader::open(path).map_err(|e| format!("Cannot read {path}: {e}"))?;
@@ -227,7 +205,6 @@ mod tests {
         assert!(trim_to_speech(&vec![0.0; 16_000]).is_empty());
     }
 
-    // #328: the voice wave's bars are the microphone's frequency bands.
     fn sine(freq: f32, amplitude: f32) -> Vec<f32> {
         (0..BAND_WINDOW)
             .map(|n| amplitude * (2.0 * std::f32::consts::PI * freq * n as f32 / 16_000.0).sin())

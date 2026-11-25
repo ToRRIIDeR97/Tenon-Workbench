@@ -42,7 +42,6 @@ describe("harness setup", () => {
       OPENROUTER_API_KEY: "k",
     })
     expect(HarnessSetup.keyEnvironment(opencode, { option: "unknown", key: "k" })).toEqual({})
-    // Codex keeps its own key through its app-server login, so nothing reaches its environment.
     expect(HarnessSetup.keyEnvironment(HarnessSetup.recipe(Harness.Codex), { option: "openai", key: "k" })).toEqual({})
   })
 
@@ -75,7 +74,6 @@ describe("harness setup", () => {
       permission: { edit: "ask", bash: "ask" },
       experimental: { todo: true },
     })
-    // OpenCode keeps todowrite behind experimental.todo; a value the user set wins.
     expect(content('{ "experimental": { "todo": false } }')).toEqual({
       permission: { edit: "ask", bash: "ask" },
       experimental: { mcp_timeout: 660_000 },

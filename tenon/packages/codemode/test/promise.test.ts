@@ -2,10 +2,6 @@ import { describe, expect, test } from "bun:test"
 import { Effect, Schema } from "effect"
 import { CodeMode, Tool, toolError } from "../src/index.js"
 
-// Wave 5 acceptance suite: first-class promise values. Un-awaited tool calls start eagerly on
-// supervised fibers, `await` settles them, and Promise.all/allSettled/race/resolve/reject are
-// ordinary functions over arbitrary arrays mixing promises and plain values.
-
 type Trace = {
   starts: Array<number>
   active: number
@@ -16,7 +12,6 @@ type Trace = {
 
 const makeTrace = (): Trace => ({ starts: [], active: 0, maxActive: 0, completed: 0, interrupted: 0 })
 
-/** Echoes `id` after `ms` milliseconds, recording start order, live concurrency, and interruption. */
 const sleepyTool = (trace: Trace) =>
   Tool.make({
     description: "Echo an id after a delay",
@@ -89,7 +84,6 @@ describe("first-class promise values", () => {
     )
     expect(result).toEqual([1, 2])
     expect(trace.starts).toEqual([1, 2])
-    // Both calls overlapped even though they were awaited sequentially.
     expect(trace.maxActive).toBeGreaterThan(1)
   })
 
@@ -227,8 +221,6 @@ describe("Promise.all over arbitrary arrays", () => {
       { trace },
     )
     expect(result).toEqual([1, 2, 3, 4])
-    // maxActive counts truly-overlapping live executions, so > 1 proves real
-    // parallelism deterministically - no wall-clock assertion needed.
     expect(trace.maxActive).toBeGreaterThan(1)
   })
 
@@ -405,7 +397,6 @@ describe("timeout interruption of forked calls", () => {
     expect(result.ok).toBe(false)
     if (result.ok) return
     expect(result.error.kind).toBe("TimeoutExceeded")
-    // Both calls started; neither escaped the timeout - the awaited one AND the abandoned one.
     expect(trace.starts).toEqual([1, 2])
     expect(trace.interrupted).toBe(2)
     expect(trace.completed).toBe(0)

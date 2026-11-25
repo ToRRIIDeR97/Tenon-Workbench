@@ -12,7 +12,6 @@ describe("step cost from catalog prices", () => {
   const base = { input: 3, output: 15, cache: { read: 0.3, write: 3.75 } }
 
   test("prices tokens per million and charges reasoning at the output rate", () => {
-    // 1M input * $3 + (0.5M output + 0.5M reasoning) * $15 + 1M cache read * $0.30 = $18.30
     expect(pricedCost([base], used(1_000_000, 500_000, 500_000, 1_000_000))).toBeCloseTo(18.3)
   })
 

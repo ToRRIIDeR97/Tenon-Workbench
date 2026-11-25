@@ -34,7 +34,6 @@ test("shows loaded sessions before the directory path request resolves", async (
 
   await page.goto("/")
   try {
-    // The workspace folder's own threads are listed in the sidebar's General group.
     const brain = page.locator('[data-component="second-brain-sidebar"] [data-sidebar-group="__brain__"]')
     await brain.getByRole("button", { name: "General", exact: true }).click()
     await expectAppVisible(brain.getByText(fixture.expected.sourceTitle, { exact: true }))

@@ -154,7 +154,6 @@ test("Mistral round-trips native reasoning in assistant history", async () => {
       { role: "user", content: [{ type: "text", text: "Hello again" }] },
     ],
   })
-  // Since @ai-sdk/mistral 3.0.52, reasoning without native metadata is sent as a closed thinking chunk.
   expect(body?.messages?.[1]).toEqual({
     role: "assistant",
     content: [

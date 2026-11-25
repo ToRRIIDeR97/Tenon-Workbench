@@ -35,7 +35,6 @@ export class SecondBrainConflictError extends Schema.Error<SecondBrainConflictEr
   { httpApiStatus: 409 },
 ) {}
 
-/** A rejected request: `data.message` is the domain reason, such as `invalid_path` or `invalid_json`. */
 export class SecondBrainInvalidError extends Schema.Error<SecondBrainInvalidError>("SecondBrainInvalidError")(
   {
     name: Schema.Literal("SecondBrainInvalidError"),
@@ -44,7 +43,6 @@ export class SecondBrainInvalidError extends Schema.Error<SecondBrainInvalidErro
   { httpApiStatus: 400 },
 ) {}
 
-// Every endpoint shares one error mapper, so they declare the same error set.
 const errors = [
   SecondBrainInvalidError,
   HttpApiError.NotFound,

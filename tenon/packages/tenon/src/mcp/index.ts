@@ -41,14 +41,7 @@ import { McpBrowser } from "./browser"
 const DEFAULT_TIMEOUT = 30_000
 const CLIENT_OPTIONS = {
   capabilities: {
-    // https://github.com/anomalyco/opencode/issues/11948
-    // sampling: {},
-    // https://github.com/anomalyco/opencode/issues/23066
-    // elicitation: {},
-    // https://github.com/anomalyco/opencode/issues/2308
     roots: {},
-    // https://github.com/anomalyco/opencode/issues/28567
-    // tasks: {},
   },
 } satisfies ClientOptions
 
@@ -109,11 +102,9 @@ export const Status = Schema.Union([
 ]).annotate({ identifier: "MCPStatus", discriminator: "status" })
 export type Status = Schema.Schema.Type<typeof Status>
 
-// Store transports for OAuth servers to allow finishing auth
 type TransportWithAuth = StreamableHTTPClientTransport | SSEClientTransport
 const pendingOAuthTransports = new Map<string, { transport: TransportWithAuth; provider?: McpOAuthPendingProvider }>()
 
-// Prompt cache types
 type PromptInfo = Awaited<ReturnType<MCPClient["listPrompts"]>>["prompts"][number]
 type ResourceInfo = Awaited<ReturnType<MCPClient["listResources"]>>["resources"][number]
 type ResourceTemplateInfo = Awaited<ReturnType<MCPClient["listResourceTemplates"]>>["resourceTemplates"][number]
@@ -140,8 +131,6 @@ interface AuthResult {
   client?: MCPClient
 }
 
-// --- Effect Service ---
-
 interface State {
   config: Record<string, ConfigMCPV1.Info>
   status: Record<string, Status>
@@ -156,20 +145,13 @@ export interface ServerInstructions {
   tools: string[]
 }
 
-/** An MCP tool in its native shape; consumers adapt it to their own tool format. */
 export interface McpTool {
-  /** Shared cached definition; consumers must copy rather than mutate it. */
   readonly def: MCPToolDef
   readonly client: MCPClient
-  /** The configured server name, unsanitized; tool calls ask permission `mcp` for it. */
   readonly server: string
   readonly timeout?: number
 }
 
-/**
- * The approval a call to `tool` asks for: action `mcp` for its server, like a Codex MCP call, so one rule such as
- * `mcp: { github: "allow" }` covers a server and "always" saves the server, never a widening pattern.
- */
 export function permission(tool: McpTool) {
   return {
     permission: "mcp",
@@ -184,7 +166,6 @@ export interface Interface {
   readonly clients: () => Effect.Effect<Record<string, MCPClient>>
   readonly instructions: () => Effect.Effect<ServerInstructions[]>
   readonly tools: () => Effect.Effect<Record<string, McpTool>>
-  /** Each connected server's tool names, for Settings › MCP servers (#334). */
   readonly toolNames: () => Effect.Effect<Record<string, string[]>>
   readonly prompts: () => Effect.Effect<Record<string, PromptInfo & { client: string }>>
   readonly resources: (clientName?: string) => Effect.Effect<Record<string, ResourceInfo & { client: string }>>
@@ -231,10 +212,6 @@ const layer = Layer.effect(
 
     type Transport = StdioClientTransport | StreamableHTTPClientTransport | SSEClientTransport
 
-    /**
-     * Connect a client via the given transport with resource safety:
-     * on failure the transport is closed; on success the caller owns it.
-     */
     const connectTransport = Effect.fn("MCP.connectTransport")(function* (transport: Transport, timeout: number) {
       const directory = yield* InstanceState.directory
       return yield* Effect.acquireUseRelease(
@@ -347,7 +324,6 @@ const layer = Layer.effect(
           }),
         )
         if (result) return { client: result.client, status: { status: "connected" } as Status }
-        // If this was an auth error, stop trying other transports
         if (lastStatus?.status === "needs_auth" || lastStatus?.status === "needs_client_registration") break
       }
 
@@ -369,7 +345,6 @@ const layer = Layer.effect(
         ...(cmd === "opencode" ? { BUN_BE_BUN: "1" } : {}),
         ...mcp.environment,
       }
-      // The SDK runs its own cross-spawn, so resolve here to keep a repository's `tool.cmd` out of a bare name.
       const command = spawnTarget(cmd, env)
       if (!command) {
         return { client: undefined, status: { status: "failed", error: `Command not found on PATH: ${cmd}` } as Status }
@@ -845,15 +820,12 @@ const layer = Layer.effect(
       const url = remoteURL(mcpConfig.url)
       if (!url) throw new Error(`Invalid MCP URL for "${mcpName}"`)
 
-      // OAuth config is optional - if not provided, we'll use auto-discovery
       const oauthConfig = typeof mcpConfig.oauth === "object" ? mcpConfig.oauth : undefined
 
-      // Resolve effective redirect URI: explicit redirectUri > callbackPort shorthand > default
       const effectiveRedirectUri =
         oauthConfig?.redirectUri ??
         (oauthConfig?.callbackPort ? `http://127.0.0.1:${oauthConfig.callbackPort}${OAUTH_CALLBACK_PATH}` : undefined)
 
-      // Start the callback server with custom redirectUri if configured
       yield* Effect.promise(() => McpOAuthCallback.ensureRunning(effectiveRedirectUri))
 
       const oauthState = Array.from(crypto.getRandomValues(new Uint8Array(32)))

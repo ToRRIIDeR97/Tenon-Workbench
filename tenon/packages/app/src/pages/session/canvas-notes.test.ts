@@ -10,7 +10,6 @@ const picked = (selector: string) => ({
   rect: { x: 10, y: 60, width: 100, height: 30 },
 })
 
-// #326: pins are numbered per design version, sent together, and kept (marked sent) as a record.
 describe("AC-15 notes on a design's elements", () => {
   test("notes are numbered in order and kept per design", () => {
     const notes = canvasNotes()

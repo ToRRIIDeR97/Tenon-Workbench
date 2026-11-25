@@ -121,8 +121,6 @@ export const PtyHandler = HttpApiBuilder.group(Api, "server.pty", (handlers) =>
         "pty.connectToken",
         Effect.fn(function* (ctx) {
           const request = yield* HttpServerRequest.HttpServerRequest
-          // The custom header forces a CORS preflight, so cross-origin browser pages cannot
-          // mint tickets without passing the server's origin policy.
           if (
             request.headers[PTY_CONNECT_TOKEN_HEADER] !== PTY_CONNECT_TOKEN_HEADER_VALUE ||
             !isAllowedRequestOrigin(request.headers.origin, request.headers.host, cors)
@@ -176,11 +174,7 @@ export const PtyHandler = HttpApiBuilder.group(Api, "server.pty", (handlers) =>
               Effect.catch(() => Effect.void),
             )
 
-          // Outbound frames flow through one queue drained by a single writer so replay, live
-          // output, and the close frame keep their order.
-          // TODO: Integrate graceful-shutdown socket tracking before clients migrate to this route.
           const outbox = yield* Queue.unbounded<string | Uint8Array | Socket.CloseEvent>()
-          // Bounded by bytes: a slow client is closed and resyncs from its cursor rather than growing memory.
           const budget = PtyProtocol.pendingBudget()
           const offerOutput = (chunk: string | Uint8Array) => {
             const admitted = budget.admit(chunk)

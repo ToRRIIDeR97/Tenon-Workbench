@@ -154,9 +154,6 @@ afterEach(async () => {
   await resetDatabase()
 })
 
-// Regression for the "OpenAPI advertises ?directory&workspace, runtime
-// rejects them" drift class. Each affected route must accept both params
-// without 400.
 describe("httpapi query schema drift", () => {
   const routingParams = (dir: string) =>
     `directory=${encodeURIComponent(dir)}&workspace=${encodeURIComponent("ws_test")}`

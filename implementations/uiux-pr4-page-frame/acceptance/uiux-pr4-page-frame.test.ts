@@ -2,12 +2,10 @@ import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import path from "node:path"
 
-// PR4 of the UI/UX review (implementations/uiux-pr4-page-frame): one left edge and three heading levels.
 const packages = path.resolve(import.meta.dir, "../..")
 const read = (file: string) => readFileSync(path.join(packages, file), "utf8")
 
 describe("page header", () => {
-  // AC-1: a page whose content sits in a centred column puts its header in the same column.
   test("PageHeader can share the content column", () => {
     const page = read("app/src/components/page.tsx")
     expect(page).toMatch(/column\?: "narrow" \| "wide"/)
@@ -35,7 +33,6 @@ describe("page header", () => {
 })
 
 describe("headings", () => {
-  // AC-2: All projects separates a project (15/600) from its sections (11px caption, muted).
   test("project groups and their sections are different levels", () => {
     const overview = read("app/src/pages/project-overview.tsx")
     expect(overview).toMatch(/<h2 id=\{heading\(\)\} class="[^"]*type-toolbar-title/)
@@ -48,7 +45,6 @@ describe("headings", () => {
     }
   })
 
-  // AC-3: Settings section titles are not smaller than the 14px rows under them, and sit on the cards' edge.
   test("Settings section title is 14/600 without an inset", () => {
     const css = read("app/src/components/settings-v2/settings-v2.css")
     const block = css.slice(css.indexOf(".settings-v2-section-title {"))
@@ -58,7 +54,6 @@ describe("headings", () => {
     expect(rule).not.toContain("padding-inline-start")
   })
 
-  // AC-5: the create-project heading is a page title like every other page, not the 26px display style.
   test("create-project heading uses the page title role", () => {
     const details = read("app/src/features/second-brain/project-details.tsx")
     expect(details).toMatch(/id="project-create-title" class="[^"]*type-page-title/)
@@ -66,7 +61,6 @@ describe("headings", () => {
 })
 
 describe("Settings edges", () => {
-  // AC-4: header actions end on the cards' right edge (40px), not 24px short of it.
   test("Settings header uses the body's 40px sides", () => {
     const css = read("app/src/components/settings-v2/settings-v2.css")
     const block = css.slice(css.indexOf(".settings-v2-tab-header {"))

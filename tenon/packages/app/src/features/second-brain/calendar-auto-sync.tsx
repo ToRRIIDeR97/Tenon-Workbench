@@ -5,12 +5,9 @@ import { useServerSDK } from "@/context/server-sdk"
 import { useSettings } from "@/context/settings"
 import { calendarSync, syncGoogleCalendar } from "./calendar-sync"
 
-// A focus sync waits until the last one is this old, so switching windows doesn't call Google each time.
 const FOCUS_MIN_AGE = 2 * 60_000
-// After failures the interval doubles, up to this many times the configured one.
 const MAX_BACKOFF = 4
 
-/** Syncs Google Calendar in the background per Settings › Calendar, whatever page is open. Renders nothing. */
 export function CalendarAutoSync() {
   const platform = usePlatform()
   const layout = useLayout()
@@ -23,7 +20,6 @@ export function CalendarAutoSync() {
     const directory = layout.home.workspace()
     if (!google || !directory || calendarSync.busy() || !navigator.onLine) return
     const status = await google.status().catch(() => undefined)
-    // Nothing to pull, or Google asked the user to sign in again: wait for the Calendar page.
     if (!status?.connected || status.accounts.every((account) => account.errorCode === "google_reconnect_required"))
       return
     const client = { server: serverSDK().server, fetch: platform.fetch, target: { directory } }
@@ -37,7 +33,6 @@ export function CalendarAutoSync() {
   createEffect(() => {
     const config = settings.calendar.sync()
     if (!config.autoSync || !platform.googleCalendar || !layout.home.workspace()) return
-    // A short delay keeps the first sync out of the way of startup work.
     const first = config.onOpen ? setTimeout(() => void run(), 5_000) : undefined
     let disposed = false
     let timer: ReturnType<typeof setTimeout> | undefined

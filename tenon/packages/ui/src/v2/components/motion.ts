@@ -1,6 +1,3 @@
-// Shared runtime reads of the Material 3 motion tokens in v2/styles/theme.css, for JS that has to time
-// work against a CSS animation (dispose after an exit, fall back when an animation event never fires).
-
 const FALLBACK = {
   short: 150,
   medium: 300,
@@ -17,7 +14,6 @@ export function prefersReducedMotion() {
   return typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true
 }
 
-/** `--v2-duration-<name>` in milliseconds, read from `element` (default: the root element). */
 export function motionDuration(name: MotionDuration, element?: Element) {
   if (typeof document === "undefined") return FALLBACK[name]
   return (
@@ -26,10 +22,6 @@ export function motionDuration(name: MotionDuration, element?: Element) {
   )
 }
 
-/**
- * A CSS time in milliseconds. The production build minifies `200ms` to `.2s`, so seconds must be read as such:
- * taking `.2s` as 0.2 ms disposed every exit after one frame in the packaged app.
- */
 export function cssDuration(value: string) {
   const match = value.trim().match(/^(-?[\d.]+)(ms|s)?$/i)
   if (!match) return undefined

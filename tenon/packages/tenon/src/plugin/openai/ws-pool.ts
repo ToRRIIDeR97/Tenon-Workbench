@@ -163,7 +163,6 @@ export function createWebSocketFetch(options?: CreateWebSocketFetchOptions) {
 
   function recordStreamFailure(entry: PoolEntry) {
     entry.streamFailures++
-    // Codex counts retries after the initial failed WebSocket attempt.
     if (entry.streamFailures > streamRetries) entry.fallback = true
   }
 

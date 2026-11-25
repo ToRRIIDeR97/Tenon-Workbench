@@ -28,7 +28,6 @@ export namespace FSUtil {
     readonly type: "file" | "directory" | "symlink" | "other"
   }
 
-  // Effect 4.1 added `FileSystem.glob` and `readDirectoryEntries`; this service keeps its own versions.
   export interface Interface extends Omit<FileSystem.FileSystem, "glob" | "readDirectoryEntries"> {
     readonly isDir: (path: string) => Effect.Effect<boolean>
     readonly isFile: (path: string) => Effect.Effect<boolean>
@@ -116,8 +115,6 @@ export namespace FSUtil {
 
       const ensureDir = Effect.fn("FileSystem.ensureDir")(function* (path: string) {
         yield* fs.makeDirectory(path, { recursive: true }).pipe(
-          // Bun on Windows can throw EEXIST here despite recursive mode.
-          // https://github.com/oven-sh/bun/issues/21901
           Effect.catchIf(
             (error) => error.reason._tag === "AlreadyExists",
             (error) => isDir(path).pipe(Effect.flatMap((exists) => (exists ? Effect.void : Effect.fail(error)))),
@@ -221,7 +218,6 @@ export namespace FSUtil {
 
   export const node = makeGlobalNode({ service: Service, layer: layer, deps: [filesystem] })
 
-  // Pure helpers that don't need Effect (path manipulation, sync operations)
   export function mimeType(p: string): string {
     return lookup(p) || "application/octet-stream"
   }

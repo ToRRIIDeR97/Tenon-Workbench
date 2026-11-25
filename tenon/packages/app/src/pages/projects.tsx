@@ -45,19 +45,11 @@ import { dismissToast, showToast } from "@/utils/toast"
 import { createUndoQueue } from "@/utils/undo-action"
 
 const NO_PAGES: ReadonlyArray<VaultPageInfo> = []
-// The landing's two cards (the list and the selected Project) and the list's rows.
 const projectCardClass =
   "min-h-0 overflow-y-auto rounded-[16px] bg-v2-background-bg-layer-01 shadow-[inset_0_0_0_1px_var(--v2-border-border-muted)]"
 const listRowClass =
   "relative flex w-full min-w-0 rounded-[10px] px-3 py-2.5 text-left transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover active:bg-v2-overlay-simple-overlay-pressed focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-v2-border-border-focus motion-reduce:transition-none"
 
-/**
- * Projects: every Project and page in the Tenon vault. URL contract: `/projects` (the landing: Projects, Archived,
- * General pages), `/projects?project=<id>&section=<tasks|pages|threads|log|settings>` (a Project as one page; an
- * older `&tab=` maps to its section), `/projects?page=<path>` and `/projects?new=1` (the New Project form).
- * `/notes` links redirect here. A page opened from a Project keeps that Project's URL in history, so Back returns to
- * it.
- */
 export default function ProjectsPage() {
   const language = useLanguage()
   const navigate = useNavigate()
@@ -70,7 +62,6 @@ export default function ProjectsPage() {
   const drafts = useDrafts()
   const command = useCommand()
   const brainProjects = useBrainProjects()
-  // `note` is the pre-vault link form (wiki links in page previews still use it).
   const [search] = useSearchParams<{
     project?: string
     tab?: string
@@ -78,24 +69,18 @@ export default function ProjectsPage() {
     page?: string
     note?: string
     new?: string
-    /** `routines`: the page was opened from Routines, so Back returns there. */
     from?: string
   }>()
   const [state, setState] = createStore({
     directory: "",
-    /** The open page has unsaved edits. */
     dirty: false,
     creating: false,
     error: "",
-    /** Notes the first visit moved into the vault; 0 hides the notice. */
     moved: 0,
     search: "",
-    /** The debounced search the server runs. */
     query: "",
     archivedOpen: false,
-    /** The Project the landing previews beside the list on a wide window; empty means the first active one. */
     selected: "",
-    /** Pages whose delete waits for its Undo window to close, by `pageKey`. */
     deleting: {} as Record<string, boolean>,
   })
   const directory = () => state.directory
@@ -105,8 +90,6 @@ export default function ProjectsPage() {
     target: { directory: target },
   })
 
-  // Follow the sidebar workspace, but an open page with unsaved edits holds its workspace until they are
-  // saved or discarded; the page says why meanwhile.
   const sidebarDirectory = () => layout.home.workspace() ?? ""
   const held = () => state.dirty && sidebarDirectory() !== state.directory
   createEffect(() => {
@@ -115,16 +98,13 @@ export default function ProjectsPage() {
     setState({ directory: next, error: "", moved: 0, search: "", query: "" })
   })
 
-  // The first read of a workspace's vault moves its pre-vault notes in.
   const vault = useVaultPages(() => directory() || undefined)
-  // Taken once, or a revisit within the cache's life would show the notice again.
   createEffect(() => {
     const moved = vault.moved()
     if (moved <= 0) return
     setState("moved", moved)
     vault.clearMoved()
   })
-  // Waits for the move above, which the server would otherwise make (and report) on this first vault read.
   const [conflicts] = createResource(
     () => directory() || undefined,
     async (target) => {
@@ -155,9 +135,7 @@ ${path}`
   const foundProjects = () => matchProjects(projects(), state.query)
   const projects = () => (held() ? [] : (brainProjects.list() ?? []))
   const known = createMemo(() => new Set(projects().map((item) => item.id)))
-  // Pages tied to no Project this workspace lists.
   const generalPages = createMemo(() => pageList().filter((page) => !page.projectId || !known().has(page.projectId)))
-  // One pass over the vault for every Project's page list, instead of a filter per Project.
   const pagesByProject = createMemo(() => {
     const groups = new Map<string, VaultPageInfo[]>()
     for (const page of pageList()) {
@@ -168,12 +146,10 @@ ${path}`
     }
     return groups
   })
-  // The vault refuses to live inside a workspace or Project folder; say so instead of a generic failure.
   const misplaced = () => {
     const error = vault.error()
     return error instanceof SecondBrainRequestError && error.reason === "vault_inside_workspace"
   }
-  // A file the vault needs could not be read (a sync lock, an offline placeholder); `reason` names it.
   const unreadable = () => {
     const error = vault.error()
     return error instanceof SecondBrainRequestError && error.reason?.startsWith("vault_unavailable: ")
@@ -190,7 +166,6 @@ ${path}`
   const [timeline, timelineActions] = createResource(projectKey, ([target, id]) => readTimeline(client(target), id))
   const [log, logActions] = createResource(projectKey, ([target, id]) => readProjectLog(client(target), id))
 
-  // Saves a Project's items over the revision on screen; a stale save reloads the timeline instead.
   const timelineSaver =
     (
       currentKey: () => readonly [string, string] | undefined,
@@ -218,19 +193,16 @@ ${path}`
   const pageHref = (path: string) => `/projects?page=${encodeURIComponent(path)}`
   const openPage = (path: string) => navigate(pageHref(path), { state: { fromNotes: true } })
   const openProject = (id: string) => navigate(`/projects?project=${encodeURIComponent(id)}`)
-  // Routines (when it opened the page), else the open page's Project, else the landing.
   const parentHref = () => {
     if (search.from === "routines") return "/routines"
     const owner = pageList().find((page) => page.path === pagePath())?.projectId
     return owner ? `/projects?project=${encodeURIComponent(owner)}&section=pages` : "/projects"
   }
   const back = () => (location.state?.fromNotes ? navigate(-1) : navigate(parentHref()))
-  // Folder Projects run their threads in the folder the server resolves; a legacy card in its linked workspace.
   const threadDirectory = (record: ProjectRecord) =>
     brainProjects.entries()?.find((entry) => entry.project.id === record.id)?.threadDirectory ??
     layout.projects.list().find((location) => location.id === record.location?.workspaceId)?.worktree
 
-  // The open Project's recent root threads, from the same per-folder lists the sidebar reads.
   const projectFolder = () => {
     const record = project()
     return record ? threadDirectory(record) : undefined
@@ -239,7 +211,6 @@ ${path}`
     const folder = projectFolder()
     if (folder) void serverSync().project.loadSessions(folder)
   })
-  // A folder's root threads, newest first.
   const rootThreads = (folder: string | undefined) => {
     if (!folder) return []
     return serverSync()
@@ -258,7 +229,6 @@ ${path}`
       }))
   const threads = createMemo(() => recentThreads(projectFolder()))
 
-  // The landing's detail card: the selected Project (else the first active one), its timeline and thread count.
   const wide = createMediaQuery("(min-width: 1024px)")
   const previewed = createMemo(() => {
     if (projectId() || pagePath()) return undefined
@@ -282,7 +252,6 @@ ${path}`
     if (folder) void serverSync().project.loadSessions(folder)
   })
 
-  // A new page goes into `owner` (a Project), else the workspace's General pages; it opens right away.
   const createPage = async (owner?: string) => {
     const target = directory()
     if (!target || state.creating) return
@@ -334,15 +303,10 @@ ${path}`
   })
   onCleanup(() => undo.flush())
 
-  /**
-   * Delete is deferred like a thread's: the page leaves the lists now and the file goes when the Undo window closes.
-   * If the app quits first, the page is simply not deleted. The removed version stays in the page's history.
-   */
   const deletePage = (page: { path: string; title: string; revision: string }) => {
     const target = directory()
     const targetClient = client(target)
     const key = pageKey(target, page.path)
-    // Not back(): a page opened from outside Projects would leave this page, which commits the delete with no Undo.
     navigate(parentHref(), { replace: true })
     setState("deleting", key, true)
     const restore = () => setState("deleting", key, false)
@@ -358,7 +322,6 @@ ${path}`
         removeVaultPage(targetClient, page.path, page.revision)
           .then(removed)
           .catch((cause: unknown) => {
-            // Already gone, e.g. deleted from another window: treat it as done.
             if (cause instanceof SecondBrainRequestError && cause.status === 404) return removed()
             restore()
             throw cause
@@ -396,7 +359,6 @@ ${path}`
     </>
   )
 
-  // Only Markdown copies open as pages; others (a sync copy of `project.json`, an image) are named only.
   const conflictCopies = () => (
     <RevealShow when={(settled(conflicts) ?? []).length > 0 && settled(conflicts)} class="shrink-0">
       {(list) => (
@@ -442,7 +404,6 @@ ${path}`
     </RevealShow>
   )
 
-  // On a wide window a click selects the Project for the detail card (a double click opens it); narrower, it opens.
   const projectRow = (record: ProjectRecord) => (
     <li>
       <button
@@ -548,10 +509,8 @@ ${path}`
             </>
           }
         />
-        {/* Two cards that fill the page and scroll inside themselves: the list, and the selected Project. */}
         <div
           class="mx-auto grid min-h-0 w-full flex-1 grid-rows-[minmax(0,1fr)] gap-3 px-6 pb-6 pt-4 sm:px-10"
-          // The header's column: 1200px for the list beside the detail card, 720px for the list alone.
           classList={{
             "max-w-[1200px] grid-cols-[300px_minmax(0,1fr)]": wide(),
             "max-w-[720px] grid-cols-1": !wide(),
@@ -602,7 +561,6 @@ ${path}`
             >
               <section aria-labelledby="projects-list-title" class="flex flex-col gap-0.5">
                 {sectionTitle("projects-list-title", language.t("secondBrain.vault.projects"))}
-                {/* Every Project's next milestone, upcoming items and recent pages, across the workspace. */}
                 <button
                   type="button"
                   class={`${listRowClass} items-center gap-2.5`}
@@ -614,7 +572,6 @@ ${path}`
                   <Icon name="chevron-right" size="small" class="shrink-0 text-v2-icon-icon-muted" />
                 </button>
                 <ul ref={(element) => (projectList = element)} class="relative flex flex-col gap-0.5">
-                  {/* The selection slides from row to row instead of jumping. */}
                   <li
                     aria-hidden="true"
                     ref={(element) => (selection = element)}
@@ -690,9 +647,7 @@ ${path}`
           </div>
           <Show when={wide()}>
             <div class={`${projectCardClass} p-[22px]`}>
-              {/* A new selection fades in over the old one. */}
               <ViewSwitch key={previewed()?.id} exit={false}>
-                {/* Keyed by id: a refreshed list brings new objects, which must not remount the detail. */}
                 <Show when={previewed()?.id} keyed>
                   {(id) => (
                     <ProjectDetail

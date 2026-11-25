@@ -3,11 +3,9 @@ import { ProviderMetadata } from "@tenon/schema/llm"
 
 export { ProviderMetadata }
 
-/** Stable string identifier for a protocol implementation. */
 export const ProtocolID = Schema.String
 export type ProtocolID = Schema.Schema.Type<typeof ProtocolID>
 
-/** Stable string identifier for the runnable route. */
 export const RouteID = Schema.String
 export type RouteID = Schema.Schema.Type<typeof RouteID>
 

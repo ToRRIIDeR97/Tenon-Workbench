@@ -13,12 +13,9 @@ import { migrateLegacyLocalStorage } from "@/utils/persist"
 import pkg from "../package.json"
 import { ServerConnection } from "./context/server"
 
-// Before anything reads localStorage: move keys written under the pre-rename `opencode.` prefix.
 try {
   migrateLegacyLocalStorage()
-} catch {
-  // Storage can be unavailable (privacy modes); persisted state then starts empty, as before.
-}
+} catch {}
 
 const DEFAULT_SERVER_URL_KEY = "tenon.settings.dat:defaultServerUrl"
 
@@ -137,7 +134,6 @@ const platform: Platform = {
   setDefaultServer: writeDefaultServerUrl,
 }
 
-// Capture and strip any bootstrap auth_token synchronously before Sentry.init() or async work.
 const initialAuth = authFromToken(new URLSearchParams(location.search).get("auth_token"))
 clearAuthToken()
 
@@ -179,7 +175,6 @@ if (root instanceof HTMLElement) {
               canonicalLocalServer={ServerConnection.key(server)}
               servers={[server]}
               disableHealthCheck
-              // Development only: `?surface=widget` previews the desktop widget in a browser tab.
               surface={
                 import.meta.env.DEV && new URLSearchParams(location.search).get("surface") === "widget"
                   ? "widget"

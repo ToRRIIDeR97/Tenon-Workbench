@@ -46,10 +46,6 @@ const isolatedRun: Runner = (value, layer) =>
     return yield* exit
   }).pipe(Effect.runPromise)
 
-// Builds the test layer through the shared process-wide memoMap so cached
-// services (Bus, Session, …) match Server.Default's instances. Use for tests
-// that publish to an in-process HTTP server and need pub/sub identity with
-// the server's handlers.
 const sharedRun: Runner = (value, layer) =>
   Effect.gen(function* () {
     const scope = yield* Scope.make()
@@ -128,10 +124,8 @@ const make = <R, E>(testLayer: Layer.Layer<R, E>, liveLayer: Layer.Layer<R, E>, 
   return { effect, live, instance }
 }
 
-// Test environment with TestClock and TestConsole
 const testEnv = Layer.mergeAll(TestConsole.layer, TestClock.layer())
 
-// Live environment - uses real clock, but keeps TestConsole for output capture
 const liveEnv = TestConsole.layer
 
 export const it = make<never, never>(testEnv, liveEnv)
@@ -139,10 +133,6 @@ export const it = make<never, never>(testEnv, liveEnv)
 export const testEffect = <R, E>(layer: Layer.Layer<R, E>) =>
   make<R, E>(Layer.provideMerge(layer, testEnv), Layer.provideMerge(layer, liveEnv))
 
-// Variant of `testEffect` that builds the test layer through the shared
-// process-wide memoMap so services like Bus/Session resolve to the same
-// instances Server.Default uses. Use when a test needs pub/sub identity with
-// an in-process HTTP server — most tests should stick with `testEffect`.
 export const testEffectShared = <R, E>(layer: Layer.Layer<R, E>) =>
   make<R, E>(Layer.provideMerge(layer, testEnv), Layer.provideMerge(layer, liveEnv), sharedRun)
 

@@ -17,7 +17,6 @@ const DIAGNOSTICS_REQUEST_TIMEOUT_MS = 3_000
 
 const INITIALIZE_TIMEOUT_MS = 45_000
 
-// LSP spec constants
 const FILE_CHANGE_CREATED = 1
 const FILE_CHANGE_CHANGED = 2
 const TEXT_DOCUMENT_SYNC_INCREMENTAL = 2
@@ -113,9 +112,6 @@ function configurationValue(settings: unknown, section?: string) {
   return result ?? null
 }
 
-// TypeScript's built-in LSP pushes diagnostics aggressively on first open.
-// We seed the push cache on the very first publish so waitForFreshPush can
-// resolve immediately instead of waiting for a second debounced push.
 function shouldSeedDiagnosticsOnFirstPush(serverID: string) {
   return serverID === "typescript"
 }
@@ -134,7 +130,6 @@ export async function create(input: {
     new StreamMessageWriter(input.server.process.stdin as any),
   )
   input.server.process.stderr?.resume()
-  // --- Connection state ---
 
   const pushDiagnostics = new Map<string, Diagnostic[]>()
   const pullDiagnostics = new Map<string, Diagnostic[]>()
@@ -154,8 +149,6 @@ export async function create(input: {
   const emitRegistrationChange = () => {
     for (const listener of [...registrationListeners]) listener()
   }
-
-  // --- LSP connection handlers ---
 
   connection.onNotification("textDocument/publishDiagnostics", (params) => {
     const filePath = getFilePath(params.uri)
@@ -205,8 +198,6 @@ export async function create(input: {
   ])
   connection.onRequest("workspace/diagnostic/refresh", async () => null)
   connection.listen()
-
-  // --- Initialize handshake ---
 
   const initialized = await withTimeout(
     connection.sendRequest<{ capabilities?: ServerCapabilities }>("initialize", {
@@ -266,8 +257,6 @@ export async function create(input: {
   }
 
   const files: Record<string, { version: number; text: string }> = {}
-
-  // --- Diagnostic helpers ---
 
   const mergeResults = (filePath: string, results: DiagnosticRequestResult[]) => {
     const handled = results.some((result) => result.handled)
@@ -409,10 +398,6 @@ export async function create(input: {
     })
   }
 
-  // LATENCY-CRITICAL: dispatch identifier pulls in parallel and unblock once one
-  // batch already produced diagnostics for the current file. Let slower pulls keep
-  // merging in the background; do not sequence identifier-by-identifier, and do
-  // not add a post-match settle/debounce delay. See PR #23771.
   async function requestDocumentDiagnostics(filePath: string) {
     const state = documentPullState()
     if (!state.supported) return { handled: false, matched: false }
@@ -540,8 +525,6 @@ export async function create(input: {
     }
   }
 
-  // --- Public API ---
-
   const result = {
     root: input.root,
     get serverID() {
@@ -561,10 +544,6 @@ export async function create(input: {
 
         const document = files[request.path]
         if (document !== undefined) {
-          // Do not wipe diagnostics on didChange. Some servers (e.g. clangd) only
-          // re-emit diagnostics when the content actually changes, so clearing
-          // here would lose errors for no-op touchFile calls. Let the server's
-          // next push/pull overwrite naturally.
           await connection.sendNotification("workspace/didChangeWatchedFiles", {
             changes: [
               {

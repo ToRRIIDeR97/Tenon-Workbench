@@ -11,9 +11,6 @@ export const id = ProviderID.make("openai")
 
 export const routes = [OpenAIResponses.route, OpenAIResponses.webSocketRoute, OpenAIChat.route]
 
-// This provider facade wraps the lower-level Responses and Chat model factories
-// with OpenAI-specific conveniences: typed options, API-key sugar, env fallback,
-// and default option normalization.
 export type Config = RouteDefaultsInput &
   ProviderAuthOption<"optional"> & {
     readonly baseURL?: string

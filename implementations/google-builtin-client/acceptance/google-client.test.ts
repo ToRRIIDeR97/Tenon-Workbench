@@ -1,5 +1,3 @@
-// Worker-visible acceptance tests for the built-in Google OAuth client.
-// Run from tenon/packages/desktop: bun test ../../../implementations/google-builtin-client/acceptance
 import { describe, expect, test } from "bun:test"
 import {
   builtInGoogleClient,

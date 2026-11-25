@@ -61,7 +61,6 @@ export function parseMarkdown(text: string) {
   const id = ++nextID
   return new Promise<string>((resolve, reject) => {
     parses.set(id, { resolve, reject })
-    // Codex file citations are rewritten as cited paths, so they render as file chips.
     instance.postMessage({ type: "parse", id, text: fileCitations(text) } satisfies MarkdownWorkerRequest)
   })
 }

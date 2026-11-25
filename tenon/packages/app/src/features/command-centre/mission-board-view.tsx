@@ -19,16 +19,10 @@ import { Identifier } from "@/utils/id"
 import { sessionTitle } from "@/utils/session-title"
 import { getRelativeTime } from "@/utils/time"
 
-/** A board thread plus what Steer and Stop need to reach it. */
 export type MissionThread = BoardThread & { directory: string; harness: boolean }
 
 type RowState = "needs-you" | "running" | "finished"
 
-/**
- * Every root thread of the workspace's Projects (and its General group) as board rows. It reads the sidebar's
- * thread lists and the synced run state, so the board adds no request of its own. Command Centre threads never
- * show: their folder belongs to no Project.
- */
 export function createMissionThreads(ctrl: SidebarController) {
   const language = useLanguage()
   const serverSync = useServerSync()
@@ -49,7 +43,6 @@ export function createMissionThreads(ctrl: SidebarController) {
     return roots.flatMap((root): MissionThread[] => {
       const session = root.node.session
       if (isCommandThread(session.directory)) return []
-      // Subagents wait on the user too, and the sidebar reports them under their root thread.
       const family = flattenThreads([root.node])
       const waited = family.reduce((sum, item) => sum + needsYou(data, item.id), 0)
       const subtree = ctrl.subtreeState(root.node)
@@ -76,17 +69,11 @@ export function createMissionThreads(ctrl: SidebarController) {
   })
 }
 
-/**
- * The Command Centre's board of every Project's threads: needs you, running and finished (a day), or by Project.
- * Steer sends one line to a running thread; Stop aborts it; Review and Open go to the thread. A director thread of a
- * workflow run shows its round and opens the run view.
- */
 export function MissionBoard(props: {
   ctrl: SidebarController
   threads: MissionThread[]
   open: (id: string) => void
   openRun: (runID: string) => void
-  /** A Project to show: the board switches to By project and scrolls to it. */
   focusProject?: string
 }) {
   const language = useLanguage()
@@ -133,7 +120,6 @@ export function MissionBoard(props: {
     const text = steerText(state.text)
     if (!text || state.busy) return
     setState({ busy: true, failed: undefined })
-    // The thread's own folder routes the request, as it does from the thread's page.
     void serverSDK()
       .ensureDirSdkContext(thread.directory)
       .api.session.prompt({
@@ -157,12 +143,10 @@ export function MissionBoard(props: {
       .catch(() => setState("failed", thread.id))
   }
 
-  // Rows are looked up by ID so a thread's update rewrites its row in place: an open Steer field keeps its focus.
   const Row = (row: { id: string; state: RowState; project: boolean }): JSX.Element => (
     <Show when={byID().get(row.id)}>
       {(thread) => {
         const run = () => runByThread().get(thread().id)
-        // What the row says under its title: the Project (in By state), then what the thread is doing.
         const detail = () =>
           [
             row.project ? thread().project : undefined,

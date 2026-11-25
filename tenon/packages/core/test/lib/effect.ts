@@ -41,10 +41,8 @@ const make = <R, E>(testLayer: Layer.Layer<R, E>, liveLayer: Layer.Layer<R, E>) 
   return { effect, live }
 }
 
-// Test environment with TestClock and TestConsole
 const testEnv = Layer.mergeAll(TestConsole.layer, TestClock.layer())
 
-// Live environment - uses real clock, but keeps TestConsole for output capture
 const liveEnv = TestConsole.layer
 
 export const it = make(testEnv, liveEnv)

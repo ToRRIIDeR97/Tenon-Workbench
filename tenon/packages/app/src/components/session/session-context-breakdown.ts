@@ -20,13 +20,11 @@ const charsFromUserPart = (part: Part) => {
   return 0
 }
 
-/** `latest`: the part is in the newest turn, the only one whose reasoning models keep in context. */
 const charsFromAssistantPart = (part: Part, latest: boolean) => {
   if (part.type === "text") return { assistant: part.text.length, tool: 0 }
   if (part.type === "reasoning") return { assistant: latest ? part.text.length : 0, tool: 0 }
   if (part.type !== "tool") return { assistant: 0, tool: 0 }
 
-  // The arguments go back to the model as written, so a file write or edit counts its whole content.
   const input = JSON.stringify(part.state.input ?? {}).length
   if (part.state.status === "pending") return { assistant: 0, tool: input + part.state.raw.length }
   if (part.state.status === "completed") return { assistant: 0, tool: input + part.state.output.length }
@@ -77,8 +75,6 @@ export function estimateSessionContextBreakdown(args: {
 }) {
   if (!args.input) return []
 
-  // A compaction replaces everything before it with its summary: only the messages from the last one on are in
-  // the context window.
   const compacted = args.messages.findLastIndex(
     (msg) => msg.role === "user" && (args.parts[msg.id] ?? []).some((part) => part.type === "compaction"),
   )

@@ -40,7 +40,6 @@ type Data = {
   part_text_accum_delta?: {
     [partID: string]: string
   }
-  // Configured MCP server names name MCP tools `<server>_<tool>`.
   mcp?: {
     [name: string]: unknown
   }
@@ -50,8 +49,6 @@ export type NavigateToSessionFn = (sessionID: string) => void
 
 export type SessionHrefFn = (sessionID: string) => string
 
-/** Opens a harness subagent's own view (the app's right-panel agent tab) for one tool part. */
-/** Opens the app's Agents panel on one subagent call, or on the list of them when `partID` is left out. */
 export type OpenSubagentFn = (input: { sessionID: string; partID?: string }) => void
 
 export const { use: useData, provider: DataProvider } = createSimpleContext({
@@ -76,7 +73,6 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
       },
       navigateToSession: props.onNavigateToSession,
       sessionHref: props.onSessionHref,
-      // A getter so the app can offer it only where the panel can show it (desktop).
       get openSubagent() {
         return props.onOpenSubagent
       },

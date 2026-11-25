@@ -21,7 +21,6 @@ const unsafeCSS = `
 
 [data-diff],
 [data-file] {
-  /* Pierre 1.2 mixes these override targets at 12% in light mode and 20% in dark mode. */
   --diffs-bg-deletion-override: light-dark(
     color-mix(in lab, var(--diffs-bg) 33.333%, var(--diffs-deletion-base)),
     color-mix(in lab, var(--diffs-bg) 60%, var(--diffs-deletion-base))
@@ -34,10 +33,8 @@ const unsafeCSS = `
   --diffs-bg-addition-number-override: var(--diffs-bg-addition-override);
   --diffs-selection-base: var(--v2-background-bg-accent);
   --diffs-selection-number-fg: var(--v2-text-text-accent);
-  /* Line numbers are read, so they use muted text rather than a faint mix of the code colour. */
   --diffs-fg-number-override: var(--v2-text-text-muted);
   --diffs-comment-bg: rgb(from var(--v2-background-bg-accent) r g b / 0.06);
-  /* Use explicit alpha instead of color-mix(..., transparent) to avoid Safari's non-premultiplied interpolation bugs. */
   --diffs-bg-selection: var(--diffs-bg-selection-override, rgb(from var(--diffs-selection-base) r g b / 0.2));
   --diffs-bg-selection-number: var(--diffs-bg-selection-number-override, var(--diffs-bg-selection));
   --diffs-bg-selection-text: rgb(from var(--diffs-selection-base) r g b / 0.2);
@@ -139,12 +136,6 @@ const unsafeCSS = `
   color: var(--diffs-selection-number-fg);
 }
 
-/*
- * Lines revealed from a file reference in a reply: a gutter accent, plus a highlight when first marked.
- * The stronger tint wipes in from the left (a cover in the editor background slides off to the right)
- * over the first third (about the short duration), then settles to the steady selected-line tint; the whole
- * runs short + long on the standard curve. Reduced motion shows the end state.
- */
 [data-file] [data-column-number][data-file-reference] {
   box-shadow: inset 2px 0 0 var(--v2-text-text-accent);
 }
@@ -208,7 +199,6 @@ const unsafeCSS = `
   }
 }
 
-/* The deletion word-diff emphasis is stronger than additions; soften it while selected so the selection highlight reads consistently. */
 [data-diff] [data-line][data-line-type='change-deletion'][data-selected-line] {
   --diffs-bg-deletion-emphasis: light-dark(
     rgb(from var(--diffs-deletion-base) r g b / 0.07),

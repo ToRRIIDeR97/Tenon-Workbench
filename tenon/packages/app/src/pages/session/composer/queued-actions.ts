@@ -1,8 +1,6 @@
 import { createStore } from "solid-js/store"
 import { QueuedActionsUnsupportedError } from "@/utils/server-compat"
 
-// Pending and support state for the follow-up dock's Remove and Send now actions. One action runs at a
-// time. The server's withdrawn or steered event, not this state, drops the item from the dock.
 export function createQueuedActions(input: {
   remove: (messageID: string) => Promise<void>
   send: (messageID: string) => Promise<void>

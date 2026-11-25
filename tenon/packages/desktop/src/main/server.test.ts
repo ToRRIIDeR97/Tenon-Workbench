@@ -1,6 +1,5 @@
 import { describe, expect, mock, test } from "bun:test"
 
-// Mocks are process-wide in bun, so this keeps the exports other test files' Electron mocks provide.
 mock.module("electron", () => ({
   default: {},
   net: {},

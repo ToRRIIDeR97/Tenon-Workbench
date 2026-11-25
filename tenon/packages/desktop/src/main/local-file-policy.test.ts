@@ -14,8 +14,6 @@ test("reveals Windows executables and shell launchers instead of opening them", 
     "C:\\x\\a.scr",
   ])
     expect(localFileAction(name, file, "win32", ".COM;.EXE;.BAT;.CMD")).toBe("reveal")
-  // Without PATHEXT the Windows defaults apply. An empty value stands for "unset": `undefined` would take the
-  // parameter's default, this machine's own PATHEXT.
   expect(localFileAction("C:\\x\\script.ps1", file, "win32", "")).toBe("reveal")
   expect(localFileAction("C:\\x\\notes.md", file, "win32", ".EXE")).toBe("open")
 })
@@ -34,7 +32,6 @@ test("reveals the rest of the Windows launchers and any alternate data stream", 
     "C:\\x\\notes.md:hidden",
   ])
     expect(localFileAction(name, file, "win32", ".EXE")).toBe("reveal")
-  // The drive's colon is not part of the file name.
   expect(localFileAction("C:\\x\\report.pdf", file, "win32", ".EXE")).toBe("open")
 })
 
@@ -103,7 +100,6 @@ test("only the applications Open in offers may open a folder", () => {
   }
   expect(isOpenWithApp("python3", "darwin")).toBe(false)
   expect(isOpenWithApp("powershell", "darwin")).toBe(false)
-  // Only the exact name reaches the PowerShell launch.
   for (const app of ["PowerShell", "pwsh", "powershell.exe"]) expect(isOpenWithApp(app, "win32")).toBe(false)
   expect(isOpenWithApp("code", "freebsd")).toBe(false)
 })
@@ -114,7 +110,6 @@ test("reveals .jar on every platform, .py on macOS and the newer Windows package
   expect(localFileAction("/tmp/tool.jar", file, "linux")).toBe("reveal")
   expect(localFileAction("/tmp/script.py", file, "darwin")).toBe("reveal")
   expect(localFileAction("/tmp/script.py", file, "linux")).toBe("open")
-  // A project folder named like a launcher still opens off Windows; bundles such as .app stay revealed.
   const folder = { isDirectory: true, mode: 0o755 }
   expect(localFileAction("/work/discord.py", folder, "darwin")).toBe("open")
   expect(localFileAction("/work/x.jar", folder, "darwin")).toBe("open")
@@ -141,7 +136,6 @@ test("Open in PowerShell starts it in the folder through cmd start and never put
     expect(launch.args.some((arg) => arg.includes(name) || arg.includes("C:\\work"))).toBe(false)
     expect(launch.options).toEqual({ cwd: folder, windowsHide: true })
   }
-  // Never a bare `cmd` found through PATH.
   expect(() => openWithLaunch("powershell", "C:\\work", powershell, "win32", "")).toThrow()
 })
 

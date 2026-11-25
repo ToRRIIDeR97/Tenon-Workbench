@@ -99,8 +99,6 @@ export function adaptLegacyServerEvent(
     data: event.properties,
     location: { directory },
   } as OpenCodeEvent
-  // Question and permission requests from the V2 services (harness `ask_user` and approvals among them) keep their
-  // V2 names on this stream; the docks and stores read the V1 names, so without this they only show after a reload.
   if (event.type.startsWith("question.v2.") || event.type.startsWith("permission.v2.")) return adaptServerEvent(current)
   if (!event.type.startsWith("session.")) return event as ServerEvent
   return { ...event, current } as ServerEvent
@@ -137,8 +135,6 @@ function queuedSessionID(event: QueuedServerEvent) {
 
 export function coalesceServerEvents(events: QueuedServerEvent[]) {
   const output: QueuedServerEvent[] = []
-  // Where each session's latest delta sits. Sessions don't affect each other, so a session's deltas merge
-  // across another's, but never across one of its own other events, or one that isn't tied to a session.
   const latest = new Map<string, number>()
   events.forEach((event) => {
     const sessionID = queuedSessionID(event)
@@ -238,14 +234,11 @@ function currentDeltaFragment(event: CurrentDelta) {
 const RECONNECT_BASE_MS = 250
 const RECONNECT_MAX_MS = 20_000
 
-// Exponential backoff with jitter: the window doubles per consecutive failure up to the cap, and the
-// delay falls in its upper half so many clients do not reconnect in lockstep.
 export function reconnectDelay(failures: number, random = Math.random) {
   const ceiling = Math.min(RECONNECT_MAX_MS, RECONNECT_BASE_MS * 2 ** failures)
   return Math.round(ceiling / 2 + (random() * ceiling) / 2)
 }
 
-// A timer that `interrupt()` ends early, so stopping the stream never waits out a long backoff.
 export function createInterruptibleWait() {
   let wake: (() => void) | undefined
   return {
@@ -331,8 +324,6 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
 
   let queue: Queued[] = []
   let buffer: Queued[] = []
-  // The pending flush. `soon` keeps it running while the window is hidden, so live events are applied as they
-  // arrive instead of piling up behind throttled timers and landing all at once when the window comes back.
   let cancelFlush: (() => void) | undefined
   let last = 0
 
@@ -385,15 +376,10 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
         }
         abort.signal.addEventListener("abort", onAbort)
         try {
-          // The app never replays `sync` copies of durable events, so ask the server not to send them.
-          // Older servers ignore the header and the loop below still skips them.
           const events = (
             await eventSdk.global.event({
               signal: attempt.signal,
               headers: { "x-tenon-skip-sync-events": "1" },
-              // End the stream on the first failure instead of letting the SDK retry it: its retry
-              // resends Last-Event-ID (the event streams are volatile and do not replay) and bypasses
-              // this loop's backoff. This loop reconnects with a fresh request.
               sseMaxRetryAttempts: 1,
             })
           ).stream
@@ -401,8 +387,6 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
           for await (const event of events) {
             streamErrorLogged = false
             if (event.payload.type === "sync") continue
-            // `server.connected` only proves the server accepted the stream; a server that accepts and
-            // then drops must keep backing off. Any later event (heartbeats included) resets it.
             if (event.payload.type !== "server.connected") failures = 0
             const directory = event.directory ?? "global"
             const payload = adaptLegacyServerEvent(event.payload, directory)
@@ -410,7 +394,6 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
 
             if (Date.now() - yielded < STREAM_YIELD_MS) continue
             yielded = Date.now()
-            // Yield to the page; a hidden page's timers are throttled, so this uses `soon` too.
             await new Promise<void>((resolve) => soon(resolve))
           }
         } catch (error) {
@@ -523,8 +506,6 @@ export function createServerSdkContext(server: ServerConnection.Any, scope: Serv
 
 export const { use: useServerSDK, provider: ServerSDKProvider } = createSimpleContext({
   name: "ServerSDK",
-  // Returns an accessor so the resolved server can change reactively (e.g. a
-  // /new-session draft retargeting its server) without re-instantiating the subtree.
   init: (props: { server?: Accessor<ServerConnection.Any | undefined> }) => {
     const global = useGlobal()
     const language = useLanguage()
@@ -555,9 +536,6 @@ function createDirSdkContext(directory: string, serverSDK: ServerSDKBase) {
 
   const emitter = createGlobalEmitter<SDKEventMap>()
 
-  // Events carry the folder as the server spells it (a Location's canonical `C:\…`), which can differ from how the
-  // app opened it (`C:/…`); compare normalized keys, as the stores do, or file-watcher and other folder events
-  // never reach this folder's listeners.
   const key = pathKey(directory)
   const unsub = serverSDK.event.listen((event) => {
     if (event.name === "global" || pathKey(event.name) !== key) return

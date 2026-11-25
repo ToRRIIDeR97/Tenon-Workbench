@@ -25,7 +25,6 @@ const agentLayer = (flags: Partial<RuntimeFlags.Info> = {}) =>
 
 const it = testEffect(agentLayer())
 
-// Helper to evaluate permission for a tool with wildcard pattern
 function evalPerm(agent: Agent.Info | undefined, permission: string): PermissionV1.Action | undefined {
   if (!agent) return undefined
   return Permission.evaluate(permission, "*", agent.permission).action
@@ -66,7 +65,6 @@ it.instance("built-in agents ask before an MCP tool call, per server", () =>
     const plan = yield* load((svc) => svc.get("plan"))
     for (const agent of [build, general, plan])
       expect(Permission.evaluate("mcp", "github", agent!.permission).action).toBe("ask")
-    // Other actions keep the wildcard allow.
     expect(evalPerm(build, "todowrite")).toBe("allow")
   }),
 )
@@ -113,9 +111,7 @@ it.instance("plan agent denies edits except .opencode/plans/*", () =>
   Effect.gen(function* () {
     const plan = yield* load((svc) => svc.get("plan"))
     expect(plan).toBeDefined()
-    // Wildcard is denied
     expect(evalPerm(plan, "edit")).toBe("deny")
-    // But specific path is allowed
     expect(Permission.evaluate("edit", ".opencode/plans/foo.md", plan!.permission).action).toBe("allow")
   }),
 )
@@ -301,9 +297,7 @@ it.instance(
     Effect.gen(function* () {
       const build = yield* load((svc) => svc.get("build"))
       expect(build).toBeDefined()
-      // Specific pattern is denied
       expect(Permission.evaluate("bash", "rm -rf *", build!.permission).action).toBe("deny")
-      // Edit still allowed
       expect(evalPerm(build, "edit")).toBe("allow")
     }),
   {
@@ -769,7 +763,6 @@ it.instance(
   () =>
     Effect.gen(function* () {
       const agent = yield* load((svc) => svc.defaultAgent())
-      // build is disabled, so it should return plan (next primary agent)
       expect(agent).toBe("plan")
     }),
   {

@@ -2,8 +2,6 @@ import { describe, expect, test } from "bun:test"
 import { Harness } from "@tenon/schema/harness"
 import { promptRoute, stripTarget } from "./command-strip-target"
 
-// #329: the Command Centre card can pick the thread it replies to, and what a send runs on is the pill's choice for
-// a new thread and the thread's own harness for a reply.
 const threads = [{ id: "ses_new" }, { id: "ses_mid" }, { id: "ses_old" }]
 
 describe("stripTarget", () => {
@@ -57,13 +55,11 @@ describe("promptRoute", () => {
       harnessID: claude,
       harness: true,
     })
-    // A built-in thread with the pill on another harness: the prompt stays built-in, on the Settings model.
     expect(promptRoute({ choice: { harnessID: claude }, defaults, thread: { harnessID: Harness.OpenCode } })).toEqual({
       harnessID: Harness.OpenCode,
       harness: false,
       model: defaults.model,
     })
-    // A built-in thread with the pill on the built-in agent: the pill's model.
     expect(promptRoute({ choice: builtInChoice, defaults, thread: { harnessID: Harness.OpenCode } })).toEqual({
       harnessID: Harness.OpenCode,
       harness: false,

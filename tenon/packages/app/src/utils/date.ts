@@ -1,13 +1,9 @@
-// Small date helpers on Intl and Date, so the app shell does not ship a date library.
-
-/** Whether two timestamps fall on the same local calendar day. */
 export function sameLocalDay(a: number | Date, b: number | Date) {
   const x = new Date(a)
   const y = new Date(b)
   return x.getFullYear() === y.getFullYear() && x.getMonth() === y.getMonth() && x.getDate() === y.getDate()
 }
 
-/** The same local time one day earlier. */
 export function previousLocalDay(value: number | Date) {
   const date = new Date(value)
   date.setDate(date.getDate() - 1)
@@ -24,7 +20,6 @@ const relativeUnits: ReadonlyArray<[Intl.RelativeTimeFormatUnit, number]> = [
   ["second", 1000],
 ]
 
-/** "3 days ago" / "in 2 hours", in the largest whole unit. */
 export function formatRelativeTime(value: number, now: number, locale: string) {
   const diff = value - now
   const format = new Intl.RelativeTimeFormat(locale, { numeric: "always" })
@@ -35,7 +30,6 @@ export function formatRelativeTime(value: number, now: number, locale: string) {
   return format.format(0, "second")
 }
 
-/** Medium date and time, such as "Aug 31, 2026, 4:18 PM". Returns undefined for an unparseable value. */
 export function formatDateTimeMedium(value: number | string, locale: string) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return undefined
@@ -48,13 +42,11 @@ export function formatDateTimeMedium(value: number | string, locale: string) {
   }).format(date)
 }
 
-/** Milliseconds for an ISO date or date-time, or NaN. Date-only strings are read as local midnight. */
 export function parseISODate(iso: string | undefined) {
   if (!iso) return Number.NaN
   return new Date(/^\d{4}-\d{2}-\d{2}$/.test(iso) ? `${iso}T00:00:00` : iso).getTime()
 }
 
-/** Whether an ISO date (such as a model release date) is within `months` 30-day months of `now`. */
 export function withinMonths(iso: string | undefined, months: number, now: number) {
   const time = parseISODate(iso)
   if (Number.isNaN(time)) return false

@@ -28,7 +28,6 @@ export function response<A, E, R>(data: Effect.Effect<A, E, R>) {
 
 function ref(request: HttpServerRequest.HttpServerRequest): Location.Ref {
   const query = new URL(request.url, "http://localhost").searchParams
-  // x-tenon-* first; x-opencode-* are the OpenCode protocol names clients still send.
   const workspaceID =
     query.get("location[workspace]") || request.headers["x-tenon-workspace"] || request.headers["x-opencode-workspace"]
   const header = request.headers["x-tenon-directory"] || request.headers["x-opencode-directory"]

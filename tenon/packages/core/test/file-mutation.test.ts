@@ -338,7 +338,6 @@ describe("FileMutation", () => {
   it.live("refuses to replace a read-only target", () =>
     withTmp((directory) =>
       Effect.gen(function* () {
-        // Root bypasses file modes, so only the access-check test below applies there.
         if (process.platform === "win32" || process.getuid?.() === 0) return
         const targetPath = path.join(directory, "locked.txt")
         yield* Effect.promise(() => fs.writeFile(targetPath, "locked"))
@@ -534,7 +533,6 @@ describe("FileMutation", () => {
           const first = yield* files.write({ target: firstPlan, content: "first" }).pipe(Effect.forkChild)
           yield* Deferred.await(firstStarted)
           const second = yield* files.write({ target: secondPlan, content: "second" }).pipe(Effect.forkChild)
-          // The second write completes (temp write and rename) while the first is still held.
           yield* Fiber.join(second)
           expect(yield* Effect.promise(() => fs.readFile(secondPath, "utf8"))).toBe("second")
 

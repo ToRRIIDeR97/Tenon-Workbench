@@ -20,23 +20,16 @@ import { AllArtifactsBoard } from "@/features/artifacts/artifacts-view"
 
 export type CommandView = "board" | "waiting" | "workflows"
 
-/** The Mission panel's width beside a Command Centre thread, in px. */
 export const MISSION_PANEL_WIDTH = 380
 
-/** Whether the Mission panel shows beside a Command Centre thread; kept across threads and restarts. */
 export function createMissionPanelPref() {
   return persisted(Persist.global("command.mission-panel"), createStore({ open: true }))
 }
 
-/**
- * The Command Centre's views and Routines, the same on its page and in its threads: Mission control is the thread
- * view with the board beside it, Waiting on you and Workflows are the page's own views.
- */
 export function CommandViews(props: {
   value: CommandView
   onChange: (view: CommandView) => void
   waiting: number
-  /** The page shows Routines beside the views; a thread's narrower header leaves it to the page. */
   routines?: boolean
 }) {
   const language = useLanguage()
@@ -70,10 +63,6 @@ export function CommandViews(props: {
   )
 }
 
-/**
- * In a Command Centre thread, the title row reads as the Command Centre page: its name, a menu of its threads
- * (the sidebar stays the workspace's) and New thread.
- */
 export function CommandThreadTitle(props: { sessionID: string }) {
   const language = useLanguage()
   const navigate = useNavigate()
@@ -139,7 +128,6 @@ export function CommandThreadTitle(props: { sessionID: string }) {
   )
 }
 
-/** A Command Centre thread's header actions: the page's views (Mission control is this one) and the Mission panel. */
 export function CommandThreadActions(props: { missionOpen: boolean; onMissionToggle: () => void }) {
   const language = useLanguage()
   const navigate = useNavigate()
@@ -174,7 +162,6 @@ export function CommandThreadActions(props: { missionOpen: boolean; onMissionTog
   )
 }
 
-/** The Mission board beside a Command Centre thread: every Project's threads by state, as on Mission control. */
 export function CommandMissionPanel() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -182,7 +169,6 @@ export function CommandMissionPanel() {
   const language = useLanguage()
   const ctrl = useSidebarController()
   const board = createMissionThreads(ctrl)
-  // Board: every Project's threads. Files: every Project's pinned files, to review and send notes on from here.
   const [view, setView] = createStore({ files: false })
   return (
     <aside

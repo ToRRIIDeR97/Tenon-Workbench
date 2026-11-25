@@ -18,7 +18,6 @@ export function checkAppExists(appName: string) {
 
 export function resolveAppPath(appName: string) {
   if (process.platform === "win32") return resolveWindowsAppPath(appName)
-  // Callers run the result directly, so Linux resolves the command to its absolute path too.
   if (process.platform === "linux") return resolveLinuxAppPath(appName)
   return appName
 }
@@ -131,7 +130,6 @@ async function resolveWindowsAppPath(appName: string): Promise<string | null> {
               .filter((value: string) => /[a-z0-9]/i.test(value))
               .map((value: string) => value.toLowerCase())
               .join("")
-            // Exact stem only: a loose match could launch an unrelated executable near the hit.
             if (name === key) return candidate
           }
         } catch {
@@ -141,6 +139,5 @@ async function resolveWindowsAppPath(appName: string): Promise<string | null> {
     }
   }
 
-  // An unresolved .cmd/.bat can't be run with execFile, and nothing better was found.
   return null
 }

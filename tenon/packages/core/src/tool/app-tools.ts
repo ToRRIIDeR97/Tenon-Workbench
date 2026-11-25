@@ -10,24 +10,16 @@ import { ToolRegistry } from "./registry"
 import { Tool } from "./tool"
 import { Tools } from "./tools"
 
-/** Permission action asked before an app tool changes Tenon data (notes, timeline, log, calendar, tasks). */
 export const WRITE_PERMISSION = "tenon_write"
 
 const Input = Schema.Record(Schema.String, Schema.Unknown)
 const Output = Schema.Struct({ output: Schema.String })
 
-/**
- * The in-process loop gets the same Tenon app tools that external harnesses reach over the `tenon` MCP
- * server. They are registered when a folder's services start, from the installed provider's catalog;
- * each call is still routed through `HarnessAppTools.call`, which applies the caller's own tool list
- * (Project scoping lives in the provider). Writes ask permission `tenon_write`; reads do not.
- */
 export const layer = Layer.effectDiscard(
   Effect.gen(function* () {
     const tools = yield* Tools.Service
     const permission = yield* PermissionV2.Service
     const location = yield* Location.Service
-    // Some tools exist only in some folders (the Command Centre's), so the catalog is per folder.
     const catalog = HarnessAppTools.catalog(location.directory)
     if (catalog.length === 0) return
 

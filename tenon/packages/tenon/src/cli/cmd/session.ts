@@ -20,7 +20,6 @@ function pagerCmd(): string[] {
     return ["less", ...lessOptions]
   }
 
-  // user could have less installed via other options
   const lessOnPath = which("less")
   if (lessOnPath) {
     if (Filesystem.stat(lessOnPath)?.size) return [lessOnPath, ...lessOptions]
@@ -37,7 +36,6 @@ function pagerCmd(): string[] {
     if (Filesystem.stat(less)?.size) return [less, ...lessOptions]
   }
 
-  // Fall back to Windows built-in more (via cmd.exe)
   return ["cmd", "/c", "more"]
 }
 

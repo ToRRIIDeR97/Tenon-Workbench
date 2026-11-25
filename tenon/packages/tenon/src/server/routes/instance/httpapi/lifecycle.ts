@@ -10,9 +10,6 @@ type MarkedInstance = {
   bridge: EffectBridge.Shape
 }
 
-// Disposal is requested by an endpoint handler, but must run from the outer
-// server middleware after the response has been produced. The original Request
-// object is the stable handoff key between those two phases.
 const disposeAfterResponse = new WeakMap<object, MarkedInstance>()
 
 const mark = (ctx: InstanceContext) =>
@@ -25,7 +22,6 @@ export const markInstanceForDisposal = (ctx: InstanceContext) =>
     const marked = yield* mark(ctx)
     return yield* HttpEffect.appendPreResponseHandler((request, response) =>
       Effect.sync(() => {
-        // The response is sent before disposeMiddleware performs the teardown.
         disposeAfterResponse.set(request.source, marked)
         return response
       }),

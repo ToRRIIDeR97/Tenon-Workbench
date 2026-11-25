@@ -101,12 +101,10 @@ export const SessionQuestionDock: Component<{ request: QuestionRequest; onSubmit
 
   let root: HTMLDivElement | undefined
   let textRef: HTMLDivElement | undefined
-  // A signal: each question mounts its own options list (see the keyed body below), and it is measured again.
   const [optionsRef, setOptionsRef] = createSignal<HTMLDivElement>()
   let customRef: HTMLButtonElement | undefined
   let optsRef: HTMLButtonElement[] = []
   let replied = false
-  // Whether a question has been shown yet: only later steps animate in.
   let stepped = false
   let focusFrame: number | undefined
 
@@ -121,7 +119,6 @@ export const SessionQuestionDock: Component<{ request: QuestionRequest; onSubmit
     const n = Math.min(store.tab + 1, total())
     return language.t("session.question.progress", { current: n, total: total() })
   })
-  // External harnesses ask through Tenon's ask_user tool; name the one asking. The built-in loop needs no label.
   const asker = createMemo(() => {
     const id = (sync().session.get(props.request.sessionID) as HarnessSession | undefined)?.harnessInstanceID
     const key =
@@ -141,12 +138,8 @@ export const SessionQuestionDock: Component<{ request: QuestionRequest; onSubmit
   const collapse = useSpring(() => (store.minimized ? 1 : 0), { visualDuration: 0.3, bounce: 0 })
   const hidden = createMemo(() => Math.max(0, Math.min(1, collapse())))
   const optionsOff = createMemo(() => hidden() > 0.98)
-  // Minimizing clamps the question text to three lines; its height eases there (easeHeight below).
   const clamped = () => store.minimized
 
-  // Next/Back and minimize change the dock's and the question text's height at once; each change plays one
-  // height animation from the old height (read before the DOM updates) to the new one. Growing is medium +
-  // emphasized-decelerate, shrinking short + emphasized-accelerate; reduced motion keeps the jump.
   const heights = { dock: 0, text: 0 }
   const easeHeight = (el: HTMLElement | undefined, from: number) => {
     if (!el || !from || prefersReducedMotion()) return
@@ -164,7 +157,6 @@ export const SessionQuestionDock: Component<{ request: QuestionRequest; onSubmit
       { duration: motionDuration(grow ? "medium" : "short"), easing: easing || "ease" },
     )
   }
-  // (`on` is taken by the custom-answer memo below, so these compare against the previous value themselves.)
   createComputed<number | undefined>((last) => {
     const tab = store.tab
     if (last !== undefined && last !== tab) heights.dock = root?.getBoundingClientRect().height ?? 0
@@ -244,11 +236,9 @@ export const SessionQuestionDock: Component<{ request: QuestionRequest; onSubmit
     setStore("focus", next)
     if (store.editing) return
     if (focusFrame !== undefined) cancelAnimationFrame(focusFrame)
-    // After Next or Back the new question is attached once the old one has faded out, so wait for it.
     const attempt = (tries: number) => {
       focusFrame = undefined
       const el = next === options().length ? customRef : optsRef[next]
-      // preventScroll: inside an opening Reveal the content is clipped, and scrolling it into view would shift it.
       if (!el || el.isConnected || tries === 0) return el?.focus({ preventScroll: true })
       focusFrame = requestAnimationFrame(() => attempt(tries - 1))
     }
@@ -424,7 +414,6 @@ export const SessionQuestionDock: Component<{ request: QuestionRequest; onSubmit
     if (store.editing) return
     if (event.altKey || event.ctrlKey || event.metaKey) return
 
-    // 1-9 pick the matching option (the last number past the options is "type your own answer").
     if (!store.minimized && /^[1-9]$/.test(event.key) && Number(event.key) <= count()) {
       event.preventDefault()
       const index = Number(event.key) - 1
@@ -435,9 +424,6 @@ export const SessionQuestionDock: Component<{ request: QuestionRequest; onSubmit
 
     if (!(target instanceof HTMLElement)) return
 
-    // Enter confirms a single choice: it takes the focused option, then the dock moves on or submits.
-    // In a multi-select question Enter is left to the focused button, so it toggles that option like
-    // a click; Next/Submit or Ctrl/Cmd+Enter moves on.
     if (event.key === "Enter" && !event.shiftKey && !multi()) {
       if (event.repeat) return
       event.preventDefault()
@@ -629,8 +615,6 @@ export const SessionQuestionDock: Component<{ request: QuestionRequest; onSubmit
           </>
         }
       >
-        {/* Next and Back swap the body in the same frame as the counter and the footer, and the new question
-            fades and rises in (no fade-out, so the card never shows an empty body). */}
         <Show when={store.tab + 1} keyed>
           {(_) => {
             const entering = stepped
@@ -649,7 +633,6 @@ export const SessionQuestionDock: Component<{ request: QuestionRequest; onSubmit
                 >
                   {question()?.question}
                 </div>
-                {/* The hint folds on the same spring as the options; its -4px margin takes back the column gap. */}
                 <div
                   aria-hidden={store.minimized ? "true" : undefined}
                   class="-mt-1 grid"

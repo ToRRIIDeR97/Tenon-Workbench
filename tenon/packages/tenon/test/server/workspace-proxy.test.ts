@@ -33,8 +33,6 @@ function listenServer<E, R>(handler: TestHandler<E, R>) {
 
 function listenTestServer<E, R>(handler: TestHandler<E, R>) {
   return Effect.gen(function* () {
-    // Build into the current test scope so the listener stays alive until the
-    // test finishes. Using Effect.provide here would release it immediately.
     const context = yield* Layer.build(NodeHttpServer.layer(Http.createServer, { host: "127.0.0.1", port: 0 }))
     const server = Context.get(context, HttpServer.HttpServer)
     yield* server.serve(HttpServerRequest.HttpServerRequest.use(handler))
@@ -46,9 +44,6 @@ function echoWebSocket(request: HttpServerRequest.HttpServerRequest) {
   return Effect.gen(function* () {
     const socket = yield* Effect.orDie(request.upgrade)
     const { write } = yield* socket.writer
-    // The upstream announces the negotiated protocol, then echoes every
-    // received frame. The assertions use those messages to prove proxy flow.
-    // Binary frames are echoed as their byte values, so a text frame sent as bytes shows up.
     yield* runRaw(
       socket,
       (message) => write(typeof message === "string" ? `echo:${message}` : `echo-binary:${[...message].join(",")}`),
@@ -165,8 +160,6 @@ describe("HttpApi workspace proxy", () => {
     Effect.gen(function* () {
       const upstreamUrl = yield* listenTestServer(echoWebSocket)
 
-      // Client -> proxy listener -> HttpApiProxy.websocket -> upstream listener.
-      // The client never connects to upstream directly.
       const proxyUrl = yield* listenServer((request) => HttpApiProxy.websocket(request, `${upstreamUrl}/echo`))
 
       const socket = yield* Socket.makeWebSocket(`${proxyUrl.replace(/^http/, "ws")}/proxy`, {

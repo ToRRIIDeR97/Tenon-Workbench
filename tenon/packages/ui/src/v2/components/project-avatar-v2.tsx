@@ -26,7 +26,6 @@ export const PROJECT_AVATAR_VARIANTS = [
 
 export type ProjectAvatarVariant = (typeof PROJECT_AVATAR_VARIANTS)[number]
 
-// "outline" is a neutral, muted style (e.g. recently closed projects) and is not part of the color rotation.
 export type ProjectAvatarStyle = ProjectAvatarVariant | "outline"
 
 export interface ProjectAvatarProps extends ComponentProps<"div"> {

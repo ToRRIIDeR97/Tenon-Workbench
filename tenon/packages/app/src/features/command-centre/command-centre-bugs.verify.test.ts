@@ -1,4 +1,3 @@
-// Verification edge cases for AC-1 and AC-4 (written before implementation, frozen with the acceptance tests).
 import { describe, expect, test } from "bun:test"
 import { threadBack } from "./thread-back"
 import { crewGroups, type CrewAgent } from "./hub-model"

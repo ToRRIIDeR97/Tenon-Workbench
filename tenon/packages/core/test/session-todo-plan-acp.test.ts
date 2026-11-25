@@ -1,9 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { SessionTodo } from "@tenon/core/session/todo"
 
-// Acceptance test for implementations/harness-ux-batch-2 (AC-7): OpenCode over ACP sends its todowrite as a
-// tool call of kind "other" (named acp_other here) with the tool name in the input's title.
-
 const todos = [
   { content: "Add the routes", status: "in_progress", priority: "high" },
   { content: "Write the tests", status: "pending", priority: "medium" },

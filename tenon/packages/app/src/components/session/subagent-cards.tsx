@@ -6,13 +6,8 @@ import { subagentBar, type SubagentContext } from "./subagent-context"
 
 export type SubagentCardRow = SubagentContext & { title: string; agent?: string }
 
-/**
- * The Context tab's Subagents: one card per subagent with its own context (tokens used of its window), its agent,
- * turn and how it ended. Selecting a card opens what it used, with Open in Agents and Show in thread.
- */
 export function SubagentCards(props: {
   rows: readonly SubagentCardRow[]
-  /** Opens the subagent in the side panel's Agents tab, where the layout has one. */
   onOpen?: (row: SubagentCardRow) => void
   onReveal: (turnID: string) => void
 }) {

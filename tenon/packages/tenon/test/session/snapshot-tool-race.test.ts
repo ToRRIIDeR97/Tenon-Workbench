@@ -1,16 +1,3 @@
-/**
- * Reproducer for snapshot race condition with instant tool execution.
- *
- * When the mock LLM returns a tool call response instantly, the AI SDK
- * processes the tool call and executes the tool (e.g. apply_patch) before
- * the processor's start-step handler can capture a pre-tool snapshot.
- * Both the "before" and "after" snapshots end up with the same git tree
- * hash, so computeDiff returns empty and the session summary shows 0 files.
- *
- * This is a real bug: the snapshot system assumes it can capture state
- * before tools run by hooking into start-step, but the AI SDK executes
- * tools internally during multi-step processing before emitting events.
- */
 import { expect } from "bun:test"
 import { Effect, Layer } from "effect"
 import { LayerNode } from "@tenon/core/effect/layer-node"
@@ -136,15 +123,12 @@ it.live("tool execution produces non-empty session diff (snapshot race)", () =>
         permission: [{ permission: "*", pattern: "*", action: "allow" }],
       })
 
-      // Use bash tool (always registered) to create a file. The path is relative to the session directory because
-      // an unquoted Windows path loses its backslashes when the configured shell is Git Bash.
       const command = `echo 'snapshot race test content' > race-test.txt`
       yield* llm.toolMatch((hit) => JSON.stringify(hit.body).includes("create the file"), "bash", {
         command,
       })
       yield* llm.textMatch((hit) => JSON.stringify(hit.body).includes("bash"), "done")
 
-      // Seed user message
       yield* prompt.prompt({
         sessionID: session.id,
         agent: "build",
@@ -152,11 +136,9 @@ it.live("tool execution produces non-empty session diff (snapshot race)", () =>
         parts: [{ type: "text", text: "create the file" }],
       })
 
-      // Run the agent loop
       const result = yield* prompt.loop({ sessionID: session.id })
       expect(result.info.role).toBe("assistant")
 
-      // Verify the file was created
       const filePath = path.join(dir, "race-test.txt")
       const fileExists = yield* Effect.promise(() =>
         fs
@@ -166,7 +148,6 @@ it.live("tool execution produces non-empty session diff (snapshot race)", () =>
       )
       expect(fileExists).toBe(true)
 
-      // Verify the tool call completed (in the first assistant message)
       const allMsgs = yield* MessageV2.filterCompactedEffect(session.id)
       const user = allMsgs.find(
         (msg): msg is SessionV1.WithParts & { info: SessionV1.User } => msg.info.role === "user",
@@ -177,7 +158,6 @@ it.live("tool execution produces non-empty session diff (snapshot race)", () =>
       expect(tool?.state.status).toBe("completed")
       if (!user) throw new Error("Expected user message")
 
-      // Poll for the turn diff — summarize() is fire-and-forget.
       let diff: Array<{ file?: string }> = []
       for (let i = 0; i < 50; i++) {
         diff = yield* summary.diff({ sessionID: session.id, messageID: user.info.id })

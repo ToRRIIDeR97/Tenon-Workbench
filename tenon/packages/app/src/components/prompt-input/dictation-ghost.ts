@@ -1,10 +1,3 @@
-/**
- * Dictation writes in place (#328 follow-up, variant E): while recording, the words heard so far show as faint text at
- * the composer's caret, in a copy of the editor laid over it. The editor itself stays untouched until the final
- * transcript is inserted, so nothing a recording shows can reach the draft by accident.
- */
-
-/** Recording time as `m:ss`. */
 export function elapsedLabel(ms: number) {
   const seconds = Math.max(0, Math.floor(ms / 1000))
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`
@@ -12,7 +5,6 @@ export function elapsedLabel(ms: number) {
 
 type TreeNode = { parentNode: TreeNode | null; childNodes: ArrayLike<TreeNode> }
 
-/** Child indices from `root` down to `node`, or undefined when `node` isn't inside `root`. */
 export function nodePath(root: TreeNode, node: TreeNode) {
   const path: number[] = []
   let current: TreeNode | null = node
@@ -25,34 +17,24 @@ export function nodePath(root: TreeNode, node: TreeNode) {
   return current === root ? path : undefined
 }
 
-/** The node at `path` under `root` (the same place in a copy), or undefined when the copy differs. */
 export function nodeAt<T extends TreeNode>(root: T, path: number[]): T | undefined {
   let current: TreeNode | undefined = root
   for (const index of path) current = current?.childNodes[index]
   return current as T | undefined
 }
 
-/** How the ghost text changes as the caption grows: append the new tail, or rewrite when earlier words changed. */
 export function ghostUpdate(shown: string, next: string) {
   if (next.startsWith(shown)) return { append: next.slice(shown.length) }
   return { replace: next }
 }
 
 export type GhostLayer = {
-  /** Shows `text` (the merged caption) as the words in progress. */
   write(text: string): void
-  /** Stops the caret while the final pass runs. */
   pause(): void
-  /** Shows the final transcript firming up from faint to ordinary text. */
   settle(text: string): void
   remove(): void
 }
 
-/**
- * Lays a copy of the composer's editor over it with the words in progress at the caret. The thread composer's editor
- * is contenteditable: its copy keeps the draft's mentions and styling. A textarea composer gets a mirror with the
- * textarea's metrics.
- */
 export function ghostLayer(box: HTMLElement): GhostLayer | undefined {
   const editor = box.querySelector<HTMLElement>('[data-component="prompt-input"]')
   const field = editor ? undefined : box.querySelector<HTMLTextAreaElement>("textarea")
@@ -72,7 +54,6 @@ export function ghostLayer(box: HTMLElement): GhostLayer | undefined {
     layer.style.position = "absolute"
     layer.style.inset = "0"
     layer.style.pointerEvents = "none"
-    // The caret saved by the composer, or the end of the draft.
     const selection = window.getSelection()
     const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : undefined
     const path = range && editor.contains(range.startContainer) ? nodePath(editor, range.startContainer) : undefined
@@ -130,13 +111,11 @@ export function ghostLayer(box: HTMLElement): GhostLayer | undefined {
   } else return undefined
 
   let shown = ""
-  // Keeps the newest words in view when the draft is taller than the editor.
   const reveal = () => {
     const bottom = caret.offsetTop + caret.offsetHeight
     if (bottom > layer.scrollTop + layer.clientHeight) layer.scrollTop = bottom - layer.clientHeight
   }
   const words = (text: string) => {
-    // Each word (with the space before it) fades in on its own.
     for (const word of text.split(/(?=\s)/)) {
       if (!word) continue
       const span = document.createElement("span")
@@ -147,7 +126,6 @@ export function ghostLayer(box: HTMLElement): GhostLayer | undefined {
   }
   return {
     write(text) {
-      // Spaced from the text before the caret, as the final insert will be.
       const before = ghost.previousSibling?.textContent ?? ""
       const spaced = text && before && !/\s$/.test(before) ? ` ${text}` : text
       const change = ghostUpdate(shown, spaced)

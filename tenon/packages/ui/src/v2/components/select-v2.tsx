@@ -46,14 +46,12 @@ export type SelectV2Props<T> = Omit<
 > & {
   placeholder?: string
   options: T[]
-  /** Selected option (single selection). */
   current?: T
   value?: (x: T) => string
   label?: (x: T) => string
   groupBy?: (x: T) => string
   onSelect?: (value: T | null) => void
   onHighlight?: (value: T | undefined) => void | (() => void)
-  /** `base` / `large` match text-input-v2; `inline` is a compact settings-row trigger. */
   appearance?: "base" | "large" | "inline"
   invalid?: boolean
   numeric?: boolean

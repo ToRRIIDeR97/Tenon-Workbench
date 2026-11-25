@@ -5,9 +5,6 @@ import { getSessionContext } from "@/components/session/session-context-metrics"
 import { listHarnessesRemembered } from "@/utils/server"
 import { createRememberedModelWindow, REMEMBERED_MODELS_MS, withRememberedModels } from "./harness-memory"
 
-// Verification tests for implementations/harness-ux-batch-2, panel round 3: remembered models expire, harness checks
-// are shared and reused, and a context figure above a model-derived window is not shown.
-
 const instance = (id: string, models: string[]) =>
   ({
     id: Harness.InstanceID.make(id),

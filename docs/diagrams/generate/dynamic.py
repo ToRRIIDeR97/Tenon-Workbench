@@ -1,4 +1,3 @@
-# Regenerate from the repository root: python3 docs/diagrams/generate/dynamic.py docs/diagrams
 import sys
 from svg import SVG
 
@@ -16,7 +15,6 @@ def states_session():
             "in the agent runtime.")
     s.heading("State machines: run execution", "UML 2.5.1 state machine diagrams · core/src/session, schema/src/session-message.ts")
     E = s.edge
-    # A coordinator
     s.zone(20, 60, 500, 280, "Run coordinator entry · run-coordinator.ts")
     s.start(50, 140)
     st(s, 80, 123, 120, "Absent")
@@ -32,7 +30,6 @@ def states_session():
     s.label(400, 212, "successor drain", "start")
     E([(335, 167), (335, 260)], "interrupt / pendingWake = false", at=(340, 240), lanchor="start")
     E([(310, 277), (140, 277), (140, 157)], "drain exits; waiters re-run", at=(225, 271))
-    # B input
     s.zone(540, 60, 500, 280, "Prompt input row · session/input.ts")
     s.start(570, 142)
     st(s, 600, 120, 140, "Admitted", "promoted_seq NULL")
@@ -47,7 +44,6 @@ def states_session():
     E([(945, 164), (945, 230), (850, 230), (850, 250)], "revert.committed", at=(905, 224))
     E([(875, 267), (978, 267)])
     s.text(560, 320, "delivery: steer (default) | queue · reused id with a different payload → conflict", "s")
-    # C tool
     s.zone(20, 360, 500, 260, "Tool part · ToolState")
     s.start(50, 437)
     st(s, 75, 420, 100, "pending")
@@ -60,7 +56,6 @@ def states_session():
     E([(125, 454), (125, 557), (215, 557)], "tool.failed", at=(165, 551))
     E([(265, 454), (265, 540)], "tool.failed · interrupted", at=(330, 500))
     s.text(40, 605, "input.started → pending · runner fails unsettled tools on error, interrupt and decline", "s")
-    # D step
     s.zone(540, 360, 500, 260, "Assistant step · message-updater.ts")
     s.start(570, 477)
     st(s, 610, 455, 150, "Open", "time.completed unset")
@@ -80,7 +75,6 @@ def states_platform():
             "and project status.")
     s.heading("State machines: permissions and platform", "UML 2.5.1 state machine diagrams · lifecycles are implicit unless an enum is named")
     E = s.edge
-    # A permission
     s.zone(20, 60, 500, 280, "Permission request · core/src/permission.ts (in memory)")
     s.start(45, 160)
     s.decision(100, 160)
@@ -97,7 +91,6 @@ def states_platform():
     E([(310, 200), (340, 200), (340, 245), (380, 245)], "reject · layer finalize", at=(395, 280))
     s.text(40, 310, "always: saves save[] as allow rules and grants other pending requests that now allow", "s")
     s.text(40, 326, "reject: declines other pending requests in the session; alwaysAsk ignores allow rules", "s")
-    # B sidecar
     s.zone(540, 60, 500, 280, "Server sidecar (v1) · desktop/src/main/server.ts (implicit)")
     s.start(565, 125)
     st(s, 590, 108, 110, "Starting")
@@ -116,7 +109,6 @@ def states_platform():
     s.text(560, 289, "Failed before Ready: renderer shows the local-server error; no retry.", "s")
     s.text(560, 305, "Exit after Ready: restart after 1–30 s backoff, ≤ 5 per 10 min,", "s")
     s.text(560, 321, "same port and password. Health timeout (30 s) is only logged.", "s")
-    # C outbox
     s.zone(20, 360, 500, 260, "Google write outbox operation · google-calendar.ts")
     s.start(45, 458)
     st(s, 70, 440, 100, "pending")
@@ -131,7 +123,6 @@ def states_platform():
     E([(210, 502), (210, 547), (300, 547)], "other error", at=(255, 541))
     E([(360, 564), (360, 585), (120, 585), (120, 474)], "sync() retries pending | offline", at=(240, 580))
     s.text(40, 610, "5th transient failure → failed · pruning keeps pending | offline", "s")
-    # D project status
     s.zone(540, 360, 500, 260, "Project status · tenon/src/project/brain.ts")
     s.start(565, 437)
     st(s, 590, 420, 110, "active")

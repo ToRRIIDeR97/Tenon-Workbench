@@ -27,7 +27,6 @@ for (const channel of channels) {
     expect(config.linux?.desktop?.entry?.StartupWMClass).toBe(channel.appId)
     expect(config.deb?.fpm).toContainEqual(expect.stringContaining(`/usr/share/metainfo/${channel.appId}.metainfo.xml`))
     expect(config.rpm?.fpm).toContainEqual(expect.stringContaining(`/usr/share/metainfo/${channel.appId}.metainfo.xml`))
-    // Nothing may reuse upstream OpenCode Desktop's identity.
     expect(config.extraMetadata?.name).toBe(channel.name)
     expect(config.deb?.packageName).toBe(channel.name)
     expect(config.rpm?.packageName).toBe(channel.name)
@@ -60,6 +59,5 @@ test("keeps exactly the Chromium languages an app locale can detect", async () =
     expect([locale, detectDesktopNativeLocale([locale])]).not.toEqual([locale, "en"])
   }
   for (const locale of trimmed) expect(detectDesktopNativeLocale([locale])).toBe("en")
-  // macOS names the same packs `pt_BR.lproj`; a hyphen would silently delete them.
   expect(config.mac?.electronLanguages).toEqual(expect.arrayContaining(["en", "pt_BR", "zh_TW", "es_419"]))
 })

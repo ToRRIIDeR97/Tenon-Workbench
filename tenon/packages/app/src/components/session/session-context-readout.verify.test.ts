@@ -2,8 +2,6 @@ import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import path from "node:path"
 
-// Verification for #310 (plan author's check): every surface that shows context reads `contextReadout`, and none
-// formats `usage` or `limit` on its own any more.
 const read = (file: string) => readFileSync(path.join(import.meta.dir, file), "utf8")
 
 describe("context surfaces read one readout", () => {

@@ -1,11 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process"
 import { createInterface } from "node:readline"
 
-// Supervises the tenon-dictation engine (tenon/packages/dictation) over its JSON-lines stdio
-// protocol. The engine is spawned on the first start, respawned on the next start after it exits
-// (like superviseSidecar, with a restart limit), and loads the active model on every spawn. It exits
-// after a quiet spell so a loaded model doesn't stay in memory for the rest of the app session.
-
 export type DictationStatus = "idle" | "starting" | "recording" | "transcribing"
 export type DictationErrorCode =
   | "engine_exited"
@@ -34,7 +29,6 @@ type EngineEvent =
   | { type: "final"; id: string; text: string }
   | { type: "error"; id?: string; code: string; message: string }
 
-/** The voice wave's bands from an engine event (#328): at most 64 numbers, each clamped to 0–1; else undefined. */
 export function dictationBands(event: unknown) {
   if (typeof event !== "object" || event === null) return undefined
   const record = event as { type?: unknown; values?: unknown }
@@ -55,10 +49,7 @@ const READY_TIMEOUT = 20_000
 const LOAD_TIMEOUT = 60_000
 const MAX_RESTARTS = 5
 const RESTART_WINDOW = 10 * 60_000
-// Samples cost about 64 KB a second in the engine, so a forgotten mic stops at about 115 MB.
 const MAX_RECORDING = 30 * 60_000
-// Generous, so only a wedged engine trips it: a slow CPU with a large model runs well under ten
-// times the length of the audio. A click on the button gives up sooner.
 const TRANSCRIBE_TIMEOUT = 2 * 60_000
 const TRANSCRIBE_TIMEOUT_FACTOR = 10
 const IDLE_TIMEOUT = 10 * 60_000
@@ -67,15 +58,10 @@ export function createDictation(input: {
   command: string
   args?: string[]
   log: (message: string, meta?: Record<string, unknown>) => void
-  /** The model file to load after each spawn; undefined starts the engine without one. */
   model?: () => string | undefined
-  /** How long a model load may take before the engine is treated as hung; tests shorten it. */
   loadTimeout?: number
-  /** The base allowance for a transcription, before the part proportional to the recording; tests shorten it. */
   transcribeTimeout?: number
-  /** How long a recording may run before it stops itself; tests shorten it. */
   maxRecording?: number
-  /** How long an unused engine stays loaded; tests shorten it. */
   idleTimeout?: number
 }) {
   const levels = new Set<(rms: number) => void>()
@@ -87,7 +73,6 @@ export function createDictation(input: {
   let engine: Engine | undefined
   let status: DictationStatus = "idle"
   let startID: string | undefined
-  // An error the engine reported for the current recording (mic denied, engine exit); stop() rejects with it.
   let recordingError: DictationError | undefined
   let nextID = 0
   let crashes: number[] = []
@@ -95,11 +80,9 @@ export function createDictation(input: {
   let recordingStarted = 0
   let limitTimer: ReturnType<typeof setTimeout> | undefined
   let idleTimer: ReturnType<typeof setTimeout> | undefined
-  // The transcript of a recording the length limit stopped, until stop() collects it.
   let limited: Promise<string> | undefined
 
   const id = () => String(++nextID)
-  // discard() marks the engine exited first, so its late exit can't touch a start that has begun since.
   const armIdle = () => {
     clearTimeout(idleTimer)
     if (!engine || status !== "idle") return
@@ -133,7 +116,6 @@ export function createDictation(input: {
       if (status === "recording" && values) bandListeners.forEach((listener) => listener(values))
       return
     }
-    // The live transcript of the recording so far; one that arrives after stop is dropped (the final follows).
     if (event.type === "partial") {
       if (status === "recording" && typeof event.text === "string") partials.forEach((listener) => listener(event.text))
       return
@@ -153,7 +135,6 @@ export function createDictation(input: {
     }
     input.log("dictation engine error", { code: event.code })
     if (event.id && event.id === startID && status === "recording") {
-      // The recording never began (no microphone, access denied): the next stop() reports why.
       recordingError = error
       status = "idle"
       clearTimeout(limitTimer)
@@ -186,7 +167,6 @@ export function createDictation(input: {
       const event = parseEvent(line)
       if (event) onEvent(event)
     })
-    // stderr carries native diagnostics; it is drained, not logged, so no audio-derived text reaches the log.
     child.stderr.resume()
     child.stdin.on("error", () => {})
     child.on("error", (error) => {
@@ -232,9 +212,6 @@ export function createDictation(input: {
     return current
   }
 
-  // An engine that never got ready or never finished a load is killed and forgotten, so the next start
-  // spawns a fresh one instead of reusing it (or answering already_recording) forever. It counts as a
-  // crash unless the person chose to stop it.
   const discard = (current: Engine, crash = true) => {
     if (current.exited) return
     current.exited = true
@@ -245,8 +222,6 @@ export function createDictation(input: {
     current.child.kill()
   }
 
-  // Ends a transcription the engine may never answer. discard() makes onExit return early, so the
-  // waiter is rejected here. The worker holds the session for the whole run, so the engine has to go.
   const abandon = (current: Engine, error: DictationError, crash: boolean) => {
     discard(current, crash)
     pending.forEach((waiter) => waiter.reject(error))
@@ -272,7 +247,6 @@ export function createDictation(input: {
     })
   }
 
-  /** Transcribes a 16 kHz PCM WAV file (an attachment's audio, #330) when no recording is running. */
   const transcribeFile = async (path: string, language?: string) => {
     if (status !== "idle")
       throw new DictationError(status === "transcribing" ? "transcribing" : "already_recording", "Dictation is busy")
@@ -293,7 +267,6 @@ export function createDictation(input: {
     })
   }
 
-  // `ready` answers a load; an error carrying the request id rejects it. No answer in time rejects it too.
   const load = (current: Engine, model: string) =>
     new Promise<void>((resolve, reject) => {
       const request = id()
@@ -314,7 +287,6 @@ export function createDictation(input: {
     })
 
   return {
-    /** `language` is the spoken language's code; without it the engine's model detects the language. */
     async start(options: { language?: string } = {}) {
       if (status !== "idle") throw new DictationError("already_recording", "Dictation is already running")
       status = "starting"
@@ -333,7 +305,6 @@ export function createDictation(input: {
       limitTimer = setTimeout(() => {
         if (status !== "recording" || recordingError) return
         const transcript = transcribe(current)
-        // The renderer may be gone, so nobody may ever collect this.
         transcript.catch(() => undefined)
         limited = transcript
         limits.forEach((listener) => listener())
@@ -349,7 +320,6 @@ export function createDictation(input: {
       const error = recordingError
       recordingError = undefined
       if (error) {
-        // A microphone that failed mid-recording leaves the engine's recorder open; release it.
         if (engine && status === "recording") send(engine, { id: id(), type: "cancel" })
         clearTimeout(limitTimer)
         status = "idle"
@@ -361,7 +331,6 @@ export function createDictation(input: {
         return Promise.reject(new DictationError("not_recording", "Dictation is not recording"))
       return transcribe(current)
     },
-    /** Drops the recording, or gives up on a transcription (stop() then rejects with `cancelled`). */
     cancel() {
       recordingError = undefined
       limited = undefined
@@ -374,7 +343,6 @@ export function createDictation(input: {
       status = "idle"
       armIdle()
     },
-    /** Loads `model` into a running engine now; a stopped engine loads it on its next spawn. */
     async reload() {
       const model = input.model?.()
       const current = engine
@@ -393,17 +361,14 @@ export function createDictation(input: {
       levels.add(listener)
       return () => void levels.delete(listener)
     },
-    /** The microphone's frequency bands (0–1 each), about 33 times a second while it records. */
     onBands(listener: (values: number[]) => void) {
       bandListeners.add(listener)
       return () => void bandListeners.delete(listener)
     },
-    /** The transcript of the recording so far, while it records; each replaces the last. */
     onPartial(listener: (text: string) => void) {
       partials.add(listener)
       return () => void partials.delete(listener)
     },
-    /** Fires when a recording reaches its length limit and stops itself; stop() then collects the transcript. */
     onLimit(listener: () => void) {
       limits.add(listener)
       return () => void limits.delete(listener)
@@ -426,7 +391,6 @@ export type Dictation = ReturnType<typeof createDictation>
 
 export type MicrophoneAccess = "granted" | "denied" | "restricted" | "not-determined" | "unknown"
 
-/** Where to send someone whose microphone access is off, per platform; undefined when nothing is needed. */
 export function dictationPermissionHelp(platform: NodeJS.Platform, state: MicrophoneAccess) {
   if (state !== "denied" && state !== "restricted") return undefined
   if (platform === "darwin")

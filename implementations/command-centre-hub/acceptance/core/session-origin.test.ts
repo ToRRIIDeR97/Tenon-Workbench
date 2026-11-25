@@ -1,4 +1,3 @@
-// Run from tenon/packages/core: bun test ../../../Implementations/command-centre-hub/acceptance/core
 import { describe, expect, test } from "bun:test"
 import { fromRow } from "../../../../tenon/packages/core/src/session/info"
 

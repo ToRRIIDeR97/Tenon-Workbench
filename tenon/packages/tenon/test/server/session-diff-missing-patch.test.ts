@@ -1,15 +1,3 @@
-/**
- * Regression test for the same bug class as #26574 (sibling of #26566 and
- * #26553). The Desktop app calls GET /session/<id>/diff; before #26574
- * the response was Schema-encoded against `Snapshot.FileDiff` with
- * `patch: Schema.String` (required), so any session whose stored
- * `summary_diffs` had a row without `patch` returned HTTP 400 and the
- * session never loaded. Legacy session-level diffs are no longer surfaced,
- * but the endpoint remains compatible and must still return successfully.
- *
- * This test inserts a session row with a missing-patch diff entry and
- * asserts that GET /session/<id>/diff returns 200 with empty data.
- */
 import { afterEach, describe, expect } from "bun:test"
 import { LayerNode } from "@tenon/core/effect/layer-node"
 import { Effect, Layer } from "effect"
@@ -47,9 +35,6 @@ describe("session diff with missing patch (#26574)", () => {
         const test = yield* TestInstance
         const session = yield* withSession({ title: "missing-patch" })
 
-        // Mimic legacy/imported on-disk shape: a diff entry with no
-        // `patch` text. Pre-fix the typed response encoder rejects
-        // this and returns 400.
         yield* Storage.Service.use((storage) =>
           storage.write(["session_diff", session.id], [{ file: "legacy.txt", additions: 1, deletions: 0 }]),
         )

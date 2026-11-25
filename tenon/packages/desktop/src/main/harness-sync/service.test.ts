@@ -30,14 +30,12 @@ test("a stable outside edit is uploaded and reaches the other harnesses", async 
 
   const created = await sync.createSyncFile(undefined)
   expect(created?.document?.revision).toBe(1)
-  // Renderer input is checked: unknown harnesses and paths are refused.
   await expect(
     sync.save({ shared: "Rules", tools: {}, sharedSkills: ["tip"], skillSources: { tip: "../x" } }, 1),
   ).rejects.toThrow()
   await sync.save({ shared: "Rules", tools: {}, sharedSkills: ["tip"], skillSources: { tip: "claude" } }, 1)
   expect(await read(codex)).toBe("tip")
 
-  // An edit is uploaded only once two checks in a row find the same content.
   const seen = new Map<string, string>()
   await writeFile(claude, "tip, improved")
   expect(await sync.testing.upload(seen)).toBe(false)
@@ -49,7 +47,6 @@ test("a stable outside edit is uploaded and reaches the other harnesses", async 
   expect(uploaded.revision).toBe(3)
   expect(uploaded.skills.tip.files["SKILL.md"]).toBe("tip, improved twice")
 
-  // The automatic apply gives the other harness the edit, and nothing is left flagged.
   const status = await sync.testing.refresh("keepOutsideEdits")
   expect(await read(codex)).toBe("tip, improved twice")
   expect(status.skills.tools.flatMap((tool) => tool.skills).every((skill) => !skill.editedOutside)).toBe(true)
@@ -57,13 +54,11 @@ test("a stable outside edit is uploaded and reaches the other harnesses", async 
   const kept = await readdir(path.join(dataDir, "backups", "library", "tip"))
   expect(await read(path.join(dataDir, "backups", "library", "tip", kept[0], "SKILL.md"))).toBe("tip")
 
-  // Sync now uploads a safe edit at once and spreads it.
   await writeFile(codex, "edited in codex")
   await sync.syncNow()
   expect((await load(drive)).document.revision).toBe(4)
   expect(await read(claude)).toBe("edited in codex")
 
-  // Copies edited differently in two harnesses are a conflict: Sync now replaces both, with backups.
   await writeFile(codex, "codex says")
   await writeFile(claude, "claude says")
   const conflict = await sync.syncNow()
@@ -72,7 +67,6 @@ test("a stable outside edit is uploaded and reaches the other harnesses", async 
   expect(await read(claude)).toBe("edited in codex")
   expect(conflict.skills.tools.flatMap((tool) => tool.skills).filter((skill) => skill.backup)).toHaveLength(2)
 
-  // A stale revision is refused; the device name is validated; disconnect forgets the file.
   await expect(sync.save({ shared: "x", tools: {}, sharedSkills: [], skillSources: {} }, 1)).rejects.toThrow(
     "changed the presets",
   )

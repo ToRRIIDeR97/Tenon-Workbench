@@ -11,8 +11,6 @@ const hop = new Set([
   "host",
 ])
 
-// Local server credentials must not reach a remote workspace target; only the
-// target's own configured headers may supply credentials.
 const credentials = ["authorization", "cookie"]
 
 function sanitize(out: Headers) {

@@ -13,8 +13,6 @@ export interface ToastV2RegionProps extends ToasterProps {}
 function ToastV2Region(props: ToastV2RegionProps) {
   const i18n = useI18n()
   const [local, rest] = splitProps(props, ["class", "className", "style", "toastOptions", "swipeDirections"])
-  // Hidden stacked toasts stay out of the tab order. solid-sonner replaces its list element whenever the
-  // toasts empty and refill, so the stable wrapper below is observed instead of the list.
   const watch = (host: HTMLElement) => {
     const sync = () => {
       host.querySelectorAll<HTMLElement>(".toast-v2").forEach((element) => {

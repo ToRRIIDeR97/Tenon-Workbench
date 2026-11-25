@@ -85,8 +85,6 @@ export const locationServices = LayerNode.group([
 export type LocationServices = LayerNode.Output<typeof locationServices>
 export type LocationError = LayerNode.Error<typeof locationServices>
 
-// Graphs that only replace nodes outside the location services share one map Layer, so the shared
-// memo map builds it once and a folder boots once (it used to boot in each of three maps).
 const sharedMaps = new Map<string, Layer.Layer<LocationServiceMap.Service>>()
 const targetIDs = new WeakMap<object, number>()
 let nextTargetID = 0
@@ -110,10 +108,6 @@ function makeLocationServiceMap(replacements: LayerNode.Replacements): Layer.Lay
     LayerMap.make(
       (ref: Location.Ref) => {
         const allReplacements = replacements.concat([[Location.node, Location.boundNode(ref)]])
-        // Apply replacements during hoist, not afterward: replacements can
-        // introduce new tagged dependencies (Location.boundNode depends on
-        // Project), and the hoist walk is the only pass that can still slice
-        // those back out.
         const location = LayerNode.hoist(locationServices, Node.tags.values.global, allReplacements)
 
         return LayerNode.compile(location.node).pipe(
@@ -132,9 +126,6 @@ function makeLocationServiceMap(replacements: LayerNode.Replacements): Layer.Lay
   )
 }
 
-// Callers pass directories spelled however they arrived (C:/a, c:\a\), and some pass
-// `workspaceID: undefined` where others leave it out; keys compare structurally, so both
-// would boot the folder again. Key the map by one spelling and one shape.
 function canonicalKeys<I, E>(map: LayerMap.LayerMap<Location.Ref, I, E>): LayerMap.LayerMap<Location.Ref, I, E> {
   const key = (ref: Location.Ref): Location.Ref => {
     const directory = AbsolutePath.make(canonicalDirectory(ref.directory))
@@ -147,6 +138,4 @@ function canonicalKeys<I, E>(map: LayerMap.LayerMap<Location.Ref, I, E>): LayerM
   })
 }
 
-// This is temporary for backwards compatibility. It is the same cached Layer the app graph builds,
-// so runtimes sharing a memo map also share the folder services.
 export const locationServiceMapLayer = buildLocationServiceMap()

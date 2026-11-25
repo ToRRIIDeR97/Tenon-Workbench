@@ -172,7 +172,6 @@
   opacity: 1;
 }
 
-/* Material 3 shape: pill fields with circular inline buttons, matching the Notes search. */
 [data-component="text-input-v2"] {
   border-radius: var(--v2-radius-full);
 }
@@ -186,7 +185,6 @@
   box-shadow: inset 0 0 0 2px var(--v2-state-fg-danger);
 }
 
-/* Disabled keeps the field's fill and edge; only the text dims. */
 [data-component="text-input-v2"]:where([data-disabled]) [data-slot="text-input-v2-input"] {
   color: var(--v2-text-text-disabled);
   cursor: not-allowed;

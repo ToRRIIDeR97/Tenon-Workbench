@@ -33,13 +33,6 @@ const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matc
 
 type Pair = { key: string; value: string }
 
-/**
- * Settings → MCP servers, the one place for MCP (#334, variant A). Every configured server is a row with its live
- * status, the fix in the row itself (Sign in, Retry), which harnesses receive it, and an on/off switch; a row opens
- * in place to show what it runs and to remove it. Common servers are offered below in one click (the row flies into
- * the list). Custom server opens a typed form: a command with its arguments one by one, environment, folder and
- * timeout; a URL with headers; or a pasted JSON entry.
- */
 export const SettingsMcpServersV2: Component = () => {
   const language = useLanguage()
   const layout = useLayout()
@@ -60,21 +53,17 @@ export const SettingsMcpServersV2: Component = () => {
     headers: [] as Pair[],
     json: "",
     busy: false,
-    /** The server just added, so only its row rises in. */
     added: "",
-    /** The server being edited in place; its name is fixed and only the fields shown are saved. */
     editing: "",
   })
   const [rowState, setRowState] = createStore({
     open: {} as Record<string, boolean>,
     busy: {} as Record<string, boolean>,
     confirming: "",
-    /** The row whose name is being changed in place, and the name typed so far. */
     renaming: "",
     rename: "",
   })
   const server = () => ({ server: serverSDK().server.http, fetch: platform.fetch })
-  // Live status is per folder; the open workspace (or the home folder) stands in for "where agents run".
   const directory = createMemo(() => layout.home.workspace() || serverSync().data.path.home || "")
   const live = createMemo(() => {
     const dir = directory()
@@ -88,7 +77,6 @@ export const SettingsMcpServersV2: Component = () => {
       .filter((entry) => entry.enabled)
       .map((entry) => ({ name: entry.name, driver: entry.driver })),
   )
-  // Tool names come from the connected servers, asked again whenever one connects or drops.
   const connected = createMemo(
     () => {
       const dir = directory()
@@ -105,7 +93,6 @@ export const SettingsMcpServersV2: Component = () => {
   const [toolNames] = createResource(connected, (input) =>
     mcpToolNames(server(), input.dir).catch(() => ({}) as Record<string, string[]>),
   )
-  // While editing, the form names the environment values and headers it keeps without showing them.
   const [editSecrets] = createResource(
     () => form.editing || undefined,
     (name) => mcpSecretNames(server(), name).catch(() => ({ environment: [], headers: [] })),
@@ -120,7 +107,6 @@ export const SettingsMcpServersV2: Component = () => {
         : {
             kind: "local",
             command: form.command,
-            // A typed argument not yet added with Enter still counts.
             args: form.arg.trim() ? [...form.args, form.arg] : form.args,
             env: form.env,
             cwd: form.cwd,
@@ -190,9 +176,6 @@ export const SettingsMcpServersV2: Component = () => {
       void save({ mcp: { [name]: entry } }).then((saved) => (saved ? resetForm() : setForm("busy", false)))
       return
     }
-    // An edit saves only what the form shows; environment values and headers it can't see stay as they are.
-    // Saving merges, so a folder or timeout emptied in the form, and a new name, are applied in the file first:
-    // if that's refused (the name was taken meanwhile), nothing of the edit is saved.
     const before = rows().find((row) => row.name === name)
     const clear = [
       before?.entry.type === "local" && before.entry.cwd && !form.cwd.trim() ? "cwd" : "",
@@ -206,7 +189,6 @@ export const SettingsMcpServersV2: Component = () => {
         ? Promise.resolve(true)
         : editMcpServer(server(), name, { clear, rename }).then(() => {
             void reloadConfig()
-            // A retry after a failed save below edits the server under its new name.
             setForm("editing", target)
             return true
           })
@@ -219,10 +201,8 @@ export const SettingsMcpServersV2: Component = () => {
       .then((done) => (done ? resetForm() : setForm("busy", false)))
   }
 
-  // The route rewrote the file; the list reads it again now instead of waiting for the next config load.
   const reloadConfig = () => serverSync().reloadConfig()
 
-  // A name a harness can't use as a key is still allowed, but the field says which harnesses won't get it.
   const unreachedBy = (name: string) =>
     name.trim()
       ? mcpReach(name.trim(), { type: "local", command: ["-"], enabled: true }, enabledHarnesses())
@@ -273,14 +253,12 @@ export const SettingsMcpServersV2: Component = () => {
       url: entry.type === "remote" ? entry.url : "",
       timeout: entry.timeout ? String(entry.timeout / 1000) : "",
     })
-    // The form opens above the list; bring it to where the user is looking, with the name field ready.
     requestAnimationFrame(() => {
       panel?.scrollIntoView({ block: "start", behavior: reduced() ? "auto" : "smooth" })
       panel?.querySelector("input")?.focus({ preventScroll: true })
     })
   }
 
-  // Sign in starts the server's OAuth flow (the server opens the system browser); Retry connects again.
   const fix = (name: string) => {
     const dir = directory()
     if (!dir || rowState.busy[name]) return
@@ -294,7 +272,6 @@ export const SettingsMcpServersV2: Component = () => {
   const remove = (name: string) => {
     if (rowState.confirming !== name) {
       setRowState("confirming", name)
-      // The second click must come soon; otherwise Remove is a plain button again.
       setTimeout(() => rowState.confirming === name && setRowState("confirming", ""), 4000)
       return
     }
@@ -307,7 +284,6 @@ export const SettingsMcpServersV2: Component = () => {
       .finally(() => setRowState({ confirming: "", busy: { ...rowState.busy, [name]: false } }))
   }
 
-  // The suggested row flies into the installed list: a copy of it moves onto the new row while the list makes room.
   const addSuggestion = async (suggestion: McpSuggestion, item: HTMLElement) => {
     if (form.busy) return
     const from = item.getBoundingClientRect()
@@ -329,7 +305,6 @@ export const SettingsMcpServersV2: Component = () => {
         height: `${from.height}px`,
         margin: "0",
         zIndex: "100",
-        // A row has no surface of its own; the copy borrows the list's.
         background: "var(--v2-background-bg-layer-01)",
         borderRadius: "var(--v2-radius-lg)",
         pointerEvents: "none",
@@ -361,7 +336,6 @@ export const SettingsMcpServersV2: Component = () => {
       </div>
       <div class="settings-v2-tab-body flex flex-col gap-5">
         <p class="text-[13px] leading-5 text-v2-text-text-muted">{language.t("secondBrain.mcp.intro")}</p>
-        {/* A panel, not a notice line: it opens over medium and closes over short, like the rest of Settings. */}
         <Reveal open={form.open}>
           <form
             ref={panel}
@@ -411,7 +385,6 @@ export const SettingsMcpServersV2: Component = () => {
                 aria-label={language.t("secondBrain.mcp.command")}
                 onInput={(event) => setForm("command", event.currentTarget.value)}
               />
-              {/* Each argument is its own chip, so an argument with a space in it is kept whole. */}
               <div class="flex flex-col gap-2">
                 <span class="type-meta text-v2-text-text-muted">{language.t("secondBrain.mcp.args")}</span>
                 <Show when={form.args.length > 0}>
@@ -626,7 +599,6 @@ export const SettingsMcpServersV2: Component = () => {
                                 )}
                               </For>
                             </div>
-                            {/* The whole error; the row's line shows only its first line. */}
                             <Show
                               when={(() => {
                                 const current = state()
@@ -638,7 +610,6 @@ export const SettingsMcpServersV2: Component = () => {
                             <Show when={folderAndTimeout(row.entry)}>
                               {(line) => <p class="type-meta text-v2-text-text-muted">{line()}</p>}
                             </Show>
-                            {/* Names only: the values stay in the config file. */}
                             <Show when={secretNames().length > 0}>
                               <div class="flex flex-wrap gap-1.5">
                                 <For each={secretNames()}>
@@ -701,7 +672,6 @@ export const SettingsMcpServersV2: Component = () => {
                               </form>
                             </Show>
                             <div class="flex items-center justify-end gap-2">
-                              {/* A server lists its tools only once connected; until then the line says so. */}
                               <span class="min-w-0 flex-1 truncate type-meta text-v2-text-text-muted">
                                 {tools().length > 0
                                   ? language.t("secondBrain.mcp.tools", { names: tools().join(", ") })
@@ -788,7 +758,6 @@ export const SettingsMcpServersV2: Component = () => {
 
 type Language = ReturnType<typeof useLanguage>
 
-/** The row's status line, or undefined to show what the server runs. */
 function stateLine(language: Language, state: ReturnType<typeof mcpRowState>, tools?: number) {
   if (state.kind === "connected")
     return tools === undefined
@@ -803,7 +772,6 @@ function stateLine(language: Language, state: ReturnType<typeof mcpRowState>, to
   return undefined
 }
 
-/** Which harnesses receive the server, and why the rest don't. */
 function reachLine(language: Language, reach: ReturnType<typeof mcpReach>) {
   if (reach.receives.length === 0 && reach.maybe.length === 0 && reach.missing.length === 0)
     return language.t("secondBrain.mcp.reach.none")
@@ -818,7 +786,6 @@ function reachLine(language: Language, reach: ReturnType<typeof mcpReach>) {
     .join(" · ")
 }
 
-/** Key and value rows (environment variables, headers), added one at a time. */
 function PairsField(props: {
   label: string
   add: string

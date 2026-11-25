@@ -21,10 +21,6 @@ export const statics =
   <S extends Schema.Top, M extends Record<string, unknown>>(methods: (schema: S) => M) =>
   (schema: S): S & M => {
     const added = methods(schema)
-    // Effect 4.1 schemas expose members such as `make` through prototype getters
-    // that memoize a non-writable own property on first read, so a schema whose
-    // `make` was read cannot be extended in place. Add the statics as own data
-    // properties of a fresh copy (`annotate({})` rebuilds the same schema).
     return Object.defineProperties(
       schema.annotate({}),
       Object.fromEntries(

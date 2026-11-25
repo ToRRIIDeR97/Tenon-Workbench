@@ -176,7 +176,6 @@ export const Terminal = (props: TerminalProps) => {
   const settings = useSettings()
   const theme = useTheme()
   const language = useLanguage()
-  // Terminal captures its connection for the PTY lifetime, so callers must key it per server/session.
   const connection = useServerSDK()().server
   const directory = sdk().directory
   const url = sdk().url
@@ -220,7 +219,6 @@ export const Terminal = (props: TerminalProps) => {
   let lastSize: { cols: number; rows: number } | undefined
   let disposed = false
   const cleanups: VoidFunction[] = []
-  // A saved cursor only marks where the restored scrollback ends; without it the server replays everything.
   const start =
     restore && typeof local.pty.cursor === "number" && Number.isSafeInteger(local.pty.cursor)
       ? local.pty.cursor
@@ -434,7 +432,6 @@ export const Terminal = (props: TerminalProps) => {
           return true
         }
 
-        // allow for toggle terminal keybinds in parent
         const config = settings.keybinds.get(TOGGLE_TERMINAL_ID) ?? DEFAULT_TOGGLE_TERMINAL_KEYBIND
         const keybinds = parseKeybind(config)
 

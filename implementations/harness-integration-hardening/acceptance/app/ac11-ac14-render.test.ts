@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { SessionMessageInfo } from "@tenon/client/promise"
 import { normalizeSessionMessages } from "../../../../tenon/packages/app/src/utils/session-message"
-// message-part.tsx imports a Vite worker URL that bun can't load, so the renderer choice is tested where it lives.
 import { toolRendererName } from "../../../../tenon/packages/session-ui/src/components/tool-alias"
 
 describe("AC-11 an ACP edit renders as a diff", () => {

@@ -22,8 +22,6 @@ const request = LLM.request({
   model,
   system: { type: "text", text: "You are concise.", cache: new CacheHint({ type: "ephemeral" }) },
   prompt: "Say hello.",
-  // This fixture predates the `cache: "auto"` default; pin the policy off so
-  // existing wire-shape assertions only see the manual hint on the system part.
   cache: "none",
   generation: { maxTokens: 20, temperature: 0 },
 })
@@ -218,8 +216,6 @@ describe("Anthropic Messages route", () => {
     }),
   )
 
-  // Regression: screenshot/read tool results must stay structured so base64
-  // image data is not JSON-stringified into `tool_result.content`.
   it.effect("lowers image tool-result content as structured image blocks", () =>
     Effect.gen(function* () {
       const prepared = yield* LLMClient.prepare<AnthropicMessages.AnthropicMessagesBody>(
@@ -475,8 +471,6 @@ describe("Anthropic Messages route", () => {
         ),
       )
 
-      // Prefix the error type so consumers can distinguish overloads, rate
-      // limits, and quota errors without parsing the message string.
       expect(response.events).toEqual([{ type: "provider-error", message: "overloaded_error: Overloaded" }])
     }),
   )

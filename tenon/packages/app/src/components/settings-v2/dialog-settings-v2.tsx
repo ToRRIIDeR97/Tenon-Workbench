@@ -37,7 +37,6 @@ export const DialogSettings: Component<{
   const layout = useLayout()
   const drafts = useDrafts()
   const serverSync = useServerSync()
-  // Providers and Models share the "Built-in harness" tab; their old tab names still open it on that part.
   const builtInPart = (value: string | undefined) => (value === "models" ? "models" : "providers")
   const [tab, setTab] = createSignal(
     props.defaultValue === "providers" || props.defaultValue === "models"
@@ -180,7 +179,6 @@ export const DialogSettings: Component<{
           <SettingsServersV2 />
         </TabsV2.Content>
         <TabsV2.Content value="built-in" class="settings-v2-panel">
-          {/* Tenon's own agent: the providers it can call, then which of their models the pickers show. */}
           <div class="settings-v2-subtabs">
             <SegmentedControlV2
               aria-label={language.t("secondBrain.settings.tab.builtInHarness")}

@@ -1,6 +1,3 @@
-// Event names this server emits (see @tenon/schema session-event.ts). The vendored upstream
-// client still types the older `session.moved` and `session.revert.*` names; those stay handled as
-// harmless aliases.
 export const SERVER_EVENT_NAMES = {
   connected: "server.connected",
   disposed: "global.disposed",
@@ -19,8 +16,6 @@ export function isSessionRevertEvent(type: string | undefined) {
   return (SERVER_EVENT_NAMES.revert as readonly string[]).includes(type) || LEGACY_REVERT.has(type)
 }
 
-// Reads a moved event's payload. `session.next.moved` carries `subdirectory`; the legacy shape
-// carries `subpath` and `projectID`. Returns undefined for a payload without a Session and directory.
 export function sessionMovedData(value: unknown) {
   if (!isRecord(value) || typeof value.sessionID !== "string") return undefined
   if (!isRecord(value.location) || typeof value.location.directory !== "string") return undefined

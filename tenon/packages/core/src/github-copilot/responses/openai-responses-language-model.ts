@@ -106,13 +106,6 @@ const imageGenerationCallItem = z.object({
   result: z.string(),
 })
 
-/**
- * `top_logprobs` request body argument can be set to an integer between
- * 0 and 20 specifying the number of most likely tokens to return at each
- * token position, each with an associated log probability.
- *
- * @see https://platform.openai.com/docs/api-reference/responses/create#responses_create-top_logprobs
- */
 const TOP_LOGPROBS_MAX = 20
 
 const LOGPROBS_SCHEMA = z.array(
@@ -221,7 +214,6 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
       return tools?.find((tool) => tool.type === "provider" && tool.id === id) != null
     }
 
-    // when logprobs are requested, automatically include them:
     const topLogprobs =
       typeof openaiOptions?.logprobs === "number"
         ? openaiOptions?.logprobs
@@ -233,7 +225,6 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
       addInclude("message.output_text.logprobs")
     }
 
-    // when a web search tool is present, automatically include the sources:
     const webSearchToolName = (
       tools?.find(
         (tool) =>
@@ -245,7 +236,6 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
       addInclude("web_search_call.action.sources")
     }
 
-    // when a code interpreter tool is present, automatically include the outputs:
     if (hasOpenAITool("openai.code_interpreter")) {
       addInclude("code_interpreter_call.outputs")
     }
@@ -277,7 +267,6 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
         },
       }),
 
-      // provider options:
       max_tool_calls: openaiOptions?.maxToolCalls,
       metadata: openaiOptions?.metadata,
       parallel_tool_calls: openaiOptions?.parallelToolCalls,
@@ -291,7 +280,6 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
       safety_identifier: openaiOptions?.safetyIdentifier,
       top_logprobs: topLogprobs,
 
-      // model-specific settings:
       ...(modelConfig.isReasoningModel &&
         (openaiOptions?.reasoningEffort != null || openaiOptions?.reasoningSummary != null) && {
           reasoning: {
@@ -309,8 +297,6 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
     }
 
     if (modelConfig.isReasoningModel) {
-      // remove unsupported settings for reasoning models
-      // see https://platform.openai.com/docs/guides/reasoning#limitations
       if (baseArgs.temperature != null) {
         baseArgs.temperature = undefined
         warnings.push({
@@ -346,18 +332,15 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
       }
     }
 
-    // Validate flex processing support
     if (openaiOptions?.serviceTier === "flex" && !modelConfig.supportsFlexProcessing) {
       warnings.push({
         type: "unsupported",
         feature: "serviceTier",
         details: "flex processing is only available for o3, o4-mini, and gpt-5 models",
       })
-      // Remove from args if not supported
       baseArgs.service_tier = undefined
     }
 
-    // Validate priority processing support
     if (openaiOptions?.serviceTier === "priority" && !modelConfig.supportsPriorityProcessing) {
       warnings.push({
         type: "unsupported",
@@ -365,7 +348,6 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
         details:
           "priority processing is only available for supported models (gpt-4, gpt-5, gpt-5-mini, o3, o4-mini) and requires Enterprise access. gpt-5-nano is not supported",
       })
-      // Remove from args if not supported
       baseArgs.service_tier = undefined
     }
 
@@ -508,14 +490,11 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
     const content: Array<LanguageModelV3Content> = []
     const logprobs: Array<z.infer<typeof LOGPROBS_SCHEMA>> = []
 
-    // flag that checks if there have been client-side tool calls (not executed by openai)
     let hasFunctionCall = false
 
-    // map response content to content array
     for (const part of response.output) {
       switch (part.type) {
         case "reasoning": {
-          // when there are no summary parts, we need to add an empty reasoning part:
           if (part.summary.length === 0) {
             part.summary.push({ type: "summary_text", text: "" })
           }
@@ -830,25 +809,19 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
       | undefined
     > = {}
 
-    // flag that checks if there have been client-side tool calls (not executed by openai)
     let hasFunctionCall = false
 
-    // Track reasoning by output_index instead of item_id
-    // GitHub Copilot rotates encrypted item IDs on every event
     const activeReasoning: Record<
       number,
       {
-        canonicalId: string // the item.id from output_item.added
+        canonicalId: string
         encryptedContent?: string | null
         summaryParts: number[]
       }
     > = {}
 
-    // Track current active reasoning output_index for correlating summary events
     let currentReasoningOutputIndex: number | null = null
 
-    // Track a stable text part id for the current assistant message.
-    // Copilot may change item_id across text deltas; normalize to one id.
     let currentTextId: string | null = null
 
     let serviceTier: string | undefined
@@ -865,7 +838,6 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
               controller.enqueue({ type: "raw", rawValue: chunk.rawValue })
             }
 
-            // handle failed chunk parsing / validation:
             if (!chunk.success) {
               finishReason = {
                 unified: "error",
@@ -948,7 +920,6 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
                   providerExecuted: true,
                 })
               } else if (value.item.type === "message") {
-                // Start a stable text part for this assistant message
                 currentTextId = value.item.id
                 controller.enqueue({
                   type: "text-start",
@@ -1161,8 +1132,6 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
                 controller.enqueue({
                   type: "tool-input-delta",
                   id: toolCall.toolCallId,
-                  // The delta is code, which is embedding in a JSON string.
-                  // To escape it, we use JSON.stringify and slice to remove the outer quotes.
                   delta: JSON.stringify(value.delta).slice(1, -1),
                 })
               }
@@ -1181,7 +1150,6 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
                   id: toolCall.toolCallId,
                 })
 
-                // immediately send the tool call after the input end:
                 controller.enqueue({
                   type: "tool-call",
                   toolCallId: toolCall.toolCallId,
@@ -1202,7 +1170,6 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
                 modelId: value.response.model,
               })
             } else if (isTextDeltaChunk(value)) {
-              // Ensure a text-start exists, and normalize deltas to a stable id
               if (!currentTextId) {
                 currentTextId = value.item_id
                 controller.enqueue({
@@ -1227,7 +1194,6 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
               const activeItem =
                 currentReasoningOutputIndex !== null ? activeReasoning[currentReasoningOutputIndex] : null
 
-              // the first reasoning start is pushed in isResponseOutputItemAddedReasoningChunk.
               if (activeItem && value.summary_index > 0) {
                 activeItem.summaryParts.push(value.summary_index)
 
@@ -1299,7 +1265,6 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
           },
 
           flush(controller) {
-            // Close any dangling text part
             if (currentTextId) {
               controller.enqueue({ type: "text-end", id: currentTextId })
               currentTextId = null
@@ -1566,7 +1531,7 @@ const openaiResponsesChunkSchema = z.union([
   responseReasoningSummaryPartAddedSchema,
   responseReasoningSummaryTextDeltaSchema,
   errorChunkSchema,
-  z.object({ type: z.string() }).loose(), // fallback for unknown chunks
+  z.object({ type: z.string() }).loose(),
 ])
 
 type ExtractByType<T, K extends T extends { type: infer U } ? U : never> = T extends { type: K } ? T : never
@@ -1688,7 +1653,6 @@ function getResponsesModelConfig(modelId: string): ResponsesModelConfig {
     supportsPriorityProcessing,
   }
 
-  // gpt-5-chat models are non-reasoning
   if (modelId.startsWith("gpt-5-chat")) {
     return {
       ...defaults,
@@ -1696,7 +1660,6 @@ function getResponsesModelConfig(modelId: string): ResponsesModelConfig {
     }
   }
 
-  // o series reasoning models:
   if (
     modelId.startsWith("o") ||
     modelId.startsWith("gpt-5") ||
@@ -1718,39 +1681,20 @@ function getResponsesModelConfig(modelId: string): ResponsesModelConfig {
     }
   }
 
-  // gpt models:
   return {
     ...defaults,
     isReasoningModel: false,
   }
 }
 
-// TODO AI SDK 6: use optional here instead of nullish
 const openaiResponsesProviderOptionsSchema = z.object({
   include: z
     .array(z.enum(["reasoning.encrypted_content", "file_search_call.results", "message.output_text.logprobs"]))
     .nullish(),
   instructions: z.string().nullish(),
 
-  /**
-   * Return the log probabilities of the tokens.
-   *
-   * Setting to true will return the log probabilities of the tokens that
-   * were generated.
-   *
-   * Setting to a number will return the log probabilities of the top n
-   * tokens that were generated.
-   *
-   * @see https://platform.openai.com/docs/api-reference/responses/create
-   * @see https://cookbook.openai.com/examples/using_logprobs
-   */
   logprobs: z.union([z.boolean(), z.number().min(1).max(TOP_LOGPROBS_MAX)]).optional(),
 
-  /**
-   * The maximum number of total calls to built-in tools that can be processed in a response.
-   * This maximum number applies across all built-in tool calls, not per individual tool.
-   * Any further attempts to call a tool by the model will be ignored.
-   */
   maxToolCalls: z.number().nullish(),
 
   metadata: z.any().nullish(),

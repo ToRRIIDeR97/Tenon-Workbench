@@ -114,8 +114,6 @@ it.instance("provider loaded from env variable", () =>
     yield* setProcessEnv("ANTHROPIC_API_KEY", "test-api-key")
     const providers = yield* list
     expect(providers[ProviderV2.ID.anthropic]).toBeDefined()
-    // Provider should retain its connection source even if custom loaders
-    // merge additional options.
     expect(providers[ProviderV2.ID.anthropic].source).toBe("env")
     expect(providers[ProviderV2.ID.anthropic].options.headers["anthropic-beta"]).toBeDefined()
   }),
@@ -293,7 +291,6 @@ it.instance(
     yield* setProcessEnv("ANTHROPIC_API_KEY", "env-api-key")
     const providers = yield* list
     expect(providers[ProviderV2.ID.anthropic]).toBeDefined()
-    // Config options should be merged
     expect(providers[ProviderV2.ID.anthropic].options.timeout).toBe(60000)
     expect(providers[ProviderV2.ID.anthropic].options.headerTimeout).toBe(10000)
     expect(providers[ProviderV2.ID.anthropic].options.chunkTimeout).toBe(15000)
@@ -332,8 +329,6 @@ it.instance("getModel throws ModelNotFoundError for invalid provider", () =>
     expect(exit._tag).toBe("Failure")
   }),
 )
-
-// Pure synchronous unit tests — no Effect runtime needed.
 
 test("parseModel correctly parses provider/model string", () => {
   const result = Provider.parseModel("anthropic/claude-sonnet-4")
@@ -507,7 +502,6 @@ it.instance(
   "provider api field sets model api.url",
   Effect.gen(function* () {
     const providers = yield* list
-    // api field is stored on model.api.url, used by getSDK to set baseURL
     expect(providers[ProviderV2.ID.make("custom-api")].models["model-1"].api.url).toBe("https://api.example.com/v1")
   }),
   {
@@ -890,8 +884,6 @@ it.instance(
   },
 )
 
-// Edge cases for model configuration
-
 it.instance(
   "model alias name defaults to alias key when id differs",
   Effect.gen(function* () {
@@ -916,7 +908,6 @@ it.instance(
     yield* set("MULTI_ENV_KEY_1", "test-key")
     const providers = yield* list
     expect(providers[ProviderV2.ID.make("multi-env")]).toBeDefined()
-    // When multiple env options exist, key should NOT be auto-set
     expect(providers[ProviderV2.ID.make("multi-env")].key).toBeUndefined()
   }),
   {
@@ -940,7 +931,6 @@ it.instance(
     yield* set("SINGLE_ENV_KEY", "my-api-key")
     const providers = yield* list
     expect(providers[ProviderV2.ID.make("single-env")]).toBeDefined()
-    // Single env option should auto-set key
     expect(providers[ProviderV2.ID.make("single-env")].key).toBe("my-api-key")
   }),
   {
@@ -1022,16 +1012,11 @@ it.instance(
     yield* set("OPENAI_API_KEY", "test-openai")
     yield* set("GOOGLE_GENERATIVE_AI_API_KEY", "test-google")
     const providers = yield* list
-    // anthropic: in enabled, not in disabled = allowed
     expect(providers[ProviderV2.ID.anthropic]).toBeDefined()
-    // openai: in enabled, but also in disabled = NOT allowed
     expect(providers[ProviderV2.ID.openai]).toBeUndefined()
-    // google: not in enabled = NOT allowed (even though not disabled)
     expect(providers[ProviderV2.ID.google]).toBeUndefined()
   }),
   {
-    // enabled_providers takes precedence — only these are considered
-    // Then disabled_providers filters from the enabled set
     config: { enabled_providers: ["anthropic", "openai"], disabled_providers: ["openai"] },
   },
 )
@@ -1113,10 +1098,8 @@ it.instance(
 it.instance(
   "provider env fallback - second env var used if first missing",
   Effect.gen(function* () {
-    // Only set fallback, not primary
     yield* set("FALLBACK_KEY", "fallback-api-key")
     const providers = yield* list
-    // Provider should load because fallback env var is set
     expect(providers[ProviderV2.ID.make("fallback-env")]).toBeDefined()
   }),
   {
@@ -1227,7 +1210,6 @@ it.instance("closest returns undefined when no partial match found", () =>
 it.instance("closest checks multiple query terms in order", () =>
   Effect.gen(function* () {
     yield* set("ANTHROPIC_API_KEY", "test-api-key")
-    // First term won't match, second will
     const result = yield* Provider.use.closest(ProviderV2.ID.anthropic, ["nonexistent", "haiku"])
     expect(result).toBeDefined()
     expect(result?.modelID).toContain("haiku")
@@ -1262,10 +1244,8 @@ it.instance(
   Effect.gen(function* () {
     yield* set("ANTHROPIC_API_KEY", "test-api-key")
     const providers = yield* list
-    // Custom options should be merged
     expect(providers[ProviderV2.ID.anthropic].options.timeout).toBe(30000)
     expect(providers[ProviderV2.ID.anthropic].options.headers["X-Custom"]).toBe("custom-value")
-    // anthropic custom loader adds its own headers, they should coexist
     expect(providers[ProviderV2.ID.anthropic].options.headers["anthropic-beta"]).toBeDefined()
   }),
   {
@@ -1353,12 +1333,10 @@ it.instance(
     const providers = yield* list
     expect(providers[ProviderV2.ID.openrouter]).toBeDefined()
 
-    // New model not in database should inherit api.url from provider
     const intellect = providers[ProviderV2.ID.openrouter].models["prime-intellect/intellect-3"]
     expect(intellect).toBeDefined()
     expect(intellect.api.url).toBe("https://openrouter.ai/api/v1")
 
-    // Another new model should also inherit api.url
     const deepseek = providers[ProviderV2.ID.openrouter].models["deepseek/deepseek-r1-0528"]
     expect(deepseek).toBeDefined()
     expect(deepseek.api.url).toBe("https://openrouter.ai/api/v1")
@@ -1623,7 +1601,6 @@ test("renderer provider info carries no key, token or header values", () => {
   expect(result.key).toBeUndefined()
   expect(result.options).toEqual({ baseURL: "https://example.test" })
   expect(result.models.valid.options).toEqual({})
-  // Internal callers still get the full copy.
   expect(Provider.toPublicInfo(provider).key).toBe("sk-secret")
 })
 
@@ -1650,7 +1627,6 @@ test("models.dev catalog is derived once per snapshot", () => {
   expect(Provider.fromModelsDev(first)).toBe(derived)
   expect(derived.catalog.test).toEqual(Provider.fromModelsDevProvider(first.test))
   expect(derived.database.test).toEqual(Provider.toPublicInfo(Provider.fromModelsDevProvider(first.test)))
-  // A refreshed snapshot is a new object and gets its own derivation.
   expect(Provider.fromModelsDev(snapshot())).not.toBe(derived)
 })
 
@@ -1658,7 +1634,6 @@ it.instance("model variants are generated for reasoning models", () =>
   Effect.gen(function* () {
     yield* set("ANTHROPIC_API_KEY", "test-api-key")
     const providers = yield* list
-    // Claude sonnet 4 has reasoning capability
     const model = providers[ProviderV2.ID.anthropic].models["claude-sonnet-4-6"]
     expect(model.capabilities.reasoning).toBe(true)
     expect(model.variants).toBeDefined()
@@ -1674,7 +1649,6 @@ it.instance(
     const model = providers[ProviderV2.ID.anthropic].models["claude-sonnet-4-6"]
     expect(model.variants).toBeDefined()
     expect(model.variants!["high"]).toBeUndefined()
-    // max variant should still exist
     expect(model.variants!["max"]).toBeDefined()
   }),
   {
@@ -1773,7 +1747,6 @@ it.instance(
     const providers = yield* list
     const model = providers[ProviderV2.ID.anthropic].models["claude-sonnet-4-6"]
     expect(model.variants!["high"]).toBeDefined()
-    // Should have both the generated thinking config and the custom option
     expect(model.variants!["high"].thinking).toBeDefined()
     expect(model.variants!["high"].extraOption).toBe("custom-value")
   }),
@@ -1798,7 +1771,6 @@ it.instance(
     const model = providers[ProviderV2.ID.openai].models["gpt-5"]
     expect(model.variants).toBeDefined()
     expect(model.variants!["high"]).toBeUndefined()
-    // Other variants should still exist
     expect(model.variants!["medium"]).toBeDefined()
   }),
   {
@@ -1814,7 +1786,6 @@ it.instance(
     const providers = yield* list
     const model = providers[ProviderV2.ID.make("custom-reasoning")].models["reasoning-model"]
     expect(model.variants).toBeDefined()
-    // Enabled variants should exist
     expect(model.variants!["low"]).toBeDefined()
     expect(model.variants!["low"].reasoningEffort).toBe("low")
     expect(model.variants!["medium"]).toBeDefined()
@@ -1822,9 +1793,7 @@ it.instance(
     expect(model.variants!["custom"]).toBeDefined()
     expect(model.variants!["custom"].reasoningEffort).toBe("custom")
     expect(model.variants!["custom"].budgetTokens).toBe(5000)
-    // Disabled variant should not exist
     expect(model.variants!["high"]).toBeUndefined()
-    // disabled key should be stripped from all variants
     expect(model.variants!["low"].disabled).toBeUndefined()
     expect(model.variants!["medium"].disabled).toBeUndefined()
     expect(model.variants!["custom"].disabled).toBeUndefined()
@@ -2017,9 +1986,6 @@ it.instance(
     },
   },
 )
-
-// Tests that need plugin file setup or multi-instance flows fall back to a
-// scoped tmpdir + provideInstance pattern via it.effect.
 
 const instanceStoreLayer = LayerNode.compile(InstanceStore.node, [
   [InstanceStore.bootstrapNode, InstanceBootstrap.node],

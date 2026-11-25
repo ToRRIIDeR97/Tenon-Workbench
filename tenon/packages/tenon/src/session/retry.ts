@@ -23,8 +23,8 @@ export type Retryable = {
 export const RETRY_INITIAL_DELAY = 2000
 export const RETRY_BACKOFF_FACTOR = 2
 export const RETRY_JITTER_FACTOR = 0.25
-export const RETRY_MAX_DELAY_NO_HEADERS = 30_000 // 30 seconds
-export const RETRY_MAX_DELAY = 2_147_483_647 // max 32-bit signed integer for setTimeout
+export const RETRY_MAX_DELAY_NO_HEADERS = 30_000
+export const RETRY_MAX_DELAY = 2_147_483_647
 export const RETRY_MAX_RETRIES = 5
 
 const RETRYABLE_MESSAGE_PATTERNS = [
@@ -57,10 +57,8 @@ export function delay(attempt: number, error?: SessionV1.APIError, random = Math
       if (retryAfter) {
         const parsedSeconds = Number.parseFloat(retryAfter)
         if (!Number.isNaN(parsedSeconds)) {
-          // convert seconds to milliseconds
           return cap(Math.ceil(parsedSeconds * 1000))
         }
-        // Try parsing as HTTP date format
         const parsed = Date.parse(retryAfter) - Date.now()
         if (!Number.isNaN(parsed) && parsed > 0) {
           return cap(Math.ceil(parsed))
@@ -80,12 +78,9 @@ function exponential(attempt: number, random: number) {
 }
 
 export function retryable(error: Err, _provider: string): Retryable | undefined {
-  // context overflow errors should not be retried
   if (SessionV1.ContextOverflowError.isInstance(error)) return undefined
   if (SessionV1.APIError.isInstance(error)) {
     const status = error.data.statusCode
-    // 5xx errors are transient server failures and should always be retried,
-    // even when the provider SDK doesn't explicitly mark them as retryable.
     if (
       !error.data.isRetryable &&
       !(status !== undefined && status >= 500) &&

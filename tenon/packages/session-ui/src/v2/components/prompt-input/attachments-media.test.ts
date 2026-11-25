@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { acceptedAttachments, attachmentMime } from "./attachments"
 
-// #330: a screen recording, a voice memo, a pptx and a docx can all be attached, with their real type.
 describe("AC-17 the composer accepts video, audio and documents", () => {
   test("each file keeps its own type", async () => {
     expect(await attachmentMime(new File(["x"], "recording.mov", { type: "video/quicktime" }))).toBe("video/quicktime")

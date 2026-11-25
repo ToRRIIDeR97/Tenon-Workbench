@@ -16,8 +16,6 @@ type ServiceUse<Identifier, Shape> = {
 
 export const serviceUse = <Identifier, Shape>(tag: Context.Service<Identifier, Shape>) => {
   const cache = new Map<string, (...args: unknown[]) => Effect.Effect<unknown, unknown, unknown>>()
-  // This is the only dynamic boundary: TypeScript knows the accessor shape,
-  // but Proxy property names are runtime values.
   const access = new Proxy(
     {},
     {

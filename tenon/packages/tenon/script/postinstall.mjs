@@ -81,9 +81,7 @@ function isMusl() {
 
   try {
     if (fs.existsSync("/etc/alpine-release")) return true
-  } catch {
-    // Ignore filesystem probes that are blocked by the host.
-  }
+  } catch {}
 
   try {
     const result = childProcess.spawnSync("ldd", ["--version"], { encoding: "utf8" })

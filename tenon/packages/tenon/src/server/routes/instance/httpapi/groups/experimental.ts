@@ -19,9 +19,6 @@ import { QueryBoolean } from "./query"
 import { ProviderV2 } from "@tenon/core/provider"
 import { ModelV2 } from "@tenon/core/model"
 
-// Effect 4.1's `NoContent` (a `Schema.Void`) decodes any value to undefined, so in `[NoContent, Input]` without
-// codecs it would swallow every body. Decoding through `Undefined` first keeps it to an empty body, and the AST is
-// still `Void`, so OpenAPI still treats the body as optional.
 const EmptyPayload = HttpApiSchema.NoContent.pipe(Schema.encodeTo(Schema.Undefined))
 
 const ConsoleStateResponse = Schema.Struct({
@@ -86,7 +83,6 @@ export const SessionListQuery = Schema.Struct({
   ...WorkspaceRoutingQueryFields,
   roots: Schema.optional(QueryBoolean),
   start: Schema.optional(Schema.NumberFromString),
-  // The opaque x-next-cursor value; a numeric time_updated cursor from older clients is still accepted.
   cursor: Schema.optional(Schema.String),
   search: Schema.optional(Schema.String),
   limit: Schema.optional(Schema.NumberFromString),

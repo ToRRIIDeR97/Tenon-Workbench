@@ -10,7 +10,6 @@ import { usePlatform } from "@/context/platform"
 import { sectionAttention, setSectionAttention, type PanelSection } from "@/pages/session/helpers"
 import { useSessionLayout } from "@/pages/session/session-layout"
 
-/** The rail's width. It joins the side panel in one shell, and stands alone 8px from the thread. */
 export const SESSION_SIDE_RAIL_WIDTH = 48
 
 export const sideRailReviewTabID = "session-side-panel-review-tab"
@@ -18,21 +17,12 @@ export const sideRailReviewTabID = "session-side-panel-review-tab"
 const badgeClass =
   "pointer-events-none absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[11px] leading-4 [font-weight:600] tabular-nums"
 
-/**
- * The side panel's section switcher, shown whether the panel is open or closed. A section's button opens the
- * panel on it; the open section's button closes the panel. While the panel is closed, dragging the rail to the
- * left pulls it out (`onDragOut`). At its foot, outside the sections (it toggles the panel below the thread, not a
- * section), the Terminal button does what the header's terminal button and its shortcut do.
- */
 export function SessionSideRail(props: {
-  /** The section the open panel shows; undefined while the panel is closed. */
   section: PanelSection | undefined
   canReview: boolean
   reviewCount: number
   hasReview: boolean
-  /** Subagents running in this thread. */
   running: number
-  /** The side panel sits beside the rail in the same shell. */
   joined?: boolean
   onSelect: (section: PanelSection) => void
   onDragOut?: (event: PointerEvent) => void
@@ -42,7 +32,6 @@ export function SessionSideRail(props: {
   const platform = usePlatform()
   const { sessionKey, view } = useSessionLayout()
 
-  // An agent using the browser or a device marks that section instead of taking the panel away from the user.
   onMount(() => {
     const offBrowser = platform.browser?.onAgent(() => {
       if (props.section !== "browser") setSectionAttention(sessionKey(), "browser", true)
@@ -68,7 +57,6 @@ export function SessionSideRail(props: {
     id?: string
     controls?: string
     tooltip?: JSX.Element
-    /** The icon brings its own tooltip (the context ring's usage). */
     plain?: boolean
   }) => {
     const button = () => (
@@ -84,7 +72,6 @@ export function SessionSideRail(props: {
           aria-label={input.label}
           aria-selected={props.section === input.section}
           aria-controls={input.controls ?? "review-panel"}
-          // A 36px box with 10px corners; the unlayered icon-button rules need the overrides.
           class="!size-9 !rounded-[10px]"
           classList={{
             "!bg-v2-background-bg-accent-container !text-v2-text-text-on-accent-container":
@@ -116,8 +103,6 @@ export function SessionSideRail(props: {
   return (
     <div
       data-component="session-side-rail"
-      // A tinted strip in the right shell, mirroring the navigation rail: the shell's outer corners on its own,
-      // its right corners and a hairline to its left beside the side panel. The shell draws the ring.
       class="relative flex h-full w-12 shrink-0 flex-col items-center bg-v2-background-bg-layer-01 py-2"
       classList={{
         "cursor-col-resize": !!props.onDragOut,
@@ -126,7 +111,6 @@ export function SessionSideRail(props: {
       }}
       onPointerDown={(event) => {
         if (!props.onDragOut) return
-        // No text selection or native drag may start from the rail: either takes the pointer away from the drag.
         event.preventDefault()
         props.onDragOut(event)
       }}
@@ -204,7 +188,6 @@ export function SessionSideRail(props: {
             badge: attentionDot("device"),
           })}
         </Show>
-        {/* Always on the rail, so the canvas is one click away before the agent draws; it opens on its empty state. */}
         {item({
           section: "canvas",
           label: language.t("secondBrain.canvas.title"),

@@ -125,13 +125,11 @@ export function SortableTerminalTabV2(props: {
           <TabsV2.Trigger
             value={props.terminal.id}
             onMouseDown={(e) => {
-              // Switch on mousedown to shave the press-release delay off tab switches.
               if (e.button !== 0) return
               if (store.editing) return
               focus()
             }}
             onClick={(e) => {
-              // Mouse navigation already happened on mousedown; detail 0 means keyboard activation.
               if (e.detail > 0) return
               focus()
             }}

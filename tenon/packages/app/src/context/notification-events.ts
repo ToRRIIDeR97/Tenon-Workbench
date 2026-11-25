@@ -9,14 +9,8 @@ export type NotificationTrigger =
   | { type: "permission"; sessionID?: string; request: PermissionRequest }
   | { type: "question"; sessionID?: string }
 
-// What core's runner sends in session.next.step.failed when the user presses Stop (runner/llm.ts).
 const USER_INTERRUPT = "Provider turn interrupted"
 
-/**
- * Turns a server event into the alert it should raise. Composer turns end with V2 step events and never
- * publish session.idle or session.error; routine and command threads on the legacy runner publish only those.
- * `failed` holds sessions whose turn already ended in an error or Stop, so its closing event stays quiet.
- */
 export function notificationTrigger(
   event: { type: string; properties?: unknown },
   failed: Set<string>,
@@ -45,8 +39,6 @@ export function notificationTrigger(
     case "session.next.step.ended":
       return properties.finish === "tool-calls" ? undefined : settle()
     case "session.error":
-      // With auto-compaction, the default, an overflow does not end the turn, so it stays quiet and its
-      // session.idle still counts.
       if (properties.error?.name === "ContextOverflowError") return
       fail()
       if (properties.error?.name === "MessageAbortedError") return
@@ -64,7 +56,6 @@ export function notificationTrigger(
   }
 }
 
-/** A root thread waiting on the user alerts, unless auto-accept is about to answer the request. */
 export function needsAttention(
   trigger: Extract<NotificationTrigger, { type: "permission" | "question" }>,
   session: { parentID?: string } | undefined,

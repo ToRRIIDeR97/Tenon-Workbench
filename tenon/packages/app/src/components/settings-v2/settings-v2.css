@@ -9,7 +9,6 @@
   background: var(--v2-background-bg-base);
 }
 
-/* Grows with the window up to 1080x760; small windows keep the shared x-large clamp (dialog-v2.css). */
 [data-component="dialog-v2"][data-variant="settings"][data-size="x-large"]
   [data-slot="dialog-container"]:has(> .settings-v2-dialog) {
   width: min(calc(100vw - 32px), 1080px);
@@ -37,12 +36,10 @@
   position: sticky;
   top: 0;
   z-index: 10;
-  /* Same sides as the body, so actions end on the cards' edge; the close button sits above the 40px top. */
   padding: 40px 40px 32px 40px;
   background: linear-gradient(to bottom, var(--v2-background-bg-base) calc(100% - 24px), transparent);
 }
 
-/* The part switch above a tab that holds two pages, such as Built-in harness (Providers, Models). */
 .settings-v2-subtabs {
   padding: 28px 64px 0 40px;
 }
@@ -85,7 +82,6 @@
   color: var(--v2-text-text-base);
 }
 
-/* Settings card: one layer-01 surface with a 1px ring; rows are split by 1px dividers. */
 [data-component="settings-v2-list"] {
   display: flex;
   flex-direction: column;
@@ -189,7 +185,6 @@
   padding-inline-start: 16px;
 }
 
-/* Tonal button: accent container fill on a ghost ButtonV2. */
 .settings-v2-panel [data-component="button-v2"][data-variant="ghost"].settings-v2-tonal,
 .settings-v2-harness-setup-body [data-component="button-v2"][data-variant="ghost"].settings-v2-tonal {
   background-color: var(--v2-background-bg-accent-container);
@@ -204,7 +199,6 @@
   background-image: linear-gradient(var(--v2-overlay-simple-overlay-hover), var(--v2-overlay-simple-overlay-hover));
 }
 
-/* Disabled tonal buttons drop the accent fill so they read as unavailable next to enabled ones. */
 .settings-v2-panel [data-component="button-v2"][data-variant="tonal"]:is(:disabled, [data-state="disabled"]) {
   background-color: var(--v2-background-bg-layer-02);
   color: var(--v2-text-text-disabled);
@@ -254,7 +248,6 @@
   color: var(--v2-text-text-base);
 }
 
-/* The neutral selection fill slides between tabs (tabs-v2 indicator); before it is placed, the tab draws it. */
 [data-component="tabs-v2"][data-variant="settings"][data-orientation="vertical"]
   [data-slot="tabs-v2-list"]:not([data-indicator])
   [data-slot="tabs-v2-trigger-wrapper"]:has([data-selected]) {
@@ -266,8 +259,6 @@
   [data-slot="tabs-v2-indicator"] {
   background-color: var(--v2-overlay-simple-overlay-pressed);
 }
-
-/* Tab panels fade through as they swap (tabs-v2.css, settings variant). */
 
 @media (prefers-reduced-motion: reduce) {
   [data-component="tabs-v2"][data-variant="settings"][data-orientation="vertical"]
@@ -326,7 +317,6 @@
   color: var(--v2-icon-icon-base);
 }
 
-/* The 16px provider glyph sits in a 36px circular avatar. */
 .settings-v2-provider-icon {
   box-sizing: content-box;
   padding: 10px;
@@ -726,7 +716,6 @@
   height: 28px;
 }
 
-/* Collapsible provider group: a 24px surface whose model rows are inset on the base color. */
 .settings-v2-models-group {
   display: flex;
   flex-direction: column;
@@ -792,7 +781,6 @@
   gap: 12px;
 }
 
-/* Model rows continue the group card: no inner ring, a divider above each row. */
 .settings-v2-models-group [data-component="settings-v2-list"] {
   border: 0;
   border-top: 1px solid var(--v2-border-border-muted);
@@ -899,7 +887,6 @@
   color: var(--v2-text-text-faint);
 }
 
-/* Recording: accent container, and the pill tightens to the medium radius. */
 .settings-v2-keybind-button--active {
   border-radius: var(--v2-radius-md);
   font-family: inherit;
@@ -1189,7 +1176,6 @@
   background: var(--v2-background-bg-layer-01);
 }
 
-/* A switched-off row keeps its layout; only its copy dims to the disabled text colour. */
 [data-component="settings-v2-row"][data-enabled="false"] [data-slot="settings-v2-row-copy"],
 [data-component="settings-v2-row"][data-enabled="false"] [data-slot="settings-v2-row-copy"] * {
   color: var(--v2-text-text-disabled);

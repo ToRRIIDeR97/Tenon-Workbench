@@ -5,10 +5,8 @@ import os from "os"
 import path from "path"
 import { Process } from "@/util/process"
 
-// Tenon's domain first; the pre-rename OpenCode domain is still read.
 const MANAGED_PLIST_DOMAINS = ["ai.tenon.managed", "ai.opencode.managed"]
 
-// Keys injected by macOS/MDM into the managed plist that are not Tenon config
 const PLIST_META = new Set([
   "PayloadDisplayName",
   "PayloadIdentifier",
@@ -29,7 +27,6 @@ function systemManagedConfigDir(name: string): string {
   }
 }
 
-/** Admin-managed config folders, lowest priority first: the pre-rename OpenCode folder, then Tenon's. */
 export function managedConfigDirs() {
   const test = process.env.TENON_TEST_MANAGED_CONFIG_DIR
   if (test) return [test]

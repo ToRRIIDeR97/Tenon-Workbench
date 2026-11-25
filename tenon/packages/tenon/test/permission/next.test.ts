@@ -74,8 +74,6 @@ const list = () =>
     return yield* permission.list()
   })
 
-// fromConfig tests
-
 test("fromConfig - string value becomes wildcard rule", () => {
   const result = Permission.fromConfig({ bash: "allow" })
   expect(result).toEqual([{ permission: "bash", pattern: "*", action: "allow" }])
@@ -127,10 +125,6 @@ test("fromConfig - does not expand tilde in middle of path", () => {
   const result = Permission.fromConfig({ external_directory: { "/some/~/path": "allow" } })
   expect(result).toEqual([{ permission: "external_directory", pattern: "/some/~/path", action: "allow" }])
 })
-
-// Permission precedence follows config insertion order. `evaluate()` uses the
-// last matching rule, so later config entries intentionally override earlier
-// entries even when a wildcard appears after a specific permission.
 
 test("fromConfig - preserves top-level config key order", () => {
   const wildcardFirst = Permission.fromConfig({ "*": "deny", bash: "allow" })
@@ -189,8 +183,6 @@ test("evaluate - matches expanded $HOME pattern", () => {
   const result = Permission.evaluate("external_directory", `${os.homedir()}/projects/file.txt`, ruleset)
   expect(result.action).toBe("allow")
 })
-
-// merge tests
 
 test("merge - simple concatenation", () => {
   const result = Permission.merge(
@@ -274,8 +266,6 @@ test("merge - config ask overrides default allow", () => {
 
   expect(Permission.evaluate("bash", "ls", merged).action).toBe("ask")
 })
-
-// evaluate tests
 
 test("evaluate - exact pattern match", () => {
   const result = Permission.evaluate("bash", "rm", [{ permission: "bash", pattern: "rm", action: "deny" }])
@@ -380,8 +370,6 @@ test("evaluate - wildcard at end overrides earlier exact match", () => {
   expect(result.action).toBe("allow")
 })
 
-// wildcard permission tests
-
 test("evaluate - wildcard permission matches any permission", () => {
   const result = Permission.evaluate("bash", "rm", [{ permission: "*", pattern: "*", action: "deny" }])
   expect(result.action).toBe("deny")
@@ -446,8 +434,6 @@ test("evaluate - merges multiple rulesets", () => {
   const result = Permission.evaluate("bash", "rm", config, approved)
   expect(result.action).toBe("deny")
 })
-
-// disabled tests
 
 test("disabled - returns empty set when all tools allowed", () => {
   const result = Permission.disabled(["bash", "edit", "read"], [{ permission: "*", pattern: "*", action: "allow" }])
@@ -552,8 +538,6 @@ test("disabled - specific allow overrides wildcard deny", () => {
   expect(result.has("edit")).toBe(true)
   expect(result.has("read")).toBe(true)
 })
-
-// ask tests
 
 it.instance(
   "ask - resolves immediately when action is allow",
@@ -693,8 +677,6 @@ it.instance(
     }),
   { git: true },
 )
-
-// reply tests
 
 it.instance(
   "reply - once resolves the pending ask",

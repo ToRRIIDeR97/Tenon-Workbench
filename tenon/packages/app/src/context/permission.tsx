@@ -210,7 +210,6 @@ function createServerPermissionState(input: { sdk: ServerSDK; sync: ServerSync }
     },
     createStore({
       autoAccept: {} as Record<string, boolean>,
-      // Auto-edit: the same keys as autoAccept, for folders and threads where only file edits run unasked.
       autoEdit: {} as Record<string, boolean>,
     }),
   )
@@ -332,7 +331,6 @@ function createServerPermissionState(input: { sdk: ServerSDK; sync: ServerSync }
   }
 
   async function shouldAutoRespondResolved(permission: PermissionRequest, directory?: string) {
-    // A choice on the thread itself (or a parent we already know) needs no lineage lookup.
     if (
       sessionAutoAccept(store.autoAccept, sessions(directory), permission, directory) !== undefined ||
       sessionAutoAccept(store.autoEdit ?? {}, sessions(directory), permission, directory) !== undefined
@@ -453,7 +451,6 @@ function createServerPermissionState(input: { sdk: ServerSDK; sync: ServerSync }
     )
   }
 
-  /** Sets Ask, Auto-edit or Full auto for a thread, or for its folder when there is no thread yet. */
   function setMode(sessionID: string | undefined, directory: string, mode: PermissionMode) {
     if (meta.disposed) return
     const key = sessionID ? acceptKey(sessionID, directory) : directoryAcceptKey(directory)

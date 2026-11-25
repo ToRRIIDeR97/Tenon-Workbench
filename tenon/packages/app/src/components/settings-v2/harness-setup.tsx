@@ -28,7 +28,6 @@ const ICON_SIZE = 16
 const harnessIcon = (id: string) =>
   id === Harness.Codex ? "openai" : id === Harness.ClaudeCode ? "anthropic" : "opencode"
 
-/** State and actions shared by every setup layout. Needs an SDKProvider for the sign-in terminal. */
 function createHarnessSetup(directory: string) {
   const language = useLanguage()
   const platform = usePlatform()
@@ -44,9 +43,6 @@ function createHarnessSetup(directory: string) {
     terminal: undefined as { harness: string; id: string } | undefined,
   })
 
-  // A sign-in in the browser or a terminal finishes outside the app, so check again while setup is open.
-  // A check still running is not restarted: each one can start every harness CLI on the server.
-  // A hidden window skips checks and catches up when it is shown again.
   createVisibleInterval(() => {
     if (!state.busy && !statuses.loading) void refetch()
   }, 5_000)
@@ -72,7 +68,6 @@ function createHarnessSetup(directory: string) {
       .finally(() => setState("busy", undefined))
   }
 
-  // The Terminal component connects through the legacy PTY routes on servers that still serve them.
   const legacyPty = async () => (await sdk().protocol) === "v1" || (await sdk().legacyProjectsAndMcp)
 
   const closeTerminal = () => {
@@ -148,7 +143,6 @@ function statusText(language: ReturnType<typeof useLanguage>, item: Harness.Setu
 
 function description(language: ReturnType<typeof useLanguage>, item: Harness.SetupStatus) {
   if (!item.installed) return language.t("harness.setup.installHint", { package: item.packageName })
-  // A ready row already shows its status as a tag.
   if (ready(item)) return item.version ? language.t("harness.settings.version", { version: item.version }) : ""
   return [
     statusText(language, item),
@@ -158,7 +152,6 @@ function description(language: ReturnType<typeof useLanguage>, item: Harness.Set
     .join(" · ")
 }
 
-/** One harness, in the row layout of Settings → Providers. */
 const SetupRow: Component<{ item: Harness.SetupStatus; action: JSX.Element }> = (props) => {
   const language = useLanguage()
   return (
@@ -185,7 +178,6 @@ const SetupRow: Component<{ item: Harness.SetupStatus; action: JSX.Element }> = 
   )
 }
 
-/** The primary action for a row: install first, otherwise connect. */
 const RowAction: Component<{ setup: Setup; item: Harness.SetupStatus; onConnect: () => void }> = (props) => {
   const language = useLanguage()
   return (
@@ -229,7 +221,6 @@ const RowAction: Component<{ setup: Setup; item: Harness.SetupStatus; onConnect:
   )
 }
 
-/** Grouped like Settings → Providers: agents that are ready, then agents still to set up. */
 const SetupList: Component<{ setup: Setup; onConnect: (item: Harness.SetupStatus) => void }> = (props) => {
   const language = useLanguage()
   const all = () => props.setup.statuses.latest ?? []
@@ -268,7 +259,6 @@ const SetupList: Component<{ setup: Setup; onConnect: (item: Harness.SetupStatus
   )
 }
 
-/** Sign-in and API-key choices for one harness, laid out like the provider Connect dialog. */
 const ConnectView: Component<{ setup: Setup; item: Harness.SetupStatus }> = (props) => {
   const language = useLanguage()
   const [view, setView] = createStore({ method: props.item.auth === "api-key" ? "key" : "sign-in" })
@@ -426,10 +416,6 @@ const ConnectView: Component<{ setup: Setup; item: Harness.SetupStatus }> = (pro
   )
 }
 
-/**
- * Day-one setup of the built-in external agents (Codex, Claude Code, OpenCode): install each CLI, then
- * sign in with the agent's own login or give it an API key. Custom ACP agents are added in Settings.
- */
 export const DialogHarnessSetup: Component<{ directory: string; harness?: string; onClose?: () => void }> = (props) => (
   <SDKProvider directory={props.directory}>
     <HarnessSetupDialog {...props} />
@@ -442,7 +428,6 @@ const HarnessSetupDialog: Component<{ directory: string; harness?: string; onClo
   const setup = createHarnessSetup(props.directory)
   const [view, setView] = createStore({ selected: props.harness })
   onCleanup(() => props.onClose?.())
-  // Like the provider Connect dialog: focus starts on the body, not on the close button.
   let focusHost: HTMLDivElement | undefined
   onMount(() => focusHost?.focus({ preventScroll: true }))
   const selected = () => (view.selected ? setup.find(view.selected) : undefined)

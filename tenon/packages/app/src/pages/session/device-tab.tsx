@@ -9,14 +9,8 @@ import { createBlobReference } from "@/utils/draft-store"
 import { uuid } from "@/utils/uuid"
 import { createVisibleInterval } from "@/utils/visible-interval"
 
-// The screen refreshes this often while the tab is open; adb screencap takes a few hundred ms.
 const FRAME_MS = 700
 
-/**
- * The Workbench panel's phone: Android emulators and devices on macOS and Windows, the iOS Simulator on
- * macOS. The screen is polled as PNG frames; a click on it is a tap at that point. Agents use the same
- * devices through the tenon MCP server's device tools.
- */
 export function SessionDeviceTab() {
   const language = useLanguage()
   const platform = usePlatform()
@@ -66,7 +60,6 @@ export function SessionDeviceTab() {
         produce((list) => void list.push(`${new Date().toLocaleTimeString()}  ${event.tool}`)),
       ),
     )
-    // Emulators take a while to boot; keep the list current while the window is shown.
     createVisibleInterval(() => void refetch(), 5_000)
     onCleanup(() => {
       clearInterval(timer)
@@ -75,7 +68,6 @@ export function SessionDeviceTab() {
   })
 
   let image: HTMLImageElement | undefined
-  // A click on the shown frame maps to screen pixels on the device.
   const tap = (event: MouseEvent) => {
     const target = current()
     if (!device || !target || !image) return
@@ -179,7 +171,6 @@ export function SessionDeviceTab() {
           }
         >
           <div class="flex min-h-0 flex-1 items-center justify-center gap-2">
-            {/* Fixed near-black: the bezel is a picture of a phone, so it does not follow the theme. */}
             <div class="flex h-full max-h-[640px] items-center rounded-[28px] bg-[#171717] p-2 shadow-[var(--v2-elevation-raised)]">
               <Show when={state.frame} fallback={<div class="h-80 w-44 animate-pulse rounded-[22px] bg-[#262626]" />}>
                 <img

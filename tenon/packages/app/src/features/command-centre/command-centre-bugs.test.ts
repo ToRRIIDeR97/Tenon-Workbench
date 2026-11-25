@@ -1,5 +1,3 @@
-// Acceptance tests for AC-1, AC-3, AC-4.
-// Run from tenon/packages/app: bun test src/features/command-centre/command-centre-bugs.test.ts
 import { describe, expect, test } from "bun:test"
 import { readdirSync, readFileSync, statSync } from "fs"
 import { join } from "path"

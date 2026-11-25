@@ -4,15 +4,12 @@ import { showToast } from "@/utils/toast"
 import { providerTask } from "./calendar-sync"
 import { SecondBrainRequestError, writeCalendar, type CalendarSnapshot, type PlannerTask } from "./client"
 
-/** Items saved before multiple accounts carry no account. They came from the one account then connected, which the
- * desktop migration keeps first in the list. */
 export const itemAccount = (accountId: string | undefined, connection: GoogleCalendarConnection | undefined) =>
   accountId ?? connection?.accounts[0]?.id
 
 export const writeAccounts = (connection: GoogleCalendarConnection | undefined) =>
   (connection?.accounts ?? []).filter((account) => account.access === "write")
 
-/** A Google or vault failure in the user's words. */
 export function googleErrorMessage(error: unknown, t: ReturnType<typeof useLanguage>["t"]) {
   const message = error instanceof Error ? error.message : String(error)
   if (message.includes("secure_storage")) return t("secondBrain.calendar.google.error.secureStorage")
@@ -45,7 +42,6 @@ function googleTaskFields(task: PlannerTask) {
   })
 }
 
-/** Task writes shared by Calendar and Home, so ticking a task takes the same Google outbox and Undo on both. */
 export function createTaskActions(input: {
   directory: () => string
   client: (directory: string) => Parameters<typeof writeCalendar>[0]
@@ -57,10 +53,7 @@ export function createTaskActions(input: {
   const language = useLanguage()
   const platform = usePlatform()
 
-  /** `overwrite` names the task whose save replaces Google's version in a conflict. */
   const persist = async (tasks: ReadonlyArray<PlannerTask>, overwrite?: string) => {
-    // Captured before the Google round trip: the user can switch workspace while it runs, and the
-    // result belongs to the calendar these tasks came from.
     const workspace = input.directory()
     const base = input.snapshot()
     if (!workspace) return
@@ -77,7 +70,6 @@ export function createTaskActions(input: {
     let next = [...tasks]
     const connection = input.connection()
     const connected = connection?.connected && connection.access === "write"
-    // Without a Google connection a removed Google task is only dropped from the planner.
     const target = removed && !connected ? changed : (removed ?? changed)
     if (target) {
       const google = platform.googleCalendar

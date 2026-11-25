@@ -2,12 +2,6 @@ import { describe, expect, test } from "bun:test"
 import { Schema } from "effect"
 import { ConfigLSPV1 } from "@tenon/core/v1/config/lsp"
 
-// The LSP config refinement enforces: any custom (non-builtin) LSP server
-// entry must declare an `extensions` array so the client knows which files
-// the server should attach to. Builtin server IDs and explicitly disabled
-// entries are exempt.
-//
-// `typescript` is a builtin server id (see src/lsp/server.ts).
 describe("ConfigLSPV1.Info refinement", () => {
   const decodeEffect = Schema.decodeUnknownSync(ConfigLSPV1.Info)
 
@@ -51,9 +45,6 @@ describe("ConfigLSPV1.Info refinement", () => {
     })
 
     test("custom server with empty extensions array fails (extensions must be non-empty-truthy)", () => {
-      // Boolean(['']) is true, so a non-empty array of strings is fine.
-      // Boolean([]) is also true in JS, so empty arrays are accepted by the
-      // refinement. This test documents current behavior.
       const input = { "my-lsp": { command: ["my-lsp-bin"], extensions: [] } }
       expect(decodeEffect(input)).toEqual(input)
     })

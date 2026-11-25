@@ -18,22 +18,14 @@ import {
 } from "@/pages/session/board-camera"
 import { DesignFrame, LiveDesignFrame } from "@/pages/session/live-design-frame"
 
-// A press that moves less than this is a click on a board, not a pan.
 const DRAG_THRESHOLD = 4
 const ZOOM_STEP = 1.25
 const KEY_PAN = 48
-// The gap between a label's parts (gap-2).
 const LABEL_GAP = 8
 
 const sameCamera = (a: Camera, b: Camera) =>
   Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5 && Math.abs(a.scale - b.scale) < 0.0005
 
-/**
- * The Canvas tab's designs as artboards on a pan/zoom board. The world layer is one transformed element
- * (frames are never rebuilt when the camera moves); labels sit in screen space above each board. While a
- * design streams the camera follows its board, otherwise it shows them all; panning or zooming stops the
- * following until the next design starts.
- */
 export function DesignBoard(props: {
   keys: string[]
   design: (key: string) => CanvasDesign | undefined
@@ -49,7 +41,6 @@ export function DesignBoard(props: {
     placed: false,
     moving: false,
   })
-  // The column count that shows the boards largest in this viewport; a resize may change it.
   const columns = createMemo(() => boardColumns(props.keys.length, view.size))
   const layout = createMemo(() => boardLayout(props.keys.length, { columns: columns() }))
   const drawingKey = createMemo(() => props.keys.findLast((key) => props.design(key)?.streaming))
@@ -73,7 +64,6 @@ export function DesignBoard(props: {
     stop()
     setView("camera", camera)
   }
-  // Camera moves the app makes glide with the long duration and emphasized-decelerate easing.
   const glide = (camera: Camera) => {
     if (!view.placed || prefersReducedMotion()) {
       setView("placed", true)
@@ -99,7 +89,6 @@ export function DesignBoard(props: {
     setView("moving", true)
     motion.frame = requestAnimationFrame(step)
   }
-  // The user moved the camera: it stays where they put it until the next design starts drawing.
   const steer = (camera: Camera) => {
     setView("follow", false)
     setView("placed", true)
@@ -134,7 +123,6 @@ export function DesignBoard(props: {
       if (rect) setView("size", { width: rect.width, height: rect.height })
     })
     observer.observe(viewport)
-    // Wheel and trackpad pinch (which arrives as a wheel with ctrlKey) zoom at the pointer.
     const wheel = (event: WheelEvent) => {
       event.preventDefault()
       const box = viewport.getBoundingClientRect()
@@ -143,7 +131,6 @@ export function DesignBoard(props: {
       steer(zoomAt(view.camera, factor, { x: event.clientX - box.left, y: event.clientY - box.top }))
     }
     viewport.addEventListener("wheel", wheel, { passive: false })
-    // A drag that ends over a board doesn't open it: the click is stopped before it reaches the board.
     const click = (event: MouseEvent) => {
       if (!press.dragged) return
       press.dragged = false
@@ -151,7 +138,6 @@ export function DesignBoard(props: {
       event.preventDefault()
     }
     viewport.addEventListener("click", click, true)
-    // On the element itself, so the board's keys run before the app's document-level shortcuts.
     const key = (event: KeyboardEvent) => {
       if (event.target !== viewport) return
       const actions: Record<string, () => void> = {
@@ -293,7 +279,6 @@ export function DesignBoard(props: {
               )}
             </For>
           </div>
-          {/* Labels stay at screen size: placed from the camera, not scaled with the world. */}
           <div class="pointer-events-none absolute inset-0">
             <For each={props.keys}>
               {(key, index) => (
@@ -322,7 +307,6 @@ export function DesignBoard(props: {
   )
 }
 
-/** One artboard in world space. A design streaming when its board appears draws live; frames are built once. */
 function BoardArtboard(props: {
   design: CanvasDesign
   title: string
@@ -331,10 +315,8 @@ function BoardArtboard(props: {
   onOpen: () => void
 }) {
   const live = untrack(() => !!props.design.streaming)
-  // Over the size cap the finished-frame path shows the notice.
   const large = createMemo(() => designTooLarge(props.design.source))
   return (
-    // Fixed white: a design is a standalone page that assumes a white canvas.
     <button
       type="button"
       data-board-drawing={props.design.streaming ? "" : undefined}
@@ -369,13 +351,6 @@ function BoardArtboard(props: {
   )
 }
 
-/**
- * A board's screen-size label. The title comes first: "Use this one" joins when it fits beside the
- * whole title, then "Done" when that fits too (both stay in the large view). Each part is laid out even
- * while hidden, and its natural width is read from a ResizeObserver (first layout, resize, new text) and
- * again once web fonts load. A 0 reading means not laid out yet: it is never taken as a width, and Use
- * stays hidden until both widths are known.
- */
 function BoardLabel(props: {
   boardKey: string
   title: string
@@ -425,7 +400,6 @@ function BoardLabel(props: {
       <Show when={props.streaming}>
         <span class="shrink-0 text-v2-text-text-muted">{language.t("secondBrain.canvas.drawingCard")}</span>
       </Show>
-      {/* Hidden parts leave the row (absolute) but keep their size for measuring. */}
       <span
         ref={done}
         aria-hidden={showDone() ? undefined : "true"}
@@ -434,7 +408,6 @@ function BoardLabel(props: {
       >
         {language.t("secondBrain.canvas.done")}
       </span>
-      {/* The wrapper takes the hidden state: the button's own CSS keeps it position: relative. */}
       <span
         ref={use}
         data-slot="board-label-use"

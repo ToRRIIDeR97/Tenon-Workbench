@@ -287,7 +287,6 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
 
     const revertMessageID = info()?.revert?.messageID
     if (!revertMessageID) return
-    // a messages-only rewind (no restored files) stays messages-only when redone
     const revertDiff = info()?.revert?.diff
 
     const boundary = messages.findIndex((message) => message.id === revertMessageID)
@@ -323,9 +322,6 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     if (!sessionID) return
     const info = sync().session.get(sessionID) as HarnessSession | undefined
     const harness = info?.harnessInstanceID ?? Harness.OpenCode
-    // The server picks how: Claude Code and OpenCode run their own /compact, Codex compacts on its side, and the
-    // built-in agent and other harnesses get a summary from Tenon. Once a thread's prompt cache has gone cold,
-    // reloading its history costs as much as the first read, so a harness's cheaper compaction model does it instead.
     const last = info?.time.updated ?? info?.time.created ?? Date.now()
     const model =
       harness === Harness.OpenCode
@@ -533,7 +529,6 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     }),
   ]
 
-  // A Command Centre thread has no code folder: no file, review, file tree or terminal commands.
   const codeThread = () => !isCommandThread(sdk().directory)
   const panelIds = new Set(["terminal.toggle", "review.toggle", "fileTree.toggle"])
 

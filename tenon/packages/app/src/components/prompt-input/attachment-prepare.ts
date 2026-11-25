@@ -11,7 +11,6 @@ import {
   type ModelInputs,
 } from "./attachment-media"
 
-/** The local transcriber (the dictation engine), set by the composer on the desktop; absent on the web. */
 let transcriber: ((samples: Float32Array) => Promise<{ text?: string }>) | undefined
 let notify: ((event: { kind: "transcribing" | "transcribeFailed"; filename: string }) => void) | undefined
 export function setAttachmentTranscriber(fn: typeof transcriber, onEvent?: typeof notify) {
@@ -19,18 +18,11 @@ export function setAttachmentTranscriber(fn: typeof transcriber, onEvent?: typeo
   notify = onEvent
 }
 
-/** The engine takes at most 30 minutes; a transcription that takes longer than 5 is given up. */
 const MAX_TRANSCRIBE_SAMPLES = 30 * 60 * 16_000
 const TRANSCRIBE_TIMEOUT_MS = 5 * 60_000
 
-/** Frames are drawn at this width; a 3×3 grid of them stays under typical image limits. */
 const FRAME_WIDTH = 480
 
-/**
- * The attachments as the model will get them (#330): each file the model reads goes as it is; a video for an
- * image-only model becomes frame grids, a document its text, and anything else a stand-in that names it. Runs in
- * the renderer at send time, so the composer keeps the original files.
- */
 export async function prepareAttachments(attachments: ImageAttachmentPart[], inputs: ModelInputs = DEFAULT_INPUTS) {
   const prepared = await Promise.all(attachments.map((attachment) => prepare(attachment, inputs)))
   return prepared.flat()
@@ -47,7 +39,6 @@ async function prepare(attachment: ImageAttachmentPart, inputs: ModelInputs): Pr
   if (plan === "frames") {
     const grids = await frameGrids(blob).catch(() => undefined)
     if (grids && grids.length > 0) {
-      // The sound goes along as text, so the model gets what was said as well as what was shown.
       const spoken = await transcript(blob, attachment.filename)
       const images = await Promise.all(
         grids.map(async (grid, index) => ({
@@ -64,7 +55,6 @@ async function prepare(attachment: ImageAttachmentPart, inputs: ModelInputs): Pr
     }
   }
   const seconds = await mediaDuration(blob, attachment.mime).catch(() => undefined)
-  // Audio the model can't hear is transcribed locally when the dictation engine is there.
   const spoken = attachment.mime.startsWith("audio/") ? await transcript(blob, attachment.filename) : undefined
   if (spoken)
     return [
@@ -84,7 +74,6 @@ async function extract(blob: Blob, mime: string) {
 
 const length = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, "0")}`
 
-// Sent instead of a file the model can't read, so it knows the file exists and can say so.
 function standIn(attachment: ImageAttachmentPart, seconds: number | undefined) {
   const duration = seconds === undefined ? "" : `, ${length(seconds)} long`
   return `[Attached ${attachment.filename} (${attachment.mime}${duration}). This model can't read this kind of file, so only its name was sent.]`
@@ -100,13 +89,11 @@ async function textPart(attachment: ImageAttachmentPart, text: string): Promise<
   }
 }
 
-/** What was said in a recording or a video's sound track, or undefined without the local engine. */
 async function transcript(blob: Blob, filename: string) {
   const engine = transcriber
   if (!engine) return undefined
   const samples = await samples16k(blob).catch(() => undefined)
   if (!samples || samples.length === 0) return undefined
-  // Too long for the engine: the stand-in names it, and the user is told why.
   if (samples.length > MAX_TRANSCRIBE_SAMPLES) {
     notify?.({ kind: "transcribeFailed", filename })
     return undefined
@@ -121,7 +108,6 @@ async function transcript(blob: Blob, filename: string) {
   return text || undefined
 }
 
-/** The audio decoded by the browser and mixed down to 16 kHz mono, as the engine wants it. */
 async function samples16k(blob: Blob) {
   const context = new AudioContext()
   try {
@@ -154,10 +140,6 @@ export function mediaDuration(blob: Blob, mime: string) {
   })
 }
 
-/**
- * Frame grids from the browser's own decoder: evenly spaced frames, tiled, each stamped with its time. The chip's
- * preview shows the same grids the model will get.
- */
 export async function frameGrids(blob: Blob) {
   const video = document.createElement("video")
   const url = URL.createObjectURL(blob)

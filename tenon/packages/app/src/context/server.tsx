@@ -12,10 +12,6 @@ type ServerProjectState = {
   lastProject: Record<string, string>
   recentlyClosed: Record<string, string[]>
 }
-// The store retains more history than is displayed. Consumers filter recently closed entries
-// against the live project list (dropping deleted projects) and then cap the visible count via
-// RECENTLY_CLOSED_DISPLAY_LIMIT. Retaining extra history ensures entries that are temporarily
-// filtered out do not evict still-visible ones from the persisted store.
 const RECENTLY_CLOSED_HISTORY_LIMIT = 16
 export const RECENTLY_CLOSED_DISPLAY_LIMIT = 5
 
@@ -108,8 +104,6 @@ export function createServerProjects<T extends ServerProjectState>(input: {
       if (current().some((project) => project.worktree === directory)) return
       setStore("projects", scope, [{ worktree: directory, expanded: true }, ...current()])
     },
-    // User-initiated close: removes the project and records it in recently closed.
-    // Internal, non-user removals (e.g. sandbox/worktree normalization) should use remove().
     close(directory: string) {
       remove(directory)
       const key = pathKey(directory)
@@ -186,7 +180,6 @@ export namespace ServerConnection {
     password?: string
   }
 
-  // Regular web connections
   export type Http = {
     type: "http"
     http: HttpBase
@@ -197,9 +190,7 @@ export namespace ServerConnection {
     type: "sidecar"
     http: HttpBase
   } & (
-    | // Regular desktop server
-    { variant: "base" }
-    // WSL server (windows only)
+    | { variant: "base" }
     | {
         variant: "wsl"
         distro: string
@@ -207,18 +198,13 @@ export namespace ServerConnection {
   ) &
     Base
 
-  // Remote server desktop can SSH into
   export type Ssh = {
     type: "ssh"
     host: string
-    // SSH client exposes an HTTP server for the app to use as a proxy
     http: HttpBase
   } & Base
 
-  export type Any =
-    | Http
-    // All these are desktop-only
-    | (Sidecar | Ssh)
+  export type Any = Http | (Sidecar | Ssh)
 
   export const key = (conn: Any): Key => {
     switch (conn.type) {

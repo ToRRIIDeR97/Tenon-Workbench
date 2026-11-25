@@ -9,10 +9,6 @@ import { Location } from "../location"
 import { GithubThreads } from "./threads"
 import { which } from "../util/which"
 
-// A Project's GitHub work (#331): the linked repository's issues and pull requests, read with the user's own `gh`
-// login. Tenon stores no GitHub token: `gh` keeps its own (keychain on macOS, Credential Manager on Windows). Every
-// call is `execFile` with fixed arguments and a validated `owner/repo`, never a shell.
-
 export type Issue = {
   number: number
   title: string
@@ -31,11 +27,8 @@ export type Pull = {
   draft: boolean
   checks?: "passing" | "failing" | "pending"
   review?: "approved" | "changes" | "required"
-  /** The issues this PR closes when it merges. */
   closes: number[]
-  /** When it merged, or closed without merging. */
   closedAt?: string
-  /** The Project thread whose messages first carry this PR's URL: the one that produced it. */
   thread?: { id: string; title: string }
 }
 export type Work =
@@ -54,7 +47,6 @@ const PULL_FIELDS =
 
 export const validRepo = (repo: string) => REPO.test(repo) && !repo.endsWith(".git")
 
-/** `owner/repo` from a GitHub remote in https, ssh or scp form; undefined for any other host. */
 export function repoFromRemote(remote: string) {
   const match =
     /^(?:https:\/\/github\.com\/|ssh:\/\/git@github\.com\/|git@github\.com:)([^/\s]+\/[^/\s]+?)(?:\.git)?\/?$/.exec(
@@ -63,10 +55,6 @@ export function repoFromRemote(remote: string) {
   return match && validRepo(match[1]!) ? match[1] : undefined
 }
 
-/**
- * Open and recently closed issues plus recent PRs of the folder's repository: `repo` when given (it must be a plain
- * `owner/repo`), else the folder's `origin`. `gh` is the CLI's path, undefined when it isn't installed.
- */
 export async function read(input: {
   directory: string
   repo?: string
@@ -103,11 +91,8 @@ export async function read(input: {
   }
 }
 
-/** The `gh` CLI on PATH (and Windows install folders through `which`), or undefined. */
 export const findGh = () => which("gh") ?? undefined
 
-// A Project page is opened often; one good answer per folder serves it for a minute. Failures aren't kept, so
-// signing in with `gh auth login` shows at once; Refresh always asks again.
 const cache = new Map<string, { at: number; work: Promise<Work> }>()
 export function cached(input: { directory: string; repo?: string; refresh?: boolean }, now = Date.now()) {
   const key = `${input.directory}\0${input.repo ?? ""}`
@@ -119,8 +104,6 @@ export function cached(input: { directory: string; repo?: string; refresh?: bool
   return work
 }
 
-// The repository a Project names instead of its folder's origin, kept with Tenon's config per folder (not in one
-// browser's storage), in `github-repos.json`.
 const REPOS = "github-repos.json"
 async function repos(configDir: string): Promise<Record<string, string>> {
   const text = await fs.readFile(path.join(configDir, REPOS), "utf8").catch(() => "")
@@ -131,7 +114,6 @@ export async function storedRepo(folder: string, configDir: string) {
   const value = (await repos(configDir))[path.resolve(folder)]
   return value && validRepo(value) ? value : undefined
 }
-// Saves run one after another, so two overlapping saves can't each read the old file and drop the other's entry.
 let saving: Promise<unknown> = Promise.resolve()
 export function setStoredRepo(folder: string, repo: string, configDir: string) {
   const next = saving.then(() => writeStoredRepo(folder, repo, configDir))
@@ -145,14 +127,12 @@ async function writeStoredRepo(folder: string, repo: string, configDir: string) 
   if (repo && validRepo(repo)) next[key] = repo
   else delete next[key]
   await fs.mkdir(configDir, { recursive: true })
-  // Through a temporary file, so a crash or a second save never leaves half a file.
   const file = path.join(configDir, REPOS)
   const temporary = `${file}.${process.pid}.${Date.now()}.tmp`
   await fs.writeFile(temporary, JSON.stringify(next, null, 2), { mode: 0o600 })
   await fs.rename(temporary, file)
 }
 
-/** The Project folder's GitHub work, for the request's location (the server route). */
 export const forLocation = Effect.fn("GithubWork.forLocation")(function* (input: {
   repo?: string
   save?: boolean
@@ -161,7 +141,6 @@ export const forLocation = Effect.fn("GithubWork.forLocation")(function* (input:
   const location = yield* Location.Service
   const config = Global.make().config
   const work = yield* Effect.promise(async (): Promise<Work> => {
-    // A typed repository must be a plain owner/name; anything else is refused, and the saved choice stays.
     if (input.save && input.repo && !validRepo(input.repo))
       return { status: "error" as const, message: `"${input.repo.slice(0, 80)}" isn't owner/name.` }
     if (input.save) await setStoredRepo(location.directory, input.repo ?? "", config)
@@ -174,8 +153,6 @@ export const forLocation = Effect.fn("GithubWork.forLocation")(function* (input:
     return work.status === "ok" ? { ...work, source: repo ? ("project" as const) : ("origin" as const) } : work
   })
   if (work.status !== "ok" || work.pulls.length === 0) return work
-  // Each PR's thread, read fresh: the cache above holds GitHub's answer, not the threads. A failed read only drops
-  // the links.
   const mentions = yield* GithubThreads.mentions(location.directory, work.repo).pipe(
     Effect.orElseSucceed(() => [] as GithubThreads.Mention[]),
   )
@@ -187,7 +164,6 @@ function execute(command: string, args: string[], cwd: string) {
     execFile(
       command,
       args,
-      // gh reads its own login; GH_PROMPT_DISABLED keeps it from waiting on a terminal prompt.
       {
         cwd,
         timeout: 15_000,

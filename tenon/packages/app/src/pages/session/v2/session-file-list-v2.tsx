@@ -7,8 +7,6 @@ import { normalizePath } from "@/pages/session/v2/review-diff-kinds"
 import { createVirtualizer, defaultRangeExtractor } from "@tanstack/solid-virtual"
 import { virtualScrollElement } from "@/components/virtual-scroll-element"
 
-// Drives the highlight/selection of the flat search-result list from the filter
-// input's keyboard events.
 export function applyFileListKeyDown(
   event: KeyboardEvent,
   files: readonly string[],
@@ -34,10 +32,6 @@ export function applyFileListKeyDown(
   event.preventDefault()
 }
 
-// Flat variant of FileTreeV2 for filtered results: reuses its data-component and
-// row data-slots on purpose so file-tree-v2.css styles both. data-highlighted has
-// no CSS of its own — it folds into data-selected below and only exists as the
-// scrollIntoView query hook.
 export function SessionFileListV2(props: {
   files: readonly string[]
   active?: string

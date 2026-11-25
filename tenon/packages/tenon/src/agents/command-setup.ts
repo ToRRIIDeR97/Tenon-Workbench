@@ -10,13 +10,6 @@ import { mkdir, readdir, rm, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { CommandVault } from "./command-vault"
 
-/**
- * `project_setup`: start a new Project folder for the Command Centre. Creates the folder (refusing one
- * that already has files), runs `git init`, writes AGENTS.md, docs/system.md and docs/security.md from
- * templates that point at the tor-* skills, then adds the Project card and an empty timeline to the
- * workspace. Exposed to Command Centre sessions as an app tool (stage 2).
- */
-
 export const Input = Schema.Struct({
   workspace: Schema.String,
   name: Schema.String,
@@ -87,8 +80,6 @@ Never commit credentials. Record where each secret lives and who can read it.
 
 const gitInit = (folder: string) =>
   Effect.callback<void, SetupError>((resume) => {
-    // `git` from PATH on both Windows (git.exe) and macOS, never one sitting in the folder; no shell,
-    // so the folder is one argument.
     const git = spawnTarget("git")
     if (!git) return resume(Effect.fail(new SetupError({ reason: "git_init_failed" })))
     execFile(git, ["init", "--quiet"], { cwd: folder, windowsHide: true }, (error) =>
@@ -114,7 +105,6 @@ export const run = Effect.fn("CommandSetup.run")(function* (input: Input) {
   )
   if (folder === workspace) return yield* new SetupError({ reason: "folder_is_workspace" })
 
-  // Only a missing folder counts as absent: any other read error says nothing about what is inside.
   const existing = yield* Effect.tryPromise({
     try: () =>
       readdir(folder).catch((error: NodeJS.ErrnoException) => {
@@ -124,7 +114,6 @@ export const run = Effect.fn("CommandSetup.run")(function* (input: Input) {
     catch: () => new SetupError({ reason: "folder_unreadable" }),
   })
   if (existing && existing.length > 0) return yield* new SetupError({ reason: "folder_not_empty" })
-  // mkdir reports a path only when it made one, so the rollback below can't touch an existing folder.
   const created = (yield* Effect.promise(() => mkdir(folder, { recursive: true }))) !== undefined
 
   const files = Effect.gen(function* () {
@@ -137,8 +126,6 @@ export const run = Effect.fn("CommandSetup.run")(function* (input: Input) {
       })
     }
   })
-  // A failed setup leaves no half-made folder behind (only one it created itself is removed). Once the card
-  // is written the folder belongs to that Project, so a later failure keeps it.
   let carded = false
   const rollback = Effect.suspend(() =>
     created && !carded

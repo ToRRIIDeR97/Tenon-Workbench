@@ -842,7 +842,6 @@ describe("Config", () => {
           expect(documents[0]?.info.plugins).toBeUndefined()
           expect(documents[0]?.info.skills).toBeUndefined()
           expect(documents[0]?.info.instructions).toEqual(["docs/guide.md"])
-          // An unapproved folder can't widen what agents may do, replace them, or run a shell line from a command.
           expect(documents[0]?.info.permissions).toBeUndefined()
           expect(documents[0]?.info.agents).toBeUndefined()
           expect(documents[0]?.info.default_agent).toBeUndefined()

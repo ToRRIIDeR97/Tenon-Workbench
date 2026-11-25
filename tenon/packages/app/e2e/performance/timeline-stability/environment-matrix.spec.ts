@@ -16,7 +16,6 @@ import {
   waitForVisualSettle,
 } from "./fixture"
 
-// Fractional scaling exercises different browser rounding than the baseline.
 for (const deviceScaleFactor of [1, 1.25]) {
   test(`keeps shell growth ordered at device scale ${deviceScaleFactor}`, async ({ page }, testInfo) => {
     const shellID = `prt_dpr_${String(deviceScaleFactor).replace(".", "_")}_01_shell`

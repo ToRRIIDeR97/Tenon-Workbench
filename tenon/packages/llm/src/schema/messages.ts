@@ -4,8 +4,6 @@ import { JsonSchema, MessageRole, ProviderMetadata } from "./ids"
 import { CacheHint, CachePolicy, GenerationOptions, HttpOptions, ModelSchema, ProviderOptions } from "./options"
 import { isRecord } from "../utils/record"
 
-// Effect 4.1 schemas expose `make` through a getter without a setter, so
-// Object.assign cannot override it; define the members as own properties.
 const withStatics = <S extends object, M extends object>(schema: S, members: M): S & M =>
   Object.defineProperties(schema, Object.getOwnPropertyDescriptors(members)) as S & M
 
@@ -214,12 +212,6 @@ export namespace Message {
 
   export const assistant = (content: ContentInput) => make({ role: "assistant", content })
 
-  /**
-   * Add an operator-authored instruction at this chronological point in the
-   * conversation. This is distinct from the initial `LLMRequest.system`
-   * prompt. Keep raw retrieved, tool, and web content out of privileged system
-   * updates; pass that untrusted content through ordinary user/tool channels.
-   */
   export const system = (content: SystemContentInput) => make({ role: "system", content })
 
   export const tool = (result: ToolResultPart | Parameters<typeof ToolResultPart.make>[0]) =>
@@ -239,7 +231,6 @@ export class ToolDefinition extends Schema.Class<ToolDefinition>("LLM.ToolDefini
 export namespace ToolDefinition {
   export type Input = ToolDefinition | ConstructorParameters<typeof ToolDefinition>[0]
 
-  /** Normalize tool definition input into the canonical `ToolDefinition` class. */
   export const make = (input: Input) => (input instanceof ToolDefinition ? input : new ToolDefinition(input))
 }
 
@@ -254,10 +245,8 @@ export namespace ToolChoice {
 
   const isMode = (value: string): value is Mode => value === "auto" || value === "none" || value === "required"
 
-  /** Select a specific named tool. */
   export const named = (value: string) => new ToolChoice({ type: "tool", name: value })
 
-  /** Normalize ergonomic tool-choice inputs into the canonical `ToolChoice` class. */
   export const make = (input: Input) => {
     if (input instanceof ToolChoice) return input
     if (input instanceof ToolDefinition) return named(input.name)

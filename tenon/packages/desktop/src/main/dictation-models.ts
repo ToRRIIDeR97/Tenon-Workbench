@@ -1,6 +1,3 @@
-// Speech models offered in Settings › Dictation. Sources, revisions and checksums are the GGUF
-// builds Handy's model catalog uses (https://github.com/cjpais/Handy, src-tauri/src/catalog/catalog.json).
-
 export const DICTATION_MODELS = [
   {
     id: "whisper-small",
@@ -38,7 +35,6 @@ export function dictationModelURL(model: DictationModel) {
   return `https://huggingface.co/${model.repository}/resolve/${model.revision}/${model.file}`
 }
 
-/** The engine binary's file name: `.exe` on Windows, no extension on macOS and Linux. */
 export function dictationEngineFile(platform: NodeJS.Platform) {
   return platform === "win32" ? "tenon-dictation.exe" : "tenon-dictation"
 }

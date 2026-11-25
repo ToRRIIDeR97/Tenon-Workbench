@@ -8,8 +8,6 @@ import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { useLanguage } from "@/context/language"
 import { createExitList } from "./exit-list"
 
-// Lists messages the server holds with queue delivery. Items leave when the runner promotes them, or
-// when the user removes one or sends it now (steer). Actions are absent when the server cannot do either.
 export function SessionFollowupDock(props: {
   items: { id: string; text: string }[]
   pending?: string
@@ -89,8 +87,6 @@ export function SessionFollowupDock(props: {
         </div>
       </div>
 
-      {/* The list folds through Reveal; the spacer below stays, so collapsed and open share the bottom edge
-          the composer overlaps. Rows expand in and collapse out (createExitList). */}
       <Reveal open={!store.collapsed}>
         <div class="px-5 pb-2 flex flex-col max-h-42 overflow-y-auto">
           <For each={entries()}>

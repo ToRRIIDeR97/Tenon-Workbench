@@ -18,14 +18,6 @@ const it = testEffect(
   ]),
 )
 
-// InstanceBootstrap must run before any code touches the instance —
-// originally tracked by PRs #25389 and #25449, now a permanent
-// invariant. The plugin config hook writes a marker file; the test
-// bodies deliberately avoid Plugin/config directly. The marker only
-// appears if InstanceBootstrap ran at the instance boundary.
-//
-// The boundaries below are transport-agnostic and stay.
-
 afterEach(async () => {
   await disposeAllInstances()
 })

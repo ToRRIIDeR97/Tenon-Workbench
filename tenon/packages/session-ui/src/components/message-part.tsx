@@ -101,12 +101,10 @@ async function writeClipboard(text: string): Promise<boolean> {
 function ShellSubmessage(props: { text: string; animate?: boolean }) {
   let widthRef: HTMLSpanElement | undefined
   let valueRef: HTMLSpanElement | undefined
-  // Read once: the reveal plays on mount only, and reduced motion shows the end state at once.
   const animated = props.animate && !prefersReducedMotion()
 
   onMount(() => {
     if (!animated) return
-    // Enter motion: medium + emphasized-decelerate (--v2-ease-emphasized-decelerate).
     const enter = { duration: motionDuration("medium") / 1000, ease: [0.05, 0.7, 0.1, 1] as const }
     requestAnimationFrame(() => {
       if (widthRef) animate(widthRef, { width: "auto" }, enter)
@@ -182,12 +180,7 @@ export interface MessageProps {
 
 export type SessionAction = (input: { sessionID: string; messageID: string }) => Promise<void> | void
 
-export type RevertAction = (input: {
-  sessionID: string
-  messageID: string
-  /** false rewinds the conversation only and leaves workspace files untouched. */
-  files: boolean
-}) => Promise<void> | void
+export type RevertAction = (input: { sessionID: string; messageID: string; files: boolean }) => Promise<void> | void
 
 export type UserActions = {
   fork?: SessionAction
@@ -223,7 +216,6 @@ function MessageActionButton(
     icon: "check" | "copy" | "pencil-line"
     label: JSX.Element
     useV2?: boolean
-    /** Render as the trigger of an enclosing DropdownMenu. */
     menu?: boolean
   },
 ) {
@@ -527,7 +519,6 @@ export function getToolInfo(
         typeof input.subagent_type === "string" && input.subagent_type
           ? input.subagent_type[0]!.toUpperCase() + input.subagent_type.slice(1)
           : undefined
-      // The task names the agent; its type is the secondary label.
       const { name, tag } = subagentName(input)
       return {
         icon: "task",
@@ -579,7 +570,6 @@ export function getToolInfo(
         title: input.name || i18n.t("ui.tool.skill"),
       }
     default: {
-      // Codex, ACP and MCP names share the icon and verb of the built-in tool of the same kind.
       const step = toolStep(tool, input)
       return {
         icon: stepIcon(step.kind),
@@ -1142,7 +1132,6 @@ export function ContextToolGroup(props: {
 
 export function ToolGroup(props: {
   parts: ToolPart[]
-  /** Called once per part ID; the accessor follows that part when its object is rebuilt (#311). */
   children: (part: () => ToolPart) => JSX.Element
   open?: boolean
   onOpenChange?: (open: boolean) => void
@@ -1197,8 +1186,6 @@ export function ToolGroup(props: {
       </Collapsible.Trigger>
       <Collapsible.Content>
         <div data-component="tool-group-list">
-          {/* Keyed by part ID, not by object: a whole-message write rebuilds every part object, and keying by
-              object would recreate every card in the group when one tool call updates. */}
           <For each={partIDs()}>
             {(id) => {
               const part = createMemo<ToolPart | undefined>(
@@ -1262,7 +1249,6 @@ export function UserMessageDisplay(props: {
     () => props.parts?.find((p) => p.type === "text" && !(p as TextPart).synthetic) as TextPart | undefined,
   )
 
-  // External harnesses get the prompt as one text, so their messages hold quote notes inline; split them back out.
   const typed = createMemo(() => splitQuoteNotes(textPart()?.text || ""))
   const text = createMemo(() => typed().text)
 
@@ -1309,7 +1295,6 @@ export function UserMessageDisplay(props: {
   }
 
   const handleCopy = async () => {
-    // A message that is only replies copies the replies.
     const content =
       text() ||
       quotes()
@@ -1408,7 +1393,6 @@ export function UserMessageDisplay(props: {
             data-comments={messageComments().length > 0 ? "true" : undefined}
             data-replies={quotes().length > 0 ? "true" : undefined}
           >
-            {/* Each passage the user answered sits in its own box with their reply to it; typed text follows. */}
             <For each={quotes()}>
               {(quote) => (
                 <div data-slot="user-message-reply">
@@ -1561,7 +1545,6 @@ export interface ToolProps {
   metadata: Record<string, any>
   tool: string
   sessionID?: string
-  /** The tool part's ID, for renderers that open a view of that one call. */
   partID?: string
   output?: string
   status?: string
@@ -1649,8 +1632,6 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
   const emptyInput: Record<string, any> = {}
   const emptyMetadata: Record<string, any> = {}
 
-  // A pending part's input is healed from the stream and changes on every delta. Cards keep their
-  // title row until the tool runs, so no body, diff or file view is built (or the timeline re-measured) per delta.
   const input = () => (part().state?.status === "pending" ? emptyInput : (part().state?.input ?? emptyInput))
   // @ts-expect-error
   const partMetadata = () => part().state?.metadata ?? emptyMetadata
@@ -1671,11 +1652,9 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
   })
 
   const render = createMemo(() => ToolRegistry.render(part().tool) ?? GenericTool)
-  // Error cards name tools with their own renderer generically; an ACP subagent keeps its agent title.
   const namedByRenderer = () => !!ToolRegistry.render(part().tool) && part().tool !== "acp_subagent"
   const controlledOpen = () => (props.onToolOpenChange ? (props.toolOpen ?? props.defaultOpen) : undefined)
   const handleToolOpenChange = (open: boolean) => props.onToolOpenChange?.(open)
-  // Each card shows its own call's time, not the turn's (#322).
   const toolTime = createMemo(() => {
     const ms = toolDurationMs(part().state as { status: string; time?: { start?: number; end?: number } })
     if (ms === undefined) return undefined
@@ -1757,7 +1736,6 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
             </Match>
           </Switch>
         </div>
-        {/* The call Stop cut off: nothing more happens on screen, and the thread says so. */}
         <Show when={stoppedComputerUse(part().state as { status: string; error?: unknown; output?: unknown })}>
           <div
             data-slot="tool-computer-stopped"
@@ -1813,7 +1791,6 @@ PART_MAPPING["text"] = function TextPartDisplay(props) {
 
   const duration = createMemo(() => {
     if (props.message.role !== "assistant") return ""
-    // The row's own message, not the turn: each step of a multi-step turn shows its own time (#322).
     const ms = messageDurationMs(props.message as AssistantMessage)
     if (ms === undefined) return ""
     const total = Math.round(ms / 1000)
@@ -1836,7 +1813,6 @@ PART_MAPPING["text"] = function TextPartDisplay(props) {
     () => props.message.role === "assistant" && typeof (props.message as AssistantMessage).time.completed !== "number",
   )
   const text = () => readPartText(data.store.part_text_accum_delta, part())
-  // Only some rows ask for this, so it stays a plain function: a memo would subscribe to every text in the message.
   const isLastTextPart = () =>
     (data.store.part?.[props.message.id] ?? []).findLast((item) => item?.type === "text" && /\S/.test(item.text ?? ""))
       ?.id === part().id
@@ -2122,7 +2098,6 @@ ToolRegistry.register({
     })
     const agent = createMemo(() => taskAgent(props.input.subagent_type, data.store.agent))
     const named = createMemo(() => subagentName(props.input))
-    // The task names the agent; its type moves to the subtitle.
     const title = createMemo(() => named().name ?? agent().name ?? i18n.t("ui.tool.agent.default"))
     const tone = createMemo(() => agent().color)
     const subtitle = createMemo(() => {
@@ -2214,8 +2189,6 @@ ToolRegistry.register({
   },
 })
 
-// A harness subagent (ACP). Its conversation lives on the tool part, so the card opens the app's
-// agent tab instead of navigating to a child session; without that opener it stays a plain tool row.
 ToolRegistry.register({
   name: "acp_subagent",
   render(props) {
@@ -2229,7 +2202,6 @@ ToolRegistry.register({
       return () => opener({ sessionID, partID })
     })
     const named = createMemo(() => subagentName(props.input))
-    // The task names the agent; its type moves to the subtitle.
     const title = createMemo(() => {
       const agent = named().tag
       if (named().name) return named().name!
@@ -2508,7 +2480,7 @@ ToolRegistry.register({
                   </div>
                 </Show>
               </div>
-              <div data-slot="message-part-actions">{/* <DiffChanges diff={diff} /> */}</div>
+              <div data-slot="message-part-actions"></div>
             </div>
           }
         >

@@ -1,5 +1,3 @@
-// UI/UX PR3 verification: mounts the real approval card from the dev server and measures the split buttons.
-// Run from tenon/packages/app as e2e/.uiux-pr3.mts: node --experimental-strip-types e2e/.uiux-pr3.mts <outdir>
 import { chromium } from "@playwright/test"
 
 const OUT = process.argv[2]!

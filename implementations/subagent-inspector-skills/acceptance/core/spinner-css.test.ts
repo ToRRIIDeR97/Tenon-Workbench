@@ -5,7 +5,6 @@ import path from "node:path"
 const packages = path.resolve(import.meta.dir, "../../../../tenon/packages")
 const theme = fs.readFileSync(path.join(packages, "ui/src/styles/tailwind/index.css"), "utf8")
 
-// Tailwind's built-in animation utilities. The theme resets `--*`, so each one needs its token back.
 const BUILTIN = ["spin", "ping", "bounce"]
 
 function sources(dir: string): string[] {

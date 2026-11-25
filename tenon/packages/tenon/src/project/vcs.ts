@@ -11,7 +11,6 @@ import { VcsEvent } from "@tenon/schema/vcs-event"
 const PATCH_CONTEXT_LINES = 2_147_483_647
 const MAX_PATCH_BYTES = 10_000_000
 const MAX_TOTAL_PATCH_BYTES = 10_000_000
-/** Untracked files whose line counts are read at once, one `git diff --no-index` each. */
 const UNTRACKED_STAT_CONCURRENCY = 8
 type DiffOptions = {
   readonly context?: number
@@ -179,7 +178,6 @@ const files = Effect.fnUntraced(function* (
   let capped = false
 
   const sorted = list.toSorted((a, b) => a.file.localeCompare(b.file))
-  // Untracked files need one `git diff --no-index` each; run those side by side before the ordered pass.
   const stats = yield* Effect.forEach(
     sorted,
     (item) =>
@@ -257,9 +255,6 @@ export type Info = Schema.Schema.Type<typeof Info>
 
 export const FileDiff = Schema.Struct({
   file: Schema.String,
-  // Mirrors Snapshot.FileDiff (see #26574). The current producer always
-  // populates patch, but loosening matches the sibling schema so a
-  // future code path that omits it can't crash /instance/vcs/diff.
   patch: Schema.optional(Schema.String),
   additions: Schema.Finite,
   deletions: Schema.Finite,
@@ -308,9 +303,7 @@ export interface Interface {
   readonly diff: (mode: Mode, options?: DiffOptions) => Effect.Effect<FileDiff[]>
   readonly diffRaw: () => Effect.Effect<string>
   readonly apply: (input: ApplyInput) => Effect.Effect<ApplyResult, PatchApplyError>
-  /** The repository's local branches by short name; empty outside git. */
   readonly branches: () => Effect.Effect<string[]>
-  /** Switches the working tree to a local branch; git refuses when local changes would be lost. */
   readonly switchBranch: (input: SwitchBranchInput) => Effect.Effect<Info, BranchSwitchError>
 }
 
@@ -451,7 +444,6 @@ const layer: Layer.Layer<Service, never, Git.Service | EventV2Bridge.Service> = 
         if (ctx.project.vcs !== "git") {
           return yield* new BranchSwitchError({ message: "This folder isn't a git repository", reason: "non-git" })
         }
-        // Only an existing local branch name reaches git, so the input can never act as an option.
         if (!(yield* localBranches(git, ctx.directory)).includes(input.branch)) {
           return yield* new BranchSwitchError({
             message: `No local branch named ${input.branch}`,
@@ -466,7 +458,6 @@ const layer: Layer.Layer<Service, never, Git.Service | EventV2Bridge.Service> = 
             reason: "failed",
           })
         }
-        // The HEAD watcher publishes the change; answer with the branch now so the caller needn't wait for it.
         const value = yield* InstanceState.get(state)
         value.current = input.branch
         yield* events.publish(Event.BranchUpdated, { branch: input.branch })

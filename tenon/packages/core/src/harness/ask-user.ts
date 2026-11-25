@@ -5,26 +5,10 @@ import { QuestionV2 } from "../question"
 import { SessionSchema } from "../session/schema"
 import { QuestionTool } from "../tool/question"
 
-/**
- * `ask_user` for external harnesses: their questions go through the same Location-owned
- * QuestionV2 service as the native `question` tool, so the Run's question dock shows them.
- *
- * MCP clients give up on a tool call after a while, so one call waits at most `WAIT_SECONDS`
- * and then reports the question as still open. The question stays pending in the dock for the
- * rest of the harness turn; a repeated call with the same questions in that turn waits on it
- * again instead of asking twice. When the turn ends, however it ends, the question is withdrawn.
- */
-
-/** Below Node fetch's default 300 s wait for response headers, which Node-based MCP clients such as Gemini CLI inherit. */
 export const WAIT_SECONDS = 240
 
-/**
- * For an agent whose MCP client timeout Tenon doesn't set (an ACP agent the user added): below the MCP SDK's
- * default 60 s request timeout, so the agent reads "still open" and asks again instead of getting a timeout error.
- */
 export const SHORT_WAIT_SECONDS = 50
 
-/** An elicitation the agent sends over ACP has no client timeout; the end of the turn withdraws it. */
 export const ELICITATION_WAIT_SECONDS = 24 * 60 * 60
 
 export const Input = Schema.Struct({ questions: Schema.Array(QuestionV2.Prompt) })
@@ -34,18 +18,11 @@ export type Outcome =
   | { readonly type: "declined" }
   | { readonly type: "open" }
 
-/** Asks `questions` in the Run's dock and waits up to `waitSeconds` for the user. */
 export type Ask = (questions: ReadonlyArray<QuestionV2.Prompt>, waitSeconds: number) => Promise<Outcome>
 
 export interface Asker {
   readonly ask: Ask
-  /**
-   * Called when the runtime's harness turn ends, finished, failed or interrupted. Withdraws a
-   * question still open in the dock and forgets an answer the agent never collected, so a later
-   * turn asking the same questions asks afresh.
-   */
   readonly endTurn: Effect.Effect<void>
-  /** True while a question waits on the user. */
   readonly pending: () => boolean
 }
 
@@ -56,20 +33,11 @@ interface Open {
   settled: boolean
 }
 
-/**
- * One harness runtime's asker. The runtime has at most one open question: asking something
- * different withdraws the previous one, and the end of the turn or closing the scope withdraws
- * whatever is still open, so the dock never keeps a question nobody is waiting for.
- */
 export const make = Effect.fn("HarnessAskUser.make")(function* (
   questions: QuestionV2.Interface,
   sessionID: SessionSchema.ID,
 ) {
   const state: { open?: Open } = {}
-  // Question events carry the Location in the calling fiber's context, and the app's per-directory event stream
-  // drops events without one. `ask` runs from the MCP endpoint's HTTP handler and withdrawal from the turn's stream
-  // finalizer, neither of which has it, so both run with the context `make` was called in. Callers provide the
-  // Location there.
   const context = yield* Effect.context()
   const run = Effect.runPromiseWith(context)
   const withdraw = (open: Open | undefined) =>
@@ -105,7 +73,6 @@ export const make = Effect.fn("HarnessAskUser.make")(function* (
       await run(withdraw(current))
     }
     const outcome = await settleWithin(open.outcome, waitSeconds)
-    // Once the agent has the answer, the same questions may be asked afresh.
     if (outcome.type !== "open" && state.open === open) state.open = undefined
     return outcome
   }
@@ -117,7 +84,6 @@ export const make = Effect.fn("HarnessAskUser.make")(function* (
   return { ask, endTurn, pending: () => !!state.open && !state.open.settled } satisfies Asker
 })
 
-/** The tool result the agent reads, in the native `question` tool's wording when answered. */
 export function resultText(questions: ReadonlyArray<QuestionV2.Prompt>, outcome: Outcome) {
   if (outcome.type === "answered") return QuestionTool.toModelOutput(questions, outcome.answers)
   if (outcome.type === "declined")

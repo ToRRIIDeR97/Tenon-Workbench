@@ -1,22 +1,15 @@
 import { BrowserWindow } from "electron"
 import { report, type Inspection } from "./svg-report"
 
-// The chat shows a diagram across the timeline column (about 760px) and caps its height (session-ui svg-window.ts).
 const CHAT_WIDTH = 760
 const CHAT_MAX_HEIGHT = 640
 const PADDING = 16
-// The chat's dark theme tokens, so the picture matches what the user sees.
 const THEME =
   "--tenon-fg:#f2f2f2;--tenon-muted:#aeaeae;--tenon-accent:#7698fd;--tenon-surface:#2e2e2e;--tenon-border:#ffffff1a"
 
 let window: BrowserWindow | undefined
 let queue: Promise<unknown> = Promise.resolve()
 
-/**
- * Renders an agent's SVG the way the chat shows it, in a hidden offscreen window whose page has the chat's strict
- * CSP (no scripts, no network), measures every label, and returns a PNG with the problems it found. Renders run
- * one at a time on the same window.
- */
 export function renderSvg(svg: string): Promise<{ text: string; image: string }> {
   const run = queue.then(() => render(svg))
   queue = run.catch(() => undefined)
@@ -48,7 +41,6 @@ function ensureWindow() {
     height: CHAT_MAX_HEIGHT + PADDING * 2,
     webPreferences: { offscreen: true, sandbox: true, contextIsolation: true, nodeIntegration: false },
   })
-  // The page only ever shows the markup it was given.
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }))
   window.webContents.on("will-navigate", (event) => event.preventDefault())
   return window
@@ -66,7 +58,6 @@ function documentFor(svg: string) {
   ].join("")
 }
 
-// Sizes the stage as the chat would: the column's width, keeping the viewBox's aspect, at most 640px tall.
 const LAYOUT = `(() => {
   const svg = document.querySelector("#stage > svg")
   if (!svg) return undefined
@@ -82,8 +73,6 @@ const LAYOUT = `(() => {
   return { width, height }
 })()`
 
-// Measures labels in viewBox units: pairs that overlap, text past the shape it sits in or past the viewBox, and
-// text that renders under 9px once the chat scales the diagram down.
 const INSPECT = `(async () => {
   await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
   const svg = document.querySelector("#stage > svg")

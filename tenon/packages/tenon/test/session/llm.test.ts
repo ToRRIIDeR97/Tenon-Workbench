@@ -55,11 +55,8 @@ const openAIConfig = (model: ModelsDev.Provider["models"][string], baseURL: stri
 
 const it = testEffect(AppNodeBuilder.build(LayerNode.group([LLM.node, Provider.node])))
 
-// LLM.stream returns a Stream, not an Effect, so we can't use the serviceUse proxy.
 const drain = (input: LLM.StreamInput) => LLM.Service.use((svc) => svc.stream(input).pipe(Stream.runDrain))
 
-// drainWith builds an isolated runtime so custom replacements fully own LLM and
-// its transitive deps.
 const drainWith = (layer: Layer.Layer<LLM.Service>, input: LLM.StreamInput) =>
   Effect.gen(function* () {
     const ctx = yield* InstanceRef
@@ -357,10 +354,6 @@ describe("session.llm.ai-sdk adapter", () => {
   })
 
   test("emits undefined usage when every AI SDK usage field is missing", async () => {
-    // If every numeric field is undefined the translator should signal "no usage info"
-    // by emitting undefined, not by polluting the event with usage: {}. Downstream cost
-    // telemetry distinguishes "missing" from "zero," so emitting an empty object causes
-    // false positives ("usage was tracked, just empty") instead of correct nulls.
     const events = await adapt([
       {
         type: "finish-step",
@@ -387,11 +380,6 @@ describe("session.llm.ai-sdk adapter", () => {
   })
 
   test("reuses adapter state cleanly across streams once finish has fired", async () => {
-    // adapterState() is meant to be per-stream, but the only thing finish currently clears
-    // is toolNames — step, text counters, and the current text/reasoning IDs all leak
-    // forward. A caller that reuses a state across two streams sees text-1/reasoning-1/
-    // step index 1 on the second stream's first events. The test pins the intended
-    // contract: after finish, the same state can be reused and starts fresh.
     const state = LLMAISDK.adapterState()
     const run = (events: ReadonlyArray<AISDKAdapterEvent>) =>
       Effect.runPromise(
@@ -449,9 +437,6 @@ describe("session.llm.ai-sdk adapter", () => {
     ])
   })
 
-  // Anthropic emits cache write counts in providerMetadata.anthropic.cacheCreationInputTokens
-  // rather than usage.inputTokenDetails.cacheWriteTokens. Session.getUsage falls back to the
-  // metadata path — but only if the adapter preserves providerMetadata on step-finish.
   test("preserves providerMetadata on step-finish so Anthropic cache writes survive getUsage", async () => {
     const events = await adapt([
       {
@@ -459,7 +444,6 @@ describe("session.llm.ai-sdk adapter", () => {
         response: { id: "msg_test", timestamp: new Date(0), modelId: "claude-3-5-sonnet" },
         finishReason: "stop",
         rawFinishReason: "stop",
-        // Anthropic's AI SDK shape: cacheWriteTokens is NOT in usage, it arrives via providerMetadata.
         usage: {
           inputTokens: 1000,
           outputTokens: 500,
@@ -478,7 +462,6 @@ describe("session.llm.ai-sdk adapter", () => {
     expect(stepFinish.usage?.cacheWriteInputTokens).toBeUndefined()
     expect(stepFinish.usage?.cacheReadInputTokens).toBe(200)
 
-    // End-to-end: with the metadata preserved, getUsage extracts cache.write from the fallback path.
     const result = SessionNs.getUsage({
       model: {
         id: "claude-3-5-sonnet",
@@ -1125,7 +1108,6 @@ describe("session.llm.stream", () => {
 
         yield* Effect.promise(() => Promise.race([pending.responseCanceled, timeout(500)]))
         const exit = yield* Fiber.await(fiber)
-        // Fiber.await returns an Exit<Exit<...>>. Unwrap once.
         const inner = Exit.isSuccess(exit) ? exit.value : exit
         expect(Exit.isFailure(inner)).toBe(true)
         if (Exit.isFailure(inner)) {
@@ -1302,7 +1284,7 @@ describe("session.llm.stream", () => {
         expect((body.reasoning as { mode?: string } | undefined)?.mode).toBe("pro")
 
         const maxTokens = body.max_output_tokens as number | undefined
-        expect(maxTokens).toBe(undefined) // match codex cli behavior
+        expect(maxTokens).toBe(undefined)
       }),
     { config: () => openAIConfig(loadFixture("openai", "gpt-5.2").model, `${state.server!.url.origin}/v1`) },
   )

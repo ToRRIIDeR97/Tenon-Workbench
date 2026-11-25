@@ -20,13 +20,9 @@ import { testEffect } from "../lib/effect"
 const it = testEffect(
   Layer.mergeAll(LayerNode.compile(LayerNode.group([Snapshot.node, FSUtil.node])), testInstanceStoreLayer),
 )
-// Windows forbids both * and : in directory names.
 const nonWindowsIt = process.platform === "win32" ? it.live.skip : it.live
 const symlinkIt = canSymlink ? it.instance : it.instance.skip
 
-// Git always outputs /-separated paths internally. Snapshot.patch() joins them
-// with path.join (which produces \ on Windows) then normalizes back to /.
-// This helper does the same for expected values so assertions match cross-platform.
 const fwd = (...parts: string[]) => path.join(...parts).replaceAll("\\", "/")
 const SNAPSHOT_BATCH_BOUNDARY = 100
 const OVER_BATCH_COUNT = SNAPSHOT_BATCH_BOUNDARY + 1

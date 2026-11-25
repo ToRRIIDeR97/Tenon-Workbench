@@ -16,7 +16,6 @@ const after = [
   "Fast, and edits show live.",
 ].join("\n")
 
-// AC-20: each run of changed lines is one hunk, positioned in the new text.
 describe("AC-20 trackedHunks", () => {
   test("two hunks", () => {
     expect(trackedHunks(before, after)).toEqual([
@@ -31,7 +30,6 @@ describe("AC-20 trackedHunks", () => {
   test("no change, no hunks", () => expect(trackedHunks(before, before)).toEqual([]))
 })
 
-// AC-21: undoing one hunk restores just that region; undoing all restores the original.
 describe("AC-21 revertHunk", () => {
   test("one hunk", () => {
     const [first] = trackedHunks(before, after)
@@ -45,7 +43,6 @@ describe("AC-21 revertHunk", () => {
   })
 })
 
-// AC-22: the hash the app sends is the SHA-256 hex of the text, as the server computes it.
 describe("AC-22 contentHash", () => {
   test("known vector", async () => {
     expect(await contentHash("abc")).toBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")

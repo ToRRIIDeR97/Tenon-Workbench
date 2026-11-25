@@ -2,8 +2,6 @@ import { describe, expect, test } from "bun:test"
 import { Harness } from "@tenon/schema/harness"
 import { harnessModelFor, harnessRetryDelay, withRememberedModels } from "./harness-memory"
 
-// Acceptance tests for implementations/harness-ux-batch-2 (AC-1, AC-2).
-
 const model = (id: string, extra: Partial<Harness.Model> = {}): Harness.Model => ({
   id,
   name: id,

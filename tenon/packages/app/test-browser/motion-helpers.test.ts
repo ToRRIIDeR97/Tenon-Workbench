@@ -4,7 +4,6 @@ import { createViewSwitch } from "@tenon/ui/v2/view-switch"
 import { motionDuration, prefersReducedMotion } from "@tenon/ui/v2/motion"
 import { batch, createRoot, createSignal } from "solid-js"
 
-// happy-dom answers `prefers-reduced-motion` from its device settings.
 const device = () =>
   (window as unknown as { happyDOM: { settings: { device: { prefersReducedMotion: string } } } }).happyDOM.settings
     .device

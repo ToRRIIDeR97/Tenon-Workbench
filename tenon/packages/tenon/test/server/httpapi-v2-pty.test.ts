@@ -58,13 +58,8 @@ const directoryHeader = (dir: string) => HttpClientRequest.setHeader("x-opencode
 
 const serverUrl = () => HttpServer.HttpServer.use((server) => Effect.succeed(HttpServer.formatAddress(server.address)))
 
-// Under full-suite load PTY spawn, exit, and websocket delivery can take seconds. Waits are bounded by
-// a condition plus a generous deadline that still fails well inside the 30s per-test timeout, so a
-// real hang reports what was missing instead of an opaque test timeout.
 const WAIT_MS = 15_000
 
-// The meta frame (0x00 + JSON cursor) is the first frame the server sends after attaching. Receiving it
-// proves the server socket is open and reading, so input written afterwards cannot be dropped.
 const META_FRAME = '\u0000{"cursor"'
 
 const createPty = (dir: string, input: Record<string, unknown>) =>
@@ -78,8 +73,6 @@ const createPty = (dir: string, input: Record<string, unknown>) =>
       Effect.flatMap(Schema.decodeUnknownEffect(Location.response(Pty.Info))),
       Effect.map((body) => body.data),
     ),
-    // Always remove the session, even when an assertion fails, so a long-running PTY never outlives its
-    // test. A 404 after the test already removed it is expected.
     (info) =>
       HttpClientRequest.delete(`/api/pty/${info.id}`).pipe(directoryHeader(dir), HttpClient.execute, Effect.ignore),
   )
@@ -139,7 +132,6 @@ describe("v2 pty HttpApi", () => {
     expect(String(body.location.directory)).toBe(tmp.path)
     expect(body.data.title).toBe("v2")
 
-    // The canonical surface keeps exited sessions observable with their exit code.
     const deadline = Date.now() + WAIT_MS
     let info: { status: string; exitCode?: number } | undefined
     while (Date.now() < deadline) {

@@ -28,7 +28,6 @@ export function prepareResponsesTools({
     | { type: "image_generation" }
   toolWarnings: SharedV3Warning[]
 } {
-  // when the tools array is empty, change it to undefined to prevent errors:
   tools = tools?.length ? tools : undefined
 
   const toolWarnings: SharedV3Warning[] = []

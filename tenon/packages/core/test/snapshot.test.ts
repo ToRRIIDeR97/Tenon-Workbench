@@ -67,7 +67,6 @@ describe("Snapshot", () => {
     ),
   )
 
-  // A folder outside Git is snapshotted on its own (only the home folder or a root is left out).
   testEffect(Layer.empty).live("captures a folder outside Git in its own snapshot folder", () =>
     Effect.acquireUseRelease(
       Effect.promise(() => tmpdir()),
@@ -176,7 +175,6 @@ testEffect(Layer.empty).live("captures edits when Git is initialized after the w
         yield* Effect.promise(() => fs.mkdir(project))
         yield* Effect.gen(function* () {
           const snapshot = yield* Snapshot.Service
-          // Before Git exists the folder is already snapshotted on its own; after `git init` capture keeps working.
           expect(yield* snapshot.capture()).toBeDefined()
           yield* Effect.promise(() => $`git init`.cwd(project).quiet())
           const before = yield* snapshot.capture()

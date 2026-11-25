@@ -43,15 +43,6 @@ import { ThreadReference } from "./session/thread-reference"
 export const RevertState = Revert.State
 export type RevertState = Revert.State
 
-// get project -> project.locations
-//
-// get all sessions
-//
-
-// - by project
-//   - by subpath
-// - by workspace (home is special)
-
 export { ListAnchor }
 
 const ListInputBase = {
@@ -60,7 +51,6 @@ const ListInputBase = {
   limit: PositiveInt.pipe(Schema.optional),
   order: Schema.Literals(["asc", "desc"]).pipe(Schema.optional),
   anchor: ListAnchor.pipe(Schema.optional),
-  /** Only Project leads (`origin.lead`), however many other threads the folder has. */
   lead: Schema.Boolean.pipe(Schema.optional),
 }
 
@@ -89,24 +79,17 @@ type CreateInput = {
   agent?: AgentV2.ID
   model?: ModelV2.Ref
   location: Location.Ref
-  /** The thread that started this one without being its parent (a delegated task placed in a Project). */
   origin?: SessionSchema.Origin
 }
 
 type CompactInput = {
   sessionID: SessionSchema.ID
   prompt?: Prompt
-  /** Compact on this model instead of the thread's own, then switch back: a cheaper one when the cache has gone cold. */
   model?: Harness.ModelSelection
 }
 
-/**
- * Harnesses that compact their own conversation when sent `/compact` (Claude Code and OpenCode over ACP). Codex and
- * the built-in agent don't take it as a command.
- */
 export const NATIVE_COMPACT = new Set<string>([Harness.ClaudeCode, "opencode-acp"])
 
-/** `/compact` ran and failed; `message` says why (the harness's own error, when it gave one). */
 export class CompactFailedError extends Schema.TaggedError<CompactFailedError>()("Session.CompactFailedError", {
   sessionID: SessionSchema.ID,
   message: Schema.String,
@@ -129,7 +112,6 @@ export class PromptConflictError extends Schema.TaggedError<PromptConflictError>
   sessionID: SessionSchema.ID,
   messageID: SessionMessage.ID,
 }) {}
-// The runner already promoted the queued input, so it can no longer be withdrawn or steered.
 export class InputStartedError extends Schema.TaggedError<InputStartedError>()("Session.InputStartedError", {
   sessionID: SessionSchema.ID,
   messageID: SessionMessage.ID,
@@ -194,10 +176,6 @@ export interface Interface {
     resume?: boolean
   }) => Effect.Effect<SessionInput.Admitted, NotFoundError | PromptConflictError>
   readonly queued: (sessionID: SessionSchema.ID) => Effect.Effect<SessionInput.Admitted[], NotFoundError>
-  /**
-   * Wakes each idle session whose next queued input passes `accept`, for inputs left waiting when the last server
-   * run stopped. Only drains the inbox; it never retries provider work. Returns how many it woke.
-   */
   readonly wakeQueued: (accept: (input: SessionInput.Admitted) => boolean) => Effect.Effect<number>
   readonly withdrawQueued: (input: {
     sessionID: SessionSchema.ID
@@ -249,7 +227,6 @@ const layer = Layer.effect(
     const execution = yield* SessionExecution.Service
     const store = yield* SessionStore.Service
     const locations = yield* LocationServiceMap.Service
-    // Threads running a /compact right now; messages sent to them queue until it ends.
     const compacting = new Set<string>()
     const decodeMessage = Schema.decodeUnknownEffect(SessionMessage.Message)
     const isDurableSessionEvent = Schema.is(SessionEvent.Durable)
@@ -322,7 +299,6 @@ const layer = Layer.effect(
               if (!(defect instanceof SessionProjector.SessionAlreadyProjected)) {
                 return Effect.die(defect)
               }
-              // Concurrent creation lost the projection race. The existing Session identity wins.
               return store
                 .get(sessionID)
                 .pipe(
@@ -333,7 +309,6 @@ const layer = Layer.effect(
             }),
           )
         if (projected.type === "existing") return projected.session
-        // TODO: Restore recorded sessions onto replacement synchronized workspaces in a future API slice.
         return yield* result.get(sessionID).pipe(Effect.orDie)
       }),
       fork: Effect.fn("V2Session.fork")(function* (input) {
@@ -350,8 +325,6 @@ const layer = Layer.effect(
           harnessModel: original.harnessModel,
           agent: original.agent,
           model: original.model,
-          // No parentID: that link marks a subagent (task tool) child, which the UI hides and cannot prompt.
-          // A fork is an independent thread.
           title: `${original.title} (fork)`,
         })
         for (const source of history.slice(0, boundary)) {
@@ -404,7 +377,6 @@ const layer = Layer.effect(
         if (input.workspaceID) conditions.push(eq(SessionTable.workspace_id, input.workspaceID))
         if ("project" in input) conditions.push(eq(SessionTable.project_id, input.project))
         if ("project" in input && input.subpath) {
-          // Exact folder or its descendants. substr avoids LIKE wildcards in ids such as `project_…`.
           const subpath = input.subpath.replaceAll("\\", "/").replace(/\/+$/, "")
           conditions.push(
             or(
@@ -501,7 +473,6 @@ const layer = Layer.effect(
         Effect.uninterruptible(
           Effect.gen(function* () {
             const session = yield* result.get(input.sessionID)
-            // Sending after "Edit from here" makes the staged rollback permanent, for every harness alike.
             if (session.revert) {
               if ((yield* execution.active).has(input.sessionID)) yield* execution.interrupt(input.sessionID)
               yield* SessionRevert.commit(session).pipe(Effect.provideService(EventV2.Service, events))
@@ -513,7 +484,6 @@ const layer = Layer.effect(
               resolvePrompt(input.prompt),
             )
             const messageID = input.id ?? SessionMessage.ID.create()
-            // A message sent while the thread compacts waits for the compaction instead of steering into it.
             const compactingNow = compacting.has(input.sessionID)
             const delivery = compactingNow ? "queue" : (input.delivery ?? "steer")
             const expected = { sessionID: input.sessionID, messageID, prompt, delivery }
@@ -604,9 +574,6 @@ const layer = Layer.effect(
           session.harnessModel?.reasoningEffort === input.model?.reasoningEffort &&
           session.harnessModel?.serviceTier === input.model?.serviceTier
         if (session.harnessInstanceID === input.instanceID && sameModel) return
-        // A model or effort change on the same harness is safe mid-turn: the runner reads the model when a turn
-        // starts, so it applies from the next one. A busy Command Centre lead would otherwise never take the pick.
-        // Changing harness while one runs is still refused.
         if (session.harnessInstanceID !== input.instanceID && (yield* execution.active).has(input.sessionID))
           return yield* new OperationUnavailableError({ operation: "switchHarness" })
         yield* events.publish(SessionEvent.HarnessSwitched, {
@@ -633,7 +600,6 @@ const layer = Layer.effect(
               model,
             })
           })
-        // The harness runs its own compaction for `/compact`; the turn ends when the summary replaces the history.
         const native = Effect.gen(function* () {
           if (swap) yield* switchTo(input.model)
           yield* SessionInput.admit(db, events, {
@@ -648,18 +614,13 @@ const layer = Layer.effect(
             Effect.catchDefect((defect) => Effect.succeed(defect instanceof Error ? defect.message : String(defect))),
           )
           if (run) return run
-          // A turn that failed (the harness signed out, the model refused) records its error on its reply.
           const [reply] = yield* result
             .messages({ sessionID: input.sessionID, order: "desc", limit: 1 })
             .pipe(Effect.orElseSucceed(() => []))
           return reply?.type === "assistant" && reply.error ? reply.error.message : undefined
-          // A thread with no model of its own goes back to the harness default.
         }).pipe(Effect.ensuring(swap ? switchTo(original).pipe(Effect.orDie) : Effect.void))
-        // While either path runs, messages sent to the thread queue instead of starting a turn beside it.
         compacting.add(input.sessionID)
         const outcome = yield* Effect.gen(function* () {
-          // Claude Code and OpenCode take `/compact` themselves; the runner compacts every other thread (Codex on its
-          // own side, the rest on Tenon's), or reports an ACP agent that turned out to take `/compact` too.
           if (!NATIVE_COMPACT.has(session.harnessInstanceID)) {
             const ran = yield* execution.compact({ sessionID: input.sessionID, model: input.model })
             if (ran.status !== "native") return ran
@@ -670,7 +631,6 @@ const layer = Layer.effect(
           Effect.ensuring(
             Effect.gen(function* () {
               compacting.delete(input.sessionID)
-              // Messages sent during the compaction were queued; they run now.
               if ((yield* SessionInput.listQueued(db, input.sessionID)).length > 0)
                 yield* execution.wake(input.sessionID)
             }),
@@ -719,11 +679,6 @@ const layer = Layer.effect(
   }),
 )
 
-/**
- * Replaces each `tenon-thread://` attachment with a text attachment holding that thread: what it would
- * send its own model (summary), or every message (`?full=1`). A thread that is gone, or the prompt's
- * own thread, is dropped.
- */
 function expandThreads(
   sessions: Pick<Interface, "get" | "messages" | "context">,
   legacy: (sessionID: SessionSchema.ID) => Effect.Effect<ReadonlyArray<string>>,
@@ -742,7 +697,6 @@ function expandThreads(
         ? yield* sessions.messages({ sessionID: id, order: "asc", limit: 500 })
         : yield* sessions.context(id)
       const title = file.name ?? info.title
-      // A thread run by the built-in agent keeps its messages in the v1 tables.
       const text =
         messages.length > 0
           ? ThreadReference.render({ title, messages, full: reference.full })
@@ -752,7 +706,6 @@ function expandThreads(
   }).pipe(Effect.map((files) => Prompt.make({ ...prompt, files: files.flat() })))
 }
 
-/** A v1 thread's visible text, one "ROLE:" item per message, oldest first. */
 function legacyThreadItems(db: Database.Interface["db"], sessionID: SessionSchema.ID) {
   return db
     .select({ messageID: MessageTable.id, message: MessageTable.data, part: PartTable.data })

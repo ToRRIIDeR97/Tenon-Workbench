@@ -1,4 +1,3 @@
-/* ```view blocks rendered as viewer windows (view-window.ts); the app draws each file inside its body. */
 [data-component="markdown"] {
   [data-component="markdown-code"][data-view-window] {
     margin-top: 12px;

@@ -142,8 +142,6 @@ test("keeps the review tree and terminal sized when both panels are open", async
     localStorage.setItem("settings.v3", JSON.stringify({ general: {} }))
     localStorage.setItem(
       "tenon.global.dat:layout",
-      // A side panel wide enough to keep the file tree beside the diff instead of collapsing it; the
-      // Projects panel is closed to leave it that room.
       JSON.stringify({
         review: { diffStyle: "split", panelOpened: true },
         sidePanel: { width: 720 },
@@ -233,7 +231,6 @@ test("keeps the review tree and terminal sized when both panels are open", async
   await expect(page.locator("#review-panel")).toHaveCount(0)
   await page.getByRole("button", { name: "Toggle review" }).click()
   await expectTree(page, 2_773, "action.yml")
-  // At this width the side panel collapses the file tree; the stack still has to fill its column.
   await page.setViewportSize({ width: 1_000, height: 700 })
   await expectStackGeometry(page)
   await page.setViewportSize({ width: 1_000, height: 120 })
@@ -272,12 +269,10 @@ async function expectMountedTree(page: Page, total: number) {
 }
 
 async function expectStackGeometry(page: Page) {
-  // The stacked terminal grows in with a height animation on its wrapper; measure once it has finished.
   await page.evaluate(() =>
     Promise.all(
       [document.querySelector("#review-panel"), document.querySelector("#terminal-panel")]
         .flatMap((panel) => panel?.parentElement?.getAnimations() ?? [])
-        // A cancelled animation (the layout changed under it) has ended too; its promise rejects.
         .map((animation) => animation.finished.catch(() => undefined)),
     ),
   )

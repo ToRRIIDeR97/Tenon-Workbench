@@ -257,7 +257,6 @@ export function createKeybindSettingsController(
     setStore("active", id)
     input.command.keybinds(false)
   }
-  // A command can have more than one binding (`mod+n,mod+t`); the list shows each of them.
   const shown = (id: string) =>
     [
       ...new Set(
@@ -374,7 +373,6 @@ export function SettingsKeybinds() {
   )
 }
 
-// Composer shortcuts are handled inside the editor (not global commands), so they are listed read-only.
 const COMPOSER_SHORTCUTS = [
   { title: "secondBrain.composer.shortcuts.send", keybind: "enter" },
   { title: "secondBrain.composer.shortcuts.newline", keybind: "shift+enter" },

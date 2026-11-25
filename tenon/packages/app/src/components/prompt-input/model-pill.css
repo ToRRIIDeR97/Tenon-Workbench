@@ -1,4 +1,3 @@
-/* The model pill's drill-in stack: a list slides in from the right, and the summary comes back from the left. */
 [data-slot="model-pill-step"] {
   &[data-motion="forward"] {
     animation: model-pill-forward var(--v2-duration-swap-in) var(--v2-ease-emphasized-decelerate) both;

@@ -1,4 +1,3 @@
-# Regenerate from the repository root: python3 docs/diagrams/generate/structural.py docs/diagrams
 import sys
 from svg import SVG
 
@@ -10,7 +9,6 @@ def component():
             "UML component view: Solid renderer, preload bridge, Electron main, the bundled Tenon server "
             "with HTTP API, Second Brain domains, location services and agent runtime, the dictation engine, plus stores and external services.")
     s.heading("Component view", "UML 2.5.1 component diagram · paths relative to tenon/packages/")
-    # left column
     s.box(20, 70, 250, 160, "Solid renderer", ["app/src", "sidebar: Home, Notes, Calendar,", "Command Centre (+ K3 strip, Routines)",
           "ServerSDK + compat API (v1/v2)", "Second Brain client, drafts"], stereo="component")
     s.box(20, 280, 250, 64, "window.api", ["desktop/src/preload (contextBridge)"], stereo="interface")
@@ -18,7 +16,6 @@ def component():
           "server launcher (server.ts)", "Google Calendar/Tasks service", "mail accounts + loopback endpoint",
           "drafts, dictation, harness-sync/"], stereo="component")
     s.box(20, 590, 200, 60, "userData stores", ["drafts.sqlite, electron-store", "(second-brain.google)"], cls="store")
-    # server container
     s.zone(340, 60, 360, 570, "Tenon server «subsystem» · 127.0.0.1")
     s.box(360, 90, 290, 104, "HTTP API", ["native /api: server + protocol pkgs", "legacy: tenon/src/server",
           "Basic auth, workspace routing", "→ domains and SessionV2"], cls="sub")
@@ -28,18 +25,15 @@ def component():
     s.box(360, 440, 290, 170, "Agent runtime", ["core/src/session: SessionV2,", "SessionInput, SessionRunner",
           "core/src/harness.ts: HarnessRuntime", "drivers: opencode, codex, acp", "core/src/permission.ts: PermissionV2",
           "EventV2 (durable events), Snapshot", "registry.ts, tenon MCP (ask, delegate)"], cls="sub")
-    # stores
     s.box(760, 335, 200, 76, "Workspace files + vault", ["projects/*, .tenon/ (calendar)", "vault: Documents/Tenon/<ws>/"], cls="store")
     s.box(760, 445, 200, 56, "Profile SQLite", ["sessions, events, permissions"], cls="store")
     s.box(760, 515, 200, 44, "Snapshot git repo", [], cls="store")
     s.box(760, 573, 200, 44, "harnesses.json, keys (0600)", [], cls="store")
     s.box(760, 631, 200, 56, "auth.json (XDG data)", ["provider credentials", "data/tenon-workbench"], cls="store")
-    # externals
     s.box(20, 705, 200, 60, "Google APIs", ["Calendar v3, Tasks v1"], cls="ext", stereo=None)
     s.box(340, 705, 150, 60, "Codex app-server", ["child process"], cls="proc")
     s.box(510, 705, 160, 60, "ACP agents", ["opencode acp (PATH),", "registered commands"], cls="proc")
     s.box(690, 705, 190, 60, "LLM provider APIs", ["opencode driver"], cls="ext")
-    # edges
     s.edge([(145, 230), (145, 280)], "invoke / on", at=(190, 258))
     s.edge([(145, 344), (145, 390)], "IPC", at=(170, 370))
     s.edge([(120, 560), (120, 590)])
@@ -56,10 +50,8 @@ def component():
     s.edge([(415, 610), (415, 705)], "JSON-RPC stdio\n+ tenon MCP", at=(415, 668))
     s.edge([(590, 610), (590, 705)], "ACP stdio\n+ tenon MCP", at=(590, 668))
     s.edge([(640, 610), (760, 705)], "HTTPS", at=(722, 690))
-    # dictation engine (child of Electron main) and its model source
     s.box(20, 795, 270, 64, "tenon-dictation", ["packages/dictation (Rust): handy-recorder,", "earshot VAD, transcribe-cpp"], cls="proc")
     s.box(340, 795, 200, 64, "Hugging Face", ["speech models (GGUF),", "SHA-256 checked"], cls="ext")
-    # mail providers (Electron main); drafts only, no send call
     s.box(600, 795, 260, 64, "Mail providers", ["Gmail API, Microsoft Graph, IMAP", "search, read, save drafts (no send)"], cls="ext")
     s.edge([(270, 450), (325, 450), (325, 778), (730, 778), (730, 795)], "OAuth PKCE / IMAP", at=(640, 772))
     s.edge([(20, 545), (10, 545), (10, 827), (20, 827)], "spawn, JSON lines\non stdio", at=(150, 784))

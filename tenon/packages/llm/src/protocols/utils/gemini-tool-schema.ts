@@ -1,8 +1,5 @@
 import { isRecord } from "../../utils/record"
 
-// Gemini accepts a JSON Schema-like dialect for tool parameters, but rejects a
-// handful of common JSON Schema shapes. Keep this projection isolated so the
-// Gemini protocol file still reads like the other protocol modules.
 const SCHEMA_INTENT_KEYS = [
   "type",
   "properties",

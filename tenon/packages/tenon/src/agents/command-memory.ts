@@ -12,15 +12,6 @@ import { mkdir, readdir, readFile, realpath, rename, stat, writeFile } from "nod
 import path from "node:path"
 import COMMAND_AGENT from "./command-agent.md" with { type: "text" }
 
-/**
- * Command Centre memory. Command Centre threads run in `<vault root>/.command-centre`, a folder no
- * Project points at, so they never show among Project threads. Old threads are summarised into
- * readable memory files (`.command-centre/memory/<thread>.md`, synced with the vault) and then
- * deleted. Search runs SQLite FTS5 over thread titles, message text and those summaries; the index is
- * a temporary table kept for the process and brought up to date on each search, so nothing but the files
- * and threads needs keeping.
- */
-
 export const Hit = Schema.Struct({
   sessionID: Schema.optional(Schema.String),
   text: Schema.String,
@@ -40,23 +31,14 @@ export interface Thread {
 const hitLimit = 20
 const textLimit = 600
 const threadLimit = 2_000
-// Rows per index insert: four bound values each, well under SQLite's variable limit.
 const insertBatch = 200
-// Bound IDs per change-stamp lookup or row delete.
 const idBatch = 500
 const day = 24 * 60 * 60 * 1000
-// One search or thread removal at a time: both change the same rows.
 const lock = Semaphore.makeUnsafe(1)
-// One compaction at a time. It takes `lock` only per removal, so memory search never waits on a model call.
 const compaction = Semaphore.makeUnsafe(1)
 
-/** The machine's vault root (`TENON_VAULT_DIR`, else `<home>/Documents/Tenon`). */
 export const root = () => KnowledgeVault.rootFor(process.env, Global.make().home)
 
-/**
- * Where Command Centre threads run. Created on first use, with the agent's AGENTS.md, which every
- * thread there loads as its instructions.
- */
 export const directory = Effect.fn("CommandMemory.directory")(function* () {
   const folder = path.join(root(), HarnessAppTools.COMMAND_CENTRE_FOLDER)
   yield* Effect.promise(() => mkdir(folder, { recursive: true }))
@@ -64,10 +46,8 @@ export const directory = Effect.fn("CommandMemory.directory")(function* () {
   return folder
 })
 
-// The first line of command-agent.md. A file without it is the user's own and is left alone.
 const managed = "<!-- Managed by Tenon Workbench"
 
-/** Writes the Command Centre agent's AGENTS.md, refreshing an older managed copy. */
 export async function writeInstructions(folder: string) {
   const file = path.join(folder, "AGENTS.md")
   const current = await readFile(file, "utf8").catch(() => undefined)
@@ -81,19 +61,12 @@ const fold = (value: string) => {
   return process.platform === "win32" ? resolved.toLowerCase() : resolved
 }
 
-/**
- * Every Command Centre folder this machine has used, the current root's first. A session row keeps the
- * folder it started in, so a thread from before a vault move still runs in its earlier root's folder.
- */
 export const folders = (roots = KnowledgeVault.machineRoots(Global.make().data)) =>
   [...new Set([root(), ...Object.keys(roots)])].map((item) => path.join(item, HarnessAppTools.COMMAND_CENTRE_FOLDER))
 
-// Each folder's real path, kept for the process. An earlier root can sit on an offline share, so only async
-// fs touches these paths, and a failed lookup isn't kept: the folder may appear or come back later.
 const reals = new Map<string, string>()
 const resolving = new Map<string, Promise<void>>()
 
-/** Looks up the real path of every Command Centre folder, off the event loop. */
 export const resolveFolders = (list = folders()) =>
   Promise.all(
     list.map((folder) => {
@@ -111,7 +84,6 @@ export const resolveFolders = (list = folders()) =>
     }),
   )
 
-// An offline root must not hold up a search or a tool call, so waiting for the lookups is bounded.
 const resolved = Effect.promise(() => resolveFolders()).pipe(Effect.timeoutOption("2 seconds"))
 
 const spellings = (folder: string) => [...new Set([folder, path.resolve(folder), reals.get(folder) ?? folder])]
@@ -119,11 +91,6 @@ const spellings = (folder: string) => [...new Set([folder, path.resolve(folder),
 const isCommandFolderName = (value: string) =>
   path.basename(path.resolve(value)) === HarnessAppTools.COMMAND_CENTRE_FOLDER
 
-/**
- * Whether a session directory is a Command Centre folder, of this root or an earlier one. Called on every
- * session update, so any other folder stops at its name, and it never waits on a root: a folder reached through
- * a link only matches once its lookup is done. A miss starts that lookup; `isCommandDirectoryResolved` waits for it.
- */
 export function isCommandDirectory(value: string) {
   if (!isCommandFolderName(value)) return false
   const target = fold(value)
@@ -133,7 +100,6 @@ export function isCommandDirectory(value: string) {
   return false
 }
 
-/** `isCommandDirectory` for callers that can wait for the folders' real paths. */
 export const isCommandDirectoryResolved = Effect.fnUntraced(function* (value: string) {
   if (isCommandDirectory(value)) return true
   if (!isCommandFolderName(value)) return false
@@ -141,7 +107,6 @@ export const isCommandDirectoryResolved = Effect.fnUntraced(function* (value: st
   return isCommandDirectory(value)
 })
 
-/** Root Command Centre threads, newest first; archived ones included. */
 export const threads = Effect.fn("CommandMemory.threads")(function* () {
   yield* directory()
   yield* resolved
@@ -170,12 +135,8 @@ const threadText = Effect.fnUntraced(function* (sessionID: Session.Info["id"]) {
 
 const memoryFolder = () => path.join(root(), HarnessAppTools.COMMAND_CENTRE_FOLDER, "memory")
 
-// File times can trail the wall clock (coarse kernel clocks; FAT keeps 2-second times), so a file
-// changed this recently may be rewritten without its stamp changing.
 const fileClockSlack = 2_000
 
-// Each memory file with a stamp that changes when the file is rewritten, and whether the stamp can be
-// trusted yet (see `Indexed`).
 const memoryFiles = Effect.promise(async () => {
   const folder = memoryFolder()
   const readAt = Date.now()
@@ -197,7 +158,6 @@ const readMemory = (file: string) =>
   readFile(file, "utf8").then(
     (source) => ({
       text: source.replace(/^<!-- at: \d+ -->\r?\n/, "").trim(),
-      // `<!-- at: <epoch ms> -->` on the first line keeps the original thread's time.
       at: Number(/^<!-- at: (\d+) -->/.exec(source)?.[1] ?? 0),
     }),
     () => undefined,
@@ -213,7 +173,6 @@ const writeMemory = (id: string, text: string, at: number) =>
     await rename(temp, file)
   })
 
-/** FTS5 query from free text: each word quoted, all required. */
 export function matchQuery(query: string) {
   const words = query.match(/[\p{L}\p{N}_]+/gu) ?? []
   return words
@@ -222,20 +181,10 @@ export function matchQuery(query: string) {
     .join(" ")
 }
 
-/**
- * An indexed row and the change stamp it was read at. A stamp is a time that was still current when it was
- * read, so a write in that same instant can leave it unchanged: such a row keeps no stamp and is read again
- * by the next search, until one sees its latest write strictly before the read.
- */
 type Indexed = { rowid: number; stamp: string | undefined }
 
-/**
- * What `temp.command_memory_fts` holds on one connection: the row of each thread (by session ID) and memory
- * file (by path). Searches bring it up to date, so only new or changed threads and files are read again.
- */
 type Index = { threads: Map<string, Indexed>; memory: Map<string, Indexed>; next: number }
 
-// A temporary table belongs to its connection, so each database keeps its own record of it.
 const indexes = new WeakMap<object, Index>()
 
 const indexFor = (db: object) => {
@@ -251,7 +200,6 @@ const forget = (index: Index) => {
   index.memory.clear()
 }
 
-/** Search Command Centre threads and memory summaries. */
 export const search = Effect.fn("CommandMemory.search")(function* (query: string) {
   const match = matchQuery(query)
   if (!match) return [] as Hit[]
@@ -261,13 +209,11 @@ export const search = Effect.fn("CommandMemory.search")(function* (query: string
         const { db } = yield* Database.Service
         const indexed = indexFor(db)
         return yield* Effect.gen(function* () {
-          // A temporary table lives only on this connection; the lock keeps searches from sharing it.
           yield* db.run(
             sql.raw(
               "CREATE VIRTUAL TABLE IF NOT EXISTS temp.command_memory_fts USING fts5(session_id UNINDEXED, at UNINDEXED, body)",
             ),
           )
-          // A reopened connection starts with an empty table, so `indexed` no longer describes it.
           const held = yield* db.all<{ rows: number }>(sql`SELECT count(*) AS rows FROM temp.command_memory_fts`)
           if ((held[0]?.rows ?? 0) !== indexed.threads.size + indexed.memory.size) {
             yield* db.run(sql.raw("DELETE FROM temp.command_memory_fts"))
@@ -290,7 +236,6 @@ export const search = Effect.fn("CommandMemory.search")(function* (query: string
           for (const item of staleThreads) indexed.threads.delete(item.id)
           for (const item of staleMemory) indexed.memory.delete(item.id)
 
-          // Only threads and memory files that are new or changed since they were indexed are read.
           const threadRows = yield* Effect.forEach(
             list.filter((session) => !indexed.threads.has(session.id)),
             (session) =>
@@ -329,7 +274,6 @@ export const search = Effect.fn("CommandMemory.search")(function* (query: string
             ...row,
             rowid: indexed.next++,
           }))
-          // A few multi-row inserts instead of one statement per row.
           for (let start = 0; start < rows.length; start += insertBatch) {
             const batch = rows.slice(start, start + insertBatch)
             yield* db.run(
@@ -341,7 +285,6 @@ export const search = Effect.fn("CommandMemory.search")(function* (query: string
             for (const row of batch) indexed[row.kind].set(row.id, { rowid: row.rowid, stamp: row.stamp })
           }
 
-          // Equal ranks keep the order a fresh index gave them: threads newest first, then memory files.
           const found = yield* db.all<{ session_id: string; at: number; body: string }>(
             sql`SELECT session_id, at, body FROM temp.command_memory_fts WHERE command_memory_fts MATCH ${match} ORDER BY rank, session_id = '', at DESC LIMIT ${hitLimit}`,
           )
@@ -352,27 +295,17 @@ export const search = Effect.fn("CommandMemory.search")(function* (query: string
               at: Number(row.at),
             }),
           )
-        }).pipe(
-          // A search that stopped part way may have left rows `indexed` doesn't know; the next one rebuilds.
-          Effect.onError(() => Effect.sync(() => forget(indexed))),
-        )
+        }).pipe(Effect.onError(() => Effect.sync(() => forget(indexed))))
       }),
     )
     .pipe(Effect.orDie)
 })
 
-// Indexed entries that `current` no longer has, has with another stamp, or that kept no stamp.
 const stale = (held: Map<string, Indexed>, current: Map<string, string>) =>
   [...held].flatMap(([id, item]) =>
     item.stamp !== undefined && current.get(id) === item.stamp ? [] : [{ id, rowid: item.rowid }],
   )
 
-/**
- * Each thread's change stamp. Neither a reply nor a rename moves a session's `time.updated`, so the stamp
- * adds the title and its parts' count and latest write (every part write moves its `time_updated`).
- * `settled` says whether the thread's latest write came strictly before the stamps were read; the
- * timestamps are milliseconds of this process's clock, so a write later in the same millisecond is possible.
- */
 const threadStamps = Effect.fnUntraced(function* (list: ReadonlyArray<Session.Info>) {
   const { db } = yield* Database.Service
   const readAt = Date.now()
@@ -404,11 +337,6 @@ const threadStamps = Effect.fnUntraced(function* (list: ReadonlyArray<Session.In
   }
 })
 
-/**
- * Summarise Command Centre threads last updated more than `days` ago into memory files, then delete
- * those threads. A thread whose summary fails is kept for the next run, and so is one with no text to
- * summarise (empty, or unreadable right now). Project threads are never read.
- */
 export const compact = Effect.fn("CommandMemory.compact")(function* <E, R>(input: {
   now?: number
   days: number

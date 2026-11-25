@@ -12,19 +12,12 @@ import { sessionHref } from "@/utils/session-route"
 import { projectGithubWork } from "@/utils/server"
 import { githubTaskRows, type GithubTaskRow, type GithubWork } from "./github-tasks"
 
-/**
- * The linked repository's issues inside the Project's Tasks (#331, variant A): each open issue is a task with the
- * PR that closes it, read with the user's `gh` login. The repository is the folder's `origin` unless the Project
- * names another. Rows open on GitHub; ticking them done happens there (merging the PR closes the issue).
- */
-// The Repository row and the task list read the same choice: a save in one makes the other read again.
 const [repoSaves, setRepoSaves] = createStore<Record<string, number>>({})
 
 export function ProjectGithubTasks(props: {
   projectId: string
   folder: string | undefined
   show: "open" | "all"
-  /** Issue numbers a Tenon task already mirrors (`… (#N)`), left out here. */
   linked?: ReadonlySet<number>
 }) {
   const language = useLanguage()
@@ -139,7 +132,6 @@ function GithubTaskItem(props: { row: GithubTaskRow; open: (url: string) => void
         class="flex min-h-12 min-w-0 flex-1 items-center gap-3 px-4 py-1.5 text-left outline-none hover:bg-v2-overlay-simple-overlay-hover focus-visible:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)]"
         onClick={() => props.open(props.row.url)}
       >
-        {/* Read-only like a task's box: GitHub ticks it when the issue closes (a merged PR closes it). */}
         <span
           aria-hidden="true"
           class="flex size-4 shrink-0 items-center justify-center rounded-[5px] shadow-[inset_0_0_0_1.5px_var(--v2-border-border-base)]"
@@ -183,7 +175,6 @@ function GithubTaskItem(props: { row: GithubTaskRow; open: (url: string) => void
           )}
         </Show>
       </button>
-      {/* The thread that produced the PR, so a merged PR leads back to its conversation (#331). */}
       <Show when={props.row.thread}>
         {(thread) => (
           <ButtonV2
@@ -202,10 +193,6 @@ function GithubTaskItem(props: { row: GithubTaskRow; open: (url: string) => void
   )
 }
 
-/**
- * The Project's Repository row (#331): the repository its tasks come from, filled from the folder's origin. A
- * different one is kept for the Project folder on the server; saving it empty goes back to the origin.
- */
 export function ProjectRepository(props: { folder: string | undefined }) {
   const language = useLanguage()
   const platform = usePlatform()

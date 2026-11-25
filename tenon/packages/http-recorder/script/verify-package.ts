@@ -41,7 +41,6 @@ HttpRecorder.socket("consumer/socket", options).pipe(
           moduleResolution: "NodeNext",
           strict: true,
           noEmit: true,
-          // Required by effect@4.0.0-beta.74: its schema.d.ts references an undeclared SchemaErrorTypeId.
           skipLibCheck: true,
           lib: ["ES2022", "DOM", "ESNext.Disposable"],
         },

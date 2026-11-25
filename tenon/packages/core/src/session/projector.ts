@@ -71,7 +71,6 @@ function sessionRow(info: SessionV1.SessionInfo): typeof SessionTable.$inferInse
     time_created: info.time.created,
     time_updated: info.time.updated,
     time_compacting: info.time.compacting,
-    // Updated events carry the full Session, so a missing timestamp clears the column (unarchive).
     time_archived: info.time.archived ?? null,
   }
 }
@@ -110,10 +109,6 @@ function applyUsage(
     .pipe(Effect.orDie)
 }
 
-/**
- * A thread's last update is its latest conversation: a prompt joining the transcript, or the agent finishing its
- * reply. Thread lists order by it; settings such as a harness, model or agent switch leave it alone.
- */
 function touch(db: DatabaseService, event: SessionEvent.Event) {
   return db
     .update(SessionTable)
@@ -147,7 +142,6 @@ function run(db: DatabaseService, event: SessionEvent.Event) {
     const adapter: SessionMessageUpdater.Adapter = {
       getCurrentAssistant() {
         return Effect.gen(function* () {
-          // A newer turn supersedes stale incomplete rows; never resume an older assistant projection.
           const row = yield* db
             .select()
             .from(SessionMessageTable)
@@ -254,8 +248,6 @@ const layer = Layer.effectDiscard(
       }),
     )
     yield* events.project(SessionV1.Event.Updated, (event) => {
-      // applyUsage owns the usage totals after creation; an Updated snapshot read before a
-      // concurrent step-finish must not overwrite them.
       const {
         cost: _cost,
         tokens_input: _input,
@@ -341,7 +333,6 @@ const layer = Layer.effectDiscard(
         const messageID = event.data.part.messageID
         const sessionID = event.data.part.sessionID
         const data = partData(event.data.part)
-        // Only a previous step-finish carries usage; avoid decoding large tool-output blobs on every update.
         const row = yield* db
           .select({
             session_id: PartTable.session_id,
@@ -423,8 +414,6 @@ const layer = Layer.effectDiscard(
           .get()
           .pipe(Effect.orDie)
         if (!row) return yield* Effect.die(`Session not found while projecting continuation: ${event.data.sessionID}`)
-        // One entry per harness instance, so switching away and back keeps each native session.
-        // The legacy single slot is dropped: any slot it held was invalidated by the switch that led here.
         const { harnessContinuation: _legacy, ...metadata } = row.metadata ?? {}
         const continuations = isRecord(metadata.harnessContinuations) ? metadata.harnessContinuations : {}
         const previous = continuations[event.data.instanceID]
@@ -511,10 +500,7 @@ const layer = Layer.effectDiscard(
     yield* events.project(SessionEvent.Tool.Failed, (event) => run(db, event))
     yield* events.project(SessionEvent.Reasoning.Started, (event) => run(db, event))
     yield* events.project(SessionEvent.Reasoning.Ended, (event) => run(db, event))
-    // yield* events.project(SessionEvent.Retried, (event) => run(db, event))
     yield* events.project(SessionEvent.Compaction.Ended, (event) => run(db, event))
-    // A compaction the user asked for replaces the history a harness's native session holds with Tenon's summary, so
-    // the next turn opens a fresh native session that gets the summary as its handoff (as after a rollback).
     yield* events.project(SessionEvent.Compaction.Ended, (event) =>
       Effect.gen(function* () {
         if (event.data.reason !== "manual") return
@@ -566,8 +552,6 @@ const layer = Layer.effectDiscard(
           )
           .get()
           .pipe(Effect.orDie)
-        // Two prompts sent at once can both commit the same staged revert; the later one finds its
-        // boundary already deleted. It only clears a revert still staged at that boundary.
         if (!boundary) {
           const current = yield* db
             .select({ revert: SessionTable.revert })
@@ -583,7 +567,6 @@ const layer = Layer.effectDiscard(
             .run()
             .pipe(Effect.orDie, Effect.asVoid)
         }
-        // The boundary is the first rolled-back message, so it is removed with everything after it.
         yield* db
           .delete(SessionMessageTable)
           .where(
@@ -607,7 +590,6 @@ const layer = Layer.effectDiscard(
           .where(eq(SessionTable.id, event.data.sessionID))
           .get()
           .pipe(Effect.orDie)
-        // Native harness sessions still hold the removed turns; the next turn starts fresh with the trimmed history.
         const { harnessContinuation: _legacy, harnessContinuations: _continuations, ...metadata } = row?.metadata ?? {}
         yield* db
           .update(SessionTable)

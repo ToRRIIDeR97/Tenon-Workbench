@@ -66,7 +66,6 @@ const assertEvent = (actual: WebSocketEvent, expected: WebSocketEvent | undefine
     throw new Error(`WebSocket event ${index + 1}: expected ${safeText(expected)}, received ${safeText(actual)}`)
   })
 
-// Replay ends like a server that closed normally once the transcript is done.
 const normalClose = () => new Socket.SocketError({ reason: new Socket.SocketCloseError({ code: 1000 }) })
 
 const isCloseError = (error: unknown) => Socket.isSocketError(error) && error.reason._tag === "SocketCloseError"
@@ -88,8 +87,6 @@ const makeRecordingSocket = (
     const active = yield* Ref.make<ActiveRecording | undefined>(undefined)
     const writeLock = yield* Semaphore.make(1)
 
-    // A connection is one reader acquisition. Its scope decides whether the
-    // transcript is complete: the run succeeded, or the peer closed the socket.
     const reader: Socket.Socket["reader"] = Effect.gen(function* () {
       const state: ActiveRecording = {
         events: [],
@@ -204,8 +201,6 @@ const makeReplaySocket = (
       if (occupied) return yield* Effect.die("Concurrent runs of a replayed WebSocket are not supported")
       yield* Effect.addFinalizer(() => Ref.set(active, undefined))
 
-      // Release every server frame up to the next client frame, then wait for
-      // the application to send it. The transcript's end is a normal close.
       const pull: Socket.Reader["pull"] = Effect.gen(function* () {
         while (true) {
           const current = yield* Ref.get(state.progress)
@@ -291,17 +286,9 @@ const recordingLayer = (
     }),
   )
 
-/**
- * Wraps a provided `Socket.Socket` with cassette recording and replay.
- *
- * Supply the ordinary URL-bound Effect socket layer beneath this decorator.
- * The cassette name identifies the connection; recorder configuration does not
- * duplicate the transport URL.
- */
 export const socket = (name: string, options: RecorderOptions = {}): Layer.Layer<Socket.Socket, never, Socket.Socket> =>
   provideCassette(recordingLayer(name, { url: "" }, { ...options, compareClientMessagesAsJson: true }), options)
 
-/** @internal */
 export const socketLayer = (
   name: string,
   request: WebSocketRequest,

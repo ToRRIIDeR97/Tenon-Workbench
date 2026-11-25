@@ -9,8 +9,6 @@ const waitForState = <A, E>(runner: Runner.Runner<A, E>, tag: Runner.State<A, E>
   }).pipe(Effect.timeout("1 second"))
 
 describe("Runner", () => {
-  // --- ensureRunning semantics ---
-
   it.live(
     "ensureRunning starts work and returns result",
     Effect.gen(function* () {
@@ -112,8 +110,6 @@ describe("Runner", () => {
       expect(yield* Ref.get(ran)).toEqual(["first"])
     }),
   )
-
-  // --- cancel semantics ---
 
   it.live(
     "cancel interrupts running work",
@@ -250,8 +246,6 @@ describe("Runner", () => {
     }),
   )
 
-  // --- shell semantics ---
-
   it.live(
     "shell runs exclusively",
     Effect.gen(function* () {
@@ -354,8 +348,6 @@ describe("Runner", () => {
     }),
   )
 
-  // --- shell→run handoff ---
-
   it.live(
     "ensureRunning queues behind shell then runs after",
     Effect.gen(function* () {
@@ -432,8 +424,6 @@ describe("Runner", () => {
     }),
   )
 
-  // --- lifecycle callbacks ---
-
   it.live(
     "onIdle fires when returning to idle from running",
     Effect.gen(function* () {
@@ -475,8 +465,6 @@ describe("Runner", () => {
       expect(yield* Ref.get(count)).toBe(1)
     }),
   )
-
-  // --- busy flag ---
 
   it.live(
     "busy is true during run",

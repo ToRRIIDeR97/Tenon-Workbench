@@ -56,14 +56,7 @@ export type ElectronAPI = {
   consumeInitialDeepLinks: () => Promise<string[]>
   getDefaultServerUrl: () => Promise<string | null>
   setDefaultServerUrl: (url: string | null) => Promise<void>
-  /** The Tenon vault folder and whether the user chose it (otherwise `<Documents>/Tenon`). */
   getVaultFolder: () => Promise<{ folder: string; chosen: boolean }>
-  /**
-   * Pick another vault folder in a native dialog; null when cancelled. Takes effect after a relaunch.
-   * A folder inside a repository or workspace is refused with `error: "inside_workspace"` and not saved; so is a
-   * non-empty folder that is not a vault (`not_empty`), one inside or around the vault (`nested`), or a failed
-   * copy (`copy_failed`). The current vault is copied over and kept; `previous` names it.
-   */
   chooseVaultFolder: () => Promise<
     | { folder: string; restartRequired: boolean; previous?: string }
     | { error: "inside_workspace" | "not_empty" | "nested" | "copy_failed"; folder: string }
@@ -122,7 +115,6 @@ export type ElectronAPI = {
   setWindowFocus: () => Promise<void>
   showWindow: () => Promise<void>
   relaunch: () => void
-  /** False when the person chose to stay with unsaved edits. */
   confirmQuit: () => Promise<boolean>
   setUnsavedChanges: (unsaved: boolean) => void
   getZoomFactor: () => Promise<number>
@@ -134,14 +126,12 @@ export type ElectronAPI = {
   setTitlebar: (theme: TitlebarTheme) => Promise<void>
   runDesktopMenuAction: (action: DesktopMenuAction) => Promise<void>
   setBackgroundColor: (color: string) => Promise<void>
-  /** The desktop widget: toggle or hide it, size it to its card, or open an app route in a main window. */
   widget: {
     toggle: () => Promise<void>
     hide: () => Promise<void>
     resize: (height: number) => Promise<void>
     openInApp: (path: string) => Promise<void>
   }
-  /** A main window is asked to show an app route (from the desktop widget's "Open in Tenon"). */
   onNavigate: (cb: (path: string) => void) => () => void
   exportDebugLogs: () => Promise<string>
   setForceFocus: (enabled: boolean) => Promise<void>
@@ -166,9 +156,7 @@ export type BrowserState = {
   loading: boolean
   canGoBack: boolean
   canGoForward: boolean
-  /** A page has committed in the view (false while the first navigation is still pending). */
   committed?: boolean
-  /** Why the last navigation has no page (failed load, crashed page, rejected certificate). */
   error?: BrowserFailure
 }
 export type PickedElement = {

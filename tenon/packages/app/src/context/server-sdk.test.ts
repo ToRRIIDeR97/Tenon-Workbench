@@ -43,7 +43,6 @@ describe("createInterruptibleWait", () => {
     backoff.interrupt()
     await pending
     expect(Date.now() - startedAt).toBeLessThan(1_000)
-    // Interrupting with nothing pending is a no-op, and later waits still time out normally.
     backoff.interrupt()
     await backoff.wait(1)
   })

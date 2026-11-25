@@ -35,7 +35,6 @@ export const Input = Schema.Struct({
 export const Output = Schema.Array(FileSystem.Match)
 type ModelOutput = typeof Output.Encoded
 
-/** Format raw search matches into the familiar concise model output. */
 export const toModelOutput = (output: ModelOutput) => {
   const lines = output.length === 0 ? ["No files found"] : [`Found ${output.length} matches`]
   let current = ""
@@ -50,7 +49,6 @@ export const toModelOutput = (output: ModelOutput) => {
   return lines.join("\n")
 }
 
-/** Grep leaf that defaults its filesystem root to the active Location. */
 const layer = Layer.effectDiscard(
   Effect.gen(function* () {
     const tools = yield* Tools.Service

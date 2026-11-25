@@ -105,7 +105,6 @@ test.describe("timeline tool state stability", () => {
         { type: "label-stability", regions: "all" },
       ]),
     )
-    // The finished turn folds its steps; open it to check the final tool rows.
     await expandTurnSteps(page)
     await expect(page.locator(`[data-timeline-part-id="${questionID}"]`)).toContainText("Keep it stable")
     await expect(page.locator(`[data-timeline-part-id="${todoID}"]`)).toHaveCount(0)

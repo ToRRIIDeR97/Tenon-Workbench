@@ -48,8 +48,6 @@ test.describe("session timeline projection", () => {
     ]
     await setupTimeline(page, { messages: [userMessage(), assistantMessage(parts)] })
 
-    // Parts render in ID order. Runs of completed non-file-change tools fold into collapsed "tools" summary rows;
-    // file changes, questions, and subagent tasks stay as their own rows.
     const leading = page.locator(
       '[data-timeline-part-ids="prt_01_read,prt_02_glob,prt_03_grep,prt_04_list,prt_bash,prt_custom"]',
     )
@@ -168,8 +166,6 @@ test.describe("session timeline projection", () => {
     const scroller = page.locator(".scroll-view__viewport", { has: page.locator("[data-timeline-row]") })
     await scroller.evaluate((element) => (element.scrollTop = 0))
 
-    // Comments render inline in their user message (message-timeline passes inlineComments), so no
-    // separate CommentStrip row is projected.
     await expect(page.locator('[data-timeline-row="CommentStrip"]')).toHaveCount(0)
     await expect(
       page.locator('[data-timeline-row="UserMessage"]').getByText("Keep this stable", { exact: true }),

@@ -72,7 +72,6 @@ const light: Record<string, V2ColorValue> = {
   "v2-state-bg-warning": ref("v2-yellow-100"),
   "v2-state-fg-warning": ref("v2-yellow-1100"),
   "v2-state-border-warning": ref("v2-yellow-300"),
-  // A warning mark or highlight painted as a fill; the fg token is tuned for text and is too dark for that.
   "v2-state-fill-warning": ref("v2-yellow-800"),
   "v2-state-bg-danger": ref("v2-red-100"),
   "v2-state-fg-danger": ref("v2-red-800"),

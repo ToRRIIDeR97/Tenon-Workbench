@@ -1,5 +1,3 @@
-/* Live activity card: the ticker line slides in when the step changes; subagent lanes show an
-   indeterminate bar while they run because an agent's step count isn't known in advance. */
 [data-slot="turn-steps-ticker-step"] {
   animation: turn-steps-enter var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate) both;
 }
@@ -20,12 +18,10 @@
   transition: background-color var(--v2-duration-short) var(--v2-ease-standard);
 }
 
-/* A finished lane keeps a full, static bar; a failed one turns the error colour. */
 [data-slot="turn-steps-lane"][data-status="error"] [data-slot="turn-steps-lane-fill"] {
   background: var(--v2-state-fg-danger, currentColor);
 }
 
-/* A finished lane is done, not live: a quiet bar instead of the accent a running lane uses. */
 [data-slot="turn-steps-lane"][data-status="done"] [data-slot="turn-steps-lane-fill"] {
   background: var(--v2-border-border-strong, currentColor);
 }
@@ -55,10 +51,6 @@
   }
 }
 
-/* Open card: the body grows from zero height (a 0fr to 1fr grid row animates to the content's height) with Reveal's
-   open timing (medium, emphasized-decelerate), and its steps follow one after another. Folding takes longer the taller the card is
-   (`--turn-steps-close`, set from its height) and settles on the standard curve instead of accelerating into the
-   end; the rows fade over most of it rather than vanishing first. Rendering open from the start doesn't animate. */
 [data-slot="turn-steps-body"] {
   display: grid;
   grid-template-rows: 0fr;
@@ -84,20 +76,16 @@
     transition: opacity var(--v2-duration-short) var(--v2-ease-standard);
   }
 
-  /* Each step slides in a beat after the one above it; past the eighth they arrive together. */
   &[data-open][data-animate] :is([data-slot="turn-steps-item"], [data-slot="turn-steps-note"]):not([data-new]) {
     animation: turn-steps-item-in var(--v2-duration-long) var(--v2-ease-emphasized-decelerate) both;
     animation-delay: calc(min(var(--i, 0), 8) * 30ms);
   }
 
-  /* A step that arrives while the card is open slides in at the bottom on its own. */
   &[data-open] [data-new] {
     animation: turn-steps-enter var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate) both;
   }
 }
 
-/* A row's output and a reasoning note open and close with Reveal's timing: the height follows a grid row, medium
-   and decelerating to open, short and accelerating to close. A folded note keeps its first line (20px) showing. */
 [data-slot="turn-steps-reveal"],
 [data-slot="turn-steps-note-text"] {
   display: grid;
@@ -173,9 +161,6 @@
   }
 }
 
-/* "rows" layout: while the card works there is no card, only the steps as lines in the thread. Finished steps are
-   quiet lines and the step in progress is the one accent-tonal row; a new step slides in at the bottom. Once the
-   card works no more it folds into the usual card, whose open body keeps the quiet lines. */
 [data-slot="turn-steps"][data-transcript] > [data-component="turn-steps-summary"] {
   display: none;
 }

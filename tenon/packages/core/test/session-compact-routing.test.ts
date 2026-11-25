@@ -21,9 +21,6 @@ import { SessionTable } from "@tenon/core/session/sql"
 import { Harness } from "@tenon/schema/harness"
 import { testEffect } from "./lib/effect"
 
-// /compact reaches every harness: Claude Code and OpenCode run their own; the runner compacts the rest (Codex on its
-// own side, the built-in agent and other harnesses on Tenon's) and V2Session turns its outcome into the answer.
-
 const outcomes = new Map<string, SessionRunner.CompactResult>()
 const asked: Array<{ sessionID: string; model?: string }> = []
 const woken: string[] = []

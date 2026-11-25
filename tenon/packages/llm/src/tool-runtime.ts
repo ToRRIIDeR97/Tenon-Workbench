@@ -19,7 +19,6 @@ export interface DispatchResult extends ToolSettlement {
   readonly events: ReadonlyArray<LLMEvent>
 }
 
-/** Execute one canonical tool call without owning provider IO or continuation. */
 export const dispatch = (tools: Tools, call: ToolCallPart): Effect.Effect<DispatchResult> => {
   const tool = tools[call.name]
   if (!tool) return Effect.succeed(result(call, { type: "error", value: `Unknown tool: ${call.name}` }))

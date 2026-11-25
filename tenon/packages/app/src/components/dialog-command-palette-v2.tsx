@@ -145,7 +145,6 @@ function CommandPaletteView(props: {
   const [active, setActive] = createSignal(0)
 
   const [entries] = createResource(query, props.loadItems, { initialValue: [] as CommandPaletteEntry[] })
-  // Render stale results while a new query loads to avoid flashing "Loading" per keystroke.
   const visibleEntries = createMemo(() => uniqueCommandPaletteEntries(entries.latest ?? []))
   const groupedEntries = createMemo(() => groups(visibleEntries()))
   const activeEntry = createMemo(() => visibleEntries()[active()])
@@ -160,7 +159,6 @@ function CommandPaletteView(props: {
   })
 
   let resultsRef: HTMLDivElement | undefined
-  // Focus stays in the input, so screen readers follow the highlighted row through aria-activedescendant.
   const optionId = (item: CommandPaletteEntry) => `command-palette-option-${visibleEntries().indexOf(item)}`
 
   const move = (delta: -1 | 1) => {
@@ -282,7 +280,6 @@ function PaletteRow(props: {
       aria-selected={props.active}
       data-active={props.active ? "" : undefined}
       onMouseMove={(event) => {
-        // Ignore hover from a static cursor when keyboard scrolling moves rows underneath it.
         if (event.movementX === 0 && event.movementY === 0) return
         props.onActive()
       }}

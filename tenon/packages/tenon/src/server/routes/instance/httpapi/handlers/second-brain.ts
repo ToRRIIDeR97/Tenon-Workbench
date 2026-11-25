@@ -53,8 +53,6 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
     const provider = yield* Provider.Service
     const events = yield* EventV2Bridge.Service
     const permission = yield* Permission.Service
-    // One lock per Brain directory serializes calendar saves (with their timeline sync),
-    // Project mutations and project folder scans, so none of them interleave.
     const brainLocks = KeyedMutex.makeUnsafe<string>()
     const filesystem = Effect.fnUntraced(function* <A, E, R>(effect: Effect.Effect<A, E, R>) {
       return yield* effect.pipe(
@@ -83,7 +81,6 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
       return yield* filesystem(BrainProject.list()).pipe(failure("listProjects"))
     })
 
-    // A new Project has no calendar items yet, so creating one does not re-sync timelines.
     const createProject = Effect.fn("SecondBrain.createProject")(function* (ctx: {
       payload: BrainProject.CreateInput
     }) {
@@ -196,7 +193,6 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
       )
     })
 
-    // Workspace folders whose pre-vault notes this process has moved into the vault (see `vault`).
     const migrated = new Set<string>()
     const migrateFirst = (directory: string) => (opened: KnowledgeVault.Vault) => {
       const key = `${opened.directory}\n${directory}`
@@ -210,9 +206,6 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
       )
     }
 
-    // Vault work runs with the workspace's filesystem services (Project names come from its cards). The first
-    // vault request of each workspace in this process moves its pre-vault notes in, so the move does not rely on
-    // the app having called the migrate route; that route itself (`moveNotes: false`) reports what it moved.
     const vault = Effect.fnUntraced(function* <A, E, R>(
       operation: string,
       run: (vault: KnowledgeVault.Vault) => Effect.Effect<A, E, R>,
@@ -230,7 +223,6 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
       ).pipe(failure(operation, relative))
     })
 
-    // The undo token is the capability: it is random, single-use and names the write it reverts.
     const undoWrite = Effect.fn("SecondBrain.undoWrite")(function* (ctx: { params: { undo: string } }) {
       const result = yield* AgentAppTools.undo(ctx.params.undo)
       if (result === "missing") return yield* new HttpApiError.NotFound({})
@@ -238,7 +230,6 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
       return { undone: true as const }
     })
 
-    // Command Centre work reads threads machine-wide and starts threads in the vault's .command-centre folder.
     const commandServices = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
       effect.pipe(
         Effect.provideService(Session.Service, sessions),
@@ -252,8 +243,6 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
         Effect.provideService(Permission.Service, permission),
       )
 
-    // Run now and scheduled runs agree: the routine's own model first, then the Command Centre default the
-    // renderer sends (remembered for the scheduler, which has no renderer to ask).
     const startRoutine = (model?: CommandThreads.ModelChoice) => (routine: Routines.Routine) =>
       Routines.rememberDefaultModel(model).pipe(
         Effect.andThen(
@@ -300,9 +289,7 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
       .handle("compactCommandMemory", (ctx) =>
         commandServices(
           Effect.gen(function* () {
-            // The summariser is only built when a thread is old enough, so an idle compaction needs no model.
             let summarize: ((thread: CommandMemory.Thread) => Effect.Effect<string, unknown>) | undefined
-            // The renderer sends the Command Centre default here hourly; scheduled routines fall back to it.
             yield* Routines.rememberDefaultModel(ctx.payload.model)
             return yield* CommandMemory.compact({
               days: ctx.payload.days,
@@ -394,12 +381,6 @@ export const secondBrainHandlers = HttpApiBuilder.group(InstanceHttpApi, "second
   }),
 ).pipe(Layer.provide(locationServiceMapLayer))
 
-/**
- * Translate every Second Brain failure at one boundary: domain validation is a 400
- * carrying its reason, a missing record 404, a stale write 409, and anything else
- * (IO, permissions) a logged 500. Logs carry the error tag, reason and the
- * request's relative path or id, never file content.
- */
 function failure(operation: string, path?: string) {
   return <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, ApiFailure, R> =>
     effect.pipe(Effect.catch((error) => toApiFailure(operation, path, error)))

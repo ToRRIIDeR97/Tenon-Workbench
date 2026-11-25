@@ -8,12 +8,8 @@ import { openFolderFromWorkspaceMenu } from "../utils/sidebar"
 const NAMES = ["alpha-service", "bravo-web", "charlie-api", "delta-tools", "echo-infra", "foxtrot-docs"]
 const worktrees = NAMES.map((name) => `/opencode-demo/${name}`)
 
-// The sixth project sits outside the five-item recent cap, so it is only reachable if the
-// dialog hands every recent project to the list filter instead of a pre-truncated slice.
 const OUTSIDE_CAP = "foxtrot-docs"
 
-// Dialog rows carry data-directory-path; the sidebar project list does not, so this
-// scopes assertions to the picker instead of matching the sidebar entry of the same name.
 const rows = (page: Page) => page.locator("[data-directory-path]")
 const row = (page: Page, name: string) => page.locator(`[data-directory-path*="${name}"]`)
 

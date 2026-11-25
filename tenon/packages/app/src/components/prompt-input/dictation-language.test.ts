@@ -1,10 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { dictationLanguage } from "./dictation-language"
 
-// Acceptance test for implementations/harness-ux-batch-2 (AC-6, app side): dictation transcribes in a known
-// language instead of guessing per clip. Changed after panel round 2 (see implementation.md): the default is English
-// for an English app and detection for any other, so a speaker whose app language differs isn't translated.
-
 describe("AC-6 dictationLanguage", () => {
   test("the default is English for an English app and detection otherwise", () => {
     expect(dictationLanguage(undefined, "en")).toBe("en")

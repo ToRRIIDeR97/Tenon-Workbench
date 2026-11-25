@@ -32,7 +32,6 @@ const Context = createContext<ReturnType<typeof init>>()
 
 function init() {
   const [stack, setStack] = createSignal<Active[]>([])
-  // A closing dialog waits out its exit animation before it is disposed and leaves the stack.
   const pending = {
     timer: undefined as ReturnType<typeof setTimeout> | undefined,
     finish: undefined as (() => void) | undefined,
@@ -45,7 +44,6 @@ function init() {
     pending.finish = undefined
   })
 
-  // Finishes a pending close now, so a dialog opened during another's exit stacks above a settled list.
   const settle = () => {
     const finish = pending.finish
     clearTimeout(pending.timer)
@@ -77,8 +75,6 @@ function init() {
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return
-      // Something that used the Escape (a nested menu or select closing) keeps the dialog open. A Kobalte
-      // tab list prevents every Escape without using it, so focus on a tab still closes the dialog.
       if (event.defaultPrevented && !fromTabList(event)) return
       if (!close()) return
       event.preventDefault()
@@ -146,8 +142,6 @@ function init() {
     mount(element, owner, onClose, stack().length)
   }
 
-  // Replaces every open dialog. The replaced ones play their exit under the new one and leave the stack
-  // afterwards, so `close` and Escape already reach the new dialog (the top of the stack).
   const show = (element: DialogElement, owner: Owner, onClose?: () => void) => {
     settle()
     const replaced = stack()
@@ -171,14 +165,11 @@ function init() {
   }
 }
 
-// The overlay and dialog exits run for --v2-duration-exit (dialog-v2.css); dispose one frame after them so
-// the root is not torn down mid-animation. Reduced motion has no exit, so dispose at once.
 function exitDelay() {
   if (prefersReducedMotion()) return 0
   return motionDuration("exit") + 16
 }
 
-// Kobalte's selectable collection calls preventDefault on Escape for a tab list, where it has nothing to clear.
 function fromTabList(event: KeyboardEvent) {
   return event.target instanceof Element && event.target.closest('[role="tablist"]') !== null
 }

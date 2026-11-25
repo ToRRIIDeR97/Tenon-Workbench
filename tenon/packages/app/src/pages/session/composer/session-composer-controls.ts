@@ -77,8 +77,6 @@ export function createPromptProjectControls() {
   const language = useLanguage()
   const navigate = useNavigate()
   const projectThreads = useProjectThreads()
-  // With one server, the picker lists what the sidebar lists: the workspace's Projects, plus General for
-  // threads in the workspace folder itself. Each starts the thread in that Project's thread folder.
   const workspaceProjects = createMemo((): PromptProject[] => {
     const brain = layout.home.workspace()
     if (!brain) return []
@@ -143,7 +141,6 @@ export function createPromptProjectControls() {
   }
 
   const addProject = (title: string, serverKey?: string) => {
-    // Projects are created on the Projects page, as from the sidebar.
     if (server.list.length <= 1 && layout.home.workspace()) return void navigate("/projects")
     const conn = serverKey ? server.list.find((conn) => ServerConnection.key(conn) === serverKey) : projectServer()
     if (!conn) return

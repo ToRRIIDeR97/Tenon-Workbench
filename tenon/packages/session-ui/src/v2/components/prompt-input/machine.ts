@@ -5,7 +5,6 @@ export type PromptInputV2InteractionState = {
   popover:
     | { type: "closed" }
     | { type: "context"; query: string; activeID?: string }
-    // `skills`: the `/` follows other text, so only skills (which become chips) can be picked.
     | { type: "command-inline"; query: string; activeID?: string; skills?: boolean }
     | { type: "command-menu"; query: string; activeID?: string }
   drag: "idle" | "active"
@@ -47,17 +46,12 @@ export type PromptInputV2Transition = {
   handled: boolean
 }
 
-/** Per-submit overrides passed from the editor to the host's submit handler. */
 export type PromptInputV2SubmitOptions = { opposite?: boolean; background?: boolean }
 
 export type PromptInputV2KeyIntent = { type: "submit"; options: PromptInputV2SubmitOptions } | { type: "stash" }
 
 type PromptInputV2Key = Pick<KeyboardEvent, "key" | "metaKey" | "ctrlKey" | "altKey" | "shiftKey" | "isComposing">
 
-/**
- * Editor-local shortcuts. Enter sends; mod+Enter sends with the opposite delivery; mod+alt+Enter sends into a
- * new background thread; mod+S stashes the prompt. Shift+Enter (newline) and IME composition fall through.
- */
 export function promptInputV2KeyIntent(event: PromptInputV2Key): PromptInputV2KeyIntent | undefined {
   if (event.isComposing || event.shiftKey) return
   const mod = event.metaKey || event.ctrlKey

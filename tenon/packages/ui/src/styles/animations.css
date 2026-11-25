@@ -3,7 +3,6 @@
   --animate-pulse-scale: pulse-scale 1.2s ease-in-out infinite;
 }
 
-/* Loading pulses hold still under reduced motion (`animate-pulse`, `animate-pulse-scale`). */
 @media (prefers-reduced-motion: reduce) {
   :root {
     --animate-pulse: none;
@@ -52,8 +51,6 @@
   }
 }
 
-/* Staggered text reveal: each child enters (medium + emphasized-decelerate) 100ms after the previous one.
-   Under reduced motion the text shows at once. */
 .fade-up-text {
   animation: fadeUp var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate) forwards;
   opacity: 0;

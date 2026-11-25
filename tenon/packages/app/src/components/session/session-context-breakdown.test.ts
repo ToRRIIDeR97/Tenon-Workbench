@@ -75,8 +75,6 @@ describe("estimateSessionContextBreakdown", () => {
     const map = Object.fromEntries(
       estimateSessionContextBreakdown({ messages, parts, input: 1000 }).map((segment) => [segment.key, segment.tokens]),
     )
-    // Before the compaction: gone. The older turn's reasoning: dropped. The summary, the prompt and the newest
-    // reasoning: counted.
     expect(map.user).toBe(10)
     expect(map.assistant).toBe(20)
   })

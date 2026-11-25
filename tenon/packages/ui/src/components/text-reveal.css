@@ -1,24 +1,3 @@
-/*
- * TextReveal — mask-position wipe animation
- *
- * Instead of sliding text through a fixed mask (odometer style),
- * the mask itself sweeps across each span to reveal/hide text.
- *
- * Direction: top-to-bottom. New text drops in from above, old text exits downward.
- *
- * Entering: gradient reveals top-to-bottom (top of text appears first).
- *   gradient(to bottom, white 33%, transparent 33%+edge)
- *   pos 0 100% = transparent covers element = hidden
- *   pos 0 0%   = white covers element       = visible
- *
- * Leaving: gradient hides top-to-bottom (top of text disappears first).
- *   gradient(to top, white 33%, transparent 33%+edge)
- *   pos 0 100% = white covers element       = visible
- *   pos 0 0%   = transparent covers element = hidden
- *
- * Both transition from 0 100% (swap) → 0 0% (settled).
- */
-
 [data-component="text-reveal"] {
   --_edge: var(--text-reveal-edge, 17%);
   --_dur: var(--text-reveal-duration, 450ms);
@@ -56,12 +35,6 @@
     transition-timing-function: var(--_spring);
   }
 
-  /* ── entering: reveal top-to-bottom ──
-   * Gradient(to top): white at bottom, transparent at top of mask.
-   * Settled pos 0 100% = white covers element   = visible
-   * Swap    pos 0 0%   = transparent covers      = hidden
-   * Slides from above: translateY(-travel) → translateY(0)
-   */
   [data-slot="text-reveal-entering"] {
     mask-image: linear-gradient(to top, white 33%, transparent calc(33% + var(--_edge)));
     -webkit-mask-image: linear-gradient(to top, white 33%, transparent calc(33% + var(--_edge)));
@@ -74,12 +47,6 @@
     transform: translateY(0);
   }
 
-  /* ── leaving: hide top-to-bottom + slide downward ──
-   * Gradient(to bottom): white at top, transparent at bottom of mask.
-   * Swap    pos 0 0%   = white covers element   = visible
-   * Settled pos 0 100% = transparent covers      = hidden
-   * Slides down: translateY(0) → translateY(travel)
-   */
   [data-slot="text-reveal-leaving"] {
     mask-image: linear-gradient(to bottom, white 33%, transparent calc(33% + var(--_edge)));
     -webkit-mask-image: linear-gradient(to bottom, white 33%, transparent calc(33% + var(--_edge)));
@@ -92,9 +59,6 @@
     transform: translateY(var(--_travel));
   }
 
-  /* ── swapping: instant reset ──
-   * Snap entering to hidden (above), leaving to visible (center).
-   */
   &[data-swapping="true"] [data-slot="text-reveal-entering"] {
     mask-position: 0 0%;
     -webkit-mask-position: 0 0%;
@@ -109,7 +73,6 @@
     transition-duration: 0ms !important;
   }
 
-  /* ── not ready: kill all transitions ── */
   &[data-ready="false"] [data-slot="text-reveal-track"] {
     transition-duration: 0ms !important;
   }

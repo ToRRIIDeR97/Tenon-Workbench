@@ -1,8 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { SessionTodo } from "@tenon/core/session/todo"
 
-// Verification tests for implementations/harness-ux-batch-2 (AC-7 edge cases).
-
 describe("verify SessionTodo.planFromToolCall", () => {
   test("a call titled todowrite without a todo list is not a plan", () => {
     expect(SessionTodo.planFromToolCall("acp_other", { title: "todowrite" })).toBeUndefined()

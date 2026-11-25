@@ -1,23 +1,13 @@
-/**
- * Tracked edits: the agent's changes to a file as hunks of lines, so the Files tab can show what
- * changed and undo one change at a time (the server writes it back only if the file is unchanged).
- */
-
-/** A maximal run of changed lines: `start` is its first line in the new text (0-based). */
 export type Hunk = { start: number; removed: string[]; added: string[] }
 
-// Past this many cells the changed middle is one hunk instead of a line-by-line diff.
 const DIFF_LIMIT = 4_000_000
 
-/** Lines split on `\n`; a `\r` stays part of its line, so CRLF files round-trip. */
 const lines = (text: string) => text.split("\n")
 
-/** Each maximal run of changed lines between `before` and `after`, positioned in `after`. */
 export function trackedHunks(before: string, after: string): Hunk[] {
   if (before === after) return []
   const left = lines(before)
   const right = lines(after)
-  // Common lines at both ends never change; the diff runs on the middle.
   const head = { count: 0 }
   while (head.count < left.length && head.count < right.length && left[head.count] === right[head.count])
     head.count += 1
@@ -31,7 +21,6 @@ export function trackedHunks(before: string, after: string): Hunk[] {
   const a = left.slice(head.count, left.length - tail.count)
   const b = right.slice(head.count, right.length - tail.count)
   if (a.length * b.length > DIFF_LIMIT) return [{ start: head.count, removed: a, added: b }]
-  // lengths[i][j]: the longest common subsequence of a[i..] and b[j..].
   const lengths = Array.from({ length: a.length + 1 }, () => new Uint32Array(b.length + 1))
   for (let i = a.length - 1; i >= 0; i--)
     for (let j = b.length - 1; j >= 0; j--)
@@ -63,11 +52,6 @@ export function trackedHunks(before: string, after: string): Hunk[] {
   return hunks
 }
 
-/**
- * A key per hunk of `trackedHunks(base, …)`: its first line in `base` and its lines. The base doesn't
- * change while it is reviewed, so the key stays the same when a change above it is undone, and two
- * identical changes in different places get different keys.
- */
 export function hunkKeys(hunks: readonly Hunk[]) {
   const shift = { lines: 0 }
   return hunks.map((hunk) => {
@@ -77,30 +61,23 @@ export function hunkKeys(hunks: readonly Hunk[]) {
   })
 }
 
-/** `after` with the hunk's added lines replaced by its removed lines. */
 export function revertHunk(after: string, hunk: Hunk) {
   const next = lines(after)
   next.splice(hunk.start, hunk.added.length, ...hunk.removed)
   return next.join("\n")
 }
 
-/** Lowercase hex SHA-256 of the UTF-8 text, as the server's write route computes it. */
 export async function contentHash(text: string) {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text))
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")
 }
 
-/** One row of the tracked Source view: a kept, added or removed line, with its line number in `after`. */
 export type TrackedRow =
   | { kind: "same"; text: string; line: number }
   | { kind: "added"; text: string; line: number; hunk: number }
   | { kind: "removed"; text: string; hunk: number }
   | { kind: "review"; hunk: number }
 
-/**
- * The rows of `after` with each hunk's removed lines shown before its added lines and a review row
- * (Keep / Undo) after it. Hunks in `skip` (kept by the reader) show as plain lines.
- */
 export function trackedRows(
   after: string,
   hunks: readonly Hunk[],

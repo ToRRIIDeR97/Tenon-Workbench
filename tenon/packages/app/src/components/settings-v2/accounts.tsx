@@ -15,7 +15,6 @@ import "./settings-v2.css"
 const inputClass =
   "h-8 min-w-0 rounded-full bg-v2-background-bg-layer-01 px-3 text-[13px] font-[450] leading-5 text-v2-text-text-base shadow-[inset_0_0_0_1px_var(--v2-border-border-base)] outline-none transition-shadow duration-short ease-standard hover:shadow-[inset_0_0_0_1px_var(--v2-border-border-strong)] focus:shadow-[inset_0_0_0_2px_var(--v2-border-border-focus)]"
 
-/** Settings › Accounts (desktop): the mail accounts the Command Centre reads and drafts in. */
 export function SettingsAccountsV2() {
   const language = useLanguage()
   const platform = usePlatform()
@@ -35,7 +34,6 @@ export function SettingsAccountsV2() {
     imap: false,
     form: { host: "", port: "993", secure: true, user: "", password: "", address: "" },
   })
-  // Google Calendar and Tasks for the same addresses, so one Google account shows with a switch per service.
   const [calendar, { mutate: setCalendar }] = createResource(
     () => platform.googleCalendar,
     (google) => google.status().catch(() => undefined),
@@ -47,7 +45,6 @@ export function SettingsAccountsV2() {
     setState({ busy: `calendar:${row.address}`, failed: false })
     try {
       if (!on && row.calendar) return void setCalendar(await google.disconnect({ accountId: row.calendar.id }))
-      // Google asks which account to use; picking the same address joins the two on this row.
       setCalendar(await google.connect({ access: "write" }))
       const directory = layout.home.workspace()
       if (directory)
@@ -179,7 +176,6 @@ export function SettingsAccountsV2() {
                 disabled={state.busy !== "" || !available.latest?.gmail || !available.latest.secureStorage}
                 onClick={() =>
                   void run("gmail", () => platform.mail?.connect("gmail")).then(async () => {
-                    // The Gmail sign-in also connects Calendar and Tasks when Google granted them.
                     const status = await platform.googleCalendar?.status().catch(() => undefined)
                     if (status) setCalendar(status)
                   })
@@ -205,7 +201,6 @@ export function SettingsAccountsV2() {
                 {language.t("secondBrain.mail.settings.addImap")}
               </ButtonV2>
             </div>
-            {/* Name only the providers this build has no sign-in for; the others' buttons work. */}
             <Show when={available.latest && !available.latest.gmail && !available.latest.outlook}>
               <p class="type-meta text-v2-text-text-muted">{language.t("secondBrain.mail.settings.unconfigured")}</p>
             </Show>

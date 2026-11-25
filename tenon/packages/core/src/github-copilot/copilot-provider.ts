@@ -3,35 +3,19 @@ import { type FetchFunction, withoutTrailingSlash, withUserAgentSuffix } from "@
 import { OpenAICompatibleChatLanguageModel } from "./chat/openai-compatible-chat-language-model"
 import { OpenAIResponsesLanguageModel } from "./responses/openai-responses-language-model"
 
-// Import the version or define it
 const VERSION = "0.1.0"
 
 export type OpenaiCompatibleModelId = string
 
 export interface OpenaiCompatibleProviderSettings {
-  /**
-   * API key for authenticating requests.
-   */
   apiKey?: string
 
-  /**
-   * Base URL for the OpenAI Compatible API calls.
-   */
   baseURL?: string
 
-  /**
-   * Name of the provider.
-   */
   name?: string
 
-  /**
-   * Custom headers to include in the requests.
-   */
   headers?: Record<string, string>
 
-  /**
-   * Custom fetch implementation.
-   */
   fetch?: FetchFunction
 }
 
@@ -40,15 +24,8 @@ export interface OpenaiCompatibleProvider {
   chat(modelId: OpenaiCompatibleModelId): LanguageModelV3
   responses(modelId: OpenaiCompatibleModelId): LanguageModelV3
   languageModel(modelId: OpenaiCompatibleModelId): LanguageModelV3
-
-  // embeddingModel(modelId: any): EmbeddingModelV2
-
-  // imageModel(modelId: any): ImageModelV2
 }
 
-/**
- * Create an OpenAI Compatible provider instance.
- */
 export function createOpenaiCompatible(options: OpenaiCompatibleProviderSettings = {}): OpenaiCompatibleProvider {
   const baseURL = withoutTrailingSlash(options.baseURL ?? "https://api.openai.com/v1")
 
@@ -56,9 +33,7 @@ export function createOpenaiCompatible(options: OpenaiCompatibleProviderSettings
     throw new Error("baseURL is required")
   }
 
-  // Merge headers: defaults first, then user overrides
   const headers = {
-    // Default OpenAI Compatible headers (can be overridden by user)
     ...(options.apiKey && { Authorization: `Bearer ${options.apiKey}` }),
     ...options.headers,
   }
@@ -96,5 +71,4 @@ export function createOpenaiCompatible(options: OpenaiCompatibleProviderSettings
   return provider as OpenaiCompatibleProvider
 }
 
-// Default OpenAI Compatible provider instance
 export const openaiCompatible = createOpenaiCompatible()

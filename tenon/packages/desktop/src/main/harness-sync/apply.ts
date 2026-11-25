@@ -4,12 +4,10 @@ import { hash, readText, tryReadText, writeAtomic, message } from "./fsutil"
 import type { LocalState } from "./state"
 import { type Locations, TOOLS, findTool, installed, instructionsFile } from "./tools"
 
-/** Which differing files an apply replaces: none, all but ones edited outside Tenon (automatic), or all. */
 export type Write = "never" | "keepOutsideEdits" | "always"
 
 const lineCount = (text: string) => text.split("\n").filter((line) => line.trim()).length
 
-/** Compares every tool's instructions file with its preset and replaces differing files as `write` allows. */
 export function applyInstructions(
   document: SyncDocument | undefined,
   locations: Locations,
@@ -67,12 +65,6 @@ export function applyInstructions(
   )
 }
 
-/**
- * Presets that reproduce this computer's current instruction files. `seed`'s file becomes the shared preset. Every
- * other installed tool keeps the shared preset when its file matches, becomes "shared + extra" when its file starts
- * with the shared text, and otherwise keeps its file as its own preset. Tools that are missing, empty or turned off
- * keep their current setting, and skill choices carry over.
- */
 export async function capture(document: SyncDocument, locations: Locations, seed: string) {
   const seedTool = findTool(seed)
   if (!seedTool) throw new Error("Unknown harness")

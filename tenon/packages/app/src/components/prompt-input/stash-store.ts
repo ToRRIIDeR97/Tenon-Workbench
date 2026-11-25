@@ -5,15 +5,12 @@ import { clonePromptParts } from "./history"
 
 export const MAX_STASH = 20
 
-/** A parked composer prompt: text, mentions, and image attachments (comment context stays in the composer). */
 export type PromptStashEntry = { id: string; prompt: Prompt; time: number }
 
 export type PromptStash = {
   entries: () => PromptStashEntry[]
-  /** Returns false when the prompt is empty and nothing was stashed. */
   push: (prompt: Prompt) => boolean
   remove: (id: string) => void
-  /** Removes and returns an entry for restoring into the composer. */
   take: (id: string) => PromptStashEntry | undefined
 }
 

@@ -1,8 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { GithubThreads } from "@tenon/core/github/threads"
 
-// #331: a merged PR is traceable to the thread that produced it — the first Project thread whose messages carry its
-// URL (`gh pr create` prints it; agents cite it).
 const repo = "ToRRIIDeR97/Tenon-Workbench"
 const mention = (sessionID: string, title: string, time: number, text: string) => ({ sessionID, title, time, text })
 

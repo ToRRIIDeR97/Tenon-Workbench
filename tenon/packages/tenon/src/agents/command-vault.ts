@@ -12,12 +12,6 @@ import { AbsolutePath } from "@tenon/core/schema"
 import { Effect, Option } from "effect"
 import path from "node:path"
 
-/**
- * Run `effect` with the folder services of `directory` (a workspace), the way the second-brain routes do.
- * The location service map comes from the caller when it has one (the HTTP handlers, the routine
- * scheduler); otherwise the shared map Layer is provided, which the app's memo map reuses. FSUtil is
- * taken the same way.
- */
 export const inFolder = <A, E, R>(directory: string, effect: Effect.Effect<A, E, R>) =>
   Effect.gen(function* () {
     const provided = effect.pipe(
@@ -34,7 +28,6 @@ export const inFolder = <A, E, R>(directory: string, effect: Effect.Effect<A, E,
       : located.pipe(Effect.provide(AppNodeBuilder.build(FSUtil.node)))
   })
 
-/** The vault description of the current instance's workspace (same rules as the second-brain routes). */
 export const currentWorkspace = Effect.gen(function* () {
   const context = yield* InstanceState.context
   const workspace: KnowledgeVault.Workspace = {
@@ -45,7 +38,6 @@ export const currentWorkspace = Effect.gen(function* () {
   return workspace
 })
 
-/** Open the current workspace's vault folder and run `run` in it. */
 export const withVault = <A, E, R>(run: (vault: KnowledgeVault.Vault) => Effect.Effect<A, E, R>) =>
   Effect.gen(function* () {
     const workspace = yield* currentWorkspace

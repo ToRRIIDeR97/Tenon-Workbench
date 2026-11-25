@@ -115,7 +115,6 @@ describe("HttpApi CORS", () => {
         }),
       )
 
-      // A loopback listener refuses a request from a disallowed Origin outright.
       expect(rejected.status).toBe(403)
       expect(rejected.headers.get("access-control-allow-origin")).not.toBe("https://evil.example")
     }),

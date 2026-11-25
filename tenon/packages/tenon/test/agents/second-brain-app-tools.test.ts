@@ -23,8 +23,6 @@ import { resetDatabase } from "../fixture/db"
 import { disposeAllInstances, provideInstanceEffect, TestInstance, tmpdirScoped } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 
-// Undo per kind, workspace threads and MCP routing of the app tools (P5, beyond the acceptance set).
-
 const appLayer = AppNodeBuilder.build(
   LayerNode.group([InstanceStore.node, Project.node, Session.node, Workspace.node, Database.node, Ripgrep.node]),
   [
@@ -175,7 +173,6 @@ describe("AgentAppTools undo", () => {
     () =>
       Effect.gen(function* () {
         const { thread, call } = yield* setup
-        // The Command Centre's Done-for-you list shows the new Project as one of the thread's writes.
         const kinds: string[] = []
         const listen = (event: GlobalEvent) => {
           if (event.payload?.type === "agent.write" && event.payload.properties?.phase === "done")
@@ -188,13 +185,11 @@ describe("AgentAppTools undo", () => {
         const beta = made.value as { projectId: string; folder: string }
         expect(beta.folder).toContain("Beta")
         expect(kinds).toEqual(["project"])
-        // Starting the thread itself runs its first turn detached, which the test instance can't close under.
         const unknown = yield* call(thread.id, "thread_start", { projectId: "project_01NOPE", prompt: "x" })
         expect(unknown.isError).toBe(true)
         const general = yield* call(thread.id, "thread_start", { projectId: "general", prompt: "  " })
         expect(String(general.value)).toContain("needs a prompt")
       }),
-    // project_setup runs git init.
     30_000,
   )
 

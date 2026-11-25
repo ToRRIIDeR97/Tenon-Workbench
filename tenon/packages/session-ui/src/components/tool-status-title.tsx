@@ -75,7 +75,6 @@ export function ToolStatusTitle(props: {
         return
       }
       if (first !== last) setState("width", last)
-      // The width eases over --tool-motion-spring-ms (the long duration); finish just after it.
       finishTimer = setTimeout(finish, motionDuration("long", widthRef) + 150)
     })
   }

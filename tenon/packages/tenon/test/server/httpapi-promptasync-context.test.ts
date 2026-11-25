@@ -1,12 +1,3 @@
-// Regression coverage for issue #26526's claim that promptAsync's
-// Effect.forkIn loses the request's InstanceRef/WorkspaceRef. It does not —
-// forkIn preserves Context.Reference values via standard fiber inheritance.
-//
-// The companion claim that the streaming prompt handler "captures and
-// provides" those services is true and load-bearing: Stream.fromEffect's
-// body runs detached from the request fiber's context, so the explicit
-// Effect.provideService calls there are required, not defensive duplication.
-
 import { NodeHttpServer, NodeServices } from "@effect/platform-node"
 import { describe, expect } from "bun:test"
 import { Deferred, Effect, Layer, Schema, Scope } from "effect"
@@ -128,9 +119,6 @@ const serveProbes = (input: {
   )
 
 describe("HttpApi handler context inheritance", () => {
-  // Mirrors handlers/session.ts:281 promptAsync. The forked fiber inherits
-  // the request's Context — including InstanceRef and WorkspaceRef provided
-  // by InstanceContextMiddleware — without any explicit re-provide.
   it.live("Effect.forkIn preserves InstanceRef/WorkspaceRef across the fork", () =>
     Effect.gen(function* () {
       const { dir, workspace } = yield* setupWorkspace("local-fork")
@@ -157,10 +145,6 @@ describe("HttpApi handler context inheritance", () => {
     }),
   )
 
-  // Mirrors handlers/session.ts:255 prompt — the streaming handler reads
-  // InstanceRef/WorkspaceRef in the request fiber and re-provides them to
-  // the Stream.fromEffect body. This test locks in why the explicit
-  // provides are required: without them the stream body sees undefined.
   it.live("Stream.fromEffect body needs explicit provides — inheritance does not carry through", () =>
     Effect.gen(function* () {
       const { dir, workspace } = yield* setupWorkspace("local-stream")

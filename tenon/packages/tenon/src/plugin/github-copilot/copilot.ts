@@ -9,9 +9,7 @@ import { MessageV2 } from "@/session/message-v2"
 const CLIENT_ID = "Ov23li8tweQw6odWQebz"
 const API_VERSION = "2026-06-01"
 const UTILITY_MODELS = ["gpt-5.4-nano", "gpt-4.1", "gpt-4o", "gpt-4o-mini"]
-// Add a small safety buffer when polling to avoid hitting the server
-// slightly too early due to clock skew / timer drift.
-const OAUTH_POLLING_SAFETY_MARGIN_MS = 3000 // 3 seconds
+const OAUTH_POLLING_SAFETY_MARGIN_MS = 3000
 function normalizeDomain(url: string) {
   return url.replace(/^https?:\/\//, "").replace(/\/$/, "")
 }
@@ -27,11 +25,8 @@ function base(enterpriseUrl?: string) {
   return enterpriseUrl ? `https://copilot-api.${normalizeDomain(enterpriseUrl)}` : "https://api.githubcopilot.com"
 }
 
-// Check if a message is a synthetic user msg used to attach an image from a tool call
 function imgMsg(msg: any): boolean {
   if (msg?.role !== "user") return false
-
-  // Handle the 3 api formats
 
   const content = msg.content
   if (typeof content === "string") return content === MessageV2.SYNTHETIC_ATTACHMENT_PROMPT
@@ -108,7 +103,6 @@ export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
               try {
                 const body = typeof init?.body === "string" ? JSON.parse(init.body) : init?.body
 
-                // Completions API
                 if (body?.messages && url.includes("completions")) {
                   const last = body.messages[body.messages.length - 1]
                   return {
@@ -120,7 +114,6 @@ export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
                   }
                 }
 
-                // Responses API
                 if (body?.input) {
                   const last = body.input[body.input.length - 1]
                   return {
@@ -132,7 +125,6 @@ export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
                   }
                 }
 
-                // Messages API
                 if (body?.messages) {
                   const last = body.messages[body.messages.length - 1]
                   const hasNonToolCalls =
@@ -144,7 +136,6 @@ export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
                         item.content.some(
                           (part: any) =>
                             part?.type === "image" ||
-                            // images can be nested inside tool_result content
                             (part?.type === "tool_result" &&
                               Array.isArray(part?.content) &&
                               part.content.some((nested: any) => nested?.type === "image")),
@@ -311,12 +302,8 @@ export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
                   }
 
                   if (data.error === "slow_down") {
-                    // Based on the RFC spec, we must add 5 seconds to our current polling interval.
-                    // (See https://www.rfc-editor.org/rfc/rfc8628#section-3.5)
                     let newInterval = (deviceData.interval + 5) * 1000
 
-                    // GitHub OAuth API may return the new interval in seconds in the response.
-                    // We should try to use that if provided with safety margin.
                     const serverInterval = data.interval
                     if (serverInterval && typeof serverInterval === "number" && serverInterval > 0) {
                       newInterval = serverInterval * 1000
@@ -340,21 +327,16 @@ export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
     "chat.params": async (incoming, output) => {
       if (!incoming.model.providerID.includes("github-copilot")) return
 
-      // Match github copilot cli, omit maxOutputTokens for gpt models
       if (incoming.model.api.id.includes("gpt")) {
         output.maxOutputTokens = undefined
       }
 
-      // GitHub Copilot's /v1/messages shim rejects the GA `eager_input_streaming`
-      // field on tool definitions ("Extra inputs are not permitted"). Opt out of
-      // the @ai-sdk/anthropic default so it stops injecting the field.
       if (incoming.model.api.npm === "@ai-sdk/anthropic") {
         output.options.toolStreaming = false
       }
     },
     "experimental.provider.small_model": async (incoming, output) => {
       if (incoming.provider.id !== "github-copilot") return
-      // GitHub exposes utility models for title generation without including them in the picker.
       output.model = UTILITY_MODELS.map((id) => models[id]).find((model) => model !== undefined)
     },
     "chat.headers": async (incoming, output) => {
@@ -386,8 +368,6 @@ export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
         parts?.data.parts?.some(
           (part) =>
             part.type === "compaction" ||
-            // Auto-compaction resumes via a synthetic user text part. Treat only
-            // that marked followup as agent-initiated so manual prompts stay user-initiated.
             (part.type === "text" && part.synthetic && part.metadata?.compaction_continue === true),
         )
       ) {
@@ -407,7 +387,6 @@ export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
         })
         .catch(() => undefined)
       if (!session || !session.data.parentID) return
-      // mark subagent sessions as agent initiated matching standard that other copilot tools have
       output.headers["x-initiator"] = "agent"
     },
   }

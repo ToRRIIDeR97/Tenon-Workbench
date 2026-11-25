@@ -13,7 +13,6 @@ import { which } from "../util/which"
 import { archiveFolder, archiveName, archiveURL, PLATFORM, type Config } from "./release"
 
 export namespace RipgrepBinary {
-  // The archives are about 2 MB, so this only trips on a stalled connection.
   const DOWNLOAD_TIMEOUT = "2 minutes"
 
   interface Interface {
@@ -71,8 +70,6 @@ export namespace RipgrepBinary {
         if (!(yield* fs.isFile(extracted))) throw new Error(`ripgrep archive did not contain executable: ${extracted}`)
 
         if (process.platform !== "win32") yield* fs.chmod(extracted, 0o755)
-        // The temp folder sits beside the target, so this rename is atomic: an existing file at the
-        // target is always complete, which is why the lookup below can trust it.
         yield* fs.rename(extracted, target)
       }, Effect.scoped)
 
@@ -81,7 +78,6 @@ export namespace RipgrepBinary {
           const system = yield* Effect.sync(() => which(process.platform === "win32" ? "rg.exe" : "rg"))
           if (system && (yield* fs.isFile(system).pipe(Effect.orDie))) return system
 
-          // The desktop app ships its own copy, so search works without a download.
           const bundled = process.env.TENON_RIPGREP_PATH
           if (bundled && (yield* fs.isFile(bundled).pipe(Effect.orDie))) return bundled
 
@@ -115,7 +111,6 @@ export namespace RipgrepBinary {
         Duration.infinity,
       )
 
-      // Concurrent callers share one attempt; a failed one is forgotten, so the next search retries.
       return Service.of({ filepath: filepath.pipe(Effect.onError(() => invalidate)) })
     }),
   )

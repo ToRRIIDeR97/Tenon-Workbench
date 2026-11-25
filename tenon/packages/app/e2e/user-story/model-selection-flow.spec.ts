@@ -71,20 +71,17 @@ test("opens a project from the sidebar, connects OpenCode Go, and selects its mo
     localStorage.setItem("tenon.global.dat:server", JSON.stringify({ projects: { local: [] } }))
   })
 
-  // Navigation is sidebar-only: open the folder from the workspace menu, then start a new-thread draft.
   await page.goto("/")
   await expectAppVisible(page.getByRole("button", { name: "Switch workspace" }))
   await openFolderFromWorkspaceMenu(page)
   await page.locator("[data-directory-path]").click()
 
-  // The opened folder becomes the selected workspace; its General group offers the new-thread draft.
   const brain = page.locator('[data-sidebar-group="__brain__"]')
   await expect(brain).toBeVisible()
   await brain.getByRole("button", { name: "General" }).click()
   await brain.getByRole("button", { name: "New thread", exact: true }).click()
   await expectAppVisible(page.locator('[data-component="prompt-input-v2"]'))
 
-  // The generic model picker lists connected models; OpenCode Go is not connected yet.
   const modelControl = page.locator('[data-action="prompt-model"]')
   await modelControl.click()
   await expect(page.locator('[data-option-key="opencode:free-model"]')).toHaveAttribute("data-selected-model", "true")

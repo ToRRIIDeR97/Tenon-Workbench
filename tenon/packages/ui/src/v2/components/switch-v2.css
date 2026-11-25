@@ -1,9 +1,3 @@
-/*
- * Material 3 switch: a 52x32 pill track. Off, the track has a 1.5px control edge and the thumb is a
- * 16px muted dot; on, the track fills with the accent and the thumb grows to a 24px white
- * disc; while pressed the thumb grows to 28px. `data-size="small"` is the compact
- * 44x26 version for dense popover rows.
- */
 [data-component="switch"] {
   --switch-track-width: 52px;
   --switch-track-height: 32px;
@@ -46,7 +40,6 @@
       opacity var(--v2-duration-short) var(--v2-ease-standard);
   }
 
-  /* The thumb is centred on a fixed point in each state, so it grows in place. */
   [data-slot="switch-thumb"] {
     --switch-thumb: var(--switch-thumb-off);
     --switch-thumb-center: calc(var(--switch-track-height) / 2);
@@ -139,7 +132,6 @@
     cursor: not-allowed;
   }
 
-  /* Disabled keeps the track's shape; edge, thumb and fill drop to the disabled grey. */
   &[data-disabled] [data-slot="switch-control"] {
     box-shadow: inset 0 0 0 1.5px var(--v2-text-text-disabled);
   }

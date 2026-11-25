@@ -24,11 +24,6 @@ const scope = Effect.fnUntraced(function* () {
   return { root, svc }
 })
 
-// remap(root) rewrites any path under Global.Path.data to live under `root` instead.
-// Used by remappedFs to build an FSUtil that Storage thinks is the real global
-// data dir but actually targets a tmp dir — letting migration tests stage legacy layouts.
-// NOTE: only the 6 methods below are intercepted. If Storage starts using a different
-// FSUtil method that touches Global.Path.data, add it here.
 function remap(root: string, file: string) {
   if (file === Global.Path.data) return root
   if (file.startsWith(Global.Path.data + path.sep)) return path.join(root, path.relative(Global.Path.data, file))
@@ -54,9 +49,6 @@ function remappedFs(root: string) {
   ).pipe(Layer.provide(LayerNode.compile(FSUtil.node)))
 }
 
-// Layer.fresh forces a new Storage instance — without it, Effect's in-test layer cache
-// returns the outer testEffect's Storage (which uses the real FSUtil), not a new
-// one built on top of remappedFs.
 const remappedStorage = (root: string) =>
   Layer.fresh(LayerNode.compile(Storage.node, [[FSUtil.node, remappedFs(root)]]))
 

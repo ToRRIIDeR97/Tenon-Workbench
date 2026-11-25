@@ -32,8 +32,6 @@ export function registeredAdapters(projectID: ProjectV2.ID): [string, WorkspaceA
   return [...adapters.entries()]
 }
 
-// Plugins can be loaded per-project so we need to scope them. If you
-// want to install a global one pass `ProjectV2.ID.global`
 export function registerAdapter(projectID: ProjectV2.ID, type: string, adapter: WorkspaceAdapter) {
   const adapters = state.get(projectID) ?? new Map<string, WorkspaceAdapter>()
   adapters.set(type, adapter)

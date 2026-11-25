@@ -1,9 +1,3 @@
-/**
- * Model-facing V2 file-write leaf. Relative paths resolve within the active
- * Location. Absolute paths inside that Location are accepted, while explicit
- * absolute external paths retain mutation capability through a separate
- * external_directory approval before edit approval.
- */
 export * as WriteTool from "./write"
 
 import { ToolFailure } from "@tenon/llm"
@@ -18,7 +12,6 @@ import { Tools } from "./tools"
 
 export const name = "write"
 
-// TODO: Revisit whether model-facing mutation schemas should prefer absolute `filePath` naming for trained-in compatibility after evaluating model behavior.
 export const Input = Schema.Struct({
   path: Schema.String.annotate({
     description:
@@ -37,12 +30,6 @@ export type Output = typeof Output.Type
 
 export const toModelOutput = (output: Output) =>
   `${output.existed ? "Wrote" : "Created"} file successfully: ${output.resource}`
-
-/** Deferred V2 write UX integrations remain visible at the model-facing seam. */
-// TODO: Add formatter integration after V2 formatter runtime exists.
-// TODO: Publish watcher/file-edit events after V2 watcher integration exists.
-// TODO: Add snapshots / undo after design exists.
-// TODO: Add LSP notification and diagnostics after V2 LSP runtime exists.
 
 const layer = Layer.effectDiscard(
   Effect.gen(function* () {

@@ -13,8 +13,6 @@ export const controlPlaneHandlers = HttpApiBuilder.group(RootHttpApi, "controlPl
     const moveSession = Effect.fn("ControlPlaneHttpApi.moveSession")(function* (ctx: {
       payload: typeof MoveSessionPayload.Type
     }) {
-      // A running agent keeps writing in the source while its changes are captured and discarded.
-      // Checked here, against the server's own Session service, which owns the running sessions.
       if ((yield* sessions.active).has(ctx.payload.sessionID))
         return yield* new ApiMoveSessionError({
           name: "MoveSessionError",

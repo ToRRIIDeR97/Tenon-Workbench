@@ -36,7 +36,6 @@ export function create(prefix: string, direction: "descending" | "ascending", ti
   return prefix + "_" + createIdentifier(direction === "descending", timestamp)
 }
 
-/** Extract timestamp from an ascending ID. Does not work with descending IDs. */
 export function timestamp(id: string): number {
   const prefix = id.split("_")[0]
   const hex = id.slice(prefix.length + 1, prefix.length + 13)

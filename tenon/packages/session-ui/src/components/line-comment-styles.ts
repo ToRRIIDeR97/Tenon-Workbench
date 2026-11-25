@@ -270,8 +270,6 @@ export const lineCommentStyles = `
   pointer-events: none;
 }
 
-/* The comment editor and a popover opened from a comment button fade and rise in (medium +
-   emphasized-decelerate); saved comments shown inline with the file appear as they are. */
 [data-component="line-comment"][data-variant="editor"] [data-slot="line-comment-popover"],
 [data-component="line-comment"] [data-slot="line-comment-popover"]:not([data-inline-body]) {
   animation: line-comment-enter var(--v2-duration-medium) var(--v2-ease-emphasized-decelerate) both;

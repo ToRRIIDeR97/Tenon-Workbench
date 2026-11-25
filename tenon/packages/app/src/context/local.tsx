@@ -149,7 +149,6 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       setStore("promoting", undefined)
     })
 
-    // Implicit picks skip models turned off in Settings › Models; an explicit choice is kept as is.
     const pickable = (model: ModelKey) => validModel(model) && models.visible(model)
 
     const configuredModel = () => {
@@ -171,7 +170,6 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
     }
 
     const fallback = createMemo<ModelKey | undefined>(
-      // Every model is turned off: keep the composer usable rather than selecting nothing.
       () => configuredModel() ?? recentModel() ?? defaultModel(true) ?? defaultModel(false),
     )
 

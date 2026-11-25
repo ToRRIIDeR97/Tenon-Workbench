@@ -145,7 +145,6 @@ export async function bootstrapGlobal(input: {
   serverSDK: OpencodeClient
   serverAPI: CatalogApi & { readonly project: ProjectApi }
   protocol?: Promise<ServerProtocol>
-  // Whether the server answers the V1 instance routes; see `servesLegacyRoutes`.
   legacyRoutes?: Promise<boolean>
   scope: ServerScope
   requestFailedTitle: string
@@ -167,12 +166,6 @@ export async function bootstrapGlobal(input: {
         .then((data) => input.setGlobalStore("project", data)),
   ]
   await runAll(slow)
-  // showErrors({
-  //   errors: errors(),
-  //   title: input.requestFailedTitle,
-  //   translate: input.translate,
-  //   formatMoreCount: input.formatMoreCount,
-  // })
 }
 
 function groupBySession<T extends { id: string; sessionID: string }>(input: T[]) {
@@ -293,7 +286,6 @@ export const loadCommands = (
           agent: command.agent,
           model: providerID && id ? { providerID, id } : undefined,
           subtask: command.subtask,
-          // source: command.source === "skill" ? undefined : command.source,
         }
       })
     }
@@ -361,7 +353,6 @@ export async function bootstrapDirectory(input: {
   queryClient: QueryClient
   session?: ServerSession
   protocol?: Promise<ServerProtocol>
-  // Whether the server answers the V1 instance routes; see `servesLegacyRoutes`.
   legacyRoutes?: Promise<boolean>
 }) {
   const loading = input.store.status !== "complete"

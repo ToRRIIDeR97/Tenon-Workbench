@@ -315,8 +315,6 @@ test.describe("smoke: session timeline", () => {
     await openTargetAtHistoryStart(page)
   })
 
-  // Regression: the first expanded step to render a file view used to load the lazy viewer under the
-  // page-level Suspense, which detached the timeline for a frame and snapped it back to the bottom.
   test("expands an older turn's steps without jumping to the bottom", async ({ page }) => {
     await openTargetAtHistoryStart(page)
     await page
