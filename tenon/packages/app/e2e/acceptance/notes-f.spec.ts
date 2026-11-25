@@ -114,8 +114,9 @@ test("AC-4.1 the landing lists Projects and General pages, with no page tree", a
   await expect(page.locator('[data-project-row="project_01ACME"]')).toContainText("Acme API")
   await expect(page.getByRole("region", { name: "General" }).getByRole("button", { name: /Ideas/ })).toBeVisible()
   await expect(page.getByRole("tree")).toHaveCount(0)
-  await expect(page.locator(`[data-project-detail="${project.project.id}"]`).getByRole("checkbox")).toHaveCount(2)
-  await expect(page.getByRole("checkbox")).toHaveCount(2)
+  await expect(page.locator('[data-project-row="project_01ACME"] [data-project-cover]')).toBeVisible()
+  await page.locator('[data-project-row="project_01ACME"]').click()
+  await expect(page).toHaveURL(/\/projects\?project=project_01ACME$/)
 })
 
 test("AC-4.2 a Project is one page: its sections in one column and no tabs; an older tab= link scrolls to its section", async ({

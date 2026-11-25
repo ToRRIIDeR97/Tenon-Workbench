@@ -401,3 +401,19 @@
 :root[data-color-scheme="dark"] [data-component="composer-box"] textarea::placeholder {
   font-weight: 500;
 }
+
+::view-transition-group(project-cover) {
+  animation-duration: var(--v2-duration-long);
+  animation-timing-function: var(--v2-ease-emphasized-decelerate);
+}
+
+::view-transition-old(project-cover),
+::view-transition-new(project-cover) {
+  height: 100%;
+  object-fit: cover;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--v2-duration-medium);
+}

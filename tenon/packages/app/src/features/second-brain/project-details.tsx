@@ -22,7 +22,6 @@ import { pathKey } from "@/utils/path-key"
 import { showToast } from "@/utils/toast"
 import {
   createProject,
-  readProjectCover,
   removeProjectCover,
   SecondBrainRequestError,
   updateProject,
@@ -476,7 +475,6 @@ function useProjectActions(directory: () => string) {
       target = directory(),
     ) => updateProject(client(target), project.id, { expectedUpdatedAt: project.updatedAt, ...patch }).then(refresh),
     cover: {
-      read: (project: ProjectRecord) => readProjectCover(client(directory()), project.id),
       write: (project: ProjectRecord, dataUrl: string) =>
         writeProjectCover(client(directory()), project.id, dataUrl).then(refresh),
       remove: (project: ProjectRecord) => removeProjectCover(client(directory()), project.id).then(refresh),

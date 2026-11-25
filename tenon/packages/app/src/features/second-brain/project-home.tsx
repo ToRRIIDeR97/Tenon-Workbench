@@ -24,12 +24,19 @@ import type {
   StoryEntry,
 } from "./project-home-model"
 
-export function ProjectCover(props: { bleed?: boolean; class?: string; image?: string; children?: JSX.Element }) {
+export function ProjectCover(props: {
+  bleed?: boolean
+  class?: string
+  image?: string
+  morph?: string
+  children?: JSX.Element
+}) {
   const id = createUniqueId()
   return (
     <div
       data-project-cover={props.bleed ? "bleed" : "band"}
       data-project-cover-image={props.image ? "" : undefined}
+      style={props.morph ? { "view-transition-name": props.morph } : undefined}
       classList={{
         "relative overflow-hidden bg-v2-background-bg-layer-01 animate-enter": true,
         "h-[132px] rounded-[20px]": !props.bleed,

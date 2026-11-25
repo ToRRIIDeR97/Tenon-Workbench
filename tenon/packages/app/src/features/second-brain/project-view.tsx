@@ -6,11 +6,12 @@ import { Icon } from "@tenon/ui/v2/icon"
 import { TooltipV2 } from "@tenon/ui/v2/tooltip-v2"
 import { RevealShow } from "@tenon/ui/v2/reveal"
 import { SegmentedControlItemV2, SegmentedControlV2 } from "@tenon/ui/v2/segmented-control-v2"
-import { createEffect, createMemo, createResource, createSignal, For, on, onCleanup, Show } from "solid-js"
+import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLanguage } from "@/context/language"
 import { showToast } from "@/utils/toast"
 import { coverDataUrl } from "./project-cover-image"
+import { coverMorphing, PROJECT_COVER_MORPH, useProjectCoverImage } from "./project-cover-cache"
 import type { LogEntry, ProjectRecord, Timeline, TimelineItem, VaultPageInfo } from "./client"
 import { milestoneGroups, timelineCounts, timelineLayout } from "./notes-timeline"
 import { DateChip, KindSwitch } from "./project-controls"
@@ -73,14 +74,11 @@ export function ProjectView(props: {
   const language = useLanguage()
   const card = useProjectCard(props)
   const [coverState, setCoverState] = createStore({ busy: false })
-  const [coverImage, coverImageActions] = createResource(
-    () => (props.project.cover ? `${props.project.id}\n${props.project.cover}` : undefined),
-    () =>
-      card.cover
-        .read(props.project)
-        .then((result) => result.dataUrl ?? undefined)
-        .catch(() => undefined),
+  const cover = useProjectCoverImage(
+    () => props.directory,
+    () => props.project,
   )
+  const morph = () => (coverMorphing() === props.project.id ? PROJECT_COVER_MORPH : undefined)
   const coverFailed = () => showToast({ variant: "error", title: language.t("secondBrain.project.cover.failed") })
   const chooseCover = async (file: File) => {
     setCoverState("busy", true)
@@ -88,14 +86,14 @@ export function ProjectView(props: {
     const saved = dataUrl ? await card.cover.write(props.project, dataUrl).catch(() => undefined) : undefined
     setCoverState("busy", false)
     if (!saved || !dataUrl) return coverFailed()
-    coverImageActions.mutate(dataUrl)
+    cover.saved(saved, dataUrl)
   }
   const removeCover = async () => {
     setCoverState("busy", true)
     const removed = await card.cover.remove(props.project).catch(() => undefined)
     setCoverState("busy", false)
     if (!removed) return coverFailed()
-    coverImageActions.mutate(undefined)
+    cover.removed()
   }
   let coverInput: HTMLInputElement | undefined
   const coverControls = () => (
@@ -251,12 +249,12 @@ export function ProjectView(props: {
 
   return (
     <div data-project-page={props.project.id} class="@container w-full">
-      <ProjectCover bleed class="hidden @min-[1400px]:block" image={coverImage.latest}>
+      <ProjectCover bleed class="hidden @min-[1400px]:block" image={cover.image()} morph={morph()}>
         {coverControls()}
       </ProjectCover>
       <div class="mx-auto grid w-full max-w-[1340px] grid-cols-1 gap-x-10 gap-y-8 px-6 pb-12 pt-6 sm:px-10 @min-[960px]:grid-cols-[120px_minmax(0,1100px)] @min-[960px]:justify-center @min-[1400px]:max-w-[1680px] @min-[1400px]:grid-cols-1 @min-[1400px]:px-14">
         <div class="flex min-w-0 flex-col gap-8 @min-[960px]:col-start-2 @min-[1400px]:col-start-1">
-          <ProjectCover class="@min-[1400px]:hidden" image={coverImage.latest}>
+          <ProjectCover class="@min-[1400px]:hidden" image={cover.image()} morph={morph()}>
             {coverControls()}
           </ProjectCover>
           <header class="-mt-[68px] flex flex-col gap-2 px-1 animate-enter @min-[1400px]:-mt-[60px]">

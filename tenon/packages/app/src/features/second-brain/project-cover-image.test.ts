@@ -21,6 +21,7 @@ describe("Project cover image", () => {
     expect(view).toContain("data-project-cover-menu")
     expect(view).toContain("card.cover.write(")
     const page = readFileSync(join(import.meta.dir, "../../pages/projects.tsx"), "utf8")
-    expect(page).toContain('onBack={() => navigate("/projects")}')
+    expect(page).toContain('onBack={() => morphCover(item().id, () => navigate("/projects"))}')
+    expect(page).toContain("<ProjectCoverCard")
   })
 })

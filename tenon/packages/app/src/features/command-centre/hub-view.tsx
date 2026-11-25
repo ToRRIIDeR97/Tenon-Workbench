@@ -17,6 +17,7 @@ import { useServerSync } from "@/context/server-sync"
 import type { WaitingRequest } from "@/features/command-centre/agent-hands-view"
 import { lastReplyText, useCommandCentre } from "@/features/command-centre/command-centre"
 import {
+  hubAtWork,
   hubCards,
   modelLabel,
   crewGroups,
@@ -24,6 +25,7 @@ import {
   sessionHarness,
   sessionOrigin,
   todoStep,
+  type AtWorkAgent,
   type CrewAgent,
   type HubCard,
   type HubThread,
@@ -309,7 +311,7 @@ export function CommandHub(props: {
     const who = () => sessionHarness(lead()?.session, Harness.OpenCode)
     const harness = () => who().harness
     return (
-      <section data-component="hub-band" class={`${CARD} flex flex-wrap items-center gap-3 px-4 py-3`}>
+      <section data-component="hub-band" class="flex flex-wrap items-center gap-3 px-1 py-1">
         <Who
           harness={harness()}
           name={language.t("secondBrain.commandCentre.hub.lead")}
@@ -429,99 +431,124 @@ export function CommandHub(props: {
     </Show>
   )
 
-  const ProjectCard = (item: { card: HubCard; index: number }) => {
-    const shown = () => item.card.harnesses.slice(0, 4)
-    return (
+  const atWork = createMemo(() =>
+    hubAtWork({
+      projects: cards().map((item) => ({ id: item.id, name: item.name })),
+      threads: threads(),
+      instances: catalogue(),
+    }),
+  )
+
+  const AtWorkRow = (item: { agent: AtWorkAgent; index: number }) => (
+    <li>
       <button
         type="button"
-        data-hub-project={item.card.id}
-        class={`${CARD} animate-enter flex min-w-0 flex-col gap-3 px-[18px] py-4 text-left transition-colors duration-short ease-standard hover:bg-v2-background-bg-layer-02 motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-v2-border-border-focus`}
+        data-hub-agent={item.agent.id}
+        class="animate-enter grid w-full min-w-0 grid-cols-[28px_minmax(0,1fr)] items-center gap-x-3 gap-y-1.5 rounded-[12px] px-2 py-2.5 text-left transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-v2-border-border-focus @[760px]:grid-cols-[28px_minmax(0,1fr)_220px]"
         style={{ "animation-delay": `${Math.min(item.index, 8) * 40}ms` }}
-        onClick={() => props.selectProject(item.card.id)}
+        onClick={() => props.open(item.agent.id)}
       >
-        <div class="flex w-full items-start gap-2">
-          <div class="flex min-w-0 flex-1 flex-col">
-            <span class="truncate type-toolbar-title [font-weight:600] text-v2-text-text-base">{item.card.name}</span>
-            <span class="truncate type-meta text-v2-text-text-muted">{item.card.outcome}</span>
-          </div>
-          <StateLabel state={item.card.state} />
-        </div>
-        <div class="flex w-full flex-col gap-1.5">
-          <div class="flex items-baseline gap-2">
-            <span class="min-w-0 flex-1 truncate type-body text-v2-text-text-base">
-              {item.card.milestone ?? language.t("secondBrain.commandCentre.hub.noMilestone")}
+        <span class="flex size-7 items-center justify-center rounded-[8px] bg-v2-background-bg-layer-02">
+          {logo(item.agent.harness)}
+        </span>
+        <span class="flex min-w-0 flex-col">
+          <span class="flex min-w-0 items-baseline gap-2">
+            <span class="shrink-0 type-row-title text-v2-text-text-base">{harnessName(item.agent.harness)}</span>
+            <span class="truncate type-meta text-v2-text-text-muted">
+              {[item.agent.model, item.agent.project.name].filter(Boolean).join(" · ")}
             </span>
-            <span class="type-meta tabular-nums text-v2-text-text-muted">{item.card.progress}%</span>
-          </div>
-          <Bar value={item.card.progress} />
-        </div>
-        <div class="flex min-h-6 w-full items-center gap-2">
-          <Show
-            when={shown().length > 0}
-            fallback={
-              <span class="type-meta text-v2-text-text-faint">
-                {language.t("secondBrain.commandCentre.hub.noAgents")}
-              </span>
-            }
-          >
-            <span class="flex items-center" role="img" aria-label={shown().map(harnessName).join(", ")}>
-              <For each={shown()}>
-                {(harness, index) => (
-                  <span
-                    class="flex size-6 items-center justify-center rounded-full bg-v2-background-bg-layer-02 shadow-[0_0_0_2px_var(--v2-background-bg-layer-01)]"
-                    style={{ "margin-left": index() ? "-6px" : "0" }}
-                    title={harnessName(harness)}
-                  >
-                    {logo(harness, "size-3.5")}
-                  </span>
-                )}
-              </For>
-            </span>
-          </Show>
-          <span class="ml-auto type-meta text-v2-text-text-muted">
-            {[
-              item.card.working
-                ? language.plural("secondBrain.commandCentre.hub.working", item.card.working, {
-                    count: item.card.working,
-                  })
-                : "",
-              item.card.needs
-                ? language.plural("secondBrain.commandCentre.hub.needsCount", item.card.needs, {
-                    count: item.card.needs,
-                  })
-                : "",
-            ]
-              .filter(Boolean)
-              .join(" · ")}
           </span>
-        </div>
-        <div class="flex w-full min-w-0 items-center gap-2 pt-2.5 shadow-[inset_0_1px_0_var(--v2-border-border-muted)]">
+          <span class="truncate type-meta text-v2-text-text-muted">{item.agent.title}</span>
+        </span>
+        <span class="col-start-2 flex min-w-0 flex-col gap-1.5 @[760px]:col-start-3">
           <Show
-            when={item.card.now}
+            when={item.agent.state === "needs"}
             fallback={
-              <span class="type-meta text-v2-text-text-faint">
-                {language.t("secondBrain.commandCentre.hub.nothingYet")}
+              <span class="flex min-w-0 items-center gap-2 type-meta text-v2-text-text-base">
+                <Dot />
+                <span class="truncate">
+                  {item.agent.step
+                    ? language.t("secondBrain.commandCentre.hub.stepOf", {
+                        text: item.agent.step.text,
+                        n: item.agent.step.n,
+                        of: item.agent.step.of,
+                      })
+                    : language.t("secondBrain.commandCentre.hub.state.running")}
+                </span>
               </span>
             }
           >
-            {(now) => (
-              <>
-                {logo(now().harness, "size-3.5")}
-                <span class="min-w-0 flex-1 truncate type-meta text-v2-text-text-base">{now().title}</span>
-                <span class="shrink-0 type-meta text-v2-text-text-faint">{ago(now().updated)}</span>
-              </>
-            )}
+            <span class="flex min-w-0 items-center gap-2 type-meta text-v2-state-fg-warning">
+              <Icon name="warning" size="small" class="shrink-0" />
+              <span class="truncate">{language.t("secondBrain.commandCentre.hub.state.needs")}</span>
+            </span>
           </Show>
-        </div>
+          <Bar
+            thin
+            value={item.agent.step ? (Math.max(0, item.agent.step.n - 1) / Math.max(1, item.agent.step.of)) * 100 : 0}
+          />
+        </span>
       </button>
+    </li>
+  )
+
+  const ProjectRow = (item: { card: HubCard; index: number }) => {
+    const shown = () => item.card.harnesses.slice(0, 4)
+    return (
+      <li class="shadow-[inset_0_-1px_0_var(--v2-border-border-muted)] last:shadow-none">
+        <button
+          type="button"
+          data-hub-project={item.card.id}
+          class="animate-enter grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 rounded-[10px] px-2 py-2.5 text-left transition-colors duration-short ease-standard hover:bg-v2-overlay-simple-overlay-hover motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-v2-border-border-focus @[760px]:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto_120px_44px]"
+          style={{ "animation-delay": `${Math.min(item.index, 8) * 40}ms` }}
+          onClick={() => props.selectProject(item.card.id)}
+        >
+          <span class="flex min-w-0 flex-col">
+            <span class="truncate type-row-title text-v2-text-text-base">{item.card.name}</span>
+            <span class="truncate type-meta text-v2-text-text-muted">{item.card.outcome}</span>
+          </span>
+          <span class="hidden min-w-0 truncate type-meta text-v2-text-text-muted @[760px]:block">
+            {item.card.milestone
+              ? language.t("secondBrain.commandCentre.hub.next", { milestone: item.card.milestone })
+              : ""}
+          </span>
+          <span class="hidden items-center @[760px]:flex" role="img" aria-label={shown().map(harnessName).join(", ")}>
+            <For each={shown()}>
+              {(harness, index) => (
+                <span
+                  class="flex size-6 items-center justify-center rounded-full bg-v2-background-bg-layer-02 shadow-[0_0_0_2px_var(--v2-background-bg-base)]"
+                  style={{ "margin-left": index() ? "-6px" : "0" }}
+                  title={harnessName(harness)}
+                >
+                  {logo(harness, "size-3.5")}
+                </span>
+              )}
+            </For>
+          </span>
+          <span class="flex justify-end @[760px]:justify-start">
+            <StateLabel state={item.card.state} />
+          </span>
+          <span class="hidden text-right type-meta tabular-nums text-v2-text-text-muted @[760px]:block">
+            {item.card.progress}%
+          </span>
+        </button>
+      </li>
     )
   }
 
   const Hub = () => (
-    <div data-component="command-hub" class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-3 pb-28 pt-1">
+    <div data-component="command-hub" class="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-3 pb-28 pt-1">
       <Band />
       <Needs />
-      <section class="flex flex-col gap-2">
+      <Show when={atWork().length > 0}>
+        <section data-component="hub-at-work" class="flex flex-col gap-1">
+          <Caption label={language.t("secondBrain.commandCentre.hub.atWork")} count={atWork().length} />
+          <ul class="flex flex-col">
+            <For each={atWork()}>{(agent, index) => <AtWorkRow agent={agent} index={index()} />}</For>
+          </ul>
+        </section>
+      </Show>
+      <section class="flex flex-col gap-1">
         <Caption label={language.t("secondBrain.commandCentre.hub.projects")} count={cards().length} />
         <Show
           when={cards().length > 0}
@@ -529,13 +556,13 @@ export function CommandHub(props: {
             <p class="px-1 type-body text-v2-text-text-muted">{language.t("secondBrain.commandCentre.hub.empty")}</p>
           }
         >
-          <div class="grid grid-cols-1 gap-3 @[760px]:grid-cols-2 @[1180px]:grid-cols-3">
+          <ul class="flex flex-col">
             <For each={cardIDs()}>
               {(id, index) => (
-                <Show when={cardByID().get(id)}>{(item) => <ProjectCard card={item()} index={index()} />}</Show>
+                <Show when={cardByID().get(id)}>{(item) => <ProjectRow card={item()} index={index()} />}</Show>
               )}
             </For>
-          </div>
+          </ul>
         </Show>
       </section>
     </div>
